@@ -253,23 +253,61 @@ const fotoEntrada = {"25X08414": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAAA
 // Firebase Auth + reglas restringidas sin tocar el resto de la app.
 // ════════════════════════════════════════════════════════════════
 const CLOUD_DB_URL = 'https://la-sala-app-default-rtdb.europe-west1.firebasedatabase.app';
+// A petición de Paula (2026-08-03), tras perder trabajo real de un técnico
+// que estuvo marcando checks justo cuando Netlify se cayó: get/set nunca
+// avisaban de un fallo, se tragaban cualquier error de red en silencio y el
+// usuario creía que se había guardado cuando no era así. Ahora cada
+// operación reintenta 3 veces (con espera creciente — un PUT a esta misma
+// clave es idempotente, reintentar no duplica nada) y, si aun así falla,
+// se muestra un aviso rojo fijo arriba de la pantalla que NO desaparece
+// solo — obliga a fijarse, a diferencia del toast verde normal que se
+// autoescucha en 3s y podría pasar desapercibido para algo tan importante
+// como "no se ha guardado tu trabajo".
+function avisarFalloGuardado(){
+  let b = document.getElementById('aviso-fallo-guardado');
+  if(!b){
+    b = document.createElement('div');
+    b.id = 'aviso-fallo-guardado';
+    b.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#c62828;color:#fff;padding:12px 16px;font-size:13px;font-weight:800;z-index:99999;text-align:center;box-shadow:0 2px 10px rgba(0,0,0,.3)';
+    b.innerHTML = '⚠ No se ha podido guardar el último cambio — revisa tu conexión a internet e inténtalo de nuevo. <button onclick="location.reload()" style="margin-left:10px;padding:4px 10px;background:#fff;color:#c62828;border:none;border-radius:6px;font-weight:800;cursor:pointer">Recargar</button>';
+    document.body.appendChild(b);
+  }
+  b.style.display = 'block';
+}
+function ocultarAvisoFalloGuardado(){
+  const b = document.getElementById('aviso-fallo-guardado');
+  if(b) b.style.display = 'none';
+}
+async function fetchConReintentos(url, opciones){
+  for(let intento=1; intento<=3; intento++){
+    try{
+      const res = await fetch(url, opciones);
+      if(!res.ok) throw new Error('HTTP '+res.status);
+      ocultarAvisoFalloGuardado();
+      return res;
+    }catch(e){
+      if(intento===3){ avisarFalloGuardado(); throw e; }
+      await new Promise(r=>setTimeout(r, 700*intento));
+    }
+  }
+}
 window.storage = {
   async get(key){
     try{
-      const res = await fetch(`${CLOUD_DB_URL}/${encodeURIComponent(key)}.json`);
-      if(!res.ok) return null;
+      const res = await fetchConReintentos(`${CLOUD_DB_URL}/${encodeURIComponent(key)}.json`);
       const val = await res.json();
       return val!=null ? {value: val} : null;
     }catch(e){ return null; }
   },
   async set(key, value){
     try{
-      await fetch(`${CLOUD_DB_URL}/${encodeURIComponent(key)}.json`, {
+      await fetchConReintentos(`${CLOUD_DB_URL}/${encodeURIComponent(key)}.json`, {
         method:'PUT',
         headers:{'Content-Type':'application/json'},
         body: JSON.stringify(value)
       });
-    }catch(e){}
+      return true;
+    }catch(e){ return false; }
   }
 };
 
