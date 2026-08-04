@@ -3493,8 +3493,9 @@ async function aplicarSanidadEnfermedad(id, key, valor){
   // esperar a eso hacía que el check pareciera "no cambiar de color" aunque el
   // cambio ya estaba aplicado en memoria — ahora se ve al instante siempre.
   renderControlContent(document.getElementById('control-overlay'));
+  const qid = encolarAccionOffline('aplicarSanidadEnfermedad', [id, key, valor]);
   const ok = await persistControlChecksData();
-  if(!ok) encolarAccionOffline('aplicarSanidadEnfermedad', [id, key, valor]);
+  if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
 }
 // Ficha ampliada de una foto de Control — a petición de Paula (2026-08-01,
 // "debe poder abrirse en la pantalla") en vez de window.open (bloqueado por
@@ -3553,11 +3554,26 @@ function leerColaOffline(){
 function guardarColaOffline(cola){
   try{ localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(cola)); }catch(e){}
 }
+// A petición de Paula (2026-08-04): "¿no puedes hacer que aunque se cierre la
+// app se guarden?" — antes, la acción solo se guardaba en la cola local
+// DESPUÉS de que el intento de red hubiera terminado y fallado; si el móvil
+// cerraba la app del todo mientras ese intento aún estaba en curso (esperando
+// los reintentos), el cambio no llegaba a encolarse y se perdía sin más. Ahora
+// cada acción se escribe en la cola INMEDIATAMENTE (antes de intentar la red),
+// y se retira de la cola solo si el guardado tiene éxito — así, aunque la app
+// se cierre a medio intento, la acción ya está en localStorage y se reproduce
+// la próxima vez que se abra (ver procesarColaOffline). No se avisa con el
+// banner naranja en este punto (solo cuando el guardado realmente falla) para
+// no mostrarlo de forma optimista en cada guardado normal con conexión.
 function encolarAccionOffline(fn, args){
   const cola = leerColaOffline();
-  cola.push({fn, args, t: new Date().toLocaleString('es-ES')});
+  const qid = 'q_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
+  cola.push({qid, fn, args, t: new Date().toLocaleString('es-ES')});
   guardarColaOffline(cola);
-  avisarGuardadoLocalPendiente(cola.length);
+  return qid;
+}
+function desencolarAccion(qid){
+  guardarColaOffline(leerColaOffline().filter(a=>a.qid!==qid));
 }
 function avisarGuardadoLocalPendiente(n){
   let b = document.getElementById('aviso-fallo-guardado');
@@ -4428,8 +4444,9 @@ async function aplicarNuevaLineaControlCarga(entry){
   if(!controlChecksData.find(x=>x.id===entry.id)) controlChecksData.push(entry);
   showToast('✓ Línea añadida');
   renderControlContent(document.getElementById('control-overlay'));
+  const qid = encolarAccionOffline('aplicarNuevaLineaControlCarga', [entry]);
   const ok = await persistControlChecksData();
-  if(!ok) encolarAccionOffline('aplicarNuevaLineaControlCarga', [entry]);
+  if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
   return ok;
 }
 // Opciones de <select> de día para mover una línea de Control a otra fecha
@@ -4515,8 +4532,9 @@ async function aplicarEditarControlCargaCheck(id, dia, cliente, partida, varieda
   document.getElementById('control-editar-carga-overlay').style.display = 'none';
   showToast(diaCambio ? `✓ Línea actualizada y movida a ${riegoDiaLabelCorto(dia)}` : '✓ Línea actualizada');
   renderControlContent(document.getElementById('control-overlay'));
+  const qid = encolarAccionOffline('aplicarEditarControlCargaCheck', [id, dia, cliente, partida, variedad, numBandejas, invernadero, diaCambio]);
   const ok = await persistControlChecksData();
-  if(!ok) encolarAccionOffline('aplicarEditarControlCargaCheck', [id, dia, cliente, partida, variedad, numBandejas, invernadero, diaCambio]);
+  if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
   return ok;
 }
 // A petición de Paula (2026-07-31): la foto debe quedar SIEMPRE asociada a
@@ -4546,8 +4564,9 @@ async function aplicarFotoControl(id, fotoB64){
   c.fotoB64 = fotoB64;
   showToast('✓ Foto guardada');
   renderControlContent(document.getElementById('control-overlay'));
+  const qid = encolarAccionOffline('aplicarFotoControl', [id, fotoB64]);
   const ok = await persistControlChecksData();
-  if(!ok) encolarAccionOffline('aplicarFotoControl', [id, fotoB64]);
+  if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
   return ok;
 }
 // A petición de Paula (2026-08-03): "al subir una foto me aparece error".
@@ -4672,8 +4691,9 @@ async function aplicarAsignarCalleControl(id, invId, calleDesde, calleHasta){
   document.getElementById('control-calle-overlay').style.display = 'none';
   showToast('✓ Calle asignada');
   renderControlContent(document.getElementById('control-overlay'));
+  const qid = encolarAccionOffline('aplicarAsignarCalleControl', [id, invId, calleDesde, calleHasta]);
   const ok = await persistControlChecksData();
-  if(!ok) encolarAccionOffline('aplicarAsignarCalleControl', [id, invId, calleDesde, calleHasta]);
+  if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
   return ok;
 }
 function mostrarEditarControlCheck(id){
@@ -4725,8 +4745,9 @@ async function aplicarEditarControlCheck(id, dia, clienteVariedad, partida, numB
   document.getElementById('control-editar-overlay').style.display = 'none';
   showToast(diaCambio ? `✓ Línea actualizada y movida a ${riegoDiaLabelCorto(dia)}` : '✓ Línea actualizada');
   renderControlContent(document.getElementById('control-overlay'));
+  const qid = encolarAccionOffline('aplicarEditarControlCheck', [id, dia, clienteVariedad, partida, numBandejas, diaCambio]);
   const ok = await persistControlChecksData();
-  if(!ok) encolarAccionOffline('aplicarEditarControlCheck', [id, dia, clienteVariedad, partida, numBandejas, diaCambio]);
+  if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
   return ok;
 }
 async function toggleControlCheckOpcion(id, categoriaKey, opcionKey){
@@ -4743,15 +4764,17 @@ async function aplicarControlCheckOpcion(id, categoriaKey, opcionKey, valor){
   c[categoriaKey][opcionKey] = valor;
   // Repintar ANTES de esperar la red — ver comentario igual en aplicarSanidadEnfermedad.
   renderControlContent(document.getElementById('control-overlay'));
+  const qid = encolarAccionOffline('aplicarControlCheckOpcion', [id, categoriaKey, opcionKey, valor]);
   const ok = await persistControlChecksData();
-  if(!ok) encolarAccionOffline('aplicarControlCheckOpcion', [id, categoriaKey, opcionKey, valor]);
+  if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
 }
 async function guardarControlObservaciones(id, valor){
   const c = controlChecksData.find(x=>x.id===id);
   if(!c) return;
   c.observaciones = valor;
+  const qid = encolarAccionOffline('guardarControlObservaciones', [id, valor]);
   const ok = await persistControlChecksData();
-  if(!ok) encolarAccionOffline('guardarControlObservaciones', [id, valor]);
+  if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
 }
 function mostrarFormNuevoControlCheck(tipo){
   const wrap = document.getElementById('nuevo-control-form-wrap');
@@ -4827,8 +4850,9 @@ async function aplicarNuevaLineaControl(entry){
   if(!controlChecksData.find(x=>x.id===entry.id)) controlChecksData.push(entry);
   showToast('✓ Línea añadida');
   renderControlContent(document.getElementById('control-overlay'));
+  const qid = encolarAccionOffline('aplicarNuevaLineaControl', [entry]);
   const ok = await persistControlChecksData();
-  if(!ok) encolarAccionOffline('aplicarNuevaLineaControl', [entry]);
+  if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
   return ok;
 }
 function eliminarControlCheck(id){
@@ -4844,6 +4868,7 @@ async function eliminarControlCheckConfirmado(id){
   controlChecksData = controlChecksData.filter(x=>x.id!==id);
   showToast('✓ Línea eliminada');
   renderControlContent(document.getElementById('control-overlay'));
+  const qid = encolarAccionOffline('eliminarControlCheckConfirmado', [id]);
   let ok = false;
   try{
     const r = await window.storage.get(CONTROL_KEY);
@@ -4852,7 +4877,7 @@ async function eliminarControlCheckConfirmado(id){
       ok = await window.storage.set(CONTROL_KEY, JSON.stringify(cloud));
     }
   }catch(e){}
-  if(!ok) encolarAccionOffline('eliminarControlCheckConfirmado', [id]);
+  if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
 }
 
 // ════════════════════════════════════════════════════════════════
