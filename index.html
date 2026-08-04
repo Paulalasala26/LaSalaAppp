@@ -3096,7 +3096,8 @@ function calleAsignadaParaPartida(partida){
   if(!partida) return null;
   const entrada = controlChecksData.find(c=>c.tipo==='tunel' && c.partida===partida && c.invId);
   if(!entrada) return null;
-  return `INV ${entrada.invId} — ${formatRangoConInv(entrada.invId, entrada.calleDesde, entrada.calleHasta)}`;
+  const tramos = (entrada.tramos && entrada.tramos.length) ? entrada.tramos : [{desde:entrada.calleDesde, hasta:entrada.calleHasta}];
+  return `INV ${entrada.invId} — ${formatTramosLabel(entrada.invId, tramos)}`;
 }
 function renderPinzarSubSeccionHTML(){
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -4241,7 +4242,7 @@ function renderControlCardHTML(c, seccion){
   // "el check de túneles está perfecto, no modifiques nada de ahí").
   if(c.tipo === 'carga') return renderControlCargaCardHTML(c, seccion);
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const calleRealLabel = c.invId ? `INV ${escapar(c.invId)} — ${escapar(formatRangoConInv(c.invId, c.calleDesde, c.calleHasta))}` : '<span style="font-style:italic">Sin asignar</span>';
+  const calleRealLabel = c.invId ? `INV ${escapar(c.invId)} — ${escapar(formatTramosLabel(c.invId, (c.tramos && c.tramos.length) ? c.tramos : [{desde:c.calleDesde, hasta:c.calleHasta}]))}` : '<span style="font-style:italic">Sin asignar</span>';
   // Cada categoría con su propio color/icono (a petición de Paula,
   // 2026-07-31) — la opción activa se pinta con el degradado de la
   // categoría, la inactiva con un tinte claro del mismo color (no blanco
@@ -4631,6 +4632,16 @@ function buscarControlPartida(tipo){
     }
   }, 150);
 }
+// A petición de Paula (2026-08-04): "cuando colocas las calles pueden haber
+// varios tramos" — una partida puede repartirse en varias calles no
+// contiguas del mismo invernadero (p.ej. C/1-2 y C/10-12), así que el modal
+// de Asignar calle ahora permite añadir/quitar tramos (mismo patrón de filas
+// repetibles que ya usa Riego, ver agregarTramoRow/leerTramosDesdeDOM). El
+// primer tramo se sigue guardando también en calleDesde/calleHasta (alias de
+// compatibilidad) para no romper los sitios que aún leen esos dos campos
+// sueltos (p.ej. calleAsignadaParaPartida en Trabajos → Pinzar); c.tramos
+// (array completo) es ahora la fuente de verdad para mostrar todos los tramos.
+let acTramos = [];
 function mostrarAsignarCalleControl(id){
   const c = controlChecksData.find(x=>x.id===id);
   if(!c) return;
@@ -4638,60 +4649,80 @@ function mostrarAsignarCalleControl(id){
   const opcionesInv = `<option value="">— Invernadero —</option>
     <optgroup label="Sala 1">${ALL_INV_IDS_SALA1.map(iid=>`<option value="${iid}"${iid===c.invId?' selected':''}>INV ${iid}</option>`).join('')}</optgroup>
     <optgroup label="Sala 2">${ALL_INV_IDS.map(iid=>`<option value="${iid}"${iid===c.invId?' selected':''}>INV ${iid}</option>`).join('')}</optgroup>`;
+  acTramos = (c.tramos && c.tramos.length) ? c.tramos.map(t=>({desde:t.desde, hasta:t.hasta}))
+    : c.invId ? [{desde:c.calleDesde, hasta:c.calleHasta}] : [];
   mo.innerHTML = `
     <div style="background:#fff;border-radius:14px;max-width:380px;width:100%;padding:1.5rem;box-shadow:0 8px 40px rgba(0,0,0,.3)">
       <div style="font-size:15px;font-weight:800;margin-bottom:12px">Asignar calle real</div>
       <label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">Invernadero</label>
       <select id="ac-inv" onchange="actualizarCallesAsignarControl()" style="width:100%;padding:9px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;margin-bottom:10px">${opcionesInv}</select>
-      <label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">Calles</label>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
-        <select id="ac-desde" style="width:100%;padding:9px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px"><option value="">Desde</option></select>
-        <select id="ac-hasta" style="width:100%;padding:9px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px"><option value="">Hasta</option></select>
-      </div>
+      <label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">Tramos de calles</label>
+      <div id="ac-tramos-rows" style="margin-bottom:8px"></div>
+      <button type="button" onclick="agregarTramoRowAC()" style="width:100%;padding:6px;font-size:11px;font-weight:700;background:#fff;border:1.5px dashed #a8c4e8;border-radius:6px;cursor:pointer;color:#1558a0;margin-bottom:14px">+ Añadir tramo</button>
       <div style="display:flex;justify-content:flex-end;gap:8px">
         <button onclick="this.closest('.modal-overlay-dyn').style.display='none'" style="padding:9px 16px;font-size:12px;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:7px;cursor:pointer">Cancelar</button>
         <button onclick="guardarAsignarCalleControl('${id}')" style="padding:9px 18px;font-size:12px;font-weight:800;background:#2e7d32;color:#fff;border:none;border-radius:7px;cursor:pointer">Guardar</button>
       </div>
     </div>`;
   mo.style.display = 'flex';
-  actualizarCallesAsignarControl(c.calleDesde, c.calleHasta);
+  actualizarCallesAsignarControl();
 }
-function actualizarCallesAsignarControl(desdeSel, hastaSel){
+function renderTramosRowsAC(){
+  const cont = document.getElementById('ac-tramos-rows');
   const invId = document.getElementById('ac-inv')?.value;
-  const desdeEl = document.getElementById('ac-desde');
-  const hastaEl = document.getElementById('ac-hasta');
-  if(!desdeEl || !hastaEl) return;
-  if(!invId || !INV_LAYOUT[invId]){
-    desdeEl.innerHTML = '<option value="">Desde</option>';
-    hastaEl.innerHTML = '<option value="">Hasta</option>';
-    return;
-  }
+  if(!cont) return;
+  if(!invId || !INV_LAYOUT[invId]){ cont.innerHTML = ''; return; }
   const calles = [...INV_LAYOUT[invId].row1, ...INV_LAYOUT[invId].row2].sort((a,b)=>a-b);
-  desdeEl.innerHTML = calles.map(cc=>`<option value="${cc}"${cc===desdeSel?' selected':''}>${cc}</option>`).join('');
-  hastaEl.innerHTML = calles.map(cc=>`<option value="${cc}"${cc===hastaSel?' selected':''}>${cc}</option>`).join('');
+  const opts = sel => calles.map(cc=>`<option value="${cc}"${cc===sel?' selected':''}>${cc}</option>`).join('');
+  if(!acTramos.length) acTramos = [{desde:calles[0], hasta:calles[0]}];
+  cont.innerHTML = acTramos.map((t,i)=>`
+    <div class="ac-tramo-row" style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-bottom:8px">
+      <select class="ac-tramo-desde" style="width:100%;padding:9px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px">${opts(t.desde)}</select>
+      <select class="ac-tramo-hasta" style="width:100%;padding:9px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px">${opts(t.hasta)}</select>
+      ${acTramos.length>1 ? `<button type="button" onclick="quitarTramoRowAC(${i})" style="width:30px;background:#fdecea;color:#c62828;border:1px solid #f3c2bd;border-radius:6px;cursor:pointer;font-size:12px">✕</button>` : '<span></span>'}
+    </div>`).join('');
+}
+function leerTramosDesdeDOMAC(){
+  return Array.from(document.querySelectorAll('.ac-tramo-row')).map(row=>({
+    desde: parseInt(row.querySelector('.ac-tramo-desde').value, 10),
+    hasta: parseInt(row.querySelector('.ac-tramo-hasta').value, 10)
+  }));
+}
+function agregarTramoRowAC(){
+  acTramos = leerTramosDesdeDOMAC();
+  const invId = document.getElementById('ac-inv')?.value;
+  const calles = invId && INV_LAYOUT[invId] ? [...INV_LAYOUT[invId].row1, ...INV_LAYOUT[invId].row2].sort((a,b)=>a-b) : [];
+  acTramos.push({desde:calles[0], hasta:calles[0]});
+  renderTramosRowsAC();
+}
+function quitarTramoRowAC(i){
+  acTramos = leerTramosDesdeDOMAC();
+  acTramos.splice(i,1);
+  renderTramosRowsAC();
+}
+function actualizarCallesAsignarControl(){
+  renderTramosRowsAC();
 }
 async function guardarAsignarCalleControl(id){
   const c = controlChecksData.find(x=>x.id===id);
   if(!c) return;
   const invId = document.getElementById('ac-inv')?.value || null;
-  const desde = parseInt(document.getElementById('ac-desde')?.value, 10);
-  const hasta = parseInt(document.getElementById('ac-hasta')?.value, 10);
-  if(!invId || isNaN(desde)){ showToast('Elige invernadero y calle'); return; }
-  const calleDesde = Math.min(desde, isNaN(hasta)?desde:hasta);
-  const calleHasta = isNaN(hasta) ? desde : Math.max(desde,hasta);
-  aplicarAsignarCalleControl(id, invId, calleDesde, calleHasta);
+  const tramos = leerTramosDesdeDOMAC().filter(t=>!isNaN(t.desde) && !isNaN(t.hasta)).map(t=>({desde:Math.min(t.desde,t.hasta), hasta:Math.max(t.desde,t.hasta)}));
+  if(!invId || !tramos.length){ showToast('Elige invernadero y al menos un tramo'); return; }
+  aplicarAsignarCalleControl(id, invId, tramos);
 }
 // El cierre de modal/aviso/repintado se hacen aquí, ANTES de esperar la red, para
 // que se vean al instante aunque no haya conexión — el guardado real sigue en
 // segundo plano y se encola si falla (mismo motivo que aplicarSanidadEnfermedad).
-async function aplicarAsignarCalleControl(id, invId, calleDesde, calleHasta){
+async function aplicarAsignarCalleControl(id, invId, tramos){
   const c = controlChecksData.find(x=>x.id===id);
   if(!c) return;
-  c.invId = invId; c.calleDesde = calleDesde; c.calleHasta = calleHasta;
+  c.invId = invId; c.tramos = tramos;
+  c.calleDesde = tramos[0].desde; c.calleHasta = tramos[0].hasta; // alias de compatibilidad
   document.getElementById('control-calle-overlay').style.display = 'none';
   showToast('✓ Calle asignada');
   renderControlContent(document.getElementById('control-overlay'));
-  const qid = encolarAccionOffline('aplicarAsignarCalleControl', [id, invId, calleDesde, calleHasta]);
+  const qid = encolarAccionOffline('aplicarAsignarCalleControl', [id, invId, tramos]);
   const ok = await persistControlChecksData();
   if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
   return ok;
@@ -5309,6 +5340,13 @@ function formatRangoConInv(invId, desde, hasta){
   return desde===hasta || hasta==null
     ? `C/${formatCalleConInv(invId, desde)}`
     : `C/${formatCalleConInv(invId, desde)}-${formatCalleConInv(invId, hasta)}`;
+}
+// Una partida puede tener varios tramos de calles no contiguos dentro del
+// mismo invernadero (a petición de Paula, 2026-08-04) — junta el rango de
+// cada tramo con ", " para mostrarlos todos de un vistazo.
+function formatTramosLabel(invId, tramos){
+  if(!tramos || !tramos.length) return '';
+  return tramos.map(t=>formatRangoConInv(invId, t.desde, t.hasta)).join(', ');
 }
 // Agrupa un array de calles (ya filtradas/válidas) en tramos contiguos y
 // devuelve el texto "C/..." de cada uno, separados por coma — necesario
