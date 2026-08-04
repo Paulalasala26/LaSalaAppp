@@ -3625,6 +3625,44 @@ async function guardarControlPdf(tipo, dia, nombre, pdfB64){
 let controlSeccion = null;
 let controlQuincenaOffset = 0;
 let controlDiaSel = null;
+// A petición de Paula (2026-08-04): una misma partida puede repartirse en
+// varios "guiones" — el mismo Nº de partida repetido en el PDF en días
+// distintos, cada uno con su propio Nº de bandejas (p.ej. la partida
+// 26X00664 con 40/5/53 bandejas en los días 61/61/60). Antes cada guión
+// generaba su propia línea repetida en el checklist; ahora se muestran
+// unidas en UNA sola tarjeta con flechas ‹ › para pasar de un guión a otro,
+// indicando "Guión X de N" y el día/Nº de bandejas de cada uno. Cada guión
+// sigue siendo su propio documento en controlChecksData (con su propio
+// check/foto/observaciones) — esto es solo una agrupación visual.
+let controlGuionActivo = {};
+function cambiarGuionControl(groupKey, delta){
+  const idxBarra = groupKey.indexOf('|');
+  const tipo = groupKey.slice(0, idxBarra), partida = groupKey.slice(idxBarra+1);
+  const grupo = controlChecksData.filter(x=>x.tipo===tipo && x.partida===partida).sort((a,b)=>a.dia-b.dia);
+  if(!grupo.length) return;
+  let idx = grupo.findIndex(x=>x.id===controlGuionActivo[groupKey]);
+  if(idx<0) idx = grupo.findIndex(x=>x.dia===controlDiaSel);
+  if(idx<0) idx = 0;
+  idx = (idx+delta+grupo.length)%grupo.length;
+  controlGuionActivo[groupKey] = grupo[idx].id;
+  renderControlContent(document.getElementById('control-overlay'));
+}
+function renderControlCardConGuionesHTML(grupo, seccion){
+  const groupKey = seccion.key+'|'+grupo[0].partida;
+  let activo = grupo.find(x=>x.id===controlGuionActivo[groupKey]);
+  if(!activo) activo = grupo.find(x=>x.dia===controlDiaSel) || grupo[0];
+  controlGuionActivo[groupKey] = activo.id;
+  const idx = grupo.indexOf(activo);
+  const pagerHTML = `
+    <div style="display:flex;align-items:center;justify-content:center;gap:10px;padding:6px 10px;background:#fff3dc;border:1.5px solid #e0c080;border-bottom:none;border-radius:12px 12px 0 0;font-size:11px;font-weight:800;color:#7a5000">
+      <button onclick="cambiarGuionControl('${groupKey}',-1)" title="Guión anterior" style="background:none;border:none;font-size:18px;font-weight:900;color:#7a5000;cursor:pointer;padding:0 6px;line-height:1">&#8249;</button>
+      <span>Guión ${idx+1} de ${grupo.length} · ${riegoDiaLabelCorto(activo.dia)} · Nº bandejas: ${activo.numBandejas||'—'}</span>
+      <button onclick="cambiarGuionControl('${groupKey}',1)" title="Guión siguiente" style="background:none;border:none;font-size:18px;font-weight:900;color:#7a5000;cursor:pointer;padding:0 6px;line-height:1">&#8250;</button>
+    </div>`;
+  const cardHTML = (seccion.key==='carga' ? renderControlCargaCardHTML(activo, seccion) : renderControlCardHTML(activo, seccion))
+    .replace('border-radius:12px;', 'border-radius:0 0 12px 12px;');
+  return `<div>${pagerHTML}${cardHTML}</div>`;
+}
 function showControlModule(){
   Promise.all([loadControlChecksData(), loadControlPdfsData(), loadConteoTutaData()]).then(()=>{
     controlSeccion = null;
@@ -3825,7 +3863,20 @@ function renderControlChecklistHTML(seccion){
     ${filtroBtn('pendientes','○ Pendientes',numPendientes)}
   </div>`;
 
-  const filas = lista.map(c=>renderControlCardHTML(c, seccion)).join('');
+  // Partidas con más de un guión (mismo Nº de partida repetido en días
+  // distintos) se agrupan en una sola tarjeta con flechas — ver
+  // renderControlCardConGuionesHTML. Solo se pinta una vez por grupo aunque
+  // dos guiones del mismo grupo caigan el mismo día.
+  const gruposYaPintados = new Set();
+  const filas = lista.map(c=>{
+    if(!c.partida) return renderControlCardHTML(c, seccion);
+    const groupKey = seccion.key+'|'+c.partida;
+    if(gruposYaPintados.has(groupKey)) return '';
+    const grupo = controlChecksData.filter(x=>x.tipo===seccion.key && x.partida===c.partida).sort((a,b)=>a.dia-b.dia);
+    if(grupo.length<=1) return renderControlCardHTML(c, seccion);
+    gruposYaPintados.add(groupKey);
+    return renderControlCardConGuionesHTML(grupo, seccion);
+  }).join('');
 
   return `
     <div style="margin-bottom:1.1rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
