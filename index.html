@@ -3993,7 +3993,10 @@ function parseControlPdfPartidas(lineas){
       records.push(rec);
     }
   }
-  return records;
+  // A petición de Paula (2026-08-04): las partidas cuyo código contiene "ZE" o
+  // "YE" (p.ej. 26YE0066, 25ZE0353) no deben generar ni línea de Check ni
+  // pinzado automático — se filtran aquí, en el origen común de ambos.
+  return records.filter(r => !/ZE|YE/i.test(r.partida));
 }
 // Programación automática de PINZADO a partir del PDF de salida de Túnel (a
 // petición de Paula, 2026-08-01): las partidas 2HV se pinzan 10 días antes
@@ -4125,7 +4128,8 @@ function parseControlCargaPdfPartidas(lineas){
       inverna: m.groups.inverna
     });
   });
-  return records;
+  // Mismo filtro que en Túnel (parseControlPdfPartidas) — ver comentario allí.
+  return records.filter(r => !/ZE|YE/i.test(r.partida));
 }
 async function autoCrearLineasDesdePdfControlCarga(dia, pdfB64){
   try{
