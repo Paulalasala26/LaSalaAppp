@@ -4335,6 +4335,7 @@ async function handleControlFotoInput(input, id){
   const file = input.files[0];
   try{
     const fotoB64 = await comprimirImagenParaControl(file);
+    if(!fotoB64){ showToast('✗ No se ha podido leer esa foto — prueba con otra'); return; }
     const c = controlChecksData.find(x=>x.id===id);
     if(!c) return;
     c.fotoB64 = fotoB64;
@@ -4346,25 +4347,44 @@ async function handleControlFotoInput(input, id){
     showToast('✗ No se ha podido guardar la foto — inténtalo de nuevo');
   }
 }
+// A petición de Paula (2026-08-03): "al subir una foto me aparece error".
+// Causa más probable: fotos HEIC (formato por defecto de la cámara de
+// iPhone) — muchos navegadores saben MOSTRAR un HEIC en una etiqueta <img>
+// pero no siempre saben "dibujarlo" dentro de un <canvas> (drawImage/
+// toDataURL), que es lo que hacía fallar aquí SIEMPRE con un error y
+// perder la foto entera. Ahora, si la compresión falla por lo que sea
+// (formato no soportado, imagen corrupta, lo que sea), en vez de fallar
+// se cae a guardar el archivo ORIGINAL sin comprimir — la foto nunca se
+// pierde, en el peor de los casos pesa más de lo ideal.
 function comprimirImagenParaControl(file){
-  return new Promise((resolve, reject)=>{
+  return new Promise((resolve)=>{
+    const leerOriginalSinComprimir = () => {
+      const readerOriginal = new FileReader();
+      readerOriginal.onload = (e2) => resolve(e2.target.result);
+      readerOriginal.onerror = () => resolve(null);
+      readerOriginal.readAsDataURL(file);
+    };
     const reader = new FileReader();
-    reader.onerror = () => reject(reader.error || new Error('No se pudo leer el archivo'));
+    reader.onerror = leerOriginalSinComprimir;
     reader.onload = (e) => {
       const img = new Image();
-      img.onerror = () => reject(new Error('No se pudo decodificar la imagen'));
+      img.onerror = leerOriginalSinComprimir;
       img.onload = () => {
-        const MAX = 1280;
-        let width = img.width, height = img.height;
-        if(width > MAX || height > MAX){
-          const escala = MAX / Math.max(width, height);
-          width = Math.round(width*escala); height = Math.round(height*escala);
+        try{
+          const MAX = 1280;
+          let width = img.width, height = img.height;
+          if(width > MAX || height > MAX){
+            const escala = MAX / Math.max(width, height);
+            width = Math.round(width*escala); height = Math.round(height*escala);
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width; canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', 0.75));
+        }catch(err){
+          leerOriginalSinComprimir();
         }
-        const canvas = document.createElement('canvas');
-        canvas.width = width; canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', 0.75));
       };
       img.src = e.target.result;
     };
