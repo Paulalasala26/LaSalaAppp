@@ -870,9 +870,13 @@ async function actualizarBotonAvisosPush(){
   const activo = await estaPushActivado();
   btn.innerHTML = activo ? '&#128277; Desactivar avisos' : '&#128276; Activar avisos';
 }
+// Migrado de la función de Netlify (pausada por límite de uso, 2026-08-03) a
+// un Cloudflare Worker — misma lógica de envío, solo cambia el endpoint (ver
+// O:\COMUN\Vigueras\Paula\cloudflare-push\src\index.js).
+const SEND_PUSH_URL = 'https://lasala-send-push.lasala-send-push.workers.dev';
 async function enviarPushA(target, title, body){
   try{
-    await fetch('/.netlify/functions/send-push', {
+    await fetch(SEND_PUSH_URL, {
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({target, title, body})
