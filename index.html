@@ -3449,8 +3449,16 @@ async function toggleControlSanidadEnfermedad(id, key){
   const c = controlChecksData.find(x=>x.id===id);
   if(!c) return;
   c.sanidadEnfermedades = c.sanidadEnfermedades || {};
-  c.sanidadEnfermedades[key] = !c.sanidadEnfermedades[key];
-  await persistControlChecksData();
+  const nuevoValor = !c.sanidadEnfermedades[key];
+  await aplicarSanidadEnfermedad(id, key, nuevoValor);
+}
+async function aplicarSanidadEnfermedad(id, key, valor){
+  const c = controlChecksData.find(x=>x.id===id);
+  if(!c) return;
+  c.sanidadEnfermedades = c.sanidadEnfermedades || {};
+  c.sanidadEnfermedades[key] = valor;
+  const ok = await persistControlChecksData();
+  if(!ok) encolarAccionOffline('aplicarSanidadEnfermedad', [id, key, valor]);
   renderControlContent(document.getElementById('control-overlay'));
 }
 // Ficha ampliada de una foto de Control — a petición de Paula (2026-08-01,
@@ -3487,9 +3495,75 @@ async function persistControlChecksData(){
     cloud.forEach(t=>map[t.id]=t);
     controlChecksData.forEach(t=>map[t.id]=t);
     controlChecksData = Object.values(map);
-    await window.storage.set(CONTROL_KEY, JSON.stringify(controlChecksData));
-  }catch(e){}
+    return await window.storage.set(CONTROL_KEY, JSON.stringify(controlChecksData));
+  }catch(e){ return false; }
 }
+// ════════════════════════════════════════════════════════════════
+// GUARDADO SIN CONEXIÓN para Check Túnel/Carga (a petición de Paula,
+// 2026-08-04): en vez de guardar una "foto" entera de los datos para
+// reenviarla luego (arriesga pisar cambios de otro dispositivo hechos
+// mientras se estaba offline), se guarda solo la ACCIÓN concreta
+// (marcar tal check, tal observación...). Al volver la conexión, antes de
+// reaplicarla se relee lo último de la nube (loadControlChecksData) y la
+// acción se reaplica sobre esos datos frescos — el único riesgo que queda
+// es que dos personas toquen EXACTAMENTE el mismo campo mientras una está
+// sin cobertura, el mismo riesgo que ya existe hoy si dos guardan casi a
+// la vez, no uno nuevo. Las acciones se guardan como "aplicar valor X"
+// (no "alternar/toggle") para que reaplicarlas sea idempotente — si se
+// reaplicara un toggle dos veces por error, revertiría el cambio.
+const OFFLINE_QUEUE_KEY = 'lasala-offline-queue-v1';
+function leerColaOffline(){
+  try{ return JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY)||'[]'); }catch(e){ return []; }
+}
+function guardarColaOffline(cola){
+  try{ localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(cola)); }catch(e){}
+}
+function encolarAccionOffline(fn, args){
+  const cola = leerColaOffline();
+  cola.push({fn, args, t: new Date().toLocaleString('es-ES')});
+  guardarColaOffline(cola);
+  avisarGuardadoLocalPendiente(cola.length);
+}
+function avisarGuardadoLocalPendiente(n){
+  let b = document.getElementById('aviso-fallo-guardado');
+  if(!b){
+    b = document.createElement('div');
+    b.id = 'aviso-fallo-guardado';
+    b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;text-align:center;padding:12px 16px;font-size:13px;font-weight:800';
+    document.body.appendChild(b);
+  }
+  b.style.background = '#c47f00';
+  b.style.color = '#fff';
+  b.innerHTML = `📴 Sin conexión — ${n} cambio${n===1?'':'s'} guardado${n===1?'':'s'} en este dispositivo, se sincronizará${n===1?'':'n'} solo${n===1?'':'s'} en cuanto vuelva la señal.`;
+  b.style.display = 'block';
+}
+// Solo funciones "aplicar valor concreto" (no toggles) son seguras de
+// reaplicar — registradas aquí para poder reaplicarlas por nombre desde la
+// cola guardada en localStorage. Los nombres de función están disponibles
+// aunque se declaren más abajo en el archivo (hoisting de "function" — a
+// diferencia de "const", da igual el orden).
+const ACCIONES_OFFLINE_REPLAYABLES = {
+  aplicarControlCheckOpcion,
+  aplicarSanidadEnfermedad,
+  guardarControlObservaciones,
+  eliminarControlCheckConfirmado
+};
+async function procesarColaOffline(){
+  const cola = leerColaOffline();
+  if(!cola.length) return;
+  guardarColaOffline([]); // vaciar ANTES de reintentar; lo que vuelva a fallar se re-encola solo
+  showToast(`Sincronizando ${cola.length} cambio${cola.length===1?'':'s'} pendiente${cola.length===1?'':'s'}...`);
+  await loadControlChecksData(); // refrescar con lo último de la nube antes de reaplicar
+  for(const accion of cola){
+    const fn = ACCIONES_OFFLINE_REPLAYABLES[accion.fn];
+    if(fn){ try{ await fn(...accion.args); }catch(e){} }
+  }
+  if(!leerColaOffline().length){
+    showToast('✓ Todo sincronizado');
+    ocultarAvisoFalloGuardado();
+  }
+}
+window.addEventListener('online', procesarColaOffline);
 // PDF adjunto por (tipo, día) — objeto plano {`${tipo}|${dia}`: {nombre,
 // pdfB64, subidoPor, subidoEn}}, mismo merge superficial que geoData (nunca
 // se pisa entero, solo se añade/actualiza la clave que cambia).
@@ -3517,6 +3591,9 @@ function showControlModule(){
     overlay.style.padding = '0';
     renderControlContent(overlay);
     overlay.style.display = 'flex';
+    // Por si quedó algo sin sincronizar de una sesión anterior (se cerró la
+    // pestaña estando sin conexión, por ejemplo).
+    if(leerColaOffline().length) procesarColaOffline();
   });
 }
 function seleccionarSeccionControl(sec){
@@ -4516,15 +4593,24 @@ async function toggleControlCheckOpcion(id, categoriaKey, opcionKey){
   const c = controlChecksData.find(x=>x.id===id);
   if(!c) return;
   c[categoriaKey] = c[categoriaKey] || {};
-  c[categoriaKey][opcionKey] = !c[categoriaKey][opcionKey];
-  await persistControlChecksData();
+  const nuevoValor = !c[categoriaKey][opcionKey];
+  await aplicarControlCheckOpcion(id, categoriaKey, opcionKey, nuevoValor);
+}
+async function aplicarControlCheckOpcion(id, categoriaKey, opcionKey, valor){
+  const c = controlChecksData.find(x=>x.id===id);
+  if(!c) return;
+  c[categoriaKey] = c[categoriaKey] || {};
+  c[categoriaKey][opcionKey] = valor;
+  const ok = await persistControlChecksData();
+  if(!ok) encolarAccionOffline('aplicarControlCheckOpcion', [id, categoriaKey, opcionKey, valor]);
   renderControlContent(document.getElementById('control-overlay'));
 }
 async function guardarControlObservaciones(id, valor){
   const c = controlChecksData.find(x=>x.id===id);
   if(!c) return;
   c.observaciones = valor;
-  await persistControlChecksData();
+  const ok = await persistControlChecksData();
+  if(!ok) encolarAccionOffline('guardarControlObservaciones', [id, valor]);
 }
 function mostrarFormNuevoControlCheck(tipo){
   const wrap = document.getElementById('nuevo-control-form-wrap');
@@ -4602,14 +4688,24 @@ function eliminarControlCheck(id){
   eliminarControlCheckConfirmado(id);
 }
 async function eliminarControlCheckConfirmado(id){
+  // Borrar SIEMPRE se aplica también en local, aunque la nube no responda —
+  // borrar es idempotente (reintentarlo no hace daño), así que si falla se
+  // encola para reintentarlo en vez de dejar la línea "medio borrada" solo
+  // en pantalla pero viva en la nube.
+  controlChecksData = controlChecksData.filter(x=>x.id!==id);
+  let ok = false;
   try{
     const r = await window.storage.get(CONTROL_KEY);
-    let cloud = r ? JSON.parse(r.value) : [];
-    cloud = cloud.filter(x=>x.id!==id);
-    await window.storage.set(CONTROL_KEY, JSON.stringify(cloud));
-    controlChecksData = cloud;
+    if(r){
+      let cloud = JSON.parse(r.value).filter(x=>x.id!==id);
+      ok = await window.storage.set(CONTROL_KEY, JSON.stringify(cloud));
+    }
   }catch(e){}
-  showToast('✓ Línea eliminada');
+  if(!ok){
+    encolarAccionOffline('eliminarControlCheckConfirmado', [id]);
+  } else {
+    showToast('✓ Línea eliminada');
+  }
   renderControlContent(document.getElementById('control-overlay'));
 }
 
