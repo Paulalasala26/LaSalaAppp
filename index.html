@@ -3546,7 +3546,13 @@ const ACCIONES_OFFLINE_REPLAYABLES = {
   aplicarControlCheckOpcion,
   aplicarSanidadEnfermedad,
   guardarControlObservaciones,
-  eliminarControlCheckConfirmado
+  eliminarControlCheckConfirmado,
+  aplicarAsignarCalleControl,
+  aplicarNuevaLineaControlCarga,
+  aplicarNuevaLineaControl,
+  aplicarEditarControlCargaCheck,
+  aplicarEditarControlCheck,
+  aplicarFotoControl
 };
 async function procesarColaOffline(){
   const cola = leerColaOffline();
@@ -4313,16 +4319,27 @@ async function guardarNuevoControlCargaCheck(){
   const numBandejas = document.getElementById('ncc-bandejas')?.value?.trim() || '';
   const invernadero = document.getElementById('ncc-inv')?.value || '';
   if(!cliente){ showToast('Indica el cliente'); return; }
-  controlChecksData.push({
+  const entry = {
     id: 'control_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
     tipo:'carga', dia: controlDiaSel,
     cliente, partida, variedad, numBandejas, invernadero,
     color:{}, tamano:{}, sanidad:{}, flores:{}, raices:{}, observaciones:'',
     creadoPor: currentUser||'—', creadoEn: new Date().toLocaleString('es-ES')
-  });
-  await persistControlChecksData();
+  };
+  await aplicarNuevaLineaControlCarga(entry);
   showToast('✓ Línea añadida');
   renderControlContent(document.getElementById('control-overlay'));
+}
+// El id se genera ANTES de intentar guardar (arriba, en guardarNuevoControlCargaCheck)
+// para que la acción sea idempotente al reproducirla desde la cola offline: si ya
+// existe una línea con ese id (por ejemplo porque un intento anterior sí llegó a la
+// nube pero el aviso de éxito no llegó al dispositivo), no se vuelve a añadir — si no,
+// una reconexión podría duplicar la línea.
+async function aplicarNuevaLineaControlCarga(entry){
+  if(!controlChecksData.find(x=>x.id===entry.id)) controlChecksData.push(entry);
+  const ok = await persistControlChecksData();
+  if(!ok) encolarAccionOffline('aplicarNuevaLineaControlCarga', [entry]);
+  return ok;
 }
 // Opciones de <select> de día para mover una línea de Control a otra fecha
 // (a petición de Paula, 2026-08-01, tanto en Túnel como en Carga) — rango
@@ -4391,16 +4408,25 @@ async function guardarEditarControlCargaCheck(id){
   if(!c) return;
   const diaNuevo = parseInt(document.getElementById('ecc-dia')?.value, 10);
   const diaCambio = !isNaN(diaNuevo) && diaNuevo !== c.dia;
-  if(!isNaN(diaNuevo)) c.dia = diaNuevo;
-  c.cliente = document.getElementById('ecc-cliente')?.value?.trim() || '';
-  c.partida = document.getElementById('ecc-partida')?.value?.trim() || '';
-  c.variedad = document.getElementById('ecc-variedad')?.value?.trim() || '';
-  c.numBandejas = document.getElementById('ecc-bandejas')?.value?.trim() || '';
-  c.invernadero = document.getElementById('ecc-inv')?.value || '';
-  await persistControlChecksData();
+  const dia = isNaN(diaNuevo) ? c.dia : diaNuevo;
+  const cliente = document.getElementById('ecc-cliente')?.value?.trim() || '';
+  const partida = document.getElementById('ecc-partida')?.value?.trim() || '';
+  const variedad = document.getElementById('ecc-variedad')?.value?.trim() || '';
+  const numBandejas = document.getElementById('ecc-bandejas')?.value?.trim() || '';
+  const invernadero = document.getElementById('ecc-inv')?.value || '';
+  await aplicarEditarControlCargaCheck(id, dia, cliente, partida, variedad, numBandejas, invernadero);
   document.getElementById('control-editar-carga-overlay').style.display = 'none';
   showToast(diaCambio ? `✓ Línea actualizada y movida a ${riegoDiaLabelCorto(diaNuevo)}` : '✓ Línea actualizada');
   renderControlContent(document.getElementById('control-overlay'));
+}
+async function aplicarEditarControlCargaCheck(id, dia, cliente, partida, variedad, numBandejas, invernadero){
+  const c = controlChecksData.find(x=>x.id===id);
+  if(!c) return;
+  c.dia = dia; c.cliente = cliente; c.partida = partida; c.variedad = variedad;
+  c.numBandejas = numBandejas; c.invernadero = invernadero;
+  const ok = await persistControlChecksData();
+  if(!ok) encolarAccionOffline('aplicarEditarControlCargaCheck', [id, dia, cliente, partida, variedad, numBandejas, invernadero]);
+  return ok;
 }
 // A petición de Paula (2026-07-31): la foto debe quedar SIEMPRE asociada a
 // su partida/check. Una foto de cámara real puede pesar varios MB en
@@ -4417,16 +4443,21 @@ async function handleControlFotoInput(input, id){
   try{
     const fotoB64 = await comprimirImagenParaControl(file);
     if(!fotoB64){ showToast('✗ No se ha podido leer esa foto — prueba con otra'); return; }
-    const c = controlChecksData.find(x=>x.id===id);
-    if(!c) return;
-    c.fotoB64 = fotoB64;
-    await persistControlChecksData();
-    showToast('✓ Foto guardada');
+    const ok = await aplicarFotoControl(id, fotoB64);
+    showToast(ok ? '✓ Foto guardada' : '📴 Sin conexión — la foto se guardará al reconectar');
     renderControlContent(document.getElementById('control-overlay'));
   }catch(e){
     console.error('Error guardando foto de Control:', e);
     showToast('✗ No se ha podido guardar la foto — inténtalo de nuevo');
   }
+}
+async function aplicarFotoControl(id, fotoB64){
+  const c = controlChecksData.find(x=>x.id===id);
+  if(!c) return false;
+  c.fotoB64 = fotoB64;
+  const ok = await persistControlChecksData();
+  if(!ok) encolarAccionOffline('aplicarFotoControl', [id, fotoB64]);
+  return ok;
 }
 // A petición de Paula (2026-08-03): "al subir una foto me aparece error".
 // Causa más probable: fotos HEIC (formato por defecto de la cámara de
@@ -4536,13 +4567,20 @@ async function guardarAsignarCalleControl(id){
   const desde = parseInt(document.getElementById('ac-desde')?.value, 10);
   const hasta = parseInt(document.getElementById('ac-hasta')?.value, 10);
   if(!invId || isNaN(desde)){ showToast('Elige invernadero y calle'); return; }
-  c.invId = invId;
-  c.calleDesde = Math.min(desde, isNaN(hasta)?desde:hasta);
-  c.calleHasta = isNaN(hasta) ? desde : Math.max(desde,hasta);
-  await persistControlChecksData();
+  const calleDesde = Math.min(desde, isNaN(hasta)?desde:hasta);
+  const calleHasta = isNaN(hasta) ? desde : Math.max(desde,hasta);
+  await aplicarAsignarCalleControl(id, invId, calleDesde, calleHasta);
   document.getElementById('control-calle-overlay').style.display = 'none';
   showToast('✓ Calle asignada');
   renderControlContent(document.getElementById('control-overlay'));
+}
+async function aplicarAsignarCalleControl(id, invId, calleDesde, calleHasta){
+  const c = controlChecksData.find(x=>x.id===id);
+  if(!c) return;
+  c.invId = invId; c.calleDesde = calleDesde; c.calleHasta = calleHasta;
+  const ok = await persistControlChecksData();
+  if(!ok) encolarAccionOffline('aplicarAsignarCalleControl', [id, invId, calleDesde, calleHasta]);
+  return ok;
 }
 function mostrarEditarControlCheck(id){
   const c = controlChecksData.find(x=>x.id===id);
@@ -4580,14 +4618,22 @@ async function guardarEditarControlCheck(id){
   if(!c) return;
   const diaNuevo = parseInt(document.getElementById('ec-dia')?.value, 10);
   const diaCambio = !isNaN(diaNuevo) && diaNuevo !== c.dia;
-  if(!isNaN(diaNuevo)) c.dia = diaNuevo;
-  c.clienteVariedad = document.getElementById('ec-cliente-variedad')?.value?.trim() || '';
-  c.partida = document.getElementById('ec-partida')?.value?.trim() || '';
-  c.numBandejas = document.getElementById('ec-bandejas')?.value?.trim() || '';
-  await persistControlChecksData();
+  const dia = isNaN(diaNuevo) ? c.dia : diaNuevo;
+  const clienteVariedad = document.getElementById('ec-cliente-variedad')?.value?.trim() || '';
+  const partida = document.getElementById('ec-partida')?.value?.trim() || '';
+  const numBandejas = document.getElementById('ec-bandejas')?.value?.trim() || '';
+  await aplicarEditarControlCheck(id, dia, clienteVariedad, partida, numBandejas);
   document.getElementById('control-editar-overlay').style.display = 'none';
   showToast(diaCambio ? `✓ Línea actualizada y movida a ${riegoDiaLabelCorto(diaNuevo)}` : '✓ Línea actualizada');
   renderControlContent(document.getElementById('control-overlay'));
+}
+async function aplicarEditarControlCheck(id, dia, clienteVariedad, partida, numBandejas){
+  const c = controlChecksData.find(x=>x.id===id);
+  if(!c) return;
+  c.dia = dia; c.clienteVariedad = clienteVariedad; c.partida = partida; c.numBandejas = numBandejas;
+  const ok = await persistControlChecksData();
+  if(!ok) encolarAccionOffline('aplicarEditarControlCheck', [id, dia, clienteVariedad, partida, numBandejas]);
+  return ok;
 }
 async function toggleControlCheckOpcion(id, categoriaKey, opcionKey){
   const c = controlChecksData.find(x=>x.id===id);
@@ -4670,17 +4716,25 @@ async function guardarNuevoControlCheck(tipo){
   const desde = parseInt(document.getElementById('nc-calle-desde')?.value, 10);
   const hasta = parseInt(document.getElementById('nc-calle-hasta')?.value, 10);
   if(!clienteVariedad){ showToast('Indica el cliente y variedad'); return; }
-  controlChecksData.push({
+  const entry = {
     id: 'control_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
     tipo, dia: controlDiaSel,
     clienteVariedad, partida, numBandejas,
     invId, calleDesde: isNaN(desde)?null:Math.min(desde,isNaN(hasta)?desde:hasta), calleHasta: isNaN(hasta)?(isNaN(desde)?null:desde):Math.max(desde,hasta),
     color:{}, tamano:{}, sanidad:{}, flores:{}, raices:{}, observaciones:'',
     creadoPor: currentUser||'—', creadoEn: new Date().toLocaleString('es-ES')
-  });
-  await persistControlChecksData();
+  };
+  await aplicarNuevaLineaControl(entry);
   showToast('✓ Línea añadida');
   renderControlContent(document.getElementById('control-overlay'));
+}
+// Mismo motivo que aplicarNuevaLineaControlCarga: el id se genera antes de intentar
+// guardar, así reproducir esta acción desde la cola offline nunca duplica la línea.
+async function aplicarNuevaLineaControl(entry){
+  if(!controlChecksData.find(x=>x.id===entry.id)) controlChecksData.push(entry);
+  const ok = await persistControlChecksData();
+  if(!ok) encolarAccionOffline('aplicarNuevaLineaControl', [entry]);
+  return ok;
 }
 function eliminarControlCheck(id){
   const c = controlChecksData.find(x=>x.id===id);
