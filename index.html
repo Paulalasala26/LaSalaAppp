@@ -3457,9 +3457,13 @@ async function aplicarSanidadEnfermedad(id, key, valor){
   if(!c) return;
   c.sanidadEnfermedades = c.sanidadEnfermedades || {};
   c.sanidadEnfermedades[key] = valor;
+  // El repintado se hace ANTES de esperar la respuesta de red: sin conexión real en
+  // el invernadero, un fetch puede tardar mucho en fallar (varios reintentos), y
+  // esperar a eso hacía que el check pareciera "no cambiar de color" aunque el
+  // cambio ya estaba aplicado en memoria — ahora se ve al instante siempre.
+  renderControlContent(document.getElementById('control-overlay'));
   const ok = await persistControlChecksData();
   if(!ok) encolarAccionOffline('aplicarSanidadEnfermedad', [id, key, valor]);
-  renderControlContent(document.getElementById('control-overlay'));
 }
 // Ficha ampliada de una foto de Control — a petición de Paula (2026-08-01,
 // "debe poder abrirse en la pantalla") en vez de window.open (bloqueado por
@@ -4326,17 +4330,18 @@ async function guardarNuevoControlCargaCheck(){
     color:{}, tamano:{}, sanidad:{}, flores:{}, raices:{}, observaciones:'',
     creadoPor: currentUser||'—', creadoEn: new Date().toLocaleString('es-ES')
   };
-  await aplicarNuevaLineaControlCarga(entry);
-  showToast('✓ Línea añadida');
-  renderControlContent(document.getElementById('control-overlay'));
+  aplicarNuevaLineaControlCarga(entry);
 }
 // El id se genera ANTES de intentar guardar (arriba, en guardarNuevoControlCargaCheck)
 // para que la acción sea idempotente al reproducirla desde la cola offline: si ya
 // existe una línea con ese id (por ejemplo porque un intento anterior sí llegó a la
 // nube pero el aviso de éxito no llegó al dispositivo), no se vuelve a añadir — si no,
-// una reconexión podría duplicar la línea.
+// una reconexión podría duplicar la línea. El toast/repintado se hacen ANTES de
+// esperar la red (mismo motivo que aplicarSanidadEnfermedad).
 async function aplicarNuevaLineaControlCarga(entry){
   if(!controlChecksData.find(x=>x.id===entry.id)) controlChecksData.push(entry);
+  showToast('✓ Línea añadida');
+  renderControlContent(document.getElementById('control-overlay'));
   const ok = await persistControlChecksData();
   if(!ok) encolarAccionOffline('aplicarNuevaLineaControlCarga', [entry]);
   return ok;
@@ -4414,18 +4419,18 @@ async function guardarEditarControlCargaCheck(id){
   const variedad = document.getElementById('ecc-variedad')?.value?.trim() || '';
   const numBandejas = document.getElementById('ecc-bandejas')?.value?.trim() || '';
   const invernadero = document.getElementById('ecc-inv')?.value || '';
-  await aplicarEditarControlCargaCheck(id, dia, cliente, partida, variedad, numBandejas, invernadero);
-  document.getElementById('control-editar-carga-overlay').style.display = 'none';
-  showToast(diaCambio ? `✓ Línea actualizada y movida a ${riegoDiaLabelCorto(diaNuevo)}` : '✓ Línea actualizada');
-  renderControlContent(document.getElementById('control-overlay'));
+  aplicarEditarControlCargaCheck(id, dia, cliente, partida, variedad, numBandejas, invernadero, diaCambio);
 }
-async function aplicarEditarControlCargaCheck(id, dia, cliente, partida, variedad, numBandejas, invernadero){
+async function aplicarEditarControlCargaCheck(id, dia, cliente, partida, variedad, numBandejas, invernadero, diaCambio){
   const c = controlChecksData.find(x=>x.id===id);
   if(!c) return;
   c.dia = dia; c.cliente = cliente; c.partida = partida; c.variedad = variedad;
   c.numBandejas = numBandejas; c.invernadero = invernadero;
+  document.getElementById('control-editar-carga-overlay').style.display = 'none';
+  showToast(diaCambio ? `✓ Línea actualizada y movida a ${riegoDiaLabelCorto(dia)}` : '✓ Línea actualizada');
+  renderControlContent(document.getElementById('control-overlay'));
   const ok = await persistControlChecksData();
-  if(!ok) encolarAccionOffline('aplicarEditarControlCargaCheck', [id, dia, cliente, partida, variedad, numBandejas, invernadero]);
+  if(!ok) encolarAccionOffline('aplicarEditarControlCargaCheck', [id, dia, cliente, partida, variedad, numBandejas, invernadero, diaCambio]);
   return ok;
 }
 // A petición de Paula (2026-07-31): la foto debe quedar SIEMPRE asociada a
@@ -4443,9 +4448,7 @@ async function handleControlFotoInput(input, id){
   try{
     const fotoB64 = await comprimirImagenParaControl(file);
     if(!fotoB64){ showToast('✗ No se ha podido leer esa foto — prueba con otra'); return; }
-    const ok = await aplicarFotoControl(id, fotoB64);
-    showToast(ok ? '✓ Foto guardada' : '📴 Sin conexión — la foto se guardará al reconectar');
-    renderControlContent(document.getElementById('control-overlay'));
+    aplicarFotoControl(id, fotoB64);
   }catch(e){
     console.error('Error guardando foto de Control:', e);
     showToast('✗ No se ha podido guardar la foto — inténtalo de nuevo');
@@ -4455,6 +4458,8 @@ async function aplicarFotoControl(id, fotoB64){
   const c = controlChecksData.find(x=>x.id===id);
   if(!c) return false;
   c.fotoB64 = fotoB64;
+  showToast('✓ Foto guardada');
+  renderControlContent(document.getElementById('control-overlay'));
   const ok = await persistControlChecksData();
   if(!ok) encolarAccionOffline('aplicarFotoControl', [id, fotoB64]);
   return ok;
@@ -4569,15 +4574,18 @@ async function guardarAsignarCalleControl(id){
   if(!invId || isNaN(desde)){ showToast('Elige invernadero y calle'); return; }
   const calleDesde = Math.min(desde, isNaN(hasta)?desde:hasta);
   const calleHasta = isNaN(hasta) ? desde : Math.max(desde,hasta);
-  await aplicarAsignarCalleControl(id, invId, calleDesde, calleHasta);
-  document.getElementById('control-calle-overlay').style.display = 'none';
-  showToast('✓ Calle asignada');
-  renderControlContent(document.getElementById('control-overlay'));
+  aplicarAsignarCalleControl(id, invId, calleDesde, calleHasta);
 }
+// El cierre de modal/aviso/repintado se hacen aquí, ANTES de esperar la red, para
+// que se vean al instante aunque no haya conexión — el guardado real sigue en
+// segundo plano y se encola si falla (mismo motivo que aplicarSanidadEnfermedad).
 async function aplicarAsignarCalleControl(id, invId, calleDesde, calleHasta){
   const c = controlChecksData.find(x=>x.id===id);
   if(!c) return;
   c.invId = invId; c.calleDesde = calleDesde; c.calleHasta = calleHasta;
+  document.getElementById('control-calle-overlay').style.display = 'none';
+  showToast('✓ Calle asignada');
+  renderControlContent(document.getElementById('control-overlay'));
   const ok = await persistControlChecksData();
   if(!ok) encolarAccionOffline('aplicarAsignarCalleControl', [id, invId, calleDesde, calleHasta]);
   return ok;
@@ -4622,17 +4630,17 @@ async function guardarEditarControlCheck(id){
   const clienteVariedad = document.getElementById('ec-cliente-variedad')?.value?.trim() || '';
   const partida = document.getElementById('ec-partida')?.value?.trim() || '';
   const numBandejas = document.getElementById('ec-bandejas')?.value?.trim() || '';
-  await aplicarEditarControlCheck(id, dia, clienteVariedad, partida, numBandejas);
-  document.getElementById('control-editar-overlay').style.display = 'none';
-  showToast(diaCambio ? `✓ Línea actualizada y movida a ${riegoDiaLabelCorto(diaNuevo)}` : '✓ Línea actualizada');
-  renderControlContent(document.getElementById('control-overlay'));
+  aplicarEditarControlCheck(id, dia, clienteVariedad, partida, numBandejas, diaCambio);
 }
-async function aplicarEditarControlCheck(id, dia, clienteVariedad, partida, numBandejas){
+async function aplicarEditarControlCheck(id, dia, clienteVariedad, partida, numBandejas, diaCambio){
   const c = controlChecksData.find(x=>x.id===id);
   if(!c) return;
   c.dia = dia; c.clienteVariedad = clienteVariedad; c.partida = partida; c.numBandejas = numBandejas;
+  document.getElementById('control-editar-overlay').style.display = 'none';
+  showToast(diaCambio ? `✓ Línea actualizada y movida a ${riegoDiaLabelCorto(dia)}` : '✓ Línea actualizada');
+  renderControlContent(document.getElementById('control-overlay'));
   const ok = await persistControlChecksData();
-  if(!ok) encolarAccionOffline('aplicarEditarControlCheck', [id, dia, clienteVariedad, partida, numBandejas]);
+  if(!ok) encolarAccionOffline('aplicarEditarControlCheck', [id, dia, clienteVariedad, partida, numBandejas, diaCambio]);
   return ok;
 }
 async function toggleControlCheckOpcion(id, categoriaKey, opcionKey){
@@ -4647,9 +4655,10 @@ async function aplicarControlCheckOpcion(id, categoriaKey, opcionKey, valor){
   if(!c) return;
   c[categoriaKey] = c[categoriaKey] || {};
   c[categoriaKey][opcionKey] = valor;
+  // Repintar ANTES de esperar la red — ver comentario igual en aplicarSanidadEnfermedad.
+  renderControlContent(document.getElementById('control-overlay'));
   const ok = await persistControlChecksData();
   if(!ok) encolarAccionOffline('aplicarControlCheckOpcion', [id, categoriaKey, opcionKey, valor]);
-  renderControlContent(document.getElementById('control-overlay'));
 }
 async function guardarControlObservaciones(id, valor){
   const c = controlChecksData.find(x=>x.id===id);
@@ -4724,14 +4733,14 @@ async function guardarNuevoControlCheck(tipo){
     color:{}, tamano:{}, sanidad:{}, flores:{}, raices:{}, observaciones:'',
     creadoPor: currentUser||'—', creadoEn: new Date().toLocaleString('es-ES')
   };
-  await aplicarNuevaLineaControl(entry);
-  showToast('✓ Línea añadida');
-  renderControlContent(document.getElementById('control-overlay'));
+  aplicarNuevaLineaControl(entry);
 }
 // Mismo motivo que aplicarNuevaLineaControlCarga: el id se genera antes de intentar
 // guardar, así reproducir esta acción desde la cola offline nunca duplica la línea.
 async function aplicarNuevaLineaControl(entry){
   if(!controlChecksData.find(x=>x.id===entry.id)) controlChecksData.push(entry);
+  showToast('✓ Línea añadida');
+  renderControlContent(document.getElementById('control-overlay'));
   const ok = await persistControlChecksData();
   if(!ok) encolarAccionOffline('aplicarNuevaLineaControl', [entry]);
   return ok;
@@ -4747,6 +4756,8 @@ async function eliminarControlCheckConfirmado(id){
   // encola para reintentarlo en vez de dejar la línea "medio borrada" solo
   // en pantalla pero viva en la nube.
   controlChecksData = controlChecksData.filter(x=>x.id!==id);
+  showToast('✓ Línea eliminada');
+  renderControlContent(document.getElementById('control-overlay'));
   let ok = false;
   try{
     const r = await window.storage.get(CONTROL_KEY);
@@ -4755,12 +4766,7 @@ async function eliminarControlCheckConfirmado(id){
       ok = await window.storage.set(CONTROL_KEY, JSON.stringify(cloud));
     }
   }catch(e){}
-  if(!ok){
-    encolarAccionOffline('eliminarControlCheckConfirmado', [id]);
-  } else {
-    showToast('✓ Línea eliminada');
-  }
-  renderControlContent(document.getElementById('control-overlay'));
+  if(!ok) encolarAccionOffline('eliminarControlCheckConfirmado', [id]);
 }
 
 // ════════════════════════════════════════════════════════════════
