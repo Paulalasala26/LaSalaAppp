@@ -384,6 +384,48 @@ const rolesLoadedPromise = loadRolesFromCloud();
 let attempts=0,lockUntil=0,currentUser=null,currentUserRole=null;
 async function sha256(s){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));return Array.from(new Uint8Array(b)).map(x=>x.toString(16).padStart(2,'0')).join('');}
 function togglePass(){const i=document.getElementById('login-pass'),e=document.getElementById('pass-eye');i.type=i.type==='password'?'text':'password';e.innerHTML=i.type==='password'?'&#128065;':'&#128064;';}
+// A petición de Paula (2026-08-04): "cada vez que añado una foto me devuelve al
+// inicio de sesión". La sesión solo vivía en una variable JS en memoria (currentUser),
+// así que cualquier recarga de la página (p.ej. el móvil descargando la pestaña por
+// falta de memoria al volver de la cámara tras hacer una foto — comportamiento
+// habitual en Safari/Chrome móvil con capturas de cámara pesadas) perdía la sesión
+// entera y mostraba el login de nuevo. Ahora la sesión se guarda en sessionStorage
+// (se borra sola al cerrar la pestaña, pero sobrevive a que la propia pestaña se
+// recargue) y se restaura automáticamente al cargar la página, sin pedir contraseña
+// otra vez.
+const SESION_KEY = 'lasala-sesion-v1';
+function guardarSesion(user){
+  try{ sessionStorage.setItem(SESION_KEY, user); }catch(e){}
+}
+function borrarSesion(){
+  try{ sessionStorage.removeItem(SESION_KEY); }catch(e){}
+}
+async function entrarApp(user){
+  currentUser=user;
+  await rolesLoadedPromise;
+  currentUserRole = USER_ROLES[user] || null;
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('app').style.display='block';
+  const name=user[0]+user.slice(1).toLowerCase();
+  document.getElementById('topbar-username').textContent=name;
+  loadPartidasFromStorage();
+  // applyRoleHomeUI() se llama ANTES de tocar welcome-name: esa etiqueta
+  // vive dentro de #page-home-inner, que la pantalla de PEÓN sustituye por
+  // completo, y que para otros roles se restaura desde una plantilla
+  // capturada una sola vez — así que hay que fijar el nombre en el
+  // elemento que quede en el DOM *después* de esa restauración, no antes.
+  applyRoleHomeUI();
+  const welcomeEl = document.getElementById('welcome-name');
+  if(welcomeEl) welcomeEl.textContent=name;
+}
+async function restaurarSesion(){
+  let user;
+  try{ user = sessionStorage.getItem(SESION_KEY); }catch(e){ return; }
+  if(!user) return;
+  await usersLoadedPromise;
+  if(!USERS[user]) return; // usuario ya no existe — no restaurar
+  await entrarApp(user);
+}
 async function doLogin(){
   const now=Date.now();
   if(now<lockUntil){showLoginAlert('&#128274; Bloqueado '+Math.ceil((lockUntil-now)/60000)+' min.','lock');return;}
@@ -393,22 +435,9 @@ async function doLogin(){
   await usersLoadedPromise;
   const hash=await sha256(pass);
   if(USERS[user]&&hash===USERS[user]){
-    attempts=0;currentUser=user;
-    await rolesLoadedPromise;
-    currentUserRole = USER_ROLES[user] || null;
-    document.getElementById('login-screen').style.display='none';
-    document.getElementById('app').style.display='block';
-    const name=user[0]+user.slice(1).toLowerCase();
-    document.getElementById('topbar-username').textContent=name;
-    loadPartidasFromStorage();
-    // applyRoleHomeUI() se llama ANTES de tocar welcome-name: esa etiqueta
-    // vive dentro de #page-home-inner, que la pantalla de PEÓN sustituye por
-    // completo, y que para otros roles se restaura desde una plantilla
-    // capturada una sola vez — así que hay que fijar el nombre en el
-    // elemento que quede en el DOM *después* de esa restauración, no antes.
-    applyRoleHomeUI();
-    const welcomeEl = document.getElementById('welcome-name');
-    if(welcomeEl) welcomeEl.textContent=name;
+    attempts=0;
+    await entrarApp(user);
+    guardarSesion(user);
     logHistorial('Inicio de sesión');
   } else {
     attempts++;
@@ -429,8 +458,10 @@ function doLogout(){
   document.getElementById('login-screen').style.display='flex';
   document.getElementById('login-pass').value='';document.getElementById('login-user').value='';
   document.getElementById('login-alert').style.display='none';document.getElementById('attempts-msg').textContent='';
+  borrarSesion();
   resetGeoView();
 }
+restaurarSesion();
 
 // REGANTE solo tiene acceso al riego de hoy (solo consulta) y a sus tareas.
 // PEÓN tiene una única pantalla: el sistema de ticketing con sus tareas
