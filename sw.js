@@ -9,10 +9,14 @@ self.addEventListener('push', (event) => {
   let data = {};
   try { data = event.data ? event.data.json() : {}; } catch (e) {}
   const title = data.title || 'App La Sala';
+  // Rutas relativas a la carpeta donde vive este sw.js (no absolutas desde la
+  // raíz del dominio) — la app vive en un subdirectorio de GitHub Pages
+  // (github.io/LaSalaAppp/), así que "/icon-192.png" apuntaba a la raíz del
+  // dominio (404) en vez de a la propia carpeta de la app.
   const options = {
     body: data.body || '',
-    icon: '/icon-192.png',
-    badge: '/icon-192.png',
+    icon: 'icon-192.png',
+    badge: 'icon-192.png',
     tag: 'lasala-aviso'
   };
   event.waitUntil(self.registration.showNotification(title, options));
@@ -25,7 +29,7 @@ self.addEventListener('notificationclick', (event) => {
       for (const client of clientList) {
         if ('focus' in client) return client.focus();
       }
-      if (clients.openWindow) return clients.openWindow('/');
+      if (clients.openWindow) return clients.openWindow('.');
     })
   );
 });

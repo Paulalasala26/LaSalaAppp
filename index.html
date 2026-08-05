@@ -8,12 +8,12 @@
      inicio" desde Safari (iPhone), la app abra en modo standalone — requisito
      de Apple (iOS 16.4+) para poder recibir notificaciones push reales en la
      pantalla de bloqueo sin tener la app abierta. -->
-<link rel="manifest" href="/manifest.json">
+<link rel="manifest" href="manifest.json">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="La Sala">
-<link rel="apple-touch-icon" href="/icon-192.png">
-<link rel="icon" href="/icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.2.0/dist/tabler-icons.min.css">
 <style>
 :root{
@@ -570,6 +570,9 @@ function applyRoleHomeUI(){
           <button onclick="showPropuestasRiegoModule()" title="Revisar las propuestas inminentes de riego enviadas por los técnicos" style="padding:9px 16px;font-size:12px;font-weight:800;background:#1558a0;color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:6px">
             <i class="ti ti-mail" style="font-size:15px"></i> Propuestas de riego <span id="propuestas-riego-badge"></span>
           </button>
+          <button onclick="avisarHojasCorregidas()" title="Avisar a Fran y Dennis de que ya has corregido las hojas" style="padding:9px 16px;font-size:12px;font-weight:800;background:#6a1b9a;color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:6px">
+            <i class="ti ti-check" style="font-size:15px"></i> Hojas corregidas
+          </button>
         </div>`);
     }
     actualizarBadgePropuestasRiego();
@@ -853,7 +856,7 @@ async function activarNotificacionesPush(){
   try{
     const permiso = await Notification.requestPermission();
     if(permiso!=='granted'){ showToast('No se han activado los avisos'); return; }
-    const reg = await navigator.serviceWorker.register('/sw.js');
+    const reg = await navigator.serviceWorker.register('sw.js');
     await navigator.serviceWorker.ready;
     let sub = await reg.pushManager.getSubscription();
     if(!sub){
@@ -884,7 +887,7 @@ async function activarNotificacionesPush(){
 // esto solo controla la suscripción push real de esta app.
 async function desactivarNotificacionesPush(){
   try{
-    const reg = await navigator.serviceWorker.getRegistration('/sw.js');
+    const reg = await navigator.serviceWorker.getRegistration('sw.js');
     const sub = reg ? await reg.pushManager.getSubscription() : null;
     if(sub){
       const endpoint = sub.endpoint;
@@ -903,7 +906,7 @@ async function desactivarNotificacionesPush(){
 async function estaPushActivado(){
   if(!('serviceWorker' in navigator) || !('PushManager' in window)) return false;
   try{
-    const reg = await navigator.serviceWorker.getRegistration('/sw.js');
+    const reg = await navigator.serviceWorker.getRegistration('sw.js');
     if(!reg) return false;
     const sub = await reg.pushManager.getSubscription();
     return !!sub;
@@ -1259,6 +1262,19 @@ async function marcarHojasMarcadas(){
   await notificarUsuario('VIGUERAS', `${nombreLegibleUsuario(currentUser)} ha marcado las hojas de riego`, '✅ Hojas marcadas');
   logHistorial('Marcó "Hojas marcadas" (aviso enviado a Vigueras)');
   showToast('✓ Aviso enviado a Vigueras');
+}
+// A petición de Paula (2026-08-05): botón de Vigueras para avisar a Fran y
+// Dennis de que ya ha corregido las hojas — mismo patrón que "Hojas
+// marcadas" (marcarHojasMarcadas) pero en sentido contrario y a los dos
+// técnicos a la vez, no a uno según el turno de guardia.
+async function avisarHojasCorregidas(){
+  if(!confirm('¿Avisar a Fran y Dennis de que las hojas ya están corregidas?')) return;
+  await Promise.all([
+    notificarUsuario('FRAN', 'Vigueras ha corregido las hojas', '✅ Hojas corregidas'),
+    notificarUsuario('DENNIS', 'Vigueras ha corregido las hojas', '✅ Hojas corregidas')
+  ]);
+  logHistorial('Avisó "Hojas corregidas" a Fran y Dennis');
+  showToast('✓ Aviso enviado a Fran y Dennis');
 }
 // Navegación de la vista de gestión (ADMIN/TÉCNICO) "Tareas": pantalla
 // completa con menú lateral (2026-07-30, a petición de Paula, mismo formato
@@ -3781,15 +3797,14 @@ function renderControlCardConGuionesHTML(grupo, seccion){
 }
 function showControlModule(){
   // A petición de Paula (2026-08-05): "tarda mucho y se queda pillada" al
-  // entrar en Control — loadControlFotosData() descarga TODAS las fotos
-  // guardadas de golpe (varios MB juntos, ver [[lasala_control_fotos_clave_separada]]),
-  // y antes se esperaba a que terminara esa descarga entera antes de pintar
-  // nada, aunque el listado de checks no necesite ninguna foto para
-  // mostrarse. Ahora el listado se pinta en cuanto están listos los checks
-  // (rápido, unos pocos KB) y las fotos se cargan aparte, en segundo plano
-  // — cuando terminan, se repinta para que aparezcan sin haber bloqueado la
-  // apertura del módulo.
-  Promise.all([loadControlChecksData(), loadControlPdfsData(), loadConteoTutaData()]).then(()=>{
+  // entrar en Control. Dos cosas pesadas se descargaban ENTERAS antes de
+  // pintar nada: las fotos guardadas (ver [[lasala_control_fotos_clave_separada]])
+  // y los PDFs adjuntos por día (lasala-control-pdfs-v1, ~6,5 MB en total,
+  // porque cada PDF se guarda en base64) — ninguna de las dos hace falta
+  // para ver el listado de checks. Ahora el listado se pinta en cuanto están
+  // listos los checks (rápido, unos pocos KB) y fotos/PDFs se cargan aparte,
+  // en segundo plano, repintando cuando terminan.
+  Promise.all([loadControlChecksData(), loadConteoTutaData()]).then(()=>{
     controlSeccion = null;
     const overlay = getOrCreateOverlay('control-overlay');
     overlay.style.padding = '0';
@@ -3798,7 +3813,7 @@ function showControlModule(){
     // Por si quedó algo sin sincronizar de una sesión anterior (se cerró la
     // pestaña estando sin conexión, por ejemplo).
     if(leerColaOffline().length) procesarColaOffline();
-    loadControlFotosData().then(()=>{
+    Promise.all([loadControlFotosData(), loadControlPdfsData()]).then(()=>{
       renderControlContent(document.getElementById('control-overlay'));
     });
   });
