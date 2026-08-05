@@ -389,16 +389,20 @@ function togglePass(){const i=document.getElementById('login-pass'),e=document.g
 // así que cualquier recarga de la página (p.ej. el móvil descargando la pestaña por
 // falta de memoria al volver de la cámara tras hacer una foto — comportamiento
 // habitual en Safari/Chrome móvil con capturas de cámara pesadas) perdía la sesión
-// entera y mostraba el login de nuevo. Ahora la sesión se guarda en sessionStorage
-// (se borra sola al cerrar la pestaña, pero sobrevive a que la propia pestaña se
-// recargue) y se restaura automáticamente al cargar la página, sin pedir contraseña
-// otra vez.
+// entera y mostraba el login de nuevo.
+// 2026-08-05: seguía pasando con sessionStorage — en el móvil (sobre todo la app
+// "instalada" en pantalla de inicio), abrir la cámara nativa puede hacer que el
+// sistema mate del todo el proceso de la web para liberar memoria, y sessionStorage
+// no está garantizado que sobreviva a eso (solo dura "mientras la pestaña esté
+// viva" en el sentido más estricto). localStorage sí sobrevive siempre — es lo
+// mismo que ya usa la cola offline por el mismo motivo — así que la sesión se
+// guarda ahí. Se sigue borrando al pulsar "Salir".
 const SESION_KEY = 'lasala-sesion-v1';
 function guardarSesion(user){
-  try{ sessionStorage.setItem(SESION_KEY, user); }catch(e){}
+  try{ localStorage.setItem(SESION_KEY, user); }catch(e){}
 }
 function borrarSesion(){
-  try{ sessionStorage.removeItem(SESION_KEY); }catch(e){}
+  try{ localStorage.removeItem(SESION_KEY); }catch(e){}
 }
 async function entrarApp(user){
   currentUser=user;
@@ -420,7 +424,7 @@ async function entrarApp(user){
 }
 async function restaurarSesion(){
   let user;
-  try{ user = sessionStorage.getItem(SESION_KEY); }catch(e){ return; }
+  try{ user = localStorage.getItem(SESION_KEY); }catch(e){ return; }
   if(!user) return;
   await usersLoadedPromise;
   if(!USERS[user]) return; // usuario ya no existe — no restaurar
