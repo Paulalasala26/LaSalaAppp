@@ -185,6 +185,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
           <i class="ti ti-clipboard-check" style="font-size:26px;opacity:.9"></i>
           <div style="font-size:14px;font-weight:700;margin-top:12px">Control</div>
         </div>
+        <div class="home-shortcut-card" onclick="handleQuickAction('partidas')" style="background:linear-gradient(135deg,#0f5c4a,#1a9c78);color:#fff;border-radius:14px;padding:1.4rem 1.25rem">
+          <i class="ti ti-layout-grid" style="font-size:26px;opacity:.9"></i>
+          <div style="font-size:14px;font-weight:700;margin-top:12px">Partidas</div>
+        </div>
       </div>
     </div>
   </div>
@@ -2825,6 +2829,8 @@ function handleQuickAction(val){
     showTrabajosModule();return;
   } else if(val==='control'){
     showControlModule();return;
+  } else if(val==='partidas'){
+    showPartidasModule();return;
   } else if(val==='hojas-riego'){
     showHojasRiego();return;
   } else if(val==='tratamientos'){
@@ -3631,7 +3637,8 @@ const ACCIONES_OFFLINE_REPLAYABLES = {
   aplicarNuevaLineaControl,
   aplicarEditarControlCargaCheck,
   aplicarEditarControlCheck,
-  aplicarFotoControl
+  aplicarFotoControl,
+  aplicarSalidaPartida
 };
 // A petición de Paula (2026-08-05): "ayer realizamos varios checks de túnel y
 // ponía que se estaban sincronizando y ya no salen" — bug real encontrado:
@@ -4244,6 +4251,11 @@ async function autoCrearLineasDesdePdfControl(tipo, dia, pdfB64){
       controlChecksData.push({
         id: 'control_'+Date.now()+'_'+idx+'_'+Math.random().toString(36).slice(2,8),
         tipo, dia, clienteVariedad, partida: p.partida, numBandejas,
+        // fentrega (Fecha Entrega del PDF) se guarda ahora también en la línea
+        // — a petición de Paula (2026-08-05, módulo "Partidas") para poder
+        // mostrarla en el mapa de calles, no solo usarla de paso para el
+        // pinzado automático como hasta ahora.
+        fentrega: p.fentrega || '',
         invId: null, calleDesde: null, calleHasta: null,
         color:{}, tamano:{}, sanidad:{}, flores:{}, raices:{}, observaciones:'',
         creadoPor: currentUser||'—', creadoEn: new Date().toLocaleString('es-ES'),
@@ -5001,6 +5013,185 @@ async function eliminarControlCheckConfirmado(id){
     }
   }catch(e){}
   if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
+}
+
+// ════════════════════════════════════════════════════════════════
+// PARTIDAS — mapa de calles por invernadero (a petición de Paula, 2026-08-05).
+// Nuevo botón de navegación en Inicio. Reutiliza el mismo esqueleto de
+// cuadrícula que Riego (INV_LAYOUT, calles como columnas, Sala 1/Sala 2), pero
+// SIN días a los lados ni colores de sábado/domingo/lunes — aquí las filas no
+// representan días, representan la posición física de cada partida dentro de
+// su calle: la primera partida que entra se coloca en la fila más alejada del
+// pasillo (el hueco que separa "lado de arriba" — row1 — de "lado de abajo"
+// — row2, de un mismo invernadero), y las siguientes se van colocando más
+// cerca del pasillo. Si una partida ocupa varios tramos de calle (ver
+// [[lasala_control_tramos_calle]]), ocupa esas mismas columnas en cada fila
+// que le toque.
+//
+// Las partidas que se muestran aquí son las líneas de Check Túnel
+// (controlChecksData, tipo:'tunel') que ya tienen calle real asignada y que
+// no se hayan marcado como "salida" — no es una tabla propia, es una vista
+// derivada de esos mismos datos, así que no hay nada nuevo que sincronizar
+// aparte del campo c.salioInvernadero.
+let partidasSalaSel = 'sala1';
+function showPartidasModule(){
+  Promise.all([loadControlChecksData()]).then(()=>{
+    const overlay = getOrCreateOverlay('partidas-overlay');
+    overlay.style.padding = '0';
+    renderPartidasMapaContent(overlay);
+    overlay.style.display = 'flex';
+  });
+}
+function seleccionarSalaPartidas(sala){
+  partidasSalaSel = sala;
+  renderPartidasMapaContent(document.getElementById('partidas-overlay'));
+}
+function renderPartidasMapaContent(overlay){
+  overlay.innerHTML = `
+    <div style="background:#f2f4f0;width:100vw;height:100vh;max-width:100vw;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.3)">
+      <div style="background:linear-gradient(135deg,#0f5c4a,#1a9c78);color:#fff;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;flex-wrap:wrap;gap:10px">
+        <div style="font-size:17px;font-weight:800;display:flex;align-items:center;gap:8px">
+          <i class="ti ti-layout-grid" style="font-size:20px"></i> Partidas — mapa de calles
+        </div>
+        <div style="display:flex;gap:6px">
+          <button onclick="seleccionarSalaPartidas('sala1')" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:800;border:1.5px solid rgba(255,255,255,.4);cursor:pointer;background:${partidasSalaSel==='sala1'?'#fff':'transparent'};color:${partidasSalaSel==='sala1'?'#0f5c4a':'#fff'}">Sala 1</button>
+          <button onclick="seleccionarSalaPartidas('sala2')" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:800;border:1.5px solid rgba(255,255,255,.4);cursor:pointer;background:${partidasSalaSel==='sala2'?'#fff':'transparent'};color:${partidasSalaSel==='sala2'?'#0f5c4a':'#fff'}">Sala 2</button>
+          <button onclick="document.getElementById('partidas-overlay').style.display='none'" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700;background:rgba(255,255,255,.15);color:#fff;border:none;cursor:pointer">✕ Cerrar</button>
+        </div>
+      </div>
+      <div id="partidas-content-wrap" style="flex:1;overflow:auto;padding:1.25rem">
+        ${renderPartidasSalaHTML(partidasSalaSel)}
+      </div>
+    </div>`;
+}
+// Detecta 2HV/3HV/4HV/150/150 BIO/104/104 BIO buscando esos códigos sueltos
+// dentro del texto de Variedad — mismo sitio de donde ya se lee 2HV/3HV/4HV
+// para el pinzado automático (ver detectarHV), pero separado porque aquí
+// hace falta el texto exacto a mostrar, no solo el número de hojas.
+function detectarTipoPlantaPartida(variedad){
+  if(!variedad) return null;
+  const v = variedad.toUpperCase();
+  let m = /(\d)\s*HV\b/.exec(v);
+  if(m) return m[1]+'HV';
+  if(/\b150\s*BIO\b/.test(v)) return '150 BIO';
+  if(/\b104\s*BIO\b/.test(v)) return '104 BIO';
+  if(/\b150\b/.test(v)) return '150';
+  if(/\b104\b/.test(v)) return '104';
+  return null;
+}
+// Calcula, para un invernadero, en qué fila (0 = más alejada del pasillo) le
+// toca a cada "bloque" (una partida, o uno de sus tramos si ocupa varias
+// calles) — se procesan en orden de entrada (creadoEn) y cada bloque se
+// coloca en la primera fila libre para TODAS las calles que ocupa a la vez,
+// para que nunca se pise con otro bloque ya colocado.
+function calcularBloquesPartidasInv(invId){
+  const entradas = controlChecksData
+    .filter(c=>c.tipo==='tunel' && c.invId===invId && !c.salioInvernadero && c.invId && ((c.tramos&&c.tramos.length) || c.calleDesde!=null))
+    .slice()
+    .sort((a,b)=> new Date(a.creadoEn||0) - new Date(b.creadoEn||0));
+  const alturaPorCalle = {};
+  const bloques = [];
+  entradas.forEach(entry=>{
+    const tramos = (entry.tramos && entry.tramos.length) ? entry.tramos : [{desde:entry.calleDesde, hasta:entry.calleHasta}];
+    tramos.forEach(t=>{
+      if(t.desde==null) return;
+      const desde = Math.min(t.desde, t.hasta==null?t.desde:t.hasta);
+      const hasta = Math.max(t.desde, t.hasta==null?t.desde:t.hasta);
+      const calles = [];
+      for(let c=desde; c<=hasta; c++) calles.push(c);
+      const pos = Math.max(0, ...calles.map(c=>alturaPorCalle[c]||0));
+      calles.forEach(c=>{ alturaPorCalle[c] = pos+1; });
+      bloques.push({ calles, pos, entry });
+    });
+  });
+  return bloques;
+}
+function renderPartidasSalaHTML(sala){
+  const invIds = sala==='sala1' ? ALL_INV_IDS_SALA1 : ALL_INV_IDS;
+  return invIds.map(invId=>renderPartidasInvHTML(invId)).join('');
+}
+function renderPartidasBloqueHTML(bloque){
+  if(!bloque) return '<div style="height:100%"></div>';
+  const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const c = bloque.entry;
+  const tipoPlanta = detectarTipoPlantaPartida(c.clienteVariedad);
+  return `
+    <div style="height:100%;padding:4px 6px;background:#e8f5ef;border:1px solid #a5d6c2;border-radius:6px;font-size:10px;line-height:1.35;position:relative;overflow:hidden">
+      <button onclick="marcarSalidaPartida('${c.id}')" title="Marcar salida (quitar del mapa)" style="position:absolute;top:2px;right:2px;width:16px;height:16px;padding:0;background:rgba(198,40,40,.12);color:#c62828;border:none;border-radius:4px;font-size:10px;line-height:16px;cursor:pointer">✕</button>
+      <div style="font-weight:800;color:#0f5c4a;padding-right:16px">${escapar(c.partida)||'—'}</div>
+      <div style="color:var(--text);font-weight:600">${escapar(c.clienteVariedad)||''}</div>
+      <div style="color:var(--muted);display:flex;gap:5px;flex-wrap:wrap;margin-top:1px">
+        ${c.fentrega ? `<span>📅 ${escapar(c.fentrega)}</span>` : ''}
+        ${tipoPlanta ? `<span style="font-weight:700;color:#0f5c4a">${escapar(tipoPlanta)}</span>` : ''}
+      </div>
+    </div>`;
+}
+function renderPartidasInvHTML(invId){
+  const layout = INV_LAYOUT[invId];
+  if(!layout) return '';
+  const bloques = calcularBloquesPartidasInv(invId);
+  const CW = 92, ROW_H = 58, HDR_H = 24;
+  function buildSection(calles, alinearArriba){
+    if(!calles.length) return '';
+    const maxPos = Math.max(0, ...bloques.filter(b=>b.calles.some(c=>calles.includes(c))).map(b=>b.pos+1));
+    if(!maxPos) return `<div style="display:flex">${calles.map(()=>`<div style="width:${CW}px;flex-shrink:0"></div>`).join('')}</div>`;
+    // alinearArriba=true (lado de arriba, row1): fila 0 = más lejos del
+    // pasillo, arriba del todo; las filas van creciendo hacia el pasillo
+    // (abajo). alinearArriba=false (lado de abajo, row2): al revés, la fila
+    // más cercana al pasillo va arriba (justo debajo del divisor) y crece
+    // hacia abajo alejándose — así ambos lados quedan "pegados" al pasillo.
+    const filas = [];
+    for(let r=0; r<maxPos; r++){
+      const displayPos = alinearArriba ? r : (maxPos-1-r);
+      let ci = 0;
+      const celdas = [];
+      while(ci < calles.length){
+        const calle = calles[ci];
+        const bloque = bloques.find(b=>b.pos===displayPos && b.calles[0]===calle);
+        if(bloque){
+          celdas.push(`<div style="width:${CW*bloque.calles.length}px;flex-shrink:0;padding:2px">${renderPartidasBloqueHTML(bloque)}</div>`);
+          ci += bloque.calles.length;
+        } else {
+          // Comprobar si esta calle está "ocupada" por un bloque de una calle
+          // anterior que se extiende hasta aquí (para no dibujar una celda
+          // vacía encima de un bloque ya pintado).
+          const cubiertaPorAnterior = bloques.some(b=>b.pos===displayPos && b.calles.includes(calle) && b.calles[0]!==calle);
+          if(!cubiertaPorAnterior) celdas.push(`<div style="width:${CW}px;flex-shrink:0;padding:2px"><div style="height:100%;min-height:${ROW_H-4}px"></div></div>`);
+          ci++;
+        }
+      }
+      filas.push(`<div style="display:flex;min-height:${ROW_H}px">${celdas.join('')}</div>`);
+    }
+    return filas.join('');
+  }
+  const hdrHTML = (calles) => `<div style="display:flex;position:sticky;top:0;z-index:5;background:#dce8f5">
+    ${calles.map(c=>`<div style="width:${CW}px;flex-shrink:0;height:${HDR_H}px;border:1px solid #9ab8d8;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#1558a0">${c}</div>`).join('')}
+  </div>`;
+  return `
+    <div style="margin-bottom:2rem">
+      <div style="font-size:14px;font-weight:800;color:var(--text);margin-bottom:8px">${layout.label}</div>
+      <div style="overflow-x:auto;border:1px solid var(--border);border-radius:10px;background:#fff;padding:8px">
+        ${hdrHTML(layout.row1)}
+        <div style="min-width:${layout.row1.length*CW}px">${buildSection(layout.row1, true)}</div>
+        <div style="text-align:center;font-size:10px;font-weight:800;color:#fff;background:#4a5568;padding:4px;border-radius:4px;margin:6px 0;letter-spacing:.05em">PASILLO</div>
+        <div style="min-width:${layout.row2.length*CW}px">${buildSection(layout.row2, false)}</div>
+        ${hdrHTML(layout.row2)}
+      </div>
+    </div>`;
+}
+function marcarSalidaPartida(id){
+  if(!confirm('¿Marcar esta partida como salida? Desaparecerá del mapa de calles (el check de Túnel no se borra).')) return;
+  aplicarSalidaPartida(id, true);
+}
+async function aplicarSalidaPartida(id, valor){
+  const c = controlChecksData.find(x=>x.id===id);
+  if(!c) return;
+  c.salioInvernadero = valor;
+  renderPartidasMapaContent(document.getElementById('partidas-overlay'));
+  const qid = encolarAccionOffline('aplicarSalidaPartida', [id, valor]);
+  const ok = await persistControlChecksData();
+  if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
+  return ok;
 }
 
 // ════════════════════════════════════════════════════════════════
