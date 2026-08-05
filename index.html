@@ -6849,7 +6849,27 @@ function renderDashboardInvernaderos(modulo){
 // (se recalcula en cada render) — el botón "Imprimir hoja" de cada tarjeta
 // referencia una de ellas por índice, en vez de meter el JSON entero en el
 // atributo onclick (evita líos de escapado de comillas).
+// A petición de Paula (2026-08-05): "los tratamientos van en función de
+// cubas y no pueden salir juntos a no ser que en el caldo inicial se hagan
+// con cuba de ruedas" — dos invernaderos de cubas DISTINTAS nunca pueden
+// juntarse en la misma tarjeta/hoja aunque sea el mismo producto/caldo el
+// mismo día, salvo que el caldo se preparara con "CUBA DE RUEDAS" (esa
+// etiqueta ya existe en FITO_CALDO_OPCIONES — un tanque móvil que no
+// depende de ninguna cuba fija). Regla permanente: se aplica aquí mismo, en
+// el agrupamiento de origen, así que vale automáticamente para cualquier
+// tratamiento nuevo, no solo para los que ya había.
+const CUBA_GRUPOS = {
+  '10A':'CUBA1','10B':'CUBA1','11A':'CUBA1','11B':'CUBA1','12':'CUBA1',
+  '15':'CUBA2','16':'CUBA2','17':'CUBA2','18':'CUBA2',
+  '19':'CUBA3','20':'CUBA3','21':'CUBA3','22':'CUBA3'
+};
 let resumenQuincenaFilasCache = { fito: [], especifico: [] };
+let resumenQuincenaDiaFiltro = { fito: null, especifico: null };
+function cambiarResumenQuincenaDiaFiltro(modulo, dia){
+  resumenQuincenaDiaFiltro[modulo] = dia===''?null:parseInt(dia,10);
+  const wrap = document.getElementById('resumen-quincena-'+modulo);
+  if(wrap) wrap.outerHTML = renderResumenQuincenaTratamientos(modulo);
+}
 function renderResumenQuincenaTratamientos(modulo){
   const rawGetter = modulo==='fito' ? (invId,dia,c)=>getFitoCellRaw(invId,dia,c) : (invId,dia,c)=>getEspecificoCellRaw(invId,dia,c);
   const offset = modulo==='fito' ? fitoQuincenaOffset : especificosQuincenaOffset;
@@ -6874,9 +6894,12 @@ function renderResumenQuincenaTratamientos(modulo){
         const texto = typeof raw==='string' ? raw : raw?.texto;
         if(!texto) return;
         const parsed = modulo==='fito' ? parsearTextoFito(texto) : parsearTextoEspecifico(texto);
+        const caldoLabel = (typeof raw==='object' && raw?.caldoLabel) || '';
+        const esCubaRuedas = /CUBA DE RUEDAS/i.test(caldoLabel);
+        const grupoCuba = esCubaRuedas ? 'RUEDAS' : (CUBA_GRUPOS[invId] || invId);
         const firma = modulo==='fito'
-          ? [dia, parsed.trat, parsed.dosis, parsed.horario].join('|')
-          : [dia, parsed.trat, parsed.dosis, parsed.horario, parsed.tipo].join('|');
+          ? [dia, parsed.trat, parsed.dosis, parsed.horario, grupoCuba].join('|')
+          : [dia, parsed.trat, parsed.dosis, parsed.horario, parsed.tipo, grupoCuba].join('|');
         if(!grupos[firma]) grupos[firma] = { dia, texto, porInv: {}, raw: null };
         const obsKey = parsed.obs || '';
         if(!grupos[firma].porInv[invId]) grupos[firma].porInv[invId] = {};
@@ -6886,7 +6909,11 @@ function renderResumenQuincenaTratamientos(modulo){
       });
     });
   });
-  const filas = Object.values(grupos).sort((a,b)=> a.dia-b.dia || a.texto.localeCompare(b.texto));
+  let filas = Object.values(grupos).sort((a,b)=> a.dia-b.dia || a.texto.localeCompare(b.texto));
+  // Filtro por día (a petición de Paula, 2026-08-05) — no afecta al
+  // agrupamiento en sí, solo a qué tarjetas se muestran.
+  const diaFiltro = resumenQuincenaDiaFiltro[modulo];
+  if(diaFiltro!=null) filas = filas.filter(f=>f.dia===diaFiltro);
   resumenQuincenaFilasCache[modulo] = filas;
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   // Tarjetas de colores (mismo formato que el resto del dashboard/resumen de
@@ -6910,17 +6937,48 @@ function renderResumenQuincenaTratamientos(modulo){
               ${caldoLabel?`<span style="font-size:11px;font-weight:800;background:rgba(255,255,255,.2);border-radius:999px;padding:2px 10px">🧪 ${escapar(caldoLabel)}</span>`:''}
             </div>
           </div>
-          <button onclick="imprimirHojaResumen('${modulo}',${idx})" title="Imprimir hoja completa" style="background:rgba(255,255,255,.22);border:none;color:#fff;border-radius:8px;padding:8px 10px;cursor:pointer;flex-shrink:0;display:flex;align-items:center">
-            <i class="ti ti-printer" style="font-size:16px"></i>
-          </button>
+          <div style="display:flex;gap:6px;flex-shrink:0">
+            <button onclick="editarResumenTratamiento('${modulo}',${idx})" title="Editar" style="background:rgba(255,255,255,.22);border:none;color:#fff;border-radius:8px;padding:8px 10px;cursor:pointer;display:flex;align-items:center">
+              <i class="ti ti-pencil" style="font-size:16px"></i>
+            </button>
+            <button onclick="imprimirHojaResumen('${modulo}',${idx})" title="Imprimir hoja completa" style="background:rgba(255,255,255,.22);border:none;color:#fff;border-radius:8px;padding:8px 10px;cursor:pointer;display:flex;align-items:center">
+              <i class="ti ti-printer" style="font-size:16px"></i>
+            </button>
+          </div>
         </div>
       </div>`;
   }).join('');
+  // Filtro por día (a petición de Paula, 2026-08-05) — opciones = solo los
+  // días de esta quincena que tengan algo aplicado, para no listar días vacíos.
+  const diasConDatos = [...new Set(Object.values(grupos).map(g=>g.dia))].sort((a,b)=>a-b);
+  const filtroDiaHTML = `
+    <select onchange="cambiarResumenQuincenaDiaFiltro('${modulo}',this.value)" style="padding:6px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:11px;font-weight:700;margin-bottom:10px">
+      <option value="">Todos los días</option>
+      ${diasConDatos.map(d=>`<option value="${d}"${diaFiltro===d?' selected':''}>${escapar(riegoDiaLabelCorto(d))} — ${escapar(riegoDiaSemana(d))}</option>`).join('')}
+    </select>`;
   return `
-    <div style="font-size:14px;font-weight:800;color:var(--text);margin-bottom:10px;padding:0 .25rem">Aplicado en esta quincena</div>
-    <div style="padding:0 .25rem">
-      ${filas.length===0 ? `<div style="text-align:center;padding:2rem;color:var(--muted);font-style:italic;font-size:13px">Nada aplicado todavía.</div>` : filasHTML}
+    <div id="resumen-quincena-${modulo}">
+      <div style="font-size:14px;font-weight:800;color:var(--text);margin-bottom:6px;padding:0 .25rem">Aplicado en esta quincena</div>
+      <div style="padding:0 .25rem">${filtroDiaHTML}</div>
+      <div style="padding:0 .25rem">
+        ${filas.length===0 ? `<div style="text-align:center;padding:2rem;color:var(--muted);font-style:italic;font-size:13px">Nada aplicado todavía${diaFiltro!=null?' ese día':''}.</div>` : filasHTML}
+      </div>
     </div>`;
+}
+// Botón "Editar" de cada tarjeta (a petición de Paula, 2026-08-05, "al lado
+// de imprimir") — navega al primer invernadero del grupo y abre el mismo
+// formulario de edición que se abre con doble clic en la celda de la
+// cuadrícula.
+function editarResumenTratamiento(modulo, idx){
+  const f = resumenQuincenaFilasCache[modulo]?.[idx];
+  if(!f) return;
+  const primerInv = Object.keys(f.porInv)[0];
+  if(!primerInv) return;
+  const calles = [...new Set(Object.values(f.porInv[primerInv]).flat())];
+  const selectFn = DASHBOARD_MODULOS[modulo].selectFn;
+  window[selectFn](primerInv);
+  if(modulo==='fito') editarFitoManualDesdeCelda(primerInv, f.dia, calles);
+  else editarEspecificoManualDesdeCelda(primerInv, f.dia, calles);
 }
 // Botón "Imprimir hoja" de cada tarjeta del resumen — reconstruye la hoja
 // OFICIAL completa (misma que las de siempre) a partir de lo que ya está
