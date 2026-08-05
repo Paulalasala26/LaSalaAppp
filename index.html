@@ -5148,6 +5148,34 @@ function detectarTipoPlantaPartida(variedad){
 function sortKeyPartida(entry){
   return (typeof entry.posManual === 'number') ? entry.posManual : new Date(entry.creadoEn||0).getTime();
 }
+// 2026-08-05: "en los lados de abajo falla al intercambiar, sale como
+// intercambiadas pero no hace el cambio" — el arrastrar-y-soltar nativo
+// (HTML5 drag-and-drop, draggable="true"/ondragstart/ondrop) prácticamente
+// no funciona por TACTO en móvil (solo con ratón de ordenador), así que en
+// el móvil el gesto de arrastrar no llegaba a disparar el drop de verdad.
+// Se mantiene el drag nativo como extra para ratón, pero el mecanismo
+// principal pasa a ser "tocar una, luego tocar otra" — funciona igual en
+// móvil y en ordenador, sin depender de gestos de arrastre.
+let partidaSeleccionadaParaMover = null;
+function seleccionarPartidaParaMover(id, event){
+  if(event) event.stopPropagation();
+  if(partidaSeleccionadaParaMover === id){
+    partidaSeleccionadaParaMover = null;
+    renderPartidasMapaContent(document.getElementById('partidas-overlay'));
+    return;
+  }
+  if(!partidaSeleccionadaParaMover){
+    partidaSeleccionadaParaMover = id;
+    renderPartidasMapaContent(document.getElementById('partidas-overlay'));
+    return;
+  }
+  const idA = partidaSeleccionadaParaMover, idB = id;
+  partidaSeleccionadaParaMover = null;
+  const cA = controlChecksData.find(x=>x.id===idA);
+  const cB = controlChecksData.find(x=>x.id===idB);
+  if(!cA || !cB) return;
+  aplicarIntercambioPartidas(idA, sortKeyPartida(cB), idB, sortKeyPartida(cA));
+}
 // Calcula, para un invernadero, en qué fila (0 = más alejada del pasillo) le
 // toca a cada "bloque" (una partida, o uno de sus tramos si ocupa varias
 // calles) — se procesan en ese orden y cada bloque se coloca en la primera
@@ -5212,11 +5240,13 @@ function renderPartidasBloqueHTML(bloque){
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const c = bloque.entry;
   const tipoPlanta = detectarTipoPlantaPartida(c.clienteVariedad);
+  const seleccionada = partidaSeleccionadaParaMover === c.id;
   return `
     <div draggable="true" ondragstart="iniciarArrastrePartida('${c.id}')" onclick="mostrarHistorialPartida('${c.id}')"
-      style="height:100%;padding:4px 6px;background:#e8f5ef;border:1px solid #a5d6c2;border-radius:6px;font-size:10px;line-height:1.35;position:relative;overflow:hidden;cursor:grab">
+      style="height:100%;padding:4px 6px;background:${seleccionada?'#fff3dc':'#e8f5ef'};border:1.5px solid ${seleccionada?'#c47f00':'#a5d6c2'};border-radius:6px;font-size:10px;line-height:1.35;position:relative;overflow:hidden;cursor:grab">
+      <button onclick="seleccionarPartidaParaMover('${c.id}',event)" title="Tocar y luego tocar otra partida para intercambiar su posición" style="position:absolute;top:2px;right:20px;width:16px;height:16px;padding:0;background:${seleccionada?'#c47f00':'rgba(15,92,74,.15)'};color:${seleccionada?'#fff':'#0f5c4a'};border:none;border-radius:4px;font-size:10px;line-height:16px;cursor:pointer">⇄</button>
       <button onclick="event.stopPropagation();marcarSalidaPartida('${c.id}')" title="Marcar salida (quitar del mapa)" style="position:absolute;top:2px;right:2px;width:16px;height:16px;padding:0;background:rgba(198,40,40,.12);color:#c62828;border:none;border-radius:4px;font-size:10px;line-height:16px;cursor:pointer">✕</button>
-      <div style="font-weight:800;color:#0f5c4a;padding-right:16px">${escapar(c.partida)||'—'}</div>
+      <div style="font-weight:800;color:#0f5c4a;padding-right:34px">${escapar(c.partida)||'—'}</div>
       <div style="color:var(--text);font-weight:600">${escapar(c.clienteVariedad)||''}</div>
       <div style="color:var(--muted);display:flex;gap:5px;flex-wrap:wrap;margin-top:1px">
         ${c.fentrega ? `<span>📅 ${escapar(c.fentrega)}</span>` : ''}
