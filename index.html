@@ -3645,9 +3645,22 @@ const ACCIONES_OFFLINE_REPLAYABLES = {
 // compañía): ahora cada acción original solo se retira de la cola DESPUÉS de
 // intentar reaplicarla, una a una — si la app se cierra a mitad, las que
 // aún no se han procesado siguen intactas en la cola para la próxima vez.
+// A petición de Paula (2026-08-05): "ha subido a 66 cambios" — pulsar
+// Sincronizar varias veces seguidas (algo muy natural si no ves que avanza)
+// podía lanzar VARIAS pasadas de procesarColaOffline en paralelo; cada pasada
+// reencola su propia copia de cada acción antes de reintentarla (ver
+// aplicarControlCheckOpcion y compañía) — si dos pasadas solapadas intentan
+// la MISMA acción a la vez y ambas fallan (p.ej. por el problema de las fotos
+// de 10 MB ya corregido, o simplemente por mala cobertura), cada una deja su
+// propia copia sin retirar, duplicando lo pendiente en vez de reducirlo.
+// Candado simple para que solo haya una sincronización en marcha.
+let sincronizacionEnCurso = false;
 async function procesarColaOffline(){
+  if(sincronizacionEnCurso) return;
   const cola = leerColaOffline();
   if(!cola.length) return;
+  sincronizacionEnCurso = true;
+  try{
   showToast(`Sincronizando ${cola.length} cambio${cola.length===1?'':'s'} pendiente${cola.length===1?'':'s'}...`);
   await loadControlChecksData(); // refrescar con lo último de la nube antes de reaplicar
   for(const accion of cola){
@@ -3662,12 +3675,19 @@ async function procesarColaOffline(){
     showToast('✓ Todo sincronizado');
     ocultarAvisoFalloGuardado();
   }
+  }finally{
+    sincronizacionEnCurso = false;
+  }
 }
 // Botón "Sincronizar" del checklist de Control — fuerza un reintento inmediato
 // en vez de esperar al evento 'online' o a reabrir el módulo, y avisa
 // claramente si ya no queda nada pendiente (para que se pueda comprobar "a
 // mano" cuando hay dudas, en vez de fiarse solo del aviso naranja automático).
 async function sincronizarControlManual(){
+  if(sincronizacionEnCurso){
+    showToast('Ya se está sincronizando, espera un momento...');
+    return;
+  }
   if(!leerColaOffline().length){
     showToast('✓ No hay cambios pendientes — todo sincronizado');
     return;
