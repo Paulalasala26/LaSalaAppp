@@ -3638,7 +3638,8 @@ const ACCIONES_OFFLINE_REPLAYABLES = {
   aplicarEditarControlCargaCheck,
   aplicarEditarControlCheck,
   aplicarFotoControl,
-  aplicarSalidaPartida
+  aplicarSalidaPartida,
+  aplicarIntercambioPartidas
 };
 // A petición de Paula (2026-08-05): "ayer realizamos varios checks de túnel y
 // ponía que se estaban sincronizando y ya no salen" — bug real encontrado:
@@ -5098,16 +5099,28 @@ function detectarTipoPlantaPartida(variedad){
   if(/\b104\b/.test(v)) return '104';
   return null;
 }
+// A petición de Paula (2026-08-05): "que pueda arrastrar las partidas y
+// colocarlas como yo quiera" — el orden ya no es SOLO por fecha de entrada:
+// si una partida tiene c.posManual (número), esa es su clave de orden; si no,
+// se usa su fecha de creación como hasta ahora. Arrastrar una partida sobre
+// otra INTERCAMBIA sus claves de orden (ver dropPartidaEnCelda) — como los
+// valores manuales son números normales (no fechas), y las claves por fecha
+// son timestamps en milisegundos (mucho más grandes), una partida recién
+// arrastrada siempre queda por delante de las que nunca se han tocado, hasta
+// que también se arrastren.
+function sortKeyPartida(entry){
+  return (typeof entry.posManual === 'number') ? entry.posManual : new Date(entry.creadoEn||0).getTime();
+}
 // Calcula, para un invernadero, en qué fila (0 = más alejada del pasillo) le
 // toca a cada "bloque" (una partida, o uno de sus tramos si ocupa varias
-// calles) — se procesan en orden de entrada (creadoEn) y cada bloque se
-// coloca en la primera fila libre para TODAS las calles que ocupa a la vez,
-// para que nunca se pise con otro bloque ya colocado.
+// calles) — se procesan en ese orden y cada bloque se coloca en la primera
+// fila libre para TODAS las calles que ocupa a la vez, para que nunca se
+// pise con otro bloque ya colocado.
 function calcularBloquesPartidasInv(invId){
   const entradas = controlChecksData
     .filter(c=>c.tipo==='tunel' && c.invId===invId && !c.salioInvernadero && c.invId && ((c.tramos&&c.tramos.length) || c.calleDesde!=null))
     .slice()
-    .sort((a,b)=> new Date(a.creadoEn||0) - new Date(b.creadoEn||0));
+    .sort((a,b)=> sortKeyPartida(a) - sortKeyPartida(b));
   const alturaPorCalle = {};
   const bloques = [];
   entradas.forEach(entry=>{
@@ -5125,14 +5138,47 @@ function calcularBloquesPartidasInv(invId){
   });
   return bloques;
 }
+// Arrastrar-y-soltar: solo funciona soltando sobre OTRA partida (intercambia
+// sus posiciones) — soltar sobre un hueco vacío no tiene una posición
+// "correcta" única cuando hay varios tramos de por medio, así que de momento
+// solo se admite el intercambio.
+let partidaArrastrandoId = null;
+function iniciarArrastrePartida(id){
+  partidaArrastrandoId = id;
+}
+function dropPartidaEnCelda(invId, calle, pos){
+  const draggedId = partidaArrastrandoId;
+  partidaArrastrandoId = null;
+  if(!draggedId) return;
+  const bloques = calcularBloquesPartidasInv(invId);
+  const draggedBlock = bloques.find(b=>b.entry.id===draggedId);
+  const targetBlock = bloques.find(b=>b.pos===pos && b.calles.includes(calle));
+  if(!draggedBlock || !targetBlock || targetBlock.entry.id===draggedId) return;
+  const claveArrastrada = sortKeyPartida(draggedBlock.entry);
+  const claveDestino = sortKeyPartida(targetBlock.entry);
+  aplicarIntercambioPartidas(draggedBlock.entry.id, claveDestino, targetBlock.entry.id, claveArrastrada);
+}
+async function aplicarIntercambioPartidas(id1, pos1, id2, pos2){
+  const c1 = controlChecksData.find(x=>x.id===id1);
+  const c2 = controlChecksData.find(x=>x.id===id2);
+  if(c1) c1.posManual = pos1;
+  if(c2) c2.posManual = pos2;
+  renderPartidasMapaContent(document.getElementById('partidas-overlay'));
+  showToast('✓ Partidas intercambiadas');
+  const qid = encolarAccionOffline('aplicarIntercambioPartidas', [id1, pos1, id2, pos2]);
+  const ok = await persistControlChecksData();
+  if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
+  return ok;
+}
 function renderPartidasBloqueHTML(bloque){
   if(!bloque) return '<div style="height:100%"></div>';
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const c = bloque.entry;
   const tipoPlanta = detectarTipoPlantaPartida(c.clienteVariedad);
   return `
-    <div style="height:100%;padding:4px 6px;background:#e8f5ef;border:1px solid #a5d6c2;border-radius:6px;font-size:10px;line-height:1.35;position:relative;overflow:hidden">
-      <button onclick="marcarSalidaPartida('${c.id}')" title="Marcar salida (quitar del mapa)" style="position:absolute;top:2px;right:2px;width:16px;height:16px;padding:0;background:rgba(198,40,40,.12);color:#c62828;border:none;border-radius:4px;font-size:10px;line-height:16px;cursor:pointer">✕</button>
+    <div draggable="true" ondragstart="iniciarArrastrePartida('${c.id}')" onclick="mostrarHistorialPartida('${c.id}')"
+      style="height:100%;padding:4px 6px;background:#e8f5ef;border:1px solid #a5d6c2;border-radius:6px;font-size:10px;line-height:1.35;position:relative;overflow:hidden;cursor:grab">
+      <button onclick="event.stopPropagation();marcarSalidaPartida('${c.id}')" title="Marcar salida (quitar del mapa)" style="position:absolute;top:2px;right:2px;width:16px;height:16px;padding:0;background:rgba(198,40,40,.12);color:#c62828;border:none;border-radius:4px;font-size:10px;line-height:16px;cursor:pointer">✕</button>
       <div style="font-weight:800;color:#0f5c4a;padding-right:16px">${escapar(c.partida)||'—'}</div>
       <div style="color:var(--text);font-weight:600">${escapar(c.clienteVariedad)||''}</div>
       <div style="color:var(--muted);display:flex;gap:5px;flex-wrap:wrap;margin-top:1px">
@@ -5163,15 +5209,20 @@ function renderPartidasInvHTML(invId){
       while(ci < calles.length){
         const calle = calles[ci];
         const bloque = bloques.find(b=>b.pos===displayPos && b.calles[0]===calle);
+        // ondragover/ondrop en TODAS las celdas (con o sin partida) — a
+        // petición de Paula (2026-08-05) para poder arrastrar una partida y
+        // soltarla sobre otra (intercambian posición); soltar sobre un hueco
+        // vacío no hace nada (ver dropPartidaEnCelda).
+        const dragAttrs = `ondragover="event.preventDefault()" ondrop="dropPartidaEnCelda('${invId}',${calle},${displayPos})"`;
         if(bloque){
-          celdas.push(`<div style="width:${CW*bloque.calles.length}px;flex-shrink:0;padding:2px">${renderPartidasBloqueHTML(bloque)}</div>`);
+          celdas.push(`<div ${dragAttrs} style="width:${CW*bloque.calles.length}px;flex-shrink:0;padding:2px">${renderPartidasBloqueHTML(bloque)}</div>`);
           ci += bloque.calles.length;
         } else {
           // Comprobar si esta calle está "ocupada" por un bloque de una calle
           // anterior que se extiende hasta aquí (para no dibujar una celda
           // vacía encima de un bloque ya pintado).
           const cubiertaPorAnterior = bloques.some(b=>b.pos===displayPos && b.calles.includes(calle) && b.calles[0]!==calle);
-          if(!cubiertaPorAnterior) celdas.push(`<div style="width:${CW}px;flex-shrink:0;padding:2px"><div style="height:100%;min-height:${ROW_H-4}px"></div></div>`);
+          if(!cubiertaPorAnterior) celdas.push(`<div ${dragAttrs} style="width:${CW}px;flex-shrink:0;padding:2px"><div style="height:100%;min-height:${ROW_H-4}px"></div></div>`);
           ci++;
         }
       }
@@ -5193,6 +5244,66 @@ function renderPartidasInvHTML(invId){
         ${hdrHTML(layout.row2)}
       </div>
     </div>`;
+}
+// A petición de Paula (2026-08-05): pulsar una partida en el mapa debe
+// mostrar todo su historial (riegos, plaguicidas, específicos y el propio
+// check) desde el día en que entró en su calle. Riego/Fito/Específicos
+// comparten la misma forma de datos (data[invId][dia][calle] = texto),
+// así que se recorren los mismos días/calles en los tres a la vez.
+async function mostrarHistorialPartida(id){
+  const c = controlChecksData.find(x=>x.id===id);
+  if(!c) return;
+  await Promise.all([loadRiegoData(), loadFitoData(), loadEspecificosData()]);
+  const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const tramos = (c.tramos && c.tramos.length) ? c.tramos : [{desde:c.calleDesde, hasta:c.calleHasta}];
+  const calles = [];
+  tramos.forEach(t=>{
+    if(t.desde==null) return;
+    for(let x=Math.min(t.desde,t.hasta==null?t.desde:t.hasta); x<=Math.max(t.desde,t.hasta==null?t.desde:t.hasta); x++) calles.push(x);
+  });
+  const diaDesde = c.dia!=null ? c.dia : riegoDiaDeHoy();
+  const eventos = [];
+  if(c.invId && calles.length){
+    for(let dia=diaDesde; dia<=diaDesde+90; dia++){
+      calles.forEach(calle=>{
+        const r = getRiego(c.invId, dia, calle);
+        if(r) eventos.push({dia, calle, tipo:'Riego', color:'#1558a0', texto:r});
+        const f = getFito(c.invId, dia, calle);
+        if(f) eventos.push({dia, calle, tipo:'Plaguicidas', color:'#c47f00', texto:f});
+        const e = getEspecifico(c.invId, dia, calle);
+        if(e) eventos.push({dia, calle, tipo:'Específicos', color:'#1a5c2e', texto:e});
+      });
+    }
+  }
+  eventos.sort((a,b)=> a.dia-b.dia || a.calle-b.calle);
+  const eventosHTML = eventos.length ? eventos.map(ev=>`
+    <div style="display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--border)">
+      <div style="width:64px;flex-shrink:0;font-size:11px;font-weight:700;color:var(--muted)">${escapar(riegoDiaLabelCorto(ev.dia))}</div>
+      <div style="width:74px;flex-shrink:0;font-size:10px;font-weight:800;color:#fff;background:${ev.color};border-radius:999px;padding:2px 8px;text-align:center">${ev.tipo}</div>
+      <div style="font-size:12px;color:var(--text)">C/${escapar(ev.calle)} — ${escapar(ev.texto)}</div>
+    </div>`).join('') : `<div style="text-align:center;padding:2rem;color:var(--muted);font-style:italic;font-size:13px">Sin riegos, plaguicidas ni específicos registrados en sus calles desde que entró.</div>`;
+  const tipoPlanta = detectarTipoPlantaPartida(c.clienteVariedad);
+  const mo = getOrCreateOverlay('partidas-historial-overlay');
+  mo.innerHTML = `
+    <div style="background:#fff;border-radius:14px;max-width:640px;width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.3)">
+      <div style="background:linear-gradient(135deg,#0f5c4a,#1a9c78);color:#fff;padding:1.1rem 1.5rem;border-radius:14px 14px 0 0;position:sticky;top:0">
+        <div style="font-size:17px;font-weight:800">${escapar(c.partida)||'— Sin partida —'}</div>
+        <div style="font-size:12px;opacity:.9;margin-top:2px">${escapar(c.clienteVariedad)||''}${tipoPlanta?' · '+escapar(tipoPlanta):''}</div>
+        <div style="font-size:11px;opacity:.85;margin-top:2px">${c.fentrega?`📅 Entrega ${escapar(c.fentrega)} · `:''}INV ${escapar(c.invId)||'—'} · desde ${escapar(riegoDiaLabelCorto(diaDesde))}</div>
+      </div>
+      <div style="padding:1.25rem 1.5rem">
+        <div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Check de Túnel</div>
+        <div style="font-size:12px;color:var(--text);margin-bottom:1.25rem">
+          ${c.observaciones ? escapar(c.observaciones) : '<span style="font-style:italic;color:var(--muted)">Sin observaciones</span>'}
+        </div>
+        <div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Historial de riegos, plaguicidas y específicos</div>
+        ${eventosHTML}
+      </div>
+      <div style="padding:1rem 1.5rem;text-align:right">
+        <button onclick="document.getElementById('partidas-historial-overlay').style.display='none'" style="padding:9px 18px;font-size:12px;font-weight:700;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:7px;cursor:pointer">Cerrar</button>
+      </div>
+    </div>`;
+  mo.style.display = 'flex';
 }
 function marcarSalidaPartida(id){
   if(!confirm('¿Marcar esta partida como salida? Desaparecerá del mapa de calles (el check de Túnel no se borra).')) return;
