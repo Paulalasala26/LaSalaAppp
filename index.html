@@ -5096,6 +5096,17 @@ function seleccionarInvPartidas(invId){
   renderPartidasMapaContent(document.getElementById('partidas-overlay'));
 }
 function renderPartidasMapaContent(overlay){
+  // A petición de Paula (2026-08-05): "siguen sin poder moverse las
+  // partidas" — cada vez que se selecciona una partida con el botón ⇄ (o se
+  // intercambia), esta función repinta TODO el overlay de golpe, y sin
+  // conservar el scroll eso lo devolvía siempre arriba del todo. Para tocar
+  // la segunda partida (normalmente en el lado de abajo, que necesita hacer
+  // scroll para llegar) el dedo caía en el sitio equivocado justo después de
+  // ese salto — el intercambio en sí funcionaba, pero la experiencia parecía
+  // rota. Mismo arreglo que ya se hizo para Control (guardar/restaurar
+  // scrollTop del panel con scroll antes/después de repintar).
+  const wrapAnterior = overlay.querySelector('#partidas-content-wrap');
+  const scrollTopAnterior = wrapAnterior ? wrapAnterior.scrollTop : 0;
   const invIds = partidasSalaSel==='sala1' ? ALL_INV_IDS_SALA1 : ALL_INV_IDS;
   const invBotonesHTML = invIds.map(id=>`
     <button onclick="seleccionarInvPartidas('${id}')" style="padding:6px 13px;font-size:12px;font-weight:700;border-radius:7px;cursor:pointer;border:1.5px solid #a8c4e8;background:${partidasInvSel===id?'#0f5c4a':'#fff'};color:${partidasInvSel===id?'#fff':'#0f5c4a'}">
@@ -5120,6 +5131,8 @@ function renderPartidasMapaContent(overlay){
         ${partidasInvSel ? renderPartidasInvHTML(partidasInvSel) : `<div style="text-align:center;padding:3rem;color:var(--muted);font-style:italic;font-size:13px">Elige un invernadero arriba para ver sus partidas.</div>`}
       </div>
     </div>`;
+  const wrapNuevo = overlay.querySelector('#partidas-content-wrap');
+  if(wrapNuevo) wrapNuevo.scrollTop = scrollTopAnterior;
 }
 // Detecta 2HV/3HV/4HV/150/150 BIO/104/104 BIO buscando esos códigos sueltos
 // dentro del texto de Variedad — mismo sitio de donde ya se lee 2HV/3HV/4HV
