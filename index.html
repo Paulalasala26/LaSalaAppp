@@ -3640,6 +3640,18 @@ async function procesarColaOffline(){
     ocultarAvisoFalloGuardado();
   }
 }
+// Botón "Sincronizar" del checklist de Control — fuerza un reintento inmediato
+// en vez de esperar al evento 'online' o a reabrir el módulo, y avisa
+// claramente si ya no queda nada pendiente (para que se pueda comprobar "a
+// mano" cuando hay dudas, en vez de fiarse solo del aviso naranja automático).
+async function sincronizarControlManual(){
+  if(!leerColaOffline().length){
+    showToast('✓ No hay cambios pendientes — todo sincronizado');
+    return;
+  }
+  await procesarColaOffline();
+  renderControlContent(document.getElementById('control-overlay'));
+}
 function desencolarAccionOriginal(accion){
   const cola = leerColaOffline();
   const idx = accion.qid
@@ -3921,10 +3933,21 @@ function renderControlChecklistHTML(seccion){
     return renderControlCardConGuionesHTML(grupo, seccion);
   }).join('');
 
+  // Botón "Sincronizar" manual (a petición de Paula, 2026-08-05: "que aparezca
+  // algún botón de sincronizar para estar seguros porque falla mucho") — el
+  // recuento es global (la cola offline no distingue tipo/día), y sirve tanto
+  // para forzar un reintento como para comprobar de un vistazo que no queda
+  // nada pendiente sin tener que fiarse solo del aviso naranja automático.
+  const pendientesGlobal = leerColaOffline().length;
+  const syncBtnHTML = `
+    <button onclick="sincronizarControlManual()" title="Forzar sincronización con la nube" style="padding:9px 14px;font-size:12px;font-weight:700;background:${pendientesGlobal>0?'#c47f00':'#fff'};color:${pendientesGlobal>0?'#fff':'#1558a0'};border:1.5px solid ${pendientesGlobal>0?'transparent':'#9ab8d8'};border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;gap:6px">
+      <i class="ti ti-refresh" style="font-size:14px"></i> Sincronizar${pendientesGlobal>0?` (${pendientesGlobal})`:''}
+    </button>`;
   return `
     <div style="margin-bottom:1.1rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
       <h2 style="font-size:22px;font-weight:800;color:var(--text)">${seccion.label}</h2>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${syncBtnHTML}
         <div style="display:flex">
           <input id="control-buscar-partida" type="text" placeholder="Buscar Nº partida..." onkeydown="if(event.key==='Enter') buscarControlPartida('${seccion.key}')"
             style="padding:9px 12px;border:1.5px solid var(--border);border-right:none;border-radius:8px 0 0 8px;font-size:12px;width:160px">
