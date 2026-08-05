@@ -6858,11 +6858,23 @@ function renderDashboardInvernaderos(modulo){
 // depende de ninguna cuba fija). Regla permanente: se aplica aquí mismo, en
 // el agrupamiento de origen, así que vale automáticamente para cualquier
 // tratamiento nuevo, no solo para los que ya había.
+// 2026-08-05: "los de Sala 1 no van por cubas esos pueden ir todos en la
+// misma" — Sala 1 (0A,0B,1A...4B) no tiene cubas fijas, así que TODOS sus
+// invernaderos comparten un único grupo ('SALA1') y sí se pueden juntar
+// libremente entre ellos; la restricción de cubas es solo cosa de Sala 2.
 const CUBA_GRUPOS = {
   '10A':'CUBA1','10B':'CUBA1','11A':'CUBA1','11B':'CUBA1','12':'CUBA1',
   '15':'CUBA2','16':'CUBA2','17':'CUBA2','18':'CUBA2',
   '19':'CUBA3','20':'CUBA3','21':'CUBA3','22':'CUBA3'
 };
+// Función (no objeto de nivel superior) porque INV_LAYOUT_SALA1 se declara
+// más abajo en el archivo — evaluar esto ahora mismo, en vez de dentro de
+// una función que se llama más tarde, daría ReferenceError al cargar la app.
+function grupoCubaDeInv(invId){
+  if(CUBA_GRUPOS[invId]) return CUBA_GRUPOS[invId];
+  if(INV_LAYOUT_SALA1[invId]) return 'SALA1';
+  return invId;
+}
 let resumenQuincenaFilasCache = { fito: [], especifico: [] };
 let resumenQuincenaDiaFiltro = { fito: null, especifico: null };
 function cambiarResumenQuincenaDiaFiltro(modulo, dia){
@@ -6896,7 +6908,7 @@ function renderResumenQuincenaTratamientos(modulo){
         const parsed = modulo==='fito' ? parsearTextoFito(texto) : parsearTextoEspecifico(texto);
         const caldoLabel = (typeof raw==='object' && raw?.caldoLabel) || '';
         const esCubaRuedas = /CUBA DE RUEDAS/i.test(caldoLabel);
-        const grupoCuba = esCubaRuedas ? 'RUEDAS' : (CUBA_GRUPOS[invId] || invId);
+        const grupoCuba = esCubaRuedas ? 'RUEDAS' : grupoCubaDeInv(invId);
         const firma = modulo==='fito'
           ? [dia, parsed.trat, parsed.dosis, parsed.horario, grupoCuba].join('|')
           : [dia, parsed.trat, parsed.dosis, parsed.horario, parsed.tipo, grupoCuba].join('|');
