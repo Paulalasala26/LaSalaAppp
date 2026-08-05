@@ -3606,20 +3606,42 @@ const ACCIONES_OFFLINE_REPLAYABLES = {
   aplicarEditarControlCheck,
   aplicarFotoControl
 };
+// A petición de Paula (2026-08-05): "ayer realizamos varios checks de túnel y
+// ponía que se estaban sincronizando y ya no salen" — bug real encontrado:
+// esta función vaciaba la cola ENTERA de golpe (guardarColaOffline([])) ANTES
+// de intentar reaplicar nada. Si la app se cerraba (o el móvil se quedaba sin
+// batería/se recargaba solo) mientras loadControlChecksData() o el bucle de
+// reaplicación todavía estaban en marcha, la cola ya estaba vacía en
+// localStorage — los cambios pendientes desaparecían sin haberse guardado en
+// la nube ni haberse conservado localmente. Mismo fallo de fondo que ya se
+// corrigió para cada acción individual (ver aplicarControlCheckOpcion y
+// compañía): ahora cada acción original solo se retira de la cola DESPUÉS de
+// intentar reaplicarla, una a una — si la app se cierra a mitad, las que
+// aún no se han procesado siguen intactas en la cola para la próxima vez.
 async function procesarColaOffline(){
   const cola = leerColaOffline();
   if(!cola.length) return;
-  guardarColaOffline([]); // vaciar ANTES de reintentar; lo que vuelva a fallar se re-encola solo
   showToast(`Sincronizando ${cola.length} cambio${cola.length===1?'':'s'} pendiente${cola.length===1?'':'s'}...`);
   await loadControlChecksData(); // refrescar con lo último de la nube antes de reaplicar
   for(const accion of cola){
     const fn = ACCIONES_OFFLINE_REPLAYABLES[accion.fn];
     if(fn){ try{ await fn(...accion.args); }catch(e){} }
+    // La propia fn ya gestiona su reintento (vuelve a encolarse con un qid
+    // nuevo si falla) — aquí solo se retira la entrada ORIGINAL de esta
+    // ronda, nunca antes de haberla intentado.
+    desencolarAccionOriginal(accion);
   }
   if(!leerColaOffline().length){
     showToast('✓ Todo sincronizado');
     ocultarAvisoFalloGuardado();
   }
+}
+function desencolarAccionOriginal(accion){
+  const cola = leerColaOffline();
+  const idx = accion.qid
+    ? cola.findIndex(a=>a.qid===accion.qid)
+    : cola.findIndex(a=>!a.qid && a.fn===accion.fn && JSON.stringify(a.args)===JSON.stringify(accion.args));
+  if(idx>=0){ cola.splice(idx,1); guardarColaOffline(cola); }
 }
 window.addEventListener('online', procesarColaOffline);
 // PDF adjunto por (tipo, día) — objeto plano {`${tipo}|${dia}`: {nombre,
