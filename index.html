@@ -400,10 +400,19 @@ function togglePass(){const i=document.getElementById('login-pass'),e=document.g
 // no está garantizado que sobreviva a eso (solo dura "mientras la pestaña esté
 // viva" en el sentido más estricto). localStorage sí sobrevive siempre — es lo
 // mismo que ya usa la cola offline por el mismo motivo — así que la sesión se
-// guarda ahí. Se sigue borrando al pulsar "Salir".
+// guarda ahí.
+// 2026-08-05 (más tarde, mismo día): "corrige lo del inicio de sesión pues
+// entra automáticamente sin contraseña" — localStorage sin caducidad hacía
+// que la sesión se quedara para siempre en el dispositivo (cualquiera que
+// abriera la app días después entraba directo, sin pedir nada). Ahora se
+// guarda también CUÁNDO se inició sesión y solo se restaura sola si han
+// pasado menos de 8 horas — suficiente para sobrevivir un cierre de la app
+// al hacer una foto, pero no para quedarse conectado indefinidamente en un
+// dispositivo compartido.
 const SESION_KEY = 'lasala-sesion-v1';
+const SESION_DURACION_MS = 8*60*60*1000;
 function guardarSesion(user){
-  try{ localStorage.setItem(SESION_KEY, user); }catch(e){}
+  try{ localStorage.setItem(SESION_KEY, JSON.stringify({user, ts: Date.now()})); }catch(e){}
 }
 function borrarSesion(){
   try{ localStorage.removeItem(SESION_KEY); }catch(e){}
@@ -427,12 +436,13 @@ async function entrarApp(user){
   if(welcomeEl) welcomeEl.textContent=name;
 }
 async function restaurarSesion(){
-  let user;
-  try{ user = localStorage.getItem(SESION_KEY); }catch(e){ return; }
-  if(!user) return;
+  let sesion;
+  try{ sesion = JSON.parse(localStorage.getItem(SESION_KEY)||'null'); }catch(e){ return; }
+  if(!sesion || !sesion.user) return;
+  if(!sesion.ts || Date.now()-sesion.ts > SESION_DURACION_MS){ borrarSesion(); return; }
   await usersLoadedPromise;
-  if(!USERS[user]) return; // usuario ya no existe — no restaurar
-  await entrarApp(user);
+  if(!USERS[sesion.user]){ borrarSesion(); return; } // usuario ya no existe — no restaurar
+  await entrarApp(sesion.user);
 }
 async function doLogin(){
   const now=Date.now();
@@ -3770,7 +3780,16 @@ function renderControlCardConGuionesHTML(grupo, seccion){
   return `<div>${pagerHTML}${cardHTML}</div>`;
 }
 function showControlModule(){
-  Promise.all([loadControlChecksData(), loadControlFotosData(), loadControlPdfsData(), loadConteoTutaData()]).then(()=>{
+  // A petición de Paula (2026-08-05): "tarda mucho y se queda pillada" al
+  // entrar en Control — loadControlFotosData() descarga TODAS las fotos
+  // guardadas de golpe (varios MB juntos, ver [[lasala_control_fotos_clave_separada]]),
+  // y antes se esperaba a que terminara esa descarga entera antes de pintar
+  // nada, aunque el listado de checks no necesite ninguna foto para
+  // mostrarse. Ahora el listado se pinta en cuanto están listos los checks
+  // (rápido, unos pocos KB) y las fotos se cargan aparte, en segundo plano
+  // — cuando terminan, se repinta para que aparezcan sin haber bloqueado la
+  // apertura del módulo.
+  Promise.all([loadControlChecksData(), loadControlPdfsData(), loadConteoTutaData()]).then(()=>{
     controlSeccion = null;
     const overlay = getOrCreateOverlay('control-overlay');
     overlay.style.padding = '0';
@@ -3779,6 +3798,9 @@ function showControlModule(){
     // Por si quedó algo sin sincronizar de una sesión anterior (se cerró la
     // pestaña estando sin conexión, por ejemplo).
     if(leerColaOffline().length) procesarColaOffline();
+    loadControlFotosData().then(()=>{
+      renderControlContent(document.getElementById('control-overlay'));
+    });
   });
 }
 function seleccionarSeccionControl(sec){
