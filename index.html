@@ -3506,16 +3506,39 @@ async function aplicarSanidadEnfermedad(id, key, valor){
 // "debe poder abrirse en la pantalla") en vez de window.open (bloqueado por
 // el navegador en algunos móviles, y no se siente como parte de la app).
 function mostrarFotoControlAmpliada(id){
-  const c = controlChecksData.find(x=>x.id===id);
-  if(!c || !c.fotoB64) return;
+  const foto = controlFotosData[id];
+  if(!foto) return;
   const mo = getOrCreateOverlay('control-foto-ampliada-overlay');
   mo.style.padding = '0';
   mo.innerHTML = `
     <div onclick="document.getElementById('control-foto-ampliada-overlay').style.display='none'" style="width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.88)">
-      <img src="${c.fotoB64}" style="max-width:94vw;max-height:94vh;border-radius:10px;box-shadow:0 8px 40px rgba(0,0,0,.5)">
+      <img src="${foto}" style="max-width:94vw;max-height:94vh;border-radius:10px;box-shadow:0 8px 40px rgba(0,0,0,.5)">
       <button onclick="event.stopPropagation();document.getElementById('control-foto-ampliada-overlay').style.display='none'" style="position:fixed;top:16px;right:16px;background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:50%;width:40px;height:40px;font-size:20px;cursor:pointer">✕</button>
     </div>`;
   mo.style.display = 'flex';
+}
+// A petición de Paula (2026-08-05): con 49 cambios sin poder sincronizar en su
+// iPhone, se detectó la causa real — las fotos (base64, varios cientos de KB
+// cada una) vivían DENTRO del mismo array de controlChecksData, así que CADA
+// guardado (aunque fuera solo marcar un color en una línea sin foto) tenía que
+// volver a subir TODAS las fotos de golpe: con 30 fotos guardadas, el array
+// pesaba ~10,5 MB, y con mala cobertura en el invernadero esa subida fallaba
+// una y otra vez. Las fotos se guardan ahora en su propia clave de Firebase
+// ({id de la línea: fotoB64}), separada de controlChecksData — así, marcar un
+// check normal vuelve a pesar unos pocos KB y solo el guardado de la foto en
+// sí sube ese peso mayor (y solo esa foto, no las demás).
+const CONTROL_FOTOS_KEY = 'lasala-control-fotos-v1';
+let controlFotosData = {};
+async function loadControlFotosData(){
+  try{ const r = await window.storage.get(CONTROL_FOTOS_KEY); if(r) controlFotosData = JSON.parse(r.value); }catch(e){}
+}
+async function persistControlFotosData(){
+  try{
+    const r = await window.storage.get(CONTROL_FOTOS_KEY);
+    const cloud = r ? JSON.parse(r.value) : {};
+    controlFotosData = Object.assign({}, cloud, controlFotosData);
+    return await window.storage.set(CONTROL_FOTOS_KEY, JSON.stringify(controlFotosData));
+  }catch(e){ return false; }
 }
 // Una línea de check: {id, tipo:'tunel'|'carga', dia, clienteVariedad,
 // partida, numBandejas, invId, calleDesde, calleHasta, color:{verde,
@@ -3719,7 +3742,7 @@ function renderControlCardConGuionesHTML(grupo, seccion){
   return `<div>${pagerHTML}${cardHTML}</div>`;
 }
 function showControlModule(){
-  Promise.all([loadControlChecksData(), loadControlPdfsData(), loadConteoTutaData()]).then(()=>{
+  Promise.all([loadControlChecksData(), loadControlFotosData(), loadControlPdfsData(), loadConteoTutaData()]).then(()=>{
     controlSeccion = null;
     const overlay = getOrCreateOverlay('control-overlay');
     overlay.style.padding = '0';
@@ -4319,8 +4342,8 @@ function renderControlCardHTML(c, seccion){
       ${enfermedadesHTML}
     </div>`;
   }).join('');
-  const fotoHTML = c.fotoB64
-    ? `<img src="${c.fotoB64}" onclick="mostrarFotoControlAmpliada('${c.id}')" style="max-height:64px;border-radius:8px;border:1px solid var(--border);cursor:pointer;margin-right:8px" title="Ver foto">`
+  const fotoHTML = controlFotosData[c.id]
+    ? `<img src="${controlFotosData[c.id]}" onclick="mostrarFotoControlAmpliada('${c.id}')" style="max-height:64px;border-radius:8px;border:1px solid var(--border);cursor:pointer;margin-right:8px" title="Ver foto">`
     : '';
   return `
     <div id="control-card-${c.id}" style="border:1.5px solid var(--border);border-radius:12px;padding:14px 16px;background:#fff;box-shadow:var(--shadow-sm);transition:outline .2s">
@@ -4354,7 +4377,7 @@ function renderControlCardHTML(c, seccion){
         <div style="display:flex;align-items:center">
           ${fotoHTML}
           <label style="display:inline-flex;align-items:center;gap:6px;padding:8px 12px;background:#eaf5ea;border:1.5px solid #a5d6a7;border-radius:8px;cursor:pointer;font-size:11px;font-weight:700;color:#2e7d32;white-space:nowrap">
-            <i class="ti ti-camera" style="font-size:14px"></i> ${c.fotoB64?'Cambiar foto':'Añadir foto'}
+            <i class="ti ti-camera" style="font-size:14px"></i> ${controlFotosData[c.id]?'Cambiar foto':'Añadir foto'}
             <input type="file" accept="image/*" capture="environment" style="display:none" onchange="handleControlFotoInput(this,'${c.id}')">
           </label>
         </div>
@@ -4389,8 +4412,8 @@ function renderControlCargaCardHTML(c, seccion){
       ${enfermedadesHTML}
     </div>`;
   }).join('');
-  const fotoHTML = c.fotoB64
-    ? `<img src="${c.fotoB64}" onclick="mostrarFotoControlAmpliada('${c.id}')" style="max-height:64px;border-radius:8px;border:1px solid var(--border);cursor:pointer;margin-right:8px" title="Ver foto">`
+  const fotoHTML = controlFotosData[c.id]
+    ? `<img src="${controlFotosData[c.id]}" onclick="mostrarFotoControlAmpliada('${c.id}')" style="max-height:64px;border-radius:8px;border:1px solid var(--border);cursor:pointer;margin-right:8px" title="Ver foto">`
     : '';
   return `
     <div id="control-card-${c.id}" style="border:1.5px solid var(--border);border-radius:12px;padding:14px 16px;background:#fff;box-shadow:var(--shadow-sm);transition:outline .2s">
@@ -4422,7 +4445,7 @@ function renderControlCargaCardHTML(c, seccion){
         <div style="display:flex;align-items:center">
           ${fotoHTML}
           <label style="display:inline-flex;align-items:center;gap:6px;padding:8px 12px;background:#eaf5ea;border:1.5px solid #a5d6a7;border-radius:8px;cursor:pointer;font-size:11px;font-weight:700;color:#2e7d32;white-space:nowrap">
-            <i class="ti ti-camera" style="font-size:14px"></i> ${c.fotoB64?'Cambiar foto':'Añadir foto'}
+            <i class="ti ti-camera" style="font-size:14px"></i> ${controlFotosData[c.id]?'Cambiar foto':'Añadir foto'}
             <input type="file" accept="image/*" capture="environment" style="display:none" onchange="handleControlFotoInput(this,'${c.id}')">
           </label>
         </div>
@@ -4611,11 +4634,11 @@ async function handleControlFotoInput(input, id){
 async function aplicarFotoControl(id, fotoB64){
   const c = controlChecksData.find(x=>x.id===id);
   if(!c) return false;
-  c.fotoB64 = fotoB64;
+  controlFotosData[id] = fotoB64;
   showToast('✓ Foto guardada');
   renderControlContent(document.getElementById('control-overlay'));
   const qid = encolarAccionOffline('aplicarFotoControl', [id, fotoB64]);
-  const ok = await persistControlChecksData();
+  const ok = await persistControlFotosData();
   if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
   return ok;
 }
