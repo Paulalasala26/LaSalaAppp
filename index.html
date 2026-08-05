@@ -5203,26 +5203,10 @@ function calcularBloquesPartidasInv(invId){
   });
   return bloques;
 }
-// Arrastrar-y-soltar: solo funciona soltando sobre OTRA partida (intercambia
-// sus posiciones) — soltar sobre un hueco vacío no tiene una posición
-// "correcta" única cuando hay varios tramos de por medio, así que de momento
-// solo se admite el intercambio.
-let partidaArrastrandoId = null;
-function iniciarArrastrePartida(id){
-  partidaArrastrandoId = id;
-}
-function dropPartidaEnCelda(invId, calle, pos){
-  const draggedId = partidaArrastrandoId;
-  partidaArrastrandoId = null;
-  if(!draggedId) return;
-  const bloques = calcularBloquesPartidasInv(invId);
-  const draggedBlock = bloques.find(b=>b.entry.id===draggedId);
-  const targetBlock = bloques.find(b=>b.pos===pos && b.calles.includes(calle));
-  if(!draggedBlock || !targetBlock || targetBlock.entry.id===draggedId) return;
-  const claveArrastrada = sortKeyPartida(draggedBlock.entry);
-  const claveDestino = sortKeyPartida(targetBlock.entry);
-  aplicarIntercambioPartidas(draggedBlock.entry.id, claveDestino, targetBlock.entry.id, claveArrastrada);
-}
+// El intercambio se hace SOLO con el botón ⇄ de tocar-y-tocar
+// (seleccionarPartidaParaMover) — se quitó el arrastrar-y-soltar nativo
+// (draggable/ondragstart/ondrop) porque interfería con el scroll táctil en
+// móvil, ver comentario en renderPartidasBloqueHTML.
 async function aplicarIntercambioPartidas(id1, pos1, id2, pos2){
   const c1 = controlChecksData.find(x=>x.id===id1);
   const c2 = controlChecksData.find(x=>x.id===id2);
@@ -5241,9 +5225,18 @@ function renderPartidasBloqueHTML(bloque){
   const c = bloque.entry;
   const tipoPlanta = detectarTipoPlantaPartida(c.clienteVariedad);
   const seleccionada = partidaSeleccionadaParaMover === c.id;
+  // Sin draggable="true" (a petición de Paula, 2026-08-05: "sigue sin
+  // funcionar en el lado de abajo, solo funciona arriba") — el atributo
+  // draggable interfiere con el gesto normal de scroll táctil en móvil,
+  // sobre todo en elementos a los que hay que llegar haciendo scroll (el
+  // lado de abajo, tras el "PASILLO"): el navegador puede confundir el
+  // pequeño desplazamiento del dedo al hacer scroll con un intento de
+  // arrastre, y eso rompe los toques normales en los botones de esa
+  // partida. El intercambio ahora depende SOLO del botón ⇄ (tocar/tocar),
+  // que no necesita draggable para nada.
   return `
-    <div draggable="true" ondragstart="iniciarArrastrePartida('${c.id}')" onclick="mostrarHistorialPartida('${c.id}')"
-      style="height:100%;padding:4px 6px;background:${seleccionada?'#fff3dc':'#e8f5ef'};border:1.5px solid ${seleccionada?'#c47f00':'#a5d6c2'};border-radius:6px;font-size:10px;line-height:1.35;position:relative;overflow:hidden;cursor:grab">
+    <div onclick="mostrarHistorialPartida('${c.id}')"
+      style="height:100%;padding:4px 6px;background:${seleccionada?'#fff3dc':'#e8f5ef'};border:1.5px solid ${seleccionada?'#c47f00':'#a5d6c2'};border-radius:6px;font-size:10px;line-height:1.35;position:relative;overflow:hidden">
       <button onclick="seleccionarPartidaParaMover('${c.id}',event)" title="Tocar y luego tocar otra partida para intercambiar su posición" style="position:absolute;top:2px;right:20px;width:16px;height:16px;padding:0;background:${seleccionada?'#c47f00':'rgba(15,92,74,.15)'};color:${seleccionada?'#fff':'#0f5c4a'};border:none;border-radius:4px;font-size:10px;line-height:16px;cursor:pointer">⇄</button>
       <button onclick="event.stopPropagation();marcarSalidaPartida('${c.id}')" title="Marcar salida (quitar del mapa)" style="position:absolute;top:2px;right:2px;width:16px;height:16px;padding:0;background:rgba(198,40,40,.12);color:#c62828;border:none;border-radius:4px;font-size:10px;line-height:16px;cursor:pointer">✕</button>
       <div style="font-weight:800;color:#0f5c4a;padding-right:34px">${escapar(c.partida)||'—'}</div>
@@ -5263,6 +5256,17 @@ function renderPartidasInvHTML(invId){
     if(!calles.length) return '';
     const maxPos = Math.max(0, ...bloques.filter(b=>b.calles.some(c=>calles.includes(c))).map(b=>b.pos+1));
     if(!maxPos) return `<div style="display:flex">${calles.map(()=>`<div style="width:${CW}px;flex-shrink:0"></div>`).join('')}</div>`;
+    // Algunos invernaderos numeran sus calles al REVÉS (17/18/20/22: row1 y
+    // row2 van de mayor a menor) — bloque.calles siempre se construye en
+    // orden ascendente (ver calcularBloquesPartidasInv), así que anclar
+    // siempre por calles[0] (el número más pequeño) solo es correcto si esta
+    // sección también va ascendente; si va descendente hay que anclar por el
+    // número más ALTO, que es el que se encuentra primero al recorrerla.
+    // Sin este ajuste, una partida de varias calles se dibujaba desplazada
+    // en esos invernaderos. Corregido a la vez que el fallo de "no funciona
+    // en el lado de abajo" (2026-08-05), aunque son dos causas distintas.
+    const vaDescendente = calles.length>1 && calles[0]>calles[calles.length-1];
+    const anclaDe = b => vaDescendente ? Math.max(...b.calles) : Math.min(...b.calles);
     // alinearArriba=true (lado de arriba, row1): fila 0 = más lejos del
     // pasillo, arriba del todo; las filas van creciendo hacia el pasillo
     // (abajo). alinearArriba=false (lado de abajo, row2): al revés, la fila
@@ -5275,21 +5279,16 @@ function renderPartidasInvHTML(invId){
       const celdas = [];
       while(ci < calles.length){
         const calle = calles[ci];
-        const bloque = bloques.find(b=>b.pos===displayPos && b.calles[0]===calle);
-        // ondragover/ondrop en TODAS las celdas (con o sin partida) — a
-        // petición de Paula (2026-08-05) para poder arrastrar una partida y
-        // soltarla sobre otra (intercambian posición); soltar sobre un hueco
-        // vacío no hace nada (ver dropPartidaEnCelda).
-        const dragAttrs = `ondragover="event.preventDefault()" ondrop="dropPartidaEnCelda('${invId}',${calle},${displayPos})"`;
+        const bloque = bloques.find(b=>b.pos===displayPos && anclaDe(b)===calle);
         if(bloque){
-          celdas.push(`<div ${dragAttrs} style="width:${CW*bloque.calles.length}px;flex-shrink:0;padding:2px">${renderPartidasBloqueHTML(bloque)}</div>`);
+          celdas.push(`<div style="width:${CW*bloque.calles.length}px;flex-shrink:0;padding:2px">${renderPartidasBloqueHTML(bloque)}</div>`);
           ci += bloque.calles.length;
         } else {
           // Comprobar si esta calle está "ocupada" por un bloque de una calle
           // anterior que se extiende hasta aquí (para no dibujar una celda
           // vacía encima de un bloque ya pintado).
-          const cubiertaPorAnterior = bloques.some(b=>b.pos===displayPos && b.calles.includes(calle) && b.calles[0]!==calle);
-          if(!cubiertaPorAnterior) celdas.push(`<div ${dragAttrs} style="width:${CW}px;flex-shrink:0;padding:2px"><div style="height:100%;min-height:${ROW_H-4}px"></div></div>`);
+          const cubiertaPorAnterior = bloques.some(b=>b.pos===displayPos && b.calles.includes(calle) && anclaDe(b)!==calle);
+          if(!cubiertaPorAnterior) celdas.push(`<div style="width:${CW}px;flex-shrink:0;padding:2px"><div style="height:100%;min-height:${ROW_H-4}px"></div></div>`);
           ci++;
         }
       }
