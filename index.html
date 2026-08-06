@@ -5337,9 +5337,17 @@ function renderPartidasBloqueHTML(bloque){
   const esMultiCalle = bloque.calles.length > 1;
   const separadoBtnHTML = esMultiCalle ? `
       <button onclick="event.stopPropagation();separarPartidaEnCalles('${c.id}')" title="Separar en una línea independiente por cada calle (se podrán mover por separado)" style="position:absolute;top:2px;right:38px;width:16px;height:16px;padding:0;background:rgba(15,92,74,.15);color:#0f5c4a;border:none;border-radius:4px;font-size:10px;line-height:16px;cursor:pointer">／</button>` : '';
+  // Colores de fondo por tipo de planta (a petición de Paula, 2026-08-06):
+  // 2HV azul, 3HV morado, 4HV naranja — igual que el bloque ya se resalta en
+  // amarillo cuando está seleccionado, esos colores mandan por encima de
+  // esto (si no, no se vería que está seleccionada).
+  const FONDOS_TIPO_PLANTA = { '2HV':{bg:'#dbeafe', border:'#93c5fd'}, '3HV':{bg:'#ede9fe', border:'#c4b5fd'}, '4HV':{bg:'#ffe4c4', border:'#f0b060'} };
+  const fondoTipo = FONDOS_TIPO_PLANTA[tipoPlanta];
+  const bgBloque = seleccionada ? '#fff3dc' : (fondoTipo ? fondoTipo.bg : '#e8f5ef');
+  const borderBloque = seleccionada ? '#c47f00' : (fondoTipo ? fondoTipo.border : '#a5d6c2');
   return `
     <div onclick="clicPartidaEnMapa('${c.id}')"
-      style="height:100%;padding:4px 6px;background:${seleccionada?'#fff3dc':'#e8f5ef'};border:1.5px solid ${seleccionada?'#c47f00':'#a5d6c2'};border-radius:6px;font-size:10px;line-height:1.35;position:relative;overflow:hidden">
+      style="height:100%;padding:4px 6px;background:${bgBloque};border:1.5px solid ${borderBloque};border-radius:6px;font-size:10px;line-height:1.35;position:relative;overflow:hidden">
       ${separadoBtnHTML}
       <button onclick="seleccionarPartidaParaMover('${c.id}',event)" title="Tocar y luego tocar donde quieras moverla o intercambiarla" style="position:absolute;top:2px;right:20px;width:16px;height:16px;padding:0;background:${seleccionada?'#c47f00':'rgba(15,92,74,.15)'};color:${seleccionada?'#fff':'#0f5c4a'};border:none;border-radius:4px;font-size:10px;line-height:16px;cursor:pointer">⇄</button>
       <button onclick="event.stopPropagation();marcarSalidaPartida('${c.id}')" title="Marcar salida (quitar del mapa)" style="position:absolute;top:2px;right:2px;width:16px;height:16px;padding:0;background:rgba(198,40,40,.12);color:#c62828;border:none;border-radius:4px;font-size:10px;line-height:16px;cursor:pointer">✕</button>
