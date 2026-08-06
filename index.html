@@ -8773,6 +8773,182 @@ let rmTramos = [{desde:null, hasta:null}];
 // manual normal no mueve nada, y si se marca el mismo riego en varios días
 // distintos por separado (sin editar), cada uno se queda donde está.
 let rmEditContextoOriginal = null;
+// A petición de Paula (2026-08-06): "añade el mismo recuadro de al
+// seleccionar invernaderos aparezca la opción de Entero/Entero menos/Tramo
+// de calles" — hasta ahora Riego solo tenía esto para UN invernadero
+// (riegoInvSel + rmTramos); marcar más invernaderos en la lista de abajo los
+// aplicaba siempre ENTEROS, sin tramo ni exclusión, y además esa marca
+// ignoraba por completo los tramos del invernadero de arriba (ver
+// saveRiegoManual: si había algo marcado en la lista de abajo, se
+// descartaban rmTramos entero) — esa es la causa real de "al añadir otro
+// invernadero borra las calles anteriores". La solución es la MISMA que ya
+// usa Plaguicidas (fmBulkConfig): cada invernadero marcado tiene su propio
+// modo independiente, y ninguno pisa a los demás. rmBulkConfig[invId] =
+// {modo, excluir:{desde,hasta}, tramos:[{desde,hasta}]}.
+let rmBulkConfig = {};
+// Config inicial a aplicar al invernadero con el que se abre el formulario
+// (venido de doble clic, de arrastrar un tramo, o de pulsar el día en la
+// cuadrícula) — se consume una sola vez, al abrir, igual que fmPendingConfig.
+let rmPendingConfig = null;
+function riegoBulkInvSelectorHTML(){
+  return `
+    <div style="border:1.5px solid #a8c4e8;border-radius:9px;padding:.75rem;background:#f5f9ff">
+      <div style="font-size:11px;font-weight:800;color:#1558a0;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Invernaderos</div>
+      <div style="font-size:10px;color:var(--muted);margin-bottom:8px">Marca uno o varios — cada uno tiene su propia opción de Entero / Entero menos / Tramo de calles, sin afectar a los demás.</div>
+      <div style="display:flex;gap:14px;margin-bottom:8px">
+        <label style="font-size:11px;font-weight:700;display:flex;align-items:center;gap:5px;cursor:pointer">
+          <input type="checkbox" class="rmb-sala-chk" data-sala="sala1" onchange="toggleRmBulkSala(this)"> Sala 1 completa
+        </label>
+        <label style="font-size:11px;font-weight:700;display:flex;align-items:center;gap:5px;cursor:pointer">
+          <input type="checkbox" class="rmb-sala-chk" data-sala="sala2" onchange="toggleRmBulkSala(this)"> Sala 2 completa
+        </label>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">
+        ${Object.keys(INV_LAYOUT_SALA1).map(id=>`<label style="font-size:10px;display:flex;align-items:center;gap:3px;background:#fff;border:1px solid #ddd;border-radius:5px;padding:3px 7px;cursor:pointer"><input type="checkbox" class="rmb-inv-chk" data-sala="sala1" value="${id}"${rmBulkConfig[id]?' checked':''} onchange="toggleRmBulkInv()"> ${id}</label>`).join('')}
+        ${Object.keys(INV_LAYOUT_SALA2).map(id=>`<label style="font-size:10px;display:flex;align-items:center;gap:3px;background:#fff;border:1px solid #ddd;border-radius:5px;padding:3px 7px;cursor:pointer"><input type="checkbox" class="rmb-inv-chk" data-sala="sala2" value="${id}"${rmBulkConfig[id]?' checked':''} onchange="toggleRmBulkInv()"> ${id}</label>`).join('')}
+      </div>
+      <div id="rmb-panels"></div>
+    </div>`;
+}
+function toggleRmBulkSala(salaChk){
+  const sala = salaChk.dataset.sala;
+  document.querySelectorAll(`.rmb-inv-chk[data-sala="${sala}"]`).forEach(chk=>{ chk.checked = salaChk.checked; });
+  toggleRmBulkInv();
+}
+function leerRmBulkInvsSeleccionados(){
+  return Array.from(document.querySelectorAll('.rmb-inv-chk:checked')).map(el=>el.value);
+}
+function toggleRmBulkInv(){
+  const seleccionados = leerRmBulkInvsSeleccionados();
+  Object.keys(rmBulkConfig).forEach(id=>{ if(!seleccionados.includes(id)) delete rmBulkConfig[id]; });
+  seleccionados.forEach(id=>{ if(!rmBulkConfig[id]) rmBulkConfig[id] = {modo:'entero', excluir:{desde:null,hasta:null}, tramos:[]}; });
+  renderRmBulkPanels();
+}
+function renderRmBulkPanels(){
+  const cont = document.getElementById('rmb-panels');
+  if(!cont) return;
+  const ids = leerRmBulkInvsSeleccionados();
+  cont.innerHTML = ids.map(invId=>`
+    <div style="border:1px solid #cddcf0;border-radius:7px;padding:8px;margin-top:8px;background:#fbfdff">
+      <div style="font-size:11px;font-weight:800;color:#1558a0;margin-bottom:6px">INV ${invId}</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:6px">
+        <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:var(--text);cursor:pointer">
+          <input type="radio" name="rmb-modo-${invId}" ${rmBulkConfig[invId].modo==='entero'?'checked':''} onchange="cambiarRmBulkModo('${invId}','entero')"> Entero
+        </label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:var(--text);cursor:pointer">
+          <input type="radio" name="rmb-modo-${invId}" ${rmBulkConfig[invId].modo==='entero_menos'?'checked':''} onchange="cambiarRmBulkModo('${invId}','entero_menos')"> Entero menos
+        </label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:var(--text);cursor:pointer">
+          <input type="radio" name="rmb-modo-${invId}" ${rmBulkConfig[invId].modo==='tramo'?'checked':''} onchange="cambiarRmBulkModo('${invId}','tramo')"> Tramo de calles
+        </label>
+      </div>
+      <div id="rmb-detalle-${invId}"></div>
+    </div>`).join('');
+  ids.forEach(invId=>renderRmBulkDetalle(invId));
+}
+function cambiarRmBulkModo(invId, modo){
+  rmBulkConfig[invId].modo = modo;
+  renderRmBulkDetalle(invId);
+}
+function renderRmBulkDetalle(invId){
+  const cont = document.getElementById(`rmb-detalle-${invId}`);
+  if(!cont) return;
+  const cfg = rmBulkConfig[invId];
+  const allCalles = callesOrdenadasInv(invId);
+  if(cfg.modo==='entero'){
+    cont.innerHTML = `<div style="font-size:10px;color:var(--muted);font-style:italic">Se aplicará a las ${allCalles.length} calles.</div>`;
+  } else if(cfg.modo==='entero_menos'){
+    if(cfg.excluir.desde==null || !allCalles.includes(cfg.excluir.desde)) cfg.excluir = {desde:allCalles[0], hasta:allCalles[0]};
+    cont.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+        <select onchange="rmBulkConfig['${invId}'].excluir.desde=parseInt(this.value,10)" style="width:100%;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;background:#f2f4f0;outline:none;cursor:pointer">
+          ${allCalles.map(c=>`<option value="${c}"${c===cfg.excluir.desde?' selected':''}>${c}</option>`).join('')}
+        </select>
+        <select onchange="rmBulkConfig['${invId}'].excluir.hasta=parseInt(this.value,10)" style="width:100%;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;background:#f2f4f0;outline:none;cursor:pointer">
+          ${allCalles.map(c=>`<option value="${c}"${c===cfg.excluir.hasta?' selected':''}>${c}</option>`).join('')}
+        </select>
+      </div>`;
+  } else {
+    if(!cfg.tramos.length) cfg.tramos = [{desde:allCalles[0], hasta:allCalles[0]}];
+    cont.innerHTML = `<div id="rmb-tramos-${invId}"></div>
+      <button type="button" onclick="agregarRmBulkTramoRow('${invId}')" style="width:100%;padding:5px;font-size:10px;font-weight:700;background:#fff;border:1.5px dashed #a8c4e8;border-radius:6px;cursor:pointer;color:#1558a0;margin-top:4px">+ Añadir tramo</button>`;
+    renderRmBulkTramoRows(invId);
+  }
+}
+function renderRmBulkTramoRows(invId){
+  const cont = document.getElementById(`rmb-tramos-${invId}`);
+  if(!cont) return;
+  const cfg = rmBulkConfig[invId];
+  const allCalles = callesOrdenadasInv(invId);
+  cont.innerHTML = cfg.tramos.map((t,i)=>`
+    <div class="rmb-tramo-row" data-inv="${invId}" style="display:grid;grid-template-columns:1fr 1fr auto;gap:6px;margin-bottom:6px">
+      <select class="rmb-tramo-desde" style="width:100%;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;background:#f2f4f0;outline:none;cursor:pointer">
+        ${allCalles.map(c=>`<option value="${c}"${c===t.desde?' selected':''}>${c}</option>`).join('')}
+      </select>
+      <select class="rmb-tramo-hasta" style="width:100%;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;background:#f2f4f0;outline:none;cursor:pointer">
+        ${allCalles.map(c=>`<option value="${c}"${c===t.hasta?' selected':''}>${c}</option>`).join('')}
+      </select>
+      ${cfg.tramos.length>1 ? `<button type="button" onclick="quitarRmBulkTramoRow('${invId}',${i})" style="width:26px;background:#fdecea;color:#c62828;border:1px solid #f3c2bd;border-radius:6px;cursor:pointer;font-size:11px">✕</button>` : '<span></span>'}
+    </div>`).join('');
+}
+function leerRmBulkTramosDesdeDOM(invId){
+  return Array.from(document.querySelectorAll(`.rmb-tramo-row[data-inv="${invId}"]`)).map(row=>({
+    desde: parseInt(row.querySelector('.rmb-tramo-desde').value, 10),
+    hasta: parseInt(row.querySelector('.rmb-tramo-hasta').value, 10)
+  }));
+}
+function agregarRmBulkTramoRow(invId){
+  rmBulkConfig[invId].tramos = leerRmBulkTramosDesdeDOM(invId);
+  const allCalles = callesOrdenadasInv(invId);
+  rmBulkConfig[invId].tramos.push({desde:allCalles[0], hasta:allCalles[0]});
+  renderRmBulkTramoRows(invId);
+}
+function quitarRmBulkTramoRow(invId, i){
+  rmBulkConfig[invId].tramos = leerRmBulkTramosDesdeDOM(invId);
+  rmBulkConfig[invId].tramos.splice(i,1);
+  const allCalles = callesOrdenadasInv(invId);
+  if(!rmBulkConfig[invId].tramos.length) rmBulkConfig[invId].tramos.push({desde:allCalles[0], hasta:allCalles[0]});
+  renderRmBulkTramoRows(invId);
+}
+// Calcula, para un invernadero de la selección, qué calles resultan según su
+// propio modo (rmBulkConfig[invId]) — igual que calcularCallesFmBulk en
+// Plaguicidas, pero devuelve también los tramos en TODOS los modos (no solo
+// "tramo") porque Riego necesita la lista de tramos para
+// aplicarTextoRiegoManual/registrarUndoRiego, no solo la lista plana de calles.
+function calcularCallesRmBulk(invId){
+  const allCalles = [...INV_LAYOUT[invId].row1, ...INV_LAYOUT[invId].row2];
+  const cfg = rmBulkConfig[invId] || {modo:'entero'};
+  if(cfg.modo==='entero_menos' && cfg.excluir && cfg.excluir.desde!=null){
+    const s = Math.min(cfg.excluir.desde, cfg.excluir.hasta), e = Math.max(cfg.excluir.desde, cfg.excluir.hasta);
+    const calles = allCalles.filter(c=>!(c>=s && c<=e));
+    return { calles, tramos: agruparCallesEnTramos(calles) };
+  }
+  if(cfg.modo==='tramo'){
+    const tramos = leerRmBulkTramosDesdeDOM(invId);
+    const calles = [];
+    tramos.forEach(({desde,hasta})=>{
+      const s=Math.min(desde,hasta), e=Math.max(desde,hasta);
+      for(let c=s;c<=e;c++){ if(allCalles.includes(c) && !calles.includes(c)) calles.push(c); }
+    });
+    return { calles, tramos };
+  }
+  return { calles: allCalles, tramos: agruparCallesEnTramos(allCalles) };
+}
+// Agrupa una lista de calles sueltas (p.ej. resultado de "Entero menos") en
+// tramos contiguos — necesario porque aplicarTextoRiegoManual/registrarUndoRiego
+// trabajan con tramos {desde,hasta}, no con una lista plana de calles.
+function agruparCallesEnTramos(calles){
+  const ordenadas = [...calles].sort((a,b)=>a-b);
+  const tramos = [];
+  let i = 0;
+  while(i < ordenadas.length){
+    let j = i;
+    while(j+1 < ordenadas.length && ordenadas[j+1] === ordenadas[j]+1) j++;
+    tramos.push({desde: ordenadas[i], hasta: ordenadas[j]});
+    i = j+1;
+  }
+  return tramos;
+}
 // Estado de la vía elegida (agua/abono foliar + categoría/producto) para
 // cada código de TRABAJO_CON_VIA marcado — { PP: {via, cat, producto}, ... }.
 // Se resetea en cada apertura del formulario, igual que el resto del estado.
@@ -8790,6 +8966,18 @@ function showRiegoManualForm(){
   rmTramos = inv ? [{desde:allCalles[0], hasta:allCalles[0]}] : [];
   rmEditContextoOriginal = null;
   rmTrabajoVias = {};
+  // El invernadero con el que se abre el formulario (día pulsado en la
+  // cuadrícula, arrastre de un tramo, o doble clic para editar) entra en
+  // rmBulkConfig como uno más — así, si después se marca otro invernadero en
+  // la lista de abajo, el primero NO se borra ni se pisa (cada uno tiene su
+  // propio modo independiente, ver comentario junto a rmBulkConfig).
+  rmBulkConfig = {};
+  if(inv){
+    rmBulkConfig[inv] = rmPendingConfig
+      ? {modo: rmPendingConfig.modo, excluir: rmPendingConfig.excluir || {desde:null,hasta:null}, tramos: rmPendingConfig.tramos || []}
+      : {modo:'entero', excluir:{desde:null,hasta:null}, tramos:[]};
+  }
+  rmPendingConfig = null;
 
   const mo = getOrCreateOverlay('riego-manual-overlay');
   mo.style.padding = '0';
@@ -8967,16 +9155,9 @@ function showRiegoManualForm(){
             </div>
           </div>
         </div>
-        <!-- TRAMOS DE CALLES (varios tramos no contiguos para el mismo riego) -->
-        ${inv ? `
-        <div>
-          <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Tramos de calles</label>
-          <div id="rm-tramos-rows"></div>
-          <button type="button" onclick="agregarTramoRow()" style="width:100%;padding:6px;font-size:11px;font-weight:700;background:#fff;border:1.5px dashed #a8c4e8;border-radius:6px;cursor:pointer;color:#1558a0">+ Añadir tramo</button>
-        </div>` : `
-        <div style="font-size:11px;color:var(--muted);font-style:italic;padding:2px 0">Elige un invernadero arriba para marcar tramos de calles concretos, o usa "Aplicar a invernaderos completos" abajo.</div>`}
-        <!-- INVERNADEROS / SALAS COMPLETAS -->
-        ${bulkInvSalaSelectorHTML('rm')}
+        <!-- INVERNADEROS (uno o varios a la vez, cada uno con Entero/Entero
+        menos/Tramo de calles — mismo recuadro que ya usa Plaguicidas) -->
+        ${riegoBulkInvSelectorHTML()}
       </div>
       <!-- BUTTONS (fijos abajo, siempre visibles) -->
       <div style="display:flex;gap:8px;justify-content:space-between;padding:1rem 1.25rem;border-top:1px solid #eee;flex-shrink:0;background:#fff">
@@ -8997,7 +9178,7 @@ function showRiegoManualForm(){
   mo.style.display = 'flex';
   renderAguaRows();
   renderAbonoRows();
-  renderTramosRows();
+  renderRmBulkPanels();
 }
 
 // ── AGUA: filas repetibles ──────────────────────────────────────
@@ -9207,39 +9388,11 @@ function quitarAbonoRow(i){
   renderAbonoRows();
 }
 
-// ── TRAMOS DE CALLES: varios tramos no contiguos para el mismo riego ────
-function leerTramosDesdeDOM(){
-  return Array.from(document.querySelectorAll('.rm-tramo-row')).map(row=>({
-    desde: parseInt(row.querySelector('.rm-tramo-desde').value, 10),
-    hasta: parseInt(row.querySelector('.rm-tramo-hasta').value, 10)
-  }));
-}
-function renderTramosRows(){
-  const cont = document.getElementById('rm-tramos-rows');
-  if(!cont) return;
-  const allCalles = rmAllCallesActual;
-  cont.innerHTML = rmTramos.map((t,i)=>`
-    <div class="rm-tramo-row" style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-bottom:8px">
-      <select class="rm-tramo-desde" style="width:100%;padding:9px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;font-weight:600;background:#f2f4f0;outline:none;cursor:pointer">
-        ${allCalles.map(c=>`<option value="${c}"${c===t.desde?' selected':''}>${c}</option>`).join('')}
-      </select>
-      <select class="rm-tramo-hasta" style="width:100%;padding:9px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;font-weight:600;background:#f2f4f0;outline:none;cursor:pointer">
-        ${allCalles.map(c=>`<option value="${c}"${c===t.hasta?' selected':''}>${c}</option>`).join('')}
-      </select>
-      ${rmTramos.length>1 ? `<button type="button" onclick="quitarTramoRow(${i})" style="width:30px;background:#fdecea;color:#c62828;border:1px solid #f3c2bd;border-radius:6px;cursor:pointer;font-size:12px">✕</button>` : '<span></span>'}
-    </div>`).join('');
-}
-function agregarTramoRow(){
-  rmTramos = leerTramosDesdeDOM();
-  rmTramos.push({desde:rmAllCallesActual[0], hasta:rmAllCallesActual[0]});
-  renderTramosRows();
-}
-function quitarTramoRow(i){
-  rmTramos = leerTramosDesdeDOM();
-  rmTramos.splice(i,1);
-  if(!rmTramos.length) rmTramos.push({desde:rmAllCallesActual[0], hasta:rmAllCallesActual[0]});
-  renderTramosRows();
-}
+// El antiguo editor de "Tramos de calles" de UN solo invernadero
+// (leerTramosDesdeDOM/renderTramosRows/agregarTramoRow/quitarTramoRow) se
+// quitó el 2026-08-06 al unificar Riego con el mismo recuadro
+// Entero/Entero menos/Tramo por invernadero que ya usa Plaguicidas — ver
+// rmBulkConfig/renderRmBulkTramoRows más abajo.
 
 // Construye el texto de riego combinando lo que se haya rellenado de Riego
 // (una o varias aguas, uno o varios abonos, la marca "?", fitosanitarios) y
@@ -9463,33 +9616,11 @@ async function guardarBorradoRiegoMultiInv(entradas){
   const invs = entradas.map(e=>e.invId);
   logHistorial(invs.length>1 ? `Borró riego de ${invs.length} invernaderos (${invs.join(',')})` : `Borró riego de INV ${invs[0]}`);
 }
-// Igual que aplicarTextoRiegoManual pero para varios invernaderos completos
-// a la vez (todas sus calles) — usado cuando se marca "Sala completa" o
-// varios invernaderos sueltos en vez de tramos de calles concretas.
-function aplicarTextoRiegoManualMultiInv(invIds, dia, texto){
-  const entradas = invIds.map(invId=>{
-    const layout = INV_LAYOUT[invId];
-    return { invId, dia, calles: [...layout.row1, ...layout.row2] };
-  });
-  const puntos = entradas.flatMap(({invId, calles})=>calles.map(c=>({invId, dia, calle:c})));
-  const {ok, motivo} = pedirMotivoCorreccionSiHaceFalta(puntos);
-  if(!ok) return null;
-  registrarUndoRiegoMultiInv(entradas);
-  entradas.forEach(({invId, calles})=>{
-    calles.forEach(c=>{
-      const prev = getRiegoCellRaw(invId, dia, c);
-      setRiego(invId, dia, c, texto);
-      if(texto) capturarAnteriorRiego(prev, getRiegoCellRaw(invId, dia, c), motivo);
-    });
-  });
-  document.getElementById('riego-manual-overlay').style.display = 'none';
-  if(texto) saveRiegoData(); else guardarBorradoRiegoMultiInv(entradas);
-  if(riegoInvSel) renderRiegoGrid(riegoInvSel);
-  showToast(texto
-    ? `✓ Día ${dia} → "${texto}" aplicado a ${invIds.length} invernadero(s) completo(s)`
-    : `🗑 Borrado — Día ${dia} en ${invIds.length} invernadero(s) completo(s)`);
-  return entradas;
-}
+// aplicarTextoRiegoManualMultiInv (aplicar SIEMPRE el invernadero completo a
+// varios a la vez, sin tramo/exclusión) se quitó el 2026-08-06 al unificar
+// con rmBulkConfig — aplicarTextoRiegoManual ya cubre el caso "invernadero
+// completo" cuando calcularCallesRmBulk devuelve todas sus calles (modo
+// 'entero'), así que no hace falta una función aparte para eso.
 // Doble clic (o doble toque, típico en móvil con conexión lenta) en
 // "Aplicar" antes de que termine el guardado anterior duplicaba la tarea
 // automática: la segunda llamada relee tareasData desde la nube antes de
@@ -9508,43 +9639,32 @@ async function saveRiegoManual(){
     const dia = parseInt(document.getElementById('rm-dia').value);
     const { textoCompleto, textoRiego, tituloTrabajoTarea, horarioTrabajo } = construirPartesRiegoManual();
     if(!textoCompleto){ showToast('Rellena al menos un campo de riego o de trabajo'); return; }
-    const bulkInvIds = leerInvernaderosBulkSeleccionados('rm');
-    if(!bulkInvIds.length && !riegoInvSel){ showToast('Elige un invernadero arriba o marca invernaderos/salas completos abajo'); return; }
-    if(bulkInvIds.length){
-      if(!aplicarTextoRiegoManualMultiInv(bulkInvIds, dia, textoCompleto)) return;
-      // Secuencial (no forEach+async suelto): autoAsignarTareasRiego hace su
-      // propio loadTareasData()+persistTareasData() por invernadero — lanzarlas
-      // todas a la vez sin esperar pisa unas a otras (una recarga de tareasData
-      // en marcha borra el push en memoria de la llamada anterior que aún no
-      // había guardado). Con el bucle secuencial, cada invernadero termina de
-      // guardar antes de que empiece el siguiente.
-      for(const invId of bulkInvIds){
-        await autoAsignarTareasRiego(invId, dia, invernaderoCompletoLabel(invId), textoRiego, tituloTrabajoTarea, horarioTrabajo);
-      }
-      return;
-    }
-    const inv = riegoInvSel;
-    const tramos = leerTramosDesdeDOM();
+    const invIds = leerRmBulkInvsSeleccionados();
+    if(!invIds.length){ showToast('Elige al menos un invernadero'); return; }
     const contextoOriginal = rmEditContextoOriginal;
     rmEditContextoOriginal = null;
-    // Si se estaba editando una celda ya marcada (doble clic) y se ha cambiado
-    // el día, el riego se mueve: se aplica al día nuevo Y se borra del día
-    // original en el MISMO guardado. Si el día no ha cambiado, o es un alta
-    // nueva (no una edición), se aplica como siempre — y marcar el mismo
-    // riego en otro día por separado (sin editar uno ya existente) sigue
-    // funcionando igual, sin mover ni borrar nada.
-    let aplicado;
-    if(contextoOriginal && contextoOriginal.invId===inv && contextoOriginal.dia!==dia){
-      aplicado = await aplicarTextoRiegoManualMoviendoDia(inv, contextoOriginal.dia, contextoOriginal.calles, dia, tramos, textoCompleto);
-    } else {
-      // Mismo día (o alta nueva): si se estaba editando un riego ya existente,
-      // se pasan sus calles originales para que las que ya no entren en el
-      // tramo nuevo (reducido) se limpien en el mismo guardado.
-      const callesOriginalesMismoDia = (contextoOriginal && contextoOriginal.invId===inv && contextoOriginal.dia===dia) ? contextoOriginal.calles : null;
-      aplicado = aplicarTextoRiegoManual(inv, dia, tramos, textoCompleto, callesOriginalesMismoDia);
+    // Secuencial (no forEach+async suelto): autoAsignarTareasRiego hace su
+    // propio loadTareasData()+persistTareasData() por invernadero — lanzarlas
+    // todas a la vez sin esperar pisa unas a otras (una recarga de tareasData
+    // en marcha borra el push en memoria de la llamada anterior que aún no
+    // había guardado). Con el bucle secuencial, cada invernadero termina de
+    // guardar antes de que empiece el siguiente.
+    for(const invId of invIds){
+      const {tramos} = calcularCallesRmBulk(invId);
+      // Si se estaba editando una celda ya marcada (doble clic) y se ha
+      // cambiado el día, el riego se mueve: se aplica al día nuevo Y se
+      // borra del día original en el MISMO guardado. Si el día no ha
+      // cambiado, o es un alta nueva, se aplica como siempre.
+      let aplicado;
+      if(contextoOriginal && contextoOriginal.invId===invId && contextoOriginal.dia!==dia){
+        aplicado = await aplicarTextoRiegoManualMoviendoDia(invId, contextoOriginal.dia, contextoOriginal.calles, dia, tramos, textoCompleto);
+      } else {
+        const callesOriginalesMismoDia = (contextoOriginal && contextoOriginal.invId===invId && contextoOriginal.dia===dia) ? contextoOriginal.calles : null;
+        aplicado = aplicarTextoRiegoManual(invId, dia, tramos, textoCompleto, callesOriginalesMismoDia);
+      }
+      if(!aplicado) continue;
+      await autoAsignarTareasRiego(invId, dia, tramosLabelTexto(invId, tramos), textoRiego, tituloTrabajoTarea, horarioTrabajo);
     }
-    if(!aplicado) return;
-    await autoAsignarTareasRiego(inv, dia, tramosLabelTexto(inv, tramos), textoRiego, tituloTrabajoTarea, horarioTrabajo);
   } finally {
     guardandoRiegoManual = false;
     if(btn) btn.disabled = false;
@@ -9598,12 +9718,12 @@ async function aplicarTextoRiegoManualMoviendoDia(invId, diaOriginal, callesOrig
 function borrarRiegoManual(){
   if(!confirm('¿Borrar el riego marcado? Se puede deshacer con "Retroceder".')) return;
   const dia = parseInt(document.getElementById('rm-dia').value);
-  const bulkInvIds = leerInvernaderosBulkSeleccionados('rm');
-  if(bulkInvIds.length){ aplicarTextoRiegoManualMultiInv(bulkInvIds, dia, ''); return; }
-  const inv = riegoInvSel;
-  if(!inv){ showToast('Elige un invernadero arriba o marca invernaderos/salas completos abajo'); return; }
-  const tramos = leerTramosDesdeDOM();
-  aplicarTextoRiegoManual(inv, dia, tramos, '');
+  const invIds = leerRmBulkInvsSeleccionados();
+  if(!invIds.length){ showToast('Elige al menos un invernadero'); return; }
+  invIds.forEach(invId=>{
+    const {tramos} = calcularCallesRmBulk(invId);
+    aplicarTextoRiegoManual(invId, dia, tramos, '');
+  });
 }
 function tramosLabelTexto(invId, tramos){
   return tramos.map(({desde,hasta})=>{const s=Math.min(desde,hasta),e=Math.max(desde,hasta); return formatRangoConInv(invId, s, e);}).join(', ');
@@ -9687,10 +9807,11 @@ function guardarPostItRiego(){
   const nota = document.getElementById('rm-postit-texto').value.trim();
   if(!nota){ showToast('Escribe algo en la nota'); return; }
   document.getElementById('riego-postit-overlay').style.display = 'none';
-  const inv = riegoInvSel;
   const dia = parseInt(document.getElementById('rm-dia').value);
-  const tramos = leerTramosDesdeDOM();
-  aplicarTextoRiegoManual(inv, dia, tramos, '* '+nota);
+  leerRmBulkInvsSeleccionados().forEach(invId=>{
+    const {tramos} = calcularCallesRmBulk(invId);
+    aplicarTextoRiegoManual(invId, dia, tramos, '* '+nota);
+  });
 }
 // Pulsar la etiqueta de un día en la cuadrícula abre el alta manual con ese
 // día ya puesto (para no tener que elegirlo otra vez en el desplegable).
@@ -9731,10 +9852,9 @@ function dragCalleEnd(){
 document.addEventListener('mouseup', dragCalleEnd);
 function abrirRiegoManualDiaConTramo(invId, dia, desde, hasta){
   riegoInvSel = invId;
+  rmPendingConfig = {modo:'tramo', tramos:[{desde: Math.min(desde,hasta), hasta: Math.max(desde,hasta)}]};
   showRiegoManualForm();
   document.getElementById('rm-dia').value = dia;
-  rmTramos = [{desde: Math.min(desde,hasta), hasta: Math.max(desde,hasta)}];
-  renderTramosRows();
 }
 function abrirFitoManualDiaConTramo(invId, dia, desde, hasta){
   fitoInvSel = invId;
@@ -9754,11 +9874,10 @@ function abrirEspecificoManualDiaConTramo(invId, dia, desde, hasta){
 // había marcado esa persona originalmente antes de la corrección.
 function editarRiegoManualDesdeCelda(invId, dia, calles){
   riegoInvSel = invId;
-  showRiegoManualForm();
   const desde = Math.min(...calles), hasta = Math.max(...calles);
+  rmPendingConfig = {modo:'tramo', tramos:[{desde, hasta}]};
+  showRiegoManualForm();
   document.getElementById('rm-dia').value = dia;
-  rmTramos = [{desde, hasta}];
-  renderTramosRows();
   rmEditContextoOriginal = { invId, dia, calles: [...calles] };
   const raw = getRiegoCellRaw(invId, dia, calles[0]);
   const infoEl = document.getElementById('rm-info-marcador');
