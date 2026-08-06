@@ -5518,6 +5518,12 @@ async function mostrarHistorialPartida(id){
     if(t.desde==null) return;
     for(let x=Math.min(t.desde,t.hasta==null?t.desde:t.hasta); x<=Math.max(t.desde,t.hasta==null?t.desde:t.hasta); x++) calles.push(x);
   });
+  // A petición de Paula (2026-08-06): "tienes que hacerlo teniendo en cuenta
+  // su primer día en el INV, es decir su salida de túnel, y ese es su día
+  // 1" — c.dia (el día del check de Túnel, cuando se le asignó su calle
+  // real) ya es ese día de salida/entrada al invernadero; cada evento del
+  // historial muestra ahora también "Día N" contado desde ahí (1 = el
+  // propio día de salida), no solo la fecha de calendario.
   const diaDesde = c.dia!=null ? c.dia : riegoDiaDeHoy();
   const eventos = [];
   if(c.invId && calles.length){
@@ -5535,7 +5541,10 @@ async function mostrarHistorialPartida(id){
   eventos.sort((a,b)=> a.dia-b.dia || a.calle-b.calle);
   const eventosHTML = eventos.length ? eventos.map(ev=>`
     <div style="display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--border)">
-      <div style="width:64px;flex-shrink:0;font-size:11px;font-weight:700;color:var(--muted)">${escapar(riegoDiaLabelCorto(ev.dia))}</div>
+      <div style="width:78px;flex-shrink:0">
+        <div style="font-size:11px;font-weight:800;color:#0f5c4a">Día ${ev.dia-diaDesde+1}</div>
+        <div style="font-size:10px;color:var(--muted)">${escapar(riegoDiaLabelCorto(ev.dia))}</div>
+      </div>
       <div style="width:74px;flex-shrink:0;font-size:10px;font-weight:800;color:#fff;background:${ev.color};border-radius:999px;padding:2px 8px;text-align:center">${ev.tipo}</div>
       <div style="font-size:12px;color:var(--text)">C/${escapar(ev.calle)} — ${escapar(ev.texto)}</div>
     </div>`).join('') : `<div style="text-align:center;padding:2rem;color:var(--muted);font-style:italic;font-size:13px">Sin riegos, plaguicidas ni específicos registrados en sus calles desde que entró.</div>`;
@@ -5546,7 +5555,7 @@ async function mostrarHistorialPartida(id){
       <div style="background:linear-gradient(135deg,#0f5c4a,#1a9c78);color:#fff;padding:1.1rem 1.5rem;border-radius:14px 14px 0 0;position:sticky;top:0">
         <div style="font-size:17px;font-weight:800">${escapar(c.partida)||'— Sin partida —'}</div>
         <div style="font-size:12px;opacity:.9;margin-top:2px">${escapar(c.clienteVariedad)||''}${tipoPlanta?' · '+escapar(tipoPlanta):''}</div>
-        <div style="font-size:11px;opacity:.85;margin-top:2px">${c.fentrega?`📅 Entrega ${escapar(c.fentrega)} · `:''}INV ${escapar(c.invId)||'—'} · desde ${escapar(riegoDiaLabelCorto(diaDesde))}</div>
+        <div style="font-size:11px;opacity:.85;margin-top:2px">${c.fentrega?`📅 Entrega ${escapar(c.fentrega)} · `:''}INV ${escapar(c.invId)||'—'} · Día 1 (salida de Túnel): ${escapar(riegoDiaLabelCorto(diaDesde))}</div>
       </div>
       <div style="padding:1.25rem 1.5rem">
         <div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Check de Túnel</div>
