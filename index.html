@@ -5189,12 +5189,28 @@ let partidaSeleccionadaParaMover = null;
 //    tocando el cuerpo de la tarjeta (clicPartidaEnMapa), nunca tocando su
 //    ⇄. Ahora ambos sitios completan el intercambio si ya había otra
 //    seleccionada.
+// 2026-08-06 (más tarde): "sigue sin funcionar en la calle 1004" — fallo
+// real encontrado mirando esos datos concretos: varias partidas importadas
+// del MISMO PDF en el MISMO segundo comparten un creadoEn idéntico, y por
+// tanto la misma clave de orden por defecto (sortKeyPartida usa
+// new Date(creadoEn).getTime(), que solo tiene resolución de un segundo).
+// El intercambio reutilizaba esas claves ANTIGUAS intercambiadas — si las
+// dos partidas ya tenían la MISMA clave (justo el caso de la calle 1004,
+// donde 3 de las 4 partidas comparten posManual/creadoEn), "intercambiar"
+// dos valores iguales no cambia nada en absoluto, aunque el resto de campos
+// (calle) sí se intercambien correctamente cuando son distintas. Ahora se
+// usan SIEMPRE dos claves nuevas y garantizadas distintas (Date.now() y
+// Date.now()-1) en vez de reciclar las que ya tuvieran, así el cambio de
+// orden relativo SIEMPRE es real, sin importar qué clave tuvieran antes.
 function intercambiarPartidasPorId(idA, idB){
   const cA = controlChecksData.find(x=>x.id===idA);
   const cB = controlChecksData.find(x=>x.id===idB);
   if(!cA || !cB) return;
-  const ubicA = { invId:cA.invId, tramos:cA.tramos, calleDesde:cA.calleDesde, calleHasta:cA.calleHasta, posManual:sortKeyPartida(cA) };
-  const ubicB = { invId:cB.invId, tramos:cB.tramos, calleDesde:cB.calleDesde, calleHasta:cB.calleHasta, posManual:sortKeyPartida(cB) };
+  const ubicA = { invId:cA.invId, tramos:cA.tramos, calleDesde:cA.calleDesde, calleHasta:cA.calleHasta };
+  const ubicB = { invId:cB.invId, tramos:cB.tramos, calleDesde:cB.calleDesde, calleHasta:cB.calleHasta };
+  const base = Date.now();
+  ubicA.posManual = base;
+  ubicB.posManual = base - 1;
   aplicarIntercambioPartidas(idA, ubicB, idB, ubicA);
 }
 function seleccionarPartidaParaMover(id, event){
