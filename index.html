@@ -5084,17 +5084,30 @@ function showPartidasModule(){
   Promise.all([loadControlChecksData()]).then(()=>{
     const overlay = getOrCreateOverlay('partidas-overlay');
     overlay.style.padding = '0';
+    partidaSeleccionadaParaMover = null;
     renderPartidasMapaContent(overlay);
     overlay.style.display = 'flex';
   });
 }
+// A petición de Paula (2026-08-06): "no se cambian las que yo quiero... se
+// intercambian otras distintas" — fallo real: partidaSeleccionadaParaMover
+// es una variable global que NO se borraba al cambiar de sala o de
+// invernadero. Si se seleccionaba una partida en un invernadero y luego se
+// cambiaba de pantalla sin completar el intercambio (o sin darse cuenta de
+// que seguía "marcada"), el siguiente toque en CUALQUIER otra partida —
+// aunque fuera de otro invernadero — la intercambiaba con aquella
+// seleccionada y ya olvidada, dando la sensación de que se cambiaban
+// partidas al azar. Ahora la selección se borra siempre al cambiar de sala
+// o de invernadero.
 function seleccionarSalaPartidas(sala){
   partidasSalaSel = sala;
   partidasInvSel = null;
+  partidaSeleccionadaParaMover = null;
   renderPartidasMapaContent(document.getElementById('partidas-overlay'));
 }
 function seleccionarInvPartidas(invId){
   partidasInvSel = invId;
+  partidaSeleccionadaParaMover = null;
   renderPartidasMapaContent(document.getElementById('partidas-overlay'));
 }
 function renderPartidasMapaContent(overlay){
@@ -5129,6 +5142,18 @@ function renderPartidasMapaContent(overlay){
       <div style="padding:.75rem 1.25rem;background:#e8f5ef;border-bottom:1px solid #a5d6c2;display:flex;gap:6px;flex-wrap:wrap;align-items:center;flex-shrink:0">
         ${invBotonesHTML}
       </div>
+      ${partidaSeleccionadaParaMover ? (()=>{
+        // Aviso visible de qué hay seleccionado (a petición de Paula,
+        // 2026-08-06: "se intercambian otras distintas") — antes la
+        // selección era invisible salvo por el resaltado de la propia
+        // tarjeta, fácil de olvidar si se cambia de pantalla; ahora se ve
+        // siempre arriba, con un botón para cancelarla.
+        const c = controlChecksData.find(x=>x.id===partidaSeleccionadaParaMover);
+        return `<div style="padding:.5rem 1.25rem;background:#fff3dc;border-bottom:1px solid #e0c080;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-shrink:0;font-size:12px;font-weight:700;color:#7a5000">
+          <span>📌 Seleccionada: ${c?c.partida:'—'} — toca otra partida o un hueco para moverla ahí</span>
+          <button onclick="partidaSeleccionadaParaMover=null;renderPartidasMapaContent(document.getElementById('partidas-overlay'))" style="padding:5px 12px;font-size:11px;font-weight:800;background:#c47f00;color:#fff;border:none;border-radius:6px;cursor:pointer">Cancelar</button>
+        </div>`;
+      })() : ''}
       <div id="partidas-content-wrap" style="flex:1;overflow:auto;padding:1.25rem">
         ${partidasInvSel ? renderPartidasInvHTML(partidasInvSel) : `<div style="text-align:center;padding:3rem;color:var(--muted);font-style:italic;font-size:13px">Elige un invernadero arriba para ver sus partidas.</div>`}
       </div>
@@ -5345,9 +5370,15 @@ function renderPartidasBloqueHTML(bloque){
   const fondoTipo = FONDOS_TIPO_PLANTA[tipoPlanta];
   const bgBloque = seleccionada ? '#fff3dc' : (fondoTipo ? fondoTipo.bg : '#e8f5ef');
   const borderBloque = seleccionada ? '#c47f00' : (fondoTipo ? fondoTipo.border : '#a5d6c2');
+  // Arrastrar-y-soltar nativo restaurado (a petición de Paula, 2026-08-06:
+  // "has quitado la opción de arrastrar, tienes que corregirlo") — se había
+  // quitado pensando que interfería con el scroll táctil, pero el fallo real
+  // de los intercambios era la selección que no se borraba entre pantallas
+  // (ver seleccionarInvPartidas/seleccionarSalaPartidas); el tocar-y-tocar
+  // sigue funcionando igual, esto es un método adicional, no un sustituto.
   return `
-    <div onclick="clicPartidaEnMapa('${c.id}')"
-      style="height:100%;padding:4px 6px;background:${bgBloque};border:1.5px solid ${borderBloque};border-radius:6px;font-size:10px;line-height:1.35;position:relative;overflow:hidden">
+    <div draggable="true" ondragstart="iniciarArrastrePartida('${c.id}')" ondragover="event.preventDefault()" ondrop="event.preventDefault();clicPartidaEnMapa('${c.id}')" onclick="clicPartidaEnMapa('${c.id}')"
+      style="height:100%;padding:4px 6px;background:${bgBloque};border:1.5px solid ${borderBloque};border-radius:6px;font-size:10px;line-height:1.35;position:relative;overflow:hidden;cursor:grab">
       ${separadoBtnHTML}
       <button onclick="seleccionarPartidaParaMover('${c.id}',event)" title="Tocar y luego tocar donde quieras moverla o intercambiarla" style="position:absolute;top:2px;right:20px;width:16px;height:16px;padding:0;background:${seleccionada?'#c47f00':'rgba(15,92,74,.15)'};color:${seleccionada?'#fff':'#0f5c4a'};border:none;border-radius:4px;font-size:10px;line-height:16px;cursor:pointer">⇄</button>
       <button onclick="event.stopPropagation();marcarSalidaPartida('${c.id}')" title="Marcar salida (quitar del mapa)" style="position:absolute;top:2px;right:2px;width:16px;height:16px;padding:0;background:rgba(198,40,40,.12);color:#c62828;border:none;border-radius:4px;font-size:10px;line-height:16px;cursor:pointer">✕</button>
@@ -5358,6 +5389,9 @@ function renderPartidasBloqueHTML(bloque){
         ${tipoPlanta ? `<span style="font-weight:700;color:#0f5c4a">${escapar(tipoPlanta)}</span>` : ''}
       </div>
     </div>`;
+}
+function iniciarArrastrePartida(id){
+  partidaSeleccionadaParaMover = id;
 }
 function separarPartidaEnCalles(id){
   const c = controlChecksData.find(x=>x.id===id);
@@ -5444,7 +5478,7 @@ function renderPartidasInvHTML(invId){
             // de Paula, 2026-08-05: "déjame mover las partidas a donde yo
             // quiera", no solo intercambiarlas con otra ya puesta).
             const resaltado = partidaSeleccionadaParaMover ? 'border:1.5px dashed #c47f00;border-radius:6px;cursor:pointer' : '';
-            celdas.push(`<div onclick="clicCeldaVaciaPartidas('${invId}',${calle})" style="width:${CW}px;flex-shrink:0;padding:2px"><div style="height:100%;min-height:${ROW_H-4}px;${resaltado}"></div></div>`);
+            celdas.push(`<div onclick="clicCeldaVaciaPartidas('${invId}',${calle})" ondragover="event.preventDefault()" ondrop="event.preventDefault();clicCeldaVaciaPartidas('${invId}',${calle})" style="width:${CW}px;flex-shrink:0;padding:2px"><div style="height:100%;min-height:${ROW_H-4}px;${resaltado}"></div></div>`);
           }
           ci++;
         }
