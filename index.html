@@ -3667,7 +3667,7 @@ const ACCIONES_OFFLINE_REPLAYABLES = {
   aplicarSalidaPartida,
   aplicarIntercambioPartidas,
   aplicarMoverPartidaACalle,
-  aplicarSepararPartida
+  aplicarSepararPartidaEnCalles
 };
 // A petición de Paula (2026-08-05): "ayer realizamos varios checks de túnel y
 // ponía que se estaban sincronizando y ya no salen" — bug real encontrado:
@@ -5310,14 +5310,17 @@ function renderPartidasBloqueHTML(bloque){
   // partida. El intercambio ahora depende SOLO del botón ⇄ (tocar/tocar),
   // que no necesita draggable para nada.
   // Botón "／" (a petición de Paula, 2026-08-06): una partida de 2+ calles
-  // se ve normalmente como UN bloque grande que ocupa varias columnas; si se
-  // pulsa este botón, se marca c.mostrarSeparado y a partir de ahí aparece
-  // repetida, una vez por cada calle, con el tamaño normal de una sola
-  // columna — solo cambia cómo se PINTA, la partida sigue siendo la misma
-  // línea de check con el mismo tramo de calles.
+  // se ve normalmente como UN bloque grande que ocupa varias columnas. Al
+  // pulsar este botón se SEPARA de verdad en una línea de check independiente
+  // por cada calle (separarPartidaEnCalles) — no es solo un cambio visual:
+  // "se deben de poder mover por separado sin necesidad de que se muevan las
+  // 2", así que tienen que ser registros distintos, cada uno movible o
+  // intercambiable sin afectar al otro. Acción irreversible (no hay "volver
+  // a juntar"), coherente con que a partir de ahí son partidas separadas de
+  // verdad, no una vista alternativa de la misma.
   const esMultiCalle = bloque.calles.length > 1;
   const separadoBtnHTML = esMultiCalle ? `
-      <button onclick="event.stopPropagation();toggleSepararPartida('${c.id}')" title="${c.mostrarSeparado?'Volver a juntar en un solo bloque':'Mostrar en cada calle por separado'}" style="position:absolute;top:2px;right:38px;width:16px;height:16px;padding:0;background:${c.mostrarSeparado?'#1558a0':'rgba(15,92,74,.15)'};color:${c.mostrarSeparado?'#fff':'#0f5c4a'};border:none;border-radius:4px;font-size:10px;line-height:16px;cursor:pointer">／</button>` : '';
+      <button onclick="event.stopPropagation();separarPartidaEnCalles('${c.id}')" title="Separar en una línea independiente por cada calle (se podrán mover por separado)" style="position:absolute;top:2px;right:38px;width:16px;height:16px;padding:0;background:rgba(15,92,74,.15);color:#0f5c4a;border:none;border-radius:4px;font-size:10px;line-height:16px;cursor:pointer">／</button>` : '';
   return `
     <div onclick="clicPartidaEnMapa('${c.id}')"
       style="height:100%;padding:4px 6px;background:${seleccionada?'#fff3dc':'#e8f5ef'};border:1.5px solid ${seleccionada?'#c47f00':'#a5d6c2'};border-radius:6px;font-size:10px;line-height:1.35;position:relative;overflow:hidden">
@@ -5332,17 +5335,40 @@ function renderPartidasBloqueHTML(bloque){
       </div>
     </div>`;
 }
-function toggleSepararPartida(id){
+function separarPartidaEnCalles(id){
   const c = controlChecksData.find(x=>x.id===id);
   if(!c) return;
-  aplicarSepararPartida(id, !c.mostrarSeparado);
+  const tramo = (c.tramos && c.tramos.length) ? c.tramos[0] : {desde:c.calleDesde, hasta:c.calleHasta};
+  if(tramo.desde==null) return;
+  const desde = Math.min(tramo.desde, tramo.hasta??tramo.desde), hasta = Math.max(tramo.desde, tramo.hasta??tramo.desde);
+  if(hasta<=desde){ showToast('Esta partida ya es de una sola calle'); return; }
+  const calles = [];
+  for(let x=desde; x<=hasta; x++) calles.push(x);
+  // Los ids de las copias nuevas se generan AQUÍ, antes de guardar — igual
+  // que en aplicarNuevaLineaControl — para que la acción sea idempotente al
+  // reproducirla desde la cola offline (si ya existe un id, no se duplica).
+  const nuevosIds = calles.slice(1).map((_,i)=>'control_'+Date.now()+'_sep'+i+'_'+Math.random().toString(36).slice(2,8));
+  aplicarSepararPartidaEnCalles(id, calles, nuevosIds);
 }
-async function aplicarSepararPartida(id, valor){
+async function aplicarSepararPartidaEnCalles(id, calles, nuevosIds){
   const c = controlChecksData.find(x=>x.id===id);
   if(!c) return;
-  c.mostrarSeparado = valor;
+  c.tramos = [{desde:calles[0], hasta:calles[0]}];
+  c.calleDesde = calles[0]; c.calleHasta = calles[0];
+  const claveBase = sortKeyPartida(c);
+  calles.slice(1).forEach((calle,i)=>{
+    const nid = nuevosIds[i];
+    if(!controlChecksData.find(x=>x.id===nid)){
+      controlChecksData.push({
+        ...c, id: nid,
+        tramos: [{desde:calle, hasta:calle}], calleDesde: calle, calleHasta: calle,
+        posManual: claveBase + i + 1
+      });
+    }
+  });
   renderPartidasMapaContent(document.getElementById('partidas-overlay'));
-  const qid = encolarAccionOffline('aplicarSepararPartida', [id, valor]);
+  showToast(`✓ Separada en ${calles.length} calles`);
+  const qid = encolarAccionOffline('aplicarSepararPartidaEnCalles', [id, calles, nuevosIds]);
   const ok = await persistControlChecksData();
   if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
   return ok;
@@ -5379,22 +5405,15 @@ function renderPartidasInvHTML(invId){
       const celdas = [];
       while(ci < calles.length){
         const calle = calles[ci];
-        // A petición de Paula (2026-08-06): si la partida tiene marcado
-        // "／" (mostrarSeparado), se busca por CUALQUIERA de sus calles (no
-        // solo por el ancla) y se pinta de tamaño normal en cada una, en
-        // vez de un único bloque grande que ocupa varias columnas.
-        const bloque = bloques.find(b=>b.pos===displayPos && (b.entry.mostrarSeparado ? b.calles.includes(calle) : anclaDe(b)===calle));
+        const bloque = bloques.find(b=>b.pos===displayPos && anclaDe(b)===calle);
         if(bloque){
-          const individual = bloque.entry.mostrarSeparado && bloque.calles.length>1;
-          const anchoPx = individual ? CW : CW*bloque.calles.length;
-          celdas.push(`<div style="width:${anchoPx}px;flex-shrink:0;padding:2px">${renderPartidasBloqueHTML(bloque)}</div>`);
-          ci += individual ? 1 : bloque.calles.length;
+          celdas.push(`<div style="width:${CW*bloque.calles.length}px;flex-shrink:0;padding:2px">${renderPartidasBloqueHTML(bloque)}</div>`);
+          ci += bloque.calles.length;
         } else {
           // Comprobar si esta calle está "ocupada" por un bloque de una calle
           // anterior que se extiende hasta aquí (para no dibujar una celda
-          // vacía encima de un bloque ya pintado). En modo separado cada
-          // calle se pinta por su cuenta, así que nunca hay nada "cubierto".
-          const cubiertaPorAnterior = bloques.some(b=>b.pos===displayPos && !b.entry.mostrarSeparado && b.calles.includes(calle) && anclaDe(b)!==calle);
+          // vacía encima de un bloque ya pintado).
+          const cubiertaPorAnterior = bloques.some(b=>b.pos===displayPos && b.calles.includes(calle) && anclaDe(b)!==calle);
           if(!cubiertaPorAnterior){
             // Con una partida seleccionada, los huecos vacíos se resaltan
             // con un borde discontinuo — tocarlos la mueve ahí (a petición
