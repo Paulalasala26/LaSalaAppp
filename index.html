@@ -404,18 +404,25 @@ function togglePass(){const i=document.getElementById('login-pass'),e=document.g
 // 2026-08-05 (más tarde, mismo día): "corrige lo del inicio de sesión pues
 // entra automáticamente sin contraseña" — localStorage sin caducidad hacía
 // que la sesión se quedara para siempre en el dispositivo (cualquiera que
-// abriera la app días después entraba directo, sin pedir nada). Ahora se
-// guarda también CUÁNDO se inició sesión y solo se restaura sola si han
-// pasado menos de 8 horas — suficiente para sobrevivir un cierre de la app
-// al hacer una foto, pero no para quedarse conectado indefinidamente en un
-// dispositivo compartido.
+// abriera la app días después entraba directo, sin pedir nada). Se le puso
+// una caducidad de 8 horas.
+// 2026-08-06: "para entrar una vez se haya cerrado siempre debes de
+// introducir la contraseña" — Paula confirmó que quiere pedir contraseña
+// SIEMPRE que se cierre la app del todo, pero sin volver a romper el caso
+// original (que una recarga automática del sistema, p.ej. al volver de la
+// cámara, no eche a nadie). Por eso se vuelve a sessionStorage — a
+// diferencia de localStorage, sessionStorage sobrevive a que la MISMA
+// pestaña/app se recargue sola, pero se borra en cuanto la pestaña/app se
+// cierra de verdad, que es justo la diferencia que pedía. Se mantiene
+// además la caducidad de 8 horas por si en algún dispositivo concreto
+// sessionStorage durase más de lo esperado.
 const SESION_KEY = 'lasala-sesion-v1';
 const SESION_DURACION_MS = 8*60*60*1000;
 function guardarSesion(user){
-  try{ localStorage.setItem(SESION_KEY, JSON.stringify({user, ts: Date.now()})); }catch(e){}
+  try{ sessionStorage.setItem(SESION_KEY, JSON.stringify({user, ts: Date.now()})); }catch(e){}
 }
 function borrarSesion(){
-  try{ localStorage.removeItem(SESION_KEY); }catch(e){}
+  try{ sessionStorage.removeItem(SESION_KEY); }catch(e){}
 }
 async function entrarApp(user){
   currentUser=user;
@@ -437,7 +444,7 @@ async function entrarApp(user){
 }
 async function restaurarSesion(){
   let sesion;
-  try{ sesion = JSON.parse(localStorage.getItem(SESION_KEY)||'null'); }catch(e){ return; }
+  try{ sesion = JSON.parse(sessionStorage.getItem(SESION_KEY)||'null'); }catch(e){ return; }
   if(!sesion || !sesion.user) return;
   if(!sesion.ts || Date.now()-sesion.ts > SESION_DURACION_MS){ borrarSesion(); return; }
   await usersLoadedPromise;
