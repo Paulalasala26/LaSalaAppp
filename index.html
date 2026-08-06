@@ -3665,7 +3665,8 @@ const ACCIONES_OFFLINE_REPLAYABLES = {
   aplicarEditarControlCheck,
   aplicarFotoControl,
   aplicarSalidaPartida,
-  aplicarIntercambioPartidas
+  aplicarIntercambioPartidas,
+  aplicarMoverPartidaACalle
 };
 // A petición de Paula (2026-08-05): "ayer realizamos varios checks de túnel y
 // ponía que se estaban sincronizando y ya no salen" — bug real encontrado:
@@ -5166,28 +5167,64 @@ function sortKeyPartida(entry){
 // (HTML5 drag-and-drop, draggable="true"/ondragstart/ondrop) prácticamente
 // no funciona por TACTO en móvil (solo con ratón de ordenador), así que en
 // el móvil el gesto de arrastrar no llegaba a disparar el drop de verdad.
-// Se mantiene el drag nativo como extra para ratón, pero el mecanismo
-// principal pasa a ser "tocar una, luego tocar otra" — funciona igual en
-// móvil y en ordenador, sin depender de gestos de arrastre.
+// El mecanismo pasa a ser "tocar una, luego tocar donde quieras" — funciona
+// igual en móvil y en ordenador, sin depender de gestos de arrastre.
+// 2026-08-05 (más tarde): "tienes que dejar intercambiarlas y dejarme
+// también mover las partidas a donde yo quiera" — ya no basta con
+// intercambiar con otra partida ya colocada: tocando un hueco VACÍO
+// (clicCeldaVaciaPartidas) la partida seleccionada se mueve ahí, incluso a
+// otra calle o otro invernadero — no hace falta acertar el botón ⇄ pequeño
+// en el destino, basta tocar la partida o el hueco donde se quiera soltar.
 let partidaSeleccionadaParaMover = null;
 function seleccionarPartidaParaMover(id, event){
   if(event) event.stopPropagation();
-  if(partidaSeleccionadaParaMover === id){
+  partidaSeleccionadaParaMover = (partidaSeleccionadaParaMover === id) ? null : id;
+  renderPartidasMapaContent(document.getElementById('partidas-overlay'));
+}
+// Tocar una partida cuando ya hay otra seleccionada completa el intercambio
+// (no hace falta acertar el botón ⇄ del destino); si no hay nada
+// seleccionado, tocarla abre su historial como siempre.
+function clicPartidaEnMapa(id){
+  if(partidaSeleccionadaParaMover && partidaSeleccionadaParaMover!==id){
+    const idA = partidaSeleccionadaParaMover, idB = id;
     partidaSeleccionadaParaMover = null;
-    renderPartidasMapaContent(document.getElementById('partidas-overlay'));
+    const cA = controlChecksData.find(x=>x.id===idA);
+    const cB = controlChecksData.find(x=>x.id===idB);
+    if(cA && cB) aplicarIntercambioPartidas(idA, sortKeyPartida(cB), idB, sortKeyPartida(cA));
     return;
   }
-  if(!partidaSeleccionadaParaMover){
-    partidaSeleccionadaParaMover = id;
-    renderPartidasMapaContent(document.getElementById('partidas-overlay'));
-    return;
-  }
-  const idA = partidaSeleccionadaParaMover, idB = id;
+  if(!partidaSeleccionadaParaMover) mostrarHistorialPartida(id);
+}
+// Tocar un hueco vacío con una partida seleccionada la mueve ahí — se coloca
+// la última (más cerca del pasillo) entre las que ya hubiera en esa calle;
+// si se quiere un orden más fino dentro de la misma calle, luego se puede
+// ajustar con el intercambio de toda la vida.
+function clicCeldaVaciaPartidas(invId, calle){
+  if(!partidaSeleccionadaParaMover) return;
+  const id = partidaSeleccionadaParaMover;
   partidaSeleccionadaParaMover = null;
-  const cA = controlChecksData.find(x=>x.id===idA);
-  const cB = controlChecksData.find(x=>x.id===idB);
-  if(!cA || !cB) return;
-  aplicarIntercambioPartidas(idA, sortKeyPartida(cB), idB, sortKeyPartida(cA));
+  const c = controlChecksData.find(x=>x.id===id);
+  if(!c) return;
+  const tramoActual = (c.tramos && c.tramos.length) ? c.tramos[0] : {desde:c.calleDesde, hasta:c.calleHasta};
+  const span = tramoActual.desde!=null ? Math.abs((tramoActual.hasta??tramoActual.desde)-tramoActual.desde)+1 : 1;
+  const nuevoTramo = {desde:calle, hasta:calle+span-1};
+  const ocupantes = calcularBloquesPartidasInv(invId).filter(b=>b.calles.includes(calle) && b.entry.id!==id);
+  const maxClave = ocupantes.length ? Math.max(...ocupantes.map(b=>sortKeyPartida(b.entry))) : 0;
+  aplicarMoverPartidaACalle(id, invId, nuevoTramo, maxClave+1);
+}
+async function aplicarMoverPartidaACalle(id, invId, tramo, posManualVal){
+  const c = controlChecksData.find(x=>x.id===id);
+  if(!c) return;
+  c.invId = invId;
+  c.tramos = [tramo];
+  c.calleDesde = tramo.desde; c.calleHasta = tramo.hasta;
+  c.posManual = posManualVal;
+  renderPartidasMapaContent(document.getElementById('partidas-overlay'));
+  showToast('✓ Partida movida');
+  const qid = encolarAccionOffline('aplicarMoverPartidaACalle', [id, invId, tramo, posManualVal]);
+  const ok = await persistControlChecksData();
+  if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
+  return ok;
 }
 // Calcula, para un invernadero, en qué fila (0 = más alejada del pasillo) le
 // toca a cada "bloque" (una partida, o uno de sus tramos si ocupa varias
@@ -5248,9 +5285,9 @@ function renderPartidasBloqueHTML(bloque){
   // partida. El intercambio ahora depende SOLO del botón ⇄ (tocar/tocar),
   // que no necesita draggable para nada.
   return `
-    <div onclick="mostrarHistorialPartida('${c.id}')"
+    <div onclick="clicPartidaEnMapa('${c.id}')"
       style="height:100%;padding:4px 6px;background:${seleccionada?'#fff3dc':'#e8f5ef'};border:1.5px solid ${seleccionada?'#c47f00':'#a5d6c2'};border-radius:6px;font-size:10px;line-height:1.35;position:relative;overflow:hidden">
-      <button onclick="seleccionarPartidaParaMover('${c.id}',event)" title="Tocar y luego tocar otra partida para intercambiar su posición" style="position:absolute;top:2px;right:20px;width:16px;height:16px;padding:0;background:${seleccionada?'#c47f00':'rgba(15,92,74,.15)'};color:${seleccionada?'#fff':'#0f5c4a'};border:none;border-radius:4px;font-size:10px;line-height:16px;cursor:pointer">⇄</button>
+      <button onclick="seleccionarPartidaParaMover('${c.id}',event)" title="Tocar y luego tocar donde quieras moverla o intercambiarla" style="position:absolute;top:2px;right:20px;width:16px;height:16px;padding:0;background:${seleccionada?'#c47f00':'rgba(15,92,74,.15)'};color:${seleccionada?'#fff':'#0f5c4a'};border:none;border-radius:4px;font-size:10px;line-height:16px;cursor:pointer">⇄</button>
       <button onclick="event.stopPropagation();marcarSalidaPartida('${c.id}')" title="Marcar salida (quitar del mapa)" style="position:absolute;top:2px;right:2px;width:16px;height:16px;padding:0;background:rgba(198,40,40,.12);color:#c62828;border:none;border-radius:4px;font-size:10px;line-height:16px;cursor:pointer">✕</button>
       <div style="font-weight:800;color:#0f5c4a;padding-right:34px">${escapar(c.partida)||'—'}</div>
       <div style="color:var(--text);font-weight:600">${escapar(c.clienteVariedad)||''}</div>
@@ -5301,7 +5338,14 @@ function renderPartidasInvHTML(invId){
           // anterior que se extiende hasta aquí (para no dibujar una celda
           // vacía encima de un bloque ya pintado).
           const cubiertaPorAnterior = bloques.some(b=>b.pos===displayPos && b.calles.includes(calle) && anclaDe(b)!==calle);
-          if(!cubiertaPorAnterior) celdas.push(`<div style="width:${CW}px;flex-shrink:0;padding:2px"><div style="height:100%;min-height:${ROW_H-4}px"></div></div>`);
+          if(!cubiertaPorAnterior){
+            // Con una partida seleccionada, los huecos vacíos se resaltan
+            // con un borde discontinuo — tocarlos la mueve ahí (a petición
+            // de Paula, 2026-08-05: "déjame mover las partidas a donde yo
+            // quiera", no solo intercambiarlas con otra ya puesta).
+            const resaltado = partidaSeleccionadaParaMover ? 'border:1.5px dashed #c47f00;border-radius:6px;cursor:pointer' : '';
+            celdas.push(`<div onclick="clicCeldaVaciaPartidas('${invId}',${calle})" style="width:${CW}px;flex-shrink:0;padding:2px"><div style="height:100%;min-height:${ROW_H-4}px;${resaltado}"></div></div>`);
+          }
           ci++;
         }
       }
