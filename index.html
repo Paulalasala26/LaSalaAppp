@@ -5370,6 +5370,13 @@ function renderPartidasBloqueHTML(bloque){
   const fondoTipo = FONDOS_TIPO_PLANTA[tipoPlanta];
   const bgBloque = seleccionada ? '#fff3dc' : (fondoTipo ? fondoTipo.bg : '#e8f5ef');
   const borderBloque = seleccionada ? '#c47f00' : (fondoTipo ? fondoTipo.border : '#a5d6c2');
+  // "ST:d/m" = fecha de Salida de Túnel (a petición de Paula, 2026-08-06) —
+  // el día 1 de la partida en el invernadero es el propio c.dia (el día del
+  // check de Túnel que le asignó su calle), igual que en mostrarHistorialPartida.
+  const stLabel = c.dia!=null ? (()=>{
+    const fecha = riegoDiaToDate(c.dia);
+    return `ST:${fecha.getDate()}/${fecha.getMonth()+1}`;
+  })() : '';
   // Arrastrar-y-soltar nativo restaurado (a petición de Paula, 2026-08-06:
   // "has quitado la opción de arrastrar, tienes que corregirlo") — se había
   // quitado pensando que interfería con el scroll táctil, pero el fallo real
@@ -5385,6 +5392,7 @@ function renderPartidasBloqueHTML(bloque){
       <div style="font-weight:800;color:#0f5c4a;padding-right:${esMultiCalle?52:34}px">${escapar(c.partida)||'—'}</div>
       <div style="color:var(--text);font-weight:600">${escapar(c.clienteVariedad)||''}</div>
       <div style="color:var(--muted);display:flex;gap:5px;flex-wrap:wrap;margin-top:1px">
+        ${stLabel ? `<span title="Salida de Túnel">${stLabel}</span>` : ''}
         ${c.fentrega ? `<span>📅 ${escapar(c.fentrega)}</span>` : ''}
         ${tipoPlanta ? `<span style="font-weight:700;color:#0f5c4a">${escapar(tipoPlanta)}</span>` : ''}
       </div>
