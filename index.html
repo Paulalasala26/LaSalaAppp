@@ -3132,6 +3132,11 @@ async function cambiarEstadoPinzado(id, estado){
   const t = trabajosData.find(x=>x.id===id);
   if(!t) return;
   t.estado = estado;
+  // Al quedar Pinzado ya no necesita un día programado — se quita, a
+  // petición de Paula, 2026-08-10 ("aquellos que se pincen debes de
+  // eliminar el día"). Pasa al grupo "Sin fecha" en vez de seguir contando
+  // para el día en que estaba programado.
+  if(estado==='pinzado'){ t.fechaISO = ''; t.fecha = ''; }
   await persistTrabajosData();
   renderTrabajosContent(document.getElementById('trabajos-overlay'));
 }
