@@ -7446,9 +7446,19 @@ function showHojasRiego(){
 // que cada trozo entre "+" es una aplicación de agua/abono independiente;
 // solo se resalta la que termine literalmente en "PROGRAMADO".
 function resaltarProgramadoHTML(texto){
-  return texto.split(' + ').map(parte=>{
+  const partes = texto.split(' + ');
+  // Si hay un "PROGRAMADO" suelto (varias partes de riego comparten ese
+  // horario sin repetirlo en cada una, ver comentario en
+  // parsearAguaAbonoDeTexto), TODAS las partes anteriores a él también son
+  // PROGRAMADO y deben subrayarse, no solo la palabra suelta — a petición
+  // de Paula, 2026-08-10 (ej. "15 + 30 T41 SAL DAGONIS + PROGRAMADO": las
+  // dos primeras partes también van subrayadas).
+  const idxSuelto = partes.findIndex(p=>p.trim()==='PROGRAMADO');
+  return partes.map((parte,i)=>{
     const esc = parte.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    return parte.trim()==='PROGRAMADO' || parte.trim().endsWith(' PROGRAMADO')
+    const t = parte.trim();
+    const esProgramado = t==='PROGRAMADO' || t.endsWith(' PROGRAMADO') || (idxSuelto!==-1 && i<idxSuelto);
+    return esProgramado
       ? `<span style="border-bottom:1.5px solid #e53935">${esc}</span>`
       : esc;
   }).join(' + ');
@@ -10021,8 +10031,18 @@ function parsearAguaAbonoDeTexto(texto){
   const entradas = [];
   if(!texto || texto.startsWith('* ')) return entradas;
   const horariosConocidos = RIEGO_HORARIOS.concat(TRABAJO_HORARIOS);
+  // Cuando 2+ partes de riego comparten el mismo horario PROGRAMADO,
+  // construirPartesRiegoManual NO lo repite en cada una — lo quita de todas
+  // y añade un único "PROGRAMADO" suelto como su propia parte al final (ver
+  // comentario junto a "programadoDuplicado" en esa función), para no
+  // verlo duplicado en el texto. Aquí hay que hacer lo contrario: detectar
+  // ese "PROGRAMADO" suelto y aplicárselo a todas las entradas de esta
+  // llamada que se hayan quedado sin horario propio — si no, ni el
+  // subrayado rojo (resaltarProgramadoHTML) ni el Índice Abonos las
+  // reconocen como PROGRAMADO — a petición de Paula, 2026-08-10.
+  const tieneProgramadoSuelto = texto.split(' + ').some(p=>p.trim()==='PROGRAMADO');
   texto.split(' + ').map(p=>p.trim()).filter(Boolean).forEach(parte=>{
-    if(parte==='?') return;
+    if(parte==='?' || parte==='PROGRAMADO') return;
     let resto = parte;
     let horarioEncontrado = '';
     for(const h of horariosConocidos){
@@ -10036,6 +10056,7 @@ function parsearAguaAbonoDeTexto(texto){
       resto = resto.slice(0, resto.length - fitoDetectado.encontrado.length).trim();
     }
     if(!resto) return; // fito suelto sin agua/abono delante — no encaja en ninguna de las dos listas
+    if(!horarioEncontrado && tieneProgramadoSuelto) horarioEncontrado = 'PROGRAMADO';
     let m = /^(\d+)(\s+SAL)?$/.exec(resto);
     if(m && RIEGO_AGUA_MINUTOS.includes(parseInt(m[1]))){
       entradas.push({tipo:'agua', tiempo:m[1], sal:!!m[2], fito:fitoNombre, horario:horarioEncontrado});
