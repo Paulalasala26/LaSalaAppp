@@ -8755,6 +8755,10 @@ const TRABAJO_AGUA = ['RO','PP','PA','RS','DESPAREJOS','MUSTIO','BNP'];
 // Riego) — a petición de Paula, 2026-07-30. RO/ROAF y BNP no lo necesitan:
 // ya tienen su propio código fijo para cada vía.
 const TRABAJO_CON_VIA = ['PP','PA','RS','DESPAREJOS','MUSTIO'];
+// PP/PA (a diferencia de RS/DESPAREJOS/MUSTIO) tienen además un atajo "abono
+// foliar a 0.15" que no requiere elegir categoría/producto — igual que RO ya
+// tiene su propio código fijo ROAF — a petición de Paula, 2026-08-06.
+const CODIGOS_FOLIAR_015 = ['PP','PA'];
 const TRABAJO_TIPOS = ['RÁPIDO','SUAVE','NORMAL'];
 const TRABAJO_HORARIOS = ['1º HORA','MEDIA MAÑANA','POR LA TARDE'];
 // Estado del formulario: agua/abono/tramos de calles son repetibles (varias
@@ -9325,6 +9329,10 @@ function renderTrabajoVias(){
         <label style="font-size:11px;font-weight:700;display:flex;align-items:center;gap:4px;cursor:pointer">
           <input type="radio" name="rm-via-${code}" ${v.via==='foliar'?'checked':''} onchange="actualizarViaTrabajo('${code}','foliar')"> Abono foliar
         </label>
+        ${CODIGOS_FOLIAR_015.includes(code) ? `
+        <label style="font-size:11px;font-weight:700;display:flex;align-items:center;gap:4px;cursor:pointer">
+          <input type="radio" name="rm-via-${code}" ${v.via==='foliar015'?'checked':''} onchange="actualizarViaTrabajo('${code}','foliar015')"> Abono foliar a 0.15
+        </label>` : ''}
       </div>
       ${v.via==='foliar' ? `
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
@@ -9471,6 +9479,7 @@ function construirPartesRiegoManual(){
   // código suelto — a petición de Paula, 2026-07-30.
   const trabajos = [...new Set(Array.from(document.querySelectorAll('.rm-trabajo-chk:checked')).map(c=>c.value))].map(code=>{
     const v = rmTrabajoVias[code];
+    if(TRABAJO_CON_VIA.includes(code) && v && v.via==='foliar015') return `${code} CON ABONO FOLIAR (0.15)`;
     if(TRABAJO_CON_VIA.includes(code) && v && v.via==='foliar' && v.producto) return `${code} CON ${v.producto}`;
     return code;
   });
