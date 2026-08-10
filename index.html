@@ -8994,6 +8994,10 @@ function showRiegoManualForm(){
       <div style="flex:1;overflow-y:auto;padding:1.25rem;display:flex;flex-direction:column;gap:12px;max-width:560px;width:100%;margin:0 auto">
         <!-- Quién marcó este riego (solo al editar uno ya existente, por doble clic) -->
         <div id="rm-info-marcador"></div>
+        <!-- INVERNADEROS (uno o varios a la vez, cada uno con Entero/Entero
+        menos/Tramo de calles — mismo recuadro que ya usa Plaguicidas, arriba
+        del todo para que se vea igual que en Plaguicidas/Específicos) -->
+        ${riegoBulkInvSelectorHTML()}
         <!-- DÍA (los días ya pasados quedan bloqueados para todos menos Vigueras) -->
         <div>
           <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Día (${riegoDiaLabelCorto(diasQ[0])} – ${riegoDiaLabelCorto(diasQ[diasQ.length-1])})</label>
@@ -9159,9 +9163,6 @@ function showRiegoManualForm(){
             </div>
           </div>
         </div>
-        <!-- INVERNADEROS (uno o varios a la vez, cada uno con Entero/Entero
-        menos/Tramo de calles — mismo recuadro que ya usa Plaguicidas) -->
-        ${riegoBulkInvSelectorHTML()}
       </div>
       <!-- BUTTONS (fijos abajo, siempre visibles) -->
       <div style="display:flex;gap:8px;justify-content:space-between;padding:1rem 1.25rem;border-top:1px solid #eee;flex-shrink:0;background:#fff">
