@@ -3182,14 +3182,21 @@ function calleAsignadaParaPartida(partida){
 // `invernadero` NO es el mismo código de invernadero que usa el resto de la
 // app (viene del PDF como "nn-lado-tramo", ej. "20-1-4" — un formato propio
 // del parte de carga, no un invId como "10A"), así que no sirve para
-// comparar contra INV_LAYOUT ni para cruzar con Túnel. Se empareja SOLO por
-// número de partida (mismo criterio que ya usa calleAsignadaParaPartida en
-// Pinzar) — ahí sí vive el invId real de la app. Devuelve {invId, desde,
-// hasta, label} o null si no hay línea de Túnel coincidente todavía (ej.
-// carga añadida a mano, sin PDF de Túnel de por medio).
+// comparar contra INV_LAYOUT ni para cruzar con Túnel.
+// Bug real corregido 2026-08-10: si la MISMA partida tiene tramos en más de
+// un invernadero (ej. algo en 0A y algo en 0B), emparejar solo por número de
+// partida siempre devolvía la MISMA línea de Túnel (la primera encontrada)
+// para TODAS las líneas de Carga de esa partida — así, al filtrar por 0B,
+// esas líneas nunca aparecían (quedaban todas "pegadas" a 0A). Comprobado
+// con datos reales: el Nº de bandejas SÍ es distinto entre las líneas de
+// Túnel de una misma partida en invernaderos distintos, así que se usa
+// también para desambiguar cuál es la línea correcta. Si no hay coincidencia
+// exacta de bandejas (dato manual, etc.) cae al criterio antiguo (solo
+// partida) como red de seguridad, igual que antes.
 function calleTramoDeCarga(c){
   if(!c.partida) return null;
-  const entrada = controlChecksData.find(x=>x.tipo==='tunel' && x.partida===c.partida && x.invId);
+  const entrada = controlChecksData.find(x=>x.tipo==='tunel' && x.partida===c.partida && x.invId && x.numBandejas===c.numBandejas)
+    || controlChecksData.find(x=>x.tipo==='tunel' && x.partida===c.partida && x.invId);
   if(!entrada) return null;
   const tramos = (entrada.tramos && entrada.tramos.length) ? entrada.tramos : [{desde:entrada.calleDesde, hasta:entrada.calleHasta}];
   if(tramos[0].desde==null) return null;
@@ -4105,9 +4112,14 @@ function renderControlChecklistHTML(seccion){
   // distintos) se agrupan en una sola tarjeta con flechas — ver
   // renderControlCardConGuionesHTML. Solo se pinta una vez por grupo aunque
   // dos guiones del mismo grupo caigan el mismo día.
+  // En Check Carga esto queda DESACTIVADO a petición de Paula, 2026-08-10:
+  // cada línea sale siempre suelta, nunca agrupada en guiones — el agrupado
+  // por partida escondía líneas que en realidad pertenecían a otro
+  // invernadero (ver bug corregido en calleTramoDeCarga) y hacía imposible
+  // verlas todas al filtrar por invernadero.
   const gruposYaPintados = new Set();
   const filas = listaMostrada.map(c=>{
-    if(!c.partida) return renderControlCardHTML(c, seccion);
+    if(seccion.key==='carga' || !c.partida) return renderControlCardHTML(c, seccion);
     const groupKey = seccion.key+'|'+c.partida;
     if(gruposYaPintados.has(groupKey)) return '';
     const grupo = controlChecksData.filter(x=>x.tipo===seccion.key && x.partida===c.partida).sort((a,b)=>a.dia-b.dia);
