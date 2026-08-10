@@ -4872,6 +4872,13 @@ function buscarControlPartida(tipo){
   if(!encontrada){ showToast('No se ha encontrado ninguna línea con esa partida'); return; }
   controlQuincenaOffset = Math.max(0, Math.floor((encontrada.dia-15)/14));
   controlDiaSel = encontrada.dia;
+  // Si la partida encontrada pertenece a un grupo con guiones (misma partida
+  // repetida en varios días), hay que forzar que se muestre EXACTAMENTE ese
+  // guión — si no, el grupo seguía mostrando el guión que estuviera activo
+  // de antes (otro día distinto), la tarjeta buscada nunca llegaba a
+  // pintarse y el resaltado/scroll no encontraba nada, aunque el aviso
+  // dijera "encontrada" — a petición de Paula, 2026-08-10.
+  controlGuionActivo[tipo+'|'+encontrada.partida] = encontrada.id;
   renderControlContent(document.getElementById('control-overlay'));
   showToast(`✓ Encontrada — ${riegoDiaLabelCorto(encontrada.dia)}`);
   setTimeout(()=>{
