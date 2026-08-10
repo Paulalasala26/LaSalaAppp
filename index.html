@@ -5113,6 +5113,65 @@ async function eliminarControlCheckConfirmado(id){
 // no se hayan marcado como "salida" — no es una tabla propia, es una vista
 // derivada de esos mismos datos, así que no hay nada nuevo que sincronizar
 // aparte del campo c.salioInvernadero.
+// Navegación por semanas del mapa de Partidas (igual que Riego se mueve por
+// quincenas) — a petición de Paula, 2026-08-10. Semana 1 = 3-9 agosto 2026;
+// las siguientes se calculan automáticamente en bloques de 7 días. Al abrir
+// el módulo se muestra siempre la semana que contiene hoy.
+const PARTIDAS_ANCHOR_DATE = new Date(2026,7,3); // 3 agosto 2026 = semana 1 (offset 0)
+let partidasSemanaOffset = 0;
+function partidasSemanaDias(offset){
+  const inicio = new Date(PARTIDAS_ANCHOR_DATE); inicio.setHours(0,0,0,0);
+  inicio.setDate(inicio.getDate() + offset*7);
+  const fin = new Date(inicio); fin.setDate(fin.getDate()+6);
+  return {inicio, fin};
+}
+function partidasSemanaLabel(offset){
+  const {inicio, fin} = partidasSemanaDias(offset);
+  const fmt = d => d.getDate()+' '+d.toLocaleDateString('es-ES',{month:'short'}).replace('.','');
+  return fmt(inicio)+' — '+fmt(fin);
+}
+function partidasSemanaOffsetActual(){
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const anchor = new Date(PARTIDAS_ANCHOR_DATE); anchor.setHours(0,0,0,0);
+  const diffDias = Math.round((hoy - anchor) / 86400000);
+  return Math.max(0, Math.floor(diffDias / 7));
+}
+// Índice de semana (offset desde PARTIDAS_ANCHOR_DATE) al que pertenece una
+// fecha cualquiera — usado para saber en qué semana entró/salió una partida.
+function partidasSemanaDeFecha(fecha){
+  const f = new Date(fecha); f.setHours(0,0,0,0);
+  const anchor = new Date(PARTIDAS_ANCHOR_DATE); anchor.setHours(0,0,0,0);
+  return Math.floor(Math.round((f - anchor) / 86400000) / 7);
+}
+function changePartidasSemana(delta){
+  partidasSemanaOffset = Math.max(0, partidasSemanaOffset + delta);
+  renderPartidasMapaContent(document.getElementById('partidas-overlay'));
+}
+// Busca la línea real de Check Carga que corresponde a una partida de Túnel
+// (mismo número de partida + mismo invernadero) y devuelve la fecha de esa
+// línea — esa es la fecha real de "salida" (parte de carga), no el simple
+// marcado manual c.salioInvernadero. Si hay varias (partida repartida en
+// varios días), se usa la más antigua. A petición de Paula, 2026-08-10: "todo
+// va en función de su fecha de entrada (salida de túnel) y su fecha de
+// salida que es una vez se le ha realizado el parte de carga".
+function fechaCargaRealDePartida(c){
+  const cargas = controlChecksData.filter(x=>x.tipo==='carga' && x.partida===c.partida && x.invernadero===c.invId);
+  if(!cargas.length) return null;
+  return riegoDiaToDate(Math.min(...cargas.map(x=>x.dia)));
+}
+// Determina si una partida de Túnel debe verse en la semana dada: no antes
+// de su semana de entrada (ST), y ya no a partir de la semana de su parte de
+// carga real (inclusive — la semana del parte de carga ya no la muestra,
+// solo las anteriores). Si todavía no hay parte de carga real, se respeta el
+// marcado manual "Marcar salida" de siempre (para partidas gestionadas antes
+// de que exista esa línea de Carga).
+function partidaVisibleEnSemana(c, semanaOffset){
+  const semanaEntrada = partidasSemanaDeFecha(riegoDiaToDate(c.dia));
+  if(semanaOffset < semanaEntrada) return false;
+  const fechaCarga = fechaCargaRealDePartida(c);
+  if(fechaCarga) return semanaOffset < partidasSemanaDeFecha(fechaCarga);
+  return !c.salioInvernadero;
+}
 let partidasSalaSel = 'sala1';
 // A petición de Paula (2026-08-05): "tienes que separarlas por invernaderos.
 // y seleccionarlos para ver las partidas" — en vez de pintar TODOS los
@@ -5125,6 +5184,7 @@ function showPartidasModule(){
     const overlay = getOrCreateOverlay('partidas-overlay');
     overlay.style.padding = '0';
     partidaSeleccionadaParaMover = null;
+    partidasSemanaOffset = partidasSemanaOffsetActual();
     renderPartidasMapaContent(overlay);
     overlay.style.display = 'flex';
   });
@@ -5178,6 +5238,13 @@ function renderPartidasMapaContent(overlay){
           <button onclick="seleccionarSalaPartidas('sala2')" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:800;border:1.5px solid rgba(255,255,255,.4);cursor:pointer;background:${partidasSalaSel==='sala2'?'#fff':'transparent'};color:${partidasSalaSel==='sala2'?'#0f5c4a':'#fff'}">Sala 2</button>
           <button onclick="document.getElementById('partidas-overlay').style.display='none'" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700;background:rgba(255,255,255,.15);color:#fff;border:none;cursor:pointer">✕ Cerrar</button>
         </div>
+      </div>
+      <div style="padding:.6rem 1.25rem;background:#0d4d3f;display:flex;align-items:center;justify-content:center;gap:14px;flex-shrink:0">
+        <button onclick="changePartidasSemana(-1)" ${partidasSemanaOffset<=0?'disabled style="opacity:.35;cursor:default"':''}
+          style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:14px;line-height:1">&#8249;</button>
+        <span style="font-size:12px;font-weight:700;color:#fff">Semana ${partidasSemanaOffset+1} &middot; ${partidasSemanaLabel(partidasSemanaOffset)}</span>
+        <button onclick="changePartidasSemana(1)"
+          style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:14px;line-height:1">&#8250;</button>
       </div>
       <div style="padding:.75rem 1.25rem;background:#e8f5ef;border-bottom:1px solid #a5d6c2;display:flex;gap:6px;flex-wrap:wrap;align-items:center;flex-shrink:0">
         ${invBotonesHTML}
@@ -5339,7 +5406,7 @@ async function aplicarMoverPartidaACalle(id, invId, tramo, posManualVal){
 // pise con otro bloque ya colocado.
 function calcularBloquesPartidasInv(invId){
   const entradas = controlChecksData
-    .filter(c=>c.tipo==='tunel' && c.invId===invId && !c.salioInvernadero && c.invId && ((c.tramos&&c.tramos.length) || c.calleDesde!=null))
+    .filter(c=>c.tipo==='tunel' && c.invId===invId && c.invId && ((c.tramos&&c.tramos.length) || c.calleDesde!=null) && partidaVisibleEnSemana(c, partidasSemanaOffset))
     .slice()
     .sort((a,b)=> sortKeyPartida(a) - sortKeyPartida(b));
   const alturaPorCalle = {};
