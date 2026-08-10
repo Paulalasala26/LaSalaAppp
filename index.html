@@ -9600,12 +9600,18 @@ function construirPartesRiegoManual(){
   // PP/PA/RS/DESPAREJOS, si se eligió "abono foliar" con un producto (ver
   // renderTrabajoVias), se guardan como "<CÓDIGO> CON <PRODUCTO>" en vez del
   // código suelto — a petición de Paula, 2026-07-30.
-  const trabajos = [...new Set(Array.from(document.querySelectorAll('.rm-trabajo-chk:checked')).map(c=>c.value))].map(code=>{
-    const v = rmTrabajoVias[code];
-    if(TRABAJO_CON_VIA.includes(code) && v && v.via==='foliar015') return `${code} CON ABONO FOLIAR (0.15)`;
-    if(TRABAJO_CON_VIA.includes(code) && v && v.via==='foliar' && v.producto) return `${code} CON ${v.producto}`;
-    return code;
-  });
+  // RO/ROAF siempre van primero entre los códigos de Trabajo, nunca detrás de
+  // PP ni de ningún otro — a petición de Paula, 2026-08-10 ("si es RO y PP no
+  // pongas primero PP, siempre es RO/ROAF primero").
+  const ordenCodigoTrabajo = code => (code==='RO' || code==='ROAF') ? 0 : 1;
+  const trabajos = [...new Set(Array.from(document.querySelectorAll('.rm-trabajo-chk:checked')).map(c=>c.value))]
+    .sort((a,b)=> ordenCodigoTrabajo(a) - ordenCodigoTrabajo(b))
+    .map(code=>{
+      const v = rmTrabajoVias[code];
+      if(TRABAJO_CON_VIA.includes(code) && v && v.via==='foliar015') return `${code} CON ABONO FOLIAR (0.15)`;
+      if(TRABAJO_CON_VIA.includes(code) && v && v.via==='foliar' && v.producto) return `${code} CON ${v.producto}`;
+      return code;
+    });
   const fumis = leerFumisDesdeDOM();
   const tipoTrabajo = document.getElementById('rm-tipo-trabajo')?.value || '';
   // Los Foliares (fumis) siempre son a 1º hora, se especifique o no (a
@@ -9628,7 +9634,20 @@ function construirPartesRiegoManual(){
   if(tipoTrabajo) partesTituloTarea.push(tipoTrabajo);
   const tituloTrabajoTarea = partesTituloTarea.join(' + ');
 
-  const textoCompleto = [textoRiego, textoTrabajo].filter(Boolean).join(' + ');
+  // El bloque de Riego y el de Trabajo ya no van SIEMPRE en ese orden fijo —
+  // se ordenan entre sí por horario, de más temprano a más tardío, como el
+  // resto de partes de riego entre ellas — a petición de Paula, 2026-08-10
+  // ("RO + PP + 20 UH": el trabajo sin horario se supone a media mañana, así
+  // que va antes que un riego con horario UH, aunque el riego se escriba
+  // primero en el formulario). El horario efectivo de cada bloque es el de
+  // su primera parte (ya vienen ordenadas de más temprano a más tardío
+  // dentro del propio bloque).
+  const horarioEfectivoRiego = (partesRiego[0] && partesRiego[0].horario) || fitoHorario || '';
+  let textoCompleto;
+  if(!textoRiego) textoCompleto = textoTrabajo;
+  else if(!textoTrabajo) textoCompleto = textoRiego;
+  else if(prioridadHorarioRiego(horarioTrabajo) < prioridadHorarioRiego(horarioEfectivoRiego)) textoCompleto = [textoTrabajo, textoRiego].join(' + ');
+  else textoCompleto = [textoRiego, textoTrabajo].join(' + ');
   return { textoCompleto, textoRiego, textoTrabajo, tituloTrabajoTarea, horarioTrabajo };
 }
 function buildRiegoManualTexto(){
