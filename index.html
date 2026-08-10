@@ -10240,8 +10240,15 @@ function recolectarAguaAbonoDia(dia, tipo){
 // encajen en ese patrón) agrupadas por horario — normalmente todas tienen el
 // mismo, pero si alguna vez difieren, cada horario distinto sale en su
 // propia línea del índice, ya que son momentos distintos.
+// Si el mismo invernadero tiene varios tramos/calles con exactamente el
+// mismo riego (mismo texto + mismo horario), no tiene sentido repetir la
+// línea una vez por tramo — el regante solo necesita saber QUÉ y CUÁNDO, no
+// cuántas calles hay detrás. Se deduplica por (invId, texto, horario) — a
+// petición de Paula, 2026-08-10 ("en el 0A has puesto 4 veces... únicamente
+// debe de aparecer 1 vez").
 function recolectarIndiceRiegoDia(dia){
   const invIds = [...Object.keys(INV_LAYOUT_SALA1), ...Object.keys(INV_LAYOUT_SALA2)];
+  const vistos = new Set();
   const filas = [];
   invIds.forEach(invId=>{
     const layout = INV_LAYOUT[invId];
@@ -10258,7 +10265,11 @@ function recolectarIndiceRiegoDia(dia){
         porHorario.get(key).push(conFito);
       });
       porHorario.forEach((textos, horario)=>{
-        filas.push({invId, texto: textos.join(' + '), horario});
+        const texto = textos.join(' + ');
+        const clave = invId+'||'+texto+'||'+horario;
+        if(vistos.has(clave)) return;
+        vistos.add(clave);
+        filas.push({invId, texto, horario});
       });
     });
   });
@@ -10278,19 +10289,26 @@ function renderIndiceAbonos(){
     {dia:hoy, label:'Hoy · '+riegoDiaLabelCorto(hoy)},
     {dia:hoy+1, label:'Mañana · '+riegoDiaLabelCorto(hoy+1)}
   ];
+  const renderLineas = filas => filas.map(f=>{
+    const esProgramado = f.horario==='PROGRAMADO';
+    return `<div style="padding:6px 2px;border-bottom:1px solid var(--border);font-size:13px;font-weight:600;color:${esProgramado?'#c62828':'var(--text)'}">
+      ${escapar(f.texto)} - INV ${escapar(f.invId)} - ${escapar(f.horario||'—')}
+    </div>`;
+  }).join('');
   return dias.map(({dia,label})=>{
     const filas = recolectarIndiceRiegoDia(dia)
       .sort((a,b)=>prioridadHorarioRiego(a.horario)-prioridadHorarioRiego(b.horario));
-    const lineas = filas.map(f=>{
-      const esProgramado = f.horario==='PROGRAMADO';
-      return `<div style="padding:6px 2px;border-bottom:1px solid var(--border);font-size:13px;font-weight:600;color:${esProgramado?'#c62828':'var(--text)'}">
-        ${escapar(f.texto)} - INV ${escapar(f.invId)} - ${escapar(f.horario||'—')}
-      </div>`;
-    }).join('');
+    // Sala 1 y Sala 2 siempre separadas — a petición de Paula, 2026-08-10.
+    const filasSala1 = filas.filter(f=>salaDeInv(f.invId)==='sala1');
+    const filasSala2 = filas.filter(f=>salaDeInv(f.invId)==='sala2');
     return `
       <div style="margin-bottom:20px">
         <div style="font-size:12px;font-weight:800;color:#a35d00;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">${escapar(label)}</div>
-        ${filas.length===0 ? `<div style="font-size:12px;color:var(--muted);font-style:italic;padding:6px 2px">Nada marcado.</div>` : lineas}
+        ${filas.length===0 ? `<div style="font-size:12px;color:var(--muted);font-style:italic;padding:6px 2px">Nada marcado.</div>` : `
+        <div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:8px 0 4px">Sala 1</div>
+        ${filasSala1.length===0 ? `<div style="font-size:12px;color:var(--muted);font-style:italic;padding:4px 2px">Nada marcado.</div>` : renderLineas(filasSala1)}
+        <div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:14px 0 4px">Sala 2</div>
+        ${filasSala2.length===0 ? `<div style="font-size:12px;color:var(--muted);font-style:italic;padding:4px 2px">Nada marcado.</div>` : renderLineas(filasSala2)}`}
       </div>`;
   }).join('');
 }
