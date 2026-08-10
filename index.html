@@ -3175,6 +3175,22 @@ function calleAsignadaParaPartida(partida){
   const tramos = (entrada.tramos && entrada.tramos.length) ? entrada.tramos : [{desde:entrada.calleDesde, hasta:entrada.calleHasta}];
   return `INV ${entrada.invId} — ${formatTramosLabel(entrada.invId, tramos)}`;
 }
+// Para el filtro de invernadero de Check Carga (a petición de Paula,
+// 2026-08-10): busca la calle real de una línea de Carga a partir de su
+// línea hermana de Check Túnel (misma partida + mismo invernadero) — Carga
+// no guarda calle propia. Devuelve {desde, hasta, label} o null si no hay
+// línea de Túnel coincidente todavía (ej. carga añadida a mano, sin PDF de
+// Túnel de por medio).
+function calleTramoDeCarga(c){
+  if(!c.partida || !c.invernadero) return null;
+  const entrada = controlChecksData.find(x=>x.tipo==='tunel' && x.partida===c.partida && x.invId===c.invernadero);
+  if(!entrada) return null;
+  const tramos = (entrada.tramos && entrada.tramos.length) ? entrada.tramos : [{desde:entrada.calleDesde, hasta:entrada.calleHasta}];
+  if(tramos[0].desde==null) return null;
+  const desde = Math.min(...tramos.map(t=>t.desde));
+  const hasta = Math.max(...tramos.map(t=>t.hasta??t.desde));
+  return { desde, hasta, label: formatTramosLabel(c.invernadero, tramos) };
+}
 function renderPinzarSubSeccionHTML(){
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const todos = trabajosData.filter(t=>t.seccion==='mujeres' && t.subseccion==='pinzar')
@@ -3958,6 +3974,16 @@ function cambiarControlFiltroEstado(v){
   controlFiltroEstado = v;
   renderControlContent(document.getElementById('control-overlay'));
 }
+// Filtro por invernadero, solo en Check Carga (a petición de Paula,
+// 2026-08-10): muestra únicamente las partidas que se van de ese
+// invernadero, ordenadas por su calle real (ver calleTramoDeCarga) de
+// número más bajo a más alto — no existe en Check Túnel, no se toca su
+// código (ver [[lasala_control_tunel_intocable]]).
+let controlCargaInvFiltro = '';
+function cambiarControlCargaInvFiltro(v){
+  controlCargaInvFiltro = v;
+  renderControlContent(document.getElementById('control-overlay'));
+}
 // Dashboard propio POR DÍA (a petición de Paula, 2026-08-01) — comparte
 // vista entre Túnel y Carga (misma renderControlChecklistHTML), pero
 // siempre analiza solo el día actualmente seleccionado (controlDiaSel), no
@@ -4050,12 +4076,31 @@ function renderControlChecklistHTML(seccion){
     ${filtroBtn('pendientes','○ Pendientes',numPendientes)}
   </div>`;
 
+  // Filtro de invernadero, solo en Check Carga (a petición de Paula,
+  // 2026-08-10): al elegir uno, solo salen las partidas que se van de ESE
+  // invernadero, ordenadas por su calle real de más baja a más alta (ver
+  // calleTramoDeCarga). No existe en Check Túnel.
+  const filtroInvCargaHTML = seccion.key==='carga' ? `
+    <div style="margin-bottom:1rem">
+      <select onchange="cambiarControlCargaInvFiltro(this.value)" style="padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:12px;background:#fff;cursor:pointer">
+        <option value="">Todos los invernaderos</option>
+        <optgroup label="Sala 1">${ALL_INV_IDS_SALA1.map(id=>`<option value="${id}"${controlCargaInvFiltro===id?' selected':''}>INV ${id}</option>`).join('')}</optgroup>
+        <optgroup label="Sala 2">${ALL_INV_IDS.map(id=>`<option value="${id}"${controlCargaInvFiltro===id?' selected':''}>INV ${id}</option>`).join('')}</optgroup>
+      </select>
+    </div>` : '';
+  const listaMostrada = (seccion.key==='carga' && controlCargaInvFiltro)
+    ? lista.filter(c=>c.invernadero===controlCargaInvFiltro)
+        .map(c=>({c, tramo: calleTramoDeCarga(c)}))
+        .sort((a,b)=> (a.tramo?a.tramo.desde:Infinity) - (b.tramo?b.tramo.desde:Infinity))
+        .map(x=>x.c)
+    : lista;
+
   // Partidas con más de un guión (mismo Nº de partida repetido en días
   // distintos) se agrupan en una sola tarjeta con flechas — ver
   // renderControlCardConGuionesHTML. Solo se pinta una vez por grupo aunque
   // dos guiones del mismo grupo caigan el mismo día.
   const gruposYaPintados = new Set();
-  const filas = lista.map(c=>{
+  const filas = listaMostrada.map(c=>{
     if(!c.partida) return renderControlCardHTML(c, seccion);
     const groupKey = seccion.key+'|'+c.partida;
     if(gruposYaPintados.has(groupKey)) return '';
@@ -4124,8 +4169,9 @@ function renderControlChecklistHTML(seccion){
 
     <div id="nuevo-control-form-wrap"></div>
     ${filtrosHTML}
+    ${filtroInvCargaHTML}
     ${listaDia.length===0 ? `<div style="text-align:center;padding:2rem;color:var(--muted);font-style:italic;font-size:13px">Sin líneas para este día todavía.</div>`
-      : lista.length===0 ? `<div style="text-align:center;padding:2rem;color:var(--muted);font-style:italic;font-size:13px">No hay líneas ${controlFiltroEstado==='completados'?'completadas':'pendientes'} en este día.</div>`
+      : listaMostrada.length===0 ? `<div style="text-align:center;padding:2rem;color:var(--muted);font-style:italic;font-size:13px">${controlCargaInvFiltro?'No hay partidas saliendo de INV '+escapar(controlCargaInvFiltro)+' este día.':'No hay líneas '+(controlFiltroEstado==='completados'?'completadas':'pendientes')+' en este día.'}</div>`
       : `<div style="display:flex;flex-direction:column;gap:12px">${filas}</div>`}`}`;
 }
 function handleControlPdfInput(input, tipo, dia){
@@ -4539,6 +4585,7 @@ function renderControlCargaCardHTML(c, seccion){
             <span style="font-size:11px;font-weight:700;background:#f0f4f8;color:#1558a0;border-radius:999px;padding:3px 10px">Variedad: ${escapar(c.variedad)||'—'}</span>
             <span style="font-size:11px;font-weight:700;background:#f0f4f8;color:#1558a0;border-radius:999px;padding:3px 10px">Nº bandejas: ${escapar(c.numBandejas)||'—'}</span>
             <span style="font-size:11px;font-weight:700;background:#f0f4f8;color:#1558a0;border-radius:999px;padding:3px 10px">Invernadero: ${escapar(c.invernadero)||'—'}</span>
+            <span style="font-size:11px;font-weight:700;background:#eef9f0;color:#2e7d32;border-radius:999px;padding:3px 10px">Calle: ${(()=>{ const t=calleTramoDeCarga(c); return t ? escapar(t.label) : '—'; })()}</span>
           </div>
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0">
