@@ -105,7 +105,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
         <option value="MIGUEL ANGEL">Miguel Angel</option>
         <option value="REGANTE1">Regante1 (prueba)</option>
         <option value="PEON1">Peon1 (prueba)</option>
-        <option value="PRUEBA">Prueba</option>
       </select>
     </div>
     <div style="margin-bottom:1.5rem;text-align:left">
@@ -361,8 +360,7 @@ let USERS={
   FRAN:"6f52d3110a0e41e462ac098244206ed69db33999b743e284fc4c5d34c2d4a529",
   "MIGUEL ANGEL":"03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4",
   REGANTE1:"0ffe1abd1a08215353c233d6e009613e95eec4253832a761af28ff37ac5a150c",
-  PEON1:"9af15b336e6a9619928537df30b2e6a2376569fcf9d7e773eccede65606529a0",
-  PRUEBA:"edee29f882543b956620b26d0ee0e7e950399b1c4222f5de05e06425b4c995e9"
+  PEON1:"9af15b336e6a9619928537df30b2e6a2376569fcf9d7e773eccede65606529a0"
 };
 async function loadUsersFromCloud(){
   try{
@@ -376,7 +374,7 @@ const usersLoadedPromise = loadUsersFromCloud();
 // Roles: guardados APARTE de USERS (nunca junto a la contraseña — así lo
 // pidió Paula).
 const ROLES_KEY = 'lasala-roles-v1';
-let USER_ROLES = { VIGUERAS:'ADMIN', PAULA:'ADMIN', DENNIS:'TECNICO', FRAN:'TECNICO', 'MIGUEL ANGEL':'ADMIN', REGANTE1:'REGANTE', PEON1:'PEON', PRUEBA:'PEON' };
+let USER_ROLES = { VIGUERAS:'ADMIN', PAULA:'ADMIN', DENNIS:'TECNICO', FRAN:'TECNICO', 'MIGUEL ANGEL':'ADMIN', REGANTE1:'REGANTE', PEON1:'PEON' };
 async function loadRolesFromCloud(){
   try{
     const r = await window.storage.get(ROLES_KEY);
@@ -1782,6 +1780,9 @@ function renderTareasGestorFullScreen(overlay){
         <div style="font-size:10px;font-weight:700;color:rgba(255,255,255,.55);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Secciones</div>
         ${TAREAS_GESTOR_VISTAS.map(navItem).join('')}
         <div style="margin-top:auto;padding-top:1rem;display:flex;flex-direction:column;gap:8px">
+          <button onclick="generarTareasDesdeRiego()" title="Borra las tareas de peón pendientes/iniciadas y las reconstruye desde lo que hay escrito ahora mismo en Riego" style="width:100%;padding:9px;font-size:11px;font-weight:700;background:rgba(255,255,255,.12);color:#fff;border:none;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
+            <i class="ti ti-refresh" style="font-size:14px"></i> Generar tareas
+          </button>
           <button onclick="showImprimirTareasSelector(tareasData.filter(t=>USER_ROLES[t.asignadoA]==='PEON' && !esTareaDeAyer(t) && t.estado!=='completada'))" style="width:100%;padding:9px;font-size:11px;font-weight:700;background:rgba(255,255,255,.12);color:#fff;border:none;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
             <i class="ti ti-printer" style="font-size:14px"></i> Imprimir tareas de peones
           </button>
@@ -9845,45 +9846,32 @@ async function saveRiegoManual(){
   if(btn) btn.disabled = true;
   try{
     const dia = parseInt(document.getElementById('rm-dia').value);
-    const { textoCompleto, textoRiego, tituloTrabajoTarea, horarioTrabajo } = construirPartesRiegoManual();
+    const { textoCompleto } = construirPartesRiegoManual();
     if(!textoCompleto){ showToast('Rellena al menos un campo de riego o de trabajo'); return; }
     const invIds = leerRmBulkInvsSeleccionados();
     if(!invIds.length){ showToast('Elige al menos un invernadero'); return; }
     const contextoOriginal = rmEditContextoOriginal;
     rmEditContextoOriginal = null;
-    // Secuencial (no forEach+async suelto): autoAsignarTareasRiego hace su
-    // propio loadTareasData()+persistTareasData() por invernadero — lanzarlas
-    // todas a la vez sin esperar pisa unas a otras (una recarga de tareasData
-    // en marcha borra el push en memoria de la llamada anterior que aún no
-    // había guardado). Con el bucle secuencial, cada invernadero termina de
-    // guardar antes de que empiece el siguiente.
+    // Las tareas de peón YA NO se crean/actualizan aquí automáticamente en
+    // cada guardado — a petición de Paula, 2026-08-10 ("sigues sin
+    // corregirlo"), ese sistema incremental (que intentaba adivinar qué
+    // sustituir/borrar) se sustituyó por el botón "Generar tareas" de
+    // Tareas, que reconstruye TODAS las tareas de peón desde cero a partir
+    // de lo que esté escrito EN ESE MOMENTO en Riego (ver
+    // regenerarTareasRiego/parsearTrabajoDeTexto) — más simple y fiable que
+    // ir parcheando caso a caso.
     for(const invId of invIds){
       const {tramos} = calcularCallesRmBulk(invId);
       // Si se estaba editando una celda ya marcada (doble clic) y se ha
       // cambiado el día, el riego se mueve: se aplica al día nuevo Y se
       // borra del día original en el MISMO guardado. Si el día no ha
       // cambiado, o es un alta nueva, se aplica como siempre.
-      let aplicado;
       if(contextoOriginal && contextoOriginal.invId===invId && contextoOriginal.dia!==dia){
-        aplicado = await aplicarTextoRiegoManualMoviendoDia(invId, contextoOriginal.dia, contextoOriginal.calles, dia, tramos, textoCompleto);
+        await aplicarTextoRiegoManualMoviendoDia(invId, contextoOriginal.dia, contextoOriginal.calles, dia, tramos, textoCompleto);
       } else {
         const callesOriginalesMismoDia = (contextoOriginal && contextoOriginal.invId===invId && contextoOriginal.dia===dia) ? contextoOriginal.calles : null;
-        aplicado = aplicarTextoRiegoManual(invId, dia, tramos, textoCompleto, callesOriginalesMismoDia);
+        aplicarTextoRiegoManual(invId, dia, tramos, textoCompleto, callesOriginalesMismoDia);
       }
-      if(!aplicado) continue;
-      // Si se estaba editando un tramo ya marcado, se identifica su etiqueta
-      // de calles ANTES del cambio para que autoAsignarTareasRiego la
-      // sustituya en la tarea automática en vez de simplemente añadir la
-      // nueva encima (ver comentario junto a "tramoAntiguo" en esa función).
-      let tramoAntiguo = null;
-      if(contextoOriginal && contextoOriginal.invId===invId){
-        const desdeAntiguo = Math.min(...contextoOriginal.calles), hastaAntiguo = Math.max(...contextoOriginal.calles);
-        tramoAntiguo = {
-          fechaISO: fechaLocalISO(riegoDiaToDate(contextoOriginal.dia)),
-          calleLabel: tramosLabelTexto(invId, [{desde: desdeAntiguo, hasta: hastaAntiguo}])
-        };
-      }
-      await autoAsignarTareasRiego(invId, dia, tramosLabelTexto(invId, tramos), textoRiego, tituloTrabajoTarea, horarioTrabajo, tramoAntiguo);
     }
   } finally {
     guardandoRiegoManual = false;
@@ -9940,15 +9928,12 @@ async function borrarRiegoManual(){
   const dia = parseInt(document.getElementById('rm-dia').value);
   const invIds = leerRmBulkInvsSeleccionados();
   if(!invIds.length){ showToast('Elige al menos un invernadero'); return; }
-  const fechaISO = fechaLocalISO(riegoDiaToDate(dia));
-  // Secuencial (mismo motivo que en saveRiegoManual): autoAsignarTareasRiego
-  // hace su propio loadTareasData()+persistTareasData() por invernadero.
-  for(const invId of invIds){
+  // Las tareas de peón ya no se tocan aquí — ver comentario en
+  // saveRiegoManual (botón "Generar tareas" en Tareas).
+  invIds.forEach(invId=>{
     const {tramos} = calcularCallesRmBulk(invId);
     aplicarTextoRiegoManual(invId, dia, tramos, '');
-    const calleLabel = tramosLabelTexto(invId, tramos);
-    await autoAsignarTareasRiego(invId, dia, '', '', '', '', {fechaISO, calleLabel});
-  }
+  });
 }
 function tramosLabelTexto(invId, tramos){
   return tramos.map(({desde,hasta})=>{const s=Math.min(desde,hasta),e=Math.max(desde,hasta); return formatRangoConInv(invId, s, e);}).join(', ');
@@ -9975,67 +9960,107 @@ function fusionarCallesTarea(existentes, nuevas){
   const partes = [...new Set([...existentes.split(', '), ...nuevas.split(', ')])];
   return partes.join(', ');
 }
-// Solo el Trabajo (peón: PP/RO/RS/...) genera tarea automática. Riego (agua,
-// abono, fitosanitarios) NO — el REGANTE ya lo consulta directamente en
-// "Hojas de riego", no hace falta duplicarlo como tarea (a petición de Paula).
-// tramoAntiguo (opcional) = {fechaISO, calleLabel} — al editar o borrar un
-// tramo ya marcado, identifica el segmento de calles que había ANTES en la
-// tarea automática, para quitarlo (y no solo añadir el nuevo por encima).
-// Sin esto, editar "C/101-102" a "C/101-103" dejaba las dos etiquetas
-// mezcladas en la misma tarea en vez de sustituir una por la otra — a
-// petición de Paula, 2026-08-10.
-async function autoAsignarTareasRiego(invId, dia, callesLabel, textoRiego, textoTrabajo, horarioTrabajo, tramoAntiguo){
-  if(!textoTrabajo && !tramoAntiguo) return;
-  const fechaLabel = riegoDiaLabelCorto(dia);
-  const fechaISO = fechaLocalISO(riegoDiaToDate(dia));
-  await loadTareasData();
-  if(tramoAntiguo && tramoAntiguo.calleLabel){
-    for(let i=tareasData.length-1;i>=0;i--){
-      const t = tareasData[i];
-      if(t.inv!==invId || t.fechaISO!==tramoAntiguo.fechaISO || t.asignadoA!=='PEON1' || t.estado==='completada' || !t.calles) continue;
-      const partes = t.calles.split(', ');
-      const nuevasPartes = partes.filter(p=>p!==tramoAntiguo.calleLabel);
-      if(nuevasPartes.length===partes.length) continue;
-      if(nuevasPartes.length===0) tareasData.splice(i,1);
-      else t.calles = nuevasPartes.join(', ');
+// ════════════════════════════════════════════════════════════════
+// GENERAR TAREAS DE PEÓN DESDE RIEGO — a petición de Paula, 2026-08-10.
+// Antes las tareas de peón se creaban/actualizaban automáticamente en CADA
+// guardado de Riego, intentando adivinar qué sustituir o borrar
+// (autoAsignarTareasRiego, ya eliminada) — seguía dando problemas reales
+// (tareas de PREPARAR que no debían existir, restos que no se limpiaban al
+// editar/borrar). Se sustituye por un botón manual "Generar tareas" que
+// BORRA todas las tareas de peón de origen riego que no estén completadas y
+// las RECONSTRUYE DESDE CERO leyendo lo que hay escrito AHORA MISMO en
+// riegoData — así solo puede reflejar el estado actual, nunca ediciones o
+// borrados a medio aplicar.
+// ════════════════════════════════════════════════════════════════
+// Códigos de Trabajo que SÍ generan tarea de peón. PREPARAR se marca en el
+// riego (sigue guardándose en el texto) pero nunca genera tarea — a
+// petición de Paula, 2026-08-10 ("sigues asignando una tarea al trabajo
+// preparar y no debes de hacerlo").
+const CODIGOS_TRABAJO_CON_TAREA = TRABAJO_AGUA.concat(TRABAJO_ABONO_FOLIAR).filter(c=>c!=='PREPARAR');
+// Reconstruye, a partir del texto YA GUARDADO de un riego (agua+abono+fito+
+// trabajo todo junto, ver construirPartesRiegoManual), solo la parte de
+// Trabajo — mismo espíritu que parsearAguaAbonoDeTexto pero al revés (esa
+// función se queda con agua/abono y descarta el resto; esta se queda con
+// los códigos de trabajo/fumis/tipo y descarta agua/abono/fito). Devuelve
+// {titulo, horario} — titulo vacío si no hay nada de trabajo (o solo había
+// PREPARAR, que no cuenta).
+function parsearTrabajoDeTexto(texto){
+  if(!texto || texto.startsWith('* ')) return {titulo:'', horario:''};
+  const partes = texto.split(' + ').map(p=>p.trim()).filter(Boolean);
+  const codigoRe = new RegExp('^('+CODIGOS_TRABAJO_CON_TAREA.concat(['PREPARAR']).join('|')+')(\\s+CON\\s+.+)?$');
+  const tokens = [];
+  let horarioTrabajo = '';
+  partes.forEach(parte=>{
+    if(parte==='PROGRAMADO') return; // marcador suelto, no es de trabajo
+    const m = codigoRe.exec(parte);
+    if(m){
+      if(m[1]!=='PREPARAR') tokens.push(parte); // PREPARAR nunca entra en el título
+      return;
     }
-  }
-  if(!textoTrabajo){
-    await persistTareasData();
-    refreshTareasViews();
-    return;
-  }
-  const crearTareaAuto = (titulo, asignadoA) => ({
-    id: 'tarea_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
-    titulo, descripcion: '', asignadoA, asignadoPor: currentUser||'—',
-    inv: invId, calles: callesLabel, fecha: fechaLabel, fechaISO, turno: '',
-    horario: horarioTrabajo||'',
-    prioridad: 'normal', estado: 'pendiente', horaInicio: null, horaFin: null, firmante: null,
-    visto: false, creadoEn: new Date().toLocaleString('es-ES')
+    if(/^FUMI CON /i.test(parte)){ tokens.push(parte); return; }
+    if(TRABAJO_TIPOS.includes(parte)){ tokens.push(parte); return; }
+    // Un horario suelto (no pegado a ningún texto) solo puede ser el horario
+    // de Trabajo — los horarios de riego siempre van pegados a su agua/
+    // abono/fito, nunca sueltos como parte propia.
+    if((RIEGO_HORARIOS.includes(parte) || TRABAJO_HORARIOS.includes(parte))){ horarioTrabajo = parte; return; }
+    // Cualquier otra cosa (agua/abono/fito con su horario ya incrustado) no
+    // es de trabajo — se ignora, igual que hace parsearAguaAbonoDeTexto con
+    // lo que no reconoce.
   });
-  // Mismo invernadero + mismo día + mismo trabajo + mismo destinatario, y
-  // todavía no completada (pendiente O ya iniciada): se fusionan las calles
-  // en esa misma tarea en vez de crear una nueva — a petición de Paula, antes
-  // solo fusionaba con una "pendiente", así que si el peón ya la había
-  // iniciado y alguien volvía a guardar el mismo riego (p.ej. una pequeña
-  // corrección), aparecía una tarea duplicada. Solo si ya está COMPLETADA se
-  // crea una aparte (esa sí que ha terminado, no tiene sentido reabrirla).
-  const fusionarOCrear = (titulo, asignadoA) => {
-    const existente = tareasData.find(t => t.inv===invId && t.fechaISO===fechaISO && t.asignadoA===asignadoA && t.titulo===titulo && t.estado!=='completada');
-    if(existente){
-      existente.calles = fusionarCallesTarea(existente.calles, callesLabel);
-      if(!existente.horario && horarioTrabajo) existente.horario = horarioTrabajo;
-    } else tareasData.push(crearTareaAuto(titulo, asignadoA));
-  };
-  if(textoTrabajo){
-    const tituloTrabajo = expandirAbreviaturasRiego(textoTrabajo);
-    // Se asigna a un único peón (PEON1) — antes se asignaba una copia a cada
-    // usuario con rol PEON, lo que duplicaba la tarea al incluir cuentas de
-    // prueba (PRUEBA) con ese mismo rol — a petición de Paula, 2026-08-10.
-    fusionarOCrear(tituloTrabajo, 'PEON1');
-  }
-  await persistTareasData();
-  logHistorial(`Auto-asignó tareas desde riego de INV ${invId}`);
+  return { titulo: tokens.join(' + '), horario: horarioTrabajo };
+}
+// Botón "Generar tareas": borra las tareas de peón de origen riego (todas
+// las de PEON1 sin categoría propia — fumigación/específico sí tienen
+// "categoria" y no se tocan — que no estén ya completadas) y las vuelve a
+// crear desde cero recorriendo riegoData entero.
+async function generarTareasDesdeRiego(){
+  if(!confirm('¿Generar tareas de peón desde lo que hay escrito ahora mismo en Riego?\n\nSe borrarán las tareas de peón pendientes/iniciadas (no las completadas) y se crearán de nuevo solo con lo que esté escrito en este momento.')) return;
+  showToast('Generando tareas…');
+  // persistTareasData() solo FUSIONA con la nube (nunca borra, ver
+  // persistTareasData) — si se usara aquí, las tareas obsoletas que se
+  // quitan abajo resucitarían de la nube al guardar y este botón no
+  // arreglaría nada. Por eso aquí se lee la nube fresca y se escribe
+  // DIRECTAMENTE (mismo patrón que eliminarTarea), igual que se hace en
+  // Riego cuando hay que borrar una calle de verdad.
+  await loadRiegoData();
+  const rCloud = await window.storage.get(TAREAS_KEY);
+  tareasData = rCloud ? JSON.parse(rCloud.value) : [];
+  tareasData = tareasData.filter(t => !(t.asignadoA==='PEON1' && !t.categoria && t.estado!=='completada'));
+  const invIds = [...Object.keys(INV_LAYOUT_SALA1), ...Object.keys(INV_LAYOUT_SALA2)];
+  let creadas = 0;
+  invIds.forEach(invId=>{
+    const layout = INV_LAYOUT[invId];
+    const allCalles = [...layout.row1, ...layout.row2];
+    const diasConDatos = Object.keys(riegoData[invId]||{}).map(d=>parseInt(d,10));
+    diasConDatos.forEach(dia=>{
+      detectBrackets(invId, dia, allCalles).forEach(br=>{
+        const {titulo, horario} = parsearTrabajoDeTexto(br.text);
+        if(!titulo) return;
+        const tituloExpandido = expandirAbreviaturasRiego(titulo);
+        const ordenadas = br.calles.slice().sort((a,b)=>a-b);
+        const callesLabel = formatRangoConInv(invId, ordenadas[0], ordenadas[ordenadas.length-1]);
+        const fechaISO = fechaLocalISO(riegoDiaToDate(dia));
+        const existente = tareasData.find(t=>t.asignadoA==='PEON1' && !t.categoria && t.inv===invId && t.fechaISO===fechaISO && t.titulo===tituloExpandido);
+        if(existente){
+          existente.calles = fusionarCallesTarea(existente.calles, callesLabel);
+          if(!existente.horario && horario) existente.horario = horario;
+        } else {
+          tareasData.push({
+            id: 'tarea_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
+            titulo: tituloExpandido, descripcion:'', asignadoA:'PEON1', asignadoPor: currentUser||'—',
+            inv: invId, calles: callesLabel, fecha: riegoDiaLabelCorto(dia), fechaISO, turno:'',
+            horario: horario||'',
+            prioridad:'normal', estado:'pendiente', horaInicio:null, horaFin:null, firmante:null,
+            visto:false, creadoEn: new Date().toLocaleString('es-ES')
+          });
+          creadas++;
+        }
+      });
+    });
+  });
+  await window.storage.set(TAREAS_KEY, JSON.stringify(tareasData));
+  logHistorial(`Generó tareas de peón desde Riego (${creadas} nueva${creadas===1?'':'s'})`);
+  showToast(`✓ Tareas generadas (${creadas} nueva${creadas===1?'':'s'})`);
   refreshTareasViews();
 }
 // "*" — abre un post-it para escribir una nota especificando qué es.
