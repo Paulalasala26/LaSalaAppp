@@ -1469,6 +1469,7 @@ function buildTareaGestorRow(t, conSeleccion){
         <td style="padding:7px 10px;font-size:10px;color:var(--muted)">${t.firmante||'—'}</td>
         <td style="padding:7px 10px;white-space:nowrap">
           <button onclick="showEditarTareaForm('${t.id}')" title="Editar" style="padding:4px 8px;font-size:10px;font-weight:700;background:#eef4fb;color:#1558a0;border:1px solid #a8c4e8;border-radius:6px;cursor:pointer;margin-right:4px">✏️ Editar</button>
+          <button onclick="imprimirTareaSuelta('${t.id}')" title="Imprimir" style="padding:4px 8px;font-size:10px;font-weight:700;background:#eef9f0;color:#2e7d32;border:1px solid #a8dcb0;border-radius:6px;cursor:pointer;margin-right:4px">🖨️ Imprimir</button>
           <button onclick="eliminarTarea('${t.id}')" title="Eliminar" style="padding:4px 8px;font-size:10px;font-weight:700;background:#fdecea;color:#c62828;border:1px solid #f0b0b0;border-radius:6px;cursor:pointer">🗑️ Eliminar</button>
         </td>
       </tr>`;
@@ -2060,6 +2061,14 @@ function confirmarImprimirTareasSeleccionadas(){
   mo.style.display='none';
   imprimirTareas(tareas);
 }
+// Botón "Imprimir" junto a Editar/Eliminar en la tabla de gestión — imprime
+// esa única tarea directamente, sin el selector de día/sala (ya se sabe
+// exactamente cuál se quiere) — a petición de Paula, 2026-08-10.
+function imprimirTareaSuelta(id){
+  const t = tareasData.find(x=>x.id===id);
+  if(!t){ showToast('Tarea no encontrada'); return; }
+  imprimirTareas([t]);
+}
 function imprimirTareas(tareasConPosiblesDuplicados){
   // Una misma tarea puede llegar repetida (ej. si aparece en más de una
   // lista de origen antes de filtrar) — se quita por id para que cada
@@ -2072,24 +2081,44 @@ function imprimirTareas(tareasConPosiblesDuplicados){
   });
   if(!tareas.length){ showToast('No hay tareas para imprimir'); return; }
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const paginas = tareas.map(t=>{
-    const calles = t.calles ? (/\(INV completo\)$/.test(t.calles) ? 'ENTERO' : t.calles) : '';
-    // Si son varios tramos (separados por ", " al construirlos, ver
-    // tramosLabelTexto), cada uno va en su propia línea en vez de todos
-    // seguidos — más fácil de leer en la hoja impresa.
-    const callesPartes = calles && calles!=='ENTERO' ? calles.split(', ') : (calles ? [calles] : []);
+  // Mismo trabajo (mismo título) + mismo día + mismo horario, en
+  // invernaderos de la MISMA cuba (ver grupoCubaDeInv/CUBA_GRUPOS, ya usado
+  // para Plaguicidas/Específicos): salen juntos en UNA sola hoja, con un
+  // bloque INV→calles por cada invernadero, en vez de una hoja por
+  // invernadero — a petición de Paula, 2026-08-10 (ejemplo real: "Puntas de
+  // pasillo + Puntas de atrás" en INV 2A/2B/3B, todos Sala 1). Las tareas sin
+  // invernadero (fumigaciones con objetivos propios, etc.) no se agrupan,
+  // cada una imprime su propia hoja como siempre.
+  const grupos = [];
+  const indice = new Map();
+  tareas.forEach(t=>{
+    const key = t.inv ? [t.fechaISO||'', t.titulo, t.horario||t.turno||'', grupoCubaDeInv(t.inv)].join('||') : ('sola_'+t.id);
+    if(indice.has(key)) grupos[indice.get(key)].push(t);
+    else { indice.set(key, grupos.length); grupos.push([t]); }
+  });
+  const paginas = grupos.map(grupo=>{
+    const primero = grupo[0];
+    const bloques = grupo.map(t=>{
+      const calles = t.calles ? (/\(INV completo\)$/.test(t.calles) ? 'ENTERO' : t.calles) : '';
+      // Si son varios tramos (separados por ", " al construirlos, ver
+      // tramosLabelTexto), cada uno va en su propia línea en vez de todos
+      // seguidos — más fácil de leer en la hoja impresa.
+      const callesPartes = calles && calles!=='ENTERO' ? calles.split(', ') : (calles ? [calles] : []);
+      return {inv: t.inv, callesPartes};
+    });
     return `<div class="hoja-tarea">
-      <div class="p-fecha">${escapar(fechaCompletaImprimir(t))}</div>
-      <div class="p-trabajo">${escapar(t.titulo)}</div>
-      ${(t.inv || callesPartes.length) ? `<div class="p-invcalles">
+      <div class="p-fecha">${escapar(fechaCompletaImprimir(primero))}</div>
+      <div class="p-trabajo">${escapar(primero.titulo)}</div>
+      ${bloques.some(b=>b.inv || b.callesPartes.length) ? `<div class="p-invcalles">
+        ${bloques.map(b=>`
         <div class="p-invcalles-top">
-          ${t.inv ? `<span class="p-inv-box">INV ${escapar(t.inv)}</span>` : ''}
-          ${t.inv && callesPartes.length===1 ? `<span class="p-arrow">→</span>` : ''}
-          ${callesPartes.length===1 ? `<span class="p-calles">${escapar(callesPartes[0])}</span>` : ''}
+          ${b.inv ? `<span class="p-inv-box">INV ${escapar(b.inv)}</span>` : ''}
+          ${b.inv && b.callesPartes.length===1 ? `<span class="p-arrow">→</span>` : ''}
+          ${b.callesPartes.length===1 ? `<span class="p-calles">${escapar(b.callesPartes[0])}</span>` : ''}
         </div>
-        ${callesPartes.length>1 ? `<div class="p-calles-lista">${callesPartes.map(p=>`<div class="p-calles-linea">${escapar(p)}</div>`).join('')}</div>` : ''}
+        ${b.callesPartes.length>1 ? `<div class="p-calles-lista">${b.callesPartes.map(p=>`<div class="p-calles-linea">${escapar(p)}</div>`).join('')}</div>` : ''}`).join('')}
       </div>` : ''}
-      ${(t.horario || t.turno) ? `<div class="p-horario">${escapar(t.horario || t.turno)}</div>` : ''}
+      ${(primero.horario || primero.turno) ? `<div class="p-horario">${escapar(primero.horario || primero.turno)}</div>` : ''}
     </div>`;
   }).join('');
   let iframe = document.getElementById('print-tareas-iframe');
@@ -9685,7 +9714,19 @@ async function saveRiegoManual(){
         aplicado = aplicarTextoRiegoManual(invId, dia, tramos, textoCompleto, callesOriginalesMismoDia);
       }
       if(!aplicado) continue;
-      await autoAsignarTareasRiego(invId, dia, tramosLabelTexto(invId, tramos), textoRiego, tituloTrabajoTarea, horarioTrabajo);
+      // Si se estaba editando un tramo ya marcado, se identifica su etiqueta
+      // de calles ANTES del cambio para que autoAsignarTareasRiego la
+      // sustituya en la tarea automática en vez de simplemente añadir la
+      // nueva encima (ver comentario junto a "tramoAntiguo" en esa función).
+      let tramoAntiguo = null;
+      if(contextoOriginal && contextoOriginal.invId===invId){
+        const desdeAntiguo = Math.min(...contextoOriginal.calles), hastaAntiguo = Math.max(...contextoOriginal.calles);
+        tramoAntiguo = {
+          fechaISO: fechaLocalISO(riegoDiaToDate(contextoOriginal.dia)),
+          calleLabel: tramosLabelTexto(invId, [{desde: desdeAntiguo, hasta: hastaAntiguo}])
+        };
+      }
+      await autoAsignarTareasRiego(invId, dia, tramosLabelTexto(invId, tramos), textoRiego, tituloTrabajoTarea, horarioTrabajo, tramoAntiguo);
     }
   } finally {
     guardandoRiegoManual = false;
@@ -9737,15 +9778,20 @@ async function aplicarTextoRiegoManualMoviendoDia(invId, diaOriginal, callesOrig
 // Borra el riego de los tramos/día actuales del formulario (deja las celdas
 // vacías), o de los invernaderos completos marcados abajo si los hay. Se
 // puede deshacer con "Retroceder", igual que cualquier cambio.
-function borrarRiegoManual(){
+async function borrarRiegoManual(){
   if(!confirm('¿Borrar el riego marcado? Se puede deshacer con "Retroceder".')) return;
   const dia = parseInt(document.getElementById('rm-dia').value);
   const invIds = leerRmBulkInvsSeleccionados();
   if(!invIds.length){ showToast('Elige al menos un invernadero'); return; }
-  invIds.forEach(invId=>{
+  const fechaISO = fechaLocalISO(riegoDiaToDate(dia));
+  // Secuencial (mismo motivo que en saveRiegoManual): autoAsignarTareasRiego
+  // hace su propio loadTareasData()+persistTareasData() por invernadero.
+  for(const invId of invIds){
     const {tramos} = calcularCallesRmBulk(invId);
     aplicarTextoRiegoManual(invId, dia, tramos, '');
-  });
+    const calleLabel = tramosLabelTexto(invId, tramos);
+    await autoAsignarTareasRiego(invId, dia, '', '', '', '', {fechaISO, calleLabel});
+  }
 }
 function tramosLabelTexto(invId, tramos){
   return tramos.map(({desde,hasta})=>{const s=Math.min(desde,hasta),e=Math.max(desde,hasta); return formatRangoConInv(invId, s, e);}).join(', ');
@@ -9775,11 +9821,33 @@ function fusionarCallesTarea(existentes, nuevas){
 // Solo el Trabajo (peón: PP/RO/RS/...) genera tarea automática. Riego (agua,
 // abono, fitosanitarios) NO — el REGANTE ya lo consulta directamente en
 // "Hojas de riego", no hace falta duplicarlo como tarea (a petición de Paula).
-async function autoAsignarTareasRiego(invId, dia, callesLabel, textoRiego, textoTrabajo, horarioTrabajo){
-  if(!textoTrabajo) return;
+// tramoAntiguo (opcional) = {fechaISO, calleLabel} — al editar o borrar un
+// tramo ya marcado, identifica el segmento de calles que había ANTES en la
+// tarea automática, para quitarlo (y no solo añadir el nuevo por encima).
+// Sin esto, editar "C/101-102" a "C/101-103" dejaba las dos etiquetas
+// mezcladas en la misma tarea en vez de sustituir una por la otra — a
+// petición de Paula, 2026-08-10.
+async function autoAsignarTareasRiego(invId, dia, callesLabel, textoRiego, textoTrabajo, horarioTrabajo, tramoAntiguo){
+  if(!textoTrabajo && !tramoAntiguo) return;
   const fechaLabel = riegoDiaLabelCorto(dia);
   const fechaISO = fechaLocalISO(riegoDiaToDate(dia));
   await loadTareasData();
+  if(tramoAntiguo && tramoAntiguo.calleLabel){
+    for(let i=tareasData.length-1;i>=0;i--){
+      const t = tareasData[i];
+      if(t.inv!==invId || t.fechaISO!==tramoAntiguo.fechaISO || t.asignadoA!=='PEON1' || t.estado==='completada' || !t.calles) continue;
+      const partes = t.calles.split(', ');
+      const nuevasPartes = partes.filter(p=>p!==tramoAntiguo.calleLabel);
+      if(nuevasPartes.length===partes.length) continue;
+      if(nuevasPartes.length===0) tareasData.splice(i,1);
+      else t.calles = nuevasPartes.join(', ');
+    }
+  }
+  if(!textoTrabajo){
+    await persistTareasData();
+    refreshTareasViews();
+    return;
+  }
   const crearTareaAuto = (titulo, asignadoA) => ({
     id: 'tarea_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
     titulo, descripcion: '', asignadoA, asignadoPor: currentUser||'—',
