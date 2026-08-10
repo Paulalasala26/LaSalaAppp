@@ -2509,19 +2509,16 @@ function invCallesLabelDeTarea(t){
   if(t.objetivos && t.objetivos.length) return t.objetivos.map(o=>`INV ${o.inv}${o.calles?' · '+o.calles:''}`).join(' / ');
   return [t.inv?'INV '+t.inv:'', t.calles||''].filter(Boolean).join(' · ');
 }
-// A petición de Paula: cada vez que un peón/regante completa un
-// trabajo/riego, avisar al técnico de guardia (mañana/tarde/finde según
-// tecnicoDeGuardia) para que pueda revisar cómo se ha hecho. Extraído de
-// completarTarea para poder reutilizarlo también en completarFumigacion.
-async function avisarTecnicoDeGuardiaPorTarea(t, firma){
-  const turnoTarea = turnoDeHorario(t.horario || t.turno);
-  if(!turnoTarea) return;
-  const tecnico = tecnicoDeGuardia(t.completadoISO, turnoTarea);
-  if(tecnico && tecnico!==currentUser){
-    const dondeLabel = invCallesLabelDeTarea(t);
-    await notificarUsuario(tecnico, `${firma} completó "${t.titulo}"${dondeLabel?' ('+dondeLabel+')':''} — revisar`, '✅ Trabajo/riego ejecutado');
-  }
-}
+// Aviso al técnico de guardia por ejecución de tareas de peón/regante
+// ELIMINADO a petición de Paula, 2026-08-10: "las notificaciones a Dennis y
+// Fran bórralas todas (ejecución de tareas por peones) a excepción de las
+// notificaciones por problemas que generen los regantes (ver
+// notificarUsuario('problema_ejecucion') en enviarProblemaRiego) y el aviso
+// de corrección de hojas de Vigueras (ver notificarUsuario('FRAN'/'DENNIS',
+// 'Vigueras ha corregido las hojas', ...) en marcarHojasCorregidas)". Se
+// quita la función y sus dos llamadas (completarTarea/completarFumigacion);
+// el resto de esas dos funciones (guardar estado completada, firma, etc.)
+// no se toca.
 function showCompletarTareaDialog(id){
   const mo = getOrCreateOverlay('completar-tarea-overlay');
   mo.style.zIndex = 2100;
@@ -2552,7 +2549,6 @@ async function completarTarea(id){
   logHistorial(`Completó y firmó la tarea "${t.titulo}" como "${firma}"`);
   document.getElementById('completar-tarea-overlay').style.display='none';
   showToast('✓ Tarea completada');
-  await avisarTecnicoDeGuardiaPorTarea(t, firma);
   refreshTareasViews();
 }
 
@@ -2653,7 +2649,6 @@ async function completarFumigacion(id){
   logHistorial(`Completó la fumigación "${t.titulo}" (caldo sobrante: ${caldoSobrante}; preparó: ${firmaPreparador}; aplicó: ${firmaAplicador})`);
   document.getElementById('completar-fumigacion-overlay').style.display='none';
   showToast('✓ Fumigación completada');
-  await avisarTecnicoDeGuardiaPorTarea(t, firmaAplicador);
   refreshTareasViews();
 }
 // Reconstruye la misma hoja oficial (escaneo + datos superpuestos) que
