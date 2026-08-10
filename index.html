@@ -3437,8 +3437,15 @@ function cambiarConteoTutaVista(vista){
   conteoTutaVista = vista;
   renderControlContent(document.getElementById('control-overlay'));
 }
+// El conteo de Tuta solo se hace los jueves de cada semana — a petición de
+// Paula, 2026-08-10, no tiene sentido que aparezcan el resto de días. Un día
+// es "jueves" si riegoDiaToDate(d).getDay()===4 (0=domingo..6=sábado, JS
+// Date estándar).
+function esJuevesConteoTuta(dia){
+  return riegoDiaToDate(dia).getDay()===4;
+}
 function renderControlConteoTutaHTML(seccion){
-  const diasQ = riegoQuincenaDias(conteoTutaQuincenaOffset);
+  const diasQ = riegoQuincenaDias(conteoTutaQuincenaOffset).filter(esJuevesConteoTuta);
   if(conteoTutaDiaSel==null || !diasQ.includes(conteoTutaDiaSel)) conteoTutaDiaSel = diasQ.includes(riegoDiaDeHoy()) ? riegoDiaDeHoy() : diasQ[0];
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
