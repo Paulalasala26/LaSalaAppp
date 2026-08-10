@@ -3177,19 +3177,24 @@ function calleAsignadaParaPartida(partida){
 }
 // Para el filtro de invernadero de Check Carga (a petición de Paula,
 // 2026-08-10): busca la calle real de una línea de Carga a partir de su
-// línea hermana de Check Túnel (misma partida + mismo invernadero) — Carga
-// no guarda calle propia. Devuelve {desde, hasta, label} o null si no hay
-// línea de Túnel coincidente todavía (ej. carga añadida a mano, sin PDF de
-// Túnel de por medio).
+// línea hermana de Check Túnel — Carga no guarda calle propia, y su campo
+// `invernadero` NO es el mismo código de invernadero que usa el resto de la
+// app (viene del PDF como "nn-lado-tramo", ej. "20-1-4" — un formato propio
+// del parte de carga, no un invId como "10A"), así que no sirve para
+// comparar contra INV_LAYOUT ni para cruzar con Túnel. Se empareja SOLO por
+// número de partida (mismo criterio que ya usa calleAsignadaParaPartida en
+// Pinzar) — ahí sí vive el invId real de la app. Devuelve {invId, desde,
+// hasta, label} o null si no hay línea de Túnel coincidente todavía (ej.
+// carga añadida a mano, sin PDF de Túnel de por medio).
 function calleTramoDeCarga(c){
-  if(!c.partida || !c.invernadero) return null;
-  const entrada = controlChecksData.find(x=>x.tipo==='tunel' && x.partida===c.partida && x.invId===c.invernadero);
+  if(!c.partida) return null;
+  const entrada = controlChecksData.find(x=>x.tipo==='tunel' && x.partida===c.partida && x.invId);
   if(!entrada) return null;
   const tramos = (entrada.tramos && entrada.tramos.length) ? entrada.tramos : [{desde:entrada.calleDesde, hasta:entrada.calleHasta}];
   if(tramos[0].desde==null) return null;
   const desde = Math.min(...tramos.map(t=>t.desde));
   const hasta = Math.max(...tramos.map(t=>t.hasta??t.desde));
-  return { desde, hasta, label: formatTramosLabel(c.invernadero, tramos) };
+  return { invId: entrada.invId, desde, hasta, label: formatTramosLabel(entrada.invId, tramos) };
 }
 function renderPinzarSubSeccionHTML(){
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -4089,9 +4094,9 @@ function renderControlChecklistHTML(seccion){
       </select>
     </div>` : '';
   const listaMostrada = (seccion.key==='carga' && controlCargaInvFiltro)
-    ? lista.filter(c=>c.invernadero===controlCargaInvFiltro)
-        .map(c=>({c, tramo: calleTramoDeCarga(c)}))
-        .sort((a,b)=> (a.tramo?a.tramo.desde:Infinity) - (b.tramo?b.tramo.desde:Infinity))
+    ? lista.map(c=>({c, tramo: calleTramoDeCarga(c)}))
+        .filter(x=>x.tramo && x.tramo.invId===controlCargaInvFiltro)
+        .sort((a,b)=> a.tramo.desde - b.tramo.desde)
         .map(x=>x.c)
     : lista;
 
