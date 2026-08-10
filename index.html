@@ -2747,7 +2747,6 @@ async function autoAsignarTareaFumigacion(objetivos, dia, titulo, horario, extra
   const fechaISO = fechaLocalISO(riegoDiaToDate(dia));
   const caldoLabel = extra?.caldoLabel || '';
   await loadTareasData();
-  const usuariosPorRol = rol => Object.keys(USER_ROLES).filter(u=>USER_ROLES[u]===rol);
   const crearTareaAuto = (asignadoA) => ({
     id: 'tarea_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
     titulo, descripcion:'', asignadoA, asignadoPor: currentUser||'—',
@@ -2773,7 +2772,10 @@ async function autoAsignarTareaFumigacion(objetivos, dia, titulo, horario, extra
       if(!existente.horario && horario) existente.horario = horario;
     } else tareasData.push(crearTareaAuto(asignadoA));
   };
-  usuariosPorRol('PEON').forEach(asignadoA=>fusionarOCrear(asignadoA));
+  // Se asigna a un único peón (PEON1) — antes se asignaba una copia a cada
+  // usuario con rol PEON, lo que duplicaba la tarea al incluir cuentas de
+  // prueba (PRUEBA) con ese mismo rol — a petición de Paula, 2026-08-10.
+  fusionarOCrear('PEON1');
   await persistTareasData();
   logHistorial(`Auto-asignó tarea de fumigación (Pistola) para ${objetivos.length} invernadero(s)`);
   refreshTareasViews();
@@ -8759,7 +8761,7 @@ const TRABAJO_CON_VIA = ['PP','PA','RS','DESPAREJOS','MUSTIO'];
 // foliar a 0.15" que no requiere elegir categoría/producto — igual que RO ya
 // tiene su propio código fijo ROAF — a petición de Paula, 2026-08-06.
 const CODIGOS_FOLIAR_015 = ['PP','PA'];
-const TRABAJO_TIPOS = ['RÁPIDO','SUAVE','NORMAL'];
+const TRABAJO_TIPOS = ['SUAVE','SECAS','NORMAL'];
 const TRABAJO_HORARIOS = ['1º HORA','MEDIA MAÑANA','POR LA TARDE'];
 // Estado del formulario: agua/abono/tramos de calles son repetibles (varias
 // aguas, varios abonos, varios tramos no contiguos para el mismo riego), así
@@ -9111,6 +9113,12 @@ function showRiegoManualForm(){
                 ${TRABAJO_FUMI_DOSIS.map(d=>`<option value="${d}">${d}</option>`).join('')}
               </select>
             </div>
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+              <label style="font-size:11px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:4px;background:#fff;border:1px solid #f0d9b8;border-radius:6px;padding:4px 8px;cursor:pointer;white-space:nowrap">
+                <input type="checkbox" id="rm-fumi4-chk" onchange="actualizarVisibilidadFumi(4)"> Fumi K.MIX
+              </label>
+              <input type="text" id="rm-fumi4-kmix" class="rm-fumi4-dosis" placeholder="Dosis" style="display:none;width:80px;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;background:#fff;outline:none">
+            </div>
           </div>
         </div>
         <!-- TRABAJO (peón): con abono foliar / con agua (PP/PA/RS/DESPAREJOS en
@@ -9387,6 +9395,10 @@ function leerFumisDesdeDOM(){
   if(document.getElementById('rm-fumi3-chk')?.checked){
     const af = document.getElementById('rm-fumi3-af')?.value;
     if(af) partes.push(`FUMI CON AF(${af})`);
+  }
+  if(document.getElementById('rm-fumi4-chk')?.checked){
+    const kmix = document.getElementById('rm-fumi4-kmix')?.value.trim();
+    if(kmix) partes.push(`FUMI CON K.MIX(${kmix})`);
   }
   return partes;
 }
@@ -9768,7 +9780,6 @@ async function autoAsignarTareasRiego(invId, dia, callesLabel, textoRiego, texto
   const fechaLabel = riegoDiaLabelCorto(dia);
   const fechaISO = fechaLocalISO(riegoDiaToDate(dia));
   await loadTareasData();
-  const usuariosPorRol = rol => Object.keys(USER_ROLES).filter(u=>USER_ROLES[u]===rol);
   const crearTareaAuto = (titulo, asignadoA) => ({
     id: 'tarea_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
     titulo, descripcion: '', asignadoA, asignadoPor: currentUser||'—',
@@ -9793,7 +9804,10 @@ async function autoAsignarTareasRiego(invId, dia, callesLabel, textoRiego, texto
   };
   if(textoTrabajo){
     const tituloTrabajo = expandirAbreviaturasRiego(textoTrabajo);
-    usuariosPorRol('PEON').forEach(u=>fusionarOCrear(tituloTrabajo, u));
+    // Se asigna a un único peón (PEON1) — antes se asignaba una copia a cada
+    // usuario con rol PEON, lo que duplicaba la tarea al incluir cuentas de
+    // prueba (PRUEBA) con ese mismo rol — a petición de Paula, 2026-08-10.
+    fusionarOCrear(tituloTrabajo, 'PEON1');
   }
   await persistTareasData();
   logHistorial(`Auto-asignó tareas desde riego de INV ${invId}`);
