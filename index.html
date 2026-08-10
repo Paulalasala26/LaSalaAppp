@@ -9590,7 +9590,11 @@ function construirPartesRiegoManual(){
   }
   let textoRiego = partesRiegoTexto.join(' + ');
   if(fitoTexto){
-    const fitoRenderizado = (programadoDuplicado && fitoHorario==='PROGRAMADO') ? fitoTexto : [fitoTexto, fitoHorario].filter(Boolean).join(' ');
+    // Siempre justo después del fitosanitario va "+ 5'" (antes del horario,
+    // si lo hay) — a petición de Paula, 2026-08-10. Ej: "30 + 30 T31 DAGONIS
+    // + 5' UH".
+    const fitoConCinco = fitoTexto + " + 5'";
+    const fitoRenderizado = (programadoDuplicado && fitoHorario==='PROGRAMADO') ? fitoConCinco : [fitoConCinco, fitoHorario].filter(Boolean).join(' ');
     textoRiego = [textoRiego, fitoRenderizado].filter(Boolean).join(' ');
   }
   if(programadoDuplicado) textoRiego = [textoRiego, 'PROGRAMADO'].filter(Boolean).join(' + ');
