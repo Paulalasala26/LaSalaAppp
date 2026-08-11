@@ -5730,14 +5730,18 @@ function abrirAplicarEspecificoAPartidas(){
   const overlay = getOrCreateOverlay('especifico-por-partidas-overlay');
   overlay.style.zIndex = 2200;
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const diasQ = riegoQuincenaDias(especificosQuincenaOffset);
+  // Rango de días acotado (a petición de Paula, 2026-08-11: "solo tienen
+  // que aparecer de fechas dos días atrás, el actual y el día siguiente")
+  // — antes se ofrecía toda la quincena, con fechas demasiado antiguas.
+  const hoy = riegoDiaDeHoy();
+  const diasQ = [hoy-2, hoy-1, hoy, hoy+1];
   overlay.innerHTML = `
     <div style="background:#fff;border-radius:14px;max-width:380px;width:100%;padding:1.5rem;box-shadow:0 8px 40px rgba(0,0,0,.3)">
       <div style="font-size:15px;font-weight:800;margin-bottom:4px">🧪 Aplicar Específico</div>
       <div style="font-size:12px;color:var(--muted);margin-bottom:14px">A ${partidasEspecificoSeleccion.size} partida${partidasEspecificoSeleccion.size===1?'':'s'} seleccionada${partidasEspecificoSeleccion.size===1?'':'s'} — las calles se calculan solas.</div>
       <label style="font-size:11px;font-weight:700;color:var(--muted)">Día</label>
       <select id="eap-dia" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;margin:4px 0 10px">
-        ${diasQ.map(d=>`<option value="${d}">${escapar(riegoDiaLabelCorto(d))} — ${escapar(riegoDiaSemana(d))}</option>`).join('')}
+        ${diasQ.map(d=>`<option value="${d}"${d===hoy?' selected':''}>${escapar(riegoDiaLabelCorto(d))} — ${escapar(riegoDiaSemana(d))}</option>`).join('')}
       </select>
       <label style="font-size:11px;font-weight:700;color:var(--muted)">Tratamiento</label>
       <select id="eap-trat" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;margin:4px 0 10px">
