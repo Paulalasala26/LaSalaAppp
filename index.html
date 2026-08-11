@@ -7440,19 +7440,69 @@ function renderResumenQuincenaTratamientos(modulo){
     </div>`;
 }
 // Botón "Editar" de cada tarjeta (a petición de Paula, 2026-08-05, "al lado
-// de imprimir") — navega al primer invernadero del grupo y abre el mismo
-// formulario de edición que se abre con doble clic en la celda de la
-// cuadrícula.
+// de imprimir"). Al principio solo abría el primer invernadero del grupo
+// (editarFitoManualDesdeCelda/editarEspecificoManualDesdeCelda, pensadas
+// para UN solo invernadero) — a petición de Paula, 2026-08-10 ("tiene que
+// aparecer todo lo que había elegido, tanto todos los invernaderos, con sus
+// calles, con sus observaciones, producto, caldo, horario"), ahora se
+// construye la config de TODOS los invernaderos del grupo a la vez
+// (fmPendingBulkConfig/espPendingBulkConfig) y se precargan también los
+// campos comunes (tratamiento/dosis/horario/caldo/tipo) — antes solo se
+// precargaban al pasar por editarFito/EspecificoManualDesdeCelda, que aquí
+// ya no se usan.
 function editarResumenTratamiento(modulo, idx){
   const f = resumenQuincenaFilasCache[modulo]?.[idx];
   if(!f) return;
   const primerInv = Object.keys(f.porInv)[0];
   if(!primerInv) return;
-  const calles = [...new Set(Object.values(f.porInv[primerInv]).flat())];
   const selectFn = DASHBOARD_MODULOS[modulo].selectFn;
   window[selectFn](primerInv);
-  if(modulo==='fito') editarFitoManualDesdeCelda(primerInv, f.dia, calles);
-  else editarEspecificoManualDesdeCelda(primerInv, f.dia, calles);
+  const raw = f.raw;
+  if(modulo==='fito'){
+    const parsed = parsearTextoFito(f.texto);
+    const bulkConfig = {};
+    Object.entries(f.porInv).forEach(([invId, porObs])=>{
+      bulkConfig[invId] = { modo:'tramo', excluir:{desde:null,hasta:null}, primerDia:false,
+        tramos: Object.entries(porObs).map(([obs,calles])=>({desde:Math.min(...calles), hasta:Math.max(...calles), obs}))
+      };
+    });
+    fitoInvSel = primerInv;
+    fmPendingBulkConfig = bulkConfig;
+    showFitoManualForm();
+    document.getElementById('fm-dia').value = f.dia;
+    document.getElementById('fm-trat').value = parsed.trat;
+    document.getElementById('fm-dosis').value = parsed.dosis;
+    document.getElementById('fm-horario').value = parsed.horario;
+    if(raw && typeof raw==='object'){
+      if(raw.caldoLitros) document.getElementById('fm-caldo').value = raw.caldoLitros;
+      if(raw.tipoTrat) document.getElementById('fm-tipo-trat').value = raw.tipoTrat;
+    }
+    // Limitación conocida: fmEditContextoOriginal solo rastrea UN
+    // invernadero (el primero) — si se reduce el tramo de alguno de los
+    // OTROS invernaderos del grupo al guardar, sus calles sobrantes no se
+    // limpiarán solas (mismo comportamiento que ya tenía esta limpieza
+    // antes de este cambio, que tampoco cubría varios invernaderos a la vez).
+    fitoInvSel = primerInv;
+    fmEditContextoOriginal = { invId: primerInv, dia: f.dia, calles: [...new Set(Object.values(f.porInv[primerInv]).flat())] };
+  } else {
+    const parsed = parsearTextoEspecifico(f.texto);
+    const bulkConfig = {};
+    Object.entries(f.porInv).forEach(([invId, porObs])=>{
+      bulkConfig[invId] = { modo:'tramo', tipoEntero:'', obsEntero:'', excluir:{desde:null,hasta:null,tipo:'',obs:''},
+        tramos: Object.entries(porObs).map(([obs,calles])=>({desde:Math.min(...calles), hasta:Math.max(...calles), tipo:parsed.tipo, obs}))
+      };
+    });
+    especificosInvSel = primerInv;
+    espPendingBulkConfig = bulkConfig;
+    showEspecificoManualForm();
+    document.getElementById('esp-dia').value = f.dia;
+    document.getElementById('esp-trat').value = parsed.trat;
+    document.getElementById('esp-dosis').value = parsed.dosis;
+    document.getElementById('esp-horario').value = parsed.horario;
+    if(raw && typeof raw==='object' && raw.caldoLitros){
+      document.getElementById('esp-caldo').value = raw.caldoLitros;
+    }
+  }
 }
 // Botón "Imprimir hoja" de cada tarjeta del resumen — reconstruye la hoja
 // OFICIAL completa (misma que las de siempre) a partir de lo que ya está
@@ -10820,13 +10870,21 @@ function aplicarMezclaPredeterminada(valor){
 }
 function showFitoManualForm(){
   const inv = fitoInvSel;
-  fmBulkConfig = {};
   fmEditContextoOriginal = null;
-  if(inv){
-    fmBulkConfig[inv] = fmPendingConfig
-      ? {modo: fmPendingConfig.modo, excluir: fmPendingConfig.excluir || {desde:null,hasta:null}, tramos: fmPendingConfig.tramos || [], primerDia:false}
-      : {modo:'entero', excluir:{desde:null,hasta:null}, tramos:[], primerDia:false};
+  if(fmPendingBulkConfig){
+    // Editando desde el resumen de la quincena: TODOS los invernaderos del
+    // grupo entran ya con su propio modo/tramos — a petición de Paula,
+    // 2026-08-10.
+    fmBulkConfig = fmPendingBulkConfig;
+  } else {
+    fmBulkConfig = {};
+    if(inv){
+      fmBulkConfig[inv] = fmPendingConfig
+        ? {modo: fmPendingConfig.modo, excluir: fmPendingConfig.excluir || {desde:null,hasta:null}, tramos: fmPendingConfig.tramos || [], primerDia:false}
+        : {modo:'entero', excluir:{desde:null,hasta:null}, tramos:[], primerDia:false};
+    }
   }
+  fmPendingBulkConfig = null;
   fmPendingConfig = null;
   const diasQ = riegoQuincenaDias(fitoQuincenaOffset);
 
@@ -10946,6 +11004,10 @@ let fmBulkConfig = {}; // { [invId]: {modo, excluir:{desde,hasta}, tramos:[{desd
 // (venido de doble clic o de arrastrar un tramo en la cuadrícula) — se
 // consume una sola vez, al abrir, y se traslada a fmBulkConfig[invId].
 let fmPendingConfig = null;
+// Config COMPLETA de varios invernaderos a la vez, para cuando se edita
+// desde el resumen de la quincena — ver espPendingBulkConfig (mismo patrón
+// simétrico para Fito) y editarResumenTratamiento.
+let fmPendingBulkConfig = null;
 // Igual que rmEditContextoOriginal en Riego: cuando se edita un tratamiento
 // ya marcado (doble clic), guarda su invernadero/día/calles ORIGINALES para
 // poder limpiar en el mismo guardado las calles que se queden fuera del
@@ -11705,12 +11767,21 @@ function abrirEspecificoManualDia(invId, dia){
 // sin nada de Riego/Trabajo: es un tratamiento puntual independiente.
 function showEspecificoManualForm(){
   const inv = especificosInvSel;
-  espBulkConfig = {};
-  if(inv){
-    espBulkConfig[inv] = espPendingConfig
-      ? {modo: espPendingConfig.modo, tipoEntero:'', obsEntero:'', excluir: espPendingConfig.excluir || {desde:null,hasta:null,tipo:'',obs:''}, tramos: espPendingConfig.tramos || []}
-      : {modo:'entero', tipoEntero:'', obsEntero:'', excluir:{desde:null,hasta:null,tipo:'',obs:''}, tramos:[]};
+  if(espPendingBulkConfig){
+    // Editando desde el resumen de la quincena: TODOS los invernaderos del
+    // grupo entran ya con su propio modo/tramos, no solo el seleccionado —
+    // a petición de Paula, 2026-08-10 ("tiene que aparecer todo lo que
+    // había elegido, tanto todos los invernaderos, con sus calles...").
+    espBulkConfig = espPendingBulkConfig;
+  } else {
+    espBulkConfig = {};
+    if(inv){
+      espBulkConfig[inv] = espPendingConfig
+        ? {modo: espPendingConfig.modo, tipoEntero:'', obsEntero:'', excluir: espPendingConfig.excluir || {desde:null,hasta:null,tipo:'',obs:''}, tramos: espPendingConfig.tramos || []}
+        : {modo:'entero', tipoEntero:'', obsEntero:'', excluir:{desde:null,hasta:null,tipo:'',obs:''}, tramos:[]};
+    }
   }
+  espPendingBulkConfig = null;
   espPendingConfig = null;
   const diasQ = riegoQuincenaDias(especificosQuincenaOffset);
 
@@ -11804,6 +11875,12 @@ function actualizarGastoEspecificoManual(){
 // que lleva cada tramo/aplicación de Específicos.
 let espBulkConfig = {}; // { [invId]: {modo, tipoEntero, obsEntero, excluir:{desde,hasta,tipo,obs}, tramos:[{desde,hasta,tipo,obs}]} }
 let espPendingConfig = null;
+// Config COMPLETA de varios invernaderos a la vez (uno por cada invId del
+// grupo), para cuando se edita desde el resumen de la quincena — a
+// diferencia de espPendingConfig (solo UN invId), esta sustituye entero
+// espBulkConfig en showEspecificoManualForm en vez de limitarse al
+// invernadero seleccionado. Ver editarResumenTratamiento.
+let espPendingBulkConfig = null;
 function especificoBulkInvSelectorHTML(){
   return `
     <div style="border:1.5px solid #a5d6a7;border-radius:9px;padding:.75rem;background:#f2faf2">
