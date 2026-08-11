@@ -7409,9 +7409,17 @@ function renderResumenQuincenaTratamientos(modulo){
         const caldoLabel = (typeof raw==='object' && raw?.caldoLabel) || '';
         const esCubaRuedas = /CUBA DE RUEDAS/i.test(caldoLabel);
         const grupoCuba = esCubaRuedas ? 'RUEDAS' : grupoCubaDeInv(invId);
+        // El caldo (litros) entra también en la firma — a petición de Paula,
+        // 2026-08-11: dos invernaderos con el mismo tratamiento/hora pero
+        // caldo distinto (aunque sea "cuba de ruedas" con litros diferentes,
+        // ej. INV19 con 50L y INV20 con 100L el mismo martes) NO son la
+        // misma aplicación real y deben ir en hojas separadas. Antes el
+        // caldo no se comparaba, así que se fusionaban y la hoja impresa
+        // solo reflejaba el caldo del primero que se procesara, perdiendo el
+        // del segundo invernadero.
         const firma = modulo==='fito'
-          ? [dia, parsed.trat, parsed.dosis, parsed.horario, grupoCuba].join('|')
-          : [dia, parsed.trat, parsed.dosis, parsed.horario, parsed.tipo, grupoCuba].join('|');
+          ? [dia, parsed.trat, parsed.dosis, parsed.horario, grupoCuba, caldoLabel].join('|')
+          : [dia, parsed.trat, parsed.dosis, parsed.horario, parsed.tipo, grupoCuba, caldoLabel].join('|');
         if(!grupos[firma]) grupos[firma] = { dia, texto, porInv: {}, raw: null };
         const obsKey = parsed.obs || '';
         if(!grupos[firma].porInv[invId]) grupos[firma].porInv[invId] = {};
