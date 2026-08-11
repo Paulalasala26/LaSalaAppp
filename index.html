@@ -10290,19 +10290,27 @@ const CODIGOS_TRABAJO_CON_TAREA = TRABAJO_AGUA.concat(TRABAJO_ABONO_FOLIAR).filt
 // {titulo, horario} — titulo vacío si no hay nada de trabajo (o solo había
 // PREPARAR, que no cuenta).
 function parsearTrabajoDeTexto(texto){
-  if(!texto || texto.startsWith('* ')) return {titulo:'', horario:''};
+  if(!texto || texto.startsWith('* ')) return {titulo:'', horario:'', tituloFumi:''};
   const partes = texto.split(' + ').map(p=>p.trim()).filter(Boolean);
   const codigoRe = new RegExp('^('+CODIGOS_TRABAJO_CON_TAREA.concat(['PREPARAR']).join('|')+')(\\s+CON\\s+.+)?$');
   const tokens = [];
+  // Las fumis (FUMI CON AF/K.MIX/S) van SIEMPRE a primera hora y nunca deben
+  // compartir horario ni hoja con el resto del trabajo del mismo bracket —
+  // a petición de Paula, 2026-08-11 ("no tienen que asumir los horarios de
+  // los trabajos"), aunque vengan mezcladas en el mismo texto (ej. "FUMI CON
+  // K.MIX(1) + ROAF + PP CON ABONO FOLIAR (0.15) + NORMAL + MEDIA MAÑANA").
+  // Se separan en un título propio (tituloFumi), aparte de "titulo" (el
+  // resto de trabajo, que sí conserva su horario real).
+  const tokensFumi = [];
   let horarioTrabajo = '';
   partes.forEach(parte=>{
     if(parte==='PROGRAMADO') return; // marcador suelto, no es de trabajo
+    if(/^FUMI CON /i.test(parte)){ tokensFumi.push(parte); return; }
     const m = codigoRe.exec(parte);
     if(m){
       if(m[1]!=='PREPARAR') tokens.push(parte); // PREPARAR nunca entra en el título
       return;
     }
-    if(/^FUMI CON /i.test(parte)){ tokens.push(parte); return; }
     if(TRABAJO_TIPOS.includes(parte)){ tokens.push(parte); return; }
     // Un horario suelto (no pegado a ningún texto) solo puede ser el horario
     // de Trabajo — los horarios de riego siempre van pegados a su agua/
@@ -10316,7 +10324,7 @@ function parsearTrabajoDeTexto(texto){
     // es de trabajo — se ignora, igual que hace parsearAguaAbonoDeTexto con
     // lo que no reconoce.
   });
-  return { titulo: tokens.join(' + '), horario: horarioTrabajo };
+  return { titulo: tokens.join(' + '), horario: horarioTrabajo, tituloFumi: tokensFumi.join(' + ') };
 }
 // Botón "Generar tareas": borra las tareas de peón de origen riego (todas
 // las de PEON1 sin categoría propia — fumigación/específico sí tienen
@@ -10343,45 +10351,43 @@ async function generarTareasDesdeRiego(){
     const diasConDatos = Object.keys(riegoData[invId]||{}).map(d=>parseInt(d,10));
     diasConDatos.forEach(dia=>{
       detectBrackets(invId, dia, allCalles).forEach(br=>{
-        const {titulo, horario} = parsearTrabajoDeTexto(br.text);
-        if(!titulo) return;
-        // Las fumigaciones foliares (FUMI CON AF/K.MIX/S) siempre se hacen a
-        // primera hora — a petición de Paula, 2026-08-11: NO deben heredar
-        // el horario suelto que hubiera en el bracket (ese horario es de
-        // cualquier otro trabajo real que compartiera texto, no de la fumi),
-        // así nunca se separan en hojas distintas por horario; solo se
-        // separan si cambia el invernadero/cuba o el producto (título). Un
-        // bracket "solo fumi" (todos sus tokens son FUMI CON ...) fuerza
-        // horario=''; uno mixto (ej. "PP + FUMI CON...") conserva el horario
-        // real del otro trabajo, porque ahí sí es un único trabajo combinado.
-        const esSoloFumi = titulo.split(' + ').every(p=>/^FUMI CON /i.test(p.trim()));
-        const horarioFinal = esSoloFumi ? '' : horario;
-        const tituloExpandido = expandirAbreviaturasRiego(titulo);
+        const {titulo, horario, tituloFumi} = parsearTrabajoDeTexto(br.text);
+        if(!titulo && !tituloFumi) return;
         const callesLabel = formatCallesConEnteroParaImprimir(invId, br.calles);
         const fechaISO = fechaLocalISO(riegoDiaToDate(dia));
+        // Crea/fusiona una tarea de peón para un título+horario concretos.
         // Mismo invernadero+día+título pero horario DISTINTO no es el mismo
         // trabajo real (ej. "Puntas de pasillo" a las 8:00 en un tramo y a
         // las 12:00 en otro) — a petición de Paula, 2026-08-11: deben quedar
-        // en tareas/hojas separadas, no fusionarse en una sola. Se compara
-        // horario||'' para que dos tramos SIN horario (ambos '') sí sigan
-        // fusionándose como antes (esto también hace que las fumis, con
-        // horarioFinal siempre '', se sigan fusionando/agrupando entre sí
-        // por título+invernadero+cuba en imprimirTareas, sin que el horario
-        // real de otro trabajo las separe).
-        const existente = tareasData.find(t=>t.asignadoA==='PEON1' && !t.categoria && t.inv===invId && t.fechaISO===fechaISO && t.titulo===tituloExpandido && (t.horario||'')===(horarioFinal||''));
-        if(existente){
-          existente.calles = fusionarCallesTarea(existente.calles, callesLabel);
-        } else {
-          tareasData.push({
-            id: 'tarea_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
-            titulo: tituloExpandido, descripcion:'', asignadoA:'PEON1', asignadoPor: currentUser||'—',
-            inv: invId, calles: callesLabel, fecha: riegoDiaLabelCorto(dia), fechaISO, turno:'',
-            horario: horarioFinal||'',
-            prioridad:'normal', estado:'pendiente', horaInicio:null, horaFin:null, firmante:null,
-            visto:false, creadoEn: new Date().toLocaleString('es-ES')
-          });
-          creadas++;
-        }
+        // en tareas/hojas separadas, no fusionarse en una sola.
+        const crearOFusionar = (tituloBruto, horarioTarea) => {
+          const tituloExpandido = expandirAbreviaturasRiego(tituloBruto);
+          const existente = tareasData.find(t=>t.asignadoA==='PEON1' && !t.categoria && t.inv===invId && t.fechaISO===fechaISO && t.titulo===tituloExpandido && (t.horario||'')===(horarioTarea||''));
+          if(existente){
+            existente.calles = fusionarCallesTarea(existente.calles, callesLabel);
+          } else {
+            tareasData.push({
+              id: 'tarea_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
+              titulo: tituloExpandido, descripcion:'', asignadoA:'PEON1', asignadoPor: currentUser||'—',
+              inv: invId, calles: callesLabel, fecha: riegoDiaLabelCorto(dia), fechaISO, turno:'',
+              horario: horarioTarea||'',
+              prioridad:'normal', estado:'pendiente', horaInicio:null, horaFin:null, firmante:null,
+              visto:false, creadoEn: new Date().toLocaleString('es-ES')
+            });
+            creadas++;
+          }
+        };
+        // Las fumigaciones foliares (FUMI CON AF/K.MIX/S) siempre se hacen a
+        // primera hora — a petición de Paula, 2026-08-11: NUNCA deben asumir
+        // el horario del resto del trabajo aunque vinieran mezcladas en el
+        // mismo bracket (ej. "FUMI CON K.MIX(1) + ROAF + PP ... + MEDIA
+        // MAÑANA"); se separan en su PROPIA tarea/hoja, con horario='' (así
+        // se agrupan entre sí por cuba+producto en imprimirTareas, sin que
+        // el horario del otro trabajo las afecte). El resto del trabajo del
+        // mismo bracket (si lo hay) sigue como su propia tarea, con su
+        // horario real, igual que siempre.
+        if(tituloFumi) crearOFusionar(tituloFumi, '');
+        if(titulo) crearOFusionar(titulo, horario);
       });
     });
   });
