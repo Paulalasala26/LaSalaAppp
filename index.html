@@ -5297,6 +5297,8 @@ function showPartidasModule(){
     const overlay = getOrCreateOverlay('partidas-overlay');
     overlay.style.padding = '0';
     partidaSeleccionadaParaMover = null;
+    partidasHistorialDeshacer = [];
+    partidasHistorialRehacer = [];
     partidasSemanaOffset = partidasSemanaOffsetActual();
     renderPartidasMapaContent(overlay);
     overlay.style.display = 'flex';
@@ -5350,8 +5352,10 @@ function renderPartidasMapaContent(overlay){
           <button onclick="seleccionarSalaPartidas('sala1')" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:800;border:1.5px solid rgba(255,255,255,.4);cursor:pointer;background:${partidasSalaSel==='sala1'?'#fff':'transparent'};color:${partidasSalaSel==='sala1'?'#0f5c4a':'#fff'}">Sala 1</button>
           <button onclick="seleccionarSalaPartidas('sala2')" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:800;border:1.5px solid rgba(255,255,255,.4);cursor:pointer;background:${partidasSalaSel==='sala2'?'#fff':'transparent'};color:${partidasSalaSel==='sala2'?'#0f5c4a':'#fff'}">Sala 2</button>
           ${sincronizarPartidasBtnHTML()}
+          <button onclick="deshacerMovimientoPartida()" ${partidasHistorialDeshacer.length?'':'disabled style="opacity:.35;cursor:default"'} title="Deshacer el último movimiento" style="padding:8px 12px;border-radius:8px;font-size:14px;font-weight:800;background:rgba(255,255,255,.2);color:#fff;border:none;cursor:pointer">←</button>
+          <button onclick="rehacerMovimientoPartida()" ${partidasHistorialRehacer.length?'':'disabled style="opacity:.35;cursor:default"'} title="Rehacer el movimiento deshecho" style="padding:8px 12px;border-radius:8px;font-size:14px;font-weight:800;background:rgba(255,255,255,.2);color:#fff;border:none;cursor:pointer">→</button>
           <button onclick="showEspecificoManualForm()" title="Añadir un específico sin entrar a un invernadero" style="padding:8px 14px;border-radius:8px;font-size:12px;font-weight:800;background:rgba(255,255,255,.2);color:#fff;border:none;cursor:pointer;display:flex;align-items:center;gap:5px"><i class="ti ti-plus" style="font-size:14px"></i> Añadir Específico</button>
-          <button onclick="showEspecificosModule()" title="Cuadrícula día×calle, resumen de quincena e impresión" style="padding:8px 14px;border-radius:8px;font-size:12px;font-weight:800;background:rgba(255,255,255,.2);color:#fff;border:none;cursor:pointer;display:flex;align-items:center;gap:5px"><i class="ti ti-table" style="font-size:14px"></i> Cuadrícula / Resumen</button>
+          <button onclick="showEspecificoResumenModule()" title="Resumen de lo aplicado en la quincena" style="padding:8px 14px;border-radius:8px;font-size:12px;font-weight:800;background:rgba(255,255,255,.2);color:#fff;border:none;cursor:pointer;display:flex;align-items:center;gap:5px"><i class="ti ti-table" style="font-size:14px"></i> Resumen</button>
           <button onclick="document.getElementById('partidas-overlay').style.display='none'" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700;background:rgba(255,255,255,.15);color:#fff;border:none;cursor:pointer">✕ Cerrar</button>
         </div>
       </div>
@@ -5432,6 +5436,45 @@ let partidaSeleccionadaParaMover = null;
 // flotante en renderPartidasInvHTML.
 let partidasEspecificoModo = false;
 let partidasEspecificoSeleccion = new Set();
+// Deshacer/rehacer de MOVIMIENTOS de partida (mover a hueco / intercambiar)
+// en el mapa — a petición de Paula, 2026-08-11: flecha atrás "elimina el
+// último movimiento", flecha adelante "deja el movimiento que estaba". Cada
+// entrada guarda, por cada partida afectada, los campos de ubicación antes
+// y después (invId/tramos/calleDesde/calleHasta/posManual) — no es un
+// deshacer genérico de toda la app, solo de estos movimientos del mapa.
+let partidasHistorialDeshacer = [];
+let partidasHistorialRehacer = [];
+function snapshotUbicacionPartida(c){
+  return { invId:c.invId, tramos: c.tramos ? c.tramos.map(t=>({...t})) : undefined, calleDesde:c.calleDesde, calleHasta:c.calleHasta, posManual:c.posManual };
+}
+function aplicarUbicacionPartida(id, ubic){
+  const c = controlChecksData.find(x=>x.id===id);
+  if(!c) return;
+  Object.assign(c, ubic);
+}
+function registrarMovimientoPartidas(entradas){
+  // entradas: [{id, antes, despues}, ...]
+  partidasHistorialDeshacer.push(entradas);
+  partidasHistorialRehacer = [];
+}
+async function deshacerMovimientoPartida(){
+  const entradas = partidasHistorialDeshacer.pop();
+  if(!entradas) return;
+  entradas.forEach(({id, antes})=>aplicarUbicacionPartida(id, antes));
+  partidasHistorialRehacer.push(entradas);
+  renderPartidasMapaContent(document.getElementById('partidas-overlay'));
+  showToast('↩ Movimiento deshecho');
+  await persistControlChecksData();
+}
+async function rehacerMovimientoPartida(){
+  const entradas = partidasHistorialRehacer.pop();
+  if(!entradas) return;
+  entradas.forEach(({id, despues})=>aplicarUbicacionPartida(id, despues));
+  partidasHistorialDeshacer.push(entradas);
+  renderPartidasMapaContent(document.getElementById('partidas-overlay'));
+  showToast('↪ Movimiento rehecho');
+  await persistControlChecksData();
+}
 // 2026-08-06: "siguen sin poder cambiarse las partidas de sitio entre
 // ellas". Dos fallos reales encontrados a la vez:
 // 1) El intercambio solo cambiaba el orden interno (posManual), NUNCA la
@@ -5511,10 +5554,12 @@ function clicCeldaVaciaPartidas(invId, calle){
 async function aplicarMoverPartidaACalle(id, invId, tramo, posManualVal){
   const c = controlChecksData.find(x=>x.id===id);
   if(!c) return;
+  const antes = snapshotUbicacionPartida(c);
   c.invId = invId;
   c.tramos = [tramo];
   c.calleDesde = tramo.desde; c.calleHasta = tramo.hasta;
   c.posManual = posManualVal;
+  registrarMovimientoPartidas([{id, antes, despues: snapshotUbicacionPartida(c)}]);
   renderPartidasMapaContent(document.getElementById('partidas-overlay'));
   showToast('✓ Partida movida');
   const qid = encolarAccionOffline('aplicarMoverPartidaACalle', [id, invId, tramo, posManualVal]);
@@ -5556,8 +5601,14 @@ function calcularBloquesPartidasInv(invId){
 async function aplicarIntercambioPartidas(id1, ubic1, id2, ubic2){
   const c1 = controlChecksData.find(x=>x.id===id1);
   const c2 = controlChecksData.find(x=>x.id===id2);
+  const antes1 = c1 ? snapshotUbicacionPartida(c1) : null;
+  const antes2 = c2 ? snapshotUbicacionPartida(c2) : null;
   if(c1) Object.assign(c1, ubic1);
   if(c2) Object.assign(c2, ubic2);
+  const entradas = [];
+  if(c1) entradas.push({id:id1, antes:antes1, despues: snapshotUbicacionPartida(c1)});
+  if(c2) entradas.push({id:id2, antes:antes2, despues: snapshotUbicacionPartida(c2)});
+  if(entradas.length) registrarMovimientoPartidas(entradas);
   renderPartidasMapaContent(document.getElementById('partidas-overlay'));
   showToast('✓ Partidas intercambiadas');
   const qid = encolarAccionOffline('aplicarIntercambioPartidas', [id1, ubic1, id2, ubic2]);
@@ -5636,12 +5687,12 @@ function renderPartidasBloqueHTML(bloque){
   // de especificosPartidaData[c.id], independiente de especificosData (que
   // guarda por invId/día/calle, no por partida).
   const especificosBanners = (especificosPartidaData[c.id]||[]).map(e=>`
-    <div style="margin-top:3px;padding:2px 5px;background:#ffd6e7;border-radius:4px;font-size:9px;font-weight:800;color:#000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+    <div style="margin-top:3px;padding:2px 4px;background:#ffd6e7;border-radius:4px;font-size:8.5px;line-height:1.25;font-weight:800;color:#000;white-space:normal;word-break:break-word">
       "${escapar(e.trat)}" "${escapar(e.dosis)}" - "${escapar(e.fechaLabel)}"
     </div>`).join('');
   return `
     <div draggable="true" ondragstart="iniciarArrastrePartida('${c.id}')" ondragover="event.preventDefault()" ondrop="event.preventDefault();clicPartidaEnMapa('${c.id}')" onclick="clicPartidaEnMapa('${c.id}')"
-      style="height:100%;padding:4px 6px;background:${bgBloque};border:1.5px solid ${borderBloque};border-radius:6px;font-size:10px;line-height:1.35;position:relative;overflow:hidden;cursor:grab">
+      style="height:100%;padding:4px 6px;background:${bgBloque};border:1.5px solid ${borderBloque};border-radius:6px;font-size:10px;line-height:1.35;position:relative;${especificosBanners?'overflow:visible;z-index:1':'overflow:hidden'};cursor:grab">
       ${separadoBtnHTML}
       <button onclick="seleccionarPartidaParaMover('${c.id}',event)" title="Tocar y luego tocar donde quieras moverla o intercambiarla" style="position:absolute;top:2px;right:20px;width:16px;height:16px;padding:0;background:${seleccionada?'#c47f00':'rgba(15,92,74,.15)'};color:${seleccionada?'#fff':'#0f5c4a'};border:none;border-radius:4px;font-size:10px;line-height:16px;cursor:pointer">⇄</button>
       <button onclick="event.stopPropagation();marcarSalidaPartida('${c.id}')" title="Marcar salida (quitar del mapa)" style="position:absolute;top:2px;right:2px;width:16px;height:16px;padding:0;background:rgba(198,40,40,.12);color:#c62828;border:none;border-radius:4px;font-size:10px;line-height:16px;cursor:pointer">✕</button>
@@ -11958,6 +12009,8 @@ function changeEspecificosQuincena(delta){
   especificosQuincenaOffset = Math.max(0, especificosQuincenaOffset + delta);
   renderEspecificosQuincenaBar();
   if(especificosInvSel) renderEspecificosGrid(especificosInvSel);
+  const wrapResumen = document.getElementById('resumen-quincena-especifico');
+  if(wrapResumen) wrapResumen.outerHTML = renderResumenQuincenaTratamientos('especifico');
 }
 function renderEspecificosQuincenaBar(){
   const bar = document.getElementById('especificos-quincena-bar');
@@ -12008,6 +12061,36 @@ function getEspecifico(invId,dia,calle){
   return typeof raw==='string' ? raw : (raw.texto||'');
 }
 
+// Botón "Cuadrícula / Resumen" del módulo fusionado Partidas y Específicos
+// (2026-08-11, a petición de Paula: "que únicamente aparezca el resumen") —
+// a diferencia de showEspecificosModule (cuadrícula día×calle completa por
+// invernadero), esta pantalla SOLO muestra el resumen de lo aplicado en la
+// quincena (renderResumenQuincenaTratamientos), sin invernaderos ni calles.
+// Editar/Imprimir de cada tarjeta siguen funcionando igual (reabren
+// showEspecificoManualForm), no se tocó esa lógica.
+function showEspecificoResumenModule(){
+  Promise.all([loadEspecificosData(), loadPresenciaData(), loadTareasData()]).then(()=>{
+    especificosQuincenaOffset = riegoQuincenaOffsetActual();
+    const overlay = getOrCreateOverlay('especifico-resumen-overlay');
+    overlay.style.padding = '0';
+    overlay.innerHTML = `
+      <div style="background:#f8faf8;border-radius:0;width:100vw;height:100vh;max-width:100vw;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.3)">
+        <div style="background:#2e7d32;color:#fff;padding:.85rem 1.25rem;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;gap:10px">
+          <div>
+            <div style="font-size:16px;font-weight:800">📊 Resumen de Específicos</div>
+            <div style="font-size:11px;opacity:.7;margin:1px 0 4px">Lo aplicado en la quincena</div>
+            <div id="especificos-quincena-bar" style="display:flex;align-items:center;gap:8px"></div>
+          </div>
+          <button onclick="document.getElementById('especifico-resumen-overlay').style.display='none'" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 11px;cursor:pointer;font-size:13px">✕</button>
+        </div>
+        <div style="flex:1;overflow:auto;padding:1.25rem;max-width:520px;margin:0 auto;width:100%">
+          ${renderResumenQuincenaTratamientos('especifico')}
+        </div>
+      </div>`;
+    renderEspecificosQuincenaBar();
+    overlay.style.display = 'flex';
+  });
+}
 function showEspecificosModule(){
   // loadTareasData() se añade aquí solo para poder sacar el caldo/gasto de
   // las tareas de específico ya asignadas en el resumen de la quincena (ver
