@@ -5893,6 +5893,36 @@ async function actualizarClimaPantallasLive(){
   const wrap = document.getElementById('clima-pantallas-live-wrap');
   if(wrap) wrap.innerHTML = renderClimaPantallasLiveHTML();
 }
+// Estilo "Data Table Design" (imagen de referencia de Paula, 2026-08-11):
+// cabecera azul marino oscuro para la columna de etiquetas, degradado
+// azul→verde en el resto de columnas, filas alternas gris claro/blanco y un
+// topo de color (mismo degradado) a la izquierda de cada etiqueta de fila.
+// Reutilizado por Pantallas en vivo y por el Cuadro Sala2 en vivo.
+function colorDegradadoTabla(i, total){
+  const t = total>1 ? i/(total-1) : 0;
+  const hue = Math.round(212 - t*72); // 212=azul marino → 140=verde
+  return `hsl(${hue},58%,${Math.round(34+t*10)}%)`;
+}
+function renderTablaEstiloDatosHTML(etiquetaCabecera, columnas, filas){
+  const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return `
+    <div style="border-radius:12px;overflow:hidden;box-shadow:var(--shadow-sm)">
+      <table style="border-collapse:collapse;width:100%;font-size:12px">
+        <tr>
+          <th style="padding:9px 12px;text-align:left;font-size:11px;font-weight:800;color:#fff;background:#173d6b;white-space:nowrap;position:sticky;left:0">${escapar(etiquetaCabecera)}</th>
+          ${columnas.map((c,i)=>`<th style="padding:9px 12px;font-size:11px;font-weight:800;color:#fff;background:${colorDegradadoTabla(i,columnas.length)};white-space:nowrap">${escapar(c)}</th>`).join('')}
+        </tr>
+        ${filas.map((f,i)=>`
+          <tr style="background:${i%2?'#fff':'#eef3f6'}">
+            <td style="padding:8px 12px;font-weight:700;color:var(--text);white-space:nowrap;position:sticky;left:0;background:${i%2?'#fff':'#eef3f6'};display:flex;align-items:center;gap:8px">
+              <span style="width:9px;height:9px;border-radius:50%;background:${colorDegradadoTabla(i,filas.length)};flex-shrink:0;display:inline-block"></span>
+              ${escapar(f.etiqueta)}
+            </td>
+            ${f.valores.map(v=>`<td style="padding:8px 12px;text-align:center;color:var(--text);white-space:nowrap">${v}</td>`).join('')}
+          </tr>`).join('')}
+      </table>
+    </div>`;
+}
 // "Pantalla 10a" → INV, "P.Lateral 15" → Lateral — para agrupar visualmente
 // las dos filas de un mismo invernadero (que llegan sueltas del CSV) y
 // ordenar por nombre de invernadero, no alfabéticamente por "P."/"Pantalla".
@@ -5914,6 +5944,17 @@ function clavesOrdenPantallaLive(inv){
 // ellas, sin orden numérico real). Ahora es UNA fila por invernadero, con su
 // Principal y su Lateral juntos y una barrita de color para ver el % de un
 // vistazo sin tener que leer el número.
+// Sala 1 = invernaderos ya conocidos de INV_LAYOUT_SALA1 (0A-4B) más "7a"/
+// "7b" (aparecen en el CSV de Synopta con ese mismo estilo de nombre, pero
+// no están en la lista de invernaderos de la app todavía) — el resto
+// (10 en adelante) es Sala 2. Solo para AGRUPAR esta tabla; no depende de
+// que el invId exista en INV_LAYOUT.
+function esInvSala1PantallaLive(inv){
+  const m = /^(\d+)/.exec(inv);
+  if(!m) return false;
+  const n = parseInt(m[1],10);
+  return n<=7;
+}
 function renderClimaPantallasLiveHTML(){
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const porInv = {};
@@ -5923,36 +5964,25 @@ function renderClimaPantallasLiveHTML(){
     if(lateral) porInv[inv].lateralVal = d.valor; else porInv[inv].principal = d.valor;
     if(d.actualizadoEn) porInv[inv].actualizadoEn = d.actualizadoEn;
   });
-  const filas = Object.values(porInv);
-  filas.sort((a,b)=>{
+  const todas = Object.values(porInv);
+  todas.sort((a,b)=>{
     const ca = clavesOrdenPantallaLive(a.inv), cb = clavesOrdenPantallaLive(b.inv);
     return ca[0]-cb[0] || (ca[1]>cb[1]?1:ca[1]<cb[1]?-1:0);
   });
-  const ultimaActualizacion = filas.map(f=>f.actualizadoEn).sort().pop();
-  if(!filas.length){
+  if(!todas.length){
     return `<div style="text-align:center;padding:2rem;color:var(--muted);font-style:italic;font-size:13px">Todavía no hay datos — el script local (synopta-sync) aún no ha subido ningún CSV.</div>`;
   }
-  // Barra de color simple: 0% verde (abierta) → 100% rojo (cerrada), para
-  // reconocer el estado de un vistazo sin tener que leer el número.
-  const colorPct = v => `hsl(${Math.round(130 - (Math.max(0,Math.min(100,v))/100)*130)},65%,42%)`;
-  const barraHTML = (v, esLateral) => v==null
-    ? `<span style="font-size:11px;color:var(--muted);font-style:italic">— sin lateral</span>`
-    : `<div style="display:flex;align-items:center;gap:8px">
-        <div style="flex:1;height:8px;border-radius:999px;background:#e6e6e6;overflow:hidden"><div style="height:100%;width:${v}%;background:${colorPct(v)}"></div></div>
-        <span style="font-size:13px;font-weight:800;color:var(--text);width:38px;text-align:right">${v}%</span>
-      </div>`;
+  const ultimaActualizacion = todas.map(f=>f.actualizadoEn).sort().pop();
+  const valorCelda = v => v==null ? '<span style="color:var(--muted);font-style:italic">—</span>' : `${v}%`;
+  const tablaDeSala = filas => renderTablaEstiloDatosHTML('Invernadero', ['Principal','Lateral'],
+    filas.map(f=>({etiqueta:f.inv, valores:[valorCelda(f.principal), valorCelda(f.lateralVal)]})));
+  const sala1 = todas.filter(f=>esInvSala1PantallaLive(f.inv));
+  const sala2 = todas.filter(f=>!esInvSala1PantallaLive(f.inv));
   return `
     <div style="margin-bottom:.9rem;font-size:12px;color:var(--muted)">Última actualización: ${escapar(ultimaActualizacion||'—')} · se actualiza sola cada 10 min</div>
-    <div style="border:1.5px solid var(--border);border-radius:10px;overflow:hidden">
-      <div style="display:grid;grid-template-columns:90px 1fr 1fr;gap:0;background:#e3f6fb;padding:8px 12px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;color:#0e7490">
-        <div>Invernadero</div><div>Principal</div><div>Lateral</div>
-      </div>
-      ${filas.map((f,i)=>`
-        <div style="display:grid;grid-template-columns:90px 1fr 1fr;gap:14px;align-items:center;padding:9px 12px;background:${i%2?'#fff':'#f7fbfc'};border-top:1px solid var(--border)">
-          <div style="font-size:13px;font-weight:800;color:var(--text)">${escapar(f.inv)}</div>
-          <div>${f.principal==null ? '<span style="font-size:11px;color:var(--muted);font-style:italic">—</span>' : barraHTML(f.principal)}</div>
-          <div>${barraHTML(f.lateralVal)}</div>
-        </div>`).join('')}
+    <div style="display:flex;flex-direction:column;gap:20px">
+      ${sala1.length ? `<div><div style="font-size:13px;font-weight:800;color:var(--text);margin-bottom:8px">Sala 1</div>${tablaDeSala(sala1)}</div>` : ''}
+      ${sala2.length ? `<div><div style="font-size:13px;font-weight:800;color:var(--text);margin-bottom:8px">Sala 2</div>${tablaDeSala(sala2)}</div>` : ''}
     </div>`;
 }
 
@@ -6287,20 +6317,11 @@ function renderClimaSala2CuadroLiveHTML(){
   const cuerpo = (!datos || !datos.filas?.length)
     ? `<div style="text-align:center;padding:1.5rem;color:var(--muted);font-style:italic;font-size:13px">Todavía no hay datos — el script local (synopta-sync) aún no ha subido ningún CSV.</div>`
     : `<div style="overflow-x:auto">
-        <table style="border-collapse:collapse;width:100%;font-size:12px">
-          <tr style="background:#e3f6fb">
-            <th style="padding:6px 10px;text-align:left;font-size:10px;font-weight:800;text-transform:uppercase;color:#0e7490;position:sticky;left:0;background:#e3f6fb;white-space:nowrap">Magnitud</th>
-            ${datos.invIds.map(id=>`<th style="padding:6px 10px;font-size:11px;font-weight:800;color:#0e7490;white-space:nowrap">INV ${escapar(id)}</th>`).join('')}
-          </tr>
-          ${datos.filas.map((f,i)=>`
-            <tr style="background:${i%2?'#fff':'#f7fbfc'}">
-              <td style="padding:6px 10px;font-weight:700;color:var(--text);white-space:nowrap;position:sticky;left:0;background:${i%2?'#fff':'#f7fbfc'};border-top:1px solid var(--border)">${escapar(f.etiqueta)}</td>
-              ${f.valores.map(v=>`<td style="padding:6px 10px;text-align:center;color:var(--text);white-space:nowrap;border-top:1px solid var(--border)">${escapar(v)||'—'}</td>`).join('')}
-            </tr>`).join('')}
-        </table>
+        ${renderTablaEstiloDatosHTML('Magnitud', datos.invIds.map(id=>'INV '+id),
+          datos.filas.map(f=>({etiqueta:f.etiqueta, valores:f.valores.map(v=>escapar(v)||'—')})))}
       </div>`;
   return `
-    <div id="clima-sala2-cuadro-live-wrap" style="margin-bottom:1.5rem;border:1.5px solid var(--border);border-radius:10px;padding:12px;background:#fff">
+    <div id="clima-sala2-cuadro-live-wrap" style="margin-bottom:1.5rem">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px">
         <div style="font-size:13px;font-weight:800;color:#0e7490">📡 Datos en vivo (Synopta) ${datos ? '· '+escapar(datos.actualizadoEn) : ''}</div>
         <button onclick="actualizarClimaSala2CuadroLive()" style="padding:5px 12px;font-size:11px;font-weight:700;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:7px;cursor:pointer;display:flex;align-items:center;gap:5px"><i class="ti ti-refresh" style="font-size:12px"></i> Actualizar</button>
