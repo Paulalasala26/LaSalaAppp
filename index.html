@@ -5874,7 +5874,51 @@ const CLIMA_CUADROS = [
   {key:'cuadroSala1', label:'Cuadro Sala1', icon:'ti-dashboard', color:'linear-gradient(135deg,#f5a35c,#f0715c)', sala:'sala1'},
   {key:'cuadroSala2', label:'Cuadro Sala2', icon:'ti-dashboard', color:'linear-gradient(135deg,#a32020,#d9432f)', sala:'sala2'}
 ];
-const CLIMA_SECCIONES = [...CLIMA_TIPOS_GRID, ...CLIMA_CUADROS];
+// "Pantallas en vivo" — a petición de Paula, 2026-08-11: un script local
+// (fuera de la app, ver O:\COMUN\Vigueras\Paula\synopta-sync\) lee cada 10
+// minutos el CSV que exporta el ordenador de clima Synopta (HortiMax) y sube
+// el % real de cada pantalla a esta clave. Es un dato POR INVERNADERO
+// ENTERO (no por calle ni por día, a diferencia de Pantallas/Fog/Cooling),
+// así que se muestra como un cuadro simple (mismo espíritu que Cuadro
+// Sala1/Sala2), no como cuadrícula.
+const CLIMA_PANTALLAS_LIVE = {key:'pantallasLive', label:'Pantallas en vivo', icon:'ti-antenna-bars-5', color:'linear-gradient(135deg,#0e7490,#22b8cf)', live:true};
+const CLIMA_SECCIONES = [...CLIMA_TIPOS_GRID, CLIMA_PANTALLAS_LIVE, ...CLIMA_CUADROS];
+const CLIMA_PANTALLAS_LIVE_KEY = 'lasala-clima-pantallas-live-v1';
+let climaPantallasLiveData = {};
+async function loadClimaPantallasLiveData(){
+  try{ const r = await window.storage.get(CLIMA_PANTALLAS_LIVE_KEY); if(r) climaPantallasLiveData = JSON.parse(r.value); }catch(e){}
+}
+async function actualizarClimaPantallasLive(){
+  await loadClimaPantallasLiveData();
+  const wrap = document.getElementById('clima-pantallas-live-wrap');
+  if(wrap) wrap.innerHTML = renderClimaPantallasLiveHTML();
+}
+// "Pantalla 10a" → INV, "P.Lateral 15" → Lateral — para agrupar visualmente
+// las dos filas de un mismo invernadero (que llegan sueltas del CSV) y
+// ordenar por nombre de invernadero, no alfabéticamente por "P."/"Pantalla".
+function parsearNombrePantallaLive(nombre){
+  const lateral = /^P\.\s*Lateral\s+/i.test(nombre);
+  const inv = nombre.replace(/^P\.\s*Lateral\s+/i, '').replace(/^Pantalla\s+/i, '').trim();
+  return {inv, lateral};
+}
+function renderClimaPantallasLiveHTML(){
+  const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const filas = Object.entries(climaPantallasLiveData).map(([nombre, d])=>({nombre, ...parsearNombrePantallaLive(nombre), valor:d.valor, actualizadoEn:d.actualizadoEn}));
+  filas.sort((a,b)=> a.inv.localeCompare(b.inv, undefined, {numeric:true}) || (a.lateral?1:0)-(b.lateral?1:0));
+  const ultimaActualizacion = filas.map(f=>f.actualizadoEn).sort().pop();
+  if(!filas.length){
+    return `<div style="text-align:center;padding:2rem;color:var(--muted);font-style:italic;font-size:13px">Todavía no hay datos — el script local (synopta-sync) aún no ha subido ningún CSV.</div>`;
+  }
+  return `
+    <div style="margin-bottom:.75rem;font-size:12px;color:var(--muted)">Última actualización: ${escapar(ultimaActualizacion||'—')} · se actualiza sola cada 10 min</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px">
+      ${filas.map(f=>`
+        <div style="background:${f.lateral?'#e3f6fb':'#0e7490'};color:${f.lateral?'#0e7490':'#fff'};border-radius:10px;padding:.7rem .9rem;border:${f.lateral?'1.5px solid #a8dbe8':'none'}">
+          <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;opacity:.85">${f.lateral?'Lateral ':''}${escapar(f.inv)}</div>
+          <div style="font-size:22px;font-weight:800;margin-top:2px">${f.valor}%</div>
+        </div>`).join('')}
+    </div>`;
+}
 
 // climaData[tipo][invId][dia][calle] = texto — un tipo por cada una de
 // Pantallas/Fog/Cooling, misma forma simple (string) que fitoData.
@@ -5930,7 +5974,7 @@ let climaGridInvSel = null; // invernadero elegido dentro de un tipo con cuadrí
 let climaQuincenaOffset = 0;
 let climaEditContextoOriginal = null; // {tipo,invId,dia,calles} — al editar una celda ya marcada
 function showClimaModule(){
-  Promise.all([loadClimaData(), loadClimaCuadroData(), loadPresenciaData()]).then(()=>{
+  Promise.all([loadClimaData(), loadClimaCuadroData(), loadPresenciaData(), loadClimaPantallasLiveData()]).then(()=>{
     climaSeccion = null; climaGridInvSel = null;
     const overlay = getOrCreateOverlay('clima-overlay');
     overlay.style.padding = '0';
@@ -5991,6 +6035,12 @@ function renderClimaResumenHTML(){
 function renderClimaSeccionHTML(seccion){
   if(!seccion) return '';
   if(seccion.sala) return renderClimaCuadroHTML(seccion);
+  if(seccion.live) return `
+    <div style="margin-bottom:1.25rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+      <h2 style="font-size:22px;font-weight:800;color:var(--text)">${seccion.label}</h2>
+      <button onclick="actualizarClimaPantallasLive()" style="padding:7px 14px;font-size:12px;font-weight:700;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:7px;cursor:pointer;display:flex;align-items:center;gap:5px"><i class="ti ti-refresh" style="font-size:14px"></i> Actualizar</button>
+    </div>
+    <div id="clima-pantallas-live-wrap">${renderClimaPantallasLiveHTML()}</div>`;
   return `
     <div style="margin-bottom:1.25rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
       <h2 style="font-size:22px;font-weight:800;color:var(--text)">${seccion.label}</h2>
