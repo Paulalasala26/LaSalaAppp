@@ -10306,7 +10306,11 @@ function parsearTrabajoDeTexto(texto){
     if(TRABAJO_TIPOS.includes(parte)){ tokens.push(parte); return; }
     // Un horario suelto (no pegado a ningún texto) solo puede ser el horario
     // de Trabajo — los horarios de riego siempre van pegados a su agua/
-    // abono/fito, nunca sueltos como parte propia.
+    // abono/fito, nunca sueltos como parte propia. El "?" (propuesta
+    // inminente sin confirmar) también está en RIEGO_HORARIOS pero NUNCA es
+    // un horario real de Trabajo — a petición de Paula, 2026-08-11: no debe
+    // aparecer como horario en las tareas de peón.
+    if(parte==='?') return;
     if((RIEGO_HORARIOS.includes(parte) || TRABAJO_HORARIOS.includes(parte))){ horarioTrabajo = parte; return; }
     // Cualquier otra cosa (agua/abono/fito con su horario ya incrustado) no
     // es de trabajo — se ignora, igual que hace parsearAguaAbonoDeTexto con
