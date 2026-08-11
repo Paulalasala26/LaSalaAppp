@@ -10908,6 +10908,19 @@ const FITO_CALDO_OPCIONES = [
   {label:'50L CUBA DE RUEDAS', litros:50},
   {label:'75L CUBA DE RUEDAS', litros:75},
   {label:'100L CUBA DE RUEDAS', litros:100},
+  // "100L" sin cuba de ruedas, a petición de Paula 2026-08-11 ("ya está
+  // 100LT cuba de ruedas, pero quiero otro sin cuba de ruedas"). El valor
+  // 100.01 (en vez de 100 exacto) es deliberado: en toda la app, cada opción
+  // de caldo se identifica buscando por su número de litros
+  // (`FITO_CALDO_OPCIONES.find(o=>o.litros===caldoLitros)`, usado en más de
+  // 10 sitios para reconstruir la etiqueta al imprimir/editar/mostrar
+  // historial) — si este "100L" llano compartiera el mismo 100 que "100L
+  // CUBA DE RUEDAS", esa búsqueda sería ambigua y siempre devolvería la
+  // primera de las dos, mostrando mal una de ellas en toda la app. La
+  // etiqueta ("100L", sin decimales) es lo único que se ve siempre — el
+  // 0.01 solo importa para las matemáticas internas de la mezcla, un error
+  // de un 0,01% en la dosis, invisible en la práctica.
+  {label:'100L', litros:100.01},
   {label:'150L', litros:150},
   {label:'200L', litros:200},
   {label:'250L', litros:250},
