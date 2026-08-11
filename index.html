@@ -5812,19 +5812,16 @@ function editarEspecificoPartidaBanner(partidaId, idx){
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const overlay = getOrCreateOverlay('especifico-banner-editar-overlay');
   overlay.style.zIndex = 2300;
-  // Rango de días para el selector (a petición de Paula, 2026-08-11:
-  // "que se le pueda cambiar el día") — 3 quincenas alrededor de la actual,
-  // para poder mover el registro a un día pasado o futuro cercano; se
-  // preselecciona el día cuyo ISO coincide con e.fechaISO si aparece en el
-  // rango, o si no, se añade suelto al final para no perderlo de la vista.
-  const diasRango = [...new Set([
-    ...riegoQuincenaDias(Math.max(0,especificosQuincenaOffset-1)),
-    ...riegoQuincenaDias(especificosQuincenaOffset),
-    ...riegoQuincenaDias(especificosQuincenaOffset+1)
-  ])].sort((a,b)=>a-b);
+  // Rango de días para el selector (a petición de Paula, 2026-08-11: "que
+  // deje cambiar el día a 2 días de atrás y al actual, no que aparezca otro
+  // mes") — solo hoy y los 2 días anteriores; si el registro ya estaba en
+  // un día fuera de ese rango, se añade suelto al principio para no
+  // perderlo de la vista (sigue seleccionado tal cual hasta que se cambie).
+  const hoy = riegoDiaDeHoy();
+  const diasRango = [hoy-2, hoy-1, hoy];
   if(!diasRango.some(d=>fechaLocalISO(riegoDiaToDate(d))===e.fechaISO)){
     const diaActual = [...Array(400)].map((_,i)=>i).find(d=>fechaLocalISO(riegoDiaToDate(d))===e.fechaISO);
-    if(diaActual!=null) diasRango.push(diaActual);
+    if(diaActual!=null) diasRango.unshift(diaActual);
   }
   overlay.innerHTML = `
     <div style="background:#fff;border-radius:14px;max-width:340px;width:100%;padding:1.5rem;box-shadow:0 8px 40px rgba(0,0,0,.3)">
