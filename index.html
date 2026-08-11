@@ -10260,8 +10260,8 @@ function invernaderoCompletoLabel(invId){
 function fusionarCallesTarea(existentes, nuevas){
   if(!existentes) return nuevas;
   if(!nuevas) return existentes;
-  if(/\(INV completo\)$/.test(existentes)) return existentes;
-  if(/\(INV completo\)$/.test(nuevas)) return nuevas;
+  if(/\(INV completo\)$/.test(existentes) || existentes==='ENTERO') return existentes;
+  if(/\(INV completo\)$/.test(nuevas) || nuevas==='ENTERO') return nuevas;
   const partes = [...new Set([...existentes.split(', '), ...nuevas.split(', ')])];
   return partes.join(', ');
 }
@@ -10342,8 +10342,7 @@ async function generarTareasDesdeRiego(){
         const {titulo, horario} = parsearTrabajoDeTexto(br.text);
         if(!titulo) return;
         const tituloExpandido = expandirAbreviaturasRiego(titulo);
-        const ordenadas = br.calles.slice().sort((a,b)=>a-b);
-        const callesLabel = formatRangoConInv(invId, ordenadas[0], ordenadas[ordenadas.length-1]);
+        const callesLabel = formatCallesConEnteroParaImprimir(invId, br.calles);
         const fechaISO = fechaLocalISO(riegoDiaToDate(dia));
         const existente = tareasData.find(t=>t.asignadoA==='PEON1' && !t.categoria && t.inv===invId && t.fechaISO===fechaISO && t.titulo===tituloExpandido);
         if(existente){
