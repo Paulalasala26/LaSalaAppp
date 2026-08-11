@@ -5901,21 +5901,57 @@ function parsearNombrePantallaLive(nombre){
   const inv = nombre.replace(/^P\.\s*Lateral\s+/i, '').replace(/^Pantalla\s+/i, '').trim();
   return {inv, lateral};
 }
+// Ordena "0a-0b" antes de "3a", "10a" antes de "15", etc. — por el primer
+// número que aparezca en el nombre, y dentro del mismo número por la letra
+// (a antes de b).
+function clavesOrdenPantallaLive(inv){
+  const m = /^(\d+)([a-z]?)/i.exec(inv);
+  return m ? [parseInt(m[1],10), m[2].toLowerCase()] : [9999, inv];
+}
+// A petición de Paula, 2026-08-11: "organiza pantallas en vivo mucho mejor,
+// más ordenado y simple de ver" — antes eran tarjetas sueltas, una por cada
+// fila del CSV (principal y lateral por separado, sin relación visual entre
+// ellas, sin orden numérico real). Ahora es UNA fila por invernadero, con su
+// Principal y su Lateral juntos y una barrita de color para ver el % de un
+// vistazo sin tener que leer el número.
 function renderClimaPantallasLiveHTML(){
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const filas = Object.entries(climaPantallasLiveData).map(([nombre, d])=>({nombre, ...parsearNombrePantallaLive(nombre), valor:d.valor, actualizadoEn:d.actualizadoEn}));
-  filas.sort((a,b)=> a.inv.localeCompare(b.inv, undefined, {numeric:true}) || (a.lateral?1:0)-(b.lateral?1:0));
+  const porInv = {};
+  Object.entries(climaPantallasLiveData).forEach(([nombre, d])=>{
+    const {inv, lateral} = parsearNombrePantallaLive(nombre);
+    if(!porInv[inv]) porInv[inv] = {inv, principal:null, lateralVal:null, actualizadoEn:d.actualizadoEn};
+    if(lateral) porInv[inv].lateralVal = d.valor; else porInv[inv].principal = d.valor;
+    if(d.actualizadoEn) porInv[inv].actualizadoEn = d.actualizadoEn;
+  });
+  const filas = Object.values(porInv);
+  filas.sort((a,b)=>{
+    const ca = clavesOrdenPantallaLive(a.inv), cb = clavesOrdenPantallaLive(b.inv);
+    return ca[0]-cb[0] || (ca[1]>cb[1]?1:ca[1]<cb[1]?-1:0);
+  });
   const ultimaActualizacion = filas.map(f=>f.actualizadoEn).sort().pop();
   if(!filas.length){
     return `<div style="text-align:center;padding:2rem;color:var(--muted);font-style:italic;font-size:13px">Todavía no hay datos — el script local (synopta-sync) aún no ha subido ningún CSV.</div>`;
   }
+  // Barra de color simple: 0% verde (abierta) → 100% rojo (cerrada), para
+  // reconocer el estado de un vistazo sin tener que leer el número.
+  const colorPct = v => `hsl(${Math.round(130 - (Math.max(0,Math.min(100,v))/100)*130)},65%,42%)`;
+  const barraHTML = (v, esLateral) => v==null
+    ? `<span style="font-size:11px;color:var(--muted);font-style:italic">— sin lateral</span>`
+    : `<div style="display:flex;align-items:center;gap:8px">
+        <div style="flex:1;height:8px;border-radius:999px;background:#e6e6e6;overflow:hidden"><div style="height:100%;width:${v}%;background:${colorPct(v)}"></div></div>
+        <span style="font-size:13px;font-weight:800;color:var(--text);width:38px;text-align:right">${v}%</span>
+      </div>`;
   return `
-    <div style="margin-bottom:.75rem;font-size:12px;color:var(--muted)">Última actualización: ${escapar(ultimaActualizacion||'—')} · se actualiza sola cada 10 min</div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px">
-      ${filas.map(f=>`
-        <div style="background:${f.lateral?'#e3f6fb':'#0e7490'};color:${f.lateral?'#0e7490':'#fff'};border-radius:10px;padding:.7rem .9rem;border:${f.lateral?'1.5px solid #a8dbe8':'none'}">
-          <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;opacity:.85">${f.lateral?'Lateral ':''}${escapar(f.inv)}</div>
-          <div style="font-size:22px;font-weight:800;margin-top:2px">${f.valor}%</div>
+    <div style="margin-bottom:.9rem;font-size:12px;color:var(--muted)">Última actualización: ${escapar(ultimaActualizacion||'—')} · se actualiza sola cada 10 min</div>
+    <div style="border:1.5px solid var(--border);border-radius:10px;overflow:hidden">
+      <div style="display:grid;grid-template-columns:90px 1fr 1fr;gap:0;background:#e3f6fb;padding:8px 12px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;color:#0e7490">
+        <div>Invernadero</div><div>Principal</div><div>Lateral</div>
+      </div>
+      ${filas.map((f,i)=>`
+        <div style="display:grid;grid-template-columns:90px 1fr 1fr;gap:14px;align-items:center;padding:9px 12px;background:${i%2?'#fff':'#f7fbfc'};border-top:1px solid var(--border)">
+          <div style="font-size:13px;font-weight:800;color:var(--text)">${escapar(f.inv)}</div>
+          <div>${f.principal==null ? '<span style="font-size:11px;color:var(--muted);font-style:italic">—</span>' : barraHTML(f.principal)}</div>
+          <div>${barraHTML(f.lateralVal)}</div>
         </div>`).join('')}
     </div>`;
 }
