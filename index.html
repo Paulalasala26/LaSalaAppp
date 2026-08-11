@@ -5914,11 +5914,14 @@ function renderTablaEstiloDatosHTML(etiquetaCabecera, columnas, filas){
         </tr>
         ${filas.map((f,i)=>`
           <tr style="background:${i%2?'#fff':'#eef3f6'}">
-            <td style="padding:8px 12px;font-weight:700;color:var(--text);white-space:nowrap;position:sticky;left:0;background:${i%2?'#fff':'#eef3f6'};display:flex;align-items:center;gap:8px">
+            <td style="padding:10px 14px;font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;position:sticky;left:0;background:${i%2?'#fff':'#eef3f6'};display:flex;align-items:center;gap:8px">
               <span style="width:9px;height:9px;border-radius:50%;background:${colorDegradadoTabla(i,filas.length)};flex-shrink:0;display:inline-block"></span>
               ${escapar(f.etiqueta)}
             </td>
-            ${f.valores.map(v=>`<td style="padding:8px 12px;text-align:center;color:var(--text);white-space:nowrap">${v}</td>`).join('')}
+            ${f.valores.map(v=>{
+              const esPositivo = f.resaltarPositivo && parseFloat(String(v).replace(',','.').replace('%',''))>0;
+              return `<td style="padding:10px 14px;text-align:center;font-size:15px;color:${esPositivo?'#0b6b2c':'var(--text)'};font-weight:${esPositivo?800:600};white-space:nowrap;background:${esPositivo?'#c6f2d3':'transparent'}">${v}</td>`;
+            }).join('')}
           </tr>`).join('')}
       </table>
     </div>`;
@@ -5975,7 +5978,7 @@ function renderClimaPantallasLiveHTML(){
   const ultimaActualizacion = todas.map(f=>f.actualizadoEn).sort().pop();
   const valorCelda = v => v==null ? '<span style="color:var(--muted);font-style:italic">—</span>' : `${v}%`;
   const tablaDeSala = filas => renderTablaEstiloDatosHTML('Invernadero', ['Principal','Lateral'],
-    filas.map(f=>({etiqueta:f.inv, valores:[valorCelda(f.principal), valorCelda(f.lateralVal)]})));
+    filas.map(f=>({etiqueta:f.inv, resaltarPositivo:true, valores:[valorCelda(f.principal), valorCelda(f.lateralVal)]})));
   const sala1 = todas.filter(f=>esInvSala1PantallaLive(f.inv));
   const sala2 = todas.filter(f=>!esInvSala1PantallaLive(f.inv));
   return `
@@ -6316,9 +6319,10 @@ function renderClimaSala2CuadroLiveHTML(){
   const datos = climaSala2CuadroLiveData;
   const cuerpo = (!datos || !datos.filas?.length)
     ? `<div style="text-align:center;padding:1.5rem;color:var(--muted);font-style:italic;font-size:13px">Todavía no hay datos — el script local (synopta-sync) aún no ha subido ningún CSV.</div>`
-    : `<div style="overflow-x:auto">
+    : `<div style="font-size:11px;color:var(--muted);margin-bottom:6px"><i class="ti ti-arrows-horizontal"></i> Desliza a los lados para ver los ${datos.invIds.length} invernaderos</div>
+      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
         ${renderTablaEstiloDatosHTML('Magnitud', datos.invIds.map(id=>'INV '+id),
-          datos.filas.map(f=>({etiqueta:f.etiqueta, valores:f.valores.map(v=>escapar(v)||'—')})))}
+          datos.filas.map(f=>({etiqueta:f.etiqueta, resaltarPositivo:/pantalla/i.test(f.etiqueta), valores:f.valores.map(v=>escapar(v)||'—')})))}
       </div>`;
   return `
     <div id="clima-sala2-cuadro-live-wrap" style="margin-bottom:1.5rem">
