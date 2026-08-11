@@ -10341,6 +10341,17 @@ async function generarTareasDesdeRiego(){
       detectBrackets(invId, dia, allCalles).forEach(br=>{
         const {titulo, horario} = parsearTrabajoDeTexto(br.text);
         if(!titulo) return;
+        // Las fumigaciones foliares (FUMI CON AF/K.MIX/S) siempre se hacen a
+        // primera hora — a petición de Paula, 2026-08-11: NO deben heredar
+        // el horario suelto que hubiera en el bracket (ese horario es de
+        // cualquier otro trabajo real que compartiera texto, no de la fumi),
+        // así nunca se separan en hojas distintas por horario; solo se
+        // separan si cambia el invernadero/cuba o el producto (título). Un
+        // bracket "solo fumi" (todos sus tokens son FUMI CON ...) fuerza
+        // horario=''; uno mixto (ej. "PP + FUMI CON...") conserva el horario
+        // real del otro trabajo, porque ahí sí es un único trabajo combinado.
+        const esSoloFumi = titulo.split(' + ').every(p=>/^FUMI CON /i.test(p.trim()));
+        const horarioFinal = esSoloFumi ? '' : horario;
         const tituloExpandido = expandirAbreviaturasRiego(titulo);
         const callesLabel = formatCallesConEnteroParaImprimir(invId, br.calles);
         const fechaISO = fechaLocalISO(riegoDiaToDate(dia));
@@ -10349,8 +10360,11 @@ async function generarTareasDesdeRiego(){
         // las 12:00 en otro) — a petición de Paula, 2026-08-11: deben quedar
         // en tareas/hojas separadas, no fusionarse en una sola. Se compara
         // horario||'' para que dos tramos SIN horario (ambos '') sí sigan
-        // fusionándose como antes.
-        const existente = tareasData.find(t=>t.asignadoA==='PEON1' && !t.categoria && t.inv===invId && t.fechaISO===fechaISO && t.titulo===tituloExpandido && (t.horario||'')===(horario||''));
+        // fusionándose como antes (esto también hace que las fumis, con
+        // horarioFinal siempre '', se sigan fusionando/agrupando entre sí
+        // por título+invernadero+cuba en imprimirTareas, sin que el horario
+        // real de otro trabajo las separe).
+        const existente = tareasData.find(t=>t.asignadoA==='PEON1' && !t.categoria && t.inv===invId && t.fechaISO===fechaISO && t.titulo===tituloExpandido && (t.horario||'')===(horarioFinal||''));
         if(existente){
           existente.calles = fusionarCallesTarea(existente.calles, callesLabel);
         } else {
@@ -10358,7 +10372,7 @@ async function generarTareasDesdeRiego(){
             id: 'tarea_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
             titulo: tituloExpandido, descripcion:'', asignadoA:'PEON1', asignadoPor: currentUser||'—',
             inv: invId, calles: callesLabel, fecha: riegoDiaLabelCorto(dia), fechaISO, turno:'',
-            horario: horario||'',
+            horario: horarioFinal||'',
             prioridad:'normal', estado:'pendiente', horaInicio:null, horaFin:null, firmante:null,
             visto:false, creadoEn: new Date().toLocaleString('es-ES')
           });
