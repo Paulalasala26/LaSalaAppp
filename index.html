@@ -168,10 +168,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
           <i class="ti ti-clipboard-list" style="font-size:26px;opacity:.9"></i>
           <div style="font-size:14px;font-weight:700;margin-top:12px">Tareas</div>
         </div>
-        <div class="home-shortcut-card" onclick="handleQuickAction('especificos')" style="background:linear-gradient(135deg,#1a5c2e,#3fa864);color:#fff;border-radius:14px;padding:1.4rem 1.25rem">
-          <i class="ti ti-target-arrow" style="font-size:26px;opacity:.9"></i>
-          <div style="font-size:14px;font-weight:700;margin-top:12px">Espec&#237;ficos</div>
-        </div>
         <div class="home-shortcut-card" onclick="handleQuickAction('clima')" style="background:linear-gradient(135deg,#0e7490,#22b8cf);color:#fff;border-radius:14px;padding:1.4rem 1.25rem">
           <i class="ti ti-cloud" style="font-size:26px;opacity:.9"></i>
           <div style="font-size:14px;font-weight:700;margin-top:12px">Clima</div>
@@ -186,7 +182,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
         </div>
         <div class="home-shortcut-card" onclick="handleQuickAction('partidas')" style="background:linear-gradient(135deg,#0f5c4a,#1a9c78);color:#fff;border-radius:14px;padding:1.4rem 1.25rem">
           <i class="ti ti-layout-grid" style="font-size:26px;opacity:.9"></i>
-          <div style="font-size:14px;font-weight:700;margin-top:12px">Partidas</div>
+          <div style="font-size:14px;font-weight:700;margin-top:12px">Partidas y Espec&#237;ficos</div>
         </div>
       </div>
     </div>
@@ -5297,7 +5293,7 @@ let partidasSalaSel = 'sala1';
 // selectRiegoInv/data-rinv) y solo se pinta el mapa de ESE invernadero.
 let partidasInvSel = null;
 function showPartidasModule(){
-  Promise.all([loadControlChecksData()]).then(()=>{
+  Promise.all([loadControlChecksData(), loadEspecificosPartidaData()]).then(()=>{
     const overlay = getOrCreateOverlay('partidas-overlay');
     overlay.style.padding = '0';
     partidaSeleccionadaParaMover = null;
@@ -5348,12 +5344,14 @@ function renderPartidasMapaContent(overlay){
     <div style="background:#f2f4f0;width:100vw;height:100vh;max-width:100vw;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.3)">
       <div style="background:linear-gradient(135deg,#0f5c4a,#1a9c78);color:#fff;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;flex-wrap:wrap;gap:10px">
         <div style="font-size:17px;font-weight:800;display:flex;align-items:center;gap:8px">
-          <i class="ti ti-layout-grid" style="font-size:20px"></i> Partidas — mapa de calles
+          <i class="ti ti-layout-grid" style="font-size:20px"></i> Partidas y Específicos
         </div>
-        <div style="display:flex;gap:6px">
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
           <button onclick="seleccionarSalaPartidas('sala1')" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:800;border:1.5px solid rgba(255,255,255,.4);cursor:pointer;background:${partidasSalaSel==='sala1'?'#fff':'transparent'};color:${partidasSalaSel==='sala1'?'#0f5c4a':'#fff'}">Sala 1</button>
           <button onclick="seleccionarSalaPartidas('sala2')" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:800;border:1.5px solid rgba(255,255,255,.4);cursor:pointer;background:${partidasSalaSel==='sala2'?'#fff':'transparent'};color:${partidasSalaSel==='sala2'?'#0f5c4a':'#fff'}">Sala 2</button>
           ${sincronizarPartidasBtnHTML()}
+          <button onclick="showEspecificoManualForm()" title="Añadir un específico sin entrar a un invernadero" style="padding:8px 14px;border-radius:8px;font-size:12px;font-weight:800;background:rgba(255,255,255,.2);color:#fff;border:none;cursor:pointer;display:flex;align-items:center;gap:5px"><i class="ti ti-plus" style="font-size:14px"></i> Añadir Específico</button>
+          <button onclick="showEspecificosModule()" title="Cuadrícula día×calle, resumen de quincena e impresión" style="padding:8px 14px;border-radius:8px;font-size:12px;font-weight:800;background:rgba(255,255,255,.2);color:#fff;border:none;cursor:pointer;display:flex;align-items:center;gap:5px"><i class="ti ti-table" style="font-size:14px"></i> Cuadrícula / Resumen</button>
           <button onclick="document.getElementById('partidas-overlay').style.display='none'" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700;background:rgba(255,255,255,.15);color:#fff;border:none;cursor:pointer">✕ Cerrar</button>
         </div>
       </div>
@@ -5427,6 +5425,13 @@ function sortKeyPartida(entry){
 // otra calle o otro invernadero — no hace falta acertar el botón ⇄ pequeño
 // en el destino, basta tocar la partida o el hueco donde se quiera soltar.
 let partidaSeleccionadaParaMover = null;
+// Modo "Añadir Específico aquí" (fusión Partidas+Específicos, 2026-08-11):
+// mientras está activo, tocar una tarjeta de partida la marca/desmarca para
+// aplicarle un específico en bloque, en vez de moverla — ver
+// toggleModoEspecificoPartidas/togglePartidaEnSeleccionEspecifico y la barra
+// flotante en renderPartidasInvHTML.
+let partidasEspecificoModo = false;
+let partidasEspecificoSeleccion = new Set();
 // 2026-08-06: "siguen sin poder cambiarse las partidas de sitio entre
 // ellas". Dos fallos reales encontrados a la vez:
 // 1) El intercambio solo cambiaba el orden interno (posManual), NUNCA la
@@ -5608,6 +5613,32 @@ function renderPartidasBloqueHTML(bloque){
   // de los intercambios era la selección que no se borraba entre pantallas
   // (ver seleccionarInvPartidas/seleccionarSalaPartidas); el tocar-y-tocar
   // sigue funcionando igual, esto es un método adicional, no un sustituto.
+  // Modo "Añadir Específico aquí" (fusión Partidas+Específicos, 2026-08-11):
+  // tocar la tarjeta marca/desmarca en vez de mover, y se ocultan los botones
+  // de mover/separar/eliminar para no confundir gestos mientras se elige.
+  const enSeleccionEspecifico = partidasEspecificoSeleccion.has(c.id);
+  if(partidasEspecificoModo){
+    return `
+      <div onclick="togglePartidaEnSeleccionEspecifico('${c.id}')"
+        style="height:100%;padding:4px 6px;background:${enSeleccionEspecifico?'#c6f2d3':bgBloque};border:2px solid ${enSeleccionEspecifico?'#1a5c2e':borderBloque};border-radius:6px;font-size:10px;line-height:1.35;position:relative;overflow:hidden;cursor:pointer">
+        <div style="position:absolute;top:2px;right:2px;width:16px;height:16px;border-radius:4px;background:${enSeleccionEspecifico?'#1a5c2e':'#fff'};border:1.5px solid ${enSeleccionEspecifico?'#1a5c2e':'#a5d6c2'};color:#fff;font-size:11px;line-height:15px;text-align:center">${enSeleccionEspecifico?'✓':''}</div>
+        <div style="font-weight:800;color:#0f5c4a;padding-right:20px">${escapar(c.partida)||'—'}</div>
+        <div style="color:var(--text);font-weight:600">${escapar(c.clienteVariedad)||''}</div>
+        <div style="color:var(--muted);display:flex;gap:5px;flex-wrap:wrap;margin-top:1px">
+          ${stLabel ? `<span title="Salida de Túnel">${stLabel}</span>` : ''}
+          ${c.fentrega ? `<span>📅 ${escapar(c.fentrega)}</span>` : ''}
+          ${tipoPlanta ? `<span style="font-weight:700;color:#0f5c4a">${escapar(tipoPlanta)}</span>` : ''}
+        </div>
+      </div>`;
+  }
+  // Banner(s) de específicos aplicados a esta partida (se apilan, uno por
+  // cada específico aplicado con el tiempo — a petición de Paula) — leídos
+  // de especificosPartidaData[c.id], independiente de especificosData (que
+  // guarda por invId/día/calle, no por partida).
+  const especificosBanners = (especificosPartidaData[c.id]||[]).map(e=>`
+    <div style="margin-top:3px;padding:2px 5px;background:#ffd6e7;border-radius:4px;font-size:9px;font-weight:800;color:#000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+      "${escapar(e.trat)}" "${escapar(e.dosis)}" - "${escapar(e.fechaLabel)}"
+    </div>`).join('');
   return `
     <div draggable="true" ondragstart="iniciarArrastrePartida('${c.id}')" ondragover="event.preventDefault()" ondrop="event.preventDefault();clicPartidaEnMapa('${c.id}')" onclick="clicPartidaEnMapa('${c.id}')"
       style="height:100%;padding:4px 6px;background:${bgBloque};border:1.5px solid ${borderBloque};border-radius:6px;font-size:10px;line-height:1.35;position:relative;overflow:hidden;cursor:grab">
@@ -5621,7 +5652,103 @@ function renderPartidasBloqueHTML(bloque){
         ${c.fentrega ? `<span>📅 ${escapar(c.fentrega)}</span>` : ''}
         ${tipoPlanta ? `<span style="font-weight:700;color:#0f5c4a">${escapar(tipoPlanta)}</span>` : ''}
       </div>
+      ${especificosBanners}
     </div>`;
+}
+// Calles reales de una partida (mismo cálculo que ya usa
+// calcularBloquesPartidasInv/mostrarHistorialPartida para tramos o
+// calleDesde/calleHasta) — reutilizado para aplicar un específico
+// automáticamente sin pedir tramo de calles a mano.
+function callesDePartidaEntry(c){
+  const tramos = (c.tramos && c.tramos.length) ? c.tramos : [{desde:c.calleDesde, hasta:c.calleHasta}];
+  const calles = [];
+  tramos.forEach(t=>{
+    if(t.desde==null) return;
+    const desde = Math.min(t.desde, t.hasta==null?t.desde:t.hasta);
+    const hasta = Math.max(t.desde, t.hasta==null?t.desde:t.hasta);
+    for(let x=desde; x<=hasta; x++) calles.push(x);
+  });
+  return calles;
+}
+// Mini-ficha para aplicar un específico a las partidas ya seleccionadas en
+// el mapa (fusión Partidas+Específicos, 2026-08-11) — mismos campos que
+// showEspecificoManualForm (Día/Tratamiento/Dosis/Horario/Caldo) pero sin
+// selector de invernadero ni tramos: las calles se calculan solas por
+// partida (callesDePartidaEntry), no hace falta elegirlas a mano.
+function abrirAplicarEspecificoAPartidas(){
+  const overlay = getOrCreateOverlay('especifico-por-partidas-overlay');
+  overlay.style.zIndex = 2200;
+  const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const diasQ = riegoQuincenaDias(especificosQuincenaOffset);
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:14px;max-width:380px;width:100%;padding:1.5rem;box-shadow:0 8px 40px rgba(0,0,0,.3)">
+      <div style="font-size:15px;font-weight:800;margin-bottom:4px">🧪 Aplicar Específico</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:14px">A ${partidasEspecificoSeleccion.size} partida${partidasEspecificoSeleccion.size===1?'':'s'} seleccionada${partidasEspecificoSeleccion.size===1?'':'s'} — las calles se calculan solas.</div>
+      <label style="font-size:11px;font-weight:700;color:var(--muted)">Día</label>
+      <select id="eap-dia" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;margin:4px 0 10px">
+        ${diasQ.map(d=>`<option value="${d}">${escapar(riegoDiaLabelCorto(d))} — ${escapar(riegoDiaSemana(d))}</option>`).join('')}
+      </select>
+      <label style="font-size:11px;font-weight:700;color:var(--muted)">Tratamiento</label>
+      <select id="eap-trat" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;margin:4px 0 10px">
+        <option value="">—</option>
+        ${ESPECIFICO_TRATAMIENTOS.map(t=>`<option value="${t}">${t}</option>`).join('')}
+      </select>
+      <label style="font-size:11px;font-weight:700;color:var(--muted)">Dosis</label>
+      <select id="eap-dosis" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;margin:4px 0 10px">
+        <option value="">—</option>
+        ${ESPECIFICO_DOSIS.map(d=>`<option value="${d}">${d}</option>`).join('')}
+      </select>
+      <label style="font-size:11px;font-weight:700;color:var(--muted)">Horario</label>
+      <select id="eap-horario" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;margin:4px 0 10px">
+        <option value="">—</option>
+        ${ESPECIFICO_HORARIOS.map(h=>`<option value="${h}">${h}</option>`).join('')}
+      </select>
+      <label style="font-size:11px;font-weight:700;color:var(--muted)">Caldo inicial</label>
+      <select id="eap-caldo" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;margin:4px 0 14px">
+        <option value="">—</option>
+        ${FITO_CALDO_OPCIONES.map(o=>`<option value="${o.litros}">${o.label}</option>`).join('')}
+      </select>
+      <div style="display:flex;justify-content:flex-end;gap:10px">
+        <button onclick="document.getElementById('especifico-por-partidas-overlay').style.display='none'" style="padding:9px 16px;font-size:12px;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:7px;cursor:pointer">Cancelar</button>
+        <button onclick="aplicarEspecificoAPartidasSeleccionadas()" style="padding:9px 18px;font-size:12px;font-weight:800;background:#2e7d32;color:#fff;border:none;border-radius:7px;cursor:pointer">Aplicar</button>
+      </div>
+    </div>`;
+  overlay.style.display = 'flex';
+}
+async function aplicarEspecificoAPartidasSeleccionadas(){
+  const dia = parseInt(document.getElementById('eap-dia').value);
+  const trat = document.getElementById('eap-trat').value || '';
+  const dosis = document.getElementById('eap-dosis').value || '';
+  const horario = document.getElementById('eap-horario').value || '';
+  const caldoLitros = parseFloat(document.getElementById('eap-caldo').value) || null;
+  if(!trat || !dosis){ showToast('Elige al menos tratamiento y dosis'); return; }
+  const caldoLabel = caldoLitros ? ((FITO_CALDO_OPCIONES.find(o=>o.litros===caldoLitros)||{}).label || `${caldoLitros}L`) : '';
+  const gastoLabel = (dosis && caldoLitros) ? `${Math.round(parseFloat(dosis)*caldoLitros*100)/100}cc` : '';
+  const tratDosis = [trat, dosis].filter(Boolean).join(' ');
+  const texto = [tratDosis, horario].filter(Boolean).join(' + ');
+  const fechaLabel = riegoDiaLabelCorto(dia);
+  const fechaISO = fechaLocalISO(riegoDiaToDate(dia));
+  const ids = [...partidasEspecificoSeleccion];
+  for(const id of ids){
+    const c = controlChecksData.find(x=>x.id===id);
+    if(!c || !c.invId) continue;
+    const calles = callesDePartidaEntry(c);
+    if(!calles.length) continue;
+    const layout = INV_LAYOUT[c.invId];
+    const allCalles = layout ? [...layout.row1, ...layout.row2] : calles;
+    calles.forEach(calle=>{ if(allCalles.includes(calle)) setEspecifico(c.invId, dia, calle, texto, {caldoLitros, caldoLabel}); });
+    const callesLabel = formatCallesConEnteroParaImprimir(c.invId, calles);
+    await autoAsignarTareaEspecifico(c.invId, dia, callesLabel, tratDosis, horario, '', {producto:trat, dosis, caldoLabel, gastoLabel});
+    if(!especificosPartidaData[id]) especificosPartidaData[id] = [];
+    especificosPartidaData[id].push({trat, dosis, horario, fechaLabel, fechaISO});
+  }
+  await saveEspecificosData();
+  await saveEspecificosPartidaData();
+  document.getElementById('especifico-por-partidas-overlay').style.display = 'none';
+  partidasEspecificoModo = false;
+  partidasEspecificoSeleccion = new Set();
+  showToast(`✓ Específico aplicado a ${ids.length} partida${ids.length===1?'':'s'}`);
+  renderPartidasMapaContent(document.getElementById('partidas-overlay'));
 }
 function iniciarArrastrePartida(id){
   partidaSeleccionadaParaMover = id;
@@ -5725,7 +5852,13 @@ function renderPartidasInvHTML(invId){
   </div>`;
   return `
     <div style="margin-bottom:2rem">
-      <div style="font-size:14px;font-weight:800;color:var(--text);margin-bottom:8px">${layout.label}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;flex-wrap:wrap">
+        <div style="font-size:14px;font-weight:800;color:var(--text)">${layout.label}</div>
+        <button onclick="toggleModoEspecificoPartidas()" style="padding:6px 12px;font-size:11px;font-weight:800;border-radius:7px;cursor:pointer;border:1.5px solid ${partidasEspecificoModo?'#a32020':'#3fa864'};background:${partidasEspecificoModo?'#fdecea':'#eafaf0'};color:${partidasEspecificoModo?'#a32020':'#1a5c2e'}">
+          ${partidasEspecificoModo ? '✕ Cancelar selección' : '🧪 Añadir Específico aquí'}
+        </button>
+      </div>
+      ${partidasEspecificoModo ? `<div style="margin-bottom:8px;font-size:12px;font-weight:700;color:#1a5c2e;background:#eafaf0;border:1px solid #a5d6c2;border-radius:8px;padding:8px 12px">Toca las partidas a las que quieras aplicar el específico.</div>` : ''}
       <div style="overflow-x:auto;border:1px solid var(--border);border-radius:10px;background:#fff;padding:8px">
         ${hdrHTML(layout.row1)}
         <div style="min-width:${layout.row1.length*CW}px">${buildSection(layout.row1, true)}</div>
@@ -5733,7 +5866,22 @@ function renderPartidasInvHTML(invId){
         <div style="min-width:${layout.row2.length*CW}px">${buildSection(layout.row2, false)}</div>
         ${hdrHTML(layout.row2)}
       </div>
-    </div>`;
+    </div>
+    ${partidasEspecificoModo && partidasEspecificoSeleccion.size>0 ? `
+      <div style="position:fixed;left:0;right:0;bottom:0;background:#0f5c4a;color:#fff;padding:.8rem 1.25rem;display:flex;justify-content:space-between;align-items:center;gap:10px;box-shadow:0 -4px 20px rgba(0,0,0,.25);z-index:50">
+        <span style="font-size:13px;font-weight:800">${partidasEspecificoSeleccion.size} partida${partidasEspecificoSeleccion.size===1?'':'s'} seleccionada${partidasEspecificoSeleccion.size===1?'':'s'}</span>
+        <button onclick="abrirAplicarEspecificoAPartidas()" style="padding:9px 18px;font-size:12px;font-weight:800;background:#fff;color:#0f5c4a;border:none;border-radius:8px;cursor:pointer">Aplicar específico →</button>
+      </div>` : ''}`;
+}
+function toggleModoEspecificoPartidas(){
+  partidasEspecificoModo = !partidasEspecificoModo;
+  partidasEspecificoSeleccion = new Set();
+  renderPartidasMapaContent(document.getElementById('partidas-overlay'));
+}
+function togglePartidaEnSeleccionEspecifico(id){
+  if(partidasEspecificoSeleccion.has(id)) partidasEspecificoSeleccion.delete(id);
+  else partidasEspecificoSeleccion.add(id);
+  renderPartidasMapaContent(document.getElementById('partidas-overlay'));
 }
 // A petición de Paula (2026-08-05): pulsar una partida en el mapa debe
 // mostrar todo su historial (riegos, plaguicidas, específicos y el propio
@@ -11781,6 +11929,24 @@ function imprimirHojaFitosanitario(){
 // ════════════════════════════════════════════════════════════════
 const ESPECIFICOS_KEY = 'lasala-especificos-v1';
 let especificosData = {}; // especificosData[invId][dia][calle] = texto
+// Banner rosa en la tarjeta de Partidas (fusión Partidas+Específicos,
+// 2026-08-11): especificosPartidaData[partidaEntryId] = [{trat,dosis,
+// horario,fechaLabel,fechaISO}, ...] — independiente de especificosData
+// (que va por invId/día/calle, no por partida), se apila un registro por
+// cada específico aplicado desde el mapa de Partidas con el tiempo.
+const ESPECIFICOS_PARTIDA_KEY = 'lasala-especificos-partida-v1';
+let especificosPartidaData = {};
+async function loadEspecificosPartidaData(){
+  try{const r=await window.storage.get(ESPECIFICOS_PARTIDA_KEY);if(r)especificosPartidaData=JSON.parse(r.value);}catch(e){}
+}
+async function saveEspecificosPartidaData(){
+  try{
+    const r = await window.storage.get(ESPECIFICOS_PARTIDA_KEY);
+    const cloud = r ? JSON.parse(r.value) : {};
+    especificosPartidaData = mergeDeepPreferLocal(cloud, especificosPartidaData);
+    await window.storage.set(ESPECIFICOS_PARTIDA_KEY, JSON.stringify(especificosPartidaData));
+  }catch(e){}
+}
 let especificosInvSel = null;
 let especificosQuincenaOffset = 0;
 const ESPECIFICO_TRATAMIENTOS = ['TC','MB','PP'];
