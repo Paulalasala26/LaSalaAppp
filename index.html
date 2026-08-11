@@ -5236,7 +5236,14 @@ function changePartidasSemana(delta){
 // va en función de su fecha de entrada (salida de túnel) y su fecha de
 // salida que es una vez se le ha realizado el parte de carga".
 function fechaCargaRealDePartida(c){
-  const cargas = controlChecksData.filter(x=>x.tipo==='carga' && x.partida===c.partida && x.invernadero===c.invId);
+  // Bug real corregido 2026-08-10: `x.invernadero` (línea de Carga) NO es el
+  // invId de la app — viene del PDF con formato "nn-lado-tramo" (ver
+  // [[lasala_control_carga_filtro_invernadero]]), así que comparar contra
+  // `c.invId` nunca coincidía y esta función siempre devolvía null, aunque
+  // la partida SÍ tuviera parte de carga real. Se empareja solo por número
+  // de partida (mismo criterio ya usado en calleTramoDeCarga/
+  // calleAsignadaParaPartida).
+  const cargas = controlChecksData.filter(x=>x.tipo==='carga' && x.partida===c.partida);
   if(!cargas.length) return null;
   return riegoDiaToDate(Math.min(...cargas.map(x=>x.dia)));
 }
