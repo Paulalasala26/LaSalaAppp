@@ -5745,6 +5745,27 @@ async function mostrarHistorialPartida(id){
       <div style="font-size:12px;color:var(--text)">C/${escapar(ev.calle)} — ${escapar(ev.texto)}</div>
     </div>`).join('') : `<div style="text-align:center;padding:2rem;color:var(--muted);font-style:italic;font-size:13px">Sin riegos, plaguicidas ni específicos registrados en sus calles desde que entró.</div>`;
   const tipoPlanta = detectarTipoPlantaPartida(c.clienteVariedad);
+  // A petición de Paula, 2026-08-10: "quiero que se vea toda la información
+  // que exista" del check de entrada (Túnel, esta misma línea `c`) y del de
+  // salida (Carga, si ya se le ha hecho parte) — antes solo se veía la
+  // observación del Túnel, ninguna de las categorías marcadas (Color/
+  // Tamaño/Sanidad/Flores/Raíces) ni nada de Carga.
+  const resumenCategoriasHTML = ch => CONTROL_CHECK_CATEGORIAS.map(cat=>{
+    const marcadas = cat.opciones.filter(o=>ch[cat.key]?.[o.key]).map(o=>o.label);
+    if(!marcadas.length) return '';
+    let extra = '';
+    if(cat.key==='sanidad' && ch.sanidad?.enferma && ch.sanidadEnfermedades){
+      const enf = SANIDAD_ENFERMEDADES.filter(e=>ch.sanidadEnfermedades[e.key]).map(e=>e.label);
+      if(enf.length) extra = ' — '+enf.join(', ');
+    }
+    return `<span style="font-size:11px;font-weight:700;background:#f0f4f8;color:#1558a0;border-radius:999px;padding:3px 10px;margin-right:6px;margin-bottom:6px;display:inline-block">${escapar(cat.label)}: ${escapar(marcadas.join(', ')+extra)}</span>`;
+  }).filter(Boolean).join('') || '<span style="font-style:italic;color:var(--muted);font-size:12px">Sin categorías marcadas</span>';
+  // Carga (salida): misma partida, mismo Nº de bandejas — igual criterio de
+  // desambiguación que calleTramoDeCarga (ver [[lasala_control_carga_filtro_invernadero]]),
+  // porque una partida puede tener varias líneas de Carga en invernaderos
+  // distintos con el mismo número de partida.
+  const cargaSalida = controlChecksData.find(x=>x.tipo==='carga' && x.partida===c.partida && x.numBandejas===c.numBandejas)
+    || controlChecksData.find(x=>x.tipo==='carga' && x.partida===c.partida);
   const mo = getOrCreateOverlay('partidas-historial-overlay');
   mo.innerHTML = `
     <div style="background:#fff;border-radius:14px;max-width:640px;width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.3)">
@@ -5754,10 +5775,20 @@ async function mostrarHistorialPartida(id){
         <div style="font-size:11px;opacity:.85;margin-top:2px">${c.fentrega?`📅 Entrega ${escapar(c.fentrega)} · `:''}INV ${escapar(c.invId)||'—'} · Día 1 (salida de Túnel): ${escapar(riegoDiaLabelCorto(diaDesde))}</div>
       </div>
       <div style="padding:1.25rem 1.5rem">
-        <div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Check de Túnel</div>
+        <div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Check de entrada (Túnel) — ${escapar(riegoDiaLabelCorto(c.dia))}${c.numBandejas?' · Nº bandejas: '+escapar(c.numBandejas):''}</div>
+        <div style="margin-bottom:6px">${resumenCategoriasHTML(c)}</div>
         <div style="font-size:12px;color:var(--text);margin-bottom:1.25rem">
           ${c.observaciones ? escapar(c.observaciones) : '<span style="font-style:italic;color:var(--muted)">Sin observaciones</span>'}
         </div>
+        <div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Check de salida (Carga)${cargaSalida?' — '+escapar(riegoDiaLabelCorto(cargaSalida.dia)):''}</div>
+        ${cargaSalida ? `
+        <div style="font-size:12px;color:var(--text);margin-bottom:6px">
+          ${cargaSalida.cliente?`<b>Cliente:</b> ${escapar(cargaSalida.cliente)} · `:''}${cargaSalida.variedad?`<b>Variedad:</b> ${escapar(cargaSalida.variedad)}`:''}${cargaSalida.numBandejas?` · <b>Nº bandejas:</b> ${escapar(cargaSalida.numBandejas)}`:''}
+        </div>
+        <div style="margin-bottom:6px">${resumenCategoriasHTML(cargaSalida)}</div>
+        <div style="font-size:12px;color:var(--text);margin-bottom:1.25rem">
+          ${cargaSalida.observaciones ? escapar(cargaSalida.observaciones) : '<span style="font-style:italic;color:var(--muted)">Sin observaciones</span>'}
+        </div>` : `<div style="font-size:12px;color:var(--muted);font-style:italic;margin-bottom:1.25rem">Todavía no tiene parte de carga.</div>`}
         <div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Historial de riegos, plaguicidas y específicos</div>
         ${eventosHTML}
       </div>
