@@ -12823,12 +12823,20 @@ function resolverPartidaPorObsEspecifico(invId, calles, obs){
   if(!obs || !calles.length) return null;
   const bloques = calcularBloquesPartidasInv(invId).filter(b=>b.calles.some(c=>calles.includes(c)));
   if(!bloques.length) return null;
-  const txt = obs.toUpperCase();
-  if(/PRIMERA\s+PARTIDA/.test(txt)) return bloques.reduce((a,b)=>b.pos>a.pos?b:a).entry;
-  if(/[UÚ]LTIMA\s+PARTIDA/.test(txt)) return bloques.reduce((a,b)=>b.pos<a.pos?b:a).entry;
-  const numMatch = txt.match(/\d{3,}/);
-  if(numMatch){
-    const encontrado = bloques.find(b=>String(b.entry.partida||'').toUpperCase().includes(numMatch[0]));
+  // Coincidencia EXACTA con toda la observación (no solo "contiene") — a
+  // petición de Paula, "SI PONE: X" se entiende como "si la nota ES X", no
+  // "si X aparece en algún sitio de una nota más larga". Confirmado con
+  // datos reales: notas como "PARTIDA 859 NO! RESTO SI!" mencionan un
+  // número de partida para EXCLUIRLA, justo lo contrario de asociarla — con
+  // coincidencia exacta esa nota (y cualquier otra con texto añadido) no
+  // dispara ninguna regla, evitando asociar partidas al revés de lo que
+  // dice la nota.
+  const txt = obs.trim().toUpperCase();
+  if(/^PRIMERA\s+PARTIDA$/.test(txt)) return bloques.reduce((a,b)=>b.pos>a.pos?b:a).entry;
+  if(/^[UÚ]LTIMA\s+PARTIDA$/.test(txt)) return bloques.reduce((a,b)=>b.pos<a.pos?b:a).entry;
+  const mNum = /^PARTIDA\s+(\d{3,})$/.exec(txt);
+  if(mNum){
+    const encontrado = bloques.find(b=>String(b.entry.partida||'').toUpperCase().includes(mNum[1]));
     if(encontrado) return encontrado.entry;
   }
   return null;
