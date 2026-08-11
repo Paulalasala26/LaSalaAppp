@@ -3807,6 +3807,35 @@ async function sincronizarControlManual(){
   await procesarColaOffline();
   renderControlContent(document.getElementById('control-overlay'));
 }
+// Mismo botón "Guardar/Sincronizar" que ya tiene Control, pero para
+// Partidas — a petición de Paula, 2026-08-11 ("quiero un botón para
+// guardar los cambios realizados de calles... en el apartado de
+// Partidas"). Los intercambios/movimientos de partidas ya se guardan solos
+// en cuanto se hacen (optimista + cola offline, ver
+// ACCIONES_OFFLINE_REPLAYABLES), así que este botón no "guarda algo
+// pendiente sin guardar" — fuerza un reintento inmediato de la cola offline
+// global (misma cola que usa Control/Riego/etc.) para los casos en que un
+// guardado se quedó pendiente por falta de conexión, en vez de esperar al
+// evento 'online' o a volver a abrir el módulo.
+function sincronizarPartidasBtnHTML(){
+  const pendientes = leerColaOffline().length;
+  return `
+    <button onclick="sincronizarPartidasManual()" title="Guardar/forzar sincronización con la nube" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:800;border:1.5px solid ${pendientes>0?'transparent':'rgba(255,255,255,.4)'};cursor:pointer;background:${pendientes>0?'#c47f00':'transparent'};color:#fff;display:flex;align-items:center;gap:6px">
+      <i class="ti ti-device-floppy" style="font-size:14px"></i> Guardar${pendientes>0?` (${pendientes})`:''}
+    </button>`;
+}
+async function sincronizarPartidasManual(){
+  if(sincronizacionEnCurso){
+    showToast('Ya se está sincronizando, espera un momento...');
+    return;
+  }
+  if(!leerColaOffline().length){
+    showToast('✓ No hay cambios pendientes — todo guardado');
+    return;
+  }
+  await procesarColaOffline();
+  renderPartidasMapaContent(document.getElementById('partidas-overlay'));
+}
 function desencolarAccionOriginal(accion){
   const cola = leerColaOffline();
   const idx = accion.qid
@@ -5324,6 +5353,7 @@ function renderPartidasMapaContent(overlay){
         <div style="display:flex;gap:6px">
           <button onclick="seleccionarSalaPartidas('sala1')" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:800;border:1.5px solid rgba(255,255,255,.4);cursor:pointer;background:${partidasSalaSel==='sala1'?'#fff':'transparent'};color:${partidasSalaSel==='sala1'?'#0f5c4a':'#fff'}">Sala 1</button>
           <button onclick="seleccionarSalaPartidas('sala2')" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:800;border:1.5px solid rgba(255,255,255,.4);cursor:pointer;background:${partidasSalaSel==='sala2'?'#fff':'transparent'};color:${partidasSalaSel==='sala2'?'#0f5c4a':'#fff'}">Sala 2</button>
+          ${sincronizarPartidasBtnHTML()}
           <button onclick="document.getElementById('partidas-overlay').style.display='none'" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700;background:rgba(255,255,255,.15);color:#fff;border:none;cursor:pointer">✕ Cerrar</button>
         </div>
       </div>
