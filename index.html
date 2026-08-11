@@ -10344,10 +10344,15 @@ async function generarTareasDesdeRiego(){
         const tituloExpandido = expandirAbreviaturasRiego(titulo);
         const callesLabel = formatCallesConEnteroParaImprimir(invId, br.calles);
         const fechaISO = fechaLocalISO(riegoDiaToDate(dia));
-        const existente = tareasData.find(t=>t.asignadoA==='PEON1' && !t.categoria && t.inv===invId && t.fechaISO===fechaISO && t.titulo===tituloExpandido);
+        // Mismo invernadero+día+título pero horario DISTINTO no es el mismo
+        // trabajo real (ej. "Puntas de pasillo" a las 8:00 en un tramo y a
+        // las 12:00 en otro) — a petición de Paula, 2026-08-11: deben quedar
+        // en tareas/hojas separadas, no fusionarse en una sola. Se compara
+        // horario||'' para que dos tramos SIN horario (ambos '') sí sigan
+        // fusionándose como antes.
+        const existente = tareasData.find(t=>t.asignadoA==='PEON1' && !t.categoria && t.inv===invId && t.fechaISO===fechaISO && t.titulo===tituloExpandido && (t.horario||'')===(horario||''));
         if(existente){
           existente.calles = fusionarCallesTarea(existente.calles, callesLabel);
-          if(!existente.horario && horario) existente.horario = horario;
         } else {
           tareasData.push({
             id: 'tarea_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
