@@ -5686,8 +5686,8 @@ function renderPartidasBloqueHTML(bloque){
   // cada específico aplicado con el tiempo — a petición de Paula) — leídos
   // de especificosPartidaData[c.id], independiente de especificosData (que
   // guarda por invId/día/calle, no por partida).
-  const especificosBanners = (especificosPartidaData[c.id]||[]).map(e=>`
-    <div style="margin-top:2px;padding:3px 5px 4px;border-radius:0 0 5px 5px;background:linear-gradient(to top, #ffc2dd, ${bgBloque});font-size:10px;line-height:1.3;font-weight:600;color:var(--text);white-space:normal;word-break:break-word">
+  const especificosBanners = (especificosPartidaData[c.id]||[]).map((e,idx)=>`
+    <div onclick="event.stopPropagation();editarEspecificoPartidaBanner('${c.id}',${idx})" title="Tocar para editar" style="margin-top:2px;padding:3px 5px 4px;border-radius:0 0 5px 5px;background:linear-gradient(to top, #ffc2dd, ${bgBloque});font-size:10px;line-height:1.3;font-weight:600;color:var(--text);white-space:normal;word-break:break-word;cursor:pointer">
       ${escapar(e.trat)} ${escapar(e.dosis)} · ${escapar(e.fechaLabel)}
     </div>`).join('');
   return `
@@ -5800,6 +5800,61 @@ async function aplicarEspecificoAPartidasSeleccionadas(){
   partidasEspecificoSeleccion = new Set();
   showToast(`✓ Específico aplicado a ${ids.length} partida${ids.length===1?'':'s'}`);
   renderPartidasMapaContent(document.getElementById('partidas-overlay'));
+}
+// Editar/eliminar un banner de específico ya aplicado a una partida (a
+// petición de Paula, 2026-08-11: "al pincharle se debe de poder editar") —
+// edita el propio registro de especificosPartidaData (la anotación visual),
+// no vuelve a tocar las calles de especificosData.
+function editarEspecificoPartidaBanner(partidaId, idx){
+  const registros = especificosPartidaData[partidaId];
+  if(!registros || !registros[idx]) return;
+  const e = registros[idx];
+  const overlay = getOrCreateOverlay('especifico-banner-editar-overlay');
+  overlay.style.zIndex = 2300;
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:14px;max-width:340px;width:100%;padding:1.5rem;box-shadow:0 8px 40px rgba(0,0,0,.3)">
+      <div style="font-size:15px;font-weight:800;margin-bottom:14px">✏️ Editar Específico</div>
+      <label style="font-size:11px;font-weight:700;color:var(--muted)">Tratamiento</label>
+      <select id="eeb-trat" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;margin:4px 0 10px">
+        ${ESPECIFICO_TRATAMIENTOS.map(t=>`<option value="${t}"${t===e.trat?' selected':''}>${t}</option>`).join('')}
+      </select>
+      <label style="font-size:11px;font-weight:700;color:var(--muted)">Dosis</label>
+      <select id="eeb-dosis" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;margin:4px 0 10px">
+        ${ESPECIFICO_DOSIS.map(d=>`<option value="${d}"${d===e.dosis?' selected':''}>${d}</option>`).join('')}
+      </select>
+      <label style="font-size:11px;font-weight:700;color:var(--muted)">Horario</label>
+      <select id="eeb-horario" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;margin:4px 0 14px">
+        <option value=""${!e.horario?' selected':''}>—</option>
+        ${ESPECIFICO_HORARIOS.map(h=>`<option value="${h}"${h===e.horario?' selected':''}>${h}</option>`).join('')}
+      </select>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+        <button onclick="borrarEspecificoPartidaBanner('${partidaId}',${idx})" style="padding:9px 14px;font-size:12px;font-weight:800;background:#fdecea;color:#c62828;border:1px solid #f0b0b0;border-radius:7px;cursor:pointer">🗑️ Eliminar</button>
+        <div style="display:flex;gap:8px">
+          <button onclick="document.getElementById('especifico-banner-editar-overlay').style.display='none'" style="padding:9px 16px;font-size:12px;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:7px;cursor:pointer">Cancelar</button>
+          <button onclick="guardarEspecificoPartidaBanner('${partidaId}',${idx})" style="padding:9px 18px;font-size:12px;font-weight:800;background:#2e7d32;color:#fff;border:none;border-radius:7px;cursor:pointer">Guardar</button>
+        </div>
+      </div>
+    </div>`;
+  overlay.style.display = 'flex';
+}
+function guardarEspecificoPartidaBanner(partidaId, idx){
+  const registros = especificosPartidaData[partidaId];
+  if(!registros || !registros[idx]) return;
+  registros[idx].trat = document.getElementById('eeb-trat').value;
+  registros[idx].dosis = document.getElementById('eeb-dosis').value;
+  registros[idx].horario = document.getElementById('eeb-horario').value;
+  saveEspecificosPartidaData();
+  document.getElementById('especifico-banner-editar-overlay').style.display = 'none';
+  renderPartidasMapaContent(document.getElementById('partidas-overlay'));
+  showToast('✓ Específico actualizado');
+}
+function borrarEspecificoPartidaBanner(partidaId, idx){
+  if(!confirm('¿Eliminar este específico de la partida?')) return;
+  especificosPartidaData[partidaId].splice(idx,1);
+  saveEspecificosPartidaData();
+  document.getElementById('especifico-banner-editar-overlay').style.display = 'none';
+  renderPartidasMapaContent(document.getElementById('partidas-overlay'));
+  showToast('✓ Eliminado');
 }
 function iniciarArrastrePartida(id){
   partidaSeleccionadaParaMover = id;
@@ -11717,6 +11772,19 @@ function borrarFitoManual(){
   if(fitoInvSel) renderFitoGrid(fitoInvSel);
 }
 
+// Regla de Paula, 2026-08-11: si una calle de un invernadero ya lleva un
+// Específico (cualquier día, no solo el que se esté aplicando ahora en
+// Plaguicidas), esa calle no puede recibir Plaguicidas — se bloquea el alta
+// entera y se avisa, sin aplicar nada.
+function calleTieneEspecifico(invId, calle){
+  const porDia = especificosData[invId];
+  if(!porDia) return false;
+  return Object.values(porDia).some(porCalle=>{
+    const v = porCalle[calle];
+    if(v==null) return false;
+    return typeof v==='string' ? v.trim()!=='' : !!(v.texto && v.texto.trim());
+  });
+}
 async function saveFitoManual(){
   const dia   = parseInt(document.getElementById('fm-dia').value);
   const trat  = document.getElementById('fm-trat').value.trim();
@@ -11735,6 +11803,21 @@ async function saveFitoManual(){
   const bulkInvIds = leerInvernaderosBulkSeleccionados('fm');
   if(!bulkInvIds.length){ showToast('Elige al menos un invernadero'); return; }
   const porInv = bulkInvIds.map(invId=>({ invId, ...calcularCallesFmBulk(invId) }));
+  // Bloqueo por Específico existente (a petición de Paula, 2026-08-11): se
+  // comprueba ANTES de tocar nada — si cualquier calle de este alta ya lleva
+  // un Específico (en cualquier día), se cancela el alta entera.
+  if(!Object.keys(especificosData).length) await loadEspecificosData();
+  for(const {invId, calles, tramos} of porInv){
+    const callesAComprobar = tramos ? tramos.flatMap(({desde,hasta})=>{
+      const s=Math.min(desde,hasta), e=Math.max(desde,hasta), arr=[];
+      for(let c=s;c<=e;c++) arr.push(c);
+      return arr;
+    }) : calles;
+    if(callesAComprobar.some(c=>calleTieneEspecifico(invId,c))){
+      showToast('❌ No se puede aplicar Plaguicidas debido a un específico existente');
+      return;
+    }
+  }
   // Si se estaba editando un tratamiento ya existente (doble clic) y el
   // nuevo tramo se ha reducido, o se ha cambiado de día, las calles que
   // quedan fuera deben quedar vacías — si no, seguían mostrando el
