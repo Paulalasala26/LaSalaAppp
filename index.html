@@ -4778,6 +4778,22 @@ async function autoCrearLineasDesdePdfControlCarga(dia, pdfB64){
 // las partidas cuyo código empieza por dígitos seguidos de X y/o F (26X,
 // 26F...) — el resto de líneas del PDF se ignoran.
 // ════════════════════════════════════════════════════════════════
+// La fecha de extensión (1ª columna del PDF) ES la Salida de Túnel de esa
+// partida (a petición de Paula, 2026-08-11) — se usa para fijar c.dia (el
+// campo que ya usa el mapa de Partidas para el badge "ST:d/m", ver
+// renderPartidasBloqueHTML). Conversión inversa de riegoDiaToDate: esa
+// función hace `RIEGO_ANCHOR_DATE + (dia-15) días`, así que aquí se cuentan
+// los días de diferencia con el ancla y se le suma 15.
+function fechaExtensionADiaRiego(fechaTexto){
+  const m = /^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/.exec((fechaTexto||'').trim());
+  if(!m) return null;
+  let [_, d, mo, y] = m;
+  if(y.length===2) y = '20'+y;
+  const fecha = new Date(+y, +mo-1, +d);
+  if(isNaN(fecha.getTime())) return null;
+  const diffDias = Math.round((fecha - RIEGO_ANCHOR_DATE) / 86400000);
+  return 15 + diffDias;
+}
 function parseExtensionesPdf(lineas){
   const PARTIDA_RE = /^\d+[XF]+\d{3,6}$/i;
   const FECHA_RE = /^\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}$/;
@@ -4825,7 +4841,13 @@ async function handleExtensionesPdfInput(input){
     for(const r of registros){
       const coincidencias = controlChecksData.filter(c=>c.tipo==='tunel' && c.partida===r.partida);
       if(!coincidencias.length){ sinEncontrar++; continue; }
+      const diaExtension = fechaExtensionADiaRiego(r.fecha);
       for(const c of coincidencias){
+        // La fecha de extensión ES su Salida de Túnel (a petición de Paula) —
+        // se fija en el propio objeto ANTES de llamar a
+        // aplicarAsignarCalleControl, que es quien persiste de verdad; así el
+        // guardado de invId/tramos y el de "dia" van en la misma escritura.
+        if(diaExtension!=null) c.dia = diaExtension;
         await aplicarAsignarCalleControl(c.id, r.invId, [{desde:r.calleDesde, hasta:r.calleHasta}]);
         asignadas++;
       }
