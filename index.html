@@ -5386,7 +5386,20 @@ function renderPartidasMapaContent(overlay){
       </div>
     </div>`;
   const wrapNuevo = overlay.querySelector('#partidas-content-wrap');
-  if(wrapNuevo) wrapNuevo.scrollTop = scrollTopAnterior;
+  // A petición de Paula, 2026-08-11: "al mover partidas me devuelve arriba"
+  // — el ajuste síncrono de scrollTop (ya hecho justo aquí) no siempre
+  // "cuaja" porque el navegador aún no ha terminado de calcular la altura
+  // real del contenido nuevo en ese mismo instante (más notable en móvil).
+  // Se refuerza con un doble requestAnimationFrame (espera a que el
+  // navegador termine el layout Y el primer repintado) que vuelve a fijarlo
+  // — sin quitar el ajuste síncrono, que sigue cubriendo el caso normal.
+  if(wrapNuevo){
+    wrapNuevo.scrollTop = scrollTopAnterior;
+    requestAnimationFrame(()=>{
+      wrapNuevo.scrollTop = scrollTopAnterior;
+      requestAnimationFrame(()=>{ wrapNuevo.scrollTop = scrollTopAnterior; });
+    });
+  }
 }
 // Detecta 2HV/3HV/4HV/150/150 BIO/104/104 BIO buscando esos códigos sueltos
 // dentro del texto de Variedad — mismo sitio de donde ya se lee 2HV/3HV/4HV
