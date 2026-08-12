@@ -4429,6 +4429,11 @@ function renderControlChecklistHTML(seccion){
         <button onclick="${seccion.key==='carga'?'mostrarFormNuevoControlCargaCheck()':`mostrarFormNuevoControlCheck('${seccion.key}')`}" class="btn-elevado" style="padding:9px 16px;font-size:12px;font-weight:700;background:#2e7d32;color:#fff;border:none;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;gap:6px">
           <i class="ti ti-plus" style="font-size:14px"></i> Añadir línea
         </button>
+        ${seccion.key==='tunel' ? `
+        <label style="padding:9px 16px;font-size:12px;font-weight:700;background:#5c8df0;color:#fff;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;gap:6px">
+          <i class="ti ti-file-upload" style="font-size:14px"></i> Añadir extensiones
+          <input type="file" accept="application/pdf" style="display:none" onchange="handleExtensionesPdfInput(this)">
+        </label>` : ''}
       </div>
     </div>
 
@@ -4759,6 +4764,80 @@ async function autoCrearLineasDesdePdfControlCarga(dia, pdfB64){
     console.error('Error leyendo PDF de Carga:', e);
     return -1;
   }
+}
+// ════════════════════════════════════════════════════════════════
+// "AÑADIR EXTENSIONES" en Check Túnel — a petición EXPLÍCITA de Paula,
+// 2026-08-11 (la única excepción admitida a "no tocar Check Túnel", ver
+// [[lasala_control_tunel_intocable]]): un PDF con 5 columnas (fecha de
+// extensión, nº partida, invernadero, calle inicio, calle final) que
+// asigna/actualiza AUTOMÁTICAMENTE la calle real de partidas YA EXISTENTES
+// en Túnel (busca por nº de partida, tipo:'tunel') — NO crea líneas nuevas,
+// solo actualiza su ubicación, reutilizando tal cual la función ya probada
+// aplicarAsignarCalleControl (el mismo camino que usa el modal manual
+// "Asignar calle") para no arriesgar nada del resto de Túnel. Solo cuentan
+// las partidas cuyo código empieza por dígitos seguidos de X y/o F (26X,
+// 26F...) — el resto de líneas del PDF se ignoran.
+// ════════════════════════════════════════════════════════════════
+function parseExtensionesPdf(lineas){
+  const PARTIDA_RE = /^\d+[XF]+\d{3,6}$/i;
+  const FECHA_RE = /^\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}$/;
+  const invsValidos = ALL_INV_IDS_SALA1.concat(ALL_INV_IDS);
+  const registros = [];
+  lineas.forEach(({texto})=>{
+    if(!texto) return;
+    const tokens = texto.split(/\s+/).filter(Boolean);
+    const idxPartida = tokens.findIndex(t=>PARTIDA_RE.test(t));
+    if(idxPartida===-1) return;
+    const partida = tokens[idxPartida].toUpperCase();
+    const fecha = tokens.slice(0, idxPartida).reverse().find(t=>FECHA_RE.test(t)) || '';
+    let invId = null, calleDesde = null, calleHasta = null;
+    for(const tok of tokens.slice(idxPartida+1)){
+      if(!invId){
+        if(invsValidos.includes(tok.toUpperCase())) invId = tok.toUpperCase();
+        continue;
+      }
+      const n = parseInt(tok.replace(',', '.'), 10);
+      if(!isNaN(n)){
+        if(calleDesde==null) calleDesde = n; else if(calleHasta==null) calleHasta = n;
+      }
+    }
+    if(!invId || calleDesde==null) return;
+    if(calleHasta==null) calleHasta = calleDesde;
+    registros.push({ fecha, partida, invId, calleDesde: Math.min(calleDesde,calleHasta), calleHasta: Math.max(calleDesde,calleHasta) });
+  });
+  return registros;
+}
+async function handleExtensionesPdfInput(input){
+  if(!input.files || !input.files[0]) return;
+  const file = input.files[0];
+  try{
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const lineas = await extraerLineasControlPdf(bytes);
+    const registros = parseExtensionesPdf(lineas);
+    if(!registros.length){ showToast('No se encontraron partidas 26X/26F reconocibles en ese PDF'); input.value=''; return; }
+    await loadControlChecksData();
+    // aplicarAsignarCalleControl cierra el modal #control-calle-overlay al
+    // terminar — si nunca se abrió en esta sesión el elemento no existe
+    // todavía y esa línea lanzaría un error; se crea aquí (oculto) para que
+    // el cierre no falle al llamarla en lote desde este import.
+    getOrCreateOverlay('control-calle-overlay');
+    let asignadas = 0, sinEncontrar = 0;
+    for(const r of registros){
+      const coincidencias = controlChecksData.filter(c=>c.tipo==='tunel' && c.partida===r.partida);
+      if(!coincidencias.length){ sinEncontrar++; continue; }
+      for(const c of coincidencias){
+        await aplicarAsignarCalleControl(c.id, r.invId, [{desde:r.calleDesde, hasta:r.calleHasta}]);
+        asignadas++;
+      }
+    }
+    logHistorial(`Añadió extensiones desde PDF: ${asignadas} línea(s) de Túnel actualizadas (${registros.length} partidas leídas, ${sinEncontrar} sin encontrar)`);
+    showToast(`✓ ${asignadas} línea(s) actualizadas${sinEncontrar?` · ${sinEncontrar} partida(s) del PDF no encontradas en Túnel`:''}`);
+    renderControlContent(document.getElementById('control-overlay'));
+  }catch(e){
+    console.error('Error leyendo PDF de extensiones:', e);
+    showToast('Error al leer el PDF de extensiones');
+  }
+  input.value = '';
 }
 function renderControlCardHTML(c, seccion){
   // Carga tiene una ficha distinta (Cliente/Partida/Variedad/Nº bandejas/
