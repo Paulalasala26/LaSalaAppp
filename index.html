@@ -3554,6 +3554,142 @@ function renderConteoTutaDashboardHTML(seccion){
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px">${filasHTML}</div>
     </div>`;
 }
+// ════════════════════════════════════════════════════════════════
+// CHECK INVERNADERO — a petición de Paula, 2026-08-11: líneas sueltas con
+// número de partida, variedad, calle y cantidad de bandejas, cada una como
+// su propia tarjeta ("banner colgando"), filtrables por variedad/nº partida,
+// con un botón "Total bandejas" que suma las bandejas de lo filtrado. NO
+// comparte código ni datos con Check Túnel/Carga (ver
+// [[lasala_control_tunel_intocable]]) — es una lista plana propia, sin días
+// ni categorías de check.
+// ════════════════════════════════════════════════════════════════
+const CONTROL_INVERNADERO_KEY = 'lasala-control-invernadero-v1';
+let controlInvernaderoData = [];
+async function loadControlInvernaderoData(){
+  try{ const r = await window.storage.get(CONTROL_INVERNADERO_KEY); if(r) controlInvernaderoData = JSON.parse(r.value); }catch(e){}
+}
+async function saveControlInvernaderoData(){
+  try{
+    const r = await window.storage.get(CONTROL_INVERNADERO_KEY);
+    const cloud = r ? JSON.parse(r.value) : [];
+    const map = {};
+    cloud.forEach(l=>map[l.id]=l);
+    controlInvernaderoData.forEach(l=>map[l.id]=l);
+    controlInvernaderoData = Object.values(map);
+    await window.storage.set(CONTROL_INVERNADERO_KEY, JSON.stringify(controlInvernaderoData));
+  }catch(e){}
+}
+let controlInvernaderoFiltroVariedad = '';
+let controlInvernaderoFiltroPartida = '';
+let controlInvernaderoTotalMostrado = null;
+function cambiarControlInvernaderoFiltro(campo, valor){
+  if(campo==='variedad') controlInvernaderoFiltroVariedad = valor;
+  else controlInvernaderoFiltroPartida = valor;
+  controlInvernaderoTotalMostrado = null;
+  renderControlContent(document.getElementById('control-overlay'));
+}
+function controlInvernaderoLineasFiltradas(){
+  const v = controlInvernaderoFiltroVariedad.trim().toUpperCase();
+  const p = controlInvernaderoFiltroPartida.trim().toUpperCase();
+  return controlInvernaderoData.filter(l=>
+    (!v || String(l.variedad||'').toUpperCase().includes(v)) &&
+    (!p || String(l.partida||'').toUpperCase().includes(p))
+  );
+}
+function calcularControlInvernaderoTotal(){
+  const filtradas = controlInvernaderoLineasFiltradas();
+  controlInvernaderoTotalMostrado = filtradas.reduce((sum,l)=>sum + (parseFloat(l.bandejas)||0), 0);
+  renderControlContent(document.getElementById('control-overlay'));
+}
+function mostrarFormNuevaLineaInvernadero(){
+  const overlay = getOrCreateOverlay('control-invernadero-form-overlay');
+  overlay.style.zIndex = 2100;
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:14px;max-width:340px;width:100%;padding:1.5rem;box-shadow:0 8px 40px rgba(0,0,0,.3)">
+      <div style="font-size:15px;font-weight:800;margin-bottom:14px">➕ Nueva línea</div>
+      <label style="font-size:11px;font-weight:700;color:var(--muted)">Nº Partida</label>
+      <input id="ci-partida" type="text" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;margin:4px 0 10px">
+      <label style="font-size:11px;font-weight:700;color:var(--muted)">Variedad</label>
+      <input id="ci-variedad" type="text" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;margin:4px 0 10px">
+      <label style="font-size:11px;font-weight:700;color:var(--muted)">Calle</label>
+      <input id="ci-calle" type="text" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;margin:4px 0 10px">
+      <label style="font-size:11px;font-weight:700;color:var(--muted)">Cantidad de bandejas</label>
+      <input id="ci-bandejas" type="number" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;margin:4px 0 14px">
+      <div style="display:flex;justify-content:flex-end;gap:10px">
+        <button onclick="document.getElementById('control-invernadero-form-overlay').style.display='none'" style="padding:9px 16px;font-size:12px;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:7px;cursor:pointer">Cancelar</button>
+        <button onclick="guardarNuevaLineaInvernadero()" style="padding:9px 18px;font-size:12px;font-weight:800;background:#1a5c2e;color:#fff;border:none;border-radius:7px;cursor:pointer">Añadir</button>
+      </div>
+    </div>`;
+  overlay.style.display = 'flex';
+}
+async function guardarNuevaLineaInvernadero(){
+  const partida = document.getElementById('ci-partida').value.trim();
+  const variedad = document.getElementById('ci-variedad').value.trim();
+  const calle = document.getElementById('ci-calle').value.trim();
+  const bandejas = document.getElementById('ci-bandejas').value.trim();
+  if(!partida && !variedad && !calle && !bandejas){ showToast('Rellena al menos un campo'); return; }
+  controlInvernaderoData.push({
+    id: 'ci_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
+    partida, variedad, calle, bandejas: bandejas?parseFloat(bandejas):0,
+    creadoPor: currentUser||'—', creadoEn: new Date().toLocaleString('es-ES')
+  });
+  document.getElementById('control-invernadero-form-overlay').style.display = 'none';
+  await saveControlInvernaderoData();
+  showToast('✓ Línea añadida');
+  renderControlContent(document.getElementById('control-overlay'));
+}
+async function eliminarLineaInvernadero(id){
+  if(!confirm('¿Eliminar esta línea?')) return;
+  try{
+    const r = await window.storage.get(CONTROL_INVERNADERO_KEY);
+    const cloud = r ? JSON.parse(r.value) : [];
+    const restante = cloud.filter(l=>l.id!==id);
+    await window.storage.set(CONTROL_INVERNADERO_KEY, JSON.stringify(restante));
+    controlInvernaderoData = restante;
+  }catch(e){}
+  controlInvernaderoTotalMostrado = null;
+  renderControlContent(document.getElementById('control-overlay'));
+  showToast('✓ Eliminada');
+}
+function renderControlInvernaderoHTML(){
+  const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const filtradas = controlInvernaderoLineasFiltradas();
+  const tarjetas = filtradas.map(l=>`
+    <div style="border-radius:10px 10px 4px 4px;padding:10px 14px;background:linear-gradient(135deg,#1a5c2e,#3fa864);color:#fff;box-shadow:var(--shadow-sm);position:relative">
+      <button onclick="eliminarLineaInvernadero('${l.id}')" title="Eliminar" style="position:absolute;top:6px;right:8px;width:20px;height:20px;padding:0;background:rgba(255,255,255,.2);color:#fff;border:none;border-radius:5px;font-size:11px;cursor:pointer">🗑️</button>
+      <div style="font-size:14px;font-weight:800;padding-right:24px">${escapar(l.partida)||'—'}</div>
+      <div style="font-size:12px;font-weight:600;opacity:.95;margin-top:2px">${escapar(l.variedad)||'—'}</div>
+      <div style="display:flex;gap:12px;margin-top:6px;font-size:11px;font-weight:700;opacity:.9">
+        <span>📍 Calle ${escapar(l.calle)||'—'}</span>
+        <span>📦 ${escapar(l.bandejas)||0} bandejas</span>
+      </div>
+    </div>`).join('');
+  return `
+    <div style="margin-bottom:1.1rem;display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px">
+      <div>
+        <h2 style="font-size:22px;font-weight:800;color:var(--text);margin-bottom:4px">Check Invernadero</h2>
+        <p style="font-size:12px;color:var(--muted)">Líneas por partida — variedad, calle y bandejas.</p>
+      </div>
+      <button onclick="mostrarFormNuevaLineaInvernadero()" class="btn-elevado" style="padding:9px 16px;font-size:12px;font-weight:700;background:#1a5c2e;color:#fff;border:none;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;gap:6px">
+        <i class="ti ti-plus" style="font-size:14px"></i> Añadir
+      </button>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:1rem;background:#f2f4f0;border-radius:10px;padding:10px 12px">
+      <div>
+        <label style="font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase">Filtrar por variedad</label>
+        <input type="text" value="${escapar(controlInvernaderoFiltroVariedad)}" oninput="cambiarControlInvernaderoFiltro('variedad',this.value)" style="display:block;padding:7px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px;margin-top:3px;min-width:150px">
+      </div>
+      <div>
+        <label style="font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase">Filtrar por nº partida</label>
+        <input type="text" value="${escapar(controlInvernaderoFiltroPartida)}" oninput="cambiarControlInvernaderoFiltro('partida',this.value)" style="display:block;padding:7px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px;margin-top:3px;min-width:150px">
+      </div>
+      <button onclick="calcularControlInvernaderoTotal()" style="padding:8px 16px;font-size:12px;font-weight:800;background:#0f5c4a;color:#fff;border:none;border-radius:7px;cursor:pointer;height:34px">Total bandejas</button>
+      ${controlInvernaderoTotalMostrado!=null ? `<div style="font-size:14px;font-weight:800;color:#0f5c4a;display:flex;align-items:center">= ${controlInvernaderoTotalMostrado} bandejas (${filtradas.length} línea${filtradas.length===1?'':'s'})</div>` : ''}
+    </div>
+    ${filtradas.length===0
+      ? `<div style="text-align:center;padding:2.5rem;color:var(--muted);font-style:italic;font-size:13px">${controlInvernaderoData.length===0?'Sin líneas todavía.':'Ninguna línea coincide con el filtro.'}</div>`
+      : `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px">${tarjetas}</div>`}`;
+}
 // Categorías de checks de la hoja en papel — cada opción es un check
 // independiente (no excluyentes entre sí, igual que en el papel). Cada
 // categoría lleva su propio color/icono (a petición de Paula, 2026-07-31,
@@ -3907,7 +4043,7 @@ function showControlModule(){
   // para ver el listado de checks. Ahora el listado se pinta en cuanto están
   // listos los checks (rápido, unos pocos KB) y fotos/PDFs se cargan aparte,
   // en segundo plano, repintando cuando terminan.
-  Promise.all([loadControlChecksData(), loadConteoTutaData()]).then(()=>{
+  Promise.all([loadControlChecksData(), loadConteoTutaData(), loadControlInvernaderoData()]).then(()=>{
     controlSeccion = null;
     const overlay = getOrCreateOverlay('control-overlay');
     overlay.style.padding = '0';
@@ -3988,6 +4124,7 @@ function renderControlResumenHTML(){
 function renderControlSeccionHTML(seccion){
   if(!seccion) return '';
   if(seccion.tabla) return renderControlConteoTutaHTML(seccion);
+  if(seccion.key==='invernadero') return renderControlInvernaderoHTML();
   if(!seccion.conCheck){
     return `
       <div style="margin-bottom:1.25rem">
