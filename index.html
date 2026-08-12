@@ -66,6 +66,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .tarea-row td{border-bottom:1px solid var(--border)}
 .tarea-card{box-shadow:var(--shadow-sm);transition:transform .15s ease,box-shadow .15s ease}
 .tarea-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-md)}
+.chip-asignado{border:1.5px solid var(--border);background:#fff;color:var(--muted)}
+.chip-asignado.chip-asignado-on{border-color:var(--verde);background:var(--verde);color:#fff}
 .mant-columna{box-shadow:var(--shadow-sm)}
 .mant-tarjeta{box-shadow:0 1px 4px rgba(0,0,0,.08);transition:transform .15s ease,box-shadow .15s ease}
 .mant-tarjeta:hover{transform:translateY(-2px);box-shadow:var(--shadow-md)}
@@ -497,13 +499,13 @@ function applyRoleHomeUI(){
   avisarAvisosPendientes(currentUser);
 
   if(currentUserRole==='PEON'){
+    // Rediseño mobile-first (a petición de Paula, 2026-08-11: siempre se abre
+    // en móvil, letras grandes, muy fácil de usar) — cabecera más compacta y
+    // clara, el foco visual se lo lleva la tarjeta de la tarea actual.
     homeInner.innerHTML = `
-      <div style="margin-bottom:1.5rem;display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
-        <div>
-          <h2 style="font-size:26px;font-weight:800;color:var(--text);margin-bottom:6px">&#128203; Mis tareas</h2>
-          <p style="font-size:14px;color:var(--muted)">Aqu&#237; aparecen las tareas que te asignen. In&#237;cialas cuando empieces y f&#237;rmalas al terminar.</p>
-        </div>
-        <button onclick="pedirPermisoNotificaciones()" title="Recibir un aviso cuando te asignen una tarea nueva" style="padding:7px 12px;font-size:11px;font-weight:700;background:#f2f4f0;color:var(--muted);border:1px solid var(--border);border-radius:8px;cursor:pointer;white-space:nowrap">&#128276; Activar avisos</button>
+      <div style="margin-bottom:1.25rem;max-width:520px;margin-left:auto;margin-right:auto;display:flex;justify-content:space-between;align-items:center;gap:10px">
+        <h2 style="font-size:24px;font-weight:800;color:var(--text)">&#128203; Mis tareas</h2>
+        <button onclick="pedirPermisoNotificaciones()" title="Recibir un aviso cuando te asignen una tarea nueva" style="padding:9px 12px;font-size:18px;background:#f2f4f0;color:var(--muted);border:1px solid var(--border);border-radius:10px;cursor:pointer;line-height:1">&#128276;</button>
       </div>
       <div id="peon-tareas-inline"></div>`;
     renderPeonTareasInline();
@@ -2190,9 +2192,13 @@ function showNuevaTareaForm(){
     <div style="border:1.5px solid var(--border);border-radius:10px;padding:12px;background:#f8f9fa;margin-bottom:14px">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
         <input id="nt-titulo" type="text" placeholder="Título de la tarea" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px">
-        <select id="nt-asignado" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px">
-          ${asignables.map(u=>`<option value="${u}">${u}</option>`).join('')}
-        </select>
+        <div></div>
+      </div>
+      <div style="margin-bottom:8px">
+        <label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">Asignar a (uno o varios)</label>
+        <div id="nt-asignado-chips" style="display:flex;gap:6px;flex-wrap:wrap">
+          ${asignables.map(u=>`<button type="button" data-nt-asignado-chip="${u}" onclick="this.classList.toggle('chip-asignado-on')" class="chip-asignado" style="padding:6px 12px;font-size:11px;font-weight:700;border-radius:999px;cursor:pointer">${u}</button>`).join('')}
+        </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:8px">
         <select id="nt-inv" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px">${invOptions}</select>
@@ -2217,7 +2223,14 @@ function showNuevaTareaForm(){
 }
 async function crearTarea(){
   const titulo = document.getElementById('nt-titulo')?.value?.trim();
-  const asignadoA = document.getElementById('nt-asignado')?.value;
+  // Asignar a varias personas a la vez (a petición de Paula, 2026-08-11) —
+  // se crea UNA TAREA POR CADA PERSONA marcada (mismo título/descripción/
+  // horario/prioridad, cada una con su propio asignadoA), en vez de meter un
+  // array en asignadoA. Mismo patrón fan-out que ya usa
+  // autoAsignarTareaEspecifico para REGANTE — así ningún sitio de lectura
+  // existente (filtros t.asignadoA===currentUser, contarTareasNuevas,
+  // generarTareasDesdeRiego, impresión...) necesita cambiar.
+  const asignados = Array.from(document.querySelectorAll('#nt-asignado-chips .chip-asignado-on')).map(b=>b.dataset.ntAsignadoChip);
   const descripcion = document.getElementById('nt-desc')?.value?.trim()||'';
   const prioridad = document.getElementById('nt-prioridad')?.checked ? 'alta' : 'normal';
   const inv = document.getElementById('nt-inv')?.value||'';
@@ -2225,19 +2238,20 @@ async function crearTarea(){
   const turno = document.getElementById('nt-turno')?.value||'';
   const fechaRaw = document.getElementById('nt-fecha')?.value;
   const fecha = fechaRaw ? new Date(fechaRaw+'T00:00:00').toLocaleDateString('es-ES',{day:'2-digit',month:'short'}).replace('.','') : '';
-  if(!titulo||!asignadoA){ showToast('Indica al menos un título y a quién se asigna'); return; }
-  const tarea = {
-    id: 'tarea_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
-    titulo, descripcion, asignadoA, asignadoPor: currentUser||'—',
-    inv, calles, fecha, fechaISO: fechaRaw||null, turno,
-    prioridad, estado:'pendiente', horaInicio:null, horaFin:null, firmante:null,
-    visto: false,
-    creadoEn: new Date().toLocaleString('es-ES')
-  };
-  tareasData.push(tarea);
+  if(!titulo||!asignados.length){ showToast('Indica al menos un título y a quién se asigna'); return; }
+  asignados.forEach(asignadoA=>{
+    tareasData.push({
+      id: 'tarea_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
+      titulo, descripcion, asignadoA, asignadoPor: currentUser||'—',
+      inv, calles, fecha, fechaISO: fechaRaw||null, turno,
+      prioridad, estado:'pendiente', horaInicio:null, horaFin:null, firmante:null,
+      visto: false,
+      creadoEn: new Date().toLocaleString('es-ES')
+    });
+  });
   await persistTareasData();
-  logHistorial(`Creó la tarea "${titulo}" y la asignó a ${asignadoA}`);
-  showToast('✓ Tarea creada y asignada a '+asignadoA);
+  logHistorial(`Creó la tarea "${titulo}" y la asignó a ${asignados.join(', ')}`);
+  showToast('✓ Tarea creada y asignada a '+asignados.join(', '));
   showTareasModule();
 }
 
@@ -2445,6 +2459,57 @@ async function completarMantenimientoPeon(id){
   renderPeonTareasInline();
 }
 let tareasInlineGen = 0;
+// ════════════════════════════════════════════════════════════════
+// TARJETAS DE PEÓN — rediseño mobile-first (a petición de Paula, 2026-08-11:
+// "mucho más atractivo visualmente... letras grandes... muy fácil de
+// utilizar"). Funciones NUEVAS, usadas SOLO por renderPeonTareasInline (la
+// pantalla de Inicio del peón) — no sustituyen a buildTareaCard/
+// buildTareaCardParaPeon/buildTareaCardFumigacion, que siguen intactas y
+// las sigue usando la vista de REGANTE dentro del modal de Tareas
+// (renderTareasContent), para no tocar esa pantalla.
+// ════════════════════════════════════════════════════════════════
+function buildTareaCardPeonActiva(t){
+  const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const esFumi = t.categoria==='fumigacion';
+  const gradiente = esFumi ? 'linear-gradient(135deg,#a32020,#d9432f)' : 'var(--grad-verde)';
+  const subtitulo = escapar(invCallesLabelDeTarea(t)) || (t.turno ? escapar(t.turno) : '');
+  const botonesHTML = t.estado==='pendiente' ? `
+      ${esFumi ? `<button onclick="imprimirHojaFumigacionTarea('${t.id}')" style="padding:16px;font-size:15px;font-weight:800;background:rgba(255,255,255,.22);color:#fff;border:none;border-radius:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px"><i class="ti ti-printer" style="font-size:18px"></i> Ver hoja</button>` : ''}
+      <button onclick="iniciarTarea('${t.id}')" style="flex:1;padding:16px;font-size:17px;font-weight:800;background:#fff;color:${esFumi?'#a32020':'var(--verde)'};border:none;border-radius:12px;cursor:pointer;min-height:56px">▶ Iniciar tarea</button>`
+    : t.estado==='iniciada' ? `<button onclick="${esFumi?`showCompletarFumigacionDialog('${t.id}')`:`showCompletarTareaDialog('${t.id}')`}" style="flex:1;padding:16px;font-size:17px;font-weight:800;background:#fff;color:${esFumi?'#a32020':'var(--verde)'};border:none;border-radius:12px;cursor:pointer;min-height:56px">✓ Completar y firmar</button>`
+    : '';
+  return `
+    <div style="border-radius:20px;padding:1.5rem;background:${gradiente};color:#fff;box-shadow:0 8px 28px rgba(0,0,0,.18);position:relative;overflow:hidden">
+      <div style="position:absolute;right:-30px;top:-30px;width:130px;height:130px;background:rgba(255,255,255,.1);border-radius:50%;pointer-events:none"></div>
+      <div style="position:relative">
+        ${t.horario?`<div style="display:inline-block;margin-bottom:10px;font-size:13px;font-weight:800;background:rgba(255,255,255,.25);border-radius:999px;padding:6px 16px;letter-spacing:.02em">⏰ ${escapar(t.horario)}</div>`:''}
+        <div style="font-size:23px;font-weight:800;line-height:1.25">${esFumi?'🧬 ':''}${escapar(t.titulo)}</div>
+        ${t.fecha?`<div style="font-size:13px;font-weight:700;opacity:.85;margin-top:2px">${escapar(t.fecha)}</div>`:''}
+        ${subtitulo?`<div style="font-size:16px;font-weight:700;opacity:.95;margin-top:10px;display:flex;align-items:center;gap:6px"><i class="ti ti-map-pin" style="font-size:17px"></i> ${subtitulo}</div>`:''}
+        ${t.caldoLabel?`<div style="font-size:14px;font-weight:600;opacity:.9;margin-top:6px">🧪 Caldo inicial: ${escapar(t.caldoLabel)}</div>`:''}
+        ${t.descripcion?`<div style="font-size:14px;font-weight:500;opacity:.9;margin-top:10px;line-height:1.4">${escapar(t.descripcion)}</div>`:''}
+        ${t.estado==='iniciada' && esFumi ? `<div style="margin-top:14px;font-size:34px;font-weight:800;text-align:center;letter-spacing:.05em;background:rgba(255,255,255,.15);border-radius:12px;padding:8px" id="fumig-timer-${t.id}">00:00</div>` : ''}
+        ${botonesHTML ? `<div style="margin-top:18px;display:flex;gap:10px">${botonesHTML}</div>` : ''}
+      </div>
+    </div>`;
+}
+function buildTareaCardPeonCompletada(t){
+  const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const subtitulo = escapar(invCallesLabelDeTarea(t)) || (t.turno ? escapar(t.turno) : '');
+  const duracionHTML = (t.horaInicioTs && t.horaFinTs)
+    ? `<span style="display:inline-flex;align-items:center;gap:4px">⏱ ${formatDuracionMant(t.horaFinTs-t.horaInicioTs)}</span>` : '';
+  const firmaHTML = t.firmante ? `<span style="display:inline-flex;align-items:center;gap:4px">✍️ ${escapar(t.firmante)}</span>`
+    : (t.firmaAplicador ? `<span style="display:inline-flex;align-items:center;gap:4px">✍️ ${escapar(t.firmaAplicador)}</span>` : '');
+  return `
+    <div style="border-radius:14px;padding:14px 16px;background:#fff;border:1.5px solid var(--verde-border);border-left:5px solid var(--verde)">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <div style="font-size:16px;font-weight:800;color:var(--text)">✓ ${escapar(t.titulo)}</div>
+        ${t.horario?`<span style="font-size:11px;font-weight:800;color:var(--muted);white-space:nowrap">${escapar(t.horario)}</span>`:''}
+      </div>
+      ${subtitulo?`<div style="font-size:13px;font-weight:600;color:var(--muted);margin-top:2px">${subtitulo}</div>`:''}
+      ${(duracionHTML||firmaHTML) ? `<div style="display:flex;gap:14px;margin-top:8px;font-size:13px;font-weight:700;color:var(--verde)">${duracionHTML}${firmaHTML}</div>` : ''}
+    </div>`;
+}
 async function renderPeonTareasInline(){
   const gen = ++tareasInlineGen;
   await loadTareasData();
@@ -2468,17 +2533,18 @@ async function renderPeonTareasInline(){
   if(actual) peonVistaMantenimiento = false;
   if(!actual && peonVistaMantenimiento) await loadMantenimientoData();
   const bloqueSinActiva = !peonVistaMantenimiento ? `
-    <div style="text-align:center;padding:2rem 1rem">
-      <div style="font-size:16px;font-weight:800;color:#2e7d32;margin-bottom:16px">✓ Has terminado todas las tareas de riego.<br>Continúa con las tareas de mantenimiento.</div>
-      <button onclick="continuarConMantenimientoPeon()" style="padding:12px 32px;font-size:14px;font-weight:800;background:#1558a0;color:#fff;border:none;border-radius:10px;cursor:pointer">Continuar</button>
+    <div style="text-align:center;padding:2.5rem 1.25rem;background:#fff;border-radius:20px;border:1.5px solid var(--verde-border)">
+      <div style="font-size:44px;margin-bottom:10px">🌱</div>
+      <div style="font-size:19px;font-weight:800;color:var(--verde);margin-bottom:18px;line-height:1.35">Has terminado todas las tareas de riego.<br>Continúa con las tareas de mantenimiento.</div>
+      <button onclick="continuarConMantenimientoPeon()" style="padding:16px 36px;font-size:17px;font-weight:800;background:var(--grad-verde);color:#fff;border:none;border-radius:14px;cursor:pointer;min-height:56px">Continuar →</button>
     </div>` : renderMantenimientoPeonHTML();
   container.innerHTML = todasMias.length===0
-    ? `<div style="text-align:center;padding:2.5rem;color:var(--muted);font-style:italic">No tienes tareas asignadas.</div>`
-    : `<div style="display:flex;flex-direction:column;gap:10px">
-        ${activasOrdenadas.length ? `<button onclick="showImprimirTareasSelector(tareasImprimirMias)" style="align-self:flex-end;padding:7px 14px;font-size:12px;font-weight:700;background:#1558a0;color:#fff;border:none;border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:5px"><i class="ti ti-printer" style="font-size:14px"></i> Imprimir</button>` : ''}
-        ${actual ? buildTareaCardParaPeon(actual) : bloqueSinActiva}
-        ${completadasRev.length ? `<div style="font-size:11px;font-weight:800;color:#2e7d32;text-transform:uppercase;letter-spacing:.04em;margin-top:6px">✓ Completadas</div>` : ''}
-        ${completadasRev.map(t=>buildTareaCard(t)).join('')}
+    ? `<div style="text-align:center;padding:3rem 1.25rem;background:#fff;border-radius:20px;border:1.5px solid var(--border)"><div style="font-size:40px;margin-bottom:8px">📭</div><div style="font-size:16px;color:var(--muted);font-style:italic">No tienes tareas asignadas.</div></div>`
+    : `<div style="display:flex;flex-direction:column;gap:14px;max-width:520px;margin:0 auto">
+        ${activasOrdenadas.length ? `<button onclick="showImprimirTareasSelector(tareasImprimirMias)" style="align-self:flex-end;padding:10px 16px;font-size:13px;font-weight:700;background:#f2f4f0;color:var(--verde);border:1.5px solid var(--verde-border);border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:6px"><i class="ti ti-printer" style="font-size:16px"></i> Imprimir</button>` : ''}
+        ${actual ? buildTareaCardPeonActiva(actual) : bloqueSinActiva}
+        ${completadasRev.length ? `<div style="font-size:13px;font-weight:800;color:var(--verde);text-transform:uppercase;letter-spacing:.04em;margin-top:8px">✓ Completadas hoy</div>` : ''}
+        ${completadasRev.map(t=>buildTareaCardPeonCompletada(t)).join('')}
       </div>`;
   if(actual && actual.categoria==='fumigacion' && actual.estado==='iniciada'){
     iniciarTimerFumigacion(actual.id, actual.horaInicioTs);
@@ -2520,14 +2586,14 @@ function showCompletarTareaDialog(id){
   const mo = getOrCreateOverlay('completar-tarea-overlay');
   mo.style.zIndex = 2100;
   mo.innerHTML = `
-    <div style="background:#fff;border-radius:14px;max-width:380px;width:100%;padding:1.5rem;box-shadow:0 8px 40px rgba(0,0,0,.3)">
-      <div style="font-size:15px;font-weight:800;margin-bottom:10px">Completar tarea</div>
-      <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Firma con tu nombre para confirmar que la tarea se ha realizado.</div>
+    <div style="background:#fff;border-radius:18px;max-width:400px;width:100%;padding:1.75rem;box-shadow:0 8px 40px rgba(0,0,0,.3)">
+      <div style="font-size:19px;font-weight:800;margin-bottom:10px">✓ Completar tarea</div>
+      <div style="font-size:14px;color:var(--muted);margin-bottom:14px">Firma con tu nombre para confirmar que la tarea se ha realizado.</div>
       <input id="ct-firma" type="text" placeholder="Tu nombre" value="${currentUser?currentUser[0]+currentUser.slice(1).toLowerCase():''}"
-        style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;margin-bottom:14px">
+        style="width:100%;padding:14px 14px;border:1.5px solid var(--border);border-radius:10px;font-size:17px;margin-bottom:18px">
       <div style="display:flex;justify-content:flex-end;gap:10px">
-        <button onclick="this.closest('.modal-overlay-dyn').style.display='none'" style="padding:9px 16px;font-size:12px;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:7px;cursor:pointer">Cancelar</button>
-        <button onclick="completarTarea('${id}')" style="padding:9px 18px;font-size:12px;font-weight:800;background:#2e7d32;color:#fff;border:none;border-radius:7px;cursor:pointer">Confirmar</button>
+        <button onclick="this.closest('.modal-overlay-dyn').style.display='none'" style="padding:14px 20px;font-size:15px;font-weight:700;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:10px;cursor:pointer">Cancelar</button>
+        <button onclick="completarTarea('${id}')" style="flex:1;padding:14px 20px;font-size:15px;font-weight:800;background:#2e7d32;color:#fff;border:none;border-radius:10px;cursor:pointer">Confirmar</button>
       </div>
     </div>`;
   mo.style.display='flex';
@@ -2540,6 +2606,7 @@ async function completarTarea(id){
   if(!t) return;
   t.estado='completada';
   t.horaFin = new Date().toLocaleString('es-ES');
+  t.horaFinTs = Date.now(); // a petición de Paula, 2026-08-11: poder mostrar cuánto tardó (inicio→ejecución)
   t.completadoISO = fechaLocalISO(new Date());
   t.firmante = firma;
   await persistTareasData();
