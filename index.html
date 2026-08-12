@@ -2275,9 +2275,14 @@ function showEditarTareaForm(id){
       <div style="font-size:12px;font-weight:800;color:#1558a0;margin-bottom:8px">Editando tarea</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
         <input id="et-titulo" type="text" value="${(t.titulo||'').replace(/"/g,'&quot;')}" placeholder="Título de la tarea" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px">
-        <select id="et-asignado" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px">
-          ${asignables.map(u=>`<option value="${u}" ${t.asignadoA===u?'selected':''}>${u}</option>`).join('')}
-        </select>
+        <div></div>
+      </div>
+      <div style="margin-bottom:8px">
+        <label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">Asignar a (uno o varios)</label>
+        <div id="et-asignado-chips" style="display:flex;gap:6px;flex-wrap:wrap">
+          ${asignables.map(u=>`<button type="button" data-et-asignado-chip="${u}" onclick="this.classList.toggle('chip-asignado-on')" class="chip-asignado${t.asignadoA===u?' chip-asignado-on':''}" style="padding:6px 12px;font-size:11px;font-weight:700;border-radius:999px;cursor:pointer">${u}</button>`).join('')}
+        </div>
+        <div style="font-size:10.5px;color:var(--muted);margin-top:4px">Si marcas más de una, esta tarea se le queda a la primera marcada y se crea una copia nueva para cada una de las demás.</div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:8px">
         <select id="et-inv" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px">${invOptions}</select>
@@ -2309,7 +2314,14 @@ function showEditarTareaForm(id){
 }
 async function guardarEdicionTarea(id){
   const titulo = document.getElementById('et-titulo')?.value?.trim();
-  const asignadoA = document.getElementById('et-asignado')?.value;
+  // Asignar a varias personas también al EDITAR una tarea ya existente (a
+  // petición de Paula, 2026-08-11) — la tarea que se edita se queda con la
+  // primera persona marcada; por cada persona ADICIONAL marcada se crea una
+  // COPIA nueva de la tarea ya actualizada (mismo patrón fan-out que
+  // crearTarea, sin tocar ningún sitio de lectura existente).
+  const asignadosMarcados = Array.from(document.querySelectorAll('#et-asignado-chips .chip-asignado-on')).map(b=>b.dataset.etAsignadoChip);
+  const asignadoA = asignadosMarcados[0];
+  const extraAsignados = asignadosMarcados.slice(1);
   if(!titulo||!asignadoA){ showToast('Indica al menos un título y a quién se asigna'); return; }
   const nuevoEstado = document.getElementById('et-estado')?.value || 'pendiente';
   try{
@@ -2342,10 +2354,17 @@ async function guardarEdicionTarea(id){
     if(nuevoEstado==='iniciada'){ actualizada.horaFin=null; actualizada.firmante=null; actualizada.completadoISO=null; if(!actualizada.horaInicio) actualizada.horaInicio=new Date().toLocaleString('es-ES'); }
     if(nuevoEstado==='completada' && !actualizada.horaFin){ actualizada.horaFin=new Date().toLocaleString('es-ES'); actualizada.completadoISO=fechaLocalISO(new Date()); if(!actualizada.firmante) actualizada.firmante=currentUser||'—'; }
     cloud[idx] = actualizada;
+    extraAsignados.forEach(u=>{
+      cloud.push({
+        ...actualizada,
+        id: 'tarea_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
+        asignadoA: u, visto: false
+      });
+    });
     await window.storage.set(TAREAS_KEY, JSON.stringify(cloud));
     tareasData = cloud;
   }catch(e){}
-  logHistorial(`Editó la tarea "${titulo}" (asignada a ${asignadoA})`);
+  logHistorial(`Editó la tarea "${titulo}" (asignada a ${asignadosMarcados.join(', ')})`);
   const wrap = document.getElementById('nueva-tarea-form-wrap');
   if(wrap) wrap.innerHTML = '';
   showToast('✓ Cambios guardados');
