@@ -3596,9 +3596,25 @@ function controlInvernaderoLineasFiltradas(){
     (!p || String(l.partida||'').toUpperCase().includes(p))
   );
 }
+// "A tresbolillo" (a petición de Paula, 2026-08-11): una bandeja marcada así
+// cuenta la MITAD de una normal (ej. M1B a tresbolillo = media normal) — se
+// aplica solo al calcular el total, el número de bandejas guardado en la
+// línea es siempre el real, tal cual se introdujo.
+function bandejasEquivalentes(l){
+  const n = parseFloat(l.bandejas)||0;
+  return l.tresbolillo ? n/2 : n;
+}
 function calcularControlInvernaderoTotal(){
   const filtradas = controlInvernaderoLineasFiltradas();
-  controlInvernaderoTotalMostrado = filtradas.reduce((sum,l)=>sum + (parseFloat(l.bandejas)||0), 0);
+  controlInvernaderoTotalMostrado = filtradas.reduce((sum,l)=>sum + bandejasEquivalentes(l), 0);
+  renderControlContent(document.getElementById('control-overlay'));
+}
+async function toggleLineaTresbolillo(id){
+  const l = controlInvernaderoData.find(x=>x.id===id);
+  if(!l) return;
+  l.tresbolillo = !l.tresbolillo;
+  await saveControlInvernaderoData();
+  controlInvernaderoTotalMostrado = null;
   renderControlContent(document.getElementById('control-overlay'));
 }
 function mostrarFormNuevaLineaInvernadero(){
@@ -3614,7 +3630,10 @@ function mostrarFormNuevaLineaInvernadero(){
       <label style="font-size:11px;font-weight:700;color:var(--muted)">Calle</label>
       <input id="ci-calle" type="text" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;margin:4px 0 10px">
       <label style="font-size:11px;font-weight:700;color:var(--muted)">Cantidad de bandejas</label>
-      <input id="ci-bandejas" type="number" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;margin:4px 0 14px">
+      <input id="ci-bandejas" type="number" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;margin:4px 0 10px">
+      <label style="display:flex;align-items:center;gap:7px;font-size:12px;font-weight:700;color:var(--text);margin-bottom:14px;cursor:pointer">
+        <input id="ci-tresbolillo" type="checkbox" style="width:16px;height:16px;cursor:pointer"> A tresbolillo (cuenta la mitad)
+      </label>
       <div style="display:flex;justify-content:flex-end;gap:10px">
         <button onclick="document.getElementById('control-invernadero-form-overlay').style.display='none'" style="padding:9px 16px;font-size:12px;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:7px;cursor:pointer">Cancelar</button>
         <button onclick="guardarNuevaLineaInvernadero()" style="padding:9px 18px;font-size:12px;font-weight:800;background:#1a5c2e;color:#fff;border:none;border-radius:7px;cursor:pointer">Añadir</button>
@@ -3627,10 +3646,11 @@ async function guardarNuevaLineaInvernadero(){
   const variedad = document.getElementById('ci-variedad').value.trim();
   const calle = document.getElementById('ci-calle').value.trim();
   const bandejas = document.getElementById('ci-bandejas').value.trim();
+  const tresbolillo = document.getElementById('ci-tresbolillo').checked;
   if(!partida && !variedad && !calle && !bandejas){ showToast('Rellena al menos un campo'); return; }
   controlInvernaderoData.push({
     id: 'ci_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
-    partida, variedad, calle, bandejas: bandejas?parseFloat(bandejas):0,
+    partida, variedad, calle, bandejas: bandejas?parseFloat(bandejas):0, tresbolillo,
     creadoPor: currentUser||'—', creadoEn: new Date().toLocaleString('es-ES')
   });
   document.getElementById('control-invernadero-form-overlay').style.display = 'none';
@@ -3659,10 +3679,11 @@ function renderControlInvernaderoHTML(){
       <button onclick="eliminarLineaInvernadero('${l.id}')" title="Eliminar" style="position:absolute;top:6px;right:8px;width:20px;height:20px;padding:0;background:rgba(255,255,255,.2);color:#fff;border:none;border-radius:5px;font-size:11px;cursor:pointer">🗑️</button>
       <div style="font-size:14px;font-weight:800;padding-right:24px">${escapar(l.partida)||'—'}</div>
       <div style="font-size:12px;font-weight:600;opacity:.95;margin-top:2px">${escapar(l.variedad)||'—'}</div>
-      <div style="display:flex;gap:12px;margin-top:6px;font-size:11px;font-weight:700;opacity:.9">
+      <div style="display:flex;gap:12px;margin-top:6px;font-size:11px;font-weight:700;opacity:.9;flex-wrap:wrap">
         <span>📍 Calle ${escapar(l.calle)||'—'}</span>
-        <span>📦 ${escapar(l.bandejas)||0} bandejas</span>
+        <span>📦 ${escapar(l.bandejas)||0} bandejas${l.tresbolillo?` <span style="opacity:.85">(= ${bandejasEquivalentes(l)})</span>`:''}</span>
       </div>
+      <button onclick="toggleLineaTresbolillo('${l.id}')" style="margin-top:8px;padding:5px 11px;font-size:10.5px;font-weight:800;border-radius:6px;cursor:pointer;border:1.5px solid rgba(255,255,255,.5);background:${l.tresbolillo?'#fff':'rgba(255,255,255,.15)'};color:${l.tresbolillo?'#1a5c2e':'#fff'}">${l.tresbolillo?'✓ ':''}⚿ Tresbolillo</button>
     </div>`).join('');
   return `
     <div style="margin-bottom:1.1rem;display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px">
