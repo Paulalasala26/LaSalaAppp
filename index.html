@@ -12189,18 +12189,15 @@ function borrarFitoManual(){
   if(fitoInvSel) renderFitoGrid(fitoInvSel);
 }
 
-// Regla de Paula, 2026-08-11: si una calle de un invernadero ya lleva un
-// Específico (cualquier día, no solo el que se esté aplicando ahora en
-// Plaguicidas), esa calle no puede recibir Plaguicidas — se bloquea el alta
-// entera y se avisa, sin aplicar nada.
-function calleTieneEspecifico(invId, calle){
-  const porDia = especificosData[invId];
-  if(!porDia) return false;
-  return Object.values(porDia).some(porCalle=>{
-    const v = porCalle[calle];
-    if(v==null) return false;
-    return typeof v==='string' ? v.trim()!=='' : !!(v.texto && v.texto.trim());
-  });
+// Regla de Paula, 2026-08-11 (acotada el 2026-08-12: "tiene que ser del
+// mismo día, da igual si es de días anteriores"): si una calle de un
+// invernadero ya lleva un Específico ESE MISMO día, no puede recibir
+// Plaguicidas ese día — se bloquea el alta entera y se avisa. Un específico
+// de cualquier otro día (pasado o futuro) NO influye.
+function calleTieneEspecifico(invId, dia, calle){
+  const v = especificosData[invId]?.[dia]?.[calle];
+  if(v==null) return false;
+  return typeof v==='string' ? v.trim()!=='' : !!(v.texto && v.texto.trim());
 }
 async function saveFitoManual(){
   const dia   = parseInt(document.getElementById('fm-dia').value);
@@ -12220,9 +12217,10 @@ async function saveFitoManual(){
   const bulkInvIds = leerInvernaderosBulkSeleccionados('fm');
   if(!bulkInvIds.length){ showToast('Elige al menos un invernadero'); return; }
   const porInv = bulkInvIds.map(invId=>({ invId, ...calcularCallesFmBulk(invId) }));
-  // Bloqueo por Específico existente (a petición de Paula, 2026-08-11): se
-  // comprueba ANTES de tocar nada — si cualquier calle de este alta ya lleva
-  // un Específico (en cualquier día), se cancela el alta entera.
+  // Bloqueo por Específico existente (a petición de Paula, 2026-08-11,
+  // acotado a "mismo día" el 2026-08-12): se comprueba ANTES de tocar nada —
+  // si cualquier calle de este alta ya lleva un Específico ESE MISMO día
+  // (un específico de otro día no cuenta), se cancela el alta entera.
   if(!Object.keys(especificosData).length) await loadEspecificosData();
   for(const {invId, calles, tramos} of porInv){
     const callesAComprobar = tramos ? tramos.flatMap(({desde,hasta})=>{
@@ -12230,7 +12228,7 @@ async function saveFitoManual(){
       for(let c=s;c<=e;c++) arr.push(c);
       return arr;
     }) : calles;
-    if(callesAComprobar.some(c=>calleTieneEspecifico(invId,c))){
+    if(callesAComprobar.some(c=>calleTieneEspecifico(invId,dia,c))){
       showToast('❌ No se puede aplicar Plaguicidas debido a un específico existente');
       return;
     }
