@@ -4807,7 +4807,13 @@ function fechaExtensionADiaRiego(fechaTexto){
 // código+calle que usa el resto de la app, ej. "173" = código "1" + calle
 // "73", ver formatCalleConInv).
 function resolverInvernaderoYCalles(codigoToken, calleDesdeTok, calleHastaTok){
-  const codigo = String(codigoToken).replace(/[^0-9]/g,'');
+  // El PDF real trae el invernadero con ceros a la izquierda ("01","02",
+  // "03","04" para Sala 1) — hay que quitarlos (parseInt+toString) antes de
+  // comparar, si no "01" nunca coincide con el código real "1" de 1A/1B
+  // (bug real encontrado con la partida 26X00020, PDF "12 AGOSTO
+  // EXTENSIONES.pdf": invernadero venía como "01").
+  const codigoDigitos = String(codigoToken).replace(/[^0-9]/g,'');
+  const codigo = codigoDigitos ? String(parseInt(codigoDigitos,10)) : '';
   if(!codigo) return null;
   const candidatas = Object.keys(INV_LAYOUT).filter(id=>codigoInv(id)===codigo);
   if(!candidatas.length) return null;
