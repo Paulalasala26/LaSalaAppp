@@ -4794,10 +4794,48 @@ function fechaExtensionADiaRiego(fechaTexto){
   const diffDias = Math.round((fecha - RIEGO_ANCHOR_DATE) / 86400000);
   return 15 + diffDias;
 }
+// Los invernaderos de Sala 1 (0,1,2,3,4) y los pares 10/11 de Sala 2 se
+// escriben en el PDF como un número SUELTO (ej. "1"), pero en la app esos
+// invernaderos siempre llevan letra (1A/1B) — un simple "¿coincide con un
+// invId real?" los descartaba TODOS (bug real, encontrado por Paula:
+// "los invernaderos que solo tienen un número no los coge", partida
+// 26X00020 → INV 1 se quedaba sin asignar). Se desambigua A/B probando en
+// qué de los dos encaja el rango de calles — sus calles reales nunca se
+// solapan entre A y B (confirmado en INV_LAYOUT_SALA1) — y probando
+// también la calle "tal cual" y "sin el prefijo del código del
+// invernadero" (por si el PDF trae la calle ya en el formato combinado
+// código+calle que usa el resto de la app, ej. "173" = código "1" + calle
+// "73", ver formatCalleConInv).
+function resolverInvernaderoYCalles(codigoToken, calleDesdeTok, calleHastaTok){
+  const codigo = String(codigoToken).replace(/[^0-9]/g,'');
+  if(!codigo) return null;
+  const candidatas = Object.keys(INV_LAYOUT).filter(id=>codigoInv(id)===codigo);
+  if(!candidatas.length) return null;
+  const aNumero = t => { const n = parseInt(String(t).replace(',','.'),10); return isNaN(n)?null:n; };
+  const desdeCrudo = aNumero(calleDesdeTok), hastaCrudo = aNumero(calleHastaTok);
+  if(desdeCrudo==null) return null;
+  const sinPrefijo = t => {
+    const s = String(t);
+    return (s.startsWith(codigo) && s.length>codigo.length) ? parseInt(s.slice(codigo.length),10) : null;
+  };
+  const intentos = [
+    {desde:desdeCrudo, hasta:hastaCrudo??desdeCrudo},
+    {desde:sinPrefijo(calleDesdeTok), hasta:sinPrefijo(calleHastaTok)??sinPrefijo(calleDesdeTok)}
+  ].filter(t=>t.desde!=null && t.hasta!=null);
+  for(const intento of intentos){
+    for(const invId of candidatas){
+      const todas = [...INV_LAYOUT[invId].row1, ...INV_LAYOUT[invId].row2];
+      if(todas.includes(intento.desde) && todas.includes(intento.hasta)) return {invId, calleDesde:Math.min(intento.desde,intento.hasta), calleHasta:Math.max(intento.desde,intento.hasta)};
+    }
+  }
+  // Sin ambigüedad (una sola candidata) — mejor asignar aproximado (el rango
+  // crudo) que dejarla sin asignar del todo.
+  if(candidatas.length===1 && desdeCrudo!=null) return {invId:candidatas[0], calleDesde:Math.min(desdeCrudo,hastaCrudo??desdeCrudo), calleHasta:Math.max(desdeCrudo,hastaCrudo??desdeCrudo)};
+  return null;
+}
 function parseExtensionesPdf(lineas){
   const PARTIDA_RE = /^\d+[XF]+\d{3,6}$/i;
   const FECHA_RE = /^\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}$/;
-  const invsValidos = ALL_INV_IDS_SALA1.concat(ALL_INV_IDS);
   const registros = [];
   lineas.forEach(({texto})=>{
     if(!texto) return;
@@ -4806,20 +4844,11 @@ function parseExtensionesPdf(lineas){
     if(idxPartida===-1) return;
     const partida = tokens[idxPartida].toUpperCase();
     const fecha = tokens.slice(0, idxPartida).reverse().find(t=>FECHA_RE.test(t)) || '';
-    let invId = null, calleDesde = null, calleHasta = null;
-    for(const tok of tokens.slice(idxPartida+1)){
-      if(!invId){
-        if(invsValidos.includes(tok.toUpperCase())) invId = tok.toUpperCase();
-        continue;
-      }
-      const n = parseInt(tok.replace(',', '.'), 10);
-      if(!isNaN(n)){
-        if(calleDesde==null) calleDesde = n; else if(calleHasta==null) calleHasta = n;
-      }
-    }
-    if(!invId || calleDesde==null) return;
-    if(calleHasta==null) calleHasta = calleDesde;
-    registros.push({ fecha, partida, invId, calleDesde: Math.min(calleDesde,calleHasta), calleHasta: Math.max(calleDesde,calleHasta) });
+    const resto = tokens.slice(idxPartida+1);
+    if(resto.length<2) return;
+    const resuelto = resolverInvernaderoYCalles(resto[0], resto[1], resto[2]);
+    if(!resuelto) return;
+    registros.push({ fecha, partida, ...resuelto });
   });
   return registros;
 }
