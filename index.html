@@ -482,7 +482,15 @@ function doLogout(){
   borrarSesion();
   resetGeoView();
 }
-restaurarSesion();
+// 2026-08-12: "que siempre que se salga de la aplicación aunque se reinicie
+// se deba de poner la contraseña, por una mayor seguridad" — Paula confirmó
+// que esto aplica a TODOS los roles (incluidos Peón1/Regante1). Se
+// desactiva la restauración automática de sesión (sessionStorage) que se
+// había añadido antes para sobrevivir a recargas por la cámara — ahora
+// CUALQUIER carga/recarga de la página pide contraseña siempre, sin
+// excepción. guardarSesion/borrarSesion/restaurarSesion se dejan definidas
+// sin usar por si se necesita revertir este cambio en el futuro.
+// restaurarSesion();
 
 // REGANTE solo tiene acceso al riego de hoy (solo consulta) y a sus tareas.
 // PEÓN tiene una única pantalla: el sistema de ticketing con sus tareas
@@ -3146,6 +3154,17 @@ function renderTrabajosResumenHTML(){
       </div>`}
     </div>`;
 }
+// Contador de pendientes por botón de subsección (a petición de Paula,
+// 2026-08-12) — Pinzar ya tiene un estado real de pendiente/hecho
+// (sin_pinzar/en_proceso/pinzado, ver PINZADO_ESTADOS/renderPinzarSubSeccionHTML)
+// así que cuenta lo que no está "pinzado"; el resto de subsecciones
+// (Recomponer/Plantar/Separar) son solo un registro sin estado de
+// completado, así que el número es el total de trabajos anotados ahí.
+function contarPendientesSubseccionTrabajos(seccionKey, subKey){
+  const items = trabajosData.filter(t=>t.seccion===seccionKey && t.subseccion===subKey);
+  if(seccionKey==='mujeres' && subKey==='pinzar') return items.filter(t=>(t.estado||'sin_pinzar')!=='pinzado').length;
+  return items.length;
+}
 function renderTrabajosSeccionHTML(seccion){
   if(!seccion) return '';
   const subs = TRABAJOS_SUBSECCIONES[seccion.key] || [];
@@ -3157,8 +3176,10 @@ function renderTrabajosSeccionHTML(seccion){
   // blanco, las demás quedan algo más apagadas.
   const subNav = subs.map(s=>{
     const activo = trabajosSubSeccion===s.key;
+    const pendientes = contarPendientesSubseccionTrabajos(seccion.key, s.key);
     return `
-    <div class="home-shortcut-card" onclick="seleccionarSubSeccionTrabajos('${s.key}')" style="background:${seccion.color};color:#fff;border-radius:14px;padding:1.4rem 1.25rem;${activo?'box-shadow:0 0 0 3px #fff,0 8px 20px rgba(0,0,0,.25)':'opacity:.7'}">
+    <div class="home-shortcut-card" onclick="seleccionarSubSeccionTrabajos('${s.key}')" style="position:relative;background:${seccion.color};color:#fff;border-radius:14px;padding:1.4rem 1.25rem;${activo?'box-shadow:0 0 0 3px #fff,0 8px 20px rgba(0,0,0,.25)':'opacity:.7'}">
+      ${pendientes>0 ? `<span style="position:absolute;top:-8px;right:-8px;background:#c62828;color:#fff;font-size:12px;font-weight:800;border-radius:999px;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;padding:0 6px;box-shadow:0 2px 6px rgba(0,0,0,.3)">${pendientes}</span>` : ''}
       <i class="ti ti-list-check" style="font-size:26px;opacity:.9"></i>
       <div style="font-size:14px;font-weight:700;margin-top:12px">${s.label}</div>
     </div>`;
@@ -12890,7 +12911,12 @@ function showEspecificoManualForm(){
   }
   espPendingBulkConfig = null;
   espPendingConfig = null;
-  const diasQ = riegoQuincenaDias(especificosQuincenaOffset);
+  // Rango de días acotado por rol (a petición de Paula, 2026-08-12) — antes
+  // ofrecía toda la quincena para cualquiera. TÉCNICO: de hoy al día
+  // siguiente (no puede meter específicos de días pasados). ADMIN: 3 días
+  // atrás y hasta el día siguiente (puede corregir/completar días recientes).
+  const hoyEsp = riegoDiaDeHoy();
+  const diasQ = currentUserRole==='TECNICO' ? [hoyEsp, hoyEsp+1] : [hoyEsp-3, hoyEsp-2, hoyEsp-1, hoyEsp, hoyEsp+1];
 
   const mo = getOrCreateOverlay('especifico-manual-overlay');
   mo.style.padding = '0';
