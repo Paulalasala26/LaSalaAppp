@@ -1514,6 +1514,52 @@ function tareaTableHead(conSeleccion){
       <label for="tarea-select-all" style="font-size:11px;font-weight:700;color:var(--muted);cursor:pointer">Seleccionar todas</label>
     </div>` : '';
 }
+// "Ordenar" (a petición de Paula, 2026-08-12): pantalla aparte, un bloque
+// por persona con sus tareas activas (de tareasData, cualquier fecha —
+// antiguas/hoy/mañana juntas) ordenadas por PRIORIDAD primero (alta
+// primero) y horario después — al revés que el orden por defecto de
+// ordenarTareasPorHorario (horario primero). Reutiliza buildTareaGestorRow
+// tal cual, mismo aspecto que el resto de Tareas.
+function ordenarTareasPorPrioridad(lista){
+  return lista.slice().sort((a,b)=>{
+    const pa = a.prioridad==='alta' ? 0 : 1, pb = b.prioridad==='alta' ? 0 : 1;
+    if(pa!==pb) return pa-pb;
+    const ha = prioridadHorarioRiego(a.horario), hb = prioridadHorarioRiego(b.horario);
+    if(ha!==hb) return ha-hb;
+    return String(a.id).localeCompare(String(b.id));
+  });
+}
+function mostrarOrdenTareasPorPersona(){
+  const overlay = getOrCreateOverlay('tareas-orden-overlay');
+  overlay.style.padding = '0';
+  const activas = tareasData.filter(t=>t.estado!=='completada');
+  const personas = Object.keys(USERS).filter(u=>activas.some(t=>t.asignadoA===u));
+  const bloquesHTML = personas.map(u=>{
+    const propias = ordenarTareasPorPrioridad(activas.filter(t=>t.asignadoA===u));
+    return `
+    <div style="margin-bottom:1.75rem">
+      <div style="font-size:14px;font-weight:800;color:#1558a0;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px;display:flex;align-items:center;gap:8px">
+        <i class="ti ti-user" style="font-size:16px"></i> ${u} <span style="background:#1558a0;color:#fff;border-radius:999px;padding:1px 10px;font-size:11px">${propias.length}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px 16px">
+        ${propias.map(t=>buildTareaGestorRow(t,false)).join('')}
+      </div>
+    </div>`;
+  }).join('');
+  overlay.innerHTML = `
+    <div style="background:#f2f4f0;width:100vw;height:100vh;max-width:100vw;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.3)">
+      <div style="background:var(--grad-blue);color:#fff;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+        <div style="font-size:17px;font-weight:800;display:flex;align-items:center;gap:8px">
+          <i class="ti ti-arrows-sort" style="font-size:20px"></i> Ordenar por prioridad y persona
+        </div>
+        <button onclick="document.getElementById('tareas-orden-overlay').style.display='none'" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700;background:rgba(255,255,255,.15);color:#fff;border:none;cursor:pointer">✕ Cerrar</button>
+      </div>
+      <div style="flex:1;overflow-y:auto;padding:1.5rem 2rem">
+        ${personas.length===0 ? `<div style="text-align:center;padding:3rem;color:var(--muted);font-style:italic;font-size:13px">No hay tareas activas asignadas a nadie.</div>` : bloquesHTML}
+      </div>
+    </div>`;
+  overlay.style.display = 'flex';
+}
 // Botón grande de una opción con contador, usado tanto por el nivel
 // Pendientes/Completadas del gestor como por Sala1/Sala2 y Orden Abonos/Aguas
 // del regante — mismo estilo en los tres para que se note que es la misma
@@ -1525,30 +1571,42 @@ function botonNivelTareas(onclick, color, bg, borde, texto, contador){
 }
 
 // ── Tablero kanban de Mantenimiento de Parcelas ─────────────────
-function renderKanbanMantenimiento(){
-  const columnas = MANT_ESTADOS.map(est=>{
-    const tickets = mantenimientoData.filter(t=>t.estado===est.key);
-    const esSinAsignar = est.key==='sin_asignar';
-    const asignarToolbar = (esSinAsignar && tickets.length) ? `
-      <div style="padding:8px;background:#fff;border:1px dashed ${est.borde};border-radius:8px;margin-bottom:8px">
-        <div style="font-size:10px;font-weight:700;color:var(--muted);margin-bottom:6px">Marcar personas en todas:</div>
+// Agrupa los 4 estados internos de mantenimiento en los mismos 3 niveles
+// que usa el resto de Tareas (a petición de Paula, 2026-08-12: "el mismo
+// formato que el resto de apartados") — sin_asignar/asignado siguen siendo
+// estados internos distintos (para el "marcar personas en todas"), pero
+// visualmente se muestran juntos como "Pendiente".
+const MANT_NIVELES_COLGANDO = [
+  {key:'pendiente', label:'Pendiente', badge:'⏳ Pendiente', estados:['sin_asignar','asignado'], color:'#c47f00', bg:'#fff8e1'},
+  {key:'en_proceso', label:'En proceso', badge:'▶ En proceso', estados:['en_proceso'], color:'#1558a0', bg:'#eef4fb'},
+  {key:'completada', label:'Completada', badge:'✓ Completada', estados:['cerrado'], color:'#1a5c2e', bg:'#eafaf0'}
+];
+function renderMantenimientoColgandoHTML(){
+  const bloques = MANT_NIVELES_COLGANDO.map(nivel=>{
+    const tickets = mantenimientoData.filter(t=>nivel.estados.includes(t.estado));
+    if(!tickets.length) return '';
+    const conAsignar = nivel.key==='pendiente';
+    const sinAsignarTickets = tickets.filter(t=>t.estado==='sin_asignar');
+    const asignarToolbar = (conAsignar && sinAsignarTickets.length) ? `
+      <div style="padding:10px;background:#fff;border:1.5px dashed ${nivel.color};border-radius:8px;margin-bottom:10px">
+        <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:6px">Marcar personas en todas las "sin asignar":</div>
         <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px">
           ${Object.keys(USERS).map(u=>`
             <label style="font-size:10px;border:1px solid #ccc;border-radius:999px;padding:3px 9px;cursor:pointer;display:inline-flex;align-items:center;gap:3px">
               <input type="checkbox" class="mant-persona-todas-chk" onchange="marcarPersonaEnTodas('${u}',this.checked)" style="width:11px;height:11px"> ${u}
             </label>`).join('')}
         </div>
-        <button id="mant-btn-confirmar-todas" onclick="confirmarAsignacionesMantenimiento()" disabled style="width:100%;padding:6px;font-size:11px;font-weight:800;background:#1558a0;color:#fff;border:none;border-radius:6px;cursor:pointer;opacity:.5">Confirmar todas</button>
+        <button id="mant-btn-confirmar-todas" onclick="confirmarAsignacionesMantenimiento()" disabled style="width:100%;padding:7px;font-size:11px;font-weight:800;background:#1558a0;color:#fff;border:none;border-radius:6px;cursor:pointer;opacity:.5">Confirmar todas</button>
       </div>` : '';
-    const tarjetasHTML = tickets.map(t=>buildTarjetaMantenimiento(t, esSinAsignar)).join('');
     return `
-      <div class="mant-columna" data-drop="${est.key}" style="flex:1;min-width:220px;background:${est.bg};border:1.5px solid ${est.borde};border-radius:10px;padding:8px;display:flex;flex-direction:column;gap:8px;min-height:200px"
-           ondragover="event.preventDefault()" ondrop="soltarTicketMantenimiento(event,'${est.key}')">
-        <div style="font-size:12px;font-weight:800;color:${est.color};text-transform:uppercase;letter-spacing:.03em;display:flex;justify-content:space-between;align-items:center">
-          <span>${est.label}</span><span style="background:${est.color};color:#fff;border-radius:999px;padding:2px 10px;font-size:11px">${tickets.length}</span>
+      <div style="margin-bottom:1.5rem">
+        <div style="font-size:12px;font-weight:800;color:${nivel.color};text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;display:flex;align-items:center;gap:8px">
+          ${nivel.label} <span style="background:${nivel.color};color:#fff;border-radius:999px;padding:1px 10px;font-size:11px">${tickets.length}</span>
         </div>
         ${asignarToolbar}
-        ${tarjetasHTML || `<div style="font-size:11px;color:var(--muted);font-style:italic;text-align:center;padding:10px">Vacío</div>`}
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px 16px">
+          ${tickets.map(t=>buildTarjetaMantenimiento(t, t.estado==='sin_asignar')).join('')}
+        </div>
       </div>`;
   }).join('');
   return `
@@ -1556,7 +1614,7 @@ function renderKanbanMantenimiento(){
       <i class="ti ti-plus" style="font-size:14px"></i> Nuevo ticket
     </button>
     <div id="nuevo-ticket-mant-wrap"></div>
-    <div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:6px">${columnas}</div>`;
+    ${bloques || `<div style="text-align:center;padding:2rem;color:var(--muted);font-style:italic;font-size:13px">Sin tickets todavía.</div>`}`;
 }
 // Tarjeta de un ticket: arrastrable (ratón, escritorio) + un desplegable
 // "Mover a..." como alternativa para pantallas táctiles, donde arrastrar y
@@ -1583,28 +1641,35 @@ function buildTarjetaMantenimiento(t, mostrarAsignarPersonas){
         </label>`).join('')}
     </div>` : '';
   const moverSelect = `
-    <select onchange="moverTicketMantenimientoDesdeSelect('${t.id}', this.value); this.value=''" style="font-size:9px;padding:3px 5px;border:1px solid #ccc;border-radius:5px;margin-top:6px;background:#fff">
+    <select onchange="moverTicketMantenimientoDesdeSelect('${t.id}', this.value); this.value=''" style="font-size:10.5px;padding:5px 7px;border:1.5px solid var(--border);border-radius:6px;background:#fff;cursor:pointer">
       <option value="">Mover a...</option>
       ${MANT_ESTADOS.filter(e=>e.key!==t.estado).map(e=>`<option value="${e.key}">${e.label}</option>`).join('')}
     </select>`;
+  // Tarjeta "colgando" (a petición de Paula, 2026-08-12) — mismo lenguaje
+  // visual que buildTareaGestorRow: pestaña de color arriba + badge de
+  // estado, en vez del recuadro plano de columna kanban de antes.
+  const nivel = MANT_NIVELES_COLGANDO.find(n=>n.estados.includes(t.estado)) || MANT_NIVELES_COLGANDO[0];
   return `
-    <div class="mant-tarjeta" draggable="true" data-id="${t.id}" ondragstart="arrastrarTicketMantenimiento(event,'${t.id}')"
-         style="background:#fff;border:1.5px solid ${seleccionada?'#1558a0':'#ddd'};border-radius:8px;padding:8px;cursor:grab">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px">
-        <label style="display:flex;align-items:center;gap:5px;cursor:pointer;flex:1">
-          <input type="checkbox" ${seleccionada?'checked':''} onchange="toggleSeleccionMantenimiento('${t.id}',this.checked,this)" style="width:13px;height:13px">
-          <span style="font-size:12px;font-weight:700">${escapar(t.titulo)}</span>
+    <div class="tarea-card" data-id="${t.id}" style="position:relative;margin-top:10px;border-radius:4px 4px 12px 12px;background:#fff;border:1.5px solid ${seleccionada?'#1558a0':'var(--border)'};border-top:none;box-shadow:var(--shadow-sm);padding:14px 16px 12px">
+      <div style="position:absolute;top:-9px;left:18px;width:38px;height:16px;background:${nivel.color};border-radius:5px 5px 0 0;box-shadow:0 -1px 3px rgba(0,0,0,.15)"></div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <label style="display:flex;align-items:center;gap:7px;cursor:pointer;flex:1">
+          <input type="checkbox" ${seleccionada?'checked':''} onchange="toggleSeleccionMantenimiento('${t.id}',this.checked,this)" style="width:15px;height:15px;flex-shrink:0">
+          <span style="font-size:14px;font-weight:800;color:var(--text)">${escapar(t.titulo)}${t.prioridad==='alta'?' <span style="color:#c62828;font-size:11px;font-weight:800">● ALTA</span>':''}</span>
         </label>
-        ${t.prioridad==='alta' ? `<span style="font-size:8px;font-weight:800;color:#c62828;white-space:nowrap">ALTA</span>` : ''}
+        <span style="font-size:10px;font-weight:800;padding:4px 11px;border-radius:20px;background:${nivel.bg};color:${nivel.color};white-space:nowrap">${nivel.badge}</span>
       </div>
-      ${t.descripcion ? `<div style="font-size:10px;color:var(--muted);margin-top:4px">${escapar(t.descripcion)}</div>` : ''}
-      ${t.estado==='cerrado' && t.horaInicioTs && t.horaFinTs ? `<div style="margin-top:5px"><span style="font-size:8px;font-weight:700;color:#2e7d32;background:#eaf5ea;border-radius:999px;padding:2px 8px;white-space:nowrap">⏱ Tardó ${formatDuracionMant(t.horaFinTs-t.horaInicioTs)}</span></div>` : ''}
-      ${t.recurrencia ? `<div style="margin-top:5px"><span style="font-size:8px;font-weight:700;color:#1558a0;background:#eef4fb;border-radius:999px;padding:2px 8px;white-space:nowrap">🔁 Cada ${t.recurrencia.cada} ${escapar((MANT_RECUR_UNIDADES.find(u=>u.key===t.recurrencia.unidad)||{}).label||t.recurrencia.unidad).toLowerCase()}${t.proximaFecha?` · próx. ${escapar(t.proximaFecha)}`:''}</span></div>` : ''}
-      ${personasHTML ? `<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px">${personasHTML}</div>` : ''}
+      ${t.descripcion ? `<div style="font-size:12px;color:var(--muted);margin-top:5px">${escapar(t.descripcion)}</div>` : ''}
+      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+        ${t.fechaProgramada ? `<span style="font-size:10.5px;font-weight:800;color:#7b5cf0;border:1.5px solid #7b5cf0;border-radius:999px;padding:2px 10px">📅 ${escapar(t.fechaProgramada)}</span>` : ''}
+        ${t.recurrencia ? `<span style="font-size:10.5px;font-weight:700;color:#1558a0;background:#eef4fb;border-radius:999px;padding:2px 10px">🔁 Cada ${t.recurrencia.cada} ${escapar((MANT_RECUR_UNIDADES.find(u=>u.key===t.recurrencia.unidad)||{}).label||t.recurrencia.unidad).toLowerCase()}${t.proximaFecha?` · próx. ${escapar(t.proximaFecha)}`:''}</span>` : ''}
+        ${t.estado==='cerrado' && t.horaInicioTs && t.horaFinTs ? `<span style="font-size:10.5px;font-weight:700;color:#1a5c2e;background:#eafaf0;border-radius:999px;padding:2px 10px">⏱ Tardó ${formatDuracionMant(t.horaFinTs-t.horaInicioTs)}</span>` : ''}
+      </div>
+      ${personasHTML ? `<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px">${personasHTML}</div>` : ''}
       ${asignarPersonasHTML}
-      <div style="display:flex;align-items:center;gap:6px;margin-top:6px">
+      <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
         ${moverSelect}
-        <button onclick="eliminarTicketMantenimiento('${t.id}')" title="Eliminar" style="padding:3px 7px;font-size:9px;font-weight:700;background:#fdecea;color:#c62828;border:1px solid #f0b0b0;border-radius:5px;cursor:pointer">🗑️</button>
+        <button onclick="eliminarTicketMantenimiento('${t.id}')" title="Eliminar" style="padding:5px 10px;font-size:10.5px;font-weight:700;background:#fdecea;color:#c62828;border:1px solid #f0b0b0;border-radius:6px;cursor:pointer">🗑️ Eliminar</button>
       </div>
     </div>`;
 }
@@ -1697,8 +1762,10 @@ function showNuevoTicketMantenimientoForm(){
       <label style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:5px;margin-bottom:8px">
         <input type="checkbox" id="nm-prioridad"> Prioridad alta
       </label>
+      <label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">Fecha programada (opcional)</label>
+      <input id="nm-fecha-programada" type="date" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px;margin-bottom:8px;box-sizing:border-box">
       <label style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:5px;margin-bottom:8px;cursor:pointer">
-        <input type="checkbox" id="nm-recurrente" onchange="document.getElementById('nm-recurrencia-campos').style.display=this.checked?'flex':'none'"> Tarea programada (se repite cada cierto tiempo)
+        <input type="checkbox" id="nm-recurrente" onchange="document.getElementById('nm-recurrencia-campos').style.display=this.checked?'flex':'none'"> Se repite cada cierto tiempo (recurrente)
       </label>
       <div id="nm-recurrencia-campos" style="display:none;align-items:center;gap:8px;margin-bottom:8px;padding:8px;background:#eef4fb;border-radius:7px">
         <span style="font-size:11px;font-weight:700;color:#1558a0">Cada</span>
@@ -1718,6 +1785,10 @@ async function crearTicketMantenimiento(){
   if(!titulo){ showToast('Indica un título'); return; }
   const descripcion = document.getElementById('nm-desc')?.value?.trim()||'';
   const prioridad = document.getElementById('nm-prioridad')?.checked ? 'alta' : 'normal';
+  // Fecha programada (a petición de Paula, 2026-08-12) — distinta de la
+  // recurrencia de abajo: es solo "cuándo toca hacer ESTE ticket", no un
+  // ciclo que se repite solo.
+  const fechaProgramada = document.getElementById('nm-fecha-programada')?.value || null;
   const esRecurrente = document.getElementById('nm-recurrente')?.checked;
   let recurrencia = null, proximaFecha = null;
   if(esRecurrente){
@@ -1729,7 +1800,7 @@ async function crearTicketMantenimiento(){
   await loadMantenimientoData();
   mantenimientoData.push({
     id: 'mant_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
-    titulo, descripcion, prioridad, estado:'sin_asignar', asignados:[],
+    titulo, descripcion, prioridad, estado:'sin_asignar', asignados:[], fechaProgramada,
     asignadoPor: currentUser||'—', visto:{}, creadoEn: new Date().toLocaleString('es-ES'),
     recurrencia, proximaFecha
   });
@@ -1786,34 +1857,43 @@ function renderTareasGestorFullScreen(overlay){
     manana: porFecha.manana.filter(t=>t.estado!=='completada').length,
     mantenimiento: mantenimientoData.filter(t=>t.estado!=='cerrado').length
   };
+  // Menú de arriba en vez de lateral (a petición de Paula, 2026-08-12: "para
+  // que sea más visible en móvil") — mismo patrón ya usado para quitar el
+  // sidebar de Control (renderControlContent).
+  const wrapAnteriorTG = overlay.querySelector('#tareas-gestor-content-wrap');
+  const scrollTopAnteriorTG = wrapAnteriorTG ? wrapAnteriorTG.scrollTop : 0;
   const navItem = (v) => `
-    <div onclick="irATareasGestorVista('${v.key}')" style="padding:11px 14px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:9px;margin-bottom:4px;background:${tareasGestorVista===v.key?'rgba(255,255,255,.18)':'transparent'};color:#fff">
-      <i class="ti ${v.icon}" style="font-size:16px;flex-shrink:0"></i>
-      <span style="flex:1">${v.label}</span>
-      ${counts[v.key]>0 ? `<span style="background:rgba(255,255,255,.25);border-radius:999px;padding:1px 9px;font-size:11px;font-weight:800">${counts[v.key]}</span>` : ''}
-    </div>`;
+    <button onclick="irATareasGestorVista('${v.key}')" style="padding:9px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid rgba(255,255,255,.4);display:flex;align-items:center;gap:7px;white-space:nowrap;background:${tareasGestorVista===v.key?'#fff':'transparent'};color:${tareasGestorVista===v.key?'#1558a0':'#fff'}">
+      <i class="ti ${v.icon}" style="font-size:14px"></i> ${v.label}
+      ${counts[v.key]>0 ? `<span style="background:${tareasGestorVista===v.key?'#1558a0':'rgba(255,255,255,.25)'};color:#fff;border-radius:999px;padding:1px 8px;font-size:10.5px;font-weight:800">${counts[v.key]}</span>` : ''}
+    </button>`;
   overlay.innerHTML = `
-    <div style="background:#f2f4f0;width:100vw;height:100vh;max-width:100vw;overflow:hidden;display:flex;box-shadow:0 8px 40px rgba(0,0,0,.3)">
-      <div style="width:250px;flex-shrink:0;background:var(--grad-blue);color:#fff;display:flex;flex-direction:column;padding:1.25rem 1rem;overflow-y:auto">
-        <div onclick="irATareasGestorVista(null)" style="cursor:pointer;font-size:17px;font-weight:800;margin-bottom:1.5rem;display:flex;align-items:center;gap:8px">
+    <div style="background:#f2f4f0;width:100vw;height:100vh;max-width:100vw;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.3)">
+      <div style="background:var(--grad-blue);color:#fff;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;flex-wrap:wrap;gap:10px">
+        <div onclick="irATareasGestorVista(null)" style="cursor:pointer;font-size:17px;font-weight:800;display:flex;align-items:center;gap:8px">
           <i class="ti ti-clipboard-list" style="font-size:20px"></i> Tareas
         </div>
-        <div style="font-size:10px;font-weight:700;color:rgba(255,255,255,.55);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Secciones</div>
-        ${TAREAS_GESTOR_VISTAS.map(navItem).join('')}
-        <div style="margin-top:auto;padding-top:1rem;display:flex;flex-direction:column;gap:8px">
-          <button onclick="generarTareasDesdeRiego()" title="Borra las tareas de peón pendientes/iniciadas y las reconstruye desde lo que hay escrito ahora mismo en Riego" style="width:100%;padding:9px;font-size:11px;font-weight:700;background:rgba(255,255,255,.12);color:#fff;border:none;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
-            <i class="ti ti-refresh" style="font-size:14px"></i> Generar tareas
-          </button>
-          <button onclick="showImprimirTareasSelector(tareasData.filter(t=>USER_ROLES[t.asignadoA]==='PEON' && !esTareaDeAyer(t) && t.estado!=='completada'))" style="width:100%;padding:9px;font-size:11px;font-weight:700;background:rgba(255,255,255,.12);color:#fff;border:none;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
-            <i class="ti ti-printer" style="font-size:14px"></i> Imprimir tareas de peones
-          </button>
-          <button onclick="document.getElementById('tareas-overlay').style.display='none'" style="width:100%;padding:10px;font-size:12px;font-weight:700;background:rgba(255,255,255,.12);color:#fff;border:none;border-radius:8px;cursor:pointer">✕ Cerrar</button>
-        </div>
+        <button onclick="document.getElementById('tareas-overlay').style.display='none'" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700;background:rgba(255,255,255,.15);color:#fff;border:none;cursor:pointer">✕ Cerrar</button>
       </div>
-      <div style="flex:1;overflow-y:auto;padding:1.5rem 2rem">
+      <div style="padding:.75rem 1.25rem;background:#0d3d73;border-bottom:1px solid rgba(255,255,255,.15);display:flex;gap:6px;flex-wrap:wrap;align-items:center;flex-shrink:0">
+        ${TAREAS_GESTOR_VISTAS.map(navItem).join('')}
+        <span style="width:1px;height:22px;background:rgba(255,255,255,.25);margin:0 2px"></span>
+        <button onclick="mostrarOrdenTareasPorPersona()" title="Ver las tareas de cada persona ordenadas por prioridad" style="padding:9px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid rgba(255,255,255,.4);background:transparent;color:#fff;display:flex;align-items:center;gap:7px;white-space:nowrap">
+          <i class="ti ti-arrows-sort" style="font-size:14px"></i> Ordenar
+        </button>
+        <button onclick="generarTareasDesdeRiego()" title="Borra las tareas de peón pendientes/iniciadas y las reconstruye desde lo que hay escrito ahora mismo en Riego" style="padding:9px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid rgba(255,255,255,.4);background:transparent;color:#fff;display:flex;align-items:center;gap:7px;white-space:nowrap">
+          <i class="ti ti-refresh" style="font-size:14px"></i> Generar tareas
+        </button>
+        <button onclick="showImprimirTareasSelector(tareasData.filter(t=>USER_ROLES[t.asignadoA]==='PEON' && !esTareaDeAyer(t) && t.estado!=='completada'))" style="padding:9px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid rgba(255,255,255,.4);background:transparent;color:#fff;display:flex;align-items:center;gap:7px;white-space:nowrap">
+          <i class="ti ti-printer" style="font-size:14px"></i> Imprimir tareas de peones
+        </button>
+      </div>
+      <div id="tareas-gestor-content-wrap" style="flex:1;overflow-y:auto;padding:1.5rem 2rem">
         ${tareasGestorVista===null ? renderTareasGestorResumenHTML(counts) : renderTareasGestorVistaHTML(tareasGestorVista, porFecha)}
       </div>
     </div>`;
+  const wrapNuevoTG = overlay.querySelector('#tareas-gestor-content-wrap');
+  if(wrapNuevoTG) wrapNuevoTG.scrollTop = scrollTopAnteriorTG;
 }
 function renderTareasGestorResumenHTML(counts){
   const subLabel = key => key==='mantenimiento' ? (counts[key]===1?'ticket abierto':'tickets abiertos') : (counts[key]===1?'pendiente':'pendientes');
@@ -1849,7 +1929,7 @@ function renderTareasGestorVistaHTML(vista, porFecha){
         <h2 style="font-size:22px;font-weight:800;color:var(--text)">🌱 Mantenimiento de Parcelas</h2>
         <p style="font-size:13px;color:var(--muted)">${mantenimientoData.filter(t=>t.estado!=='cerrado').length} tickets abiertos.</p>
       </div>
-      ${renderKanbanMantenimiento()}`;
+      ${renderMantenimientoColgandoHTML()}`;
   }
   const v = TAREAS_GESTOR_VISTAS.find(x=>x.key===vista);
   const lista = porFecha[vista] || [];
