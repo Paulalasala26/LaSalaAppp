@@ -4282,6 +4282,69 @@ function cambiarControlVistaChecklist(v){
   controlVistaChecklist = v;
   renderControlContent(document.getElementById('control-overlay'));
 }
+// Listado genérico imprimible de partidas (a petición de Paula, 2026-08-12):
+// reutilizado por "Comprobar extensiones" y por las estadísticas pinchables
+// del dashboard del día — muestra Partida/Cliente y variedad/Calle real de
+// cada línea, con botón Imprimir.
+function mostrarListadoPartidasControl(titulo, lineas){
+  const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const overlay = getOrCreateOverlay('control-listado-partidas-overlay');
+  overlay.style.zIndex = 2200;
+  const calleLabelDe = c => c.invId ? `INV ${escapar(c.invId)} — ${escapar(formatTramosLabel(c.invId, (c.tramos&&c.tramos.length)?c.tramos:[{desde:c.calleDesde,hasta:c.calleHasta}]))}` : '<span style="font-style:italic;color:var(--muted)">Sin asignar</span>';
+  const filasHTML = lineas.map(c=>`
+    <tr>
+      <td style="padding:8px 10px;border-bottom:1px solid var(--border);font-weight:800;color:#1558a0">${escapar(c.partida)||'—'}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid var(--border)">${escapar(c.clienteVariedad)||'—'}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid var(--border);white-space:nowrap">${calleLabelDe(c)}</td>
+    </tr>`).join('');
+  window.__controlListadoActual = { titulo, lineas };
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:14px;max-width:640px;width:100%;max-height:85vh;padding:1.5rem;box-shadow:0 8px 40px rgba(0,0,0,.3);display:flex;flex-direction:column">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px;flex-shrink:0">
+        <div style="font-size:16px;font-weight:800">${escapar(titulo)} <span style="font-weight:600;color:var(--muted);font-size:13px">(${lineas.length})</span></div>
+        <div style="display:flex;gap:8px">
+          <button onclick="imprimirListadoPartidasControl()" style="padding:8px 14px;font-size:12px;font-weight:800;background:#1558a0;color:#fff;border:none;border-radius:7px;cursor:pointer;display:flex;align-items:center;gap:5px"><i class="ti ti-printer" style="font-size:14px"></i> Imprimir</button>
+          <button onclick="document.getElementById('control-listado-partidas-overlay').style.display='none'" style="background:rgba(0,0,0,.06);border:none;color:#555;border-radius:6px;padding:6px 11px;cursor:pointer;font-size:13px">✕</button>
+        </div>
+      </div>
+      <div style="overflow:auto;flex:1">
+        ${lineas.length===0 ? `<div style="text-align:center;padding:2rem;color:var(--muted);font-style:italic;font-size:13px">Sin partidas.</div>` : `
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <tr><th style="padding:8px 10px;text-align:left;font-size:11px;color:var(--muted);text-transform:uppercase">Partida</th><th style="padding:8px 10px;text-align:left;font-size:11px;color:var(--muted);text-transform:uppercase">Cliente y variedad</th><th style="padding:8px 10px;text-align:left;font-size:11px;color:var(--muted);text-transform:uppercase">Calle real</th></tr>
+          ${filasHTML}
+        </table>`}
+      </div>
+    </div>`;
+  overlay.style.display = 'flex';
+}
+function imprimirListadoPartidasControl(){
+  const { titulo, lineas } = window.__controlListadoActual || { titulo:'', lineas:[] };
+  const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const calleLabelDe = c => c.invId ? `INV ${escapar(c.invId)} — ${escapar(formatTramosLabel(c.invId, (c.tramos&&c.tramos.length)?c.tramos:[{desde:c.calleDesde,hasta:c.calleHasta}]))}` : 'Sin asignar';
+  const filasHTML = lineas.map(c=>`<tr><td>${escapar(c.partida)||'—'}</td><td>${escapar(c.clienteVariedad)||'—'}</td><td>${calleLabelDe(c)}</td></tr>`).join('');
+  let iframe = document.getElementById('print-control-listado-iframe');
+  if(!iframe){
+    iframe = document.createElement('iframe');
+    iframe.id = 'print-control-listado-iframe';
+    iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:none';
+    document.body.appendChild(iframe);
+  }
+  const doc = iframe.contentWindow.document;
+  doc.open();
+  doc.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapar(titulo)}</title>
+    <style>
+      body{font-family:Arial,Helvetica,sans-serif;color:#1a1e18;padding:20px}
+      h1{font-size:18px;margin-bottom:14px}
+      table{width:100%;border-collapse:collapse;font-size:13px}
+      th,td{padding:7px 10px;border-bottom:1px solid #ccc;text-align:left}
+      th{font-size:11px;text-transform:uppercase;color:#555}
+    </style></head><body>
+      <h1>${escapar(titulo)} (${lineas.length})</h1>
+      <table><tr><th>Partida</th><th>Cliente y variedad</th><th>Calle real</th></tr>${filasHTML}</table>
+    </body></html>`);
+  doc.close();
+  setTimeout(()=>{ iframe.contentWindow.focus(); iframe.contentWindow.print(); }, 200);
+}
 function renderControlDashboardDiaHTML(seccion, listaDia){
   if(!listaDia.length){
     return `<div style="text-align:center;padding:2rem;color:var(--muted);font-style:italic;font-size:13px">Sin líneas para este día todavía.</div>`;
@@ -4305,29 +4368,38 @@ function renderControlDashboardDiaHTML(seccion, listaDia){
       ${statCard('Nº bandejas', Math.round(totalBandejas), 'linear-gradient(135deg,#7b5cf0,#5c8df0)')}
     </div>`;
 
-  const barraCategoria = (label, n, max, gradiente, tinte) => `
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+  // Cada barra se puede pinchar para ver el listado de partidas exacto (a
+  // petición de Paula, 2026-08-12) — las líneas se guardan en una caché
+  // global por índice (evita escapar comillas de clienteVariedad en el
+  // onclick) y se recuperan al pinchar.
+  window.controlDashboardCacheListas = [];
+  const barraCategoria = (label, n, max, gradiente, tinte, lineasDeEsta) => {
+    const idx = window.controlDashboardCacheListas.length;
+    window.controlDashboardCacheListas.push({ titulo: label, lineas: lineasDeEsta });
+    return `
+    <div onclick="mostrarListadoPartidasControl(window.controlDashboardCacheListas[${idx}].titulo, window.controlDashboardCacheListas[${idx}].lineas)" title="Ver partidas" style="display:flex;align-items:center;gap:8px;margin-bottom:6px;cursor:pointer">
       <div style="width:120px;font-size:11px;font-weight:700;color:var(--text);flex-shrink:0">${label}</div>
       <div style="flex:1;background:${tinte};border-radius:6px;height:18px;overflow:hidden">
         <div style="width:${Math.round((n/max)*100)}%;height:100%;background:${gradiente};border-radius:6px"></div>
       </div>
       <div style="width:26px;text-align:right;font-size:12px;font-weight:800;color:var(--text);flex-shrink:0">${n}</div>
     </div>`;
+  };
 
   const categoriasHTML = CONTROL_CHECK_CATEGORIAS.map(cat=>{
-    const conteos = cat.opciones.map(o=>({label:o.label, n: listaDia.filter(c=>c[cat.key] && c[cat.key][o.key]).length}));
+    const conteos = cat.opciones.map(o=>({label:o.label, n: listaDia.filter(c=>c[cat.key] && c[cat.key][o.key]).length, lineas: listaDia.filter(c=>c[cat.key] && c[cat.key][o.key])}));
     const max = Math.max(1, ...conteos.map(x=>x.n));
     return `
     <div style="border:1.5px solid var(--border);border-radius:12px;padding:14px;background:#fff">
       <div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:6px">
         <i class="ti ${cat.icon}" style="font-size:14px"></i> ${cat.label}
       </div>
-      ${conteos.map(x=>barraCategoria(x.label, x.n, max, cat.gradiente, cat.tinte)).join('')}
+      ${conteos.map(x=>barraCategoria(`${cat.label} — ${x.label}`, x.n, max, cat.gradiente, cat.tinte, x.lineas)).join('')}
     </div>`;
   }).join('');
 
   const conEnferma = listaDia.filter(c=>c.sanidad && c.sanidad.enferma);
-  const conteosEnfermedades = SANIDAD_ENFERMEDADES.map(e=>({label:e.label, n: conEnferma.filter(c=>c.sanidadEnfermedades && c.sanidadEnfermedades[e.key]).length})).filter(x=>x.n>0);
+  const conteosEnfermedades = SANIDAD_ENFERMEDADES.map(e=>({label:e.label, n: conEnferma.filter(c=>c.sanidadEnfermedades && c.sanidadEnfermedades[e.key]).length, lineas: conEnferma.filter(c=>c.sanidadEnfermedades && c.sanidadEnfermedades[e.key])})).filter(x=>x.n>0);
   const enfermedadesHTML = conteosEnfermedades.length ? (()=>{
     const max = Math.max(1, ...conteosEnfermedades.map(x=>x.n));
     return `
@@ -4335,7 +4407,7 @@ function renderControlDashboardDiaHTML(seccion, listaDia){
       <div style="font-size:12px;font-weight:800;color:#c62828;margin-bottom:10px;display:flex;align-items:center;gap:6px">
         <i class="ti ti-alert-triangle" style="font-size:14px"></i> Enfermedades (${conEnferma.length} línea${conEnferma.length===1?'':'s'} enferma${conEnferma.length===1?'':'s'})
       </div>
-      ${conteosEnfermedades.map(x=>barraCategoria(x.label, x.n, max, 'linear-gradient(135deg,#c62828,#e57373)', '#fdece5')).join('')}
+      ${conteosEnfermedades.map(x=>barraCategoria(x.label, x.n, max, 'linear-gradient(135deg,#c62828,#e57373)', '#fdece5', x.lineas)).join('')}
     </div>`;
   })() : '';
 
@@ -4433,7 +4505,10 @@ function renderControlChecklistHTML(seccion){
         <label style="padding:9px 16px;font-size:12px;font-weight:700;background:#5c8df0;color:#fff;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;gap:6px">
           <i class="ti ti-file-upload" style="font-size:14px"></i> Añadir extensiones
           <input type="file" accept="application/pdf" style="display:none" onchange="handleExtensionesPdfInput(this)">
-        </label>` : ''}
+        </label>
+        <button onclick="mostrarComprobarExtensiones()" style="padding:9px 16px;font-size:12px;font-weight:700;background:#3fa864;color:#fff;border:none;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;gap:6px">
+          <i class="ti ti-list-check" style="font-size:14px"></i> Comprobar extensiones
+        </button>` : ''}
       </div>
     </div>
 
@@ -4883,6 +4958,11 @@ async function handleExtensionesPdfInput(input){
         // aplicarAsignarCalleControl, que es quien persiste de verdad; así el
         // guardado de invId/tramos y el de "dia" van en la misma escritura.
         if(diaExtension!=null) c.dia = diaExtension;
+        // Marca de "asignada por extensión" (a petición de Paula, 2026-08-12:
+        // botón "Comprobar extensiones") — no afecta a nada más, solo permite
+        // listar después qué partidas recibieron su calle por esta vía.
+        c.extensionFecha = r.fecha;
+        c.extensionAplicadaEn = new Date().toLocaleString('es-ES');
         await aplicarAsignarCalleControl(c.id, r.invId, [{desde:r.calleDesde, hasta:r.calleHasta}]);
         asignadas++;
       }
@@ -4895,6 +4975,15 @@ async function handleExtensionesPdfInput(input){
     showToast('Error al leer el PDF de extensiones');
   }
   input.value = '';
+}
+// "Comprobar extensiones" (a petición de Paula, 2026-08-12): lista todas las
+// líneas de Túnel que tienen calle asignada por esta vía (marca
+// c.extensionFecha), no solo las de la última subida — reutiliza el mismo
+// listado imprimible que las estadísticas del dashboard.
+function mostrarComprobarExtensiones(){
+  const lineas = controlChecksData.filter(c=>c.tipo==='tunel' && c.extensionFecha)
+    .sort((a,b)=> String(b.extensionAplicadaEn||'').localeCompare(String(a.extensionAplicadaEn||'')));
+  mostrarListadoPartidasControl('Partidas con calle asignada por extensiones', lineas);
 }
 function renderControlCardHTML(c, seccion){
   // Carga tiene una ficha distinta (Cliente/Partida/Variedad/Nº bandejas/
