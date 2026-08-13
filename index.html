@@ -1460,43 +1460,59 @@ async function asignarTareasEnLote(){
   showToast(`✓ ${cambios} tarea(s) asignada(s) a ${persona}`);
   renderTareasContent(document.getElementById('tareas-overlay'), true);
 }
+// Colores/estado por tarea (a petición de Paula, 2026-08-12: "deben de
+// seguir la misma estética en cuanto a formato colores de la aplicación")
+// — mismo lenguaje de color que el resto de la app: ámbar=pendiente,
+// azul=en proceso, verde=completada (igual que buildTareaCard del peón y
+// las tarjetas de mantenimiento).
+function estadoTareaColores(estado){
+  if(estado==='completada') return {color:'#1a5c2e', bg:'#eafaf0', grad:'linear-gradient(135deg,#1a5c2e,#3fa864)', label:'✓ Completada'};
+  if(estado==='iniciada') return {color:'#1558a0', bg:'#eef4fb', grad:'linear-gradient(135deg,#1558a0,#2a72c4)', label:'▶ En proceso'};
+  return {color:'#c47f00', bg:'#fff8e1', grad:'linear-gradient(135deg,#c47f00,#e0a530)', label:'⏳ Pendiente'};
+}
+// Tarjeta "colgando" para la vista de gestión (ADMIN/TÉCNICO) — sustituye a
+// la fila de tabla de siempre por una tarjeta con el mismo lenguaje visual
+// que el resto de la app (degradado por estado + una pestaña arriba que
+// simula que "cuelga"), conservando exactamente los mismos datos/acciones
+// que ya tenía la tabla (checkbox de selección en lote, editar/imprimir/
+// eliminar).
 function buildTareaGestorRow(t, conSeleccion){
+  const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const est = estadoTareaColores(t.estado);
+  const subtitulo = t.objetivos && t.objetivos.length ? invCallesLabelDeTarea(t) : ((t.inv?('INV '+t.inv):'')+(t.calles?(' · '+(/\(INV completo\)$/.test(t.calles)?'ENTERO':t.calles)):''));
+  const detalles = [
+    t.horaInicio ? `Inicio: ${escapar(t.horaInicio)}` : '',
+    t.horaFin ? `Fin: ${escapar(t.horaFin)}` : '',
+    t.firmante ? `Firma: ${escapar(t.firmante)}` : ''
+  ].filter(Boolean).join(' · ');
   return `
-      <tr class="tarea-row">
-        ${conSeleccion ? `<td style="padding:7px 10px"><input type="checkbox" class="tarea-select-chk" value="${t.id}" ${tareasSeleccionadas.has(t.id)?'checked':''} onchange="toggleSeleccionTarea('${t.id}',this.checked)"></td>` : ''}
-        <td style="padding:7px 10px;font-size:12px;font-weight:700">${t.titulo}</td>
-        <td style="padding:7px 10px;font-size:11px;color:var(--muted)">${t.objetivos && t.objetivos.length ? invCallesLabelDeTarea(t) : ((t.inv?('INV '+t.inv):'—')+(t.calles?(' · '+(/\(INV completo\)$/.test(t.calles)?'ENTERO':t.calles)):''))}</td>
-        <td style="padding:7px 10px;font-size:11px;color:var(--muted)">${t.descripcion||'—'}</td>
-        <td style="padding:7px 10px;font-size:11px">${t.asignadoA}</td>
-        <td style="padding:7px 10px;font-size:10px;font-weight:700;color:${t.prioridad==='alta'?'#c62828':'#546e7a'}">${t.prioridad==='alta'?'ALTA':'Normal'}</td>
-        <td style="padding:7px 10px;font-size:10px;font-weight:700">${estadoTareaLabel(t.estado)}</td>
-        <td style="padding:7px 10px">${t.horario?`<span style="font-size:10px;font-weight:800;color:#c62828;border:1.5px solid #c62828;border-radius:6px;padding:2px 7px;white-space:nowrap">${t.horario}</span>`:'—'}</td>
-        <td style="padding:7px 10px;font-size:10px;color:var(--muted)">${t.horaInicio||'—'}</td>
-        <td style="padding:7px 10px;font-size:10px;color:var(--muted)">${t.horaFin||'—'}</td>
-        <td style="padding:7px 10px;font-size:10px;color:var(--muted)">${t.firmante||'—'}</td>
-        <td style="padding:7px 10px;white-space:nowrap">
-          <button onclick="showEditarTareaForm('${t.id}')" title="Editar" style="padding:4px 8px;font-size:10px;font-weight:700;background:#eef4fb;color:#1558a0;border:1px solid #a8c4e8;border-radius:6px;cursor:pointer;margin-right:4px">✏️ Editar</button>
-          <button onclick="imprimirTareaSuelta('${t.id}')" title="Imprimir" style="padding:4px 8px;font-size:10px;font-weight:700;background:#eef9f0;color:#2e7d32;border:1px solid #a8dcb0;border-radius:6px;cursor:pointer;margin-right:4px">🖨️ Imprimir</button>
-          <button onclick="eliminarTarea('${t.id}')" title="Eliminar" style="padding:4px 8px;font-size:10px;font-weight:700;background:#fdecea;color:#c62828;border:1px solid #f0b0b0;border-radius:6px;cursor:pointer">🗑️ Eliminar</button>
-        </td>
-      </tr>`;
+    <div class="tarea-card" style="position:relative;margin-top:10px;border-radius:4px 4px 12px 12px;background:#fff;border:1.5px solid var(--border);border-top:none;box-shadow:var(--shadow-sm);padding:14px 16px 12px">
+      <div style="position:absolute;top:-9px;left:18px;width:38px;height:16px;background:${est.color};border-radius:5px 5px 0 0;box-shadow:0 -1px 3px rgba(0,0,0,.15)"></div>
+      ${conSeleccion ? `<input type="checkbox" class="tarea-select-chk" value="${t.id}" ${tareasSeleccionadas.has(t.id)?'checked':''} onchange="toggleSeleccionTarea('${t.id}',this.checked)" style="position:absolute;top:12px;right:14px;width:16px;height:16px;cursor:pointer">` : ''}
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;padding-right:${conSeleccion?'26px':'0'}">
+        <div style="font-size:15px;font-weight:800;color:var(--text)">${escapar(t.titulo)}${t.prioridad==='alta'?' <span style="color:#c62828;font-size:11px;font-weight:800">● ALTA</span>':''}</div>
+        <span style="font-size:10px;font-weight:800;padding:4px 11px;border-radius:20px;background:${est.bg};color:${est.color};white-space:nowrap">${est.label}</span>
+      </div>
+      ${subtitulo ? `<div style="font-size:12.5px;font-weight:600;color:var(--muted);margin-top:3px">${escapar(subtitulo)}</div>` : ''}
+      ${t.descripcion ? `<div style="font-size:12px;color:var(--muted);margin-top:4px">${escapar(t.descripcion)}</div>` : ''}
+      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center">
+        <span style="font-size:11px;font-weight:700;background:#f2f4f0;color:var(--text);border-radius:999px;padding:3px 11px">👤 ${escapar(t.asignadoA)}</span>
+        ${t.horario ? `<span style="font-size:10.5px;font-weight:800;color:#c62828;border:1.5px solid #c62828;border-radius:999px;padding:2px 10px">⏰ ${escapar(t.horario)}</span>` : ''}
+      </div>
+      ${detalles ? `<div style="font-size:11px;color:var(--muted);margin-top:8px;padding-top:8px;border-top:1px dashed var(--border)">${detalles}</div>` : ''}
+      <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+        <button onclick="showEditarTareaForm('${t.id}')" title="Editar" style="padding:5px 10px;font-size:10.5px;font-weight:700;background:#eef4fb;color:#1558a0;border:1px solid #a8c4e8;border-radius:6px;cursor:pointer">✏️ Editar</button>
+        <button onclick="imprimirTareaSuelta('${t.id}')" title="Imprimir" style="padding:5px 10px;font-size:10.5px;font-weight:700;background:#eef9f0;color:#2e7d32;border:1px solid #a8dcb0;border-radius:6px;cursor:pointer">🖨️ Imprimir</button>
+        <button onclick="eliminarTarea('${t.id}')" title="Eliminar" style="padding:5px 10px;font-size:10.5px;font-weight:700;background:#fdecea;color:#c62828;border:1px solid #f0b0b0;border-radius:6px;cursor:pointer">🗑️ Eliminar</button>
+      </div>
+    </div>`;
 }
 function tareaTableHead(conSeleccion){
-  return `
-              <tr style="background:var(--blue-light);text-align:left;border-bottom:1.5px solid var(--blue-border)">
-                ${conSeleccion ? `<th style="padding:8px 10px;width:1%"><input type="checkbox" id="tarea-select-all" onchange="toggleSeleccionarTodasVisibles(this.checked)" title="Seleccionar todas"></th>` : ''}
-                <th style="padding:8px 10px;font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--blue)">Título</th>
-                <th style="padding:8px 10px;font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--blue)">Invernadero</th>
-                <th style="padding:8px 10px;font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--blue)">Descripción</th>
-                <th style="padding:8px 10px;font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--blue)">Asignada a</th>
-                <th style="padding:8px 10px;font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--blue)">Prioridad</th>
-                <th style="padding:8px 10px;font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--blue)">Estado</th>
-                <th style="padding:8px 10px;font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--blue)">Horario</th>
-                <th style="padding:8px 10px;font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--blue)">Inicio</th>
-                <th style="padding:8px 10px;font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--blue)">Fin</th>
-                <th style="padding:8px 10px;font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--blue)">Firma</th>
-                <th style="padding:8px 10px;font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--blue)">Acciones</th>
-              </tr>`;
+  return conSeleccion ? `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px;padding-left:2px">
+      <input type="checkbox" id="tarea-select-all" onchange="toggleSeleccionarTodasVisibles(this.checked)" title="Seleccionar todas" style="width:15px;height:15px;cursor:pointer">
+      <label for="tarea-select-all" style="font-size:11px;font-weight:700;color:var(--muted);cursor:pointer">Seleccionar todas</label>
+    </div>` : '';
 }
 // Botón grande de una opción con contador, usado tanto por el nivel
 // Pendientes/Completadas del gestor como por Sala1/Sala2 y Orden Abonos/Aguas
@@ -1902,19 +1918,16 @@ function renderTareaSalaBloque(salaLabel, activasSala, completadasSala){
       <i class="ti ti-building-warehouse" style="font-size:15px"></i> ${salaLabel}
     </div>
     ${activasSala.length===0 ? `<div style="padding:.75rem 0 1rem;color:var(--muted);font-style:italic;font-size:12px">No hay tareas pendientes.</div>` : `
-    <div style="overflow-x:auto;margin-bottom:${completadasSala.length?'1rem':'1.5rem'}">
-      <table style="border-collapse:collapse;width:100%;background:#fff;border-radius:10px;overflow:hidden;box-shadow:var(--shadow-sm)">
-        ${tareaTableHead(true)}
+    <div style="margin-bottom:${completadasSala.length?'1rem':'1.5rem'}">
+      ${tareaTableHead(true)}
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px 16px;margin-top:6px">
         ${filasActivas}
-      </table>
+      </div>
     </div>`}
     ${completadasSala.length ? `
     <div style="font-size:11px;font-weight:800;color:#2e7d32;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">✓ Completadas (${completadasSala.length})</div>
-    <div style="overflow-x:auto;margin-bottom:1.5rem">
-      <table style="border-collapse:collapse;width:100%;opacity:.85;background:#fff;border-radius:10px;overflow:hidden;box-shadow:var(--shadow-sm)">
-        ${tareaTableHead(false)}
-        ${filasCompletadas}
-      </table>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px 16px;opacity:.85;margin-bottom:1.5rem">
+      ${filasCompletadas}
     </div>` : ''}`;
 }
 function renderTareasContent(overlay, esGestor){
