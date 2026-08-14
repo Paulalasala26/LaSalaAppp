@@ -8232,10 +8232,16 @@ async function loadRiegoData(){
 async function saveRiegoData(){
   try{
     const r = await window.storage.get(RIEGO_KEY);
-    const cloud = r ? JSON.parse(r.value) : {};
+    // Si la lectura falla, r es null — NUNCA tratarlo como "no hay datos
+    // todavía" (eso borraría todo lo demás al fusionar con un riegoData
+    // local incompleto). Se aborta el guardado y se avisa, en vez de
+    // guardar sobre una base vacía falsa (causó el incidente del 14/08/2026:
+    // se perdió el riego de todos los invernaderos salvo uno).
+    if(!r){ avisarFalloGuardado(); return; }
+    const cloud = JSON.parse(r.value);
     riegoData = mergeDeepPreferLocal(cloud, riegoData);
     await window.storage.set(RIEGO_KEY, JSON.stringify(riegoData));
-  }catch(e){}
+  }catch(e){ avisarFalloGuardado(); return; }
   showToast('✓ Riego guardado');
   logHistorial(`Guardó riego${riegoInvSel?' de INV '+riegoInvSel:''}`);
 }
@@ -11074,12 +11080,13 @@ function aplicarTextoRiegoManual(invId, dia, tramos, texto, callesExtraALimpiar)
 async function guardarRiegoConLimpieza(invId, dia, callesALimpiar){
   try{
     const r = await window.storage.get(RIEGO_KEY);
-    let cloud = r ? JSON.parse(r.value) : {};
+    if(!r){ avisarFalloGuardado(); return; }
+    let cloud = JSON.parse(r.value);
     cloud = mergeDeepPreferLocal(cloud, riegoData);
     if(cloud[invId] && cloud[invId][dia]) callesALimpiar.forEach(c=>delete cloud[invId][dia][c]);
     riegoData = cloud;
     await window.storage.set(RIEGO_KEY, JSON.stringify(cloud));
-  }catch(e){}
+  }catch(e){ avisarFalloGuardado(); return; }
   showToast('✓ Riego guardado');
   logHistorial(`Guardó riego${riegoInvSel?' de INV '+riegoInvSel:''}`);
 }
@@ -11089,12 +11096,13 @@ async function guardarBorradoRiego(invId, dia, calles){
 async function guardarBorradoRiegoMultiInv(entradas){
   try{
     const r = await window.storage.get(RIEGO_KEY);
-    const cloud = r ? JSON.parse(r.value) : {};
+    if(!r){ avisarFalloGuardado(); return; }
+    const cloud = JSON.parse(r.value);
     entradas.forEach(({invId, dia, calles})=>{
       if(cloud[invId] && cloud[invId][dia]) calles.forEach(c=>delete cloud[invId][dia][c]);
     });
     await window.storage.set(RIEGO_KEY, JSON.stringify(cloud));
-  }catch(e){}
+  }catch(e){ avisarFalloGuardado(); return; }
   const invs = entradas.map(e=>e.invId);
   logHistorial(invs.length>1 ? `Borró riego de ${invs.length} invernaderos (${invs.join(',')})` : `Borró riego de INV ${invs[0]}`);
 }
@@ -11181,13 +11189,14 @@ async function aplicarTextoRiegoManualMoviendoDia(invId, diaOriginal, callesOrig
   document.getElementById('riego-manual-overlay').style.display = 'none';
   try{
     const r = await window.storage.get(RIEGO_KEY);
-    const cloud = r ? JSON.parse(r.value) : {};
+    if(!r){ avisarFalloGuardado(); return false; }
+    const cloud = JSON.parse(r.value);
     if(!cloud[invId]) cloud[invId] = {};
     if(!cloud[invId][diaNuevo]) cloud[invId][diaNuevo] = {};
     callesNuevas.forEach(c=>{ cloud[invId][diaNuevo][c] = riegoData[invId][diaNuevo][c]; });
     if(cloud[invId][diaOriginal]) callesOriginal.forEach(c=>delete cloud[invId][diaOriginal][c]);
     await window.storage.set(RIEGO_KEY, JSON.stringify(cloud));
-  }catch(e){}
+  }catch(e){ avisarFalloGuardado(); return false; }
   renderRiegoGrid(invId);
   const tramosLabel = tramosNuevos.map(({desde,hasta})=>{const s=Math.min(desde,hasta),e=Math.max(desde,hasta); return s===e?`${s}`:`${s}-${e}`;}).join(', ');
   showToast(`✓ Riego movido del día ${diaOriginal} al día ${diaNuevo}, C/${tramosLabel} → "${texto}"`);
