@@ -3989,16 +3989,65 @@ function mostrarFotoControlAmpliada(id){
 // check normal vuelve a pesar unos pocos KB y solo el guardado de la foto en
 // sí sube ese peso mayor (y solo esa foto, no las demás).
 const CONTROL_FOTOS_KEY = 'lasala-control-fotos-v1';
+// 2026-08-14: aquel arreglo de 2026-08-05 (mover las fotos a su propia
+// clave) volvió a fallar — una sola clave con TODAS las fotos también
+// termina llenándose (llegó a 10,27 MB, bloqueando cualquier guardado
+// nuevo en silencio) — mismo síntoma de fondo, solo que en la clave nueva
+// en vez de en controlChecksData. Ahora las fotos se REPARTEN en varios
+// "shards" (`lasala-control-fotos-v1`, `-v1-2`, `-v1-3`...) — un índice
+// (`CONTROL_FOTOS_SHARDS_INDEX_KEY`) lleva la lista de shards en uso; al
+// acercarse un shard a un tamaño holgado (`CONTROL_FOTOS_SHARD_MAX_CHARS`,
+// muy por debajo del límite real de Firebase) se crea uno nuevo
+// automáticamente. `controlFotosData` sigue siendo un único mapa en
+// memoria con TODAS las fotos ya fusionadas de todos los shards — el resto
+// de la app (mostrarFotoControlAmpliada, etc.) no necesita saber nada de
+// shards, solo lee ese mapa como siempre.
+const CONTROL_FOTOS_SHARDS_INDEX_KEY = 'lasala-control-fotos-shards-index';
+const CONTROL_FOTOS_SHARD_MAX_CHARS = 6*1024*1024;
+let controlFotosShardKeys = [CONTROL_FOTOS_KEY];
 let controlFotosData = {};
+let controlFotosShardDeId = {};
 async function loadControlFotosData(){
-  try{ const r = await window.storage.get(CONTROL_FOTOS_KEY); if(r) controlFotosData = JSON.parse(r.value); }catch(e){}
-}
-async function persistControlFotosData(){
   try{
-    const r = await window.storage.get(CONTROL_FOTOS_KEY);
+    const idx = await window.storage.get(CONTROL_FOTOS_SHARDS_INDEX_KEY);
+    controlFotosShardKeys = idx ? JSON.parse(idx.value) : [CONTROL_FOTOS_KEY];
+  }catch(e){ controlFotosShardKeys = [CONTROL_FOTOS_KEY]; }
+  controlFotosData = {};
+  controlFotosShardDeId = {};
+  for(const key of controlFotosShardKeys){
+    try{
+      const r = await window.storage.get(key);
+      if(r){
+        const obj = JSON.parse(r.value);
+        Object.keys(obj).forEach(id=>{ controlFotosData[id] = obj[id]; controlFotosShardDeId[id] = key; });
+      }
+    }catch(e){}
+  }
+}
+async function elegirShardParaFoto(id, fotoB64Len){
+  if(controlFotosShardDeId[id]) return controlFotosShardDeId[id];
+  const ultimoKey = controlFotosShardKeys[controlFotosShardKeys.length-1];
+  let tamActual = 0;
+  try{ const r = await window.storage.get(ultimoKey); if(r) tamActual = r.value.length; }catch(e){}
+  if(tamActual + fotoB64Len < CONTROL_FOTOS_SHARD_MAX_CHARS) return ultimoKey;
+  const nuevoKey = `lasala-control-fotos-v1-${controlFotosShardKeys.length+1}`;
+  controlFotosShardKeys = [...controlFotosShardKeys, nuevoKey];
+  await window.storage.set(CONTROL_FOTOS_SHARDS_INDEX_KEY, JSON.stringify(controlFotosShardKeys));
+  return nuevoKey;
+}
+// A diferencia del resto de persist*Data() de la app, este recibe el id de
+// la foto que se acaba de tocar — necesita saber CUÁL es para decidir en
+// qué shard escribir (solo se reescribe ESE shard, no todos).
+async function persistControlFotosData(id){
+  try{
+    const shardKey = await elegirShardParaFoto(id, (controlFotosData[id]||'').length);
+    controlFotosShardDeId[id] = shardKey;
+    const r = await window.storage.get(shardKey);
     const cloud = r ? JSON.parse(r.value) : {};
-    controlFotosData = Object.assign({}, cloud, controlFotosData);
-    return await window.storage.set(CONTROL_FOTOS_KEY, JSON.stringify(controlFotosData));
+    Object.keys(controlFotosData).forEach(otroId=>{
+      if(controlFotosShardDeId[otroId]===shardKey) cloud[otroId] = controlFotosData[otroId];
+    });
+    return await window.storage.set(shardKey, JSON.stringify(cloud));
   }catch(e){ return false; }
 }
 // Una línea de check: {id, tipo:'tunel'|'carga', dia, clienteVariedad,
@@ -4677,7 +4726,8 @@ function handleControlPdfInput(input, tipo, dia){
     if(tipo === 'carga'){
       showToast('Leyendo PDF y creando líneas...');
       const creadasCarga = await autoCrearLineasDesdePdfControlCarga(dia, e.target.result);
-      if(creadasCarga > 0) showToast(`✓ ${creadasCarga} línea${creadasCarga===1?'':'s'} creada${creadasCarga===1?'':'s'} desde el PDF — falta el check`);
+      if(creadasCarga === -2) showToast('❌ Error al GUARDAR las líneas leídas del PDF — no se ha llegado a subir a la nube, inténtalo de nuevo (si se repite, avisa)');
+      else if(creadasCarga > 0) showToast(`✓ ${creadasCarga} línea${creadasCarga===1?'':'s'} creada${creadasCarga===1?'':'s'} desde el PDF — falta el check`);
       else if(creadasCarga === 0) showToast('✓ PDF adjuntado (no se han detectado partidas nuevas que añadir)');
       else showToast('✓ PDF adjuntado, pero no se ha podido leer automáticamente — añade las líneas a mano');
       renderControlContent(document.getElementById('control-overlay'));
@@ -4690,7 +4740,8 @@ function handleControlPdfInput(input, tipo, dia){
     // días antes de la Fecha Entrega, 3HV/4HV → 7 días antes), en Trabajos
     // de Mujeres → Pinzar. Ver autoCrearPinzadosDesdePdfTunel.
     const creadosPinzado = await autoCrearPinzadosDesdePdfTunel(e.target.result);
-    if(creadas > 0) showToast(`✓ ${creadas} línea${creadas===1?'':'s'} creada${creadas===1?'':'s'} desde el PDF — falta la calle real y el check`);
+    if(creadas === -2) showToast('❌ Error al GUARDAR las líneas leídas del PDF — no se ha llegado a subir a la nube, inténtalo de nuevo (si se repite, avisa)');
+    else if(creadas > 0) showToast(`✓ ${creadas} línea${creadas===1?'':'s'} creada${creadas===1?'':'s'} desde el PDF — falta la calle real y el check`);
     else if(creadas === 0) showToast('✓ PDF adjuntado (no se han detectado partidas nuevas que añadir)');
     else showToast('✓ PDF adjuntado, pero no se ha podido leer automáticamente — añade las líneas a mano');
     if(creadosPinzado > 0) showToast(`✓ ${creadosPinzado} pinzado${creadosPinzado===1?'':'s'} programado${creadosPinzado===1?'':'s'} automáticamente`);
@@ -4879,7 +4930,20 @@ async function autoCrearLineasDesdePdfControl(tipo, dia, pdfB64){
       });
       creadas++;
     });
-    if(creadas) await persistControlChecksData();
+    // Bug real encontrado 2026-08-14: este persist no comprobaba el
+    // resultado — si fallaba (p.ej. porque controlFotosData/controlChecksData
+    // ya estaba al límite de tamaño de Firebase por fotos embebidas, ver
+    // CONTROL_FOTOS_SHARD_MAX_CHARS más arriba), la función igual devolvía
+    // "creadas" como si hubiera ido bien, y handleControlPdfInput mostraba
+    // "✓ N líneas creadas" — una MENTIRA: las líneas solo existían en la
+    // memoria del navegador, nunca llegaron a la nube. Un "Sincronizar"
+    // posterior (que relee la nube fresca) las hacía desaparecer sin avisar,
+    // como si se hubiera borrado todo. Ahora se comprueba de verdad y se
+    // devuelve -2 (creadas pero SIN GUARDAR) para que el aviso sea honesto.
+    if(creadas){
+      const ok = await persistControlChecksData();
+      if(!ok) return -2;
+    }
     return creadas;
   }catch(e){
     console.error('Error leyendo PDF de Control:', e);
@@ -4947,7 +5011,11 @@ async function autoCrearLineasDesdePdfControlCarga(dia, pdfB64){
       });
       creadas++;
     });
-    if(creadas) await persistControlChecksData();
+    // Mismo arreglo que Túnel (2026-08-14): comprobar de verdad si se guardó.
+    if(creadas){
+      const ok = await persistControlChecksData();
+      if(!ok) return -2;
+    }
     return creadas;
   }catch(e){
     console.error('Error leyendo PDF de Carga:', e);
@@ -5432,7 +5500,7 @@ async function aplicarFotoControl(id, fotoB64){
   showToast('✓ Foto guardada');
   renderControlContent(document.getElementById('control-overlay'));
   const qid = encolarAccionOffline('aplicarFotoControl', [id, fotoB64]);
-  const ok = await persistControlFotosData();
+  const ok = await persistControlFotosData(id);
   if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
   return ok;
 }
@@ -8350,23 +8418,29 @@ function invernaderoRevisadoPorVigueras(invId, dia){
     return raw && typeof raw==='object' && raw.revisadoPorVigueras;
   });
 }
+// Rediseño (a petición de Paula, 2026-08-12: "muy rústica") — gradiente
+// lleno por estado (en vez de fondo casi blanco con borde fino) + sombra +
+// una pequeña pestaña de color arriba, mismo lenguaje "colgando" que el
+// resto de tarjetas de la app (buildTareaGestorRow, Partidas...). El cálculo
+// de color/estado (estadoMiniaturaInvernadero) no se toca.
 function buildMiniaturaInvernadero(modulo, invId, dia){
   const estado = estadoMiniaturaInvernadero(modulo, invId, dia);
-  const colores = { rojo:'#e53935', amarillo:'#fbc02d', verde:'#2e7d32' };
+  const colores = { rojo:'#c62828', amarillo:'#c47f00', verde:'#1a5c2e' };
   const gradientes = {
-    rojo:'linear-gradient(135deg,#fdf0f0,#fff)',
-    amarillo:'linear-gradient(135deg,#fff8e1,#fff)',
-    verde:'linear-gradient(135deg,#e8f5e9,#fff)'
+    rojo:'linear-gradient(145deg,#c62828,#e57373)',
+    amarillo:'linear-gradient(145deg,#c47f00,#e0a530)',
+    verde:'linear-gradient(145deg,#1a5c2e,#3fa864)'
   };
   const selectFn = DASHBOARD_MODULOS[modulo].selectFn;
   const mostrarV = modulo==='riego' && invernaderoRevisadoPorVigueras(invId, dia);
   return `
-    <div class="dashboard-inv-card" onclick="${selectFn}('${invId}')" title="INV ${invId}" style="position:relative;width:110px;height:110px;border:2px solid ${colores[estado]}55;border-radius:14px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;background:${gradientes[estado]};flex-shrink:0">
-      <span style="font-size:18px;font-weight:800;color:var(--text)">${invId}</span>
-      <div style="display:flex;gap:5px;margin-top:8px">
-        ${['verde','amarillo','rojo'].map(c=>`<div style="width:11px;height:11px;border-radius:50%;background:${estado===c?colores[c]:'#e0e4dc'};${estado===c?`box-shadow:0 0 0 3px ${colores[c]}33`:''}"></div>`).join('')}
+    <div class="dashboard-inv-card" onclick="${selectFn}('${invId}')" title="INV ${invId}" style="position:relative;width:112px;height:112px;border-radius:16px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;background:${gradientes[estado]};color:#fff;flex-shrink:0;box-shadow:0 6px 16px rgba(0,0,0,.18);overflow:hidden">
+      <div style="position:absolute;right:-22px;top:-22px;width:70px;height:70px;background:rgba(255,255,255,.14);border-radius:50%;pointer-events:none"></div>
+      <span style="font-size:19px;font-weight:800;position:relative">${invId}</span>
+      <div style="display:flex;gap:5px;margin-top:9px;position:relative">
+        ${['verde','amarillo','rojo'].map(c=>`<div style="width:10px;height:10px;border-radius:50%;background:${estado===c?'#fff':'rgba(255,255,255,.35)'};${estado===c?'box-shadow:0 0 0 3px rgba(255,255,255,.25)':''}"></div>`).join('')}
       </div>
-      ${mostrarV ? `<div title="Confirmado por Vigueras" style="position:absolute;bottom:-7px;left:-7px;width:24px;height:24px;border-radius:50%;background:#1a5c2e;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:12px;box-shadow:var(--shadow-sm);border:2px solid #fff">✓</div>` : ''}
+      ${mostrarV ? `<div title="Confirmado por Vigueras" style="position:absolute;bottom:-7px;left:-7px;width:24px;height:24px;border-radius:50%;background:#fff;color:${colores.verde};display:flex;align-items:center;justify-content:center;font-weight:900;font-size:12px;box-shadow:var(--shadow-sm);border:2px solid ${colores.verde}">✓</div>` : ''}
     </div>`;
 }
 function renderDashboardInvernaderos(modulo){
@@ -8783,6 +8857,30 @@ function esPantallaMovil(){
   return window.innerWidth <= 480;
 }
 // ── RENDER EXCEL-STYLE GRID ────────────────────────────────────
+// Tamaño de letra de una celda de bracket, en función del ANCHO REAL del
+// tramo (spanW) — a petición de Paula, 2026-08-12: "debe ocupar todo el
+// tramo de calles que le corresponda", no quedarse en 9px fijo aunque el
+// tramo sea ancho. Se calcula el tamaño que haría falta para que el texto
+// entero quepa en una línea con ese ancho disponible, limitado entre un
+// mínimo legible (8px) y un máximo razonable (13px) — si aun al mínimo no
+// cabe en una línea, se usa el textarea de 2/3 líneas de siempre, con el
+// mismo cálculo aplicado sobre el ancho de 2 líneas de texto. Comparten
+// esta función Riego/Fito/Específicos (mismo criterio en los tres).
+function calcularFontSizeCeldaGrid(spanW, texto){
+  const FONT_MIN = 8, FONT_MAX = 13, CHAR_W = 0.58;
+  const availW = spanW - 16;
+  const trimmedLen = texto.trim().length;
+  const fontSizeIdeal = trimmedLen ? Math.floor(availW / (trimmedLen*CHAR_W)) : FONT_MAX;
+  const fontSize = Math.max(FONT_MIN, Math.min(FONT_MAX, fontSizeIdeal));
+  const estCharsPerLine = Math.max(4, Math.floor(availW / (fontSize*CHAR_W)));
+  const fitsOneLine = trimmedLen <= estCharsPerLine;
+  // Si no cabe en una línea ni al tamaño mínimo, para el textarea de 2/3
+  // líneas se recalcula un tamaño (normalmente más pequeño que FONT_MAX)
+  // que sí encaje en el total de caracteres disponible repartido en varias
+  // líneas, sin bajar del mínimo legible.
+  const fontSizeMultilinea = Math.max(FONT_MIN, Math.min(FONT_MAX, Math.floor((availW*2.6) / Math.max(1,trimmedLen) / CHAR_W)));
+  return { fontSize, fitsOneLine, fontSizeMultilinea };
+}
 function renderRiegoGrid(invId){
   const wrap = document.getElementById('riego-grid-wrap');
   if(!wrap) return;
@@ -8841,9 +8939,7 @@ function renderRiegoGrid(invId){
           // vez de quedar oculto/cortado como antes.
           const spanW = br.span * CW;
           const trimmedLen = br.text.trim().length;
-          const availW = spanW - 16;
-          const estCharsPerLine = Math.max(4, Math.floor(availW / (9*0.58)));
-          const fitsOneLine = trimmedLen <= estCharsPerLine;
+          const { fontSize: fontSizeUnaLinea, fitsOneLine, fontSizeMultilinea } = calcularFontSizeCeldaGrid(spanW, br.text);
 
           // Quién lo marcó decide el color y si se puede tocar: cada uno
           // edita lo suyo; un TÉCNICO no puede tocar lo de otra persona.
@@ -8959,9 +9055,9 @@ function renderRiegoGrid(invId){
             const colorTexto = colorTextoRiego || '#0a5a0a';
             cells += `<td colspan="${br.span}" style="height:${DH}px;border:1px solid #9ab8d8;padding:0;position:relative;background:${bgBase};cursor:pointer" ${dblclickAttr}>
               <div style="display:flex;align-items:center;justify-content:center;height:100%;padding:0 2px">
-                <span style="font-size:9px;font-weight:900;color:${colorBracket};margin-right:1px;flex-shrink:0">[</span>
-                <span style="flex:1;font-size:9px;font-weight:700;color:${colorTexto};text-align:center;min-width:0">${textoResaltado}</span>
-                <span style="font-size:9px;font-weight:900;color:${colorBracket};margin-left:1px;flex-shrink:0">]</span>
+                <span style="font-size:${Math.min(11,fontSizeUnaLinea+1)}px;font-weight:900;color:${colorBracket};margin-right:1px;flex-shrink:0">[</span>
+                <span style="flex:1;font-size:${fontSizeUnaLinea}px;font-weight:700;color:${colorTexto};text-align:center;min-width:0">${textoResaltado}</span>
+                <span style="font-size:${Math.min(11,fontSizeUnaLinea+1)}px;font-weight:900;color:${colorBracket};margin-left:1px;flex-shrink:0">]</span>
               </div>
               ${siNoHTML}
               ${botonPropuestaHTML}
@@ -8971,7 +9067,7 @@ function renderRiegoGrid(invId){
             const colorTexto = colorTextoRiego || '#0a5a0a';
             cells += `<td colspan="${br.span}" style="height:${DH}px;border:1px solid #9ab8d8;padding:0;position:relative;background:${bgBase}">
               <div style="display:flex;align-items:center;justify-content:center;height:100%;padding:0 2px">
-                <span style="font-size:9px;font-weight:900;color:${colorBracket};margin-right:1px;flex-shrink:0">[</span>
+                <span style="font-size:${Math.min(11,fontSizeUnaLinea+1)}px;font-weight:900;color:${colorBracket};margin-right:1px;flex-shrink:0">[</span>
                 <input type="text"
                   value="${br.text.replace(/"/g,'&quot;')}"
                   data-rinv="${invId}" data-dia="${dia}" data-rc="${br.calles.join(',')}"
@@ -8979,34 +9075,34 @@ function renderRiegoGrid(invId){
                   ondblclick="editarRiegoManualDesdeCelda('${invId}',${dia},[${br.calles.join(',')}])"
                   onmousedown="dragCalleStart('riego','${invId}',${dia},${br.calles[0]})"
                   onmouseenter="dragCalleOver('riego','${invId}',${dia},${br.calles[0]})"
-                  style="flex:1;border:none;background:transparent;font-size:9px;font-weight:700;color:${colorTexto};outline:none;min-width:0;padding:0 1px;text-align:center">
-                <span style="font-size:9px;font-weight:900;color:${colorBracket};margin-left:1px;flex-shrink:0">]</span>
+                  style="flex:1;border:none;background:transparent;font-size:${fontSizeUnaLinea}px;font-weight:700;color:${colorTexto};outline:none;min-width:0;padding:0 1px;text-align:center">
+                <span style="font-size:${Math.min(11,fontSizeUnaLinea+1)}px;font-weight:900;color:${colorBracket};margin-left:1px;flex-shrink:0">]</span>
               </div>
               ${siNoHTML}
               ${botonPropuestaHTML}
             </td>`;
           } else if(contieneProgramado(br.text)){
-            const fontSize = esPantallaMovil() ? (trimmedLen>40 ? 7 : (trimmedLen>20 ? 8 : 9)) : (trimmedLen>40 ? 6.5 : (trimmedLen>20 ? 7.5 : 8.5));
+            const fontSize = fontSizeMultilinea;
             const textoResaltado = resaltarProgramadoHTML(br.text);
             const colorBracket = colorTextoRiego || '#0a7a0a';
             const colorTexto = colorTextoRiego || '#0a5a0a';
             cells += `<td colspan="${br.span}" style="border:1px solid #9ab8d8;padding:0;position:relative;background:${bgBase};cursor:pointer" ${dblclickAttr}>
               <div style="display:flex;align-items:flex-start;padding:1px 2px">
-                <span style="font-size:9px;font-weight:900;color:${colorBracket};margin-right:1px;flex-shrink:0;line-height:1.3">[</span>
+                <span style="font-size:${Math.min(11,fontSize+1)}px;font-weight:900;color:${colorBracket};margin-right:1px;flex-shrink:0;line-height:1.3">[</span>
                 <span style="flex:1;font-size:${fontSize}px;font-weight:700;color:${colorTexto};text-align:center;line-height:1.15;white-space:normal;word-break:break-word;min-width:0">${textoResaltado}</span>
-                <span style="font-size:9px;font-weight:900;color:${colorBracket};margin-left:1px;flex-shrink:0;line-height:1.3">]</span>
+                <span style="font-size:${Math.min(11,fontSize+1)}px;font-weight:900;color:${colorBracket};margin-left:1px;flex-shrink:0;line-height:1.3">]</span>
               </div>
               ${siNoHTML}
               ${botonPropuestaHTML}
             </td>`;
           } else {
-            const fontSize = esPantallaMovil() ? (trimmedLen>40 ? 7 : (trimmedLen>20 ? 8 : 9)) : (trimmedLen>40 ? 6.5 : (trimmedLen>20 ? 7.5 : 8.5));
+            const fontSize = fontSizeMultilinea;
             const textEsc = br.text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
             const colorBracket = colorTextoRiego || '#0a7a0a';
             const colorTexto = colorTextoRiego || '#0a5a0a';
             cells += `<td colspan="${br.span}" style="border:1px solid #9ab8d8;padding:0;position:relative;background:${bgBase}">
               <div style="display:flex;align-items:flex-start;padding:1px 2px">
-                <span style="font-size:9px;font-weight:900;color:${colorBracket};margin-right:1px;flex-shrink:0;line-height:1.3">[</span>
+                <span style="font-size:${Math.min(11,fontSize+1)}px;font-weight:900;color:${colorBracket};margin-right:1px;flex-shrink:0;line-height:1.3">[</span>
                 <textarea rows="${esPantallaMovil()?3:2}"
                   data-rinv="${invId}" data-dia="${dia}" data-rc="${br.calles.join(',')}"
                   onchange="${onchangeAttr}"
@@ -9014,7 +9110,7 @@ function renderRiegoGrid(invId){
                   onmousedown="dragCalleStart('riego','${invId}',${dia},${br.calles[0]})"
                   onmouseenter="dragCalleOver('riego','${invId}',${dia},${br.calles[0]})"
                   style="flex:1;border:none;background:transparent;font-size:${fontSize}px;font-weight:700;color:${colorTexto};outline:none;min-width:0;padding:0 1px;text-align:center;resize:none;line-height:1.15;white-space:normal;word-break:break-word;overflow-y:auto;font-family:inherit">${textEsc}</textarea>
-                <span style="font-size:9px;font-weight:900;color:${colorBracket};margin-left:1px;flex-shrink:0;line-height:1.3">]</span>
+                <span style="font-size:${Math.min(11,fontSize+1)}px;font-weight:900;color:${colorBracket};margin-left:1px;flex-shrink:0;line-height:1.3">]</span>
               </div>
               ${siNoHTML}
               ${botonPropuestaHTML}
@@ -9534,9 +9630,7 @@ function renderFitoGrid(invId){
           // vez de quedar cortado dentro de un input de una sola línea.
           const spanW = br.span * CW;
           const trimmedLen = br.text.trim().length;
-          const availW = spanW - 16;
-          const estCharsPerLine = Math.max(4, Math.floor(availW / (9*0.58)));
-          const fitsOneLine = trimmedLen <= estCharsPerLine;
+          const { fontSize: fontSizeUnaLinea, fitsOneLine, fontSizeMultilinea } = calcularFontSizeCeldaGrid(spanW, br.text);
           if(fitsOneLine){
             cells+=`<td colspan="${br.span}" style="height:${DH}px;border:1px solid #e8b0b0;padding:0;background:${bgTratamiento}">
               <div style="display:flex;align-items:center;height:100%;padding:0 2px">
@@ -12891,9 +12985,7 @@ function renderEspecificosGrid(invId){
           // quedar cortado como con un input de una sola línea.
           const spanW = br.span * CW;
           const trimmedLen = br.text.trim().length;
-          const availW = spanW - 16;
-          const estCharsPerLine = Math.max(4, Math.floor(availW / (9*0.58)));
-          const fitsOneLine = trimmedLen <= estCharsPerLine;
+          const { fontSize: fontSizeUnaLinea, fitsOneLine, fontSizeMultilinea } = calcularFontSizeCeldaGrid(spanW, br.text);
           if(fitsOneLine){
             cells+=`<td colspan="${br.span}" style="height:${DH}px;border:1px solid #a5d6a7;padding:0;background:#eaf7e0">
               <div style="display:flex;align-items:center;height:100%;padding:0 2px">
