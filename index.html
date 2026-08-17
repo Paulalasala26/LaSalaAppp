@@ -6800,11 +6800,10 @@ function marcarSalidaPartida(id){
 async function aplicarSalidaPartida(id, valor){
   const c = controlChecksData.find(x=>x.id===id);
   if(!c) return;
-  // Solo marcar como salida en la semana ACTUAL (partidasSemanaOffset),
-  // no en semanas anteriores. Checks de la misma partida en otras semanas
-  // no se ven afectados.
-  const esEnSemanaActual = partidaVisibleEnSemana(c, partidasSemanaOffset);
-  if(esEnSemanaActual){
+  // Solo marcar como salida si el check PERTENECE a la semana actual.
+  // Checks de la misma partida en otras semanas no se ven afectados.
+  const semanaDiaCheck = partidasSemanaDeFecha(riegoDiaToDate(c.dia));
+  if(semanaDiaCheck === partidasSemanaOffset){
     c.salioInvernadero = valor;
   }
   renderPartidasMapaContent(document.getElementById('partidas-overlay'));
