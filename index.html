@@ -415,10 +415,10 @@ function togglePass(){const i=document.getElementById('login-pass'),e=document.g
 const SESION_KEY = 'lasala-sesion-v1';
 const SESION_DURACION_MS = 8*60*60*1000;
 function guardarSesion(user){
-  try{ sessionStorage.setItem(SESION_KEY, JSON.stringify({user, ts: Date.now()})); }catch(e){}
+  try{ localStorage.setItem(SESION_KEY, JSON.stringify({user, ts: Date.now()})); }catch(e){}
 }
 function borrarSesion(){
-  try{ sessionStorage.removeItem(SESION_KEY); }catch(e){}
+  try{ localStorage.removeItem(SESION_KEY); }catch(e){}
 }
 async function entrarApp(user){
   currentUser=user;
@@ -440,11 +440,13 @@ async function entrarApp(user){
 }
 async function restaurarSesion(){
   let sesion;
-  try{ sesion = JSON.parse(sessionStorage.getItem(SESION_KEY)||'null'); }catch(e){ return; }
+  try{ sesion = JSON.parse(localStorage.getItem(SESION_KEY)||'null'); }catch(e){ return; }
   if(!sesion || !sesion.user) return;
-  if(!sesion.ts || Date.now()-sesion.ts > SESION_DURACION_MS){ borrarSesion(); return; }
+  // No hay límite de duración — la sesión persiste hasta que el usuario
+  // cierre explícitamente con "Salir". Solo validar que el usuario siga
+  // existiendo en la lista de usuarios.
   await usersLoadedPromise;
-  if(!USERS[sesion.user]){ borrarSesion(); return; } // usuario ya no existe — no restaurar
+  if(!USERS[sesion.user]){ borrarSesion(); return; }
   await entrarApp(sesion.user);
 }
 async function doLogin(){
@@ -482,15 +484,12 @@ function doLogout(){
   borrarSesion();
   resetGeoView();
 }
-// 2026-08-12: "que siempre que se salga de la aplicación aunque se reinicie
-// se deba de poner la contraseña, por una mayor seguridad" — Paula confirmó
-// que esto aplica a TODOS los roles (incluidos Peón1/Regante1). Se
-// desactiva la restauración automática de sesión (sessionStorage) que se
-// había añadido antes para sobrevivir a recargas por la cámara — ahora
-// CUALQUIER carga/recarga de la página pide contraseña siempre, sin
-// excepción. guardarSesion/borrarSesion/restaurarSesion se dejan definidas
-// sin usar por si se necesita revertir este cambio en el futuro.
-// restaurarSesion();
+// 2026-08-17: Paula pidió lo contrario — que la sesión se mantenga abierta
+// hasta que el usuario cierre explícitamente con "Salir". Cambio a localStorage
+// (persiste entre recargas y cierres de navegador) y se activa la restauración
+// automática. Solo se cierra si el usuario hace clic en "Salir" o el usuario
+// ya no existe en la lista (fue eliminado de la base de datos de usuarios).
+restaurarSesion();
 
 // REGANTE solo tiene acceso al riego de hoy (solo consulta) y a sus tareas.
 // PEÓN tiene una única pantalla: el sistema de ticketing con sus tareas
