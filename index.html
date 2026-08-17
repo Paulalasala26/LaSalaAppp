@@ -12595,6 +12595,8 @@ async function saveFitoManual(){
   // acotado a "mismo día" el 2026-08-12): se comprueba ANTES de tocar nada —
   // si cualquier calle de este alta ya lleva un Específico ESE MISMO día
   // (un específico de otro día no cuenta), se cancela el alta entera.
+  // PERO: si el Específico es "POR LA MAÑANA" y el Plaguicida es por la tarde,
+  // SÍ se permite. Solo se bloquea si ambos son por la tarde.
   if(!Object.keys(especificosData).length) await loadEspecificosData();
   for(const {invId, calles, tramos} of porInv){
     const callesAComprobar = tramos ? tramos.flatMap(({desde,hasta})=>{
@@ -12602,9 +12604,20 @@ async function saveFitoManual(){
       for(let c=s;c<=e;c++) arr.push(c);
       return arr;
     }) : calles;
-    if(callesAComprobar.some(c=>calleTieneEspecifico(invId,dia,c))){
-      showToast('❌ No se puede aplicar Plaguicidas debido a un específico existente');
-      return;
+    for(const c of callesAComprobar){
+      const especEsa = calleTieneEspecifico(invId,dia,c);
+      if(especEsa){
+        // Extraer horario del Específico existente
+        const rawEspec = getEspecificoCellRaw(invId,dia,c);
+        const textoEspec = typeof rawEspec==='string' ? rawEspec : rawEspec?.texto || '';
+        const esManana = /POR LA MAÑANA/i.test(textoEspec);
+        // Si Específico es por la mañana → permitir (no bloquear)
+        // Si Específico es por la tarde → bloquear (ambos por la tarde = conflicto)
+        if(!esManana){
+          showToast('❌ No se puede aplicar Plaguicidas por la tarde si ya hay otro tratamiento por la tarde');
+          return;
+        }
+      }
     }
   }
   // Si se estaba editando un tratamiento ya existente (doble clic) y el
