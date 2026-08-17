@@ -8586,17 +8586,17 @@ function renderResumenQuincenaTratamientos(modulo){
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   // Tarjetas de colores con paleta suave y variada — cada tarjeta un color
   // diferente en ciclo, creando más variedad visual. Colores diffuminados
-  // inspirados en la paleta característica de la app.
+  // inspirados en la paleta característica de la app: rosa, amarillo, verde lima.
   const paletaGradientes = [
+    'linear-gradient(135deg,#ec4899,#f472b6)',  // Rosa principal
+    'linear-gradient(135deg,#fbbf24,#fcd34d)',  // Amarillo principal
+    'linear-gradient(135deg,#84cc16,#bfef45)',  // Verde lima principal
     'linear-gradient(135deg,#7b5cf0,#5c8df0)',  // Púrpura/azul suave
     'linear-gradient(135deg,#5c8df0,#3fc6b0)',  // Azul/cian suave
     'linear-gradient(135deg,#f5a35c,#f0715c)',  // Naranja/coral
-    'linear-gradient(135deg,#ec4899,#f472b6)',  // Rosa/magenta
     'linear-gradient(135deg,#10b981,#6ee7b7)',  // Mint/verde claro
-    'linear-gradient(135deg,#f59e0b,#fbbf24)',  // Ámbar/amarillo cálido
     'linear-gradient(135deg,#06b6d4,#22d3ee)',  // Cian/cielo claro
     'linear-gradient(135deg,#8b5cf6,#a78bfa)',  // Violeta/lila suave
-    'linear-gradient(135deg,#ef4444,#fca5a5)',  // Rojo coral
     'linear-gradient(135deg,#0ea5e9,#38bdf8)'   // Azul cielo
   ];
   const filasHTML = filas.map((f,idx)=>{
