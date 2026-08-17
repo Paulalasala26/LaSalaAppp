@@ -6191,18 +6191,18 @@ function intercambiarPartidasPorId(idA, idB){
   const cA = controlChecksData.find(x=>x.id===idA);
   const cB = controlChecksData.find(x=>x.id===idB);
   if(!cA || !cB) return;
-  // Copiar SOLO las propiedades de ubicación relevantes
-  const ubicA = { invId:cA.invId, calleDesde:cA.calleDesde, calleHasta:cA.calleHasta };
-  const ubicB = { invId:cB.invId, calleDesde:cB.calleDesde, calleHasta:cB.calleHasta };
-  // Incluir tramos solo si existen (deep copy)
-  if(cA.tramos) ubicA.tramos = cA.tramos.map(t=>({...t}));
-  if(cB.tramos) ubicB.tramos = cB.tramos.map(t=>({...t}));
-  // INTERCAMBIAR las claves existentes, no crear claves nuevas.
-  // Así ambas partidas simplemente cambian de posición sin moverse al final.
+  // Para intercambiar: A toma TODO de B (ubicación + clave), B toma TODO de A
   const keyA = typeof cA.posManual === 'number' ? cA.posManual : new Date(cA.creadoEn || 0).getTime();
   const keyB = typeof cB.posManual === 'number' ? cB.posManual : new Date(cB.creadoEn || 0).getTime();
-  ubicA.posManual = keyB;
-  ubicB.posManual = keyA;
+
+  // ubicB = lo que A recibirá (ubicación y clave de B)
+  const ubicB = { invId:cB.invId, calleDesde:cB.calleDesde, calleHasta:cB.calleHasta, posManual: keyB };
+  if(cB.tramos) ubicB.tramos = cB.tramos.map(t=>({...t}));
+
+  // ubicA = lo que B recibirá (ubicación y clave de A)
+  const ubicA = { invId:cA.invId, calleDesde:cA.calleDesde, calleHasta:cA.calleHasta, posManual: keyA };
+  if(cA.tramos) ubicA.tramos = cA.tramos.map(t=>({...t}));
+
   aplicarIntercambioPartidas(idA, ubicB, idB, ubicA);
 }
 function seleccionarPartidaParaMover(id, event){
