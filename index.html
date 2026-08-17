@@ -4072,7 +4072,8 @@ async function loadControlChecksData(){
 async function persistControlChecksData(){
   try{
     const r = await window.storage.get(CONTROL_KEY);
-    const cloud = r ? JSON.parse(r.value) : [];
+    if(!r){ avisarFalloGuardado(); return false; }
+    const cloud = JSON.parse(r.value);
     const map = {};
     cloud.forEach(t=>map[t.id]=t);
     controlChecksData.forEach(t=>map[t.id]=t);
