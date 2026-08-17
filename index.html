@@ -5950,7 +5950,12 @@ function partidaVisibleEnSemana(c, semanaOffset){
   if(semanaOffset < semanaEntrada) return false;
   const fechaCarga = fechaCargaRealDePartida(c);
   if(fechaCarga) return semanaOffset < partidasSemanaDeFecha(fechaCarga);
-  return !c.salioInvernadero;
+  // Si fue marcada como salida desde una semana específica, desaparece a partir de esa semana en adelante.
+  // Las semanas anteriores a salioDesdeSemanaNumerada siguen viéndola.
+  if(c.salioDesdeSemanaNumerada !== null && c.salioDesdeSemanaNumerada !== undefined){
+    return semanaOffset < c.salioDesdeSemanaNumerada;
+  }
+  return true;
 }
 let partidasSalaSel = 'sala1';
 // A petición de Paula (2026-08-05): "tienes que separarlas por invernaderos.
@@ -6800,11 +6805,13 @@ function marcarSalidaPartida(id){
 async function aplicarSalidaPartida(id, valor){
   const c = controlChecksData.find(x=>x.id===id);
   if(!c) return;
-  // Solo marcar como salida si el check PERTENECE a la semana actual.
-  // Checks de la misma partida en otras semanas no se ven afectados.
-  const semanaDiaCheck = partidasSemanaDeFecha(riegoDiaToDate(c.dia));
-  if(semanaDiaCheck === partidasSemanaOffset){
-    c.salioInvernadero = valor;
+  // Marcar como salida desde la semana actual en adelante.
+  // Usa c.salioDesdeSemanaNumerada (la semana a partir de la cual sale del mapa)
+  // en lugar de un simple booleano, para que aparezca en semanas anteriores.
+  if(valor){
+    c.salioDesdeSemanaNumerada = partidasSemanaOffset;
+  } else {
+    c.salioDesdeSemanaNumerada = null;
   }
   renderPartidasMapaContent(document.getElementById('partidas-overlay'));
   const qid = encolarAccionOffline('aplicarSalidaPartida', [id, valor]);
