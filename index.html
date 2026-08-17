@@ -6205,8 +6205,10 @@ function intercambiarPartidasPorId(idA, idB){
     calleHasta:cB.calleHasta
   };
   const base = Date.now();
-  ubicA.posManual = base;
-  ubicB.posManual = base - 1;
+  // Las claves se intercambian: B recibe la clave de A (base), A recibe la de B (base-1)
+  // para que terminen en las posiciones correctas después del intercambio
+  ubicA.posManual = base - 1;
+  ubicB.posManual = base;
   aplicarIntercambioPartidas(idA, ubicB, idB, ubicA);
 }
 function seleccionarPartidaParaMover(id, event){
