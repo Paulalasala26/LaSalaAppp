@@ -6191,22 +6191,14 @@ function intercambiarPartidasPorId(idA, idB){
   const cA = controlChecksData.find(x=>x.id===idA);
   const cB = controlChecksData.find(x=>x.id===idB);
   if(!cA || !cB) return;
-  // Copiar por valor, no por referencia, para evitar modificar datos durante el intercambio
-  const ubicA = {
-    invId:cA.invId,
-    tramos: cA.tramos ? cA.tramos.map(t=>({...t})) : undefined,
-    calleDesde:cA.calleDesde,
-    calleHasta:cA.calleHasta
-  };
-  const ubicB = {
-    invId:cB.invId,
-    tramos: cB.tramos ? cB.tramos.map(t=>({...t})) : undefined,
-    calleDesde:cB.calleDesde,
-    calleHasta:cB.calleHasta
-  };
+  // Copiar SOLO las propiedades de ubicación relevantes, sin incluir undefined
+  const ubicA = { invId:cA.invId, calleDesde:cA.calleDesde, calleHasta:cA.calleHasta };
+  const ubicB = { invId:cB.invId, calleDesde:cB.calleDesde, calleHasta:cB.calleHasta };
+  // Incluir tramos solo si existen (deep copy)
+  if(cA.tramos) ubicA.tramos = cA.tramos.map(t=>({...t}));
+  if(cB.tramos) ubicB.tramos = cB.tramos.map(t=>({...t}));
   const base = Date.now();
   // Las claves se intercambian: B recibe la clave de A (base), A recibe la de B (base-1)
-  // para que terminen en las posiciones correctas después del intercambio
   ubicA.posManual = base - 1;
   ubicB.posManual = base;
   aplicarIntercambioPartidas(idA, ubicB, idB, ubicA);
