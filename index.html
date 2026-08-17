@@ -8630,12 +8630,13 @@ function renderResumenQuincenaTratamientos(modulo){
     const parsed = modulo==='fito' ? parsearTextoFito(f.texto) : parsearTextoEspecifico(f.texto);
     const invsLabel = Object.keys(f.porInv).sort().join(', ');
     const caldoLabel = f.raw?.caldoLabel || '';
+    const tecnico = f.raw?.tecnico || '';
     return `
       <div style="background:${gradiente};color:#fff;border-radius:14px;padding:1rem 1.2rem;margin-bottom:12px;box-shadow:var(--shadow-sm);position:relative;overflow:hidden">
         <div style="position:absolute;right:-22px;top:-22px;width:90px;height:90px;background:rgba(255,255,255,.08);border-radius:50%;pointer-events:none"></div>
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;position:relative">
           <div style="min-width:0">
-            <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;opacity:.85">${escapar(riegoDiaLabelCorto(f.dia))} — ${escapar(riegoDiaSemana(f.dia))}</div>
+            <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;opacity:.85">${escapar(riegoDiaLabelCorto(f.dia))} — ${escapar(riegoDiaSemana(f.dia))}${tecnico?' · '+escapar(tecnico):''}</div>
             <div style="font-size:15px;font-weight:800;margin-top:4px">INV ${escapar(invsLabel)}</div>
             <div style="font-size:13px;font-weight:600;margin-top:2px;opacity:.9">${escapar(parsed.trat||f.texto)}${parsed.dosis?' '+escapar(parsed.dosis):''}</div>
             <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
@@ -13700,7 +13701,7 @@ async function saveEspecificoManual(){
       if(obs) texto = texto ? `${texto} — ${obs}` : obs;
       const s=Math.min(desde,hasta), e=Math.max(desde,hasta);
       const callesTramo = [];
-      for(let c=s;c<=e;c++){ if(allCalles.includes(c)){ setEspecifico(invId, dia, c, texto, {caldoLitros, caldoLabel}); callesTramo.push(c); count++; } }
+      for(let c=s;c<=e;c++){ if(allCalles.includes(c)){ setEspecifico(invId, dia, c, texto, {caldoLitros, caldoLabel, tecnico: currentUser}); callesTramo.push(c); count++; } }
       const tituloTarea = [tratDosis, tipo].filter(Boolean).join(' + ');
       await autoAsignarTareaEspecifico(invId, dia, formatRangoConInv(invId, s, e), tituloTarea, horario, obs, {producto: trat, dosis, caldoLabel, gastoLabel});
       const partidaAsociada = resolverPartidaPorObsEspecifico(invId, callesTramo, obs);
