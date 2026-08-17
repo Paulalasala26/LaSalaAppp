@@ -6202,20 +6202,17 @@ async function cambiarPosicionPartida(id, posActual){
 
   if(nuevaPos > partidasInv.length){ showToast(`❌ Máximo ${partidasInv.length} posiciones`); return; }
 
-  // Crear array de IDs en orden para reorganizar
-  const idsOrdenados = partidasInv.map(p=>p.id);
-  const idxActual = idsOrdenados.indexOf(id);
+  // Reorganizar directamente en el array partidasInv
+  const idxActual = partidasInv.findIndex(p=>p.id===id);
   if(idxActual === -1) return;
 
-  // Sacar el ID de su posición actual e insertarlo en la nueva (ajustando índice)
-  idsOrdenados.splice(idxActual, 1);
-  idsOrdenados.splice(nuevaPos - 1, 0, id);
+  // Sacar la partida y reinsertar en nueva posición
+  const [partida] = partidasInv.splice(idxActual, 1);
+  const idxNuevo = Math.max(0, Math.min(nuevaPos - 1, partidasInv.length));
+  partidasInv.splice(idxNuevo, 0, partida);
 
-  // Reasignar claves a todos los checks basado en el nuevo orden
-  idsOrdenados.forEach((checkId, i)=>{
-    const p = controlChecksData.find(c=>c.id===checkId);
-    if(p) p.posManual = (i+1)*1000;
-  });
+  // Reasignar claves SOLO a las partidas reordenadas
+  partidasInv.forEach((p, i)=>{ p.posManual = (i+1)*1000; });
 
   renderPartidasMapaContent(document.getElementById('partidas-overlay'));
   showToast(`✓ Partida movida a posición ${nuevaPos}`);
