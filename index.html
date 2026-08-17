@@ -8463,7 +8463,7 @@ function renderDashboardInvernaderos(modulo){
   const dia = modulo==='riego' ? riegoDiaDeHoy() + 1 : riegoDiaDeHoy();
   const fila = (invIds, salaLabel) => `
     <div style="display:flex;gap:18px;align-items:center;margin-bottom:28px;flex-wrap:wrap;padding:0 1.25rem">
-      <div style="background:var(--grad-verde);color:#fff;border-radius:10px;padding:14px 22px;font-weight:800;font-size:15px;white-space:nowrap;flex-shrink:0;box-shadow:var(--shadow-sm)">${salaLabel}</div>
+      <div style="background:#fff;color:#1a1e18;border:1.5px solid #d4d8d0;border-radius:10px;padding:14px 22px;font-weight:800;font-size:15px;white-space:nowrap;flex-shrink:0;box-shadow:var(--shadow-sm)">${salaLabel}</div>
       <div style="display:flex;gap:16px;flex-wrap:wrap">
         ${invIds.map(invId=>buildMiniaturaInvernadero(modulo, invId, dia)).join('')}
       </div>
@@ -8584,11 +8584,18 @@ function renderResumenQuincenaTratamientos(modulo){
   if(diaFiltro!=null) filas = filas.filter(f=>f.dia===diaFiltro);
   resumenQuincenaFilasCache[modulo] = filas;
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  // Tarjetas de colores (mismo formato que el resto del dashboard/resumen de
-  // la app, a petición de Paula) — degradado propio de cada módulo en vez de
-  // una fila con borde plano.
-  const gradiente = modulo==='fito' ? 'linear-gradient(135deg,#a32020,#d9432f)' : 'linear-gradient(135deg,#1a5c2e,#3fa864)';
+  // Tarjetas de colores con paleta de TRABAJOS (púrpura/azul/naranja/verde
+  // cíclicos) — cada tarjeta un color diferente, creando más variedad visual.
+  const paletaGradientes = [
+    'linear-gradient(135deg,#7b5cf0,#5c8df0)',  // Púrpura/azul (Mujeres)
+    'linear-gradient(135deg,#5c8df0,#3fc6b0)',  // Azul/cian (Túnel)
+    'linear-gradient(135deg,#f5a35c,#f0715c)',  // Naranja/rojo (Externos)
+    'linear-gradient(135deg,#1a5c2e,#3fa864)',  // Verde (Específicos)
+    'linear-gradient(135deg,#0d3d73,#1558a0)',  // Azul oscuro (Trabajos genérico)
+    'linear-gradient(135deg,#a35d00,#d97706)'   // Naranja oscuro (variante)
+  ];
   const filasHTML = filas.map((f,idx)=>{
+    const gradiente = paletaGradientes[idx % paletaGradientes.length];
     const parsed = modulo==='fito' ? parsearTextoFito(f.texto) : parsearTextoEspecifico(f.texto);
     const invsLabel = Object.keys(f.porInv).sort().join(', ');
     const caldoLabel = f.raw?.caldoLabel || '';
