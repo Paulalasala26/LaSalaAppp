@@ -12166,7 +12166,8 @@ function showFitoManualForm(){
         <div style="font-size:15px;font-weight:800">&#129516; Añadir tratamiento</div>
         <button onclick="document.getElementById('fito-manual-overlay').style.display='none'" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer">✕</button>
       </div>
-      <div style="flex:1;overflow-y:auto;padding:1.25rem;display:flex;flex-direction:column;gap:12px;max-width:560px;width:100%;margin:0 auto">
+      <div style="flex:1;overflow-y:auto;padding:1.25rem;display:flex;flex-direction:row;gap:20px;max-width:none;width:100%;margin:0">
+        <div style="flex:0 0 auto;max-width:560px;display:flex;flex-direction:column;gap:12px">
         <!-- INVERNADEROS (uno o varios a la vez) -->
         ${fitoBulkInvSelectorHTML()}
         <!-- DÍA -->
@@ -12237,6 +12238,12 @@ function showFitoManualForm(){
             </div>
           </div>
         </div>
+        </div>
+        <!-- PANEL RESUMEN (columna derecha) -->
+        <div style="flex:1;min-width:300px;border-left:1.5px solid #eee;padding-left:20px;overflow-y:auto">
+          <div style="font-size:12px;font-weight:800;color:#1558a0;margin-bottom:12px;text-transform:uppercase;letter-spacing:.04em">Últimos 5 días</div>
+          <div id="fito-resumen-ultimos5">${buildResumenUltimos5DiasPlaguicidas(inv)}</div>
+        </div>
       </div>
       <!-- BUTTONS (fijos abajo, siempre visibles) -->
       <div style="display:flex;gap:8px;justify-content:space-between;padding:1rem 1.25rem;border-top:1px solid #eee;flex-shrink:0;background:#fff">
@@ -12260,6 +12267,25 @@ function showFitoManualForm(){
     </div>`;
   mo.style.display = 'flex';
   renderFmBulkPanels();
+}
+function buildResumenUltimos5DiasPlaguicidas(invId){
+  if(!invId) return '<div style="color:var(--muted);font-size:13px;padding:1rem;text-align:center">Selecciona un invernadero</div>';
+  const diasQ = riegoQuincenaDias(fitoQuincenaOffset);
+  const ultimos5 = diasQ.slice(-5).reverse(); // últimos 5, en orden descendente
+  const filas = ultimos5.map(dia=>{
+    const allCalles = [...INV_LAYOUT[invId].row1, ...INV_LAYOUT[invId].row2];
+    const conTrato = allCalles.filter(c=>getFitoCellRaw(invId,dia,c));
+    const textos = [...new Set(conTrato.map(c=>{
+      const raw = getFitoCellRaw(invId,dia,c);
+      return typeof raw==='string' ? raw : (raw?.texto||'');
+    }).filter(t=>t))];
+    return `
+      <div style="border-bottom:1px solid #eee;padding:10px 0">
+        <div style="font-size:11px;font-weight:800;color:#1558a0;margin-bottom:6px">${riegoDiaLabelCorto(dia)} — ${riegoDiaSemana(dia)}</div>
+        ${textos.length ? textos.map(t=>`<div style="font-size:12px;color:var(--text);margin-bottom:4px;padding-left:8px;border-left:3px solid #a32020">${String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`).join('') : '<div style="font-size:11px;color:var(--muted)">Sin tratamientos</div>'}
+      </div>`;
+  }).join('');
+  return `<div style="padding:0">${filas}</div>`;
 }
 function callesOrdenadasInv(invId){
   const layout = INV_LAYOUT[invId];
