@@ -6187,6 +6187,37 @@ async function rehacerMovimientoPartida(){
 // usan SIEMPRE dos claves nuevas y garantizadas distintas (Date.now() y
 // Date.now()-1) en vez de reciclar las que ya tuvieran, así el cambio de
 // orden relativo SIEMPRE es real, sin importar qué clave tuvieran antes.
+async function cambiarPosicionPartida(id, posActual){
+  const nuevaPosStr = prompt(`¿A qué posición mover? (actual: ${posActual})`, '');
+  if(!nuevaPosStr) return;
+  const nuevaPos = parseInt(nuevaPosStr, 10);
+  if(isNaN(nuevaPos) || nuevaPos < 1) { showToast('❌ Número inválido'); return; }
+
+  const check = controlChecksData.find(x=>x.id===id);
+  if(!check) return;
+  const invId = check.invId;
+
+  // Obtener todas las partidas de este invernadero en la semana actual
+  const partidasInv = controlChecksData.filter(c=>c.tipo==='tunel' && c.invId===invId && partidaVisibleEnSemana(c, partidasSemanaOffset)).sort((a,b)=>sortKeyPartida(a)-sortKeyPartida(b));
+
+  if(nuevaPos > partidasInv.length){ showToast(`❌ Máximo ${partidasInv.length} posiciones`); return; }
+
+  // Reorganizar: sacar la partida de su posición, insertarla en la nueva
+  const idx = partidasInv.findIndex(p=>p.id===id);
+  if(idx===-1) return;
+
+  const [partida] = partidasInv.splice(idx, 1);
+  partidasInv.splice(nuevaPos-1, 0, partida);
+
+  // Reasignar claves secuencialmente (1000, 2000, 3000, ...)
+  partidasInv.forEach((p, i)=>{ p.posManual = (i+1)*1000; });
+
+  renderPartidasMapaContent(document.getElementById('partidas-overlay'));
+  showToast(`✓ Partida movida a posición ${nuevaPos}`);
+  const qid = encolarAccionOffline('cambiarPosicionPartida', [id, nuevaPos]);
+  const ok = await persistControlChecksData();
+  if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
+}
 function intercambiarPartidasPorId(idA, idB){
   const cA = controlChecksData.find(x=>x.id===idA);
   const cB = controlChecksData.find(x=>x.id===idB);
@@ -6394,7 +6425,7 @@ function renderPartidasBloqueHTML(bloque){
     <div draggable="true" ondragstart="iniciarArrastrePartida('${c.id}')" ondragover="event.preventDefault()" ondrop="event.preventDefault();clicPartidaEnMapa('${c.id}')" onclick="clicPartidaEnMapa('${c.id}')"
       style="height:100%;padding:4px 6px;background:${bgBloque};border:1.5px solid ${borderBloque};border-radius:6px;font-size:10px;line-height:1.35;position:relative;${especificosBanners?'overflow:visible;z-index:1':'overflow:hidden'};cursor:grab">
       ${separadoBtnHTML}
-      <span onclick="seleccionarPartidaParaMover('${c.id}',event)" title="Selecciona esta (${bloque.pos + 1}) y luego otra para intercambiar" style="position:absolute;top:3px;right:20px;width:8px;height:8px;padding:0;background:${seleccionada?'#c47f00':'#0f5c4a'};color:#fff;border:none;border-radius:1px;font-size:4px;font-weight:900;line-height:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0.5">${bloque.pos + 1}</span>
+      <span onclick="event.stopPropagation();cambiarPosicionPartida('${c.id}',${bloque.pos + 1})" title="Toca para cambiar posición" style="position:absolute;top:3px;right:20px;width:8px;height:8px;padding:0;background:${seleccionada?'#c47f00':'#0f5c4a'};color:#fff;border:none;border-radius:1px;font-size:4px;font-weight:900;line-height:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0.5">${bloque.pos + 1}</span>
       <button onclick="event.stopPropagation();marcarSalidaPartida('${c.id}')" title="Marcar salida (quitar del mapa)" style="position:absolute;top:2px;right:2px;width:16px;height:16px;padding:0;background:rgba(198,40,40,.12);color:#c62828;border:none;border-radius:4px;font-size:10px;line-height:16px;cursor:pointer">✕</button>
       <div style="font-weight:800;color:#0f5c4a;padding-right:${esMultiCalle?52:34}px">${escapar(c.partida)||'—'}</div>
       <div style="color:var(--text);font-weight:600">${escapar(c.clienteVariedad)||''}</div>
