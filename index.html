@@ -8431,21 +8431,22 @@ function invernaderoRevisadoPorVigueras(invId, dia){
 function buildMiniaturaInvernadero(modulo, invId, dia){
   const estado = estadoMiniaturaInvernadero(modulo, invId, dia);
   const colores = { rojo:'#c62828', amarillo:'#c47f00', verde:'#1a5c2e' };
-  const gradientes = {
-    rojo:'linear-gradient(145deg,#c62828,#e57373)',
-    amarillo:'linear-gradient(145deg,#c47f00,#e0a530)',
-    verde:'linear-gradient(145deg,#1a5c2e,#3fa864)'
+  const fondoSuave = {
+    rojo:'rgba(198,40,40,.08)',
+    amarillo:'rgba(196,127,0,.08)',
+    verde:'rgba(26,92,46,.08)'
   };
+  const iconos = { riego:'💧', fito:'🐛', especifico:'🌱', clima:'🌡️' };
   const selectFn = DASHBOARD_MODULOS[modulo].selectFn;
   const mostrarV = modulo==='riego' && invernaderoRevisadoPorVigueras(invId, dia);
   return `
-    <div class="dashboard-inv-card" onclick="${selectFn}('${invId}')" title="INV ${invId}" style="position:relative;width:112px;height:112px;border-radius:16px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;background:${gradientes[estado]};color:#fff;flex-shrink:0;box-shadow:0 6px 16px rgba(0,0,0,.18);overflow:hidden">
-      <div style="position:absolute;right:-22px;top:-22px;width:70px;height:70px;background:rgba(255,255,255,.14);border-radius:50%;pointer-events:none"></div>
-      <span style="font-size:19px;font-weight:800;position:relative">${invId}</span>
-      <div style="display:flex;gap:5px;margin-top:9px;position:relative">
-        ${['verde','amarillo','rojo'].map(c=>`<div style="width:10px;height:10px;border-radius:50%;background:${estado===c?'#fff':'rgba(255,255,255,.35)'};${estado===c?'box-shadow:0 0 0 3px rgba(255,255,255,.25)':''}"></div>`).join('')}
+    <div class="dashboard-inv-card" onclick="${selectFn}('${invId}')" title="INV ${invId}" style="position:relative;width:112px;height:112px;border-radius:12px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;background:${fondoSuave[estado]};color:#1a1e18;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,.08);border:1.5px solid #d4d8d0;overflow:hidden;transition:all 200ms ease">
+      <span style="font-size:24px;margin-bottom:4px">${iconos[modulo]||'📍'}</span>
+      <span style="font-size:18px;font-weight:800;line-height:1">${invId}</span>
+      <div style="display:flex;gap:6px;margin-top:8px;position:relative">
+        ${['verde','amarillo','rojo'].map(c=>`<div style="width:12px;height:12px;border-radius:50%;background:${colores[c]};opacity:${estado===c?'1':'.25'};transition:opacity 200ms ease"></div>`).join('')}
       </div>
-      ${mostrarV ? `<div title="Confirmado por Vigueras" style="position:absolute;bottom:-7px;left:-7px;width:24px;height:24px;border-radius:50%;background:#fff;color:${colores.verde};display:flex;align-items:center;justify-content:center;font-weight:900;font-size:12px;box-shadow:var(--shadow-sm);border:2px solid ${colores.verde}">✓</div>` : ''}
+      ${mostrarV ? `<div title="Confirmado por Vigueras" style="position:absolute;bottom:4px;right:4px;width:20px;height:20px;border-radius:50%;background:${colores.verde};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:11px;box-shadow:0 2px 6px rgba(0,0,0,.15);border:1.5px solid #fff">✓</div>` : ''}
     </div>`;
 }
 function renderDashboardInvernaderos(modulo){
