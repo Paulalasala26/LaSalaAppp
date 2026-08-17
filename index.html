@@ -12270,8 +12270,10 @@ function showFitoManualForm(){
 }
 function buildResumenUltimos5DiasPlaguicidas(invId){
   if(!invId) return '';
+  const diaActual = riegoDiaDeHoy();
   const diasQ = riegoQuincenaDias(fitoQuincenaOffset);
-  const ultimos5 = diasQ.slice(-5).reverse(); // últimos 5, en orden descendente
+  // Los 5 días anteriores al día actual (en orden descendente: más reciente primero)
+  const ultimos5 = diasQ.filter(d=>d<diaActual).slice(-5).reverse();
   const filas = ultimos5.map(dia=>{
     const allCalles = [...INV_LAYOUT[invId].row1, ...INV_LAYOUT[invId].row2];
     const conTrato = allCalles.filter(c=>getFitoCellRaw(invId,dia,c));
