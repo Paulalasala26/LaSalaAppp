@@ -12242,7 +12242,7 @@ function showFitoManualForm(){
         <!-- PANEL RESUMEN (columna derecha) -->
         <div style="flex:1;min-width:300px;border-left:1.5px solid #eee;padding-left:20px;overflow-y:auto">
           <div style="font-size:12px;font-weight:800;color:#1558a0;margin-bottom:12px;text-transform:uppercase;letter-spacing:.04em">Últimos 5 días</div>
-          <div id="fito-resumen-ultimos5">${buildResumenUltimos5DiasPlaguicidas(inv)}</div>
+          <div id="fito-resumen-ultimos5"></div>
         </div>
       </div>
       <!-- BUTTONS (fijos abajo, siempre visibles) -->
@@ -12269,7 +12269,7 @@ function showFitoManualForm(){
   renderFmBulkPanels();
 }
 function buildResumenUltimos5DiasPlaguicidas(invId){
-  if(!invId) return '<div style="color:var(--muted);font-size:13px;padding:1rem;text-align:center">Selecciona un invernadero</div>';
+  if(!invId) return '';
   const diasQ = riegoQuincenaDias(fitoQuincenaOffset);
   const ultimos5 = diasQ.slice(-5).reverse(); // últimos 5, en orden descendente
   const filas = ultimos5.map(dia=>{
@@ -12286,6 +12286,13 @@ function buildResumenUltimos5DiasPlaguicidas(invId){
       </div>`;
   }).join('');
   return `<div style="padding:0">${filas}</div>`;
+}
+function actualizarResumenFito(){
+  const primerInv = Object.keys(fmBulkConfig)[0];
+  const resumenDiv = document.getElementById('fito-resumen-ultimos5');
+  if(resumenDiv){
+    resumenDiv.innerHTML = buildResumenUltimos5DiasPlaguicidas(primerInv);
+  }
 }
 function callesOrdenadasInv(invId){
   const layout = INV_LAYOUT[invId];
@@ -12327,8 +12334,8 @@ function fitoBulkInvSelectorHTML(){
         </label>
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:6px">
-        ${Object.keys(INV_LAYOUT_SALA1).map(id=>`<label style="font-size:10px;display:flex;align-items:center;gap:3px;background:#fff;border:1px solid #ddd;border-radius:5px;padding:3px 7px;cursor:pointer"><input type="checkbox" class="fm-inv-chk" data-sala="sala1" value="${id}"${fmBulkConfig[id]?' checked':''} onchange="toggleFmBulkInv()"> ${id}</label>`).join('')}
-        ${Object.keys(INV_LAYOUT_SALA2).map(id=>`<label style="font-size:10px;display:flex;align-items:center;gap:3px;background:#fff;border:1px solid #ddd;border-radius:5px;padding:3px 7px;cursor:pointer"><input type="checkbox" class="fm-inv-chk" data-sala="sala2" value="${id}"${fmBulkConfig[id]?' checked':''} onchange="toggleFmBulkInv()"> ${id}</label>`).join('')}
+        ${Object.keys(INV_LAYOUT_SALA1).map(id=>`<label style="font-size:10px;display:flex;align-items:center;gap:3px;background:#fff;border:1px solid #ddd;border-radius:5px;padding:3px 7px;cursor:pointer"><input type="checkbox" class="fm-inv-chk" data-sala="sala1" value="${id}"${fmBulkConfig[id]?' checked':''} onchange="toggleFmBulkInv(); actualizarResumenFito()"> ${id}</label>`).join('')}
+        ${Object.keys(INV_LAYOUT_SALA2).map(id=>`<label style="font-size:10px;display:flex;align-items:center;gap:3px;background:#fff;border:1px solid #ddd;border-radius:5px;padding:3px 7px;cursor:pointer"><input type="checkbox" class="fm-inv-chk" data-sala="sala2" value="${id}"${fmBulkConfig[id]?' checked':''} onchange="toggleFmBulkInv(); actualizarResumenFito()"> ${id}</label>`).join('')}
       </div>
       <div id="fm-bulk-panels"></div>
     </div>`;
