@@ -6191,8 +6191,19 @@ function intercambiarPartidasPorId(idA, idB){
   const cA = controlChecksData.find(x=>x.id===idA);
   const cB = controlChecksData.find(x=>x.id===idB);
   if(!cA || !cB) return;
-  const ubicA = { invId:cA.invId, tramos:cA.tramos, calleDesde:cA.calleDesde, calleHasta:cA.calleHasta };
-  const ubicB = { invId:cB.invId, tramos:cB.tramos, calleDesde:cB.calleDesde, calleHasta:cB.calleHasta };
+  // Copiar por valor, no por referencia, para evitar modificar datos durante el intercambio
+  const ubicA = {
+    invId:cA.invId,
+    tramos: cA.tramos ? cA.tramos.map(t=>({...t})) : undefined,
+    calleDesde:cA.calleDesde,
+    calleHasta:cA.calleHasta
+  };
+  const ubicB = {
+    invId:cB.invId,
+    tramos: cB.tramos ? cB.tramos.map(t=>({...t})) : undefined,
+    calleDesde:cB.calleDesde,
+    calleHasta:cB.calleHasta
+  };
   const base = Date.now();
   ubicA.posManual = base;
   ubicB.posManual = base - 1;
