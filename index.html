@@ -8584,15 +8584,20 @@ function renderResumenQuincenaTratamientos(modulo){
   if(diaFiltro!=null) filas = filas.filter(f=>f.dia===diaFiltro);
   resumenQuincenaFilasCache[modulo] = filas;
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  // Tarjetas de colores con paleta de TRABAJOS (púrpura/azul/naranja/verde
-  // cíclicos) — cada tarjeta un color diferente, creando más variedad visual.
+  // Tarjetas de colores con paleta suave y variada — cada tarjeta un color
+  // diferente en ciclo, creando más variedad visual. Colores diffuminados
+  // inspirados en la paleta característica de la app.
   const paletaGradientes = [
-    'linear-gradient(135deg,#7b5cf0,#5c8df0)',  // Púrpura/azul (Mujeres)
-    'linear-gradient(135deg,#5c8df0,#3fc6b0)',  // Azul/cian (Túnel)
-    'linear-gradient(135deg,#f5a35c,#f0715c)',  // Naranja/rojo (Externos)
-    'linear-gradient(135deg,#1a5c2e,#3fa864)',  // Verde (Específicos)
-    'linear-gradient(135deg,#0d3d73,#1558a0)',  // Azul oscuro (Trabajos genérico)
-    'linear-gradient(135deg,#a35d00,#d97706)'   // Naranja oscuro (variante)
+    'linear-gradient(135deg,#7b5cf0,#5c8df0)',  // Púrpura/azul suave
+    'linear-gradient(135deg,#5c8df0,#3fc6b0)',  // Azul/cian suave
+    'linear-gradient(135deg,#f5a35c,#f0715c)',  // Naranja/coral
+    'linear-gradient(135deg,#ec4899,#f472b6)',  // Rosa/magenta
+    'linear-gradient(135deg,#10b981,#6ee7b7)',  // Mint/verde claro
+    'linear-gradient(135deg,#f59e0b,#fbbf24)',  // Ámbar/amarillo cálido
+    'linear-gradient(135deg,#06b6d4,#22d3ee)',  // Cian/cielo claro
+    'linear-gradient(135deg,#8b5cf6,#a78bfa)',  // Violeta/lila suave
+    'linear-gradient(135deg,#ef4444,#fca5a5)',  // Rojo coral
+    'linear-gradient(135deg,#0ea5e9,#38bdf8)'   // Azul cielo
   ];
   const filasHTML = filas.map((f,idx)=>{
     const gradiente = paletaGradientes[idx % paletaGradientes.length];
