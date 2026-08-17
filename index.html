@@ -12290,10 +12290,21 @@ function buildResumenUltimos5DiasPlaguicidas(invId){
   return `<div style="padding:0">${filas}</div>`;
 }
 function actualizarResumenFito(){
-  const primerInv = Object.keys(fmBulkConfig)[0];
+  const invSel = Object.keys(fmBulkConfig);
   const resumenDiv = document.getElementById('fito-resumen-ultimos5');
   if(resumenDiv){
-    resumenDiv.innerHTML = buildResumenUltimos5DiasPlaguicidas(primerInv);
+    if(invSel.length===0){
+      resumenDiv.innerHTML = '';
+    } else if(invSel.length===1){
+      resumenDiv.innerHTML = buildResumenUltimos5DiasPlaguicidas(invSel[0]);
+    } else {
+      // Varios invernaderos: mostrar resumen de cada uno con separador
+      resumenDiv.innerHTML = invSel.map(inv=>`
+        <div style="margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid #ddd">
+          <div style="font-size:11px;font-weight:800;color:#a32020;margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em">INV ${inv}</div>
+          ${buildResumenUltimos5DiasPlaguicidas(inv)}
+        </div>`).join('');
+    }
   }
 }
 function callesOrdenadasInv(invId){
