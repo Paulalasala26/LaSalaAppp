@@ -3388,6 +3388,15 @@ function calleAsignadaParaPartida(partida){
 // también para desambiguar cuál es la línea correcta. Si no hay coincidencia
 // exacta de bandejas (dato manual, etc.) cae al criterio antiguo (solo
 // partida) como red de seguridad, igual que antes.
+function calleTramoDeTunel(c){
+  // Extrae invernadero y calles (ordenadas) de una línea de Check Túnel.
+  if(!c.invId) return null;
+  const tramos = (c.tramos && c.tramos.length) ? c.tramos : [{desde:c.calleDesde, hasta:c.calleHasta}];
+  if(tramos[0].desde==null) return null;
+  const desde = Math.min(...tramos.map(t=>t.desde));
+  const hasta = Math.max(...tramos.map(t=>t.hasta??t.desde));
+  return { invId: c.invId, desde, hasta, label: formatTramosLabel(c.invId, tramos) };
+}
 function calleTramoDeCarga(c){
   if(!c.partida) return null;
   const entrada = controlChecksData.find(x=>x.tipo==='tunel' && x.partida===c.partida && x.invId && x.numBandejas===c.numBandejas)
@@ -4431,8 +4440,13 @@ function cambiarControlFiltroEstado(v){
 // número más bajo a más alto — no existe en Check Túnel, no se toca su
 // código (ver [[lasala_control_tunel_intocable]]).
 let controlCargaInvFiltro = '';
+let controlTunelInvFiltro = '';
 function cambiarControlCargaInvFiltro(v){
   controlCargaInvFiltro = v;
+  renderControlContent(document.getElementById('control-overlay'));
+}
+function cambiarControlTunelInvFiltro(v){
+  controlTunelInvFiltro = v;
   renderControlContent(document.getElementById('control-overlay'));
 }
 // Dashboard propio POR DÍA (a petición de Paula, 2026-08-01) — comparte
@@ -4599,21 +4613,24 @@ function renderControlChecklistHTML(seccion){
     ${filtroBtn('pendientes','○ Pendientes',numPendientes)}
   </div>`;
 
-  // Filtro de invernadero, solo en Check Carga (a petición de Paula,
-  // 2026-08-10): al elegir uno, solo salen las partidas que se van de ESE
-  // invernadero, ordenadas por su calle real de más baja a más alta (ver
-  // calleTramoDeCarga). No existe en Check Túnel.
-  const filtroInvCargaHTML = seccion.key==='carga' ? `
+  // Filtro de invernadero por sala (Túnel y Carga): al elegir uno, solo
+  // salen las líneas de ESE invernadero, ordenadas por calle de menor a mayor.
+  const filtroInvHTML = (seccion.key==='carga' || seccion.key==='tunel') ? `
     <div style="margin-bottom:1rem">
-      <select onchange="cambiarControlCargaInvFiltro(this.value)" style="padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:12px;background:#fff;cursor:pointer">
+      <select onchange="${seccion.key==='carga'?'cambiarControlCargaInvFiltro':'cambiarControlTunelInvFiltro'}(this.value)" style="padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:12px;background:#fff;cursor:pointer">
         <option value="">Todos los invernaderos</option>
-        <optgroup label="Sala 1">${ALL_INV_IDS_SALA1.map(id=>`<option value="${id}"${controlCargaInvFiltro===id?' selected':''}>INV ${id}</option>`).join('')}</optgroup>
-        <optgroup label="Sala 2">${ALL_INV_IDS.map(id=>`<option value="${id}"${controlCargaInvFiltro===id?' selected':''}>INV ${id}</option>`).join('')}</optgroup>
+        <optgroup label="Sala 1">${ALL_INV_IDS_SALA1.map(id=>`<option value="${id}"${(seccion.key==='carga'?controlCargaInvFiltro:controlTunelInvFiltro)===id?' selected':''}>INV ${id}</option>`).join('')}</optgroup>
+        <optgroup label="Sala 2">${ALL_INV_IDS.map(id=>`<option value="${id}"${(seccion.key==='carga'?controlCargaInvFiltro:controlTunelInvFiltro)===id?' selected':''}>INV ${id}</option>`).join('')}</optgroup>
       </select>
     </div>` : '';
   const listaMostrada = (seccion.key==='carga' && controlCargaInvFiltro)
     ? lista.map(c=>({c, tramo: calleTramoDeCarga(c)}))
         .filter(x=>x.tramo && x.tramo.invId===controlCargaInvFiltro)
+        .sort((a,b)=> a.tramo.desde - b.tramo.desde)
+        .map(x=>x.c)
+    : (seccion.key==='tunel' && controlTunelInvFiltro)
+    ? lista.map(c=>({c, tramo: calleTramoDeTunel(c)}))
+        .filter(x=>x.tramo && x.tramo.invId===controlTunelInvFiltro)
         .sort((a,b)=> a.tramo.desde - b.tramo.desde)
         .map(x=>x.c)
     : lista;
@@ -4705,7 +4722,7 @@ function renderControlChecklistHTML(seccion){
 
     <div id="nuevo-control-form-wrap"></div>
     ${filtrosHTML}
-    ${filtroInvCargaHTML}
+    ${filtroInvHTML}
     ${listaDia.length===0 ? `<div style="text-align:center;padding:2rem;color:var(--muted);font-style:italic;font-size:13px">Sin líneas para este día todavía.</div>`
       : listaMostrada.length===0 ? `<div style="text-align:center;padding:2rem;color:var(--muted);font-style:italic;font-size:13px">${controlCargaInvFiltro?'No hay partidas saliendo de INV '+escapar(controlCargaInvFiltro)+' este día.':'No hay líneas '+(controlFiltroEstado==='completados'?'completadas':'pendientes')+' en este día.'}</div>`
       : `<div style="display:flex;flex-direction:column;gap:12px">${filas}</div>`}`}`;
