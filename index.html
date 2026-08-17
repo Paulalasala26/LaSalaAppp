@@ -6303,6 +6303,7 @@ async function aplicarIntercambioPartidas(id1, ubic1, id2, ubic2){
   const c2 = controlChecksData.find(x=>x.id===id2);
   const antes1 = c1 ? snapshotUbicacionPartida(c1) : null;
   const antes2 = c2 ? snapshotUbicacionPartida(c2) : null;
+  const invSelAntes = partidasInvSel; // Preservar invernadero seleccionado
   if(c1) Object.assign(c1, ubic1);
   if(c2) Object.assign(c2, ubic2);
   const entradas = [];
@@ -6310,6 +6311,11 @@ async function aplicarIntercambioPartidas(id1, ubic1, id2, ubic2){
   if(c2) entradas.push({id:id2, antes:antes2, despues: snapshotUbicacionPartida(c2)});
   if(entradas.length) registrarMovimientoPartidas(entradas);
   renderPartidasMapaContent(document.getElementById('partidas-overlay'));
+  // Restaurar invernadero seleccionado si seguía siendo válido
+  if(invSelAntes && controlChecksData.some(c => c.invId === invSelAntes && partidaVisibleEnSemana(c, partidasSemanaOffset))){
+    partidasInvSel = invSelAntes;
+    renderPartidasMapaContent(document.getElementById('partidas-overlay'));
+  }
   showToast('✓ Partidas intercambiadas');
   const qid = encolarAccionOffline('aplicarIntercambioPartidas', [id1, ubic1, id2, ubic2]);
   const ok = await persistControlChecksData();
