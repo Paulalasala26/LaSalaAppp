@@ -6375,8 +6375,19 @@ async function aplicarMoverPartidaACalle(id, invId, tramo, posManualVal){
 // fila libre para TODAS las calles que ocupa a la vez, para que nunca se
 // pise con otro bloque ya colocado.
 function calcularBloquesPartidasInv(invId){
+  return calcularBloquesPartidasInvBase(invId, true);
+}
+// Base compartida — filtrarPorSemana=true es el mapa visual de siempre
+// (solo lo visible en partidasSemanaOffset). resolverPartidaPorObsEspecifico
+// necesita filtrarPorSemana=false: al aplicar un específico desde fuera del
+// mapa (p.ej. desde Cuadrícula o desde el Resumen) partidasSemanaOffset
+// puede no coincidir con la semana real de la partida, y con el filtro
+// puesto la partida ni entraba en la lista para poder emparejarla con la
+// observación — a petición de Paula (2026-08-18): "mantente a lo de las
+// observaciones como antes pero aplícalo porque no se está realizando".
+function calcularBloquesPartidasInvBase(invId, filtrarPorSemana){
   const entradas = controlChecksData
-    .filter(c=>c.tipo==='tunel' && c.invId===invId && c.invId && ((c.tramos&&c.tramos.length) || c.calleDesde!=null) && partidaVisibleEnSemana(c, partidasSemanaOffset))
+    .filter(c=>c.tipo==='tunel' && c.invId===invId && c.invId && ((c.tramos&&c.tramos.length) || c.calleDesde!=null) && (!filtrarPorSemana || partidaVisibleEnSemana(c, partidasSemanaOffset)))
     .slice()
     .sort((a,b)=> sortKeyPartida(a) - sortKeyPartida(b));
   const alturaPorCalle = {};
@@ -13973,7 +13984,7 @@ function imprimirHojaEspecificoConDatos(datos){
 // (ver esa función: pos crece según se acerca al pasillo, sea row1 o row2).
 function resolverPartidaPorObsEspecifico(invId, calles, obs){
   if(!obs || !calles.length) return null;
-  const bloques = calcularBloquesPartidasInv(invId).filter(b=>b.calles.some(c=>calles.includes(c)));
+  const bloques = calcularBloquesPartidasInvBase(invId, false).filter(b=>b.calles.some(c=>calles.includes(c)));
   if(!bloques.length) return null;
   // Coincidencia EXACTA con toda la observación (no solo "contiene") — a
   // petición de Paula, "SI PONE: X" se entiende como "si la nota ES X", no
@@ -14024,18 +14035,11 @@ async function saveEspecificoManual(){
       for(let c=s;c<=e;c++){ if(allCalles.includes(c)){ setEspecifico(invId, dia, c, texto, {caldoLitros, caldoLabel, tecnico: currentUser}); callesTramo.push(c); count++; } }
       const tituloTarea = [tratDosis, tipo].filter(Boolean).join(' + ');
       await autoAsignarTareaEspecifico(invId, dia, formatRangoConInv(invId, s, e), tituloTarea, horario, obs, {producto: trat, dosis, caldoLabel, gastoLabel});
-      // A petición de Paula (2026-08-18): "los específicos que se apliquen
-      // deben mostrar el banner en el mapa de partidas" — antes solo se
-      // asociaba a una partida si la observación seguía un patrón concreto
-      // ("PARTIDA 123", "PRIMERA PARTIDA"...), así que la mayoría de
-      // específicos normales no dejaban ningún banner. Ahora se asocia a
-      // TODAS las partidas cuyas calles reales estén dentro de este tramo,
-      // sin depender de lo que se haya escrito en observaciones.
-      const partidasAsociadas = calcularBloquesPartidasInv(invId).filter(b=>b.calles.some(c=>callesTramo.includes(c))).map(b=>b.entry);
-      partidasAsociadas.forEach(partidaAsociada=>{
+      const partidaAsociada = resolverPartidaPorObsEspecifico(invId, callesTramo, obs);
+      if(partidaAsociada){
         if(!especificosPartidaData[partidaAsociada.id]) especificosPartidaData[partidaAsociada.id] = [];
         especificosPartidaData[partidaAsociada.id].push({trat, dosis, horario, fechaLabel, fechaISO});
-      });
+      }
     }
   }
   await saveEspecificosData();
