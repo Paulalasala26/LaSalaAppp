@@ -13313,6 +13313,7 @@ function detectEspecificoBrackets(invId,dia,calles){
 function updateEspecificoBracket(invId,dia,calles,val){
   registrarUndoEspecifico(invId,dia,calles);
   calles.forEach(c=>setEspecifico(invId,dia,c,val));
+  saveEspecificosData();
 }
 
 function abrirEspecificoManualDia(invId, dia){
@@ -13945,6 +13946,7 @@ function registrarUndoEspecificoMultiInv(entradas){
 function setEspecificoUndo(invId, dia, calle, val){
   registrarUndoEspecifico(invId, dia, [calle]);
   setEspecifico(invId, dia, calle, val);
+  saveEspecificosData();
 }
 // Mismo cambio que retrocederRiego/retrocederFito (2026-07-31, a petición de
 // Paula): "Retroceder" pasa de deshacer el último cambio a navegación pura.
