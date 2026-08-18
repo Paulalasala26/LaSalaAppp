@@ -4056,30 +4056,55 @@ async function loadControlFotosData(forzar){
   }
   controlFotosDataCargada = true;
 }
-// Pide SOLO la foto de un id concreto, sin descargar los demás shards
-// completos (2026-08-18, a petición de Paula: el historial de partida
-// tardaba "varios minutos" porque loadControlFotosData() bajaba los 29
-// shards enteros, algunos de hasta 10 MB, para poder mostrar 1 o 2 fotos).
-// Firebase permite leer una ruta anidada directamente (shard/id.json), así
-// que se consulta cada shard en paralelo pidiendo solo esa clave — cada
-// respuesta pesa lo que pesa esa única foto (o "null"), nunca el shard
-// entero.
+// Índice ligero id→shard (2026-08-18, a petición de Paula: el historial de
+// partida tardaba "varios minutos" con loadControlFotosData() porque bajaba
+// los 29 shards enteros —hasta 10 MB cada uno— solo para mostrar 1 o 2
+// fotos). El intento con una ruta anidada de Firebase (shard/id.json) no
+// funcionaba porque cada shard se guarda como TEXTO (JSON.stringify dentro
+// de otro JSON.stringify, igual que el resto de datos de la app — ver
+// mergeDeepPreferLocal/double JSON-encoding), no como objeto real: Firebase
+// no puede "entrar" en un string para sacar una clave de dentro. Con este
+// índice sabemos DE ANTEMANO en qué shard vive cada id y solo hace falta
+// descargar y parsear ESE shard (no los otros 28).
+const CONTROL_FOTOS_INDICE_KEY = 'lasala-control-fotos-indice-v1';
+let controlFotosIndiceIdShard = null;
+async function cargarIndiceFotosPartida(){
+  if(controlFotosIndiceIdShard) return controlFotosIndiceIdShard;
+  try{
+    const r = await window.storage.get(CONTROL_FOTOS_INDICE_KEY);
+    controlFotosIndiceIdShard = r ? JSON.parse(r.value) : {};
+  }catch(e){ controlFotosIndiceIdShard = {}; }
+  return controlFotosIndiceIdShard;
+}
 async function fetchFotoPartidaPorId(id){
   if(controlFotosData[id]) return controlFotosData[id];
+  const indice = await cargarIndiceFotosPartida();
+  const shardConocido = indice[id];
+  if(shardConocido){
+    try{
+      const r = await window.storage.get(shardConocido);
+      if(r){
+        const obj = JSON.parse(r.value);
+        if(obj[id]){ controlFotosData[id] = obj[id]; controlFotosShardDeId[id] = shardConocido; return obj[id]; }
+      }
+    }catch(e){}
+    return null;
+  }
+  // El id no está en el índice todavía (fotos guardadas antes de que
+  // existiera este índice) — se hace la carga completa UNA vez, de la que
+  // ya sale construido controlFotosShardDeId, y se guarda como índice para
+  // que la próxima consulta de cualquier foto vieja ya sea instantánea.
+  await loadControlFotosData(false);
+  if(Object.keys(controlFotosShardDeId).length){
+    guardarIndiceFotosPartida(controlFotosShardDeId);
+  }
+  return controlFotosData[id] || null;
+}
+async function guardarIndiceFotosPartida(mapaIdShard){
   try{
-    const idx = await window.storage.get(CONTROL_FOTOS_SHARDS_INDEX_KEY);
-    const shardKeys = idx ? JSON.parse(idx.value) : [CONTROL_FOTOS_KEY];
-    const resultados = await Promise.all(shardKeys.map(async shardKey=>{
-      try{
-        const res = await fetch(`${CLOUD_DB_URL}/${encodeURIComponent(shardKey)}/${encodeURIComponent(id)}.json`);
-        if(!res.ok) return null;
-        return await res.json();
-      }catch(e){ return null; }
-    }));
-    const src = resultados.find(Boolean) || null;
-    if(src) controlFotosData[id] = src;
-    return src;
-  }catch(e){ return null; }
+    controlFotosIndiceIdShard = { ...(controlFotosIndiceIdShard||{}), ...mapaIdShard };
+    await window.storage.set(CONTROL_FOTOS_INDICE_KEY, JSON.stringify(controlFotosIndiceIdShard));
+  }catch(e){}
 }
 async function elegirShardParaFoto(id, fotoB64Len){
   if(controlFotosShardDeId[id]) return controlFotosShardDeId[id];
@@ -4104,7 +4129,9 @@ async function persistControlFotosData(id){
     Object.keys(controlFotosData).forEach(otroId=>{
       if(controlFotosShardDeId[otroId]===shardKey) cloud[otroId] = controlFotosData[otroId];
     });
-    return await window.storage.set(shardKey, JSON.stringify(cloud));
+    const ok = await window.storage.set(shardKey, JSON.stringify(cloud));
+    if(ok) guardarIndiceFotosPartida({[id]: shardKey});
+    return ok;
   }catch(e){ return false; }
 }
 // Una línea de check: {id, tipo:'tunel'|'carga', dia, clienteVariedad,
