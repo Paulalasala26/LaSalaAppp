@@ -6868,22 +6868,35 @@ async function aplicarSalidaPartida(id, valor){
   return ok;
 }
 async function recuperarPartidaPorId(){
-  const id = prompt('Ingresa el ID de la partida a recuperar (ej: 26X00888):', '');
-  if(!id) return;
   // Cargar datos si no están disponibles
   if(!controlChecksData.length) {
     await loadControlChecksData();
   }
-  const c = controlChecksData.find(x=>x.id===id);
-  if(!c){ showToast('❌ Partida no encontrada'); return; }
-  if(c.salioDesdeSemanaNumerada === null || c.salioDesdeSemanaNumerada === undefined){
-    showToast('⚠️ Esta partida no está marcada como salida');
+
+  // Encontrar partidas marcadas como salida
+  const salidas = controlChecksData.filter(c=>c.salioDesdeSemanaNumerada !== null && c.salioDesdeSemanaNumerada !== undefined);
+
+  if(!salidas.length){
+    showToast('ℹ️ No hay partidas marcadas como salida');
     return;
   }
+
+  // Mostrar listado
+  const lista = salidas.map((c,i)=>`${i+1}. ${c.id} (${c.partida || '—'}) - INV ${c.invId}`).join('\n');
+  const idx = prompt(`Partidas marcadas como salida:\n\n${lista}\n\nIngresa el número a recuperar:`, '');
+  if(!idx) return;
+
+  const num = parseInt(idx, 10);
+  if(isNaN(num) || num < 1 || num > salidas.length){
+    showToast('❌ Número inválido');
+    return;
+  }
+
+  const c = salidas[num-1];
   c.salioDesdeSemanaNumerada = null;
   renderPartidasMapaContent(document.getElementById('partidas-overlay'));
   await persistControlChecksData();
-  showToast(`✓ Partida ${id} recuperada`);
+  showToast(`✓ Partida ${c.id} recuperada`);
 }
 
 // ════════════════════════════════════════════════════════════════
