@@ -13096,7 +13096,7 @@ function showEspecificosModule(){
   // loadTareasData() se añade aquí solo para poder sacar el caldo/gasto de
   // las tareas de específico ya asignadas en el resumen de la quincena (ver
   // renderResumenQuincenaTratamientos).
-  Promise.all([loadEspecificosData(), loadPresenciaData(), loadTareasData(), loadControlChecksData()]).then(()=>{
+  Promise.all([loadEspecificosData(), loadPresenciaData(), loadTareasData()]).then(()=>{
     // Igual que en showFitoModule: se fija ANTES de construir el dashboard,
     // que ya usa especificosQuincenaOffset para el resumen de la quincena.
     especificosQuincenaOffset = riegoQuincenaOffsetActual();
