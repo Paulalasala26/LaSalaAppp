@@ -13997,7 +13997,11 @@ function resolverPartidaPorObsEspecifico(invId, calles, obs){
   const txt = obs.trim().toUpperCase();
   if(/^PRIMERA\s+PARTIDA$/.test(txt)) return bloques.reduce((a,b)=>b.pos>a.pos?b:a).entry;
   if(/^[UÚ]LTIMA\s+PARTIDA$/.test(txt)) return bloques.reduce((a,b)=>b.pos<a.pos?b:a).entry;
-  const mNum = /^PARTIDA\s+(\d{3,})$/.exec(txt);
+  // Acepta tanto solo los dígitos ("PARTIDA 861") como el código completo
+  // con la letra ("PARTIDA 26X00861") — antes \d{3,} exigía SOLO dígitos,
+  // así que escribir el código real (con la X) nunca hacía match y el
+  // banner no salía nunca con el formato que de verdad usan las partidas.
+  const mNum = /^PARTIDA\s+([A-Z0-9]{2,})$/.exec(txt);
   if(mNum){
     const encontrado = bloques.find(b=>String(b.entry.partida||'').toUpperCase().includes(mNum[1]));
     if(encontrado) return encontrado.entry;
