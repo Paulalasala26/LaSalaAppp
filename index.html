@@ -6867,7 +6867,7 @@ async function aplicarSalidaPartida(id, valor){
   if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
   return ok;
 }
-async async function recuperarPartidaPorId(){
+async function recuperarPartidaPorId(){
   // Cargar datos si no están disponibles
   if(!controlChecksData.length) {
     await loadControlChecksData();
