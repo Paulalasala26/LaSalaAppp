@@ -13073,7 +13073,7 @@ function obtenerSugerenciasEspecificos(){
   const sugerencias = [];
   if(!controlChecksData || !controlChecksData.length) return sugerencias;
   if(!especificosQuincenaOffset && especificosQuincenaOffset !== 0) return sugerencias;
-  const checksGrandes = controlChecksData.filter(c=>c.tipo==='tunel' && c.tamano && c.tamano.toUpperCase().includes('GRANDE'));
+  const checksGrandes = controlChecksData.filter(c=>c.tipo==='tunel' && typeof c.tamano==='string' && c.tamano.toUpperCase().includes('GRANDE'));
   checksGrandes.forEach(check=>{
     const invId = check.invId;
     const calle = check.calleDesde;
