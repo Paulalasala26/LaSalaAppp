@@ -4056,6 +4056,31 @@ async function loadControlFotosData(forzar){
   }
   controlFotosDataCargada = true;
 }
+// Pide SOLO la foto de un id concreto, sin descargar los demás shards
+// completos (2026-08-18, a petición de Paula: el historial de partida
+// tardaba "varios minutos" porque loadControlFotosData() bajaba los 29
+// shards enteros, algunos de hasta 10 MB, para poder mostrar 1 o 2 fotos).
+// Firebase permite leer una ruta anidada directamente (shard/id.json), así
+// que se consulta cada shard en paralelo pidiendo solo esa clave — cada
+// respuesta pesa lo que pesa esa única foto (o "null"), nunca el shard
+// entero.
+async function fetchFotoPartidaPorId(id){
+  if(controlFotosData[id]) return controlFotosData[id];
+  try{
+    const idx = await window.storage.get(CONTROL_FOTOS_SHARDS_INDEX_KEY);
+    const shardKeys = idx ? JSON.parse(idx.value) : [CONTROL_FOTOS_KEY];
+    const resultados = await Promise.all(shardKeys.map(async shardKey=>{
+      try{
+        const res = await fetch(`${CLOUD_DB_URL}/${encodeURIComponent(shardKey)}/${encodeURIComponent(id)}.json`);
+        if(!res.ok) return null;
+        return await res.json();
+      }catch(e){ return null; }
+    }));
+    const src = resultados.find(Boolean) || null;
+    if(src) controlFotosData[id] = src;
+    return src;
+  }catch(e){ return null; }
+}
 async function elegirShardParaFoto(id, fotoB64Len){
   if(controlFotosShardDeId[id]) return controlFotosShardDeId[id];
   const ultimoKey = controlFotosShardKeys[controlFotosShardKeys.length-1];
@@ -6790,7 +6815,7 @@ function togglePartidaEnSeleccionEspecifico(id){
 async function mostrarHistorialPartida(id){
   const c = controlChecksData.find(x=>x.id===id);
   if(!c) return;
-  await Promise.all([loadRiegoData(), loadFitoData(), loadEspecificosData(), loadControlFotosData(false)]);
+  await Promise.all([loadRiegoData(), loadFitoData(), loadEspecificosData()]);
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const tramos = (c.tramos && c.tramos.length) ? c.tramos : [{desde:c.calleDesde, hasta:c.calleHasta}];
   const calles = [];
@@ -6856,13 +6881,17 @@ async function mostrarHistorialPartida(id){
   // distintos con el mismo número de partida.
   const cargaSalida = controlChecksData.find(x=>x.tipo==='carga' && x.partida===c.partida && x.numBandejas===c.numBandejas)
     || controlChecksData.find(x=>x.tipo==='carga' && x.partida===c.partida);
-  // Fotos asociadas (Check de entrada y, si existe, Check de salida) —
-  // viven en controlFotosData indexadas por el mismo id de la línea de
-  // Control, igual que en Check Túnel/Carga.
-  const fotosPartida = [
-    controlFotosData[c.id] ? {id:c.id, src:controlFotosData[c.id], label:'Entrada (Túnel)'} : null,
-    (cargaSalida && controlFotosData[cargaSalida.id]) ? {id:cargaSalida.id, src:controlFotosData[cargaSalida.id], label:'Salida (Carga)'} : null
+  // Fotos asociadas (Check de entrada y, si existe, Check de salida) — se
+  // pide solo la foto de estos 1-2 ids concretos (fetchFotoPartidaPorId),
+  // nunca los 29 shards completos de fotos de toda la app.
+  const idsFotoBuscados = [
+    {id:c.id, label:'Entrada (Túnel)'},
+    cargaSalida ? {id:cargaSalida.id, label:'Salida (Carga)'} : null
   ].filter(Boolean);
+  const fotosPartida = (await Promise.all(idsFotoBuscados.map(async ({id:fid,label})=>{
+    const src = await fetchFotoPartidaPorId(fid);
+    return src ? {id:fid, src, label} : null;
+  }))).filter(Boolean);
   const fotosHTML = fotosPartida.length ? `
         <div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Fotos</div>
         <div style="display:flex;gap:10px;margin-bottom:1.25rem;flex-wrap:wrap">
