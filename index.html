@@ -4076,29 +4076,27 @@ async function cargarIndiceFotosPartida(){
   }catch(e){ controlFotosIndiceIdShard = {}; }
   return controlFotosIndiceIdShard;
 }
+// El índice (construido el 2026-08-18 con las fotos existentes hasta esa
+// fecha, y mantenido al día por persistControlFotosData en cada foto nueva)
+// se trata como la fuente de verdad completa — si un id no aparece ahí es
+// que esa línea simplemente no tiene foto. A propósito NO hay ningún
+// "por si acaso hago la carga completa de todo": la mayoría de partidas no
+// tienen foto, y ese "por si acaso" era justo lo que seguía disparando la
+// descarga de los 29 shards en (casi) cada partida — el motivo real de que
+// "siguiera tardando igual" después del primer intento de arreglo.
 async function fetchFotoPartidaPorId(id){
   if(controlFotosData[id]) return controlFotosData[id];
   const indice = await cargarIndiceFotosPartida();
   const shardConocido = indice[id];
-  if(shardConocido){
-    try{
-      const r = await window.storage.get(shardConocido);
-      if(r){
-        const obj = JSON.parse(r.value);
-        if(obj[id]){ controlFotosData[id] = obj[id]; controlFotosShardDeId[id] = shardConocido; return obj[id]; }
-      }
-    }catch(e){}
-    return null;
-  }
-  // El id no está en el índice todavía (fotos guardadas antes de que
-  // existiera este índice) — se hace la carga completa UNA vez, de la que
-  // ya sale construido controlFotosShardDeId, y se guarda como índice para
-  // que la próxima consulta de cualquier foto vieja ya sea instantánea.
-  await loadControlFotosData(false);
-  if(Object.keys(controlFotosShardDeId).length){
-    guardarIndiceFotosPartida(controlFotosShardDeId);
-  }
-  return controlFotosData[id] || null;
+  if(!shardConocido) return null;
+  try{
+    const r = await window.storage.get(shardConocido);
+    if(r){
+      const obj = JSON.parse(r.value);
+      if(obj[id]){ controlFotosData[id] = obj[id]; controlFotosShardDeId[id] = shardConocido; return obj[id]; }
+    }
+  }catch(e){}
+  return null;
 }
 async function guardarIndiceFotosPartida(mapaIdShard){
   try{
