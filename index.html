@@ -8881,6 +8881,7 @@ function renderResumenQuincenaTratamientos(modulo){
             <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
               ${parsed.horario?`<span style="font-size:11px;font-weight:800;background:rgba(255,255,255,.2);border-radius:999px;padding:2px 10px">⏰ ${escapar(parsed.horario)}</span>`:''}
               ${caldoLabel?`<span style="font-size:11px;font-weight:800;background:rgba(255,255,255,.2);border-radius:999px;padding:2px 10px">🧪 ${escapar(caldoLabel)}</span>`:''}
+              ${modulo==='especifico' && parsed.tipo?`<span style="font-size:11px;font-weight:800;background:rgba(255,255,255,.2);border-radius:999px;padding:2px 10px">🏷️ ${escapar(parsed.tipo)}</span>`:''}
             </div>
           </div>
           <div style="display:flex;gap:6px;flex-shrink:0">
