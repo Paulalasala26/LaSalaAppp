@@ -6766,7 +6766,7 @@ function togglePartidaEnSeleccionEspecifico(id){
 async function mostrarHistorialPartida(id){
   const c = controlChecksData.find(x=>x.id===id);
   if(!c) return;
-  await Promise.all([loadRiegoData(), loadFitoData(), loadEspecificosData()]);
+  await Promise.all([loadRiegoData(), loadFitoData(), loadEspecificosData(), loadControlFotosData()]);
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const tramos = (c.tramos && c.tramos.length) ? c.tramos : [{desde:c.calleDesde, hasta:c.calleHasta}];
   const calles = [];
@@ -6826,6 +6826,23 @@ async function mostrarHistorialPartida(id){
   // distintos con el mismo número de partida.
   const cargaSalida = controlChecksData.find(x=>x.tipo==='carga' && x.partida===c.partida && x.numBandejas===c.numBandejas)
     || controlChecksData.find(x=>x.tipo==='carga' && x.partida===c.partida);
+  // Fotos asociadas (Check de entrada y, si existe, Check de salida) —
+  // viven en controlFotosData indexadas por el mismo id de la línea de
+  // Control, igual que en Check Túnel/Carga.
+  const fotosPartida = [
+    controlFotosData[c.id] ? {id:c.id, src:controlFotosData[c.id], label:'Entrada (Túnel)'} : null,
+    (cargaSalida && controlFotosData[cargaSalida.id]) ? {id:cargaSalida.id, src:controlFotosData[cargaSalida.id], label:'Salida (Carga)'} : null
+  ].filter(Boolean);
+  const fotosHTML = fotosPartida.length ? `
+        <div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Fotos</div>
+        <div style="display:flex;gap:10px;margin-bottom:1.25rem;flex-wrap:wrap">
+          ${fotosPartida.map(f=>`
+            <div style="text-align:center">
+              <img src="${f.src}" onclick="mostrarFotoControlAmpliada('${f.id}')" style="max-height:90px;border-radius:8px;border:1px solid var(--border);cursor:pointer;display:block" title="Ver foto">
+              <div style="font-size:10px;color:var(--muted);margin-top:3px">${escapar(f.label)}</div>
+            </div>`).join('')}
+        </div>` : '';
+  window.__partidaHistorialActual = { c, cargaSalida, eventos, resumenCategoriasHTML, tipoPlanta, diaDesde, fotosPartida };
   const mo = getOrCreateOverlay('partidas-historial-overlay');
   mo.innerHTML = `
     <div style="background:#fff;border-radius:14px;max-width:640px;width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.3)">
@@ -6849,14 +6866,75 @@ async function mostrarHistorialPartida(id){
         <div style="font-size:12px;color:var(--text);margin-bottom:1.25rem">
           ${cargaSalida.observaciones ? escapar(cargaSalida.observaciones) : '<span style="font-style:italic;color:var(--muted)">Sin observaciones</span>'}
         </div>` : `<div style="font-size:12px;color:var(--muted);font-style:italic;margin-bottom:1.25rem">Todavía no tiene parte de carga.</div>`}
+        ${fotosHTML}
         <div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Historial de riegos, plaguicidas y específicos</div>
         ${eventosHTML}
       </div>
-      <div style="padding:1rem 1.5rem;text-align:right">
+      <div style="padding:1rem 1.5rem;text-align:right;display:flex;justify-content:flex-end;gap:8px">
+        <button onclick="imprimirHistorialPartida()" style="padding:9px 18px;font-size:12px;font-weight:800;background:#1558a0;color:#fff;border:none;border-radius:7px;cursor:pointer;display:flex;align-items:center;gap:5px"><i class="ti ti-printer" style="font-size:14px"></i> Imprimir</button>
         <button onclick="document.getElementById('partidas-historial-overlay').style.display='none'" style="padding:9px 18px;font-size:12px;font-weight:700;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:7px;cursor:pointer">Cerrar</button>
       </div>
     </div>`;
   mo.style.display = 'flex';
+}
+// Imprime el resumen de la partida (fotos + historial) que se ve en
+// mostrarHistorialPartida — a petición de Paula. Reutiliza los datos ya
+// calculados en window.__partidaHistorialActual en vez de recalcularlos.
+function imprimirHistorialPartida(){
+  const datos = window.__partidaHistorialActual;
+  if(!datos) return;
+  const { c, cargaSalida, eventos, resumenCategoriasHTML, tipoPlanta, diaDesde, fotosPartida } = datos;
+  const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const eventosHTML = eventos.length ? eventos.map(ev=>`
+    <tr>
+      <td>Día ${ev.dia-diaDesde+1} · ${escapar(riegoDiaLabelCorto(ev.dia))}</td>
+      <td>${escapar(ev.tipo)}</td>
+      <td>C/${escapar(ev.calle)} — ${escapar(ev.texto)}</td>
+    </tr>`).join('') : `<tr><td colspan="3" style="font-style:italic;color:#888">Sin riegos, plaguicidas ni específicos registrados en sus calles desde que entró.</td></tr>`;
+  const fotosHTML = fotosPartida.length ? `
+    <h3>Fotos</h3>
+    <div style="display:flex;gap:14px;margin-bottom:14px">
+      ${fotosPartida.map(f=>`<div style="text-align:center"><img src="${f.src}" style="max-height:160px;border-radius:6px;border:1px solid #ccc;display:block"><div style="font-size:9px;color:#666;margin-top:3px">${escapar(f.label)}</div></div>`).join('')}
+    </div>` : '';
+  let iframe = document.getElementById('print-partida-historial-iframe');
+  if(!iframe){
+    iframe = document.createElement('iframe');
+    iframe.id = 'print-partida-historial-iframe';
+    iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:none';
+    document.body.appendChild(iframe);
+  }
+  const doc = iframe.contentWindow.document;
+  doc.open();
+  doc.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapar(c.partida)||'Partida'}</title>
+    <style>
+      body{font-family:'Montserrat',Arial,Helvetica,sans-serif;font-weight:300;font-size:10pt;color:#1a1e18;padding:20px}
+      .cabecera{display:flex;align-items:center;gap:14px;margin-bottom:16px;border-bottom:2px solid #0f5c4a;padding-bottom:10px}
+      .cabecera img{height:52px}
+      h1{font-size:15pt;margin:0}
+      h3{font-size:10.5pt;text-transform:uppercase;color:#555;margin:16px 0 6px}
+      table{width:100%;border-collapse:collapse;font-size:10pt}
+      th,td{padding:6px 8px;border-bottom:1px solid #ccc;text-align:left;vertical-align:top}
+      th{font-size:9pt;text-transform:uppercase;color:#555}
+      .meta{font-size:9pt;color:#555;margin-bottom:2px}
+    </style></head><body>
+      <div class="cabecera">
+        <img src="assets/logo-la-sala.png">
+        <div>
+          <h1>${escapar(c.partida)||'— Sin partida —'}</h1>
+          <div class="meta">${escapar(c.clienteVariedad)||''}${tipoPlanta?' · '+escapar(tipoPlanta):''}</div>
+        </div>
+      </div>
+      <div class="meta">${c.fentrega?`Entrega ${escapar(c.fentrega)} · `:''}INV ${escapar(c.invId)||'—'} · Día 1 (salida de Túnel): ${escapar(riegoDiaLabelCorto(diaDesde))}</div>
+      <h3>Check de entrada (Túnel) — ${escapar(riegoDiaLabelCorto(c.dia))}${c.numBandejas?' · Nº bandejas: '+escapar(c.numBandejas):''}</h3>
+      <div>${c.observaciones ? escapar(c.observaciones) : 'Sin observaciones'}</div>
+      <h3>Check de salida (Carga)${cargaSalida?' — '+escapar(riegoDiaLabelCorto(cargaSalida.dia)):''}</h3>
+      <div>${cargaSalida ? (cargaSalida.observaciones ? escapar(cargaSalida.observaciones) : 'Sin observaciones') : 'Todavía no tiene parte de carga.'}</div>
+      ${fotosHTML}
+      <h3>Historial de riegos, plaguicidas y específicos</h3>
+      <table><tr><th>Día</th><th>Tipo</th><th>Detalle</th></tr>${eventosHTML}</table>
+    </body></html>`);
+  doc.close();
+  setTimeout(()=>{ iframe.contentWindow.focus(); iframe.contentWindow.print(); }, 250);
 }
 function marcarSalidaPartida(id){
   if(!confirm('¿Marcar esta partida como salida? Desaparecerá del mapa de calles (el check de Túnel no se borra).')) return;
