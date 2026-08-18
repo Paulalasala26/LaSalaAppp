@@ -8934,11 +8934,20 @@ function editarResumenTratamiento(modulo, idx){
   const raw = f.raw;
   if(modulo==='fito'){
     const parsed = parsearTextoFito(f.texto);
+    // A petición de Paula, 2026-08-18: "cuando aplico en varias calles con
+    // observaciones, en el resumen aparecen calles distintas" — si las
+    // calles de una misma observación no eran contiguas (p.ej. 5 y 9, sin
+    // la 6/7/8), usar solo Math.min/Math.max como un tramo único incluía de
+    // más las calles del hueco de en medio, que podían tener otra cosa
+    // aplicada. Se agrupan en tramos contiguos reales (agruparCallesEnTramos)
+    // en vez de un rango que se lo come todo.
     const bulkConfig = {};
     Object.entries(f.porInv).forEach(([invId, porObs])=>{
-      bulkConfig[invId] = { modo:'tramo', excluir:{desde:null,hasta:null}, primerDia:false,
-        tramos: Object.entries(porObs).map(([obs,calles])=>({desde:Math.min(...calles), hasta:Math.max(...calles), obs}))
-      };
+      const tramos = [];
+      Object.entries(porObs).forEach(([obs,calles])=>{
+        agruparCallesEnTramos(calles).forEach(t=>tramos.push({...t, obs}));
+      });
+      bulkConfig[invId] = { modo:'tramo', excluir:{desde:null,hasta:null}, primerDia:false, tramos };
     });
     fitoInvSel = primerInv;
     fmPendingBulkConfig = bulkConfig;
@@ -8960,11 +8969,17 @@ function editarResumenTratamiento(modulo, idx){
     fmEditContextoOriginal = { invId: primerInv, dia: f.dia, calles: [...new Set(Object.values(f.porInv[primerInv]).flat())] };
   } else {
     const parsed = parsearTextoEspecifico(f.texto);
+    // Mismo arreglo que en Fito (ver comentario arriba): calles no
+    // contiguas de una misma observación se agrupan en varios tramos reales
+    // en vez de un único rango Math.min/Math.max que se traga las calles
+    // del hueco de en medio.
     const bulkConfig = {};
     Object.entries(f.porInv).forEach(([invId, porObs])=>{
-      bulkConfig[invId] = { modo:'tramo', tipoEntero:'', obsEntero:'', excluir:{desde:null,hasta:null,tipo:'',obs:''},
-        tramos: Object.entries(porObs).map(([obs,calles])=>({desde:Math.min(...calles), hasta:Math.max(...calles), tipo:parsed.tipo, obs}))
-      };
+      const tramos = [];
+      Object.entries(porObs).forEach(([obs,calles])=>{
+        agruparCallesEnTramos(calles).forEach(t=>tramos.push({...t, tipo:parsed.tipo, obs}));
+      });
+      bulkConfig[invId] = { modo:'tramo', tipoEntero:'', obsEntero:'', excluir:{desde:null,hasta:null,tipo:'',obs:''}, tramos };
     });
     especificosInvSel = primerInv;
     espPendingBulkConfig = bulkConfig;
