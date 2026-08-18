@@ -13110,10 +13110,12 @@ async function aplicarSugerenciaEspecifico(invId, calle, sugerencia){
 }
 function showEspecificosModule(){
   try {
-    const overlay = document.getElementById('especificos-overlay');
+    let overlay = document.getElementById('especificos-overlay');
     if(!overlay) {
-      showToast('❌ No se pudo crear el overlay');
-      return;
+      overlay = document.createElement('div');
+      overlay.id = 'especificos-overlay';
+      overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:2000;';
+      document.body.appendChild(overlay);
     }
     overlay.style.padding = '0';
     overlay.style.display = 'flex';
