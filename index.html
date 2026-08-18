@@ -6867,7 +6867,7 @@ async function aplicarSalidaPartida(id, valor){
   if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
   return ok;
 }
-async function recuperarPartidaPorId(){
+async async function recuperarPartidaPorId(){
   // Cargar datos si no están disponibles
   if(!controlChecksData.length) {
     await loadControlChecksData();
@@ -13840,8 +13840,8 @@ async function saveEspecificoManual(){
       }
     }
   }
-  saveEspecificosData();
-  saveEspecificosPartidaData();
+  await saveEspecificosData();
+  await saveEspecificosPartidaData();
   document.getElementById('especifico-manual-overlay').style.display = 'none';
   if(especificosInvSel) renderEspecificosGrid(especificosInvSel);
   showToast(`✓ Día ${dia} → aplicado a ${bulkInvIds.length} invernadero(s) (${count} calles)`);
