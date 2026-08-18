@@ -6420,7 +6420,19 @@ function renderPartidasBloqueHTML(bloque){
   // cada específico aplicado con el tiempo — a petición de Paula) — leídos
   // de especificosPartidaData[c.id], independiente de especificosData (que
   // guarda por invId/día/calle, no por partida).
-  const especificosBanners = (especificosPartidaData[c.id]||[]).map((e,idx)=>`
+  // A petición de Paula (partida en varias calles, generalmente el mismo
+  // tratamiento en todas): un solo banner por día+tratamiento aunque el
+  // registro se haya guardado repetido una vez por cada calle/tramo — se
+  // muestra solo el primero de cada combinación, el resto queda oculto
+  // pero sigue existiendo en los datos (editar/eliminar solo afecta al que
+  // se ve, que es representativo de todos).
+  const especificosVistos = new Set();
+  const especificosBanners = (especificosPartidaData[c.id]||[]).map((e,idx)=>({e,idx})).filter(({e})=>{
+    const clave = `${e.fechaISO}|${e.trat}|${e.dosis}|${e.horario}`;
+    if(especificosVistos.has(clave)) return false;
+    especificosVistos.add(clave);
+    return true;
+  }).map(({e,idx})=>`
     <div onclick="event.stopPropagation();editarEspecificoPartidaBanner('${c.id}',${idx})" title="Tocar para editar" style="margin-top:2px;padding:3px 5px 4px;border-radius:0 0 5px 5px;background:linear-gradient(to top, #ffc2dd, ${bgBloque});font-size:10px;line-height:1.3;font-weight:600;color:var(--text);white-space:normal;word-break:break-word;cursor:pointer">
       ${escapar(e.trat)} ${escapar(e.dosis)} · ${escapar(e.fechaLabel)}
     </div>`).join('');
