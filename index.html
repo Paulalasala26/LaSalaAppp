@@ -13094,64 +13094,64 @@ async function aplicarSugerenciaEspecifico(invId, calle, sugerencia){
   renderEspecificosGrid(invId);
 }
 function showEspecificosModule(){
-  // loadTareasData() se añade aquí solo para poder sacar el caldo/gasto de
-  // las tareas de específico ya asignadas en el resumen de la quincena (ver
-  // renderResumenQuincenaTratamientos).
-  Promise.all([loadEspecificosData(), loadPresenciaData(), loadTareasData()]).then(()=>{
-    // Igual que en showFitoModule: se fija ANTES de construir el dashboard,
-    // que ya usa especificosQuincenaOffset para el resumen de la quincena.
-    especificosQuincenaOffset = riegoQuincenaOffsetActual();
+  try {
     const overlay = getOrCreateOverlay('especificos-overlay');
     overlay.style.padding = '0';
     overlay.innerHTML = `
       <div style="background:#fff;border-radius:0;width:100vw;height:100vh;max-width:100vw;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.3)">
-        <div style="background:#2e7d32;color:#fff;padding:.85rem 1.25rem;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;gap:10px">
-          <div>
-            <div style="font-size:16px;font-weight:800">&#127919; Específicos</div>
-            <div style="font-size:11px;opacity:.7;margin:1px 0 4px">Distribución de calles &middot; tratamientos puntuales (TC/MB/PP)</div>
-            <div id="especificos-quincena-bar" style="display:flex;align-items:center;gap:8px"></div>
-          </div>
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-            <button class="hdr-btn" onclick="showEspecificoManualForm()" title="Añadir manualmente" style="padding:6px 14px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:5px">
-              <i class="ti ti-plus" style="font-size:13px"></i><span class="hdr-btn-label"> Añadir manualmente</span>
-            </button>
-            <button id="especifico-btn-retroceder" class="hdr-btn" onclick="retrocederEspecifico()" title="Volver a la pantalla anterior"
-              style="padding:6px 14px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:5px">
-              <i class="ti ti-arrow-back-up" style="font-size:13px"></i><span class="hdr-btn-label"> Retroceder</span>
-            </button>
-            <button class="hdr-btn" onclick="saveEspecificosData()" title="Guardar" style="padding:6px 14px;background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">
-              <i class="ti ti-device-floppy" style="font-size:13px;vertical-align:-2px"></i><span class="hdr-btn-label"> Guardar</span>
-            </button>
-            <button class="hdr-btn" onclick="showImprimirEspecificoSelector()" title="Elegir qué imprimir" style="padding:6px 14px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:5px">
-              <i class="ti ti-printer" style="font-size:13px"></i><span class="hdr-btn-label"> Imprimir</span>
-            </button>
-            <button onclick="document.getElementById('especificos-overlay').style.display='none'" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 11px;cursor:pointer;font-size:13px">✕</button>
-          </div>
-        </div>
-        <div style="padding:.5rem 1.25rem;background:#eaf5ea;border-bottom:1px solid #a5d6a7;display:flex;gap:6px;flex-wrap:wrap;align-items:center;flex-shrink:0">
-          <span style="font-size:11px;font-weight:700;color:#2e7d32;min-width:56px">SALA 1:</span>
-          ${Object.keys(INV_LAYOUT_SALA1).map(id=>`
-            <button onclick="selectEspecificoInv('${id}',this)" data-einv="${id}"
-              style="padding:4px 11px;font-size:11px;font-weight:600;border-radius:5px;cursor:pointer;border:1.5px solid #a5d6a7;background:#fff;color:#2e7d32;transition:all .12s">
-              ${id}
-            </button>`).join('')}
-        </div>
-        <div style="padding:.5rem 1.25rem;background:#eaf5ea;border-bottom:1px solid #a5d6a7;display:flex;gap:6px;flex-wrap:wrap;align-items:center;flex-shrink:0">
-          <span style="font-size:11px;font-weight:700;color:#2e7d32;min-width:56px">SALA 2:</span>
-          ${Object.keys(INV_LAYOUT_SALA2).map(id=>`
-            <button onclick="selectEspecificoInv('${id}',this)" data-einv="${id}"
-              style="padding:4px 11px;font-size:11px;font-weight:600;border-radius:5px;cursor:pointer;border:1.5px solid #a5d6a7;background:#fff;color:#2e7d32;transition:all .12s">
-              ${id}
-            </button>`).join('')}
-        </div>
-        <div id="especificos-grid-wrap" style="flex:1;overflow:auto;background:#f8faf8;padding:1rem 1.25rem">
-          ${renderSugerenciasEspecificos()}
-          ${renderDashboardInvernaderos('especifico')}
-        </div>
+        <div style="background:#2e7d32;color:#fff;padding:.85rem 1.25rem">Cargando...</div>
+        <div style="flex:1;display:flex;align-items:center;justify-content:center;color:#999">Cargando específicos...</div>
       </div>`;
     overlay.style.display = 'flex';
-    renderEspecificosQuincenaBar();
-  });
+
+    // Cargar datos en background
+    Promise.all([loadEspecificosData(), loadPresenciaData(), loadTareasData()]).then(()=>{
+      especificosQuincenaOffset = riegoQuincenaOffsetActual();
+      const html = `
+        <div style="background:#fff;border-radius:0;width:100vw;height:100vh;max-width:100vw;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.3)">
+          <div style="background:#2e7d32;color:#fff;padding:.85rem 1.25rem;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;gap:10px">
+            <div>
+              <div style="font-size:16px;font-weight:800">&#127919; Específicos</div>
+              <div style="font-size:11px;opacity:.7;margin:1px 0 4px">Distribución de calles &middot; tratamientos puntuales (TC/MB/PP)</div>
+              <div id="especificos-quincena-bar" style="display:flex;align-items:center;gap:8px"></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <button class="hdr-btn" onclick="showEspecificoManualForm()" title="Añadir manualmente" style="padding:6px 14px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:5px">
+                <i class="ti ti-plus" style="font-size:13px"></i><span class="hdr-btn-label"> Añadir manualmente</span>
+              </button>
+              <button id="especifico-btn-retroceder" class="hdr-btn" onclick="retrocederEspecifico()" title="Volver a la pantalla anterior" style="padding:6px 14px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:5px">
+                <i class="ti ti-arrow-back-up" style="font-size:13px"></i><span class="hdr-btn-label"> Retroceder</span>
+              </button>
+              <button class="hdr-btn" onclick="saveEspecificosData()" title="Guardar" style="padding:6px 14px;background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">
+                <i class="ti ti-device-floppy" style="font-size:13px;vertical-align:-2px"></i><span class="hdr-btn-label"> Guardar</span>
+              </button>
+              <button class="hdr-btn" onclick="showImprimirEspecificoSelector()" title="Elegir qué imprimir" style="padding:6px 14px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:5px">
+                <i class="ti ti-printer" style="font-size:13px"></i><span class="hdr-btn-label"> Imprimir</span>
+              </button>
+              <button onclick="document.getElementById('especificos-overlay').style.display='none'" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 11px;cursor:pointer;font-size:13px">✕</button>
+            </div>
+          </div>
+          <div style="padding:.5rem 1.25rem;background:#eaf5ea;border-bottom:1px solid #a5d6a7;display:flex;gap:6px;flex-wrap:wrap;align-items:center;flex-shrink:0">
+            <span style="font-size:11px;font-weight:700;color:#2e7d32;min-width:56px">SALA 1:</span>
+            ${Object.keys(INV_LAYOUT_SALA1).map(id=>`<button onclick="selectEspecificoInv('${id}',this)" data-einv="${id}" style="padding:4px 11px;font-size:11px;font-weight:600;border-radius:5px;cursor:pointer;border:1.5px solid #a5d6a7;background:#fff;color:#2e7d32;transition:all .12s">${id}</button>`).join('')}
+          </div>
+          <div style="padding:.5rem 1.25rem;background:#eaf5ea;border-bottom:1px solid #a5d6a7;display:flex;gap:6px;flex-wrap:wrap;align-items:center;flex-shrink:0">
+            <span style="font-size:11px;font-weight:700;color:#2e7d32;min-width:56px">SALA 2:</span>
+            ${Object.keys(INV_LAYOUT_SALA2).map(id=>`<button onclick="selectEspecificoInv('${id}',this)" data-einv="${id}" style="padding:4px 11px;font-size:11px;font-weight:600;border-radius:5px;cursor:pointer;border:1.5px solid #a5d6a7;background:#fff;color:#2e7d32;transition:all .12s">${id}</button>`).join('')}
+          </div>
+          <div id="especificos-grid-wrap" style="flex:1;overflow:auto;background:#f8faf8;padding:1rem 1.25rem">
+            ${renderSugerenciasEspecificos()}
+            ${renderDashboardInvernaderos('especifico')}
+          </div>
+        </div>`;
+      overlay.innerHTML = html;
+      renderEspecificosQuincenaBar();
+    }).catch(e=>{
+      showToast('❌ Error al cargar Específicos: '+e.message);
+    });
+  } catch(e) {
+    showToast('❌ Error: '+e.message);
+  }
 }
 
 function selectEspecificoInv(invId, btn){
