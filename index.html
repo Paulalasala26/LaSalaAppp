@@ -1838,7 +1838,8 @@ const TAREAS_GESTOR_VISTAS = [
   {key:'antiguas', label:'Tareas antiguas', icon:'ti-clock', color:'linear-gradient(135deg,#a32020,#d9432f)'},
   {key:'hoy', label:'Tareas de hoy', icon:'ti-calendar-event', color:'linear-gradient(135deg,#1558a0,#2a72c4)'},
   {key:'manana', label:'Tareas de mañana', icon:'ti-calendar-plus', color:'linear-gradient(135deg,#1a5c2e,#3fa864)'},
-  {key:'mantenimiento', label:'Mantenimiento de Parcelas', icon:'ti-plant-2', color:'linear-gradient(135deg,#7b5cf0,#5c8df0)'}
+  {key:'mantenimiento', label:'Mantenimiento de Parcelas', icon:'ti-plant-2', color:'linear-gradient(135deg,#7b5cf0,#5c8df0)'},
+  {key:'indice', label:'Índice Abonos', icon:'ti-clipboard-list', color:'linear-gradient(135deg,#a35d00,#d98c1f)'}
 ];
 // Vista de gestión (ADMIN/TÉCNICO) de "Tareas": pantalla completa con menú
 // lateral, mismo formato que el módulo Trabajos (2026-07-30, a petición de
@@ -1854,7 +1855,8 @@ function renderTareasGestorFullScreen(overlay){
     antiguas: porFecha.antiguas.filter(t=>t.estado!=='completada').length,
     hoy: porFecha.hoy.filter(t=>t.estado!=='completada').length,
     manana: porFecha.manana.filter(t=>t.estado!=='completada').length,
-    mantenimiento: mantenimientoData.filter(t=>t.estado!=='cerrado').length
+    mantenimiento: mantenimientoData.filter(t=>t.estado!=='cerrado').length,
+    indice: 0
   };
   // Menú de arriba en vez de lateral (a petición de Paula, 2026-08-12: "para
   // que sea más visible en móvil") — mismo patrón ya usado para quitar el
@@ -1895,7 +1897,7 @@ function renderTareasGestorFullScreen(overlay){
   if(wrapNuevoTG) wrapNuevoTG.scrollTop = scrollTopAnteriorTG;
 }
 function renderTareasGestorResumenHTML(counts){
-  const subLabel = key => key==='mantenimiento' ? (counts[key]===1?'ticket abierto':'tickets abiertos') : (counts[key]===1?'pendiente':'pendientes');
+  const subLabel = key => key==='mantenimiento' ? (counts[key]===1?'ticket abierto':'tickets abiertos') : key==='indice' ? 'agua y abono' : (counts[key]===1?'pendiente':'pendientes');
   return `
     <div style="margin-bottom:1.5rem">
       <h2 style="font-size:22px;font-weight:800;color:var(--text);margin-bottom:4px">Resumen de Tareas</h2>
@@ -1906,7 +1908,7 @@ function renderTareasGestorResumenHTML(counts){
         <div onclick="irATareasGestorVista('${v.key}')" style="cursor:pointer;background:${v.color};color:#fff;border-radius:14px;padding:1.25rem 1.4rem;box-shadow:var(--shadow-md)">
           <i class="ti ${v.icon}" style="font-size:22px;opacity:.9"></i>
           <div style="font-size:13px;font-weight:700;margin-top:10px;opacity:.9">${v.label}</div>
-          <div style="font-size:28px;font-weight:800;margin-top:4px">${counts[v.key]}</div>
+          ${v.key==='indice' ? '' : `<div style="font-size:28px;font-weight:800;margin-top:4px">${counts[v.key]}</div>`}
           <div style="font-size:11px;opacity:.85;margin-top:2px">${subLabel(v.key)}</div>
         </div>`).join('')}
     </div>
@@ -1929,6 +1931,17 @@ function renderTareasGestorVistaHTML(vista, porFecha){
         <p style="font-size:13px;color:var(--muted)">${mantenimientoData.filter(t=>t.estado!=='cerrado').length} tickets abiertos.</p>
       </div>
       ${renderMantenimientoColgandoHTML()}`;
+  }
+  if(vista==='indice'){
+    // Mismo Índice Abonos que ve el Regante (a petición de Paula, 2026-08-18:
+    // "que también aparezca en Tareas de los técnicos y admins") — es de
+    // solo lectura y no depende del rol, así que se reutiliza sin cambios.
+    return `
+      <div style="margin-bottom:1rem">
+        <h2 style="font-size:22px;font-weight:800;color:var(--text)">📑 Índice Abonos</h2>
+        <p style="font-size:13px;color:var(--muted)">Todos los riegos de agua y abono de hoy y mañana, ordenados por horario.</p>
+      </div>
+      ${renderIndiceAbonos()}`;
   }
   const v = TAREAS_GESTOR_VISTAS.find(x=>x.key===vista);
   const lista = porFecha[vista] || [];
