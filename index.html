@@ -13039,7 +13039,8 @@ function showEspecificoResumenModule(){
 function obtenerSugerenciasEspecificos(){
   // Detectar partidas GRANDES en Check Túnel sin específico asignado
   const sugerencias = [];
-  if(!controlChecksData.length) return sugerencias;
+  if(!controlChecksData || !controlChecksData.length) return sugerencias;
+  if(!especificosQuincenaOffset && especificosQuincenaOffset !== 0) return sugerencias;
   const checksGrandes = controlChecksData.filter(c=>c.tipo==='tunel' && c.tamano && c.tamano.toUpperCase().includes('GRANDE'));
   checksGrandes.forEach(check=>{
     const invId = check.invId;
