@@ -14024,11 +14024,18 @@ async function saveEspecificoManual(){
       for(let c=s;c<=e;c++){ if(allCalles.includes(c)){ setEspecifico(invId, dia, c, texto, {caldoLitros, caldoLabel, tecnico: currentUser}); callesTramo.push(c); count++; } }
       const tituloTarea = [tratDosis, tipo].filter(Boolean).join(' + ');
       await autoAsignarTareaEspecifico(invId, dia, formatRangoConInv(invId, s, e), tituloTarea, horario, obs, {producto: trat, dosis, caldoLabel, gastoLabel});
-      const partidaAsociada = resolverPartidaPorObsEspecifico(invId, callesTramo, obs);
-      if(partidaAsociada){
+      // A petición de Paula (2026-08-18): "los específicos que se apliquen
+      // deben mostrar el banner en el mapa de partidas" — antes solo se
+      // asociaba a una partida si la observación seguía un patrón concreto
+      // ("PARTIDA 123", "PRIMERA PARTIDA"...), así que la mayoría de
+      // específicos normales no dejaban ningún banner. Ahora se asocia a
+      // TODAS las partidas cuyas calles reales estén dentro de este tramo,
+      // sin depender de lo que se haya escrito en observaciones.
+      const partidasAsociadas = calcularBloquesPartidasInv(invId).filter(b=>b.calles.some(c=>callesTramo.includes(c))).map(b=>b.entry);
+      partidasAsociadas.forEach(partidaAsociada=>{
         if(!especificosPartidaData[partidaAsociada.id]) especificosPartidaData[partidaAsociada.id] = [];
         especificosPartidaData[partidaAsociada.id].push({trat, dosis, horario, fechaLabel, fechaISO});
-      }
+      });
     }
   }
   await saveEspecificosData();
