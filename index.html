@@ -6375,19 +6375,21 @@ async function aplicarMoverPartidaACalle(id, invId, tramo, posManualVal){
 // fila libre para TODAS las calles que ocupa a la vez, para que nunca se
 // pise con otro bloque ya colocado.
 function calcularBloquesPartidasInv(invId){
-  return calcularBloquesPartidasInvBase(invId, true);
+  return calcularBloquesPartidasInvBase(invId, partidasSemanaOffset);
 }
-// Base compartida — filtrarPorSemana=true es el mapa visual de siempre
-// (solo lo visible en partidasSemanaOffset). resolverPartidaPorObsEspecifico
-// necesita filtrarPorSemana=false: al aplicar un específico desde fuera del
-// mapa (p.ej. desde Cuadrícula o desde el Resumen) partidasSemanaOffset
-// puede no coincidir con la semana real de la partida, y con el filtro
-// puesto la partida ni entraba en la lista para poder emparejarla con la
-// observación — a petición de Paula (2026-08-18): "mantente a lo de las
-// observaciones como antes pero aplícalo porque no se está realizando".
-function calcularBloquesPartidasInvBase(invId, filtrarPorSemana){
+// Base compartida. semanaOffset=null/undefined = sin filtro (todas las
+// partidas de tunel de ese invernadero, sea la semana que sea). Un número =
+// filtra por esa semana concreta con partidaVisibleEnSemana — el mapa visual
+// de siempre usa partidasSemanaOffset (la semana que se esté viendo), pero
+// para asociar un específico hay que usar la semana del DÍA en que se aplica
+// ese específico (calculada por el caller), NO la que tengas abierta en el
+// mapa en ese momento — a petición de Paula (2026-08-18): usar la semana de
+// la UI daba falsos negativos (partida real no encontrada) y quitar el
+// filtro del todo daría falsos positivos (partidas ya salidas de esa calle,
+// cuyo check nunca se borra, seguirían aparejándose).
+function calcularBloquesPartidasInvBase(invId, semanaOffset){
   const entradas = controlChecksData
-    .filter(c=>c.tipo==='tunel' && c.invId===invId && c.invId && ((c.tramos&&c.tramos.length) || c.calleDesde!=null) && (!filtrarPorSemana || partidaVisibleEnSemana(c, partidasSemanaOffset)))
+    .filter(c=>c.tipo==='tunel' && c.invId===invId && c.invId && ((c.tramos&&c.tramos.length) || c.calleDesde!=null) && (semanaOffset==null || partidaVisibleEnSemana(c, semanaOffset)))
     .slice()
     .sort((a,b)=> sortKeyPartida(a) - sortKeyPartida(b));
   const alturaPorCalle = {};
@@ -13982,9 +13984,10 @@ function imprimirHojaEspecificoConDatos(datos){
 // más alejada, o un número de partida suelto = esa partida en concreto.
 // "Cercana/alejada del pasillo" = pos más alto/más bajo de calcularBloquesPartidasInv
 // (ver esa función: pos crece según se acerca al pasillo, sea row1 o row2).
-function resolverPartidaPorObsEspecifico(invId, calles, obs){
+function resolverPartidaPorObsEspecifico(invId, calles, obs, dia){
   if(!obs || !calles.length) return null;
-  const bloques = calcularBloquesPartidasInvBase(invId, false).filter(b=>b.calles.some(c=>calles.includes(c)));
+  const semanaDelDia = dia!=null ? partidasSemanaDeFecha(riegoDiaToDate(dia)) : null;
+  const bloques = calcularBloquesPartidasInvBase(invId, semanaDelDia).filter(b=>b.calles.some(c=>calles.includes(c)));
   if(!bloques.length) return null;
   // Coincidencia EXACTA con toda la observación (no solo "contiene") — a
   // petición de Paula, "SI PONE: X" se entiende como "si la nota ES X", no
@@ -14045,9 +14048,10 @@ async function saveEspecificoManual(){
       // partida que dice esa nota (resolverPartidaPorObsEspecifico); sin
       // observación (caso normal, la mayoría) se asocia a TODAS las
       // partidas cuyas calles reales caigan dentro del tramo tratado.
+      const semanaDelDia = partidasSemanaDeFecha(riegoDiaToDate(dia));
       const partidasAsociadas = obs
-        ? [resolverPartidaPorObsEspecifico(invId, callesTramo, obs)].filter(Boolean)
-        : calcularBloquesPartidasInvBase(invId, false).filter(b=>b.calles.some(c=>callesTramo.includes(c))).map(b=>b.entry);
+        ? [resolverPartidaPorObsEspecifico(invId, callesTramo, obs, dia)].filter(Boolean)
+        : calcularBloquesPartidasInvBase(invId, semanaDelDia).filter(b=>b.calles.some(c=>callesTramo.includes(c))).map(b=>b.entry);
       partidasAsociadas.forEach(partidaAsociada=>{
         if(!especificosPartidaData[partidaAsociada.id]) especificosPartidaData[partidaAsociada.id] = [];
         especificosPartidaData[partidaAsociada.id].push({trat, dosis, horario, fechaLabel, fechaISO});
