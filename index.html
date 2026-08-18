@@ -13095,14 +13095,18 @@ async function aplicarSugerenciaEspecifico(invId, calle, sugerencia){
 }
 function showEspecificosModule(){
   try {
-    const overlay = getOrCreateOverlay('especificos-overlay');
+    const overlay = document.getElementById('especificos-overlay');
+    if(!overlay) {
+      showToast('❌ No se pudo crear el overlay');
+      return;
+    }
     overlay.style.padding = '0';
+    overlay.style.display = 'flex';
     overlay.innerHTML = `
       <div style="background:#fff;border-radius:0;width:100vw;height:100vh;max-width:100vw;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.3)">
         <div style="background:#2e7d32;color:#fff;padding:.85rem 1.25rem">Cargando...</div>
         <div style="flex:1;display:flex;align-items:center;justify-content:center;color:#999">Cargando específicos...</div>
       </div>`;
-    overlay.style.display = 'flex';
 
     // Cargar datos en background
     Promise.all([loadEspecificosData(), loadPresenciaData(), loadTareasData()]).then(()=>{
