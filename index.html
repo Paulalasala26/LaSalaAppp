@@ -6867,9 +6867,13 @@ async function aplicarSalidaPartida(id, valor){
   if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
   return ok;
 }
-function recuperarPartidaPorId(){
+async function recuperarPartidaPorId(){
   const id = prompt('Ingresa el ID de la partida a recuperar (ej: 26X00888):', '');
   if(!id) return;
+  // Cargar datos si no están disponibles
+  if(!controlChecksData.length) {
+    await loadControlChecksData();
+  }
   const c = controlChecksData.find(x=>x.id===id);
   if(!c){ showToast('❌ Partida no encontrada'); return; }
   if(c.salioDesdeSemanaNumerada === null || c.salioDesdeSemanaNumerada === undefined){
@@ -6878,7 +6882,7 @@ function recuperarPartidaPorId(){
   }
   c.salioDesdeSemanaNumerada = null;
   renderPartidasMapaContent(document.getElementById('partidas-overlay'));
-  persistControlChecksData();
+  await persistControlChecksData();
   showToast(`✓ Partida ${id} recuperada`);
 }
 
