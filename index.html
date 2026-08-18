@@ -4029,7 +4029,16 @@ const CONTROL_FOTOS_SHARD_MAX_CHARS = 6*1024*1024;
 let controlFotosShardKeys = [CONTROL_FOTOS_KEY];
 let controlFotosData = {};
 let controlFotosShardDeId = {};
-async function loadControlFotosData(){
+let controlFotosDataCargada = false;
+// forzar=false (a petición de Paula, 2026-08-18: el historial de partida
+// tardaba "varios minutos" en abrirse porque volvía a descargar TODAS las
+// fotos, varios MB repartidos en shards, cada vez que se pulsaba una
+// partida) — con forzar=false, si ya se cargaron una vez en esta sesión no
+// se vuelve a pedir nada a la nube. Los sitios que necesitan ver una foto
+// recién subida (Check Túnel/Carga) siguen llamando con forzar=true (o sin
+// argumento, que por defecto sigue refrescando).
+async function loadControlFotosData(forzar){
+  if(forzar===false && controlFotosDataCargada) return;
   try{
     const idx = await window.storage.get(CONTROL_FOTOS_SHARDS_INDEX_KEY);
     controlFotosShardKeys = idx ? JSON.parse(idx.value) : [CONTROL_FOTOS_KEY];
@@ -4045,6 +4054,7 @@ async function loadControlFotosData(){
       }
     }catch(e){}
   }
+  controlFotosDataCargada = true;
 }
 async function elegirShardParaFoto(id, fotoB64Len){
   if(controlFotosShardDeId[id]) return controlFotosShardDeId[id];
@@ -6780,7 +6790,7 @@ function togglePartidaEnSeleccionEspecifico(id){
 async function mostrarHistorialPartida(id){
   const c = controlChecksData.find(x=>x.id===id);
   if(!c) return;
-  await Promise.all([loadRiegoData(), loadFitoData(), loadEspecificosData(), loadControlFotosData()]);
+  await Promise.all([loadRiegoData(), loadFitoData(), loadEspecificosData(), loadControlFotosData(false)]);
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const tramos = (c.tramos && c.tramos.length) ? c.tramos : [{desde:c.calleDesde, hasta:c.calleHasta}];
   const calles = [];
@@ -6795,20 +6805,26 @@ async function mostrarHistorialPartida(id){
   // historial muestra ahora también "Día N" contado desde ahí (1 = el
   // propio día de salida), no solo la fecha de calendario.
   const diaDesde = c.dia!=null ? c.dia : riegoDiaDeHoy();
+  // A petición de Paula (2026-08-18): "no quiero que aparezcan las calles,
+  // solo los días con lo que ha llevado" — antes salía una línea POR CADA
+  // calle de la partida (normalmente lo mismo repetido varias veces); ahora
+  // se agrupa por día+tipo+texto y solo se muestra una vez, aunque varias
+  // calles de la partida hayan llevado lo mismo ese día.
+  const eventosVistos = new Set();
   const eventos = [];
   if(c.invId && calles.length){
     for(let dia=diaDesde; dia<=diaDesde+90; dia++){
       calles.forEach(calle=>{
         const r = getRiego(c.invId, dia, calle);
-        if(r) eventos.push({dia, calle, tipo:'Riego', color:'#1558a0', texto:r});
+        if(r){ const k=`${dia}|Riego|${r}`; if(!eventosVistos.has(k)){ eventosVistos.add(k); eventos.push({dia, tipo:'Riego', color:'#1558a0', texto:r}); } }
         const f = getFito(c.invId, dia, calle);
-        if(f) eventos.push({dia, calle, tipo:'Plaguicidas', color:'#c47f00', texto:f});
+        if(f){ const k=`${dia}|Plaguicidas|${f}`; if(!eventosVistos.has(k)){ eventosVistos.add(k); eventos.push({dia, tipo:'Plaguicidas', color:'#c47f00', texto:f}); } }
         const e = getEspecifico(c.invId, dia, calle);
-        if(e) eventos.push({dia, calle, tipo:'Específicos', color:'#1a5c2e', texto:e});
+        if(e){ const k=`${dia}|Específicos|${e}`; if(!eventosVistos.has(k)){ eventosVistos.add(k); eventos.push({dia, tipo:'Específicos', color:'#1a5c2e', texto:e}); } }
       });
     }
   }
-  eventos.sort((a,b)=> a.dia-b.dia || a.calle-b.calle);
+  eventos.sort((a,b)=> a.dia-b.dia);
   const eventosHTML = eventos.length ? eventos.map(ev=>`
     <div style="display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--border)">
       <div style="width:78px;flex-shrink:0">
@@ -6816,7 +6832,7 @@ async function mostrarHistorialPartida(id){
         <div style="font-size:10px;color:var(--muted)">${escapar(riegoDiaLabelCorto(ev.dia))}</div>
       </div>
       <div style="width:74px;flex-shrink:0;font-size:10px;font-weight:800;color:#fff;background:${ev.color};border-radius:999px;padding:2px 8px;text-align:center">${ev.tipo}</div>
-      <div style="font-size:12px;color:var(--text)">C/${escapar(ev.calle)} — ${escapar(ev.texto)}</div>
+      <div style="font-size:12px;color:var(--text)">${escapar(ev.texto)}</div>
     </div>`).join('') : `<div style="text-align:center;padding:2rem;color:var(--muted);font-style:italic;font-size:13px">Sin riegos, plaguicidas ni específicos registrados en sus calles desde que entró.</div>`;
   const tipoPlanta = detectarTipoPlantaPartida(c.clienteVariedad);
   // A petición de Paula, 2026-08-10: "quiero que se vea toda la información
@@ -6903,7 +6919,7 @@ function imprimirHistorialPartida(){
     <tr>
       <td>Día ${ev.dia-diaDesde+1} · ${escapar(riegoDiaLabelCorto(ev.dia))}</td>
       <td>${escapar(ev.tipo)}</td>
-      <td>C/${escapar(ev.calle)} — ${escapar(ev.texto)}</td>
+      <td>${escapar(ev.texto)}</td>
     </tr>`).join('') : `<tr><td colspan="3" style="font-style:italic;color:#888">Sin riegos, plaguicidas ni específicos registrados en sus calles desde que entró.</td></tr>`;
   const fotosHTML = fotosPartida.length ? `
     <h3>Fotos</h3>
