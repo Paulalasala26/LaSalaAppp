@@ -6030,6 +6030,7 @@ function renderPartidasMapaContent(overlay){
           <button onclick="showEspecificoManualForm()" title="Añadir un específico sin entrar a un invernadero" style="padding:8px 14px;border-radius:8px;font-size:12px;font-weight:800;background:rgba(255,255,255,.2);color:#fff;border:none;cursor:pointer;display:flex;align-items:center;gap:5px"><i class="ti ti-plus" style="font-size:14px"></i> Añadir Específico</button>
           <button onclick="showEspecificoResumenModule()" title="Resumen de lo aplicado en la quincena" style="padding:8px 14px;border-radius:8px;font-size:12px;font-weight:800;background:rgba(255,255,255,.2);color:#fff;border:none;cursor:pointer;display:flex;align-items:center;gap:5px"><i class="ti ti-table" style="font-size:14px"></i> Resumen</button>
           <button onclick="showEspecificosModule()" title="Cuadrícula día×calle por invernadero" style="padding:8px 14px;border-radius:8px;font-size:12px;font-weight:800;background:rgba(255,255,255,.2);color:#fff;border:none;cursor:pointer;display:flex;align-items:center;gap:5px"><i class="ti ti-grid-dots" style="font-size:14px"></i> Cuadrícula</button>
+          <button onclick="recuperarPartidaPorId()" title="Recuperar partida marcada como salida" style="padding:8px 14px;border-radius:8px;font-size:12px;font-weight:800;background:rgba(255,255,255,.2);color:#fff;border:none;cursor:pointer;display:flex;align-items:center;gap:5px"><i class="ti ti-refresh" style="font-size:14px"></i> Recuperar</button>
           <button onclick="document.getElementById('partidas-overlay').style.display='none'" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700;background:rgba(255,255,255,.15);color:#fff;border:none;cursor:pointer">✕ Cerrar</button>
         </div>
       </div>
@@ -6865,6 +6866,20 @@ async function aplicarSalidaPartida(id, valor){
   const ok = await persistControlChecksData();
   if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
   return ok;
+}
+function recuperarPartidaPorId(){
+  const id = prompt('Ingresa el ID de la partida a recuperar (ej: 26X00888):', '');
+  if(!id) return;
+  const c = controlChecksData.find(x=>x.id===id);
+  if(!c){ showToast('❌ Partida no encontrada'); return; }
+  if(c.salioDesdeSemanaNumerada === null || c.salioDesdeSemanaNumerada === undefined){
+    showToast('⚠️ Esta partida no está marcada como salida');
+    return;
+  }
+  c.salioDesdeSemanaNumerada = null;
+  renderPartidasMapaContent(document.getElementById('partidas-overlay'));
+  persistControlChecksData();
+  showToast(`✓ Partida ${id} recuperada`);
 }
 
 // ════════════════════════════════════════════════════════════════
