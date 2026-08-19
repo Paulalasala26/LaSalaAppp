@@ -558,8 +558,11 @@ function applyRoleHomeUI(){
           <button onclick="mostrarAvisosTecnico()" title="Ver avisos: respuestas de Vigueras a propuestas y trabajos/riegos ejecutados para evaluar" style="padding:11px 18px;font-size:13px;font-weight:800;background:#a35d00;color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:8px">
             <i class="ti ti-bell" style="font-size:16px"></i> Avisos <span id="avisos-tecnico-badge"></span>
           </button>
-          <button onclick="marcarHojasMarcadas()" title="Avisar a Vigueras de que ya has terminado de marcar" style="padding:11px 18px;font-size:13px;font-weight:800;background:#1558a0;color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:8px">
-            <i class="ti ti-check" style="font-size:16px"></i> Hojas marcadas
+          <button onclick="marcarHojasMarcadas('Sala 1')" title="Avisar a Vigueras de que ya has terminado de marcar la Sala 1" style="padding:11px 18px;font-size:13px;font-weight:800;background:#1558a0;color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:8px">
+            <i class="ti ti-check" style="font-size:16px"></i> Hojas marcadas Sala 1
+          </button>
+          <button onclick="marcarHojasMarcadas('Sala 2')" title="Avisar a Vigueras de que ya has terminado de marcar la Sala 2" style="padding:11px 18px;font-size:13px;font-weight:800;background:#1558a0;color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:8px">
+            <i class="ti ti-check" style="font-size:16px"></i> Hojas marcadas Sala 2
           </button>
         </div>`);
     }
@@ -1268,10 +1271,14 @@ async function actualizarBadgeAvisosTecnico(){
 // general de Notificaciones de Vigueras se unificó con notificarUsuario —
 // mismo mecanismo genérico que usan las propuestas inminentes y los avisos
 // al técnico de guardia, así que este aviso también aparece en esa lista.
-async function marcarHojasMarcadas(){
-  if(!confirm('¿Confirmas que ya has terminado de marcar todas las hojas de riego? Se avisará a Vigueras.')) return;
-  await notificarUsuario('VIGUERAS', `${nombreLegibleUsuario(currentUser)} ha marcado las hojas de riego`, '✅ Hojas marcadas');
-  logHistorial('Marcó "Hojas marcadas" (aviso enviado a Vigueras)');
+// A petición de Paula (2026-08-18): dos botones separados por sala (antes
+// uno solo para "todo el riego") — Fran/Dennis normalmente marcan una sala
+// antes que la otra y quieren avisar de cada una por separado, en vez de
+// esperar a terminar las dos para poder avisar de la primera.
+async function marcarHojasMarcadas(sala){
+  if(!confirm(`¿Confirmas que ya has terminado de marcar las hojas de riego de la ${sala}? Se avisará a Vigueras.`)) return;
+  await notificarUsuario('VIGUERAS', `${nombreLegibleUsuario(currentUser)} ha marcado las hojas de riego de la ${sala}`, `✅ Hojas marcadas ${sala}`);
+  logHistorial(`Marcó "Hojas marcadas ${sala}" (aviso enviado a Vigueras)`);
   showToast('✓ Aviso enviado a Vigueras');
 }
 // A petición de Paula (2026-08-05): botón de Vigueras para avisar a Fran y
@@ -6489,20 +6496,6 @@ function renderPartidasBloqueHTML(bloque){
   // tocar la tarjeta marca/desmarca en vez de mover, y se ocultan los botones
   // de mover/separar/eliminar para no confundir gestos mientras se elige.
   const enSeleccionEspecifico = partidasEspecificoSeleccion.has(c.id);
-  if(partidasEspecificoModo){
-    return `
-      <div onclick="togglePartidaEnSeleccionEspecifico('${c.id}')"
-        style="height:100%;padding:4px 6px;background:${enSeleccionEspecifico?'#c6f2d3':bgBloque};border:2px solid ${enSeleccionEspecifico?'#1a5c2e':borderBloque};border-radius:6px;font-size:10px;line-height:1.35;position:relative;overflow:hidden;cursor:pointer">
-        <div style="position:absolute;top:2px;right:2px;width:16px;height:16px;border-radius:4px;background:${enSeleccionEspecifico?'#1a5c2e':'#fff'};border:1.5px solid ${enSeleccionEspecifico?'#1a5c2e':'#a5d6c2'};color:#fff;font-size:11px;line-height:15px;text-align:center">${enSeleccionEspecifico?'✓':''}</div>
-        <div style="font-weight:800;color:#0f5c4a;padding-right:20px">${escapar(c.partida)||'—'}</div>
-        <div style="color:var(--text);font-weight:600">${escapar(c.clienteVariedad)||''}</div>
-        <div style="color:var(--muted);display:flex;gap:5px;flex-wrap:wrap;margin-top:1px">
-          ${stLabel ? `<span title="Salida de Túnel">${stLabel}</span>` : ''}
-          ${c.fentrega ? `<span>📅 ${escapar(c.fentrega)}</span>` : ''}
-          ${tipoPlanta ? `<span style="font-weight:700;color:#0f5c4a">${escapar(tipoPlanta)}</span>` : ''}
-        </div>
-      </div>`;
-  }
   // Banner(s) de específicos aplicados a esta partida (se apilan, uno por
   // cada específico aplicado con el tiempo — a petición de Paula) — leídos
   // de especificosPartidaData[c.id], independiente de especificosData (que
@@ -6514,12 +6507,36 @@ function renderPartidasBloqueHTML(bloque){
   // pero sigue existiendo en los datos (editar/eliminar solo afecta al que
   // se ve, que es representativo de todos).
   const especificosVistos = new Set();
-  const especificosBanners = (especificosPartidaData[c.id]||[]).map((e,idx)=>({e,idx})).filter(({e})=>{
+  const especificosBannersData = (especificosPartidaData[c.id]||[]).map((e,idx)=>({e,idx})).filter(({e})=>{
     const clave = `${e.fechaISO}|${e.trat}|${e.dosis}|${e.horario}`;
     if(especificosVistos.has(clave)) return false;
     especificosVistos.add(clave);
     return true;
-  }).map(({e,idx})=>`
+  });
+  // A petición de Paula (2026-08-18): "en Añadir Específico... no se deben
+  // borrar los banners rosas... necesitamos verlos" — la tarjeta de modo
+  // selección los omitía por completo. Aquí van sin el onclick de editar
+  // (para no interferir con el toque que marca/desmarca la partida).
+  const especificosBannersSoloLectura = especificosBannersData.map(({e})=>`
+    <div style="margin-top:2px;padding:3px 5px 4px;border-radius:0 0 5px 5px;background:linear-gradient(to top, #ffc2dd, ${enSeleccionEspecifico?'#c6f2d3':bgBloque});font-size:10px;line-height:1.3;font-weight:600;color:var(--text);white-space:normal;word-break:break-word">
+      ${escapar(e.trat)} ${escapar(e.dosis)} · ${escapar(e.fechaLabel)}
+    </div>`).join('');
+  if(partidasEspecificoModo){
+    return `
+      <div onclick="togglePartidaEnSeleccionEspecifico('${c.id}')"
+        style="height:100%;padding:4px 6px;background:${enSeleccionEspecifico?'#c6f2d3':bgBloque};border:2px solid ${enSeleccionEspecifico?'#1a5c2e':borderBloque};border-radius:6px;font-size:10px;line-height:1.35;position:relative;overflow:${especificosBannersSoloLectura?'visible;z-index:1':'hidden'};cursor:pointer">
+        <div style="position:absolute;top:2px;right:2px;width:16px;height:16px;border-radius:4px;background:${enSeleccionEspecifico?'#1a5c2e':'#fff'};border:1.5px solid ${enSeleccionEspecifico?'#1a5c2e':'#a5d6c2'};color:#fff;font-size:11px;line-height:15px;text-align:center">${enSeleccionEspecifico?'✓':''}</div>
+        <div style="font-weight:800;color:#0f5c4a;padding-right:20px">${escapar(c.partida)||'—'}</div>
+        <div style="color:var(--text);font-weight:600">${escapar(c.clienteVariedad)||''}</div>
+        <div style="color:var(--muted);display:flex;gap:5px;flex-wrap:wrap;margin-top:1px">
+          ${stLabel ? `<span title="Salida de Túnel">${stLabel}</span>` : ''}
+          ${c.fentrega ? `<span>📅 ${escapar(c.fentrega)}</span>` : ''}
+          ${tipoPlanta ? `<span style="font-weight:700;color:#0f5c4a">${escapar(tipoPlanta)}</span>` : ''}
+        </div>
+        ${especificosBannersSoloLectura}
+      </div>`;
+  }
+  const especificosBanners = especificosBannersData.map(({e,idx})=>`
     <div onclick="event.stopPropagation();editarEspecificoPartidaBanner('${c.id}',${idx})" title="Tocar para editar" style="margin-top:2px;padding:3px 5px 4px;border-radius:0 0 5px 5px;background:linear-gradient(to top, #ffc2dd, ${bgBloque});font-size:10px;line-height:1.3;font-weight:600;color:var(--text);white-space:normal;word-break:break-word;cursor:pointer">
       ${escapar(e.trat)} ${escapar(e.dosis)} · ${escapar(e.fechaLabel)}
     </div>`).join('');
@@ -6617,6 +6634,7 @@ async function aplicarEspecificoAPartidasSeleccionadas(){
   const fechaLabel = riegoDiaLabelCorto(dia);
   const fechaISO = fechaLocalISO(riegoDiaToDate(dia));
   const ids = [...partidasEspecificoSeleccion];
+  const semanaDelDia = partidasSemanaDeFecha(riegoDiaToDate(dia));
   for(const id of ids){
     const c = controlChecksData.find(x=>x.id===id);
     if(!c || !c.invId) continue;
@@ -6624,7 +6642,21 @@ async function aplicarEspecificoAPartidasSeleccionadas(){
     if(!calles.length) continue;
     const layout = INV_LAYOUT[c.invId];
     const allCalles = layout ? [...layout.row1, ...layout.row2] : calles;
-    calles.forEach(calle=>{ if(allCalles.includes(calle)) setEspecifico(c.invId, dia, calle, texto, {caldoLitros, caldoLabel}); });
+    // A petición de Paula (2026-08-18): "si no fuera la calle entera deberá
+    // aparecer en observaciones el número de partida" — para que el
+    // Resumen/Cuadrícula (que leen especificosData por calle, no por
+    // partida) puedan distinguir cuando varias partidas comparten la misma
+    // calle. Se comprueba, calle por calle, si hay OTRA partida ocupando
+    // esa misma calle esa semana; si la hay, se deja la observación con el
+    // código de esta partida (mismo formato que ya reconoce
+    // resolverPartidaPorObsEspecifico).
+    const bloquesInv = calcularBloquesPartidasInvBase(c.invId, semanaDelDia);
+    calles.forEach(calle=>{
+      if(!allCalles.includes(calle)) return;
+      const compartida = bloquesInv.some(b=>b.entry.id!==id && b.calles.includes(calle));
+      const textoCalle = compartida ? `${texto} — PARTIDA ${c.partida}` : texto;
+      setEspecifico(c.invId, dia, calle, textoCalle, {caldoLitros, caldoLabel});
+    });
     const callesLabel = formatCallesConEnteroParaImprimir(c.invId, calles);
     await autoAsignarTareaEspecifico(c.invId, dia, callesLabel, tratDosis, horario, '', {producto:trat, dosis, caldoLabel, gastoLabel});
     if(!especificosPartidaData[id]) especificosPartidaData[id] = [];
