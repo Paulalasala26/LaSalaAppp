@@ -14102,15 +14102,18 @@ function imprimirHojaEspecificoConDatos(datos){
   const caldoLabel = (FITO_CALDO_OPCIONES.find(o=>o.litros===datos.caldoLitros)||{}).label || (datos.caldoLitros?`${datos.caldoLitros}L`:'');
   const gastoCc = (datos.dosis && datos.caldoLitros) ? Math.round(parseFloat(datos.dosis) * datos.caldoLitros * 100) / 100 : null;
 
-  const filasHTML = (datos.filas||[]).map(f=>`
-    <div class="e-fila-tramo">
+  const filasHTML = (datos.filas||[]).map(f=>{
+    const colorTipo = coloresPorTipoEspecifico(f.tipo);
+    return `
+    <div class="e-fila-tramo" style="border-color:${colorTipo.color}">
       <div class="e-invcalles-fila">
         <span class="e-inv-box-sm">INV ${escapar(f.invId)}</span>
         <span class="e-arrow-sm">→</span><span class="e-calles-sm">${escapar(f.calles)}</span>
         ${f.tipo ? `<span class="e-tipo-sm" style="background:${coloresPorTipoEspecifico(f.tipo).bg};color:${coloresPorTipoEspecifico(f.tipo).color}">${escapar(f.tipo)}</span>` : ''}
       </div>
       ${f.obs ? `<div class="e-obs-fila"><b>Observaciones:</b> ${escapar(f.obs)}</div>` : ''}
-    </div>`).join('');
+    </div>`;
+  }).join('');
 
   const pagina = `
     <div class="hoja-esp">
