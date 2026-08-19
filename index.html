@@ -13567,6 +13567,11 @@ function selectEspecificoInv(invId, btn){
 // verde (color de siempre), "PASE RÁPIDO + MONTONES" pasa a naranja y
 // "MONTONES" solo a lila. Cualquier otro caso (sin tipo, o "PASE NORMAL"
 // suelto) se queda con el verde de siempre.
+function coloresPorTipoEspecifico(tipo){
+  if(tipo==='PASE RÁPIDO + MONTONES') return {bg:'#ffe0b2', color:'#e65100'};
+  if(tipo==='MONTONES') return {bg:'#e1d3f5', color:'#6a1b9a'};
+  return {bg:'#eaf5ea', color:'#2e7d32'};
+}
 function colorFondoEspecificoPorTexto(texto){
   if(!texto) return '#fff';
   const tipo = parsearTextoEspecifico(texto).tipo;
@@ -14102,7 +14107,7 @@ function imprimirHojaEspecificoConDatos(datos){
       <div class="e-invcalles-fila">
         <span class="e-inv-box-sm">INV ${escapar(f.invId)}</span>
         <span class="e-arrow-sm">→</span><span class="e-calles-sm">${escapar(f.calles)}</span>
-        ${f.tipo ? `<span class="e-tipo-sm">${escapar(f.tipo)}</span>` : ''}
+        ${f.tipo ? `<span class="e-tipo-sm" style="background:${coloresPorTipoEspecifico(f.tipo).bg};color:${coloresPorTipoEspecifico(f.tipo).color}">${escapar(f.tipo)}</span>` : ''}
       </div>
       ${f.obs ? `<div class="e-obs-fila"><b>Observaciones:</b> ${escapar(f.obs)}</div>` : ''}
     </div>`).join('');
