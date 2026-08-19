@@ -6660,7 +6660,11 @@ async function aplicarEspecificoAPartidasSeleccionadas(){
     const callesLabel = formatCallesConEnteroParaImprimir(c.invId, calles);
     await autoAsignarTareaEspecifico(c.invId, dia, callesLabel, tratDosis, horario, '', {producto:trat, dosis, caldoLabel, gastoLabel});
     if(!especificosPartidaData[id]) especificosPartidaData[id] = [];
-    especificosPartidaData[id].push({trat, dosis, horario, fechaLabel, fechaISO});
+    // invId/dia/calles guardados en el propio banner (a petición de Paula,
+    // 2026-08-18: "se debe de poder borrar tanto de ahí como de la
+    // cuadrícula") — sin esto, borrar el banner no sabía qué celdas de
+    // especificosData había que vaciar también.
+    especificosPartidaData[id].push({trat, dosis, horario, fechaLabel, fechaISO, invId:c.invId, dia, calles});
   }
   await saveEspecificosData();
   await saveEspecificosPartidaData();
@@ -6736,10 +6740,23 @@ function guardarEspecificoPartidaBanner(partidaId, idx){
   renderPartidasMapaContent(document.getElementById('partidas-overlay'));
   showToast('✓ Específico actualizado');
 }
-function borrarEspecificoPartidaBanner(partidaId, idx){
-  if(!confirm('¿Eliminar este específico de la partida?')) return;
-  especificosPartidaData[partidaId].splice(idx,1);
+async function borrarEspecificoPartidaBanner(partidaId, idx){
+  if(!confirm('¿Eliminar este específico de la partida? También se borrará de la cuadrícula.')) return;
+  const registros = especificosPartidaData[partidaId];
+  const registro = registros?.[idx];
+  registros.splice(idx,1);
   saveEspecificosPartidaData();
+  // A petición de Paula (2026-08-18): "se debe de poder borrar tanto de ahí
+  // como de la cuadrícula" — antes solo se quitaba el banner, la celda
+  // seguía marcada en Específicos. Solo se puede vaciar la celda si el
+  // registro guarda invId/dia/calles (los aplicados desde el mapa a partir
+  // de este cambio); los banners antiguos, sin esos datos, solo quitan el
+  // banner como hasta ahora.
+  if(registro && registro.invId && registro.dia!=null && registro.calles?.length){
+    registro.calles.forEach(c=>setEspecifico(registro.invId, registro.dia, c, ''));
+    await guardarBorradoEspecifico([{invId:registro.invId, dia:registro.dia, calles:registro.calles}]);
+    if(especificosInvSel===registro.invId) renderEspecificosGrid(registro.invId);
+  }
   document.getElementById('especifico-banner-editar-overlay').style.display = 'none';
   renderPartidasMapaContent(document.getElementById('partidas-overlay'));
   showToast('✓ Eliminado');
@@ -14086,7 +14103,12 @@ async function saveEspecificoManual(){
         : calcularBloquesPartidasInvBase(invId, semanaDelDia).filter(b=>b.calles.some(c=>callesTramo.includes(c))).map(b=>b.entry);
       partidasAsociadas.forEach(partidaAsociada=>{
         if(!especificosPartidaData[partidaAsociada.id]) especificosPartidaData[partidaAsociada.id] = [];
-        especificosPartidaData[partidaAsociada.id].push({trat, dosis, horario, fechaLabel, fechaISO});
+        // Solo las calles de ESTA partida dentro del tramo tratado (a
+        // petición de Paula, 2026-08-18: poder borrar el específico tanto
+        // desde el banner como desde la cuadrícula — hace falta saber
+        // exactamente qué celdas vaciar).
+        const callesPartida = callesDePartidaEntry(partidaAsociada).filter(c=>callesTramo.includes(c));
+        especificosPartidaData[partidaAsociada.id].push({trat, dosis, horario, fechaLabel, fechaISO, invId, dia, calles: callesPartida});
       });
     }
   }
@@ -14122,6 +14144,18 @@ function borrarEspecificoManual(){
   const entradas = bulkInvIds.map(invId=>({ invId, dia, calles: calcularCallesEspBulk(invId).calles }));
   registrarUndoEspecificoMultiInv(entradas);
   entradas.forEach(({invId, calles})=>calles.forEach(c=>setEspecifico(invId, dia, c, '')));
+  // A petición de Paula (2026-08-18): borrar desde la cuadrícula también
+  // debe quitar el banner rosa de la partida en el mapa, si lo tenía (mismo
+  // vínculo invId/dia/calles que guarda especificosPartidaData desde este
+  // cambio) — evita que quede un banner "fantasma" de algo ya borrado.
+  Object.keys(especificosPartidaData).forEach(partidaId=>{
+    especificosPartidaData[partidaId] = especificosPartidaData[partidaId].filter(r=>{
+      if(!r.invId || r.dia==null || !r.calles?.length) return true;
+      const afectado = entradas.some(en=>en.invId===r.invId && en.dia===dia && r.calles.some(c=>en.calles.includes(c)));
+      return !afectado;
+    });
+  });
+  saveEspecificosPartidaData();
   document.getElementById('especifico-manual-overlay').style.display = 'none';
   guardarBorradoEspecifico(entradas);
   if(especificosInvSel) renderEspecificosGrid(especificosInvSel);
