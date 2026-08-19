@@ -5598,7 +5598,18 @@ async function aplicarFotoControl(id, fotoB64){
   showToast('✓ Foto guardada');
   renderControlContent(document.getElementById('control-overlay'));
   const qid = encolarAccionOffline('aplicarFotoControl', [id, fotoB64]);
-  const ok = await persistControlFotosData(id);
+  // A petición de Paula (2026-08-19): "hay veces que hago el check de
+  // túnel y solamente al sincronizar se me guarda la foto, no los checks ni
+  // la calle" — la foto y el check/calle se guardan en dos sitios distintos
+  // (persistControlFotosData/persistControlChecksData), cada uno con su
+  // propio intento de red; si el del check fallaba (p.ej. por mala
+  // cobertura justo en ese instante) pero el de la foto no, se quedaba la
+  // foto sola sin la línea que la sujeta. Ahora, siempre que se guarda una
+  // foto, se refuerza también el guardado del check al que pertenece —
+  // "sabemos" que existe (ya se comprobó arriba), así que no cuesta nada
+  // insistir en persistirlo aquí también.
+  const [okFoto, okCheck] = await Promise.all([persistControlFotosData(id), persistControlChecksData()]);
+  const ok = okFoto && okCheck;
   if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
   return ok;
 }
