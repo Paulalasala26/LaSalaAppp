@@ -8777,6 +8777,17 @@ function buildMiniaturaInvernadero(modulo, invId, dia){
   const colores = { rojo:'#c62828', amarillo:'#c47f00', verde:'#1a5c2e' };
   const selectFn = DASHBOARD_MODULOS[modulo].selectFn;
   const mostrarV = modulo==='riego' && invernaderoRevisadoPorVigueras(invId, dia);
+  // "Esperar a la carga" (a petición de Paula, 2026-08-19, solo Plaguicidas):
+  // el cuadro entero se pone naranja con el aviso en vez del semáforo normal.
+  const esperando = modulo==='fito' && !!fitoEsperaCarga[invId];
+  if(esperando){
+    return `
+      <div class="dashboard-inv-card" onclick="${selectFn}('${invId}')" title="INV ${invId} — ESPERAR A QUE TERMINE LA CARGA" style="position:relative;width:112px;height:112px;border-radius:8px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#e65100;color:#fff;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,.12);overflow:hidden;padding:6px;text-align:center">
+        <span style="font-size:20px;font-weight:800;line-height:1;margin-bottom:6px">${invId}</span>
+        <i class="ti ti-hourglass" style="font-size:16px;margin-bottom:4px"></i>
+        <span style="font-size:9px;font-weight:800;line-height:1.2">ESPERAR A QUE TERMINE LA CARGA</span>
+      </div>`;
+  }
   return `
     <div class="dashboard-inv-card" onclick="${selectFn}('${invId}')" title="INV ${invId}" style="position:relative;width:112px;height:112px;border-radius:8px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#fff;color:#1a1e18;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,.12);border-left:5px solid ${colores[estado]};border-top:1px solid #e0e4dc;border-right:1px solid #e0e4dc;border-bottom:1px solid #e0e4dc;overflow:hidden;transition:all 200ms ease">
       <span style="font-size:20px;font-weight:800;line-height:1;margin-bottom:10px">${invId}</span>
@@ -9809,6 +9820,58 @@ function salaDeInv(invId){
 const FITO_KEY = 'lasala-fito-v1';
 let fitoData = {}; // fitoData[invId][dia][calle] = texto
 let fitoInvSel = null;
+// Orden de invernaderos y "Esperar a la carga" (a petición de Paula,
+// 2026-08-19): poder marcar en qué orden se van a tratar los invernaderos
+// (1º, 2º... último) y avisar visualmente de que uno concreto hay que
+// dejarlo para el final porque toca esperar a que termine la Carga.
+const FITO_ORDEN_INV_KEY = 'lasala-fito-orden-inv-v1';
+const FITO_ESPERA_CARGA_KEY = 'lasala-fito-espera-carga-v1';
+let fitoOrdenInv = {}; // {invId: numero}
+let fitoEsperaCarga = {}; // {invId: true}
+async function loadFitoOrdenEspera(){
+  try{ const r = await window.storage.get(FITO_ORDEN_INV_KEY); fitoOrdenInv = r ? JSON.parse(r.value) : {}; }catch(e){ fitoOrdenInv = {}; }
+  try{ const r = await window.storage.get(FITO_ESPERA_CARGA_KEY); fitoEsperaCarga = r ? JSON.parse(r.value) : {}; }catch(e){ fitoEsperaCarga = {}; }
+}
+async function saveFitoOrdenInv(){
+  try{
+    const r = await window.storage.get(FITO_ORDEN_INV_KEY);
+    const cloud = r ? JSON.parse(r.value) : {};
+    fitoOrdenInv = { ...cloud, ...fitoOrdenInv };
+    await window.storage.set(FITO_ORDEN_INV_KEY, JSON.stringify(fitoOrdenInv));
+  }catch(e){}
+}
+async function saveFitoEsperaCarga(){
+  try{
+    const r = await window.storage.get(FITO_ESPERA_CARGA_KEY);
+    const cloud = r ? JSON.parse(r.value) : {};
+    fitoEsperaCarga = { ...cloud, ...fitoEsperaCarga };
+    await window.storage.set(FITO_ESPERA_CARGA_KEY, JSON.stringify(fitoEsperaCarga));
+  }catch(e){}
+}
+function ordenarInvsPorOrdenFito(invIds){
+  return [...invIds].sort((a,b)=>{
+    const oa = fitoOrdenInv[a], ob = fitoOrdenInv[b];
+    if(oa==null && ob==null) return 0;
+    if(oa==null) return 1;
+    if(ob==null) return -1;
+    return oa-ob;
+  });
+}
+function cambiarOrdenInvFito(invId){
+  const actual = fitoOrdenInv[invId] ?? '';
+  const val = prompt(`Orden de INV ${invId} (1º, 2º, 3º... deja vacío para quitarlo):`, actual);
+  if(val===null) return;
+  if(val.trim()===''){ delete fitoOrdenInv[invId]; } else { const n = parseInt(val,10); if(!isNaN(n)) fitoOrdenInv[invId] = n; }
+  saveFitoOrdenInv();
+  showFitoModule();
+}
+function toggleEsperarCargaFito(invId){
+  if(!invId) return;
+  if(fitoEsperaCarga[invId]) delete fitoEsperaCarga[invId];
+  else fitoEsperaCarga[invId] = true;
+  saveFitoEsperaCarga();
+  showFitoModule();
+}
 let fitoQuincenaOffset = 0;
 let fitoAudioActive = false;
 let fitoRecognition = null;
@@ -9887,7 +9950,7 @@ function showFitoModule(){
   // fumigaciones a Pistola en el resumen de la quincena (ver
   // renderResumenQuincenaTratamientos) — a Cañón nunca se guarda caldo en
   // ningún sitio persistente, así que ahí ese dato queda en blanco.
-  Promise.all([loadFitoData(), loadPresenciaData(), loadTareasData()]).then(()=>{
+  Promise.all([loadFitoData(), loadPresenciaData(), loadTareasData(), loadFitoOrdenEspera()]).then(()=>{
     // Se fija ANTES de construir el dashboard (que ya usa fitoQuincenaOffset
     // para el resumen de la quincena) — antes se fijaba después de pintar el
     // innerHTML, así que el resumen se calculaba con el valor viejo (0, la
@@ -9928,20 +9991,13 @@ function showFitoModule(){
         </div>
         <div style="padding:.5rem 1.25rem;background:#fdf0f0;border-bottom:1px solid #e8b0b0;display:flex;gap:6px;flex-wrap:wrap;align-items:center;flex-shrink:0">
           <span style="font-size:11px;font-weight:700;color:#a32020;min-width:56px">SALA 1:</span>
-          ${Object.keys(INV_LAYOUT_SALA1).map(id=>`
-            <button onclick="selectFitoInv('${id}',this)" data-finv="${id}"
-              style="padding:4px 11px;font-size:11px;font-weight:600;border-radius:5px;cursor:pointer;border:1.5px solid #e8b0b0;background:#fff;color:#a32020;transition:all .12s">
-              ${id}
-            </button>`).join('')}
+          ${ordenarInvsPorOrdenFito(Object.keys(INV_LAYOUT_SALA1)).map(id=>botonInvFitoHTML(id)).join('')}
         </div>
         <div style="padding:.5rem 1.25rem;background:#fdf0f0;border-bottom:1px solid #e8b0b0;display:flex;gap:6px;flex-wrap:wrap;align-items:center;flex-shrink:0">
           <span style="font-size:11px;font-weight:700;color:#a32020;min-width:56px">SALA 2:</span>
-          ${Object.keys(INV_LAYOUT_SALA2).map(id=>`
-            <button onclick="selectFitoInv('${id}',this)" data-finv="${id}"
-              style="padding:4px 11px;font-size:11px;font-weight:600;border-radius:5px;cursor:pointer;border:1.5px solid #e8b0b0;background:#fff;color:#a32020;transition:all .12s">
-              ${id}
-            </button>`).join('')}
+          ${ordenarInvsPorOrdenFito(Object.keys(INV_LAYOUT_SALA2)).map(id=>botonInvFitoHTML(id)).join('')}
         </div>
+        <div id="fito-espera-carga-bar">${renderFitoEsperaCargaBarHTML()}</div>
         <div id="fito-grid-wrap" style="flex:1;overflow:auto;background:#fdf9f9">
           ${renderDashboardInvernaderos('fito')}
         </div>
@@ -9951,10 +10007,51 @@ function showFitoModule(){
   });
 }
 
+// Botón de invernadero de la fila Sala 1/2 — a petición de Paula
+// (2026-08-19): por defecto la fuente es NEGRA (antes roja); si tiene
+// "Esperar a la carga" marcado, tanto la fuente como el fondo se ponen
+// naranjas. La numeración de orden (si tiene) sale como una pestañita en la
+// esquina, pulsable para cambiarla sin tener que abrir el invernadero.
+function botonInvFitoHTML(id){
+  const esperando = !!fitoEsperaCarga[id];
+  const orden = fitoOrdenInv[id];
+  const seleccionado = fitoInvSel===id;
+  const bg = esperando ? '#e65100' : (seleccionado ? '#000' : '#fff');
+  const color = esperando ? '#fff' : (seleccionado ? '#fff' : '#000');
+  const borderColor = esperando ? '#e65100' : (seleccionado ? '#000' : '#ccc');
+  return `
+    <button onclick="selectFitoInv('${id}',this)" data-finv="${id}"
+      title="${esperando?'ESPERAR A QUE TERMINE LA CARGA':''}"
+      style="position:relative;padding:4px 11px;font-size:11px;font-weight:${seleccionado||esperando?'800':'600'};border-radius:5px;cursor:pointer;border:1.5px solid ${borderColor};background:${bg};color:${color};transition:all .12s">
+      ${orden!=null ? `<span onclick="event.stopPropagation();cambiarOrdenInvFito('${id}')" title="Cambiar orden" style="position:absolute;top:-7px;left:-7px;width:16px;height:16px;border-radius:50%;background:#1558a0;color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.3)">${orden}</span>` : ''}
+      ${id}${esperando?' ⏳':''}
+    </button>`;
+}
+// A petición de Paula: al abrir un invernadero se puede marcar "Esperar a
+// la carga" (fuente+cuadro en naranja, ver buildMiniaturaInvernadero) o
+// cambiar el orden (⚙️ Orden, botón junto al de esperar) sin salir de la
+// fila de invernaderos.
+function renderFitoEsperaCargaBarHTML(){
+  if(!fitoInvSel) return '';
+  const esperando = !!fitoEsperaCarga[fitoInvSel];
+  return `
+    <div style="padding:.4rem 1.25rem;background:#fff8ec;border-bottom:1px solid #f0d090;display:flex;align-items:center;gap:8px;flex-shrink:0">
+      <button onclick="toggleEsperarCargaFito('${fitoInvSel}')" style="padding:6px 14px;font-size:11px;font-weight:800;border-radius:7px;cursor:pointer;border:1.5px solid ${esperando?'#e65100':'#f0d090'};background:${esperando?'#e65100':'#fff'};color:${esperando?'#fff':'#a35d00'};display:flex;align-items:center;gap:6px">
+        <i class="ti ti-hourglass" style="font-size:13px"></i> ${esperando ? 'Esperando a la carga (INV '+fitoInvSel+')' : 'Esperar a la carga'}
+      </button>
+      <button onclick="cambiarOrdenInvFito('${fitoInvSel}')" style="padding:6px 14px;font-size:11px;font-weight:700;border-radius:7px;cursor:pointer;border:1.5px solid #a8c4e8;background:#fff;color:#1558a0;display:flex;align-items:center;gap:6px">
+        <i class="ti ti-sort-ascending-numbers" style="font-size:13px"></i> Orden${fitoOrdenInv[fitoInvSel]!=null?` (${fitoOrdenInv[fitoInvSel]})`:''}
+      </button>
+    </div>`;
+}
 function selectFitoInv(invId,btn){
   fitoInvSel=invId;
-  document.querySelectorAll('[data-finv]').forEach(b=>{b.style.background='#fff';b.style.color='#a32020';b.style.borderColor='#e8b0b0';b.style.fontWeight='600';});
-  if(btn){btn.style.background='#a32020';btn.style.color='#fff';btn.style.borderColor='#a32020';btn.style.fontWeight='800';}
+  document.querySelectorAll('[data-finv]').forEach(b=>{
+    const id = b.getAttribute('data-finv');
+    b.outerHTML = botonInvFitoHTML(id);
+  });
+  const bar = document.getElementById('fito-espera-carga-bar');
+  if(bar) bar.innerHTML = renderFitoEsperaCargaBarHTML();
   renderFitoGrid(invId);
   marcarPresenciaInvernadero('fito', invId);
 }
@@ -13454,6 +13551,18 @@ function selectEspecificoInv(invId, btn){
 
 // Distribución de calles + lo marcado como "específico" en cada día — nunca
 // muestra lo marcado en Riego, son datos completamente independientes.
+// A petición de Paula (2026-08-19): distinguir visualmente el Tipo del
+// específico en la propia cuadrícula — "PASE NORMAL + MONTONES" sigue en
+// verde (color de siempre), "PASE RÁPIDO + MONTONES" pasa a naranja y
+// "MONTONES" solo a lila. Cualquier otro caso (sin tipo, o "PASE NORMAL"
+// suelto) se queda con el verde de siempre.
+function colorFondoEspecificoPorTexto(texto){
+  if(!texto) return '#fff';
+  const tipo = parsearTextoEspecifico(texto).tipo;
+  if(tipo==='PASE RÁPIDO + MONTONES') return '#ffe0b2';
+  if(tipo==='MONTONES') return '#e1d3f5';
+  return '#eaf7e0';
+}
 function renderEspecificosGrid(invId){
   const wrap=document.getElementById('especificos-grid-wrap');
   if(!wrap)return;
@@ -13484,8 +13593,9 @@ function renderEspecificosGrid(invId){
           const spanW = br.span * CW;
           const trimmedLen = br.text.trim().length;
           const { fontSize: fontSizeUnaLinea, fitsOneLine, fontSizeMultilinea } = calcularFontSizeCeldaGrid(spanW, br.text);
+          const bgBracket = colorFondoEspecificoPorTexto(br.text);
           if(fitsOneLine){
-            cells+=`<td colspan="${br.span}" style="height:${DH}px;border:1px solid #a5d6a7;padding:0;background:#eaf7e0">
+            cells+=`<td colspan="${br.span}" style="height:${DH}px;border:1px solid #a5d6a7;padding:0;background:${bgBracket}">
               <div style="display:flex;align-items:center;height:100%;padding:0 2px">
                 <span style="font-size:9px;font-weight:900;color:#2e7d32;margin-right:1px;flex-shrink:0">[</span>
                 <input type="text" value="${br.text.replace(/"/g,'&quot;')}"
@@ -13501,7 +13611,7 @@ function renderEspecificosGrid(invId){
           } else {
             const fontSize = esPantallaMovil() ? (trimmedLen>40 ? 7 : (trimmedLen>20 ? 8 : 9)) : (trimmedLen>40 ? 6.5 : (trimmedLen>20 ? 7.5 : 8.5));
             const textEsc = br.text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-            cells+=`<td colspan="${br.span}" style="border:1px solid #a5d6a7;padding:0;position:relative;background:#eaf7e0">
+            cells+=`<td colspan="${br.span}" style="border:1px solid #a5d6a7;padding:0;position:relative;background:${bgBracket}">
               <div style="display:flex;align-items:flex-start;padding:1px 2px">
                 <span style="font-size:9px;font-weight:900;color:#2e7d32;margin-right:1px;flex-shrink:0;line-height:1.3">[</span>
                 <textarea rows="${esPantallaMovil()?3:2}"
@@ -13517,7 +13627,7 @@ function renderEspecificosGrid(invId){
           }
           ci+=br.span;
         } else {
-          cells+=`<td style="height:${DH}px;border:1px solid #cfe8cf;padding:0;background:${val?'#eaf7e0':'#fff'}">
+          cells+=`<td style="height:${DH}px;border:1px solid #cfe8cf;padding:0;background:${colorFondoEspecificoPorTexto(val)}">
             <input type="text" value="${val.replace(/"/g,'&quot;')}" placeholder=""
               data-einv="${invId}" data-edia="${dia}" data-erc="${calle}"
               onchange="setEspecificoUndo('${invId}',${dia},${calle},this.value);renderEspecificosGrid('${invId}')"
