@@ -2849,8 +2849,16 @@ function imprimirHojaFitoConDatos(datos){
   // caldo está calculado para el conjunto, así que van todos juntos, nunca en
   // hojas separadas (a petición de Paula).
   const listaObjetivos = (datos.objetivos && datos.objetivos.length) ? datos.objetivos : [];
+  // Orden/"Esperar a la carga" (a petición de Paula, 2026-08-19): entrados en
+  // "Añadir manualmente" (ver renderFmBulkPanels), se muestran aquí junto al
+  // invernadero — el aviso de esperar la carga en un color bien distinto
+  // (naranja) para que salte a la vista en la hoja impresa.
   const cultivosHTML = listaObjetivos.map(o=>
-    `<div class="hf-fila"><span class="hf-inv-box">INV ${escapar(o.inv||'')}</span><span class="hf-arrow">→</span><span class="hf-calles">${escapar(o.calles||'')}</span></div>`
+    `<div class="hf-fila">
+      ${o.orden!=null ? `<span class="hf-orden-box">${escapar(o.orden)}º</span>` : ''}
+      <span class="hf-inv-box">INV ${escapar(o.inv||'')}</span><span class="hf-arrow">→</span><span class="hf-calles">${escapar(o.calles||'')}</span>
+      ${o.esperaCarga ? `<span class="hf-espera-carga">⏳ ESPERAR A QUE TERMINE LA CARGA</span>` : ''}
+    </div>`
   ).join('');
   const FILA_FITO_TOP = [20.4, 23.8, 27.1, 30.5, 33.8];
   const FILA_GASTO_TOP = [42.1, 45.2, 48.3, 51.3, 54.4];
@@ -2888,11 +2896,13 @@ function imprimirHojaFitoConDatos(datos){
       body { font-family: Arial, Helvetica, sans-serif; margin:0; color:#1a1e18; }
       .hoja-fito { position:relative; width:210mm; height:298.6mm; overflow:hidden; }
       .hf-bg { position:absolute; left:0; top:0; width:100%; height:100%; z-index:0; }
-      .ov { position:absolute; z-index:1; font-size:11.5px; font-weight:700; color:#111; white-space:nowrap; overflow:hidden; }
-      .ov-cultivos { white-space:normal; line-height:1.9; overflow:visible; font-size:16px; text-align:center; }
-      .hf-fila { display:flex; align-items:center; justify-content:center; gap:14px; margin-bottom:6px; }
+      .ov { position:absolute; z-index:1; font-size:15px; font-weight:700; color:#111; white-space:nowrap; overflow:hidden; }
+      .ov-cultivos { white-space:normal; line-height:1.9; overflow:visible; font-size:20px; text-align:center; }
+      .hf-fila { display:flex; align-items:center; justify-content:center; gap:14px; margin-bottom:6px; flex-wrap:wrap; }
       .hf-inv-box { border:2px solid #1a1e18; border-radius:8px; padding:4px 14px; font-weight:800; }
-      .hf-arrow { font-size:20px; font-weight:800; }
+      .hf-orden-box { border:2px solid #1558a0; border-radius:50%; width:34px; height:34px; display:inline-flex; align-items:center; justify-content:center; font-weight:800; color:#1558a0; font-size:16px; }
+      .hf-arrow { font-size:24px; font-weight:800; }
+      .hf-espera-carga { color:#e65100; font-weight:900; font-size:17px; }
       .ov-firma { text-align:center; }
     </style></head><body>${pagina}</body></html>`);
   doc.close();
@@ -8737,17 +8747,6 @@ function buildMiniaturaInvernadero(modulo, invId, dia){
   const colores = { rojo:'#c62828', amarillo:'#c47f00', verde:'#1a5c2e' };
   const selectFn = DASHBOARD_MODULOS[modulo].selectFn;
   const mostrarV = modulo==='riego' && invernaderoRevisadoPorVigueras(invId, dia);
-  // "Esperar a la carga" (a petición de Paula, 2026-08-19, solo Plaguicidas):
-  // el cuadro entero se pone naranja con el aviso en vez del semáforo normal.
-  const esperando = modulo==='fito' && !!fitoEsperaCarga[invId];
-  if(esperando){
-    return `
-      <div class="dashboard-inv-card" onclick="${selectFn}('${invId}')" title="INV ${invId} — ESPERAR A QUE TERMINE LA CARGA" style="position:relative;width:112px;height:112px;border-radius:8px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#e65100;color:#fff;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,.12);overflow:hidden;padding:6px;text-align:center">
-        <span style="font-size:20px;font-weight:800;line-height:1;margin-bottom:6px">${invId}</span>
-        <i class="ti ti-hourglass" style="font-size:16px;margin-bottom:4px"></i>
-        <span style="font-size:9px;font-weight:800;line-height:1.2">ESPERAR A QUE TERMINE LA CARGA</span>
-      </div>`;
-  }
   return `
     <div class="dashboard-inv-card" onclick="${selectFn}('${invId}')" title="INV ${invId}" style="position:relative;width:112px;height:112px;border-radius:8px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#fff;color:#1a1e18;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,.12);border-left:5px solid ${colores[estado]};border-top:1px solid #e0e4dc;border-right:1px solid #e0e4dc;border-bottom:1px solid #e0e4dc;overflow:hidden;transition:all 200ms ease">
       <span style="font-size:20px;font-weight:800;line-height:1;margin-bottom:10px">${invId}</span>
@@ -8866,12 +8865,17 @@ function renderResumenQuincenaTratamientos(modulo){
         const firma = modulo==='fito'
           ? [dia, parsed.trat, parsed.dosis, parsed.horario, grupoCuba, caldoLabel].join('|')
           : [dia, parsed.trat, parsed.dosis, parsed.horario, parsed.tipo, grupoCuba, caldoLabel].join('|');
-        if(!grupos[firma]) grupos[firma] = { dia, texto, porInv: {}, raw: null };
+        if(!grupos[firma]) grupos[firma] = { dia, texto, porInv: {}, porInvRaw: {}, raw: null };
         const obsKey = parsed.obs || '';
         if(!grupos[firma].porInv[invId]) grupos[firma].porInv[invId] = {};
         if(!grupos[firma].porInv[invId][obsKey]) grupos[firma].porInv[invId][obsKey] = [];
         grupos[firma].porInv[invId][obsKey].push(c);
         if(!grupos[firma].raw && typeof raw==='object') grupos[firma].raw = raw;
+        // Raw por invernadero (a petición de Paula, 2026-08-19): "Esperar a
+        // la carga"/Orden se guardan por invernadero, no globales — el raw
+        // único de arriba no basta si dos invernaderos del mismo grupo
+        // tienen valores distintos.
+        if(!grupos[firma].porInvRaw[invId] && typeof raw==='object') grupos[firma].porInvRaw[invId] = raw;
       });
     });
   });
@@ -9041,7 +9045,8 @@ function imprimirHojaResumen(modulo, idx){
     // objetivo (unión de calles) para ese invernadero.
     const objetivos = Object.entries(f.porInv).map(([invId,porObs])=>{
       const calles = [...new Set(Object.values(porObs).flat())];
-      return { inv: invId, calles: formatCallesConEnteroParaImprimir(invId, calles) };
+      const rawInv = f.porInvRaw?.[invId];
+      return { inv: invId, calles: formatCallesConEnteroParaImprimir(invId, calles), esperaCarga: !!rawInv?.esperaCarga, orden: rawInv?.orden ?? null };
     });
     imprimirHojaFitoConDatos({
       producto: parsed.trat, dosis: parsed.dosis, caldoLitros: f.raw?.caldoLitros||null, caldoLabel: f.raw?.caldoLabel||'',
@@ -9780,58 +9785,6 @@ function salaDeInv(invId){
 const FITO_KEY = 'lasala-fito-v1';
 let fitoData = {}; // fitoData[invId][dia][calle] = texto
 let fitoInvSel = null;
-// Orden de invernaderos y "Esperar a la carga" (a petición de Paula,
-// 2026-08-19): poder marcar en qué orden se van a tratar los invernaderos
-// (1º, 2º... último) y avisar visualmente de que uno concreto hay que
-// dejarlo para el final porque toca esperar a que termine la Carga.
-const FITO_ORDEN_INV_KEY = 'lasala-fito-orden-inv-v1';
-const FITO_ESPERA_CARGA_KEY = 'lasala-fito-espera-carga-v1';
-let fitoOrdenInv = {}; // {invId: numero}
-let fitoEsperaCarga = {}; // {invId: true}
-async function loadFitoOrdenEspera(){
-  try{ const r = await window.storage.get(FITO_ORDEN_INV_KEY); fitoOrdenInv = r ? JSON.parse(r.value) : {}; }catch(e){ fitoOrdenInv = {}; }
-  try{ const r = await window.storage.get(FITO_ESPERA_CARGA_KEY); fitoEsperaCarga = r ? JSON.parse(r.value) : {}; }catch(e){ fitoEsperaCarga = {}; }
-}
-async function saveFitoOrdenInv(){
-  try{
-    const r = await window.storage.get(FITO_ORDEN_INV_KEY);
-    const cloud = r ? JSON.parse(r.value) : {};
-    fitoOrdenInv = { ...cloud, ...fitoOrdenInv };
-    await window.storage.set(FITO_ORDEN_INV_KEY, JSON.stringify(fitoOrdenInv));
-  }catch(e){}
-}
-async function saveFitoEsperaCarga(){
-  try{
-    const r = await window.storage.get(FITO_ESPERA_CARGA_KEY);
-    const cloud = r ? JSON.parse(r.value) : {};
-    fitoEsperaCarga = { ...cloud, ...fitoEsperaCarga };
-    await window.storage.set(FITO_ESPERA_CARGA_KEY, JSON.stringify(fitoEsperaCarga));
-  }catch(e){}
-}
-function ordenarInvsPorOrdenFito(invIds){
-  return [...invIds].sort((a,b)=>{
-    const oa = fitoOrdenInv[a], ob = fitoOrdenInv[b];
-    if(oa==null && ob==null) return 0;
-    if(oa==null) return 1;
-    if(ob==null) return -1;
-    return oa-ob;
-  });
-}
-function cambiarOrdenInvFito(invId){
-  const actual = fitoOrdenInv[invId] ?? '';
-  const val = prompt(`Orden de INV ${invId} (1º, 2º, 3º... deja vacío para quitarlo):`, actual);
-  if(val===null) return;
-  if(val.trim()===''){ delete fitoOrdenInv[invId]; } else { const n = parseInt(val,10); if(!isNaN(n)) fitoOrdenInv[invId] = n; }
-  saveFitoOrdenInv();
-  showFitoModule();
-}
-function toggleEsperarCargaFito(invId){
-  if(!invId) return;
-  if(fitoEsperaCarga[invId]) delete fitoEsperaCarga[invId];
-  else fitoEsperaCarga[invId] = true;
-  saveFitoEsperaCarga();
-  showFitoModule();
-}
 let fitoQuincenaOffset = 0;
 let fitoAudioActive = false;
 let fitoRecognition = null;
@@ -9910,7 +9863,7 @@ function showFitoModule(){
   // fumigaciones a Pistola en el resumen de la quincena (ver
   // renderResumenQuincenaTratamientos) — a Cañón nunca se guarda caldo en
   // ningún sitio persistente, así que ahí ese dato queda en blanco.
-  Promise.all([loadFitoData(), loadPresenciaData(), loadTareasData(), loadFitoOrdenEspera()]).then(()=>{
+  Promise.all([loadFitoData(), loadPresenciaData(), loadTareasData()]).then(()=>{
     // Se fija ANTES de construir el dashboard (que ya usa fitoQuincenaOffset
     // para el resumen de la quincena) — antes se fijaba después de pintar el
     // innerHTML, así que el resumen se calculaba con el valor viejo (0, la
@@ -9951,13 +9904,12 @@ function showFitoModule(){
         </div>
         <div style="padding:.5rem 1.25rem;background:#fdf0f0;border-bottom:1px solid #e8b0b0;display:flex;gap:6px;flex-wrap:wrap;align-items:center;flex-shrink:0">
           <span style="font-size:11px;font-weight:700;color:#a32020;min-width:56px">SALA 1:</span>
-          ${ordenarInvsPorOrdenFito(Object.keys(INV_LAYOUT_SALA1)).map(id=>botonInvFitoHTML(id)).join('')}
+          ${Object.keys(INV_LAYOUT_SALA1).map(id=>botonInvFitoHTML(id)).join('')}
         </div>
         <div style="padding:.5rem 1.25rem;background:#fdf0f0;border-bottom:1px solid #e8b0b0;display:flex;gap:6px;flex-wrap:wrap;align-items:center;flex-shrink:0">
           <span style="font-size:11px;font-weight:700;color:#a32020;min-width:56px">SALA 2:</span>
-          ${ordenarInvsPorOrdenFito(Object.keys(INV_LAYOUT_SALA2)).map(id=>botonInvFitoHTML(id)).join('')}
+          ${Object.keys(INV_LAYOUT_SALA2).map(id=>botonInvFitoHTML(id)).join('')}
         </div>
-        <div id="fito-espera-carga-bar">${renderFitoEsperaCargaBarHTML()}</div>
         <div id="fito-grid-wrap" style="flex:1;overflow:auto;background:#fdf9f9">
           ${renderDashboardInvernaderos('fito')}
         </div>
@@ -9968,41 +9920,17 @@ function showFitoModule(){
 }
 
 // Botón de invernadero de la fila Sala 1/2 — a petición de Paula
-// (2026-08-19): por defecto la fuente es NEGRA (antes roja); si tiene
-// "Esperar a la carga" marcado, tanto la fuente como el fondo se ponen
-// naranjas. La numeración de orden (si tiene) sale como una pestañita en la
-// esquina, pulsable para cambiarla sin tener que abrir el invernadero.
+// (2026-08-19): fuente negra por defecto (antes roja). "Esperar a la
+// carga"/"Orden" se movieron a "Añadir manualmente" (2026-08-19, segunda
+// petición: "elimínalos de la cuadrícula, que se vean en la hoja impresa"),
+// ya no se marcan aquí.
 function botonInvFitoHTML(id){
-  const esperando = !!fitoEsperaCarga[id];
-  const orden = fitoOrdenInv[id];
   const seleccionado = fitoInvSel===id;
-  const bg = esperando ? '#e65100' : (seleccionado ? '#000' : '#fff');
-  const color = esperando ? '#fff' : (seleccionado ? '#fff' : '#000');
-  const borderColor = esperando ? '#e65100' : (seleccionado ? '#000' : '#ccc');
   return `
     <button onclick="selectFitoInv('${id}',this)" data-finv="${id}"
-      title="${esperando?'ESPERAR A QUE TERMINE LA CARGA':''}"
-      style="position:relative;padding:4px 11px;font-size:11px;font-weight:${seleccionado||esperando?'800':'600'};border-radius:5px;cursor:pointer;border:1.5px solid ${borderColor};background:${bg};color:${color};transition:all .12s">
-      ${orden!=null ? `<span onclick="event.stopPropagation();cambiarOrdenInvFito('${id}')" title="Cambiar orden" style="position:absolute;top:-7px;left:-7px;width:16px;height:16px;border-radius:50%;background:#1558a0;color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.3)">${orden}</span>` : ''}
-      ${id}${esperando?' ⏳':''}
+      style="padding:4px 11px;font-size:11px;font-weight:${seleccionado?'800':'600'};border-radius:5px;cursor:pointer;border:1.5px solid ${seleccionado?'#000':'#ccc'};background:${seleccionado?'#000':'#fff'};color:${seleccionado?'#fff':'#000'};transition:all .12s">
+      ${id}
     </button>`;
-}
-// A petición de Paula: al abrir un invernadero se puede marcar "Esperar a
-// la carga" (fuente+cuadro en naranja, ver buildMiniaturaInvernadero) o
-// cambiar el orden (⚙️ Orden, botón junto al de esperar) sin salir de la
-// fila de invernaderos.
-function renderFitoEsperaCargaBarHTML(){
-  if(!fitoInvSel) return '';
-  const esperando = !!fitoEsperaCarga[fitoInvSel];
-  return `
-    <div style="padding:.4rem 1.25rem;background:#fff8ec;border-bottom:1px solid #f0d090;display:flex;align-items:center;gap:8px;flex-shrink:0">
-      <button onclick="toggleEsperarCargaFito('${fitoInvSel}')" style="padding:6px 14px;font-size:11px;font-weight:800;border-radius:7px;cursor:pointer;border:1.5px solid ${esperando?'#e65100':'#f0d090'};background:${esperando?'#e65100':'#fff'};color:${esperando?'#fff':'#a35d00'};display:flex;align-items:center;gap:6px">
-        <i class="ti ti-hourglass" style="font-size:13px"></i> ${esperando ? 'Esperando a la carga (INV '+fitoInvSel+')' : 'Esperar a la carga'}
-      </button>
-      <button onclick="cambiarOrdenInvFito('${fitoInvSel}')" style="padding:6px 14px;font-size:11px;font-weight:700;border-radius:7px;cursor:pointer;border:1.5px solid #a8c4e8;background:#fff;color:#1558a0;display:flex;align-items:center;gap:6px">
-        <i class="ti ti-sort-ascending-numbers" style="font-size:13px"></i> Orden${fitoOrdenInv[fitoInvSel]!=null?` (${fitoOrdenInv[fitoInvSel]})`:''}
-      </button>
-    </div>`;
 }
 function selectFitoInv(invId,btn){
   fitoInvSel=invId;
@@ -10010,8 +9938,6 @@ function selectFitoInv(invId,btn){
     const id = b.getAttribute('data-finv');
     b.outerHTML = botonInvFitoHTML(id);
   });
-  const bar = document.getElementById('fito-espera-carga-bar');
-  if(bar) bar.innerHTML = renderFitoEsperaCargaBarHTML();
   renderFitoGrid(invId);
   marcarPresenciaInvernadero('fito', invId);
 }
@@ -12882,6 +12808,14 @@ function renderFmBulkPanels(){
       <label style="display:flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:#6a1b9a;cursor:pointer;margin-bottom:6px">
         <input type="checkbox" ${fmBulkConfig[invId].primerDia?'checked':''} onchange="fmBulkConfig['${invId}'].primerDia=this.checked"> Primer día de tratamiento (marca la celda en morado)
       </label>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;padding-top:6px;border-top:1px dashed #f0d0d0">
+        <label style="display:flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:#e65100;cursor:pointer">
+          <input type="checkbox" ${fmBulkConfig[invId].esperaCarga?'checked':''} onchange="fmBulkConfig['${invId}'].esperaCarga=this.checked"> ⏳ Esperar a la carga
+        </label>
+        <label style="display:flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:#1558a0">
+          Orden: <input type="number" min="1" value="${fmBulkConfig[invId].orden ?? ''}" onchange="fmBulkConfig['${invId}'].orden=this.value?parseInt(this.value,10):null" style="width:50px;padding:4px 6px;border:1.5px solid var(--border);border-radius:6px;font-size:11px">
+        </label>
+      </div>
       <div id="fm-bulk-detalle-${invId}"></div>
     </div>`).join('');
   ids.forEach(invId=>renderFmBulkDetalle(invId));
@@ -13141,19 +13075,23 @@ async function saveFitoManual(){
   // no por separado para cada invernadero.
   const objetivosFumigacion = [];
   for(const {invId, calles, tramos} of porInv){
+    // "Esperar a la carga"/Orden (a petición de Paula, 2026-08-19): entrados
+    // aquí mismo en "Añadir manualmente" (ver renderFmBulkPanels) en vez de
+    // en la cuadrícula, para que salgan en la hoja impresa de este alta.
+    const extraOrdenEspera = { esperaCarga: !!fmBulkConfig[invId]?.esperaCarga, orden: fmBulkConfig[invId]?.orden ?? null };
     if(tramos){
       for(const {desde,hasta,obs} of tramos){
         const valorTramo = obs ? `${valor} — ${obs}` : valor;
         const s = Math.min(desde,hasta), e = Math.max(desde,hasta);
         const layout = INV_LAYOUT[invId];
         const allCalles = [...layout.row1, ...layout.row2];
-        for(let c=s; c<=e; c++){ if(allCalles.includes(c)){ setFito(invId,dia,c,valorTramo,{caldoLitros,caldoLabel,tipoTrat,primerDia:!!fmBulkConfig[invId]?.primerDia}); count++; } }
+        for(let c=s; c<=e; c++){ if(allCalles.includes(c)){ setFito(invId,dia,c,valorTramo,{caldoLitros,caldoLabel,tipoTrat,primerDia:!!fmBulkConfig[invId]?.primerDia,...extraOrdenEspera}); count++; } }
         if(tipoTrat==='Pistola'){
           objetivosFumigacion.push({invId, callesLabel: formatRangoConInv(invId, s, e)});
         }
       }
     } else {
-      calles.forEach(c=>{ setFito(invId,dia,c,valor,{caldoLitros,caldoLabel,tipoTrat,primerDia:!!fmBulkConfig[invId]?.primerDia}); count++; });
+      calles.forEach(c=>{ setFito(invId,dia,c,valor,{caldoLitros,caldoLabel,tipoTrat,primerDia:!!fmBulkConfig[invId]?.primerDia,...extraOrdenEspera}); count++; });
       if(tipoTrat==='Pistola' && calles.length){
         const s = Math.min(...calles), e = Math.max(...calles);
         objetivosFumigacion.push({invId, callesLabel: formatRangoConInv(invId, s, e)});
@@ -13236,18 +13174,22 @@ function imprimirHojaFitosanitario(){
   const bulkInvIds = leerInvernaderosBulkSeleccionados('fm');
   const objetivos = bulkInvIds.map(invId=>{
     const cfg = fmBulkConfig[invId] || {modo:'entero'};
+    // Orden/"Esperar a la carga" (a petición de Paula, 2026-08-19): se
+    // entran aquí mismo en "Añadir manualmente" (ver renderFmBulkPanels) y
+    // se imprimen junto al invernadero, no se marcan ya en la cuadrícula.
+    const extra = { esperaCarga: !!cfg.esperaCarga, orden: cfg.orden ?? null };
     if(cfg.modo==='entero'){
       const layout = INV_LAYOUT[invId];
       const calles = [...layout.row1, ...layout.row2];
-      return { inv: invId, calles: formatRangoConInv(invId, Math.min(...calles), Math.max(...calles)), entero: true };
+      return { inv: invId, calles: formatRangoConInv(invId, Math.min(...calles), Math.max(...calles)), entero: true, ...extra };
     }
     if(cfg.modo==='entero_menos' && cfg.excluir && cfg.excluir.desde!=null){
       const s = Math.min(cfg.excluir.desde, cfg.excluir.hasta), e = Math.max(cfg.excluir.desde, cfg.excluir.hasta);
-      return { inv: invId, entero: false, calles: `ENTERO MENOS ${formatRangoConInv(invId, s, e)}` };
+      return { inv: invId, entero: false, calles: `ENTERO MENOS ${formatRangoConInv(invId, s, e)}`, ...extra };
     }
     const { calles } = calcularCallesFmBulk(invId);
-    if(!calles.length) return { inv: invId, entero: false, calles: '' };
-    return { inv: invId, entero: false, calles: formatCallesParaImprimir(invId, calles) };
+    if(!calles.length) return { inv: invId, entero: false, calles: '', ...extra };
+    return { inv: invId, entero: false, calles: formatCallesParaImprimir(invId, calles), ...extra };
   });
   if(!objetivos.length){ showToast('Elige al menos un invernadero'); return; }
 
@@ -13278,8 +13220,12 @@ function imprimirHojaFitosanitario(){
   // CULTIVOS E INVERNADEROS: registro de TODOS los invernaderos/calles de
   // esta aplicación en la MISMA hoja (una sola página), en vez de una hoja
   // por invernadero.
-  const cultivosHTML = objetivos.map(({inv,calles,entero})=>
-    `<div class="hf-fila"><span class="hf-inv-box">INV ${escapar(inv)}</span><span class="hf-arrow">→</span><span class="hf-calles">${entero?'ENTERO':escapar(calles)}</span></div>`
+  const cultivosHTML = objetivos.map(({inv,calles,entero,esperaCarga,orden})=>
+    `<div class="hf-fila">
+      ${orden!=null ? `<span class="hf-orden-box">${escapar(orden)}º</span>` : ''}
+      <span class="hf-inv-box">INV ${escapar(inv)}</span><span class="hf-arrow">→</span><span class="hf-calles">${entero?'ENTERO':escapar(calles)}</span>
+      ${esperaCarga ? `<span class="hf-espera-carga">⏳ ESPERAR A QUE TERMINE LA CARGA</span>` : ''}
+    </div>`
   ).join('');
 
   // La hoja se imprime SOBRE el escaneo real del papel oficial
@@ -13331,11 +13277,13 @@ function imprimirHojaFitosanitario(){
       body { font-family: Arial, Helvetica, sans-serif; margin:0; color:#1a1e18; }
       .hoja-fito { position:relative; width:210mm; height:298.6mm; overflow:hidden; }
       .hf-bg { position:absolute; left:0; top:0; width:100%; height:100%; z-index:0; }
-      .ov { position:absolute; z-index:1; font-size:11.5px; font-weight:700; color:#111; white-space:nowrap; overflow:hidden; }
-      .ov-cultivos { white-space:normal; line-height:1.9; overflow:visible; font-size:16px; text-align:center; }
-      .hf-fila { display:flex; align-items:center; justify-content:center; gap:14px; margin-bottom:6px; }
+      .ov { position:absolute; z-index:1; font-size:15px; font-weight:700; color:#111; white-space:nowrap; overflow:hidden; }
+      .ov-cultivos { white-space:normal; line-height:1.9; overflow:visible; font-size:20px; text-align:center; }
+      .hf-fila { display:flex; align-items:center; justify-content:center; gap:14px; margin-bottom:6px; flex-wrap:wrap; }
       .hf-inv-box { border:2px solid #1a1e18; border-radius:8px; padding:4px 14px; font-weight:800; }
-      .hf-arrow { font-size:20px; font-weight:800; }
+      .hf-orden-box { border:2px solid #1558a0; border-radius:50%; width:34px; height:34px; display:inline-flex; align-items:center; justify-content:center; font-weight:800; color:#1558a0; font-size:16px; }
+      .hf-arrow { font-size:24px; font-weight:800; }
+      .hf-espera-carga { color:#e65100; font-weight:900; font-size:17px; }
       .ov-firma { text-align:center; }
     </style></head><body>${pagina}</body></html>`);
   doc.close();
