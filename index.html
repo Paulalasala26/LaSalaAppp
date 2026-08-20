@@ -535,8 +535,11 @@ function applyRoleHomeUI(){
           <button onclick="showHojasRiego()" style="padding:14px 20px;font-size:14px;font-weight:700;background:var(--verde);color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:8px">
             <i class="ti ti-droplet" style="font-size:18px"></i> Hojas de riego
           </button>
-          <button onclick="showTareasModule()" style="padding:14px 20px;font-size:14px;font-weight:700;background:#1558a0;color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:8px">
-            <i class="ti ti-clipboard-list" style="font-size:18px"></i> Mis tareas <span id="regante-tareas-badge"></span>
+          <button onclick="showIndiceAbonosReganteModule()" style="padding:14px 20px;font-size:14px;font-weight:700;background:#a35d00;color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:8px">
+            <i class="ti ti-clipboard-list" style="font-size:18px"></i> Índice Abonos
+          </button>
+          <button onclick="showEspecificosReganteModule()" style="padding:14px 20px;font-size:14px;font-weight:700;background:#2e7d32;color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:8px">
+            <i class="ti ti-target-arrow" style="font-size:18px"></i> Específicos <span id="regante-tareas-badge"></span>
           </button>
           <button onclick="mostrarNotificarProblemaRiego()" style="padding:14px 20px;font-size:14px;font-weight:700;background:#c62828;color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:8px">
             <i class="ti ti-alert-triangle" style="font-size:18px"></i> Notificar problema de ejecución
@@ -1307,19 +1310,6 @@ function irATareasGestorVista(v){
   tareasSeleccionadas.clear();
   renderTareasContent(document.getElementById('tareas-overlay'), true);
 }
-// "Tareas de Regante": elegir entre Índice Abonos/Específicos. Antes había
-// "Orden Abonos"/"Orden Aguas" por separado (dos listados); a petición de
-// Paula (2026-08-10) se sustituyeron por un único "Índice Abonos" que junta
-// todos los riegos (agua Y abono) en un solo listado ordenado por horario.
-let reganteVista = null; // null | 'indice' | 'especificos'
-function irAReganteVista(v){
-  reganteVista = v;
-  renderTareasContent(document.getElementById('tareas-overlay'), false);
-}
-function volverReganteNivel(){
-  reganteVista = null;
-  renderTareasContent(document.getElementById('tareas-overlay'), false);
-}
 // Clasifica una tarea por fecha para el menú lateral del gestor: "antiguas"
 // (ya pasadas — se eliminan solas, ver esTareaVencidaParaBorrar más abajo),
 // "hoy", o "mañana" (mañana y cualquier fecha posterior — a petición de
@@ -1414,12 +1404,8 @@ function showTareasModule(){
     const overlay = getOrCreateOverlay('tareas-overlay');
     const esGestor = currentUserRole!=='REGANTE' && currentUserRole!=='PEON';
     if(!esGestor) await avisarNuevasTareas(currentUser);
-    // "Tareas de Regante" (Orden Abonos/Aguas) se calcula a partir de
-    // riegoData, no de tareasData — hay que cargarlo aparte, ya que este
-    // módulo normalmente solo carga tareasData.
-    if(currentUserRole==='REGANTE'){ await loadRiegoData(); await loadRiegoEjecutadoData(); }
     if(esGestor) await loadMantenimientoData();
-    tareasGestorVista = null; reganteVista = null;
+    tareasGestorVista = null;
     renderTareasContent(overlay, esGestor);
     overlay.style.display='flex';
   });
@@ -1571,12 +1557,6 @@ function mostrarOrdenTareasPorPersona(){
 // Pendientes/Completadas del gestor como por Sala1/Sala2 y Orden Abonos/Aguas
 // del regante — mismo estilo en los tres para que se note que es la misma
 // mecánica de "elige una opción para entrar".
-function botonNivelTareas(onclick, color, bg, borde, texto, contador){
-  return `<button onclick="${onclick}" class="tarea-nivel-btn" style="padding:16px 18px;font-size:15px;font-weight:800;background:${bg};border:1.5px solid ${borde};color:${color};border-radius:12px;cursor:pointer;text-align:left;display:flex;justify-content:space-between;align-items:center">
-    <span>${texto}</span>${contador!=null?`<span style="font-size:12px;font-weight:800;background:${color};color:#fff;border-radius:999px;padding:3px 12px;min-width:22px;text-align:center">${contador}</span>`:''}
-  </button>`;
-}
-
 // ── Tablero kanban de Mantenimiento de Parcelas ─────────────────
 // Agrupa los 4 estados internos de mantenimiento en los mismos 3 niveles
 // que usa el resto de Tareas (a petición de Paula, 2026-08-12: "el mismo
@@ -2033,37 +2013,6 @@ function renderTareaSalaBloque(salaLabel, activasSala, completadasSala){
 function renderTareasContent(overlay, esGestor){
   if(esGestor){
     renderTareasGestorFullScreen(overlay);
-  } else if(currentUserRole==='REGANTE'){
-    // "Tareas de Regante": no son fichas de tarea (el riego ya lo consulta
-    // directamente en Hojas de riego) sino dos listados en vivo, calculados
-    // a partir de lo marcado en Riego — Orden Abonos y Orden Aguas.
-    const especificosRegante = tareasData.filter(t=>t.categoria==='especifico' && USER_ROLES[t.asignadoA]==='REGANTE' && !esTareaDeAyer(t));
-    const { activas: espActivas, completadas: espCompletadas } = splitTareasPorEstado(especificosRegante);
-    const contenido = reganteVista===null ? `
-      <div style="display:flex;flex-direction:column;gap:10px">
-        ${botonNivelTareas("irAReganteVista('indice')",'#a35d00','#fffaf3','#f0c896','📑 Índice Abonos',null)}
-        ${botonNivelTareas("irAReganteVista('especificos')",'#2e7d32','#f2faf2','#a5d6a7','🎯 Específicos',espActivas.length)}
-      </div>`
-      : reganteVista==='especificos' ? `
-        <button onclick="volverReganteNivel()" style="margin-bottom:12px;padding:7px 14px;font-size:12px;font-weight:700;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:7px;cursor:pointer">← Volver</button>
-        ${especificosRegante.length===0 ? `<div style="text-align:center;padding:2.5rem;color:var(--muted);font-style:italic">No hay específicos.</div>` : `
-        <div style="display:flex;flex-direction:column;gap:10px">
-          ${ordenarTareasPorHorario(espActivas).map(t=>buildTareaCard(t)).join('')}
-          ${espCompletadas.length ? `<div style="font-size:11px;font-weight:800;color:#2e7d32;text-transform:uppercase;letter-spacing:.04em;margin-top:6px">✓ Completados</div>` : ''}
-          ${ordenarTareasCompletadas(espCompletadas).map(t=>buildTareaCard(t)).join('')}
-        </div>`}`
-      : `
-        <button onclick="volverReganteNivel()" style="margin-bottom:12px;padding:7px 14px;font-size:12px;font-weight:700;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:7px;cursor:pointer">← Volver</button>
-        ${renderIndiceAbonos()}`;
-    overlay.style.padding = '0';
-    overlay.innerHTML = `
-      <div style="background:#fff;border-radius:0;width:100vw;height:100vh;max-width:100vw;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.3)">
-        <div style="background:var(--grad-blue);color:#fff;padding:1rem 1.5rem;display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
-          <div style="font-size:16px;font-weight:800">📋 Tareas de Regante</div>
-          <button onclick="this.closest('.modal-overlay-dyn').style.display='none'" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:12px">✕</button>
-        </div>
-        <div style="flex:1;overflow-y:auto;padding:1.25rem">${contenido}</div>
-      </div>`;
   } else {
     // PEÓN: ordenadas por horario y de una en una — hasta que no se complete
     // y firme la actual no aparece la siguiente (a petición de Paula).
@@ -12257,6 +12206,41 @@ function recolectarIndiceRiegoDia(dia){
 // invernadero) — a petición de Paula, 2026-08-10. "PROGRAMADO" se pinta en
 // rojo. A diferencia del listado anterior, este es de solo lectura (sin
 // botón de marcar "Ejecutada" — Paula no lo pidió en el nuevo formato).
+// Estado por línea del Índice Abonos (a petición de Paula, 2026-08-19):
+// el regante puede marcar Preparado/Programado/Revisado y anotar hora de
+// inicio/fin de cada riego — clave estable por día+invernadero+texto+
+// horario (no hay otro id, el Índice se calcula al vuelo desde riegoData).
+const INDICE_ABONOS_ESTADO_KEY = 'lasala-indice-abonos-estado-v1';
+let indiceAbonosEstadoData = {};
+async function loadIndiceAbonosEstadoData(){
+  try{ const r = await window.storage.get(INDICE_ABONOS_ESTADO_KEY); indiceAbonosEstadoData = r ? JSON.parse(r.value) : {}; }catch(e){ indiceAbonosEstadoData = {}; }
+}
+async function saveIndiceAbonosEstadoData(){
+  try{
+    const r = await window.storage.get(INDICE_ABONOS_ESTADO_KEY);
+    const cloud = r ? JSON.parse(r.value) : {};
+    indiceAbonosEstadoData = { ...cloud, ...indiceAbonosEstadoData };
+    await window.storage.set(INDICE_ABONOS_ESTADO_KEY, JSON.stringify(indiceAbonosEstadoData));
+  }catch(e){}
+}
+function claveIndiceAbono(dia, invId, texto, horario){
+  return `${dia}||${invId}||${texto}||${horario||''}`;
+}
+function toggleIndiceAbonoEstado(clave, campo){
+  if(!indiceAbonosEstadoData[clave]) indiceAbonosEstadoData[clave] = {};
+  indiceAbonosEstadoData[clave][campo] = !indiceAbonosEstadoData[clave][campo];
+  saveIndiceAbonosEstadoData();
+  renderIndiceAbonosEnContenedorActual();
+}
+function setIndiceAbonoHorario(clave, campo, valor){
+  if(!indiceAbonosEstadoData[clave]) indiceAbonosEstadoData[clave] = {};
+  indiceAbonosEstadoData[clave][campo] = valor;
+  saveIndiceAbonosEstadoData();
+}
+function renderIndiceAbonosEnContenedorActual(){
+  const wrap = document.getElementById('indice-abonos-wrap');
+  if(wrap) wrap.innerHTML = renderIndiceAbonos();
+}
 function renderIndiceAbonos(){
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const hoy = riegoDiaDeHoy();
@@ -12264,10 +12248,25 @@ function renderIndiceAbonos(){
     {dia:hoy, label:'Hoy · '+riegoDiaLabelCorto(hoy)},
     {dia:hoy+1, label:'Mañana · '+riegoDiaLabelCorto(hoy+1)}
   ];
-  const renderLineas = filas => filas.map(f=>{
+  const renderLineas = (filas, dia) => filas.map(f=>{
     const esProgramado = f.horario==='PROGRAMADO';
-    return `<div style="padding:6px 2px;border-bottom:1px solid var(--border);font-size:13px;font-weight:600;color:${esProgramado?'#c62828':'var(--text)'}">
-      ${escapar(f.texto)} - INV ${escapar(f.invId)} - ${escapar(f.horario||'—')}
+    const clave = claveIndiceAbono(dia, f.invId, f.texto, f.horario);
+    const estado = indiceAbonosEstadoData[clave] || {};
+    const botonEstado = (campo, label, color) => `
+      <button onclick="toggleIndiceAbonoEstado('${clave}','${campo}')" style="padding:4px 10px;font-size:10px;font-weight:800;border-radius:999px;cursor:pointer;border:1.5px solid ${estado[campo]?color:'#ddd'};background:${estado[campo]?color:'#fff'};color:${estado[campo]?'#fff':'#888'}">${label}</button>`;
+    return `<div style="padding:8px 2px;border-bottom:1px solid var(--border)">
+      <div style="font-size:13px;font-weight:600;color:${esProgramado?'#c62828':'var(--text)'};margin-bottom:6px">
+        ${escapar(f.texto)} - INV ${escapar(f.invId)} - ${escapar(f.horario||'—')}
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        ${botonEstado('preparado','Preparado','#1558a0')}
+        ${botonEstado('programado','Programado','#a35d00')}
+        ${botonEstado('revisado','Revisado','#2e7d32')}
+        <span style="font-size:10px;color:var(--muted);margin-left:4px">Inicio</span>
+        <input type="time" value="${escapar(estado.horaInicio||'')}" onchange="setIndiceAbonoHorario('${clave}','horaInicio',this.value)" style="padding:3px 6px;font-size:11px;border:1px solid var(--border);border-radius:6px">
+        <span style="font-size:10px;color:var(--muted)">Fin</span>
+        <input type="time" value="${escapar(estado.horaFin||'')}" onchange="setIndiceAbonoHorario('${clave}','horaFin',this.value)" style="padding:3px 6px;font-size:11px;border:1px solid var(--border);border-radius:6px">
+      </div>
     </div>`;
   }).join('');
   return dias.map(({dia,label})=>{
@@ -12281,11 +12280,57 @@ function renderIndiceAbonos(){
         <div style="font-size:12px;font-weight:800;color:#a35d00;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">${escapar(label)}</div>
         ${filas.length===0 ? `<div style="font-size:12px;color:var(--muted);font-style:italic;padding:6px 2px">Nada marcado.</div>` : `
         <div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:8px 0 4px">Sala 1</div>
-        ${filasSala1.length===0 ? `<div style="font-size:12px;color:var(--muted);font-style:italic;padding:4px 2px">Nada marcado.</div>` : renderLineas(filasSala1)}
+        ${filasSala1.length===0 ? `<div style="font-size:12px;color:var(--muted);font-style:italic;padding:4px 2px">Nada marcado.</div>` : renderLineas(filasSala1, dia)}
         <div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:14px 0 4px">Sala 2</div>
-        ${filasSala2.length===0 ? `<div style="font-size:12px;color:var(--muted);font-style:italic;padding:4px 2px">Nada marcado.</div>` : renderLineas(filasSala2)}`}
+        ${filasSala2.length===0 ? `<div style="font-size:12px;color:var(--muted);font-style:italic;padding:4px 2px">Nada marcado.</div>` : renderLineas(filasSala2, dia)}`}
       </div>`;
   }).join('');
+}
+// Módulos independientes (a petición de Paula, 2026-08-19): Índice Abonos y
+// Específicos ya NO viven dentro de "Mis tareas" del Regante, salen como
+// accesos propios en el menú principal (ver applyRoleHomeUI).
+function showIndiceAbonosReganteModule(){
+  Promise.all([loadRiegoData(), loadRiegoEjecutadoData(), loadIndiceAbonosEstadoData()]).then(()=>{
+    const overlay = getOrCreateOverlay('indice-abonos-regante-overlay');
+    overlay.style.padding = '0';
+    overlay.innerHTML = `
+      <div style="background:#fff;border-radius:0;width:100vw;height:100vh;max-width:100vw;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.3)">
+        <div style="background:var(--grad-blue);color:#fff;padding:1rem 1.5rem;display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
+          <div style="font-size:16px;font-weight:800">📑 Índice Abonos</div>
+          <button onclick="document.getElementById('indice-abonos-regante-overlay').style.display='none'" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:12px">✕</button>
+        </div>
+        <div id="indice-abonos-wrap" style="flex:1;overflow-y:auto;padding:1.25rem">${renderIndiceAbonos()}</div>
+      </div>`;
+    overlay.style.display = 'flex';
+  });
+}
+function showEspecificosReganteModule(){
+  loadTareasData().then(()=>{
+    const overlay = getOrCreateOverlay('especificos-regante-overlay');
+    overlay.style.padding = '0';
+    const render = () => {
+      const especificosRegante = tareasData.filter(t=>t.categoria==='especifico' && USER_ROLES[t.asignadoA]==='REGANTE' && !esTareaDeAyer(t));
+      const { activas, completadas } = splitTareasPorEstado(especificosRegante);
+      const wrap = document.getElementById('especificos-regante-wrap');
+      if(!wrap) return;
+      wrap.innerHTML = especificosRegante.length===0 ? `<div style="text-align:center;padding:2.5rem;color:var(--muted);font-style:italic">No hay específicos.</div>` : `
+        <div style="display:flex;flex-direction:column;gap:10px">
+          ${ordenarTareasPorHorario(activas).map(t=>buildTareaCard(t)).join('')}
+          ${completadas.length ? `<div style="font-size:11px;font-weight:800;color:#2e7d32;text-transform:uppercase;letter-spacing:.04em;margin-top:6px">✓ Completados</div>` : ''}
+          ${ordenarTareasCompletadas(completadas).map(t=>buildTareaCard(t)).join('')}
+        </div>`;
+    };
+    overlay.innerHTML = `
+      <div style="background:#fff;border-radius:0;width:100vw;height:100vh;max-width:100vw;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.3)">
+        <div style="background:var(--grad-blue);color:#fff;padding:1rem 1.5rem;display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
+          <div style="font-size:16px;font-weight:800">🎯 Específicos</div>
+          <button onclick="document.getElementById('especificos-regante-overlay').style.display='none'" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:12px">✕</button>
+        </div>
+        <div id="especificos-regante-wrap" style="flex:1;overflow-y:auto;padding:1.25rem"></div>
+      </div>`;
+    render();
+    overlay.style.display = 'flex';
+  });
 }
 // ── NOTIFICAR PROBLEMA DE EJECUCIÓN (REGANTE) ───────────────────────────
 // A petición de Paula: el regante puede marcar uno o varios riegos (agua u
