@@ -4138,8 +4138,19 @@ const OFFLINE_QUEUE_KEY = 'lasala-offline-queue-v1';
 function leerColaOffline(){
   try{ return JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY)||'[]'); }catch(e){ return []; }
 }
+// A petición de Paula (2026-08-19): "hago +200 cambios y al sincronizar no
+// aparecen todos, encima dice 0 pendientes" — causa real: localStorage tiene
+// un límite (unos 5-10 MB según el móvil) y esta cola guarda CADA acción
+// pendiente, incluidas las fotos en base64 (cientos de KB cada una) de
+// aplicarFotoControl. Con 200 checks + varias fotos de por medio, la cola
+// podía superar ese límite; el intento de guardarla entonces fallaba
+// (QuotaExceededError) y se tragaba en silencio — la acción se perdía sin
+// dejar rastro, pero como el resto del flujo seguía normal, no se avisaba de
+// nada: parecía que se había guardado ("0 pendientes") cuando en realidad
+// nunca llegó a quedar registrada para reintentar.
 function guardarColaOffline(cola){
-  try{ localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(cola)); }catch(e){}
+  try{ localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(cola)); return true; }
+  catch(e){ avisarFalloGuardado(); return false; }
 }
 // A petición de Paula (2026-08-04): "¿no puedes hacer que aunque se cierre la
 // app se guarden?" — antes, la acción solo se guardaba en la cola local
