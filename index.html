@@ -12180,11 +12180,11 @@ function renderIndiceAbonos(){
     const estado = indiceAbonosEstadoData[clave] || {};
     const botonEstado = (campo, label, color) => `
       <button onclick="toggleIndiceAbonoEstado('${clave}','${campo}')" style="padding:4px 10px;font-size:10px;font-weight:800;border-radius:999px;cursor:pointer;border:1.5px solid ${estado[campo]?color:'#ddd'};background:${estado[campo]?color:'#fff'};color:${estado[campo]?'#fff':'#888'}">${label}</button>`;
-    return `<div style="padding:8px 2px;border-bottom:1px solid var(--border)">
-      <div style="font-size:13px;font-weight:600;color:${esProgramado?'#c62828':'var(--text)'};margin-bottom:6px">
+    return `<div style="padding:8px 2px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+      <div style="font-size:13px;font-weight:600;color:${esProgramado?'#c62828':'var(--text)'};flex:1 1 220px;min-width:0">
         ${escapar(f.texto)} - INV ${escapar(f.invId)} - ${escapar(f.horario||'—')}
       </div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;flex-shrink:0">
         ${botonEstado('preparado','Preparado','#1558a0')}
         ${botonEstado('programado','Programado','#a35d00')}
         ${botonEstado('revisado','Revisado','#2e7d32')}
