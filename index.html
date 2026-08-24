@@ -12739,16 +12739,28 @@ function renderSalaEnVivoInvCard(invId){
   const injerto = injertoAsignacionData[claveInjerto(hoy, invId)];
   const peones = tareasPeonActivasInv(invId);
   const regante = reganteQueMarcoInv(invId, hoy);
+
+  // Para REGANTES: mostrar específicos y tareas en lugar de riegos
+  let especificos = null;
+  let tareasAsignadas = null;
+  if(currentUserRole === 'REGANTE'){
+    const misEspecificos = tareasData.filter(t=>t.categoria==='especifico' && t.asignadoA===currentUser && t.inv===invId && !esTareaDeAyer(t) && t.estado!=='completada');
+    especificos = misEspecificos.length ? misEspecificos.map(t=>`${escapar(t.titulo)}`).join('<br>') : null;
+
+    const misTareas = tareasData.filter(t=>t.asignadoA===currentUser && t.inv===invId && !esTareaDeAyer(t) && t.estado!=='completada' && t.categoria!=='especifico');
+    tareasAsignadas = misTareas.length ? misTareas.map(t=>`${escapar(t.titulo)}`).join('<br>') : null;
+  }
+
   // A petición de Paula (2026-08-19): "siempre debe de salir todos los
   // apartados en cada invernadero aunque no tenga actividad" — las 5 líneas
   // salen siempre, con un guion gris cuando no hay nada que contar (en vez
   // de desaparecer del todo como antes).
   const contenidos = {
-    riego: riegos.length ? riegos.map(r=>`${escapar(r.texto)} · ${escapar(r.horaInicio)}${r.horaFin?' – '+escapar(r.horaFin):' (en curso)'}`).join('<br>') : null,
+    riego: (currentUserRole !== 'REGANTE' && riegos.length) ? riegos.map(r=>`${escapar(r.texto)} · ${escapar(r.horaInicio)}${r.horaFin?' – '+escapar(r.horaFin):' (en curso)'}`).join('<br>') : (currentUserRole === 'REGANTE' ? especificos : null),
     carga: cargando ? 'Hay hombres cargando' : null,
     injerto: injerto ? `Mujeres injertando · ${escapar(injerto.horaInicio)}${injerto.horaFinPrevista?' – '+escapar(injerto.horaFinPrevista)+' (previsto)':''}` : null,
-    peones: peones.length ? peones.map(t=>`${escapar(nombreLegibleUsuario(t.asignadoA))} — ${escapar(t.titulo)}`).join('<br>') : null,
-    regantes: (riegos.length && regante) ? `${escapar(nombreLegibleUsuario(regante))} — ${riegos.map(r=>`${escapar(r.texto)} (${escapar(r.horaInicio)}${r.horaFin?'–'+escapar(r.horaFin):''})`).join(', ')}` : null
+    peones: (currentUserRole !== 'REGANTE' && peones.length) ? peones.map(t=>`${escapar(nombreLegibleUsuario(t.asignadoA))} — ${escapar(t.titulo)}`).join('<br>') : (currentUserRole === 'REGANTE' ? tareasAsignadas : null),
+    regantes: (currentUserRole !== 'REGANTE' && riegos.length && regante) ? `${escapar(nombreLegibleUsuario(regante))} — ${riegos.map(r=>`${escapar(r.texto)} (${escapar(r.horaInicio)}${r.horaFin?'–'+escapar(r.horaFin):''})`).join(', ')}` : null
   };
   const filasHTML = SALA_EN_VIVO_LINEAS.map(def=>{
     const html = contenidos[def.key];
