@@ -554,10 +554,12 @@ function applyRoleHomeUI(){
     }
     actualizarBadgeTareasRegante();
   } else if(currentUserRole==='SONIA'){
-    // Perfil de Sonia (a petición de Paula, 2026-08-19): asigna, para cada
-    // invernadero, la hora de inicio y hora prevista de fin de las mujeres
-    // injertando — ese dato es lo que "La Sala en Vivo" muestra en la línea
-    // de Injerto.
+    // Perfil de Sonia (a petición de Paula, 2026-08-19): encargada de los
+    // Trabajos de Mujeres (Injerto/Recomponer/Pinzar/Plantar/Separar/Quitar
+    // raíces) — no solo Injerto, como se pensó al principio. Dos accesos:
+    // el módulo real de Trabajos→Mujeres (altas normales, sin horario) y un
+    // formulario propio para asignar hora de inicio/fin previsto por
+    // invernadero, que es lo que lee "La Sala en Vivo".
     const block = document.getElementById('quick-access-block');
     if(block){
       block.innerHTML = `
@@ -565,8 +567,11 @@ function applyRoleHomeUI(){
           <i class="ti ti-bolt" style="font-size:15px;color:var(--verde-mid)"></i>Acceso de Sonia
         </div>
         <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button onclick="showTrabajosModule('mujeres')" style="padding:14px 20px;font-size:14px;font-weight:700;background:#7b5cf0;color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:8px">
+            <i class="ti ti-users" style="font-size:18px"></i> Trabajos de Mujeres
+          </button>
           <button onclick="showAsignarInjertoModule()" style="padding:14px 20px;font-size:14px;font-weight:700;background:#8e24aa;color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:8px">
-            <i class="ti ti-plant-2" style="font-size:18px"></i> Asignar Injerto
+            <i class="ti ti-clock" style="font-size:18px"></i> Asignar horarios
           </button>
         </div>`;
     }
@@ -3120,10 +3125,12 @@ const TRABAJOS_SECCIONES = [
 // tiene su propio alta y listado de trabajos (ver trabajosData más abajo).
 const TRABAJOS_SUBSECCIONES = {
   mujeres: [
+    {key:'injerto', label:'Injerto'},
     {key:'recomponer', label:'Recomponer'},
     {key:'pinzar', label:'Pinzar'},
     {key:'plantar', label:'Plantar'},
-    {key:'separar', label:'Separar'}
+    {key:'separar', label:'Separar'},
+    {key:'quitarRaices', label:'Quitar raíces'}
   ],
   tunel: [
     {key:'carga', label:'Carga'},
@@ -3158,9 +3165,10 @@ async function persistTrabajosData(){
 }
 let trabajosSeccion = null; // null = resumen; 'mujeres'|'tunel'|'externos'
 let trabajosSubSeccion = null; // key de TRABAJOS_SUBSECCIONES[trabajosSeccion]
-function showTrabajosModule(){
+function showTrabajosModule(seccionInicial){
   loadTrabajosData().then(()=>{
-    trabajosSeccion = null; trabajosSubSeccion = null;
+    trabajosSeccion = seccionInicial || null;
+    trabajosSubSeccion = seccionInicial ? (TRABAJOS_SUBSECCIONES[seccionInicial]?.[0]?.key || null) : null;
     const overlay = getOrCreateOverlay('trabajos-overlay');
     overlay.style.padding = '0';
     renderTrabajosContent(overlay);
@@ -8787,15 +8795,18 @@ function invernaderoRevisadoPorVigueras(invId, dia){
 function buildMiniaturaInvernadero(modulo, invId, dia){
   const estado = estadoMiniaturaInvernadero(modulo, invId, dia);
   const colores = { rojo:'#c62828', amarillo:'#c47f00', verde:'#1a5c2e' };
+  const colorEstado = colores[estado];
   const selectFn = DASHBOARD_MODULOS[modulo].selectFn;
   const mostrarV = modulo==='riego' && invernaderoRevisadoPorVigueras(invId, dia);
+  // Gradiente sutil basado en el estado (de fondo más oscuro a blanco hacia abajo)
+  const bgGradiente = `linear-gradient(135deg, ${colorEstado}08 0%, transparent 60%)`;
   return `
-    <div class="dashboard-inv-card" onclick="${selectFn}('${invId}')" title="INV ${invId}" style="position:relative;width:112px;height:112px;border-radius:8px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#fff;color:#1a1e18;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,.12);border-left:5px solid ${colores[estado]};border-top:1px solid #e0e4dc;border-right:1px solid #e0e4dc;border-bottom:1px solid #e0e4dc;overflow:hidden;transition:all 200ms ease">
-      <span style="font-size:20px;font-weight:800;line-height:1;margin-bottom:10px">${invId}</span>
-      <div style="display:flex;gap:6px;position:relative">
-        ${['verde','amarillo','rojo'].map(c=>`<div style="width:11px;height:11px;border-radius:50%;background:${colores[c]};box-shadow:${estado===c?`0 0 0 2px ${colores[estado]},0 0 0 3.5px #fff`:'none'};transition:box-shadow 200ms ease"></div>`).join('')}
+    <div class="dashboard-inv-card" onclick="${selectFn}('${invId}')" title="INV ${invId}" style="position:relative;width:112px;height:112px;border-radius:10px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;background:${bgGradiente},#fff;color:#1a1e18;flex-shrink:0;box-shadow:var(--shadow-sm);border:1.5px solid ${colores[estado]};overflow:hidden;transition:all 200ms ease;border-top:2px solid ${colorEstado}40">
+      <span style="font-size:20px;font-weight:800;line-height:1;margin-bottom:8px;text-shadow:0 1px 2px rgba(0,0,0,.05)">${invId}</span>
+      <div style="display:flex;gap:5px;position:relative">
+        ${['verde','amarillo','rojo'].map(c=>`<div style="width:12px;height:12px;border-radius:50%;background:${colores[c]};box-shadow:${estado===c?`inset 0 0 0 2px #fff, 0 0 4px ${colorEstado}60`:'0 1px 3px rgba(0,0,0,.15)'};transition:all 200ms ease"></div>`).join('')}
       </div>
-      ${mostrarV ? `<div title="Confirmado por Vigueras" style="position:absolute;bottom:3px;right:3px;width:18px;height:18px;border-radius:50%;background:${colores.verde};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:10px;box-shadow:0 2px 6px rgba(0,0,0,.15);border:1.5px solid #fff">✓</div>` : ''}
+      ${mostrarV ? `<div title="Confirmado por Vigueras" style="position:absolute;bottom:4px;right:4px;width:20px;height:20px;border-radius:50%;background:${colores.verde};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:11px;box-shadow:0 2px 6px rgba(0,0,0,.2),inset 0 -1px 2px rgba(0,0,0,.1);border:1.5px solid #fff">✓</div>` : ''}
     </div>`;
 }
 function renderDashboardInvernaderos(modulo){
@@ -9257,7 +9268,14 @@ function esPantallaMovil(){
 // mismo cálculo aplicado sobre el ancho de 2 líneas de texto. Comparten
 // esta función Riego/Fito/Específicos (mismo criterio en los tres).
 function calcularFontSizeCeldaGrid(spanW, texto){
-  const FONT_MIN = 8, FONT_MAX = 13, CHAR_W = 0.58;
+  const FONT_MIN = 8, CHAR_W = 0.58;
+  // Aumentar FONT_MAX basándose en el ancho del tramo (más ancho = letra más grande)
+  // Si el tramo ocupa solo 1 celda (~46px), FONT_MAX=9; si ocupa 2+ (~92px+), FONT_MAX=13-15
+  let FONT_MAX = 9;
+  if(spanW > 90) FONT_MAX = 15;      // 2+ calles → 15px
+  else if(spanW > 70) FONT_MAX = 13; // ~1.5 calles → 13px
+  else if(spanW > 50) FONT_MAX = 11; // ~1 calle → 11px
+
   const availW = spanW - 16;
   const trimmedLen = texto.trim().length;
   const fontSizeIdeal = trimmedLen ? Math.floor(availW / (trimmedLen*CHAR_W)) : FONT_MAX;
@@ -9931,6 +9949,8 @@ function showFitoModule(){
             <button class="hdr-btn" onclick="showFitoManualForm()" title="Añadir manualmente" style="padding:6px 14px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:5px">
               <i class="ti ti-plus" style="font-size:13px"></i><span class="hdr-btn-label"> Añadir manualmente</span>
             </button>
+            <button id="fito-btn-deshacer" onclick="deshacerFito()" ${fitoHistorialDeshacer.length?'':'disabled style="opacity:.35;cursor:default"'} title="Deshacer el último cambio" style="padding:6px 12px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:7px;font-weight:700;cursor:pointer;white-space:nowrap;display:flex;align-items:center;justify-content:center;min-width:40px">←</button>
+            <button id="fito-btn-rehacer" onclick="rehacerFito()" ${fitoHistorialRehacer.length?'':'disabled style="opacity:.35;cursor:default"'} title="Rehacer el cambio deshecho" style="padding:6px 12px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:7px;font-weight:700;cursor:pointer;white-space:nowrap;display:flex;align-items:center;justify-content:center;min-width:40px">→</button>
             <button id="fito-btn-retroceder" class="hdr-btn" onclick="retrocederFito()" title="Volver a la pantalla anterior"
               style="padding:6px 14px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:5px">
               <i class="ti ti-arrow-back-up" style="font-size:13px"></i><span class="hdr-btn-label"> Retroceder</span>
@@ -10043,7 +10063,7 @@ function renderFitoGrid(invId){
               </div>
             </td>`;
           } else {
-            const fontSize = esPantallaMovil() ? (trimmedLen>40 ? 7 : (trimmedLen>20 ? 8 : 9)) : (trimmedLen>40 ? 6.5 : (trimmedLen>20 ? 7.5 : 8.5));
+            const fontSize = fontSizeMultilinea;
             const textEsc = br.text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
             cells+=`<td colspan="${br.span}" style="border:1px solid #e8b0b0;padding:0;background:${bgTratamiento}">
               <div style="display:flex;align-items:flex-start;padding:1px 2px">
@@ -10115,10 +10135,12 @@ function detectFitoBrackets(invId,dia,calles){
 function updateFitoBracket(invId,dia,calles,val){
   registrarUndoFito(invId,dia,calles);
   calles.forEach(c=>setFito(invId,dia,c,val));
+  completarUndoFito(invId,dia,calles);
 }
 function setFitoUndo(invId,dia,calle,val){
   registrarUndoFito(invId,dia,[calle]);
   setFito(invId,dia,calle,val);
+  completarUndoFito(invId,dia,[calle]);
 }
 
 // ── RETROCEDER (Plaguicidas): mismo patrón que Riego — guarda solo el
@@ -10126,17 +10148,77 @@ function setFitoUndo(invId,dia,calle,val){
 // deshacerlo, y al deshacer lee la nube fresca y aplica los valores
 // previos directamente (el guardado normal no sabe "borrar").
 let fitoUltimoMovimiento = null;
+// Deshacer/rehacer para Plaguicidas (mismo patrón que Partidas)
+let fitoHistorialDeshacer = [];
+let fitoHistorialRehacer = [];
+
 function registrarUndoFito(invId, dia, calles){
   registrarUndoFitoMultiInv([{invId, dia, calles}]);
 }
 function registrarUndoFitoMultiInv(entradas){
   const grupos = entradas.map(({invId, dia, calles})=>{
     const previos = {};
-    calles.forEach(c=>{ previos[c] = getFito(invId, dia, c) || null; });
-    return { invId, dia, previos };
+    calles.forEach(c=>{
+      previos[c] = getFito(invId, dia, c) || null;
+    });
+    return { invId, dia, calles, previos, ahoras: {} };
   });
-  fitoUltimoMovimiento = { grupos };
+  const movimiento = { grupos };
+  fitoHistorialDeshacer.push(movimiento);
+  fitoHistorialRehacer = [];
+  fitoUltimoMovimiento = movimiento;
   actualizarBotonRetrocederFito();
+}
+function completarUndoFito(invId, dia, calles){
+  // Actualiza el estado "ahoras" del último movimiento (después del cambio)
+  const mov = fitoHistorialDeshacer[fitoHistorialDeshacer.length - 1];
+  if(!mov) return;
+  const grupo = mov.grupos.find(g => g.invId === invId && g.dia === dia);
+  if(grupo){
+    grupo.calles = (grupo.calles || []).concat(calles).filter((v,i,a)=>a.indexOf(v)===i); // Dedup
+    grupo.calles.forEach(c => {
+      grupo.ahoras[c] = getFito(invId, dia, c) || null;
+    });
+  }
+}
+function completarUndoFitoParaTodosGrupos(){
+  // Actualiza "ahoras" para TODOS los grupos del último movimiento
+  const mov = fitoHistorialDeshacer[fitoHistorialDeshacer.length - 1];
+  if(!mov) return;
+  mov.grupos.forEach(grupo => {
+    grupo.calles = grupo.calles || [];
+    grupo.calles.forEach(c => {
+      grupo.ahoras[c] = getFito(grupo.invId, grupo.dia, c) || null;
+    });
+  });
+}
+async function deshacerFito(){
+  const mov = fitoHistorialDeshacer.pop();
+  if(!mov) return;
+  mov.grupos.forEach(({invId, dia, previos})=>{
+    Object.entries(previos).forEach(([calle, val])=>{
+      if(val===null) deleteFito(invId, dia, parseInt(calle));
+      else setFito(invId, dia, parseInt(calle), val);
+    });
+  });
+  fitoHistorialRehacer.push(mov);
+  renderFitoGrid(mov.grupos[0]?.invId);
+  showToast('↩ Cambio deshecho');
+  await saveFitoData();
+}
+async function rehacerFito(){
+  const mov = fitoHistorialRehacer.pop();
+  if(!mov) return;
+  mov.grupos.forEach(({invId, dia, ahoras})=>{
+    Object.entries(ahoras).forEach(([calle, val])=>{
+      if(val===null) deleteFito(invId, dia, parseInt(calle));
+      else setFito(invId, dia, parseInt(calle), val);
+    });
+  });
+  fitoHistorialDeshacer.push(mov);
+  renderFitoGrid(mov.grupos[0]?.invId);
+  showToast('↪ Cambio rehecho');
+  await saveFitoData();
 }
 // Mismo cambio que retrocederRiego (2026-07-31, a petición de Paula):
 // "Retroceder" pasa de deshacer el último cambio a navegación pura — vuelve
@@ -13216,6 +13298,7 @@ function borrarFitoManual(){
   const entradas = bulkInvIds.map(invId=>({ invId, dia, calles: calcularCallesFmBulk(invId).calles }));
   registrarUndoFitoMultiInv(entradas);
   entradas.forEach(({invId, calles})=>calles.forEach(c=>setFito(invId, dia, c, '')));
+  completarUndoFitoParaTodosGrupos();
   document.getElementById('fito-manual-overlay').style.display = 'none';
   guardarBorradoFito(entradas);
   if(fitoInvSel) renderFitoGrid(fitoInvSel);
@@ -13329,6 +13412,7 @@ async function saveFitoManual(){
     await autoAsignarTareaFumigacion(objetivosFumigacion, dia, tituloTarea, horario, {producto:trat, dosis, caldoLabel, caldoLitros});
   }
   document.getElementById('fito-manual-overlay').style.display = 'none';
+  completarUndoFitoParaTodosGrupos();
   if(sobrantes.length){
     // Guardado normal (fusiona con la nube) + limpieza de las calles
     // sobrantes en la MISMA lectura/escritura — hacerlo en dos guardados
@@ -13845,7 +13929,7 @@ function renderEspecificosGrid(invId){
               </div>
             </td>`;
           } else {
-            const fontSize = esPantallaMovil() ? (trimmedLen>40 ? 7 : (trimmedLen>20 ? 8 : 9)) : (trimmedLen>40 ? 6.5 : (trimmedLen>20 ? 7.5 : 8.5));
+            const fontSize = fontSizeMultilinea;
             const textEsc = br.text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
             cells+=`<td colspan="${br.span}" style="border:1px solid #a5d6a7;padding:0;position:relative;background:${bgBracket}">
               <div style="display:flex;align-items:flex-start;padding:1px 2px">
