@@ -9499,7 +9499,6 @@ function renderRiegoGrid(invId){
     let hdrHTML = `<tr style="background:#dce8f5;position:sticky;top:0;z-index:10">
       <td style="width:${DAY_W}px;min-width:${DAY_W}px;height:${HDR_H}px;border:1px solid #9ab8d8;text-align:center;font-size:${hdrDayFontSize};font-weight:700;color:#1558a0;background:#dce8f5;position:sticky;left:0;z-index:11"></td>
       ${calles.map(c=>`<td style="height:${HDR_H}px;border:1px solid #9ab8d8;text-align:center;font-size:${hdrFontSize};font-weight:800;color:#1a1e18;padding:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c}</td>`).join('')}
-      <td style="width:${SEM_W}px;min-width:${SEM_W}px;height:${HDR_H}px;border:1px solid #9ab8d8;text-align:center;font-size:${hdrWeekdayFontSize};font-weight:700;color:#1558a0;background:#dce8f5">D&#237;a semana</td>
     </tr>`;
 
     // Build day rows
@@ -9743,8 +9742,11 @@ function renderRiegoGrid(invId){
       }
 
       const semanaFontColor = semana==='Domingo' ? '#e53935' : '#1a1e18';
+      const dayLabelContent = esReganteSoloLectura
+        ? `${riegoDiaLabelCorto(dia)}<br><span style="font-size:${esMovil?'8px':'12px'};font-weight:600;opacity:.8">${semana}</span>`
+        : riegoDiaLabelCorto(dia);
       return `<tr>
-        <td ${dayLabelAttrs}>${riegoDiaLabelCorto(dia)}</td>
+        <td ${dayLabelAttrs}>${dayLabelContent}</td>
         ${cells}
         <td style="width:${SEM_W}px;min-width:${SEM_W}px;height:${DH}px;border:1px solid #9ab8d8;text-align:center;font-size:10px;font-weight:700;color:${semanaFontColor};background:${weekdayBg||'#fff'}">${semana}</td>
       </tr>`;
@@ -9759,7 +9761,7 @@ function renderRiegoGrid(invId){
     // contenedor); en ordenador se queda como estaba siempre, ocupando el
     // 100% disponible (no hace falta el ancho fijo — el problema de móvil
     // no se daba ahí).
-    const anchoTabla = DAY_W + nCols*CW + SEM_W;
+    const anchoTabla = DAY_W + nCols*CW + (esReganteSoloLectura ? 0 : SEM_W);
     const anchoCss = esPantallaMovil() ? anchoTabla+'px' : '100%';
     return `
       <div style="margin-bottom:20px">
