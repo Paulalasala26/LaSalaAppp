@@ -7203,8 +7203,10 @@ async function aplicarSalidaPartida(id, valor){
   // Marcar como salida desde la semana actual en adelante.
   // Usa c.salioDesdeSemanaNumerada (la semana a partir de la cual sale del mapa)
   // en lugar de un simple booleano, para que aparezca en semanas anteriores.
+  // IMPORTANTE: se guarda la semana ABSOLUTA (calculada desde fecha), no el offset relativo,
+  // porque partidasSemanaOffset varía cada vez que se abre la app.
   if(valor){
-    c.salioDesdeSemanaNumerada = partidasSemanaOffset;
+    c.salioDesdeSemanaNumerada = partidasSemanaOffsetActual();
   } else {
     c.salioDesdeSemanaNumerada = null;
   }
