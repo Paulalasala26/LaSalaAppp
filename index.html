@@ -9460,11 +9460,11 @@ function renderRiegoGrid(invId){
   // Para REGANTE: aumentar todo (pero menos en móvil)
   if(esReganteSoloLectura){
     if(esMovil){
-      CW = 65;    // móvil: aumentar moderadamente
-      DH = 55;    // móvil: aumentar moderadamente
-      DAY_W = 80;
-      SEM_W = 70;
-      HDR_H = 35;
+      CW = 40;    // móvil: mantener pequeño para que quepan las calles
+      DH = 60;    // móvil: aumentar algo la altura
+      DAY_W = 70;
+      SEM_W = 60;
+      HDR_H = 32;
     } else {
       CW = 100;   // desktop: mucho más ancho por calle
       DH = 75;    // desktop: muchísimo más alto
@@ -9487,9 +9487,9 @@ function renderRiegoGrid(invId){
     let hdrFontSize = '11px', hdrDayFontSize = '10px', hdrWeekdayFontSize = '9px';
     if(esReganteSoloLectura){
       if(esMovil){
-        hdrFontSize = '16px';
+        hdrFontSize = '12px';  // reducido: los números de calle necesitan menos espacio
         hdrDayFontSize = '13px';
-        hdrWeekdayFontSize = '14px';
+        hdrWeekdayFontSize = '12px';
       } else {
         hdrFontSize = '26px';
         hdrDayFontSize = '18px';
