@@ -12969,8 +12969,24 @@ function renderSalaEnVivoInvCard(invId){
   const hoy = riegoDiaDeHoy();
   const riegos = riegosActivosInv(invId, hoy);
   const cargando = tecnicoPresenteAhora('carga', invId);
+
+  // Función auxiliar: verificar si hora actual está dentro del rango [inicio, fin]
+  const estaEnHorario = (horaInicio, horaFin) => {
+    if(!horaInicio) return false;
+    const ahora = new Date();
+    const horaActual = String(ahora.getHours()).padStart(2,'0') + ':' + String(ahora.getMinutes()).padStart(2,'0');
+    // Si no hay fin previsto, solo comparar con inicio
+    if(!horaFin) return horaActual >= horaInicio;
+    // Si hay fin, tiene que estar entre inicio y fin
+    return horaActual >= horaInicio && horaActual <= horaFin;
+  };
+
   const cargaAsignada = cargasAsignacionData[claveCarga(hoy, invId)];
+  const cargaValida = cargaAsignada && estaEnHorario(cargaAsignada.horaInicio, cargaAsignada.horaFinPrevista) ? cargaAsignada : null;
+
   const injerto = injertoAsignacionData[claveInjerto(hoy, invId)];
+  const injertoValido = injerto && estaEnHorario(injerto.horaInicio, injerto.horaFinPrevista) ? injerto : null;
+
   const peones = tareasPeonActivasInv(invId);
   const regante = reganteQueMarcoInv(invId, hoy);
 
@@ -12989,10 +13005,12 @@ function renderSalaEnVivoInvCard(invId){
   // apartados en cada invernadero aunque no tenga actividad" — las 5 líneas
   // salen siempre, con un guion gris cuando no hay nada que contar (en vez
   // de desaparecer del todo como antes).
+  // A petición de Paula (2026-08-24): cuando pasa la hora de fin, se quita
+  // automáticamente de "La Sala en Vivo" (injerto, cargas).
   const contenidos = {
     riego: (currentUserRole !== 'REGANTE' && riegos.length) ? riegos.map(r=>`${escapar(r.texto)} · ${escapar(r.horaInicio)}${r.horaFin?' – '+escapar(r.horaFin):' (en curso)'}`).join('<br>') : (currentUserRole === 'REGANTE' ? especificos : null),
-    carga: cargando ? 'Cargando camión' : (cargaAsignada ? `Camión · ${escapar(cargaAsignada.horaInicio)}${cargaAsignada.horaFinPrevista?' – '+escapar(cargaAsignada.horaFinPrevista)+' (previsto)':''}` : null),
-    injerto: injerto ? `Mujeres injertando · ${escapar(injerto.horaInicio)}${injerto.horaFinPrevista?' – '+escapar(injerto.horaFinPrevista)+' (previsto)':''}` : null,
+    carga: cargando ? 'Cargando camión' : (cargaValida ? `Camión · ${escapar(cargaValida.horaInicio)}${cargaValida.horaFinPrevista?' – '+escapar(cargaValida.horaFinPrevista)+' (previsto)':''}` : null),
+    injerto: injertoValido ? `Mujeres injertando · ${escapar(injertoValido.horaInicio)}${injertoValido.horaFinPrevista?' – '+escapar(injertoValido.horaFinPrevista)+' (previsto)':''}` : null,
     peones: (currentUserRole !== 'REGANTE' && peones.length) ? peones.map(t=>`${escapar(nombreLegibleUsuario(t.asignadoA))} — ${escapar(t.titulo)}`).join('<br>') : (currentUserRole === 'REGANTE' ? tareasAsignadas : null),
     regantes: (currentUserRole !== 'REGANTE' && riegos.length && regante) ? `${escapar(nombreLegibleUsuario(regante))} — ${riegos.map(r=>`${escapar(r.texto)} (${escapar(r.horaInicio)}${r.horaFin?'–'+escapar(r.horaFin):''})`).join(', ')}` : null
   };
