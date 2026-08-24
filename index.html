@@ -13157,6 +13157,16 @@ function renderFmBulkDetalle(invId){
   if(!cont) return;
   const cfg = fmBulkConfig[invId];
   const allCalles = callesOrdenadasInv(invId);
+
+  // IMPORTANTE: antes de renderizar, leer los valores actuales desde el DOM
+  // para cualquier otro invernadero que tenga el modo 'tramo' abierto.
+  // De lo contrario, al cambiar de invernadero se pierden los tramos del anterior.
+  Object.keys(fmBulkConfig).forEach(oId=>{
+    if(oId!==invId && fmBulkConfig[oId].modo==='tramo'){
+      fmBulkConfig[oId].tramos = leerFmBulkTramosDesdeDOM(oId);
+    }
+  });
+
   if(cfg.modo==='entero'){
     cont.innerHTML = `<div style="font-size:10px;color:var(--muted);font-style:italic">Se aplicará a las ${allCalles.length} calles.</div>`;
   } else if(cfg.modo==='entero_menos'){
@@ -14215,6 +14225,16 @@ function renderEspBulkDetalle(invId){
   if(!cont) return;
   const cfg = espBulkConfig[invId];
   const allCalles = callesOrdenadasInv(invId);
+
+  // IMPORTANTE: antes de renderizar, leer los valores actuales desde el DOM
+  // para cualquier otro invernadero que tenga el modo 'tramo' abierto.
+  // De lo contrario, al cambiar de invernadero se pierden los tramos del anterior.
+  Object.keys(espBulkConfig).forEach(oId=>{
+    if(oId!==invId && espBulkConfig[oId].modo==='tramo'){
+      espBulkConfig[oId].tramos = leerEspBulkTramosDesdeDOM(oId);
+    }
+  });
+
   if(cfg.modo==='entero'){
     cont.innerHTML = `
       <div style="font-size:10px;color:var(--muted);font-style:italic;margin-bottom:6px">Se aplicará a las ${allCalles.length} calles.</div>
