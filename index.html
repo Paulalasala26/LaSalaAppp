@@ -12628,8 +12628,16 @@ function showEspecificosReganteModule(){
       return Object.entries(grupos).map(([key, grupo]) => {
         const primerTarea = grupo[0];
         // Las tareas específicas guardan fecha (ej: "25 ago") y fechaISO (ej: "2026-08-25")
-        const fechaLabel = primerTarea.fecha ? primerTarea.fecha.toUpperCase() : 'HOY';
-        const diaLabel = primerTarea.fechaISO ? new Date(primerTarea.fechaISO).toLocaleDateString('es-ES', {weekday:'short'}).toUpperCase() : '';
+        const fechaStr = String(primerTarea.fecha || '');
+        const fechaLabel = fechaStr ? fechaStr.toUpperCase() : 'HOY';
+        let diaLabel = '';
+        try {
+          if(primerTarea.fechaISO) {
+            const d = new Date(primerTarea.fechaISO);
+            const diasES = ['DOM', 'LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB'];
+            diaLabel = diasES[d.getDay()] || '';
+          }
+        } catch(e) { console.error('Error calculando día:', e); }
         const producto = escapar(primerTarea.titulo || '');
 
         return `<div style="background:#fff;border-radius:12px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,.1);border:1.5px solid #ddd;margin-bottom:16px">
