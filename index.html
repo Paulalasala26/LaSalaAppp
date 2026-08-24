@@ -9487,9 +9487,9 @@ function renderRiegoGrid(invId){
     let hdrFontSize = '11px', hdrDayFontSize = '10px', hdrWeekdayFontSize = '9px';
     if(esReganteSoloLectura){
       if(esMovil){
-        hdrFontSize = '12px';  // reducido: los números de calle necesitan menos espacio
-        hdrDayFontSize = '13px';
-        hdrWeekdayFontSize = '12px';
+        hdrFontSize = '8px';  // muy pequeño para que quepa en 40px
+        hdrDayFontSize = '12px';
+        hdrWeekdayFontSize = '10px';
       } else {
         hdrFontSize = '26px';
         hdrDayFontSize = '18px';
@@ -9498,7 +9498,7 @@ function renderRiegoGrid(invId){
     }
     let hdrHTML = `<tr style="background:#dce8f5;position:sticky;top:0;z-index:10">
       <td style="width:${DAY_W}px;min-width:${DAY_W}px;height:${HDR_H}px;border:1px solid #9ab8d8;text-align:center;font-size:${hdrDayFontSize};font-weight:700;color:#1558a0;background:#dce8f5;position:sticky;left:0;z-index:11"></td>
-      ${calles.map(c=>`<td style="height:${HDR_H}px;border:1px solid #9ab8d8;text-align:center;font-size:${hdrFontSize};font-weight:800;color:#1a1e18;padding:0">${c}</td>`).join('')}
+      ${calles.map(c=>`<td style="height:${HDR_H}px;border:1px solid #9ab8d8;text-align:center;font-size:${hdrFontSize};font-weight:800;color:#1a1e18;padding:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c}</td>`).join('')}
       <td style="width:${SEM_W}px;min-width:${SEM_W}px;height:${HDR_H}px;border:1px solid #9ab8d8;text-align:center;font-size:${hdrWeekdayFontSize};font-weight:700;color:#1558a0;background:#dce8f5">D&#237;a semana</td>
     </tr>`;
 
