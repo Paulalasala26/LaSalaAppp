@@ -14908,6 +14908,7 @@ async function saveEspecificoManual(){
     const layout = INV_LAYOUT[invId];
     const allCalles = [...layout.row1, ...layout.row2];
     for(const {desde,hasta,tipo,obs} of tramos){
+      console.log('DEBUG: Guardando específico', {invId, desde, hasta, tipo, obs});
       const partes = [base, tipo].filter(Boolean);
       let texto = partes.join(' + ');
       if(obs) texto = texto ? `${texto} — ${obs}` : obs;
@@ -14915,6 +14916,7 @@ async function saveEspecificoManual(){
       const callesTramo = [];
       for(let c=s;c<=e;c++){ if(allCalles.includes(c)){ setEspecifico(invId, dia, c, texto, {caldoLitros, caldoLabel, tecnico: currentUser}); callesTramo.push(c); count++; } }
       const tituloTarea = [tratDosis, tipo].filter(Boolean).join(' + ');
+      console.log('DEBUG: Llamando autoAsignarTareaEspecifico con obs=', obs);
       await autoAsignarTareaEspecifico(invId, dia, formatRangoConInv(invId, s, e), tituloTarea, horario, obs, {producto: trat, dosis, caldoLabel, gastoLabel});
       // A petición de Paula (2026-08-18): "si no pone observaciones se
       // refiere a la calle entera, todas las partidas que aparezcan que
