@@ -107,8 +107,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
         <option value="FRAN">Fran</option>
         <option value="MIGUEL ANGEL">Miguel Angel</option>
         <option value="SONIA">Sonia</option>
-        <option value="REGANTE1">Regante1 (prueba)</option>
-        <option value="PEON1">Peon1 (prueba)</option>
+        <option value="REGANTE1">Regante1 (Sala 1)</option>
+        <option value="REGANTE2">Regante2 (Sala 2)</option>
+        <option value="PEON1">Peon1 (Sala 1)</option>
+        <option value="PEON2">Peon2 (Sala 2)</option>
       </select>
     </div>
     <div style="margin-bottom:1.5rem;text-align:left">
@@ -363,7 +365,9 @@ let USERS={
   FRAN:"6f52d3110a0e41e462ac098244206ed69db33999b743e284fc4c5d34c2d4a529",
   "MIGUEL ANGEL":"03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4",
   REGANTE1:"0ffe1abd1a08215353c233d6e009613e95eec4253832a761af28ff37ac5a150c",
+  REGANTE2:"edee29f882543b956620b26d0ee0e7e950399b1c4222f5de05e06425b4c995e9",
   PEON1:"9af15b336e6a9619928537df30b2e6a2376569fcf9d7e773eccede65606529a0",
+  PEON2:"888df25ae35772424a560c7152a1de794440e0ea5cfee62828333a456a506e05",
   SONIA:"b6a5723b3725ddbeb986b485e5e60d4add9f4612d163d03210f0bd50c13135d1"
 };
 async function loadUsersFromCloud(){
@@ -378,7 +382,7 @@ const usersLoadedPromise = loadUsersFromCloud();
 // Roles: guardados APARTE de USERS (nunca junto a la contraseña — así lo
 // pidió Paula).
 const ROLES_KEY = 'lasala-roles-v1';
-let USER_ROLES = { VIGUERAS:'ADMIN', PAULA:'ADMIN', DENNIS:'TECNICO', FRAN:'TECNICO', 'MIGUEL ANGEL':'ADMIN', REGANTE1:'REGANTE', PEON1:'PEON', SONIA:'SONIA', JULIO:'CARGADOR' };
+let USER_ROLES = { VIGUERAS:'ADMIN', PAULA:'ADMIN', DENNIS:'TECNICO', FRAN:'TECNICO', 'MIGUEL ANGEL':'ADMIN', REGANTE1:'REGANTE', REGANTE2:'REGANTE', PEON1:'PEON', PEON2:'PEON', SONIA:'SONIA', JULIO:'CARGADOR' };
 async function loadRolesFromCloud(){
   try{
     const r = await window.storage.get(ROLES_KEY);
@@ -3177,10 +3181,10 @@ async function autoAsignarTareaFumigacion(objetivos, dia, titulo, horario, extra
       if(!existente.horario && horario) existente.horario = horario;
     } else tareasData.push(crearTareaAuto(asignadoA));
   };
-  // Se asigna a un único peón (PEON1) — antes se asignaba una copia a cada
-  // usuario con rol PEON, lo que duplicaba la tarea al incluir cuentas de
-  // prueba (PRUEBA) con ese mismo rol — a petición de Paula, 2026-08-10.
-  fusionarOCrear('PEON1');
+  // Se asigna al peón de la sala correspondiente (PEON1 para Sala1, PEON2 para Sala2)
+  // — antes se asignaba a PEON1 siempre, ahora cada sala tiene su peón dedicado.
+  const peonAsignar = peonDelaSala(objetivos[0].invId);
+  fusionarOCrear(peonAsignar);
   await persistTareasData();
   logHistorial(`Auto-asignó tarea de fumigación (Pistola) para ${objetivos.length} invernadero(s)`);
   refreshTareasViews();
@@ -10162,6 +10166,11 @@ const INV_LAYOUT_SALA1 = {
 // cualquier invernadero por id. Riego y Plaguicidas muestran sus botones
 // agrupados por sala usando INV_LAYOUT_SALA1 / INV_LAYOUT_SALA2 por separado.
 const INV_LAYOUT = {...INV_LAYOUT_SALA2, ...INV_LAYOUT_SALA1};
+
+// Funciones auxiliares para asignar usuarios según la sala
+function salaDeInv(invId){ return Object.keys(INV_LAYOUT_SALA1).includes(invId) ? 'sala1' : 'sala2'; }
+function peonDelaSala(invId){ return salaDeInv(invId)==='sala1' ? 'PEON1' : 'PEON2'; }
+function reganteDelaSala(invId){ return salaDeInv(invId)==='sala1' ? 'REGANTE1' : 'REGANTE2'; }
 // A qué sala pertenece un invernadero — global porque hace falta en varios
 // sitios (imprimir tareas por sala, y ahora también agrupar la vista de
 // gestión de Tareas de Peón por Sala 1/Sala 2).
@@ -14854,7 +14863,9 @@ async function autoAsignarTareaEspecifico(invId, dia, callesLabel, titulo, horar
       if(!existente.gastoLabel && extra?.gastoLabel) existente.gastoLabel = extra.gastoLabel;
     } else tareasData.push(crearTareaAuto(asignadoA));
   };
-  usuariosPorRol('REGANTE').forEach(asignadoA=>fusionarOCrear(asignadoA));
+  // Asignar al regante de la sala correspondiente (REGANTE1 para Sala1, REGANTE2 para Sala2)
+  const reganteAsignar = reganteDelaSala(invId);
+  fusionarOCrear(reganteAsignar);
   await persistTareasData();
   logHistorial(`Auto-asignó tarea de específico desde INV ${invId}`);
   refreshTareasViews();
