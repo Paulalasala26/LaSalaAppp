@@ -106,6 +106,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
         <option value="DENNIS">Dennis</option>
         <option value="FRAN">Fran</option>
         <option value="MIGUEL ANGEL">Miguel Angel</option>
+        <option value="SONIA">Sonia</option>
         <option value="REGANTE1">Regante1 (prueba)</option>
         <option value="PEON1">Peon1 (prueba)</option>
       </select>
@@ -186,6 +187,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
         <div class="home-shortcut-card" onclick="handleQuickAction('partidas')" style="background:linear-gradient(135deg,#0f5c4a,#1a9c78);color:#fff;border-radius:14px;padding:1.4rem 1.25rem">
           <i class="ti ti-layout-grid" style="font-size:26px;opacity:.9"></i>
           <div style="font-size:14px;font-weight:700;margin-top:12px">Partidas y Espec&#237;ficos</div>
+        </div>
+        <div class="home-shortcut-card" onclick="handleQuickAction('sala-en-vivo')" style="background:linear-gradient(135deg,#0f5c4a,#1a9c78);color:#fff;border-radius:14px;padding:1.4rem 1.25rem">
+          <i class="ti ti-broadcast" style="font-size:26px;opacity:.9"></i>
+          <div style="font-size:14px;font-weight:700;margin-top:12px">La Sala en Vivo</div>
         </div>
       </div>
     </div>
@@ -358,7 +363,8 @@ let USERS={
   FRAN:"6f52d3110a0e41e462ac098244206ed69db33999b743e284fc4c5d34c2d4a529",
   "MIGUEL ANGEL":"03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4",
   REGANTE1:"0ffe1abd1a08215353c233d6e009613e95eec4253832a761af28ff37ac5a150c",
-  PEON1:"9af15b336e6a9619928537df30b2e6a2376569fcf9d7e773eccede65606529a0"
+  PEON1:"9af15b336e6a9619928537df30b2e6a2376569fcf9d7e773eccede65606529a0",
+  SONIA:"b6a5723b3725ddbeb986b485e5e60d4add9f4612d163d03210f0bd50c13135d1"
 };
 async function loadUsersFromCloud(){
   try{
@@ -372,7 +378,7 @@ const usersLoadedPromise = loadUsersFromCloud();
 // Roles: guardados APARTE de USERS (nunca junto a la contraseña — así lo
 // pidió Paula).
 const ROLES_KEY = 'lasala-roles-v1';
-let USER_ROLES = { VIGUERAS:'ADMIN', PAULA:'ADMIN', DENNIS:'TECNICO', FRAN:'TECNICO', 'MIGUEL ANGEL':'ADMIN', REGANTE1:'REGANTE', PEON1:'PEON' };
+let USER_ROLES = { VIGUERAS:'ADMIN', PAULA:'ADMIN', DENNIS:'TECNICO', FRAN:'TECNICO', 'MIGUEL ANGEL':'ADMIN', REGANTE1:'REGANTE', PEON1:'PEON', SONIA:'SONIA' };
 async function loadRolesFromCloud(){
   try{
     const r = await window.storage.get(ROLES_KEY);
@@ -547,6 +553,23 @@ function applyRoleHomeUI(){
         </div>`;
     }
     actualizarBadgeTareasRegante();
+  } else if(currentUserRole==='SONIA'){
+    // Perfil de Sonia (a petición de Paula, 2026-08-19): asigna, para cada
+    // invernadero, la hora de inicio y hora prevista de fin de las mujeres
+    // injertando — ese dato es lo que "La Sala en Vivo" muestra en la línea
+    // de Injerto.
+    const block = document.getElementById('quick-access-block');
+    if(block){
+      block.innerHTML = `
+        <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.75rem;display:flex;align-items:center;gap:6px">
+          <i class="ti ti-bolt" style="font-size:15px;color:var(--verde-mid)"></i>Acceso de Sonia
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button onclick="showAsignarInjertoModule()" style="padding:14px 20px;font-size:14px;font-weight:700;background:#8e24aa;color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:8px">
+            <i class="ti ti-plant-2" style="font-size:18px"></i> Asignar Injerto
+          </button>
+        </div>`;
+    }
   } else if(currentUserRole==='TECNICO'){
     // A petición de Paula: cuando Fran o Dennis terminan de marcar todas las
     // hojas de riego, este botón manda un aviso a Vigueras (avisarHojasMarcadas).
@@ -3057,6 +3080,8 @@ function handleQuickAction(val){
     showPartidasModule();return;
   } else if(val==='hojas-riego'){
     showHojasRiego();return;
+  } else if(val==='sala-en-vivo'){
+    showSalaEnVivoModule();return;
   } else if(val==='tratamientos'){
     showPage('geo', document.querySelectorAll('.nav-tab')[1]);
     openGeoInv('17');
@@ -5813,6 +5838,12 @@ async function aplicarControlCheckOpcion(id, categoriaKey, opcionKey, valor){
   if(!c) return;
   c[categoriaKey] = c[categoriaKey] || {};
   c[categoriaKey][opcionKey] = valor;
+  // Marca de presencia en Carga (a petición de Paula, 2026-08-19, para "La
+  // Sala en Vivo": "si hay hombres cargando o no") — se aproxima con la
+  // misma ventana de 5 min que ya usa Plaguicidas/Específicos: tocar
+  // cualquier casilla de una línea de Carga cuenta como "hay actividad
+  // ahora mismo" en ese invernadero.
+  if(c.tipo==='carga' && c.invId) marcarPresenciaInvernadero('carga', c.invId);
   // Repintar ANTES de esperar la red — ver comentario igual en aplicarSanidadEnfermedad.
   renderControlContent(document.getElementById('control-overlay'));
   const qid = encolarAccionOffline('aplicarControlCheckOpcion', [id, categoriaKey, opcionKey, valor]);
@@ -12268,6 +12299,187 @@ function showEspecificosReganteModule(){
     render();
     overlay.style.display = 'flex';
   });
+}
+// ── ASIGNAR INJERTO (SONIA) ──────────────────────────────────────────────
+// A petición de Paula (2026-08-19): Sonia asigna, por invernadero y día, la
+// hora de inicio y hora prevista de fin de las mujeres injertando — clave
+// dia|invId, un único tramo activo por invernadero/día (si se reasigna, se
+// sobrescribe). Esto es lo que lee la línea "Injerto" de "La Sala en Vivo".
+const INJERTO_ASIGNACION_KEY = 'lasala-injerto-asignacion-v1';
+let injertoAsignacionData = {}; // { "dia|invId": {horaInicio,horaFinPrevista,asignadoPor,asignadoEn} }
+async function loadInjertoAsignacionData(){
+  try{ const r = await window.storage.get(INJERTO_ASIGNACION_KEY); injertoAsignacionData = r ? JSON.parse(r.value) : {}; }catch(e){ injertoAsignacionData = {}; }
+}
+async function saveInjertoAsignacionData(){
+  try{
+    const r = await window.storage.get(INJERTO_ASIGNACION_KEY);
+    const cloud = r ? JSON.parse(r.value) : {};
+    injertoAsignacionData = { ...cloud, ...injertoAsignacionData };
+    await window.storage.set(INJERTO_ASIGNACION_KEY, JSON.stringify(injertoAsignacionData));
+  }catch(e){}
+}
+function claveInjerto(dia, invId){ return `${dia}|${invId}`; }
+function showAsignarInjertoModule(){
+  loadInjertoAsignacionData().then(()=>{
+    const overlay = getOrCreateOverlay('asignar-injerto-overlay');
+    overlay.style.padding = '0';
+    overlay.innerHTML = `
+      <div style="background:#fff;border-radius:0;width:100vw;height:100vh;max-width:100vw;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.3)">
+        <div style="background:linear-gradient(135deg,#8e24aa,#ab47bc);color:#fff;padding:1rem 1.5rem;display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
+          <div style="font-size:16px;font-weight:800">🌱 Asignar Injerto</div>
+          <button onclick="document.getElementById('asignar-injerto-overlay').style.display='none'" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:12px">✕</button>
+        </div>
+        <div id="asignar-injerto-wrap" style="flex:1;overflow-y:auto;padding:1.25rem"></div>
+      </div>`;
+    renderAsignarInjertoWrap();
+    overlay.style.display = 'flex';
+  });
+}
+function renderAsignarInjertoWrap(){
+  const wrap = document.getElementById('asignar-injerto-wrap');
+  if(!wrap) return;
+  const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const hoy = riegoDiaDeHoy();
+  const allInvIds = [...Object.keys(INV_LAYOUT_SALA1), ...Object.keys(INV_LAYOUT_SALA2)];
+  const filas = allInvIds.map(invId=>{
+    const clave = claveInjerto(hoy, invId);
+    const a = injertoAsignacionData[clave] || {};
+    return `<div style="display:flex;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid var(--border);flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:800;width:56px;flex-shrink:0">INV ${escapar(invId)}</span>
+      <span style="font-size:10px;color:var(--muted)">Inicio</span>
+      <input type="time" id="inj-inicio-${invId}" value="${escapar(a.horaInicio||'')}" style="padding:5px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px">
+      <span style="font-size:10px;color:var(--muted)">Fin previsto</span>
+      <input type="time" id="inj-fin-${invId}" value="${escapar(a.horaFinPrevista||'')}" style="padding:5px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px">
+      <button onclick="guardarAsignacionInjerto('${invId}')" style="padding:6px 14px;font-size:11px;font-weight:800;background:#8e24aa;color:#fff;border:none;border-radius:7px;cursor:pointer">Guardar</button>
+      ${a.horaInicio ? `<button onclick="borrarAsignacionInjerto('${invId}')" title="Quitar" style="padding:6px 10px;font-size:11px;background:#fdecea;color:#c62828;border:1px solid #f0b0b0;border-radius:7px;cursor:pointer">🗑️</button>` : ''}
+    </div>`;
+  }).join('');
+  wrap.innerHTML = `
+    <div style="font-size:12px;color:var(--muted);margin-bottom:12px">Hoy · ${escapar(riegoDiaLabelCorto(hoy))} — marca solo los invernaderos donde haya mujeres injertando.</div>
+    ${filas}`;
+}
+function guardarAsignacionInjerto(invId){
+  const hoy = riegoDiaDeHoy();
+  const horaInicio = document.getElementById(`inj-inicio-${invId}`)?.value || '';
+  const horaFinPrevista = document.getElementById(`inj-fin-${invId}`)?.value || '';
+  if(!horaInicio){ showToast('Indica al menos la hora de inicio'); return; }
+  const clave = claveInjerto(hoy, invId);
+  injertoAsignacionData[clave] = { horaInicio, horaFinPrevista, asignadoPor: currentUser||'—', asignadoEn: new Date().toLocaleString('es-ES') };
+  saveInjertoAsignacionData();
+  showToast(`✓ Injerto asignado en INV ${invId}`);
+  renderAsignarInjertoWrap();
+}
+function borrarAsignacionInjerto(invId){
+  const hoy = riegoDiaDeHoy();
+  delete injertoAsignacionData[claveInjerto(hoy, invId)];
+  saveInjertoAsignacionData();
+  renderAsignarInjertoWrap();
+}
+// ── LA SALA EN VIVO ───────────────────────────────────────────────────────
+// A petición de Paula (2026-08-19): seguimiento visual en tiempo real de
+// cada invernadero — Riego/Carga/Injerto/Peones/Regantes, cada uno con su
+// color. Es SOLO lectura (no se puede entrar a ningún invernadero desde
+// aquí) y cada línea solo aparece cuando hay algo real ocurriendo ahora
+// mismo, nunca como placeholder vacío.
+let salaEnVivoSalaSel = 'sala1';
+function showSalaEnVivoModule(){
+  Promise.all([loadRiegoData(), loadPresenciaData(), loadIndiceAbonosEstadoData(), loadInjertoAsignacionData(), loadTareasData()]).then(()=>{
+    const overlay = getOrCreateOverlay('sala-en-vivo-overlay');
+    overlay.style.padding = '0';
+    renderSalaEnVivoContent(overlay);
+    overlay.style.display = 'flex';
+  });
+}
+function seleccionarSalaEnVivo(sala){
+  salaEnVivoSalaSel = sala;
+  renderSalaEnVivoContent(document.getElementById('sala-en-vivo-overlay'));
+}
+// Quién marcó el riego de un invernadero hoy — aproximación: el marcadoPor
+// de la primera calle con algo escrito (normalmente lo marca una sola
+// persona por invernadero y día).
+function reganteQueMarcoInv(invId, dia){
+  const layout = INV_LAYOUT[invId];
+  if(!layout) return null;
+  const allCalles = [...layout.row1, ...layout.row2];
+  for(const c of allCalles){
+    const raw = getRiegoCellRaw(invId, dia, c);
+    if(raw && typeof raw==='object' && raw.marcadoPor) return raw.marcadoPor;
+  }
+  return null;
+}
+// Riegos activos hoy en un invernadero, con su hora de inicio/fin si el
+// regante ya las rellenó en el Índice Abonos (ver claveIndiceAbono/
+// indiceAbonosEstadoData) — sin hora de inicio no se considera "en curso"
+// todavía, así que esa línea no aparece.
+function riegosActivosInv(invId, dia){
+  return recolectarIndiceRiegoDia(dia)
+    .filter(f=>f.invId===invId)
+    .map(f=>{
+      const clave = claveIndiceAbono(dia, f.invId, f.texto, f.horario);
+      const estado = indiceAbonosEstadoData[clave] || {};
+      return { texto:f.texto, horario:f.horario, horaInicio:estado.horaInicio||'', horaFin:estado.horaFin||'' };
+    })
+    .filter(f=>f.horaInicio);
+}
+function tareasPeonActivasInv(invId){
+  return tareasData.filter(t=>USER_ROLES[t.asignadoA]==='PEON' && t.estado==='iniciada' &&
+    (t.inv===invId || (t.objetivos||[]).some(o=>o.inv===invId)));
+}
+const SALA_EN_VIVO_LINEAS = [
+  {key:'riego', label:'Riego', icon:'ti-droplet', color:'#1558a0', bg:'#eef4fb'},
+  {key:'carga', label:'Carga', icon:'ti-truck', color:'#a35d00', bg:'#fff8ec'},
+  {key:'injerto', label:'Injerto', icon:'ti-plant-2', color:'#8e24aa', bg:'#f8effb'},
+  {key:'peones', label:'Peones', icon:'ti-user', color:'#1a5c2e', bg:'#eafaf0'},
+  {key:'regantes', label:'Regantes', icon:'ti-droplet-filled', color:'#00838f', bg:'#e6f7f8'}
+];
+function renderSalaEnVivoInvCard(invId){
+  const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const hoy = riegoDiaDeHoy();
+  const riegos = riegosActivosInv(invId, hoy);
+  const cargando = tecnicoPresenteAhora('carga', invId);
+  const injerto = injertoAsignacionData[claveInjerto(hoy, invId)];
+  const peones = tareasPeonActivasInv(invId);
+  const regante = reganteQueMarcoInv(invId, hoy);
+  const lineasHTML = [
+    riegos.length ? { key:'riego', html: riegos.map(r=>`${escapar(r.texto)} · ${escapar(r.horaInicio)}${r.horaFin?' – '+escapar(r.horaFin):' (en curso)'}`).join('<br>') } : null,
+    cargando ? { key:'carga', html: 'Hay hombres cargando' } : null,
+    injerto ? { key:'injerto', html: `Mujeres injertando · ${escapar(injerto.horaInicio)}${injerto.horaFinPrevista?' – '+escapar(injerto.horaFinPrevista)+' (previsto)':''}` } : null,
+    peones.length ? { key:'peones', html: peones.map(t=>`${escapar(nombreLegibleUsuario(t.asignadoA))} — ${escapar(t.titulo)}`).join('<br>') } : null,
+    (riegos.length && regante) ? { key:'regantes', html: `${escapar(nombreLegibleUsuario(regante))} — ${riegos.map(r=>`${escapar(r.texto)} (${escapar(r.horaInicio)}${r.horaFin?'–'+escapar(r.horaFin):''})`).join(', ')}` } : null
+  ].filter(Boolean);
+  const filasHTML = lineasHTML.map(({key,html})=>{
+    const def = SALA_EN_VIVO_LINEAS.find(l=>l.key===key);
+    return `<div style="display:flex;gap:8px;padding:7px 8px;border-radius:8px;background:${def.bg};margin-bottom:6px">
+      <div style="width:74px;flex-shrink:0;font-size:10px;font-weight:800;color:#fff;background:${def.color};border-radius:999px;padding:2px 8px;text-align:center;height:fit-content">${escapar(def.label)}</div>
+      <div style="font-size:12px;color:var(--text);font-weight:600">${html}</div>
+    </div>`;
+  }).join('');
+  return `
+    <div style="background:#fff;border-radius:12px;padding:12px 14px;box-shadow:var(--shadow-sm);border:1.5px solid var(--border)">
+      <div style="font-size:14px;font-weight:800;color:var(--text);margin-bottom:8px">INV ${escapar(invId)}</div>
+      ${filasHTML || `<div style="font-size:12px;color:var(--muted);font-style:italic;padding:6px 2px">Sin actividad ahora mismo.</div>`}
+    </div>`;
+}
+function renderSalaEnVivoContent(overlay){
+  const invIds = salaEnVivoSalaSel==='sala1' ? Object.keys(INV_LAYOUT_SALA1) : Object.keys(INV_LAYOUT_SALA2);
+  overlay.style.padding = '0';
+  overlay.innerHTML = `
+    <div style="background:#f2f4f0;width:100vw;height:100vh;max-width:100vw;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.3)">
+      <div style="background:linear-gradient(135deg,#0f5c4a,#1a9c78);color:#fff;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;flex-wrap:wrap;gap:10px">
+        <div style="font-size:17px;font-weight:800;display:flex;align-items:center;gap:8px">
+          <i class="ti ti-broadcast" style="font-size:20px"></i> La Sala en Vivo
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button onclick="seleccionarSalaEnVivo('sala1')" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:800;border:1.5px solid rgba(255,255,255,.4);cursor:pointer;background:${salaEnVivoSalaSel==='sala1'?'#fff':'transparent'};color:${salaEnVivoSalaSel==='sala1'?'#0f5c4a':'#fff'}">Sala 1</button>
+          <button onclick="seleccionarSalaEnVivo('sala2')" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:800;border:1.5px solid rgba(255,255,255,.4);cursor:pointer;background:${salaEnVivoSalaSel==='sala2'?'#fff':'transparent'};color:${salaEnVivoSalaSel==='sala2'?'#0f5c4a':'#fff'}">Sala 2</button>
+          <button onclick="showSalaEnVivoModule()" title="Actualizar" style="padding:8px 12px;border-radius:8px;font-size:14px;font-weight:800;background:rgba(255,255,255,.2);color:#fff;border:none;cursor:pointer"><i class="ti ti-refresh"></i></button>
+          <button onclick="document.getElementById('sala-en-vivo-overlay').style.display='none'" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700;background:rgba(255,255,255,.15);color:#fff;border:none;cursor:pointer">✕ Cerrar</button>
+        </div>
+      </div>
+      <div style="flex:1;overflow:auto;padding:1.25rem;display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;align-content:start">
+        ${invIds.map(invId=>renderSalaEnVivoInvCard(invId)).join('')}
+      </div>
+    </div>`;
 }
 // ── NOTIFICAR PROBLEMA DE EJECUCIÓN (REGANTE) ───────────────────────────
 // A petición de Paula: el regante puede marcar uno o varios riegos (agua u
