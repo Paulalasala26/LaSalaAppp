@@ -12580,47 +12580,59 @@ function showIndiceAbonosReganteModule(){
     overlay.style.display = 'flex';
   });
 }
-function buildEspecificoCardRegante(t){
-  const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const fechaLabel = t.fecha ? riegoDiaLabelCorto(t.fecha) : '—';
-  const hora = t.horario ? escapar(t.horario) : '—';
-  const tarea = escapar(t.titulo || '');
-  const inv = escapar(t.inv || '—');
-  const calles = escapar(t.callesLabel || '—');
-  const obs = escapar(t.observaciones || '');
-  const estadoColor = t.estado==='completada' ? '#2e7d32' : '#1558a0';
-
-  return `
-    <div style="background:#fff;border-radius:12px;padding:14px;box-shadow:var(--shadow-sm);border:1.5px solid var(--border);margin-bottom:10px">
-      <div style="display:flex;justify-content:space-between;align-items:start;gap:10px;margin-bottom:10px">
-        <div style="flex:1">
-          <div style="font-size:13px;font-weight:800;color:var(--text)">${tarea}</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:2px">📅 ${fechaLabel} • 🕐 ${hora}</div>
-        </div>
-        <div style="background:${estadoColor};color:#fff;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:800;white-space:nowrap">${t.estado==='completada'?'✓ Completada':'Activa'}</div>
-      </div>
-      <div style="background:#f7f8f6;border-radius:8px;padding:10px;font-size:11px;line-height:1.6;color:var(--text)">
-        <div style="margin-bottom:8px"><span style="font-weight:700">Invernadero:</span> ${inv}</div>
-        <div style="margin-bottom:8px"><span style="font-weight:700">Calles:</span> ${calles}</div>
-        ${obs ? `<div style="margin-bottom:8px"><span style="font-weight:700">Observaciones:</span> ${obs}</div>` : ''}
-      </div>
-    </div>`;
-}
-
 function showEspecificosReganteModule(){
   loadTareasData().then(()=>{
     const overlay = getOrCreateOverlay('especificos-regante-overlay');
     overlay.style.padding = '0';
     const render = () => {
+      const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
       const especificosRegante = tareasData.filter(t=>t.categoria==='especifico' && USER_ROLES[t.asignadoA]==='REGANTE' && !esTareaDeAyer(t));
       const { activas, completadas } = splitTareasPorEstado(especificosRegante);
       const wrap = document.getElementById('especificos-regante-wrap');
       if(!wrap) return;
+
+      // Agrupar por día y título para renderizar como hoja de impresión
+      const renderHoja = (tareas) => {
+        if(tareas.length === 0) return '';
+
+        // Agrupar por fecha + título
+        const grupos = {};
+        tareas.forEach(t => {
+          const key = (t.fecha || 'hoy') + '|' + (t.titulo || '');
+          if(!grupos[key]) grupos[key] = [];
+          grupos[key].push(t);
+        });
+
+        return Object.entries(grupos).map(([key, grupo]) => {
+          const primerTarea = grupo[0];
+          const fechaLabel = primerTarea.fecha ? riegoDiaLabelCorto(primerTarea.fecha).toUpperCase() : 'HOY';
+          const diaLabel = primerTarea.fecha ? riegoDiaSemana(primerTarea.fecha).toUpperCase() : '';
+          const producto = escapar(primerTarea.titulo || '');
+
+          return `
+            <div style="background:#fff;border-radius:12px;padding:16px;box-shadow:var(--shadow-sm);border:1.5px solid var(--border);margin-bottom:16px">
+              <div style="text-align:center;font-size:18px;font-weight:900;color:#000;margin-bottom:12px;text-transform:uppercase">Específicos</div>
+
+              <div style="font-size:11px;font-weight:800;color:#000;margin-bottom:8px">FECHA: ${diaLabel} ${fechaLabel}</div>
+              <div style="font-size:11px;font-weight:800;color:#000;margin-bottom:8px">PRODUCTO Y DOSIS: ${producto}</div>
+
+              ${grupo.map(t => `
+                <div style="border:1.5px solid #1558a0;border-radius:8px;padding:12px;margin-bottom:8px;background:#f9fafb">
+                  <div style="font-size:12px;font-weight:800;color:#1558a0;margin-bottom:6px">INV ${escapar(t.inv || '—')}</div>
+                  <div style="font-size:11px;color:#000;margin-bottom:4px;font-weight:600">CALLES: ${escapar(t.callesLabel || '—')}</div>
+                  ${t.observaciones ? `<div style="font-size:11px;color:#666;margin-bottom:4px">Observaciones: ${escapar(t.observaciones)}</div>` : ''}
+                  <div style="font-size:10px;font-weight:800;color:#2e7d32;background:#e8f5e9;padding:4px 8px;border-radius:4px;display:inline-block">PASE NORMAL • MONTONES</div>
+                </div>
+              `).join('')}
+            </div>`;
+        }).join('');
+      };
+
       wrap.innerHTML = especificosRegante.length===0 ? `<div style="text-align:center;padding:2.5rem;color:var(--muted);font-style:italic">No hay específicos.</div>` : `
         <div style="display:flex;flex-direction:column;gap:10px">
-          ${ordenarTareasPorHorario(activas).map(t=>buildEspecificoCardRegante(t)).join('')}
-          ${completadas.length ? `<div style="font-size:11px;font-weight:800;color:#2e7d32;text-transform:uppercase;letter-spacing:.04em;margin-top:6px">✓ Completados</div>` : ''}
-          ${ordenarTareasCompletadas(completadas).map(t=>buildEspecificoCardRegante(t)).join('')}
+          ${renderHoja(ordenarTareasPorHorario(activas))}
+          ${completadas.length ? `<div style="font-size:11px;font-weight:800;color:#2e7d32;text-transform:uppercase;letter-spacing:.04em;margin:16px 0 6px">✓ Completados</div>` : ''}
+          ${renderHoja(ordenarTareasCompletadas(completadas))}
         </div>`;
     };
     overlay.innerHTML = `
