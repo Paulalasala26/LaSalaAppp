@@ -1388,6 +1388,14 @@ const MANT_RECUR_UNIDADES = [
   {key:'meses', label:'Mes(es)', dias:30},
   {key:'anos', label:'Año(s)', dias:365}
 ];
+// Trabajos predeterminados para Mantenimiento de Parcelas
+const MANT_TRABAJOS_PREDETERMINADOS = [
+  {id:'hierba', label:'🌾 Hierba', icon:'ti-leaf'},
+  {id:'sal', label:'🧂 Sal', icon:'ti-bottle'},
+  {id:'aspersores', label:'💧 Aspersores', icon:'ti-droplet'},
+  {id:'basura', label:'🗑️ Basura', icon:'ti-trash'},
+  {id:'filtros', label:'🔧 Filtros', icon:'ti-filter'}
+];
 function calcularProximaFechaMant(cada, unidad, desdeISO){
   const u = MANT_RECUR_UNIDADES.find(x=>x.key===unidad);
   const dias = (u?u.dias:365) * (parseInt(cada)||1);
@@ -1767,33 +1775,106 @@ async function confirmarAsignacionesMantenimiento(){
   showToast(`✓ ${ticketIds.length} ticket(s) asignado(s)`);
   renderTareasContent(document.getElementById('tareas-overlay'), true);
 }
+let nmTrabajoBulkSel = null;
 function showNuevoTicketMantenimientoForm(){
   const wrap = document.getElementById('nuevo-ticket-mant-wrap');
   if(!wrap) return;
+  nmTrabajoBulkSel = null;
+
+  // Paso 1: Seleccionar trabajo predeterminado
   wrap.innerHTML = `
-    <div style="border:1.5px solid var(--border);border-radius:10px;padding:12px;background:#f8f9fa;margin-bottom:14px;max-width:480px">
-      <input id="nm-titulo" type="text" placeholder="Título del ticket" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px;margin-bottom:8px;box-sizing:border-box">
-      <textarea id="nm-desc" placeholder="Descripción (opcional)" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px;margin-bottom:8px;min-height:50px;font-family:inherit;box-sizing:border-box"></textarea>
-      <label style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:5px;margin-bottom:8px">
-        <input type="checkbox" id="nm-prioridad"> Prioridad alta
-      </label>
-      <label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">Fecha programada (opcional)</label>
-      <input id="nm-fecha-programada" type="date" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px;margin-bottom:8px;box-sizing:border-box">
-      <label style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:5px;margin-bottom:8px;cursor:pointer">
-        <input type="checkbox" id="nm-recurrente" onchange="document.getElementById('nm-recurrencia-campos').style.display=this.checked?'flex':'none'"> Se repite cada cierto tiempo (recurrente)
-      </label>
-      <div id="nm-recurrencia-campos" style="display:none;align-items:center;gap:8px;margin-bottom:8px;padding:8px;background:#eef4fb;border-radius:7px">
-        <span style="font-size:11px;font-weight:700;color:#1558a0">Cada</span>
-        <input id="nm-recur-cada" type="number" min="1" value="1" style="width:56px;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px">
-        <select id="nm-recur-unidad" style="padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px">
-          ${MANT_RECUR_UNIDADES.map(u=>`<option value="${u.key}"${u.key==='anos'?' selected':''}>${u.label}</option>`).join('')}
-        </select>
+    <div style="border:1.5px solid var(--border);border-radius:10px;padding:12px;background:#f8f9fa;margin-bottom:14px;max-width:600px">
+      <div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:10px">Elige el tipo de trabajo:</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px;margin-bottom:12px">
+        ${MANT_TRABAJOS_PREDETERMINADOS.map(t=>`
+          <button type="button" class="nm-trabajo-btn" data-trabajo="${t.id}" onclick="seleccionarTrabajoMant('${t.id}')" style="padding:12px;border-radius:8px;border:2px solid var(--border);background:#fff;cursor:pointer;font-size:12px;font-weight:700;display:flex;flex-direction:column;align-items:center;gap:4px;transition:all 200ms">
+            <span style="font-size:18px">${t.label.split(' ')[0]}</span>
+            <span style="font-size:11px;color:var(--muted)">${t.label.split(' ').slice(1).join(' ')}</span>
+          </button>
+        `).join('')}
+      </div>
+      <div id="nm-paso2" style="display:none">
+        <div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:10px">Asignar invernaderos:</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">
+          ${Object.keys(INV_LAYOUT_SALA1).map(id=>`<label style="font-size:11px;display:flex;align-items:center;gap:3px;background:#fff;border:1px solid #ddd;border-radius:5px;padding:3px 7px;cursor:pointer"><input type="checkbox" class="nm-inv-chk" value="${id}" data-sala="sala1"> ${id}</label>`).join('')}
+          ${Object.keys(INV_LAYOUT_SALA2).map(id=>`<label style="font-size:11px;display:flex;align-items:center;gap:3px;background:#fff;border:1px solid #ddd;border-radius:5px;padding:3px 7px;cursor:pointer"><input type="checkbox" class="nm-inv-chk" value="${id}" data-sala="sala2"> ${id}</label>`).join('')}
+        </div>
+        <label style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:5px;margin-bottom:8px">
+          <input type="checkbox" id="nm-prioridad"> Prioridad alta
+        </label>
+        <label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">Fecha programada (opcional)</label>
+        <input id="nm-fecha-programada" type="date" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px;margin-bottom:8px;box-sizing:border-box">
+        <label style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:5px;margin-bottom:8px;cursor:pointer">
+          <input type="checkbox" id="nm-recurrente" onchange="document.getElementById('nm-recurrencia-campos').style.display=this.checked?'flex':'none'"> Se repite cada cierto tiempo
+        </label>
+        <div id="nm-recurrencia-campos" style="display:none;align-items:center;gap:8px;margin-bottom:8px;padding:8px;background:#eef4fb;border-radius:7px">
+          <span style="font-size:11px;font-weight:700;color:#1558a0">Cada</span>
+          <input id="nm-recur-cada" type="number" min="1" value="1" style="width:56px;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px">
+          <select id="nm-recur-unidad" style="padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px">
+            ${MANT_RECUR_UNIDADES.map(u=>`<option value="${u.key}"${u.key==='anos'?' selected':''}>${u.label}</option>`).join('')}
+          </select>
+        </div>
       </div>
       <div style="display:flex;justify-content:flex-end;gap:8px">
         <button onclick="document.getElementById('nuevo-ticket-mant-wrap').innerHTML=''" style="padding:8px 14px;font-size:11px;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:7px;cursor:pointer">Cancelar</button>
-        <button onclick="crearTicketMantenimiento()" style="padding:8px 16px;font-size:11px;font-weight:800;background:#2e7d32;color:#fff;border:none;border-radius:7px;cursor:pointer">Crear</button>
+        <button id="nm-btn-crear" onclick="crearTicketMantenimientoConTrabajo()" disabled style="padding:8px 16px;font-size:11px;font-weight:800;background:#2e7d32;color:#fff;border:none;border-radius:7px;cursor:pointer;opacity:.5">Crear</button>
       </div>
     </div>`;
+}
+
+function seleccionarTrabajoMant(trabajoId){
+  nmTrabajoBulkSel = trabajoId;
+  document.querySelectorAll('.nm-trabajo-btn').forEach(btn=>{
+    const isSelected = btn.dataset.trabajo === trabajoId;
+    btn.style.borderColor = isSelected ? '#2e7d32' : 'var(--border)';
+    btn.style.backgroundColor = isSelected ? '#e8f5e9' : '#fff';
+  });
+  document.getElementById('nm-paso2').style.display = 'block';
+  document.getElementById('nm-btn-crear').disabled = false;
+  document.getElementById('nm-btn-crear').style.opacity = '1';
+}
+
+async function crearTicketMantenimientoConTrabajo(){
+  if(!nmTrabajoBulkSel){ showToast('Elige un tipo de trabajo'); return; }
+  const invSeleccionados = Array.from(document.querySelectorAll('.nm-inv-chk:checked')).map(c=>c.value);
+  if(!invSeleccionados.length){ showToast('Selecciona al menos un invernadero'); return; }
+
+  const trabajo = MANT_TRABAJOS_PREDETERMINADOS.find(t=>t.id===nmTrabajoBulkSel);
+  const titulo = trabajo.label;
+  const prioridad = document.getElementById('nm-prioridad')?.checked ? 'alta' : 'normal';
+  const fechaProgramada = document.getElementById('nm-fecha-programada')?.value || null;
+  const esRecurrente = document.getElementById('nm-recurrente')?.checked;
+
+  let recurrencia = null, proximaFecha = null;
+  if(esRecurrente){
+    const cada = parseInt(document.getElementById('nm-recur-cada')?.value) || 1;
+    const unidad = document.getElementById('nm-recur-unidad')?.value || 'anos';
+    recurrencia = {cada, unidad};
+    proximaFecha = calcularProximaFechaMant(cada, unidad);
+  }
+
+  await loadMantenimientoData();
+  invSeleccionados.forEach(invId=>{
+    mantenimientoData.push({
+      id: 'mant_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
+      titulo: `${titulo} (INV ${invId})`,
+      descripcion: '',
+      prioridad,
+      estado: 'sin_asignar',
+      asignados: [],
+      fechaProgramada,
+      asignadoPor: currentUser||'—',
+      visto: {},
+      creadoEn: new Date().toLocaleString('es-ES'),
+      recurrencia,
+      proximaFecha
+    });
+  });
+
+  await persistMantenimientoData();
+  logHistorial(`Creó ${invSeleccionados.length} ticket(s) de mantenimiento "${titulo.split(' (')[0]}"`);
+  showToast(`✓ ${invSeleccionados.length} ticket(s) creado(s)`);
+  renderTareasContent(document.getElementById('tareas-overlay'), true);
 }
 async function crearTicketMantenimiento(){
   const titulo = document.getElementById('nm-titulo')?.value?.trim();
