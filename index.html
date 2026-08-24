@@ -1982,6 +1982,9 @@ function renderTareasGestorFullScreen(overlay){
         <button onclick="generarTareasDesdeRiego()" title="Borra las tareas de peón pendientes/iniciadas y las reconstruye desde lo que hay escrito ahora mismo en Riego" style="padding:9px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid rgba(255,255,255,.4);background:transparent;color:#fff;display:flex;align-items:center;gap:7px;white-space:nowrap">
           <i class="ti ti-refresh" style="font-size:14px"></i> Generar tareas
         </button>
+        <button onclick="avanzarRiegoReganteDia()" title="Avanza las hojas de riego de los regantes al día siguiente" style="padding:9px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid rgba(255,255,255,.4);background:transparent;color:#fff;display:flex;align-items:center;gap:7px;white-space:nowrap">
+          <i class="ti ti-calendar-check" style="font-size:14px"></i> Generar hojas riego
+        </button>
         <button onclick="showImprimirTareasSelector(tareasData.filter(t=>USER_ROLES[t.asignadoA]==='PEON' && !esTareaDeAyer(t) && t.estado!=='completada'))" style="padding:9px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid rgba(255,255,255,.4);background:transparent;color:#fff;display:flex;align-items:center;gap:7px;white-space:nowrap">
           <i class="ti ti-printer" style="font-size:14px"></i> Imprimir tareas de peones
         </button>
@@ -8594,6 +8597,28 @@ const RIEGO_HIGHLIGHT_POS = {
   7: {bg:'#ccf0d8', label:'#1b5e20'}, // Lunes (semana 2)
 };
 let riegoQuincenaOffset = 0;
+let riegoReganteDiaActual = null; // Día que ven los REGANTES en "Hojas de riego" — localStorage
+
+function riegoReganteDiaCargar(){
+  if(!riegoReganteDiaActual){
+    const clave = 'riego-regante-dia-'+currentUser;
+    const valor = localStorage.getItem(clave);
+    if(valor) riegoReganteDiaActual = parseInt(valor);
+  }
+  return riegoReganteDiaActual || riegoDiaHoy();
+}
+function riegoReganteDiaGuardar(dia){
+  riegoReganteDiaActual = dia;
+  const clave = 'riego-regante-dia-'+currentUser;
+  localStorage.setItem(clave, dia);
+}
+function avanzarRiegoReganteDia(){
+  const hoy = riegoReganteDiaCargar();
+  const siguiente = hoy + 1;
+  riegoReganteDiaGuardar(siguiente);
+  showToast('✅ Hojas de riego avanzadas al día siguiente.');
+  if(document.getElementById('riego-overlay')) renderRiegoGrid(riegoInvSel);
+}
 
 function riegoDiaToDate(dia){
   const d = new Date(RIEGO_ANCHOR_DATE);
@@ -9315,6 +9340,10 @@ function selectRiegoInv(invId, btn){
 // con navegación entre quincenas y colores), pero en modo de solo lectura
 // — sin inputs, sin botón de guardar, sin dictado por voz ni alta manual.
 function showHojasRiego(){
+  // Inicializar el día del REGANTE la primera vez
+  if(!localStorage.getItem('riego-regante-dia-'+currentUser)){
+    riegoReganteDiaGuardar(riegoDiaHoy());
+  }
   showRiegoModule(true);
 }
 
@@ -9367,14 +9396,25 @@ function esPantallaMovil(){
 // cabe en una línea, se usa el textarea de 2/3 líneas de siempre, con el
 // mismo cálculo aplicado sobre el ancho de 2 líneas de texto. Comparten
 // esta función Riego/Fito/Específicos (mismo criterio en los tres).
-function calcularFontSizeCeldaGrid(spanW, texto){
-  const FONT_MIN = 8, CHAR_W = 0.58;
-  // Aumentar FONT_MAX basándose en el ancho del tramo (más ancho = letra más grande)
-  // Si el tramo ocupa solo 1 celda (~46px), FONT_MAX=9; si ocupa 2+ (~92px+), FONT_MAX=13-15
-  let FONT_MAX = 9;
-  if(spanW > 90) FONT_MAX = 15;      // 2+ calles → 15px
-  else if(spanW > 70) FONT_MAX = 13; // ~1.5 calles → 13px
-  else if(spanW > 50) FONT_MAX = 11; // ~1 calle → 11px
+function calcularFontSizeCeldaGrid(spanW, texto, esRegante){
+  const CHAR_W = 0.58;
+  let FONT_MIN = 8, FONT_MAX = 9;
+
+  // Para REGANTE: fuentes mucho más grandes (20-50px)
+  if(esRegante){
+    FONT_MIN = 18;
+    FONT_MAX = 50;
+    // Con ancho de CW=90 para REGANTE, solo pequeños ajustes
+    if(spanW > 300) FONT_MAX = 50;
+    else if(spanW > 200) FONT_MAX = 40;
+    else if(spanW > 150) FONT_MAX = 32;
+    else FONT_MAX = 24;
+  } else {
+    // Original: aumentar FONT_MAX basándose en el ancho del tramo
+    if(spanW > 90) FONT_MAX = 15;      // 2+ calles → 15px
+    else if(spanW > 70) FONT_MAX = 13; // ~1.5 calles → 13px
+    else if(spanW > 50) FONT_MAX = 11; // ~1 calle → 11px
+  }
 
   const availW = spanW - 16;
   const trimmedLen = texto.trim().length;
@@ -9395,21 +9435,39 @@ function renderRiegoGrid(invId){
   const layout = INV_LAYOUT[invId];
   if(!layout){ wrap.innerHTML='<p style="padding:2rem;color:#888">Sin datos.</p>'; return; }
 
-  const CW = 46;   // cell width px
-  const DH = esPantallaMovil() ? 38 : 28;   // día más alto solo en móvil, para que no se corte el contenido
-  const DAY_W = 48; // day label column width (cabe "29 jun")
-  const SEM_W = 66; // weekday label column width
-  const HDR_H = 28; // header height
-  const diasQ = riegoQuincenaDias(riegoQuincenaOffset);
+  // REGANTE solo ve el día actual con fuentes mucho más grandes
+  const esReganteSoloLectura = riegoSoloLectura && currentUserRole === 'REGANTE';
+  const diaRegante = esReganteSoloLectura ? riegoReganteDiaCargar() : null;
+
+  let CW = 46;   // cell width px
+  let DH = esPantallaMovil() ? 38 : 28;   // día más alto solo en móvil, para que no se corte el contenido
+  const DAY_W = esReganteSoloLectura ? 120 : 48; // day label column wider para REGANTE
+  const SEM_W = esReganteSoloLectura ? 100 : 66; // weekday label column wider para REGANTE
+  let HDR_H = esReganteSoloLectura ? 40 : 28; // header height
+
+  // Para REGANTE: aumentar todo
+  if(esReganteSoloLectura){
+    CW = 90;   // mucho más ancho por calle
+    DH = 70;   // muchísimo más alto
+  }
+
+  let diasQ = riegoQuincenaDias(riegoQuincenaOffset);
+  // REGANTE solo ve el día actual
+  if(esReganteSoloLectura && diaRegante){
+    diasQ = diasQ.filter(d => d === diaRegante);
+  }
 
   function buildSection(calles, secLabel){
     const nCols = calles.length;
 
     // Build header row: day col + calle numbers + weekday col
+    const hdrFontSize = esReganteSoloLectura ? '24px' : '11px';
+    const hdrDayFontSize = esReganteSoloLectura ? '16px' : '10px';
+    const hdrWeekdayFontSize = esReganteSoloLectura ? '20px' : '9px';
     let hdrHTML = `<tr style="background:#dce8f5;position:sticky;top:0;z-index:10">
-      <td style="width:${DAY_W}px;min-width:${DAY_W}px;height:${HDR_H}px;border:1px solid #9ab8d8;text-align:center;font-size:10px;font-weight:700;color:#1558a0;background:#dce8f5;position:sticky;left:0;z-index:11"></td>
-      ${calles.map(c=>`<td style="height:${HDR_H}px;border:1px solid #9ab8d8;text-align:center;font-size:11px;font-weight:800;color:#1a1e18;padding:0">${c}</td>`).join('')}
-      <td style="width:${SEM_W}px;min-width:${SEM_W}px;height:${HDR_H}px;border:1px solid #9ab8d8;text-align:center;font-size:9px;font-weight:700;color:#1558a0;background:#dce8f5">D&#237;a semana</td>
+      <td style="width:${DAY_W}px;min-width:${DAY_W}px;height:${HDR_H}px;border:1px solid #9ab8d8;text-align:center;font-size:${hdrDayFontSize};font-weight:700;color:#1558a0;background:#dce8f5;position:sticky;left:0;z-index:11"></td>
+      ${calles.map(c=>`<td style="height:${HDR_H}px;border:1px solid #9ab8d8;text-align:center;font-size:${hdrFontSize};font-weight:800;color:#1a1e18;padding:0">${c}</td>`).join('')}
+      <td style="width:${SEM_W}px;min-width:${SEM_W}px;height:${HDR_H}px;border:1px solid #9ab8d8;text-align:center;font-size:${hdrWeekdayFontSize};font-weight:700;color:#1558a0;background:#dce8f5">D&#237;a semana</td>
     </tr>`;
 
     // Build day rows
@@ -9422,7 +9480,8 @@ function renderRiegoGrid(invId){
       const weekdayBg = highlight ? highlight.bg : null;
       const dayBg = weekdayBg || '#dce8f5';
       const dayColor = highlight ? highlight.label : '#1a1e18';
-      let dayLabelStyle = `width:${DAY_W}px;min-width:${DAY_W}px;height:${DH}px;border:1px solid #9ab8d8;text-align:center;font-size:10px;font-weight:800;color:${dayColor};background:${dayBg};position:sticky;left:0;z-index:5;padding:0;white-space:nowrap`;
+      const dayLabelFontSize = esReganteSoloLectura ? '20px' : '10px';
+      let dayLabelStyle = `width:${DAY_W}px;min-width:${DAY_W}px;height:${DH}px;border:1px solid #9ab8d8;text-align:center;font-size:${dayLabelFontSize};font-weight:800;color:${dayColor};background:${dayBg};position:sticky;left:0;z-index:5;padding:0;white-space:nowrap`;
       // Pulsar la etiqueta del día abre el alta manual con ese día ya
       // puesto — no en "Hojas de riego" (solo consulta) ni en días ya
       // pasados (bloqueados para todos menos Vigueras).
@@ -9447,7 +9506,7 @@ function renderRiegoGrid(invId){
           // vez de quedar oculto/cortado como antes.
           const spanW = br.span * CW;
           const trimmedLen = br.text.trim().length;
-          const { fontSize: fontSizeUnaLinea, fitsOneLine, fontSizeMultilinea } = calcularFontSizeCeldaGrid(spanW, br.text);
+          const { fontSize: fontSizeUnaLinea, fitsOneLine, fontSizeMultilinea } = calcularFontSizeCeldaGrid(spanW, br.text, esReganteSoloLectura);
 
           // Quién lo marcó decide el color y si se puede tocar: cada uno
           // edita lo suyo; un TÉCNICO no puede tocar lo de otra persona.
@@ -9546,8 +9605,9 @@ function renderRiegoGrid(invId){
             // (agua/abono/"?") cuyo horario sea PROGRAMADO, no toda la celda.
             const textoResaltado = resaltarProgramadoHTML(br.text);
             const colorCelda = colorTextoRiego || '#3a3a1a';
+            const readOnlyFontSize = esReganteSoloLectura ? `${fontSizeUnaLinea}px` : '9px';
             cells += `<td colspan="${br.span}" style="border:1px solid #9ab8d8;padding:2px 4px;position:relative;background:${bgBase};vertical-align:middle">
-              <div style="font-size:9px;font-weight:700;color:${colorCelda};white-space:normal;word-break:break-word;line-height:1.2;text-align:center">[${textoResaltado}]</div>
+              <div style="font-size:${readOnlyFontSize};font-weight:700;color:${colorCelda};white-space:normal;word-break:break-word;line-height:1.2;text-align:center">[${textoResaltado}]</div>
             </td>`;
           } else if(fitsOneLine && contieneProgramado(br.text)){
             // A petición de Paula (2026-07-31): la línea roja de PROGRAMADO
@@ -10147,7 +10207,7 @@ function renderFitoGrid(invId){
           // vez de quedar cortado dentro de un input de una sola línea.
           const spanW = br.span * CW;
           const trimmedLen = br.text.trim().length;
-          const { fontSize: fontSizeUnaLinea, fitsOneLine, fontSizeMultilinea } = calcularFontSizeCeldaGrid(spanW, br.text);
+          const { fontSize: fontSizeUnaLinea, fitsOneLine, fontSizeMultilinea } = calcularFontSizeCeldaGrid(spanW, br.text, esReganteSoloLectura);
           if(fitsOneLine){
             cells+=`<td colspan="${br.span}" style="height:${DH}px;border:1px solid #e8b0b0;padding:0;background:${bgTratamiento}">
               <div style="display:flex;align-items:center;height:100%;padding:0 2px">
@@ -14022,7 +14082,7 @@ function renderEspecificosGrid(invId){
           // quedar cortado como con un input de una sola línea.
           const spanW = br.span * CW;
           const trimmedLen = br.text.trim().length;
-          const { fontSize: fontSizeUnaLinea, fitsOneLine, fontSizeMultilinea } = calcularFontSizeCeldaGrid(spanW, br.text);
+          const { fontSize: fontSizeUnaLinea, fitsOneLine, fontSizeMultilinea } = calcularFontSizeCeldaGrid(spanW, br.text, esReganteSoloLectura);
           const bgBracket = colorFondoEspecificoPorTexto(br.text);
           if(fitsOneLine){
             cells+=`<td colspan="${br.span}" style="height:${DH}px;border:1px solid #a5d6a7;padding:0;background:${bgBracket}">
