@@ -9741,14 +9741,15 @@ function renderRiegoGrid(invId){
         }
       }
 
-      const semanaFontColor = semana==='Domingo' ? '#e53935' : '#1a1e18';
       const dayLabelContent = esReganteSoloLectura
         ? `${riegoDiaLabelCorto(dia)}<br><span style="font-size:${esMovil?'8px':'12px'};font-weight:600;opacity:.8">${semana}</span>`
         : riegoDiaLabelCorto(dia);
+      const semanaFontColor = semana==='Domingo' ? '#e53935' : '#1a1e18';
+      const mostrarSemana = !esReganteSoloLectura;  // Solo mostrar columna semana si NO es REGANTE
       return `<tr>
         <td ${dayLabelAttrs}>${dayLabelContent}</td>
         ${cells}
-        <td style="width:${SEM_W}px;min-width:${SEM_W}px;height:${DH}px;border:1px solid #9ab8d8;text-align:center;font-size:10px;font-weight:700;color:${semanaFontColor};background:${weekdayBg||'#fff'}">${semana}</td>
+        ${mostrarSemana ? `<td style="width:${SEM_W}px;min-width:${SEM_W}px;height:${DH}px;border:1px solid #9ab8d8;text-align:center;font-size:10px;font-weight:700;color:${semanaFontColor};background:${weekdayBg||'#fff'}">${semana}</td>` : ''}
       </tr>`;
     }).join('');
 
