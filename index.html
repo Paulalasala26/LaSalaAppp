@@ -7171,7 +7171,6 @@ async function recuperarPartidaPorId(){
 // (fecha+descripción+personas), igual que Trabajos.
 // ════════════════════════════════════════════════════════════════
 const CLIMA_TIPOS_GRID = [
-  {key:'pantallas', label:'Pantallas', icon:'ti-curtains', color:'linear-gradient(135deg,#0e7490,#22b8cf)'},
   {key:'fog', label:'Fog', icon:'ti-droplet', color:'linear-gradient(135deg,#5c8df0,#7b5cf0)'},
   {key:'cooling', label:'Cooling', icon:'ti-snowflake', color:'linear-gradient(135deg,#1a5c2e,#3fa864)'}
 ];
@@ -7343,7 +7342,7 @@ async function guardarClimaConLimpieza(tipo, invId, dia, callesALimpiar){
     await window.storage.set(CLIMA_KEY, JSON.stringify(cloud));
   }catch(e){}
 }
-let climaSeccion = null; // null=resumen | 'pantallas'|'fog'|'cooling'|'cuadroSala1'|'cuadroSala2'
+let climaSeccion = null; // null=resumen | 'fog'|'cooling'|'cuadroSala1'|'cuadroSala2'|'pantallasLive'
 let climaGridInvSel = null; // invernadero elegido dentro de un tipo con cuadrícula
 let climaQuincenaOffset = 0;
 let climaEditContextoOriginal = null; // {tipo,invId,dia,calles} — al editar una celda ya marcada
@@ -7367,7 +7366,6 @@ function selectClimaGridInv(tipo, invId){
   marcarPresenciaInvernadero(tipo, invId);
   renderClimaContent(document.getElementById('clima-overlay'));
 }
-function selectPantallasInv(invId){ selectClimaGridInv('pantallas', invId); }
 function selectFogInv(invId){ selectClimaGridInv('fog', invId); }
 function selectCoolingInv(invId){ selectClimaGridInv('cooling', invId); }
 function renderClimaContent(overlay){
@@ -8734,10 +8732,9 @@ const DASHBOARD_MODULOS = {
   fito: { getter: (invId,dia,c)=>getFito(invId,dia,c), selectFn: 'selectFitoInv' },
   especifico: { getter: (invId,dia,c)=>getEspecifico(invId,dia,c), selectFn: 'selectEspecificoInv' }
 };
-// Se reutiliza el mismo dashboard de miniaturas de invernadero para las 3
-// cuadrículas de Clima (Pantallas/Fog/Cooling) — mismo semáforo hoy/parcial=
+// Se reutiliza el mismo dashboard de miniaturas de invernadero para las 2
+// cuadrículas de Clima (Fog/Cooling) — mismo semáforo hoy/parcial=
 // verde que Plaguicidas/Específicos (ver módulo CLIMA más abajo en el archivo).
-DASHBOARD_MODULOS.pantallas = { getter: (invId,dia,c)=>getClima('pantallas',invId,dia,c), selectFn: 'selectPantallasInv' };
 DASHBOARD_MODULOS.fog = { getter: (invId,dia,c)=>getClima('fog',invId,dia,c), selectFn: 'selectFogInv' };
 DASHBOARD_MODULOS.cooling = { getter: (invId,dia,c)=>getClima('cooling',invId,dia,c), selectFn: 'selectCoolingInv' };
 // Presencia: "alguien está ahora mismo dentro de este invernadero" para el
