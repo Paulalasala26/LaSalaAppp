@@ -12627,7 +12627,6 @@ function showEspecificosReganteModule(){
 
       return Object.entries(grupos).map(([key, grupo]) => {
         const primerTarea = grupo[0];
-        // Las tareas específicas guardan fecha (ej: "25 ago") y fechaISO (ej: "2026-08-25")
         const fechaStr = String(primerTarea.fecha || '');
         const fechaLabel = fechaStr ? fechaStr.toUpperCase() : 'HOY';
         let diaLabel = '';
@@ -12639,17 +12638,29 @@ function showEspecificosReganteModule(){
           }
         } catch(e) { console.error('Error calculando día:', e); }
         const producto = escapar(primerTarea.titulo || '');
+        const horario = primerTarea.horario ? escapar(primerTarea.horario) : '';
+        const caldo = primerTarea.caldoLabel ? escapar(primerTarea.caldoLabel) : '';
+        const gasto = primerTarea.gastoLabel ? escapar(primerTarea.gastoLabel) : '';
 
         return `<div style="background:#fff;border-radius:12px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,.1);border:1.5px solid #ddd;margin-bottom:16px">
-          <div style="text-align:center;font-size:18px;font-weight:900;color:#000;margin-bottom:12px;text-transform:uppercase">Específicos</div>
-          <div style="font-size:11px;font-weight:800;color:#000;margin-bottom:8px">FECHA: ${diaLabel} ${fechaLabel}</div>
-          <div style="font-size:11px;font-weight:800;color:#000;margin-bottom:8px">PRODUCTO Y DOSIS: ${producto}</div>
-          ${grupo.map(t => `<div style="border:1.5px solid #1558a0;border-radius:8px;padding:12px;margin-bottom:8px;background:#f9fafb">
-            <div style="font-size:12px;font-weight:800;color:#1558a0;margin-bottom:6px">INV ${escapar(t.inv || '—')}</div>
-            <div style="font-size:11px;color:#000;margin-bottom:4px;font-weight:600">CALLES: ${escapar(t.calles || t.callesLabel || '—')}</div>
-            ${t.descripcion || t.observaciones ? `<div style="font-size:11px;color:#666;margin-bottom:4px">Observaciones: ${escapar(t.descripcion || t.observaciones || '')}</div>` : ''}
-            <div style="font-size:10px;font-weight:800;color:#2e7d32;background:#e8f5e9;padding:4px 8px;border-radius:4px;display:inline-block">PASE NORMAL • MONTONES</div>
-          </div>`).join('')}
+          <div style="text-align:center;font-size:18px;font-weight:900;color:#000;margin-bottom:14px;text-transform:uppercase">Específicos</div>
+          <div style="font-size:12px;font-weight:800;color:#000;margin-bottom:6px">FECHA: ${diaLabel} ${fechaLabel}</div>
+          <div style="font-size:12px;font-weight:800;color:#000;margin-bottom:6px">PRODUCTO Y DOSIS: ${producto}</div>
+          ${caldo ? `<div style="font-size:12px;font-weight:800;color:#000;margin-bottom:6px">CALDO INICIAL: ${caldo}</div>` : ''}
+          ${gasto ? `<div style="font-size:12px;font-weight:800;color:#000;margin-bottom:6px">GASTO: ${gasto}</div>` : ''}
+          ${horario ? `<div style="font-size:14px;font-weight:900;color:#c62828;text-align:center;border:2px solid #c62828;border-radius:8px;padding:6px 12px;margin-bottom:12px">${horario}</div>` : ''}
+          <div style="display:flex;flex-direction:column;gap:8px">
+          ${grupo.map(t => {
+            const tipo = t.titulo ? (t.titulo.includes('+')?t.titulo.split('+')[t.titulo.split('+').length-1].trim():'') : '';
+            const obs = t.descripcion || t.observaciones || '';
+            return `<div style="border:1.5px solid #1558a0;border-radius:8px;padding:12px;background:#f9fafb">
+              <div style="font-size:13px;font-weight:800;color:#1558a0;margin-bottom:6px">INV ${escapar(t.inv || '—')}</div>
+              <div style="font-size:12px;color:#000;margin-bottom:4px;font-weight:600">CALLES: ${escapar(t.calles || t.callesLabel || '—')}</div>
+              ${tipo ? `<div style="font-size:11px;color:#2e7d32;background:#e8f5e9;padding:4px 8px;border-radius:4px;display:inline-block;margin-bottom:4px;font-weight:700">${escapar(tipo)}</div>` : ''}
+              ${obs ? `<div style="font-size:11px;color:#666;margin-top:4px"><b>Observaciones:</b> ${escapar(obs)}</div>` : ''}
+            </div>`;
+          }).join('')}
+          </div>
         </div>`;
       }).join('');
     };
