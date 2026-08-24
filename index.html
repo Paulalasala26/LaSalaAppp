@@ -9575,7 +9575,30 @@ function renderRiegoGrid(invId){
           // estar marcado. Al revisarlo (Sí/No de Vigueras, o si Vigueras
           // corrige directamente lo de otro) el color especial desaparece
           // solo, y ya no queda ningún fondo añadido.
-          const bgBase = weekdayBg || colorEspecial || '#fff';
+          // Buscar color pastel del Índice Abonos (para REGANTE en hojas de riego)
+          let bgPasstel = null;
+          if(riegoSoloLectura && indiceAbonosEstadoData){
+            // Buscar en todas las claves del índice que coincidan con este día+inv
+            const prefijoClave = `${dia}||${invId}||`;
+            for(const clave in indiceAbonosEstadoData){
+              if(clave.startsWith(prefijoClave)){
+                // Extraer el texto de la clave
+                const partes = clave.split('||');
+                const textoEnClave = partes[2] || '';
+                // Ver si este texto está contenido en br.text (br.text puede tener hora al final)
+                if(br.text && br.text.includes(textoEnClave)){
+                  const estadoAbono = indiceAbonosEstadoData[clave];
+                  if(estadoAbono){
+                    if(estadoAbono.preparado) bgPasstel = '#D4E6F1';  // Azul pastel
+                    else if(estadoAbono.programado) bgPasstel = '#F5B7B1'; // Rojo pastel
+                    else if(estadoAbono.revisado) bgPasstel = '#D5F5E3';  // Verde pastel
+                  }
+                  break;
+                }
+              }
+            }
+          }
+          const bgBase = bgPasstel || weekdayBg || colorEspecial || '#fff';
           // Editar lo de otra persona cambia el dueño a quien edita — en ese
           // caso conviene refrescar la cuadrícula al momento para que se vea
           // el cambio de color/dueño. Editando lo propio se mantiene el
