@@ -12440,24 +12440,28 @@ function renderSalaEnVivoInvCard(invId){
   const injerto = injertoAsignacionData[claveInjerto(hoy, invId)];
   const peones = tareasPeonActivasInv(invId);
   const regante = reganteQueMarcoInv(invId, hoy);
-  const lineasHTML = [
-    riegos.length ? { key:'riego', html: riegos.map(r=>`${escapar(r.texto)} · ${escapar(r.horaInicio)}${r.horaFin?' – '+escapar(r.horaFin):' (en curso)'}`).join('<br>') } : null,
-    cargando ? { key:'carga', html: 'Hay hombres cargando' } : null,
-    injerto ? { key:'injerto', html: `Mujeres injertando · ${escapar(injerto.horaInicio)}${injerto.horaFinPrevista?' – '+escapar(injerto.horaFinPrevista)+' (previsto)':''}` } : null,
-    peones.length ? { key:'peones', html: peones.map(t=>`${escapar(nombreLegibleUsuario(t.asignadoA))} — ${escapar(t.titulo)}`).join('<br>') } : null,
-    (riegos.length && regante) ? { key:'regantes', html: `${escapar(nombreLegibleUsuario(regante))} — ${riegos.map(r=>`${escapar(r.texto)} (${escapar(r.horaInicio)}${r.horaFin?'–'+escapar(r.horaFin):''})`).join(', ')}` } : null
-  ].filter(Boolean);
-  const filasHTML = lineasHTML.map(({key,html})=>{
-    const def = SALA_EN_VIVO_LINEAS.find(l=>l.key===key);
-    return `<div style="display:flex;gap:8px;padding:7px 8px;border-radius:8px;background:${def.bg};margin-bottom:6px">
-      <div style="width:74px;flex-shrink:0;font-size:10px;font-weight:800;color:#fff;background:${def.color};border-radius:999px;padding:2px 8px;text-align:center;height:fit-content">${escapar(def.label)}</div>
-      <div style="font-size:12px;color:var(--text);font-weight:600">${html}</div>
+  // A petición de Paula (2026-08-19): "siempre debe de salir todos los
+  // apartados en cada invernadero aunque no tenga actividad" — las 5 líneas
+  // salen siempre, con un guion gris cuando no hay nada que contar (en vez
+  // de desaparecer del todo como antes).
+  const contenidos = {
+    riego: riegos.length ? riegos.map(r=>`${escapar(r.texto)} · ${escapar(r.horaInicio)}${r.horaFin?' – '+escapar(r.horaFin):' (en curso)'}`).join('<br>') : null,
+    carga: cargando ? 'Hay hombres cargando' : null,
+    injerto: injerto ? `Mujeres injertando · ${escapar(injerto.horaInicio)}${injerto.horaFinPrevista?' – '+escapar(injerto.horaFinPrevista)+' (previsto)':''}` : null,
+    peones: peones.length ? peones.map(t=>`${escapar(nombreLegibleUsuario(t.asignadoA))} — ${escapar(t.titulo)}`).join('<br>') : null,
+    regantes: (riegos.length && regante) ? `${escapar(nombreLegibleUsuario(regante))} — ${riegos.map(r=>`${escapar(r.texto)} (${escapar(r.horaInicio)}${r.horaFin?'–'+escapar(r.horaFin):''})`).join(', ')}` : null
+  };
+  const filasHTML = SALA_EN_VIVO_LINEAS.map(def=>{
+    const html = contenidos[def.key];
+    return `<div style="display:flex;gap:8px;padding:7px 8px;border-radius:8px;background:${html?def.bg:'#f7f8f6'};margin-bottom:6px">
+      <div style="width:74px;flex-shrink:0;font-size:10px;font-weight:800;color:#fff;background:${html?def.color:'#c0c4bc'};border-radius:999px;padding:2px 8px;text-align:center;height:fit-content">${escapar(def.label)}</div>
+      <div style="font-size:12px;color:${html?'var(--text)':'var(--muted)'};font-weight:${html?600:400};font-style:${html?'normal':'italic'}">${html || '—'}</div>
     </div>`;
   }).join('');
   return `
     <div style="background:#fff;border-radius:12px;padding:12px 14px;box-shadow:var(--shadow-sm);border:1.5px solid var(--border)">
       <div style="font-size:14px;font-weight:800;color:var(--text);margin-bottom:8px">INV ${escapar(invId)}</div>
-      ${filasHTML || `<div style="font-size:12px;color:var(--muted);font-style:italic;padding:6px 2px">Sin actividad ahora mismo.</div>`}
+      ${filasHTML}
     </div>`;
 }
 function renderSalaEnVivoContent(overlay){
