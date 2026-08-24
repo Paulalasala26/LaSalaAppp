@@ -2714,45 +2714,133 @@ function buildTareaCardPeonCompletada(t){
 async function renderPeonTareasInline(){
   const gen = ++tareasInlineGen;
   await loadTareasData();
-  if(gen !== tareasInlineGen) return; // una llamada más reciente ya se está encargando de pintar
+  if(gen !== tareasInlineGen) return;
   await avisarNuevasTareas(currentUser);
   if(gen !== tareasInlineGen) return;
   const container = document.getElementById('peon-tareas-inline');
   if(!container) return;
+
   const todasMias = tareasData.filter(t=>t.asignadoA===currentUser && !esTareaDeAyer(t));
   const { activas, completadas } = splitTareasPorEstado(todasMias);
-  // Ordenadas por horario y de una en una — hasta completar y firmar la
-  // actual no aparece la siguiente (a petición de Paula). Las fumigaciones a
-  // Pistola (categoria:'fumigacion') aparecen en cuanto se generan, sin
-  // esperar a acercarse al horario (a petición de Paula, 2026-07-29).
-  const activasOrdenadas = ordenarTareasPorHorario(activas), completadasRev = ordenarTareasCompletadas(completadas);
+  const activasOrdenadas = ordenarTareasPorHorario(activas);
+  const completadasRev = ordenarTareasCompletadas(completadas);
+
   tareasImprimirMias = activasOrdenadas;
   const actual = activasOrdenadas[0];
-  // En cuanto vuelve a haber una tarea de riego activa, se sale de la vista
-  // de mantenimiento (para que la próxima vez que se termine, se vuelva a
-  // preguntar con el botón "Continuar").
+
   if(actual) peonVistaMantenimiento = false;
   if(!actual && peonVistaMantenimiento) await loadMantenimientoData();
-  const bloqueSinActiva = !peonVistaMantenimiento ? `
-    <div style="text-align:center;padding:2.5rem 1.25rem;background:#fff;border-radius:20px;border:1.5px solid var(--verde-border)">
-      <div style="font-size:44px;margin-bottom:10px">🌱</div>
-      <div style="font-size:19px;font-weight:800;color:var(--verde);margin-bottom:18px;line-height:1.35">Has terminado todas las tareas de riego.<br>Continúa con las tareas de mantenimiento.</div>
-      <button onclick="continuarConMantenimientoPeon()" style="padding:16px 36px;font-size:17px;font-weight:800;background:var(--grad-verde);color:#fff;border:none;border-radius:14px;cursor:pointer;min-height:56px">Continuar →</button>
-    </div>` : renderMantenimientoPeonHTML();
-  container.innerHTML = todasMias.length===0
-    ? `<div style="text-align:center;padding:3rem 1.25rem;background:#fff;border-radius:20px;border:1.5px solid var(--border)"><div style="font-size:40px;margin-bottom:8px">📭</div><div style="font-size:16px;color:var(--muted);font-style:italic">No tienes tareas asignadas.</div></div>`
-    : `<div style="display:flex;flex-direction:column;gap:14px;max-width:520px;margin:0 auto">
-        ${activasOrdenadas.length ? `<button onclick="showImprimirTareasSelector(tareasImprimirMias)" style="align-self:flex-end;padding:10px 16px;font-size:13px;font-weight:700;background:#f2f4f0;color:var(--verde);border:1.5px solid var(--verde-border);border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:6px"><i class="ti ti-printer" style="font-size:16px"></i> Imprimir</button>` : ''}
-        ${actual ? buildTareaCardPeonActiva(actual) : bloqueSinActiva}
-        ${completadasRev.length ? `<div style="font-size:13px;font-weight:800;color:var(--verde);text-transform:uppercase;letter-spacing:.04em;margin-top:8px">✓ Completadas hoy</div>` : ''}
-        ${completadasRev.map(t=>buildTareaCardPeonCompletada(t)).join('')}
-      </div>`;
+
+  if(todasMias.length === 0){
+    container.innerHTML = `<div style="text-align:center;padding:3rem 1.25rem;background:#fff;border-radius:20px;border:1.5px solid var(--border)"><div style="font-size:40px;margin-bottom:8px">📭</div><div style="font-size:16px;color:var(--muted);font-style:italic">No tienes tareas asignadas.</div></div>`;
+    return;
+  }
+
+  // Dashboard Factorial: tarjeta actual grande, próximas difuminadas
+  const tareaActualHTML = actual ? buildTareaCardPeonFactorial(actual) : '';
+  const tarjasProximas = activasOrdenadas.slice(1).map((t, idx) => `
+    <div style="opacity:0.5;pointer-events:none;position:relative">
+      ${buildTareaCardPeonFactorial(t)}
+      <div style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(255,255,255,0.3);border-radius:inherit;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#999">Completa la anterior</div>
+    </div>
+  `).join('');
+
+  const completadasHTML = completadasRev.length ? `
+    <div style="margin-top:24px">
+      <div style="font-size:13px;font-weight:800;color:#2e7d32;text-transform:uppercase;letter-spacing:.04em;margin-bottom:12px;display:flex;align-items:center;gap:8px">
+        <i class="ti ti-check-circle" style="font-size:18px"></i> Completadas hoy
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        ${completadasRev.map(t => buildTareaCardPeonCompletada(t)).join('')}
+      </div>
+    </div>
+  ` : '';
+
+  const sinTareasActuales = !actual && !peonVistaMantenimiento ? `
+    <div style="text-align:center;padding:2.5rem 1.25rem;background:linear-gradient(135deg,#e8f5e9,#f0f8f0);border-radius:20px;border:2px solid #2e7d32">
+      <div style="font-size:48px;margin-bottom:12px">🌱</div>
+      <div style="font-size:18px;font-weight:800;color:#2e7d32;margin-bottom:14px;line-height:1.4">¡Excelente trabajo!</div>
+      <div style="font-size:14px;color:#555;margin-bottom:18px">Terminaste todas las tareas de riego. Continúa con las tareas de mantenimiento.</div>
+      <button onclick="continuarConMantenimientoPeon()" style="padding:14px 28px;font-size:15px;font-weight:800;background:linear-gradient(135deg,#2e7d32,#1b5e20);color:#fff;border:none;border-radius:12px;cursor:pointer;min-height:48px;display:inline-flex;align-items:center;gap:8px"><i class="ti ti-arrow-right" style="font-size:16px"></i> Continuar</button>
+    </div>
+  ` : (peonVistaMantenimiento ? renderMantenimientoPeonHTML() : '');
+
+  container.innerHTML = `
+    <div style="max-width:520px;margin:0 auto">
+      ${activasOrdenadas.length ? `<button onclick="showImprimirTareasSelector(tareasImprimirMias)" style="align-self:flex-end;padding:10px 16px;font-size:13px;font-weight:700;background:#f2f4f0;color:#1558a0;border:1.5px solid #1558a0;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:6px;margin-bottom:16px"><i class="ti ti-printer" style="font-size:16px"></i> Imprimir tareas</button>` : ''}
+      <div style="display:flex;flex-direction:column;gap:16px">
+        ${tareaActualHTML}
+        ${tarjasProximas}
+        ${completadasHTML}
+        ${sinTareasActuales}
+      </div>
+    </div>
+  `;
+
   if(actual && actual.categoria==='fumigacion' && actual.estado==='iniciada'){
     iniciarTimerFumigacion(actual.id, actual.horaInicioTs);
   } else if(fumigacionTimerInterval){
     clearInterval(fumigacionTimerInterval);
     fumigacionTimerInterval = null;
   }
+}
+
+function buildTareaCardPeonFactorial(t){
+  const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const subtitulo = escapar(invCallesLabelDeTarea(t));
+
+  // Colores según categoría
+  let colorBg = '#e8f0fb', colorBorde = '#1558a0', colorIcon = '#1558a0';
+  if(t.categoria==='fumigacion') {
+    colorBg = '#fdf0f0'; colorBorde = '#a32020'; colorIcon = '#a32020';
+  } else if(t.categoria==='trabajo') {
+    colorBg = '#f3e5f5'; colorBorde = '#7b5cf0'; colorIcon = '#7b5cf0';
+  }
+
+  const estadoColor = t.estado==='completada' ? '#2e7d32' : (t.estado==='iniciada' ? colorIcon : '#f57f17');
+  const estadoBg = t.estado==='completada' ? '#e8f5e9' : (t.estado==='iniciada' ? colorBg : '#fff8e1');
+
+  const icon = t.categoria==='fumigacion' ? '🧬' : (t.categoria==='trabajo' ? '🔧' : '💧');
+
+  return `<div style="background:#fff;border:2px solid ${colorBorde};border-radius:16px;padding:20px;box-shadow:0 4px 12px rgba(0,0,0,0.08);position:relative;overflow:hidden">
+    <div style="position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,${colorBorde},${colorIcon})"></div>
+
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px">
+      <div style="font-size:28px">${icon}</div>
+      <span style="font-size:11px;font-weight:700;padding:5px 12px;border-radius:20px;background:${estadoBg};color:${estadoColor};white-space:nowrap;text-transform:uppercase">${estadoTareaLabel(t.estado)}</span>
+    </div>
+
+    <div style="font-size:18px;font-weight:800;color:#000;margin-bottom:6px;line-height:1.3">${escapar(t.titulo)}${t.fecha?' — '+escapar(t.fecha):''}</div>
+
+    ${subtitulo ? `<div style="font-size:14px;font-weight:600;color:#555;margin-bottom:12px">${subtitulo}</div>` : ''}
+
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">
+      ${t.caldoLabel ? `<div style="font-size:12px;color:#666"><b>Caldo:</b> ${escapar(t.caldoLabel)}</div>` : ''}
+      ${t.horario ? `<div style="font-size:13px;font-weight:800;color:${colorIcon};background:${colorBg};padding:6px 10px;border-radius:8px;display:inline-block;width:fit-content">${escapar(t.horario)}</div>` : ''}
+    </div>
+
+    ${t.estado==='iniciada' && t.categoria==='fumigacion' ? `<div style="margin-bottom:12px;font-size:28px;font-weight:800;color:#1558a0;text-align:center;letter-spacing:.05em" id="fumig-timer-${t.id}">00:00</div>` : ''}
+
+    ${t.estado==='completada' ? `<div style="margin-bottom:12px;font-size:12px;color:#666;background:#f5f5f5;padding:10px;border-radius:8px;line-height:1.6">
+      ${t.categoria==='fumigacion' ? `
+        <div><b>Caldo sobrante:</b> ${escapar(t.caldoSobrante)}</div>
+        <div><b>Preparó:</b> ${escapar(t.firmaPreparador)}</div>
+        <div><b>Aplicó:</b> ${escapar(t.firmaAplicador)}</div>
+      ` : `
+        <div><b>Hora inicio:</b> ${escapar(t.horaInicio||'—')}</div>
+        <div><b>Hora fin:</b> ${escapar(t.horaFin||'—')}</div>
+        <div><b>Firma:</b> ${escapar(t.firmante||'—')}</div>
+      `}
+    </div>` : ''}
+
+    <div style="display:flex;gap:10px;font-size:0">
+      ${t.estado==='pendiente' ? `
+        ${t.categoria==='fumigacion' ? `<button onclick="imprimirHojaFumigacionTarea('${t.id}')" title="Ver/imprimir la hoja" style="flex:1;padding:12px;font-size:13px;font-weight:800;background:#f2f4f0;color:${colorIcon};border:1.5px solid ${colorBorde};border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px"><i class="ti ti-printer" style="font-size:14px"></i> Hoja</button>` : ''}
+        <button onclick="iniciarTarea('${t.id}')" style="flex:1;padding:12px;font-size:13px;font-weight:800;background:${colorBorde};color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px"><i class="ti ti-play" style="font-size:14px"></i> Iniciar</button>
+      ` : ''}
+      ${t.estado==='iniciada' ? `<button onclick="showCompletarTareaDialog('${t.id}')" style="flex:1;padding:12px;font-size:13px;font-weight:800;background:#2e7d32;color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px"><i class="ti ti-check" style="font-size:14px"></i> Completar</button>` : ''}
+    </div>
+  </div>`;
 }
 async function iniciarTarea(id){
   await loadTareasData();
