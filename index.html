@@ -12500,9 +12500,14 @@ function renderIndiceAbonos(){
     const esProgramado = f.horario==='PROGRAMADO';
     const clave = claveIndiceAbono(dia, f.invId, f.texto, f.horario);
     const estado = indiceAbonosEstadoData[clave] || {};
+    // Determinar color de fondo según estado (colores pastel)
+    let bgColor = '#fff';
+    if(estado.preparado) bgColor = '#D4E6F1';  // Azul pastel
+    else if(estado.programado) bgColor = '#F5B7B1'; // Rojo pastel
+    else if(estado.revisado) bgColor = '#D5F5E3';  // Verde pastel
     const botonEstado = (campo, label, color) => `
       <button onclick="toggleIndiceAbonoEstado('${clave}','${campo}')" style="padding:4px 10px;font-size:10px;font-weight:800;border-radius:999px;cursor:pointer;border:1.5px solid ${estado[campo]?color:'#ddd'};background:${estado[campo]?color:'#fff'};color:${estado[campo]?'#fff':'#888'}">${label}</button>`;
-    return `<div style="padding:8px 2px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+    return `<div style="padding:8px 2px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;background:${bgColor};border-radius:6px;padding:8px">
       <div style="font-size:13px;font-weight:600;color:${esProgramado?'#c62828':'var(--text)'};flex:1 1 220px;min-width:0">
         ${escapar(f.texto)} - INV ${escapar(f.invId)} - ${escapar(f.horario||'—')}
       </div>
