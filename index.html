@@ -378,7 +378,7 @@ const usersLoadedPromise = loadUsersFromCloud();
 // Roles: guardados APARTE de USERS (nunca junto a la contraseña — así lo
 // pidió Paula).
 const ROLES_KEY = 'lasala-roles-v1';
-let USER_ROLES = { VIGUERAS:'ADMIN', PAULA:'ADMIN', DENNIS:'TECNICO', FRAN:'TECNICO', 'MIGUEL ANGEL':'ADMIN', REGANTE1:'REGANTE', PEON1:'PEON', SONIA:'SONIA' };
+let USER_ROLES = { VIGUERAS:'ADMIN', PAULA:'ADMIN', DENNIS:'TECNICO', FRAN:'TECNICO', 'MIGUEL ANGEL':'ADMIN', REGANTE1:'REGANTE', PEON1:'PEON', SONIA:'SONIA', JULIO:'CARGADOR' };
 async function loadRolesFromCloud(){
   try{
     const r = await window.storage.get(ROLES_KEY);
@@ -599,6 +599,21 @@ function applyRoleHomeUI(){
     }
     actualizarBadgeAvisosTecnico();
     actualizarBotonAvisosPush();
+  } else if(currentUserRole==='CARGADOR'){
+    // Perfil de Julio (Cargador): encargado de indicar en qué invernaderos hay
+    // cargas y sus horas previstas. Similar al perfil de Sonia (Injerto).
+    const block = document.getElementById('quick-access-block');
+    if(block){
+      block.innerHTML = `
+        <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.75rem;display:flex;align-items:center;gap:6px">
+          <i class="ti ti-truck" style="font-size:15px;color:#ff6b35"></i>Acceso de Julio (Cargas)
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button onclick="showAsignarCargasModule()" style="padding:14px 20px;font-size:14px;font-weight:700;background:#ff6b35;color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:8px">
+            <i class="ti ti-droplet" style="font-size:18px"></i> Asignar cargas
+          </button>
+        </div>`;
+    }
   } else if(currentUser==='VIGUERAS'){
     // Para que Vigueras pueda recibir el aviso de "Hojas marcadas" (y de las
     // propuestas inminentes de riego) como notificación real del navegador
@@ -12817,6 +12832,79 @@ function borrarAsignacionInjerto(invId){
   saveInjertoAsignacionData();
   renderAsignarInjertoWrap();
 }
+// ── ASIGNAR CARGAS (JULIO) ───────────────────────────────────────────────
+// Similar a la asignación de Injerto pero para cargas de agua. Julio indica
+// en qué invernaderos hay cargas y a qué hora se espera que terminen.
+const CARGAS_ASIGNACION_KEY = 'lasala-cargas-asignacion-v1';
+let cargasAsignacionData = {}; // { "dia|invId": {horaInicio,horaFinPrevista,asignadoPor,asignadoEn} }
+async function loadCargasAsignacionData(){
+  try{ const r = await window.storage.get(CARGAS_ASIGNACION_KEY); cargasAsignacionData = r ? JSON.parse(r.value) : {}; }catch(e){ cargasAsignacionData = {}; }
+}
+async function saveCargasAsignacionData(){
+  try{
+    const r = await window.storage.get(CARGAS_ASIGNACION_KEY);
+    const cloud = r ? JSON.parse(r.value) : {};
+    cargasAsignacionData = { ...cloud, ...cargasAsignacionData };
+    await window.storage.set(CARGAS_ASIGNACION_KEY, JSON.stringify(cargasAsignacionData));
+  }catch(e){}
+}
+function claveCarga(dia, invId){ return `${dia}|${invId}`; }
+function showAsignarCargasModule(){
+  loadCargasAsignacionData().then(()=>{
+    const overlay = getOrCreateOverlay('asignar-cargas-overlay');
+    overlay.style.padding = '0';
+    overlay.innerHTML = `
+      <div style="background:#fff;border-radius:0;width:100vw;height:100vh;max-width:100vw;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.3)">
+        <div style="background:linear-gradient(135deg,#ff6b35,#ff8c42);color:#fff;padding:1rem 1.5rem;display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
+          <div style="font-size:16px;font-weight:800">💧 Asignar cargas</div>
+          <button onclick="document.getElementById('asignar-cargas-overlay').style.display='none'" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:12px">✕</button>
+        </div>
+        <div id="asignar-cargas-wrap" style="flex:1;overflow-y:auto;padding:1.25rem"></div>
+      </div>`;
+    renderAsignarCargasWrap();
+    overlay.style.display = 'flex';
+  });
+}
+function renderAsignarCargasWrap(){
+  const wrap = document.getElementById('asignar-cargas-wrap');
+  if(!wrap) return;
+  const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const hoy = riegoDiaDeHoy();
+  const allInvIds = [...Object.keys(INV_LAYOUT_SALA1), ...Object.keys(INV_LAYOUT_SALA2)];
+  const filas = allInvIds.map(invId=>{
+    const clave = claveCarga(hoy, invId);
+    const c = cargasAsignacionData[clave] || {};
+    return `<div style="display:flex;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid var(--border);flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:800;width:56px;flex-shrink:0">INV ${escapar(invId)}</span>
+      <span style="font-size:10px;color:var(--muted)">Inicio</span>
+      <input type="time" id="carga-inicio-${invId}" value="${escapar(c.horaInicio||'')}" style="padding:5px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px">
+      <span style="font-size:10px;color:var(--muted)">Fin previsto</span>
+      <input type="time" id="carga-fin-${invId}" value="${escapar(c.horaFinPrevista||'')}" style="padding:5px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px">
+      <button onclick="guardarAsignacionCarga('${invId}')" style="padding:6px 14px;font-size:11px;font-weight:800;background:#ff6b35;color:#fff;border:none;border-radius:7px;cursor:pointer">Guardar</button>
+      ${c.horaInicio ? `<button onclick="borrarAsignacionCarga('${invId}')" title="Quitar" style="padding:6px 10px;font-size:11px;background:#fdecea;color:#ff6b35;border:1px solid #ffb19d;border-radius:7px;cursor:pointer">🗑️</button>` : ''}
+    </div>`;
+  }).join('');
+  wrap.innerHTML = `
+    <div style="font-size:12px;color:var(--muted);margin-bottom:12px">Hoy · ${escapar(riegoDiaLabelCorto(hoy))} — marca solo los invernaderos donde hay carga de agua.</div>
+    ${filas}`;
+}
+function guardarAsignacionCarga(invId){
+  const hoy = riegoDiaDeHoy();
+  const horaInicio = document.getElementById(`carga-inicio-${invId}`)?.value || '';
+  const horaFinPrevista = document.getElementById(`carga-fin-${invId}`)?.value || '';
+  if(!horaInicio){ showToast('Indica al menos la hora de inicio'); return; }
+  const clave = claveCarga(hoy, invId);
+  cargasAsignacionData[clave] = { horaInicio, horaFinPrevista, asignadoPor: currentUser||'—', asignadoEn: new Date().toLocaleString('es-ES') };
+  saveCargasAsignacionData();
+  showToast(`✓ Carga asignada en INV ${invId}`);
+  renderAsignarCargasWrap();
+}
+function borrarAsignacionCarga(invId){
+  const hoy = riegoDiaDeHoy();
+  delete cargasAsignacionData[claveCarga(hoy, invId)];
+  saveCargasAsignacionData();
+  renderAsignarCargasWrap();
+}
 // ── LA SALA EN VIVO ───────────────────────────────────────────────────────
 // A petición de Paula (2026-08-19): seguimiento visual en tiempo real de
 // cada invernadero — Riego/Carga/Injerto/Peones/Regantes, cada uno con su
@@ -12825,7 +12913,7 @@ function borrarAsignacionInjerto(invId){
 // mismo, nunca como placeholder vacío.
 let salaEnVivoSalaSel = 'sala1';
 function showSalaEnVivoModule(){
-  Promise.all([loadRiegoData(), loadPresenciaData(), loadIndiceAbonosEstadoData(), loadInjertoAsignacionData(), loadTareasData()]).then(()=>{
+  Promise.all([loadRiegoData(), loadPresenciaData(), loadIndiceAbonosEstadoData(), loadInjertoAsignacionData(), loadCargasAsignacionData(), loadTareasData()]).then(()=>{
     const overlay = getOrCreateOverlay('sala-en-vivo-overlay');
     overlay.style.padding = '0';
     renderSalaEnVivoContent(overlay);
