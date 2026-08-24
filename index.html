@@ -12967,6 +12967,7 @@ function renderSalaEnVivoInvCard(invId){
   const hoy = riegoDiaDeHoy();
   const riegos = riegosActivosInv(invId, hoy);
   const cargando = tecnicoPresenteAhora('carga', invId);
+  const cargaAsignada = cargasAsignacionData[claveCarga(hoy, invId)];
   const injerto = injertoAsignacionData[claveInjerto(hoy, invId)];
   const peones = tareasPeonActivasInv(invId);
   const regante = reganteQueMarcoInv(invId, hoy);
@@ -12988,7 +12989,7 @@ function renderSalaEnVivoInvCard(invId){
   // de desaparecer del todo como antes).
   const contenidos = {
     riego: (currentUserRole !== 'REGANTE' && riegos.length) ? riegos.map(r=>`${escapar(r.texto)} · ${escapar(r.horaInicio)}${r.horaFin?' – '+escapar(r.horaFin):' (en curso)'}`).join('<br>') : (currentUserRole === 'REGANTE' ? especificos : null),
-    carga: cargando ? 'Hay hombres cargando' : null,
+    carga: cargando ? 'Hay hombres cargando' : (cargaAsignada ? `Carga de agua · ${escapar(cargaAsignada.horaInicio)}${cargaAsignada.horaFinPrevista?' – '+escapar(cargaAsignada.horaFinPrevista)+' (previsto)':''}` : null),
     injerto: injerto ? `Mujeres injertando · ${escapar(injerto.horaInicio)}${injerto.horaFinPrevista?' – '+escapar(injerto.horaFinPrevista)+' (previsto)':''}` : null,
     peones: (currentUserRole !== 'REGANTE' && peones.length) ? peones.map(t=>`${escapar(nombreLegibleUsuario(t.asignadoA))} — ${escapar(t.titulo)}`).join('<br>') : (currentUserRole === 'REGANTE' ? tareasAsignadas : null),
     regantes: (currentUserRole !== 'REGANTE' && riegos.length && regante) ? `${escapar(nombreLegibleUsuario(regante))} — ${riegos.map(r=>`${escapar(r.texto)} (${escapar(r.horaInicio)}${r.horaFin?'–'+escapar(r.horaFin):''})`).join(', ')}` : null
