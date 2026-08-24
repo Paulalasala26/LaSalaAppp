@@ -12603,9 +12603,18 @@ function showEspecificosReganteModule(){
     const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     // Mostrar TODOS los específicos (se asignan automáticamente a todos los REGANTES)
     const especificosRegante = tareasData.filter(t=>t.categoria==='especifico' && !esTareaDeAyer(t));
-    const { activas, completadas } = splitTareasPorEstado(especificosRegante);
     const wrap = document.getElementById('especificos-regante-wrap');
     if(!wrap) return;
+
+    console.log('Específicos encontrados:', especificosRegante.length, especificosRegante);
+
+    if(especificosRegante.length === 0){
+      wrap.innerHTML = `<div style="text-align:center;padding:2.5rem;color:var(--muted);font-style:italic">No hay específicos.</div>`;
+      return;
+    }
+
+    const { activas, completadas } = splitTareasPorEstado(especificosRegante);
+    console.log('Activas:', activas.length, 'Completadas:', completadas.length);
 
     const renderHoja = (tareas) => {
       if(tareas.length === 0) return '';
@@ -12622,26 +12631,29 @@ function showEspecificosReganteModule(){
         const diaLabel = primerTarea.fecha ? riegoDiaSemana(primerTarea.fecha).toUpperCase() : '';
         const producto = escapar(primerTarea.titulo || '');
 
-        return `<div style="background:#fff;border-radius:12px;padding:16px;box-shadow:var(--shadow-sm);border:1.5px solid var(--border);margin-bottom:16px">
+        return `<div style="background:#fff;border-radius:12px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,.1);border:1.5px solid #ddd;margin-bottom:16px">
           <div style="text-align:center;font-size:18px;font-weight:900;color:#000;margin-bottom:12px;text-transform:uppercase">Específicos</div>
           <div style="font-size:11px;font-weight:800;color:#000;margin-bottom:8px">FECHA: ${diaLabel} ${fechaLabel}</div>
           <div style="font-size:11px;font-weight:800;color:#000;margin-bottom:8px">PRODUCTO Y DOSIS: ${producto}</div>
           ${grupo.map(t => `<div style="border:1.5px solid #1558a0;border-radius:8px;padding:12px;margin-bottom:8px;background:#f9fafb">
             <div style="font-size:12px;font-weight:800;color:#1558a0;margin-bottom:6px">INV ${escapar(t.inv || '—')}</div>
-            <div style="font-size:11px;color:#000;margin-bottom:4px;font-weight:600">CALLES: ${escapar(t.callesLabel || '—')}</div>
-            ${t.observaciones ? `<div style="font-size:11px;color:#666;margin-bottom:4px">Observaciones: ${escapar(t.observaciones)}</div>` : ''}
+            <div style="font-size:11px;color:#000;margin-bottom:4px;font-weight:600">CALLES: ${escapar(t.calles || t.callesLabel || '—')}</div>
+            ${t.descripcion || t.observaciones ? `<div style="font-size:11px;color:#666;margin-bottom:4px">Observaciones: ${escapar(t.descripcion || t.observaciones || '')}</div>` : ''}
             <div style="font-size:10px;font-weight:800;color:#2e7d32;background:#e8f5e9;padding:4px 8px;border-radius:4px;display:inline-block">PASE NORMAL • MONTONES</div>
           </div>`).join('')}
         </div>`;
       }).join('');
     };
 
-    wrap.innerHTML = especificosRegante.length===0 ? `<div style="text-align:center;padding:2.5rem;color:var(--muted);font-style:italic">No hay específicos.</div>` : `
+    const html = `
       <div style="display:flex;flex-direction:column;gap:10px">
         ${renderHoja(ordenarTareasPorHorario(activas))}
         ${completadas.length ? `<div style="font-size:11px;font-weight:800;color:#2e7d32;text-transform:uppercase;letter-spacing:.04em;margin:16px 0 6px">✓ Completados</div>` : ''}
         ${renderHoja(ordenarTareasCompletadas(completadas))}
       </div>`;
+
+    console.log('HTML generado, longitud:', html.length);
+    wrap.innerHTML = html;
   });
 }
 // ── ASIGNAR INJERTO (SONIA) ──────────────────────────────────────────────
