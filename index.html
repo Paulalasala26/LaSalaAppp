@@ -9401,24 +9401,24 @@ function calcularFontSizeCeldaGrid(spanW, texto, esRegante){
   const esMovil = esPantallaMovil();
   let FONT_MIN = 8, FONT_MAX = 9;
 
-  // Para REGANTE: fuentes más grandes (responsive)
+  // Para REGANTE: fuentes más grandes pero moderadas (responsive)
   if(esRegante){
     if(esMovil){
-      // Móvil: tamaños moderados (14-28px)
+      // Móvil: tamaños moderados (11-18px)
+      FONT_MIN = 11;
+      FONT_MAX = 18;
+      if(spanW > 200) FONT_MAX = 18;
+      else if(spanW > 150) FONT_MAX = 15;
+      else if(spanW > 100) FONT_MAX = 13;
+      else FONT_MAX = 11;
+    } else {
+      // Desktop: tamaños aumentados (14-28px)
       FONT_MIN = 14;
       FONT_MAX = 28;
-      if(spanW > 200) FONT_MAX = 28;
-      else if(spanW > 150) FONT_MAX = 22;
-      else if(spanW > 100) FONT_MAX = 18;
-      else FONT_MAX = 14;
-    } else {
-      // Desktop: tamaños grandes (20-50px)
-      FONT_MIN = 20;
-      FONT_MAX = 50;
-      if(spanW > 300) FONT_MAX = 50;
-      else if(spanW > 200) FONT_MAX = 40;
-      else if(spanW > 150) FONT_MAX = 32;
-      else FONT_MAX = 24;
+      if(spanW > 300) FONT_MAX = 28;
+      else if(spanW > 200) FONT_MAX = 24;
+      else if(spanW > 150) FONT_MAX = 20;
+      else FONT_MAX = 16;
     }
   } else {
     // Original: aumentar FONT_MAX basándose en el ancho del tramo
@@ -9487,13 +9487,13 @@ function renderRiegoGrid(invId){
     let hdrFontSize = '11px', hdrDayFontSize = '10px', hdrWeekdayFontSize = '9px';
     if(esReganteSoloLectura){
       if(esMovil){
-        hdrFontSize = '8px';  // muy pequeño para que quepa en 40px
-        hdrDayFontSize = '12px';
-        hdrWeekdayFontSize = '10px';
+        hdrFontSize = '8px';  // números de calle pequeños
+        hdrDayFontSize = '11px';
+        hdrWeekdayFontSize = '9px';
       } else {
-        hdrFontSize = '26px';
-        hdrDayFontSize = '18px';
-        hdrWeekdayFontSize = '22px';
+        hdrFontSize = '16px';
+        hdrDayFontSize = '13px';
+        hdrWeekdayFontSize = '14px';
       }
     }
     let hdrHTML = `<tr style="background:#dce8f5;position:sticky;top:0;z-index:10">
@@ -9513,7 +9513,7 @@ function renderRiegoGrid(invId){
       const dayColor = highlight ? highlight.label : '#1a1e18';
       let dayLabelFontSize = '10px';
       if(esReganteSoloLectura){
-        dayLabelFontSize = esMovil ? '14px' : '20px';
+        dayLabelFontSize = esMovil ? '12px' : '14px';
       }
       let dayLabelStyle = `width:${DAY_W}px;min-width:${DAY_W}px;height:${DH}px;border:1px solid #9ab8d8;text-align:center;font-size:${dayLabelFontSize};font-weight:800;color:${dayColor};background:${dayBg};position:sticky;left:0;z-index:5;padding:0;white-space:nowrap`;
       // Pulsar la etiqueta del día abre el alta manual con ese día ya
