@@ -431,6 +431,7 @@ async function entrarApp(user){
   currentUser=user;
   await rolesLoadedPromise;
   currentUserRole = USER_ROLES[user] || null;
+  console.log('📍 LOGIN:', {user, currentUserRole, allRoles: USER_ROLES});
   document.getElementById('login-screen').style.display='none';
   document.getElementById('app').style.display='block';
   const name=user[0]+user.slice(1).toLowerCase();
