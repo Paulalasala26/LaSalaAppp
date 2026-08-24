@@ -12606,7 +12606,11 @@ function showEspecificosReganteModule(){
     const wrap = document.getElementById('especificos-regante-wrap');
     if(!wrap) return;
 
-    console.log('Específicos encontrados:', especificosRegante.length, especificosRegante);
+    console.log('Específicos encontrados:', especificosRegante.length);
+    if(especificosRegante.length > 0) {
+      console.log('Primer específico:', JSON.stringify(especificosRegante[0], null, 2));
+      console.log('Campos disponibles:', Object.keys(especificosRegante[0]));
+    }
 
     if(especificosRegante.length === 0){
       wrap.innerHTML = `<div style="text-align:center;padding:2.5rem;color:var(--muted);font-style:italic">No hay específicos.</div>`;
