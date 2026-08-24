@@ -12656,12 +12656,13 @@ function showEspecificosReganteModule(){
           <div style="display:flex;flex-direction:column;gap:8px">
           ${grupo.map(t => {
             const tipo = t.titulo ? (t.titulo.includes('+')?t.titulo.split('+')[t.titulo.split('+').length-1].trim():'') : '';
-            const obs = t.descripcion || t.observaciones || '';
+            const obs = t.descripcion || '';
+            console.log('Tarea:', t.inv, 'calles:', t.calles, 'descripcion:', t.descripcion, 'obs guardada:', obs);
             return `<div style="border:1.5px solid #1558a0;border-radius:8px;padding:12px;background:#f9fafb">
               <div style="font-size:13px;font-weight:800;color:#1558a0;margin-bottom:6px">INV ${escapar(t.inv || '—')}</div>
               <div style="font-size:12px;color:#000;margin-bottom:4px;font-weight:600">CALLES: ${escapar(t.calles || t.callesLabel || '—')}</div>
               ${tipo ? `<div style="font-size:11px;color:#2e7d32;background:#e8f5e9;padding:4px 8px;border-radius:4px;display:inline-block;margin-bottom:4px;font-weight:700">${escapar(tipo)}</div>` : ''}
-              ${obs ? `<div style="font-size:11px;color:#666;margin-top:4px"><b>Observaciones:</b> ${escapar(obs)}</div>` : ''}
+              ${obs.trim() ? `<div style="font-size:11px;color:#666;margin-top:4px"><b>Observaciones:</b> ${escapar(obs)}</div>` : ''}
             </div>`;
           }).join('')}
           </div>
