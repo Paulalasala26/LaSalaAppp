@@ -9404,16 +9404,16 @@ function calcularFontSizeCeldaGrid(spanW, texto, esRegante){
   // Para REGANTE: fuentes más grandes pero moderadas (responsive)
   if(esRegante){
     if(esMovil){
-      // Móvil: tamaños moderados (11-18px)
-      FONT_MIN = 11;
+      // Móvil: NO bajar del 13px aunque haya mucho texto
+      FONT_MIN = 13;
       FONT_MAX = 18;
       if(spanW > 200) FONT_MAX = 18;
       else if(spanW > 150) FONT_MAX = 15;
       else if(spanW > 100) FONT_MAX = 13;
       else FONT_MAX = 11;
     } else {
-      // Desktop: tamaños aumentados (14-28px)
-      FONT_MIN = 14;
+      // Desktop: NO bajar del 18px aunque haya mucho texto
+      FONT_MIN = 18;
       FONT_MAX = 28;
       if(spanW > 300) FONT_MAX = 28;
       else if(spanW > 200) FONT_MAX = 24;
