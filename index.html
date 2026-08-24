@@ -12601,7 +12601,8 @@ function showEspecificosReganteModule(){
 
     // Ahora renderizar el contenido
     const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    const especificosRegante = tareasData.filter(t=>t.categoria==='especifico' && USER_ROLES[t.asignadoA]==='REGANTE' && !esTareaDeAyer(t));
+    // Mostrar específicos asignados al REGANTE actual (no filtrar por rol, sino por usuario)
+    const especificosRegante = tareasData.filter(t=>t.categoria==='especifico' && t.asignadoA===currentUser && !esTareaDeAyer(t));
     const { activas, completadas } = splitTareasPorEstado(especificosRegante);
     const wrap = document.getElementById('especificos-regante-wrap');
     if(!wrap) return;
