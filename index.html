@@ -9255,7 +9255,7 @@ let riegoSoloLectura = false;
 function showRiegoModule(soloLectura){
   riegoSoloLectura = !!soloLectura;
   if(currentUser==='VIGUERAS') avisarAvisosPendientes(currentUser);
-  Promise.all([loadRiegoData(), loadRiegoEjecutadoData()]).then(()=>{
+  Promise.all([loadRiegoData(), loadRiegoEjecutadoData(), loadIndiceAbonosEstadoData()]).then(()=>{
     const overlay = getOrCreateOverlay('riego-overlay');
     overlay.style.padding = '0';
     const titulo = riegoSoloLectura ? 'Hojas de riego' : 'Marcaje de riego';
