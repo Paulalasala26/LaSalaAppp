@@ -9398,17 +9398,28 @@ function esPantallaMovil(){
 // esta función Riego/Fito/Específicos (mismo criterio en los tres).
 function calcularFontSizeCeldaGrid(spanW, texto, esRegante){
   const CHAR_W = 0.58;
+  const esMovil = esPantallaMovil();
   let FONT_MIN = 8, FONT_MAX = 9;
 
-  // Para REGANTE: fuentes mucho más grandes (20-50px)
+  // Para REGANTE: fuentes más grandes (responsive)
   if(esRegante){
-    FONT_MIN = 18;
-    FONT_MAX = 50;
-    // Con ancho de CW=90 para REGANTE, solo pequeños ajustes
-    if(spanW > 300) FONT_MAX = 50;
-    else if(spanW > 200) FONT_MAX = 40;
-    else if(spanW > 150) FONT_MAX = 32;
-    else FONT_MAX = 24;
+    if(esMovil){
+      // Móvil: tamaños moderados (14-28px)
+      FONT_MIN = 14;
+      FONT_MAX = 28;
+      if(spanW > 200) FONT_MAX = 28;
+      else if(spanW > 150) FONT_MAX = 22;
+      else if(spanW > 100) FONT_MAX = 18;
+      else FONT_MAX = 14;
+    } else {
+      // Desktop: tamaños grandes (20-50px)
+      FONT_MIN = 20;
+      FONT_MAX = 50;
+      if(spanW > 300) FONT_MAX = 50;
+      else if(spanW > 200) FONT_MAX = 40;
+      else if(spanW > 150) FONT_MAX = 32;
+      else FONT_MAX = 24;
+    }
   } else {
     // Original: aumentar FONT_MAX basándose en el ancho del tramo
     if(spanW > 90) FONT_MAX = 15;      // 2+ calles → 15px
@@ -9435,20 +9446,32 @@ function renderRiegoGrid(invId){
   const layout = INV_LAYOUT[invId];
   if(!layout){ wrap.innerHTML='<p style="padding:2rem;color:#888">Sin datos.</p>'; return; }
 
-  // REGANTE solo ve el día actual con fuentes mucho más grandes
+  // REGANTE solo ve el día actual con fuentes mucho más grandes (responsivo según pantalla)
   const esReganteSoloLectura = riegoSoloLectura && currentUserRole === 'REGANTE';
   const diaRegante = esReganteSoloLectura ? riegoReganteDiaCargar() : null;
+  const esMovil = esPantallaMovil();
 
   let CW = 46;   // cell width px
-  let DH = esPantallaMovil() ? 38 : 28;   // día más alto solo en móvil, para que no se corte el contenido
-  const DAY_W = esReganteSoloLectura ? 120 : 48; // day label column wider para REGANTE
-  const SEM_W = esReganteSoloLectura ? 100 : 66; // weekday label column wider para REGANTE
-  let HDR_H = esReganteSoloLectura ? 40 : 28; // header height
+  let DH = esMovil ? 38 : 28;   // día más alto solo en móvil, para que no se corte el contenido
+  let DAY_W = 48;
+  let SEM_W = 66;
+  let HDR_H = 28;
 
-  // Para REGANTE: aumentar todo
+  // Para REGANTE: aumentar todo (pero menos en móvil)
   if(esReganteSoloLectura){
-    CW = 90;   // mucho más ancho por calle
-    DH = 70;   // muchísimo más alto
+    if(esMovil){
+      CW = 65;    // móvil: aumentar moderadamente
+      DH = 55;    // móvil: aumentar moderadamente
+      DAY_W = 80;
+      SEM_W = 70;
+      HDR_H = 35;
+    } else {
+      CW = 100;   // desktop: mucho más ancho por calle
+      DH = 75;    // desktop: muchísimo más alto
+      DAY_W = 130;
+      SEM_W = 110;
+      HDR_H = 45;
+    }
   }
 
   let diasQ = riegoQuincenaDias(riegoQuincenaOffset);
@@ -9461,9 +9484,18 @@ function renderRiegoGrid(invId){
     const nCols = calles.length;
 
     // Build header row: day col + calle numbers + weekday col
-    const hdrFontSize = esReganteSoloLectura ? '24px' : '11px';
-    const hdrDayFontSize = esReganteSoloLectura ? '16px' : '10px';
-    const hdrWeekdayFontSize = esReganteSoloLectura ? '20px' : '9px';
+    let hdrFontSize = '11px', hdrDayFontSize = '10px', hdrWeekdayFontSize = '9px';
+    if(esReganteSoloLectura){
+      if(esMovil){
+        hdrFontSize = '16px';
+        hdrDayFontSize = '13px';
+        hdrWeekdayFontSize = '14px';
+      } else {
+        hdrFontSize = '26px';
+        hdrDayFontSize = '18px';
+        hdrWeekdayFontSize = '22px';
+      }
+    }
     let hdrHTML = `<tr style="background:#dce8f5;position:sticky;top:0;z-index:10">
       <td style="width:${DAY_W}px;min-width:${DAY_W}px;height:${HDR_H}px;border:1px solid #9ab8d8;text-align:center;font-size:${hdrDayFontSize};font-weight:700;color:#1558a0;background:#dce8f5;position:sticky;left:0;z-index:11"></td>
       ${calles.map(c=>`<td style="height:${HDR_H}px;border:1px solid #9ab8d8;text-align:center;font-size:${hdrFontSize};font-weight:800;color:#1a1e18;padding:0">${c}</td>`).join('')}
@@ -9480,7 +9512,10 @@ function renderRiegoGrid(invId){
       const weekdayBg = highlight ? highlight.bg : null;
       const dayBg = weekdayBg || '#dce8f5';
       const dayColor = highlight ? highlight.label : '#1a1e18';
-      const dayLabelFontSize = esReganteSoloLectura ? '20px' : '10px';
+      let dayLabelFontSize = '10px';
+      if(esReganteSoloLectura){
+        dayLabelFontSize = esMovil ? '14px' : '20px';
+      }
       let dayLabelStyle = `width:${DAY_W}px;min-width:${DAY_W}px;height:${DH}px;border:1px solid #9ab8d8;text-align:center;font-size:${dayLabelFontSize};font-weight:800;color:${dayColor};background:${dayBg};position:sticky;left:0;z-index:5;padding:0;white-space:nowrap`;
       // Pulsar la etiqueta del día abre el alta manual con ese día ya
       // puesto — no en "Hojas de riego" (solo consulta) ni en días ya
