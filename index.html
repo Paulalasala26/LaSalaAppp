@@ -601,7 +601,7 @@ function applyRoleHomeUI(){
     actualizarBotonAvisosPush();
   } else if(currentUserRole==='CARGADOR'){
     // Perfil de Julio (Cargador): encargado de indicar en qué invernaderos hay
-    // cargas y sus horas previstas. Similar al perfil de Sonia (Injerto).
+    // camión cargando plantas y sus horas previstas. Similar al perfil de Sonia (Injerto).
     const block = document.getElementById('quick-access-block');
     if(block){
       block.innerHTML = `
@@ -610,7 +610,7 @@ function applyRoleHomeUI(){
         </div>
         <div style="display:flex;gap:10px;flex-wrap:wrap">
           <button onclick="showAsignarCargasModule()" style="padding:14px 20px;font-size:14px;font-weight:700;background:#ff6b35;color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:8px">
-            <i class="ti ti-droplet" style="font-size:18px"></i> Asignar cargas
+            <i class="ti ti-truck" style="font-size:18px"></i> Cargas de camión
           </button>
         </div>`;
     }
@@ -12833,8 +12833,9 @@ function borrarAsignacionInjerto(invId){
   renderAsignarInjertoWrap();
 }
 // ── ASIGNAR CARGAS (JULIO) ───────────────────────────────────────────────
-// Similar a la asignación de Injerto pero para cargas de agua. Julio indica
-// en qué invernaderos hay cargas y a qué hora se espera que terminen.
+// Similar a la asignación de Injerto pero para cargas de camión (plantas para
+// distribución). Julio indica en qué invernaderos hay camión cargando y a qué
+// hora se espera que termine.
 const CARGAS_ASIGNACION_KEY = 'lasala-cargas-asignacion-v1';
 let cargasAsignacionData = {}; // { "dia|invId": {horaInicio,horaFinPrevista,asignadoPor,asignadoEn} }
 async function loadCargasAsignacionData(){
@@ -12856,7 +12857,7 @@ function showAsignarCargasModule(){
     overlay.innerHTML = `
       <div style="background:#fff;border-radius:0;width:100vw;height:100vh;max-width:100vw;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.3)">
         <div style="background:linear-gradient(135deg,#ff6b35,#ff8c42);color:#fff;padding:1rem 1.5rem;display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
-          <div style="font-size:16px;font-weight:800">💧 Asignar cargas</div>
+          <div style="font-size:16px;font-weight:800">🚚 Cargas de camión</div>
           <button onclick="document.getElementById('asignar-cargas-overlay').style.display='none'" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:12px">✕</button>
         </div>
         <div id="asignar-cargas-wrap" style="flex:1;overflow-y:auto;padding:1.25rem"></div>
@@ -12885,7 +12886,7 @@ function renderAsignarCargasWrap(){
     </div>`;
   }).join('');
   wrap.innerHTML = `
-    <div style="font-size:12px;color:var(--muted);margin-bottom:12px">Hoy · ${escapar(riegoDiaLabelCorto(hoy))} — marca solo los invernaderos donde hay carga de agua.</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:12px">Hoy · ${escapar(riegoDiaLabelCorto(hoy))} — indica en qué invernaderos hay camión cargando y cuándo termina.</div>
     ${filas}`;
 }
 function guardarAsignacionCarga(invId){
@@ -12989,7 +12990,7 @@ function renderSalaEnVivoInvCard(invId){
   // de desaparecer del todo como antes).
   const contenidos = {
     riego: (currentUserRole !== 'REGANTE' && riegos.length) ? riegos.map(r=>`${escapar(r.texto)} · ${escapar(r.horaInicio)}${r.horaFin?' – '+escapar(r.horaFin):' (en curso)'}`).join('<br>') : (currentUserRole === 'REGANTE' ? especificos : null),
-    carga: cargando ? 'Hay hombres cargando' : (cargaAsignada ? `Carga de agua · ${escapar(cargaAsignada.horaInicio)}${cargaAsignada.horaFinPrevista?' – '+escapar(cargaAsignada.horaFinPrevista)+' (previsto)':''}` : null),
+    carga: cargando ? 'Cargando camión' : (cargaAsignada ? `Camión · ${escapar(cargaAsignada.horaInicio)}${cargaAsignada.horaFinPrevista?' – '+escapar(cargaAsignada.horaFinPrevista)+' (previsto)':''}` : null),
     injerto: injerto ? `Mujeres injertando · ${escapar(injerto.horaInicio)}${injerto.horaFinPrevista?' – '+escapar(injerto.horaFinPrevista)+' (previsto)':''}` : null,
     peones: (currentUserRole !== 'REGANTE' && peones.length) ? peones.map(t=>`${escapar(nombreLegibleUsuario(t.asignadoA))} — ${escapar(t.titulo)}`).join('<br>') : (currentUserRole === 'REGANTE' ? tareasAsignadas : null),
     regantes: (currentUserRole !== 'REGANTE' && riegos.length && regante) ? `${escapar(nombreLegibleUsuario(regante))} — ${riegos.map(r=>`${escapar(r.texto)} (${escapar(r.horaInicio)}${r.horaFin?'–'+escapar(r.horaFin):''})`).join(', ')}` : null
