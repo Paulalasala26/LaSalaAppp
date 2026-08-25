@@ -4561,18 +4561,67 @@ window.addEventListener('online', procesarColaOffline);
 // PDF adjunto por (tipo, día) — objeto plano {`${tipo}|${dia}`: {nombre,
 // pdfB64, subidoPor, subidoEn}}, mismo merge superficial que geoData (nunca
 // se pisa entero, solo se añade/actualiza la clave que cambia).
-const CONTROL_PDFS_KEY = 'lasala-control-pdfs-v1';
+// A petición real (2026-08-26): guardar TODOS los PDFs juntos en una única
+// clave (CONTROL_PDFS_KEY, la de abajo, ahora solo de lectura por
+// compatibilidad) hacía que ese documento fuera creciendo sin parar (ya
+// pasaba de 10MB) hasta que Firebase empezó a rechazar la escritura con un
+// error 400 — el mismo problema que ya se arregló para las fotos de Control
+// (ver [[lasala_control_fotos_shard_2026_08_14]]). Cada PDF nuevo se guarda
+// ahora en SU PROPIA clave (CONTROL_PDF_ENTRY_KEY), y un pequeño índice
+// (CONTROL_PDFS_INDICE_KEY, solo una lista de "tipo|dia") dice cuáles hay
+// que cargar — así cada escritura solo mueve el PDF que cambia, nunca los
+// demás.
+const CONTROL_PDFS_KEY = 'lasala-control-pdfs-v1'; // legado, solo lectura de migración
+const CONTROL_PDFS_INDICE_KEY = 'lasala-control-pdfs-indice-v1';
+function controlPdfEntryKey(tipo, dia){ return 'lasala-control-pdf-v1-'+tipo+'-'+dia; }
 let controlPdfsData = {};
 async function loadControlPdfsData(){
-  try{ const r = await window.storage.get(CONTROL_PDFS_KEY); if(r) controlPdfsData = JSON.parse(r.value); }catch(e){}
+  try{
+    const rIndice = await window.storage.get(CONTROL_PDFS_INDICE_KEY);
+    let indice = rIndice ? JSON.parse(rIndice.value) : [];
+    if(!indice.length){
+      // Migración de una sola vez: el blob viejo (todo-en-uno) todavía
+      // existe pero el índice nuevo está vacío — se reparte cada entrada en
+      // su propia clave y se rellena el índice, así esta migración no hace
+      // falta repetirla en cargas futuras.
+      const rViejo = await window.storage.get(CONTROL_PDFS_KEY);
+      const viejo = rViejo ? JSON.parse(rViejo.value) : {};
+      const clavesViejas = Object.keys(viejo);
+      if(clavesViejas.length){
+        await Promise.all(clavesViejas.map(claveTipoDia=>{
+          const parts = claveTipoDia.split('|');
+          return window.storage.set(controlPdfEntryKey(parts[0], parts[1]), JSON.stringify(viejo[claveTipoDia]));
+        }));
+        indice = clavesViejas;
+        await window.storage.set(CONTROL_PDFS_INDICE_KEY, JSON.stringify(indice));
+      }
+      controlPdfsData = viejo;
+      return;
+    }
+    const entradas = await Promise.all(indice.map(async claveTipoDia=>{
+      try{
+        const parts = claveTipoDia.split('|');
+        const r = await window.storage.get(controlPdfEntryKey(parts[0], parts[1]));
+        return r ? [claveTipoDia, JSON.parse(r.value)] : null;
+      }catch(e){ return null; }
+    }));
+    controlPdfsData = Object.fromEntries(entradas.filter(Boolean));
+  }catch(e){}
 }
 async function guardarControlPdf(tipo, dia, nombre, pdfB64){
   try{
-    const r = await window.storage.get(CONTROL_PDFS_KEY);
-    const cloud = r ? JSON.parse(r.value) : {};
-    cloud[tipo+'|'+dia] = { nombre, pdfB64, subidoPor: currentUser||'—', subidoEn: new Date().toLocaleString('es-ES') };
-    await window.storage.set(CONTROL_PDFS_KEY, JSON.stringify(cloud));
-    controlPdfsData = cloud;
+    const claveTipoDia = tipo+'|'+dia;
+    const valor = { nombre, pdfB64, subidoPor: currentUser||'—', subidoEn: new Date().toLocaleString('es-ES') };
+    await window.storage.set(controlPdfEntryKey(tipo, dia), JSON.stringify(valor));
+    controlPdfsData[claveTipoDia] = valor;
+    // Índice: solo una lista de claves, minúsculo (nunca crece como el PDF
+    // en sí) — read-merge-write igual que el resto de índices de la app.
+    const rIndice = await window.storage.get(CONTROL_PDFS_INDICE_KEY);
+    const indice = rIndice ? JSON.parse(rIndice.value) : [];
+    if(!indice.includes(claveTipoDia)){
+      indice.push(claveTipoDia);
+      await window.storage.set(CONTROL_PDFS_INDICE_KEY, JSON.stringify(indice));
+    }
   }catch(e){}
 }
 let controlSeccion = null;
@@ -5294,28 +5343,35 @@ function parseControlCargaPdfPartidas(lineas){
   // suelto en medio (p.ej. "TINJ KM 387 KRO") se confunda con Nº Band/Inverna:
   // sin esta exigencia el número "387" y la palabra "KRO" podían colarse como
   // si fueran Nº Band/Invernadero, cortando la Variedad a medias.
-  const mainRe = /^(?<hora>\d{2}:\d{2})\s+(?<cliente>.+?)\s+(?<partida>\d{2}[A-Z]{0,2}\d{4,6})\s+(?<variedad>.+?)\s+(?<nband>\d+)\s+(?<inverna>\d{1,2}-\d{1,2}-\d{1,2})(?:\s+(?<carros>.*))?$/;
+  // Formato "con hora" — el que traían los primeros PDFs de Carga (línea
+  // empieza por "HH:MM").
+  const mainReConHora = /^(?<hora>\d{2}:\d{2})\s+(?<cliente>.+?)\s+(?<partida>\d{2}[A-Z]{0,2}\d{4,6})\s+(?<variedad>.+?)\s+(?<nband>\d+)\s+(?<inverna>\d{1,2}-\d{1,2}-\d{1,2})(?:\s+(?<carros>.*))?$/;
+  // Formato "sin hora" (a petición de Paula, 2026-08-26, tras un PDF real
+  // donde ya no viene la columna de hora): la línea empieza directamente por
+  // el cliente, con un prefijo opcional de una o dos letras (T, S/H, SH...)
+  // delante del cliente en algunas filas.
+  const mainReSinHora = /^(?:(?<prefijo>S\/H|SH|T)\s+)?(?<cliente>.+?)\s+(?<partida>\d{2}[A-Za-z]{0,2}\d{4,6})\s+(?<variedad>.+?)\s+(?<nband>\d+)\s+(?<inverna>\d{1,2}-\d{1,2}-\d{1,2})(?:\s+(?<carros>.*))?$/i;
   const cabeceraRe = /^(HORA|DIA:|PARTE DE CARGA|Página|Grupo Semilleros)/i;
   // Detección laxa de "aquí hay una partida" (solo el código, sin exigir el
   // resto de campos) — sirve para avisar cuando una línea SÍ trae una
-  // partida real pero el resto del formato no encaja con mainRe (por
-  // ejemplo, le falta la hora, el invernadero no viene como "nn-n-n", o el
-  // texto se partió en dos líneas), en vez de descartarla en silencio sin
-  // que nadie se entere de por qué no se creó la ficha.
-  const partidaSueltaRe = /\d{2}[A-Z]{0,2}\d{4,6}/;
+  // partida real pero el resto del formato no encaja con ninguno de los dos
+  // patrones de arriba (por ejemplo, el invernadero no viene como "nn-n-n",
+  // o el texto se partió en dos líneas), en vez de descartarla en silencio
+  // sin que nadie se entere de por qué no se creó la ficha.
+  const partidaSueltaRe = /\d{2}[A-Z]{0,2}\d{4,6}/i;
   const records = [];
   const noReconocidas = [];
   lineas.forEach(l=>{
     const t = l.texto;
     if(!t || t==='***' || cabeceraRe.test(t)) return;
-    const m = mainRe.exec(t);
+    const m = mainReConHora.exec(t) || mainReSinHora.exec(t);
     if(!m){
       if(partidaSueltaRe.test(t) && !/ZE|YE/i.test(t)) noReconocidas.push(t);
       return;
     }
     records.push({
       cliente: m.groups.cliente.trim(),
-      partida: m.groups.partida,
+      partida: m.groups.partida.toUpperCase(),
       variedad: m.groups.variedad.trim(),
       nband: m.groups.nband,
       inverna: m.groups.inverna
