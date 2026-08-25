@@ -1480,7 +1480,7 @@ function showMantenimientoPeonModule(){
       <div style="position:absolute;top:0;left:0;right:0;bottom:0;background:var(--bg);display:flex;flex-direction:column;border-radius:12px;overflow:hidden">
         <div style="padding:1.5rem;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
           <h2 style="font-size:20px;font-weight:800;color:var(--text);margin:0">Mantenimiento de Parcelas</h2>
-          <button onclick="this.closest('.overlay').style.display='none'" style="padding:6px 10px;font-size:16px;background:none;border:none;color:var(--muted);cursor:pointer">✕</button>
+          <button onclick="document.getElementById('mant-peon-overlay').style.display='none'" style="padding:6px 10px;font-size:16px;background:none;border:none;color:var(--muted);cursor:pointer">✕</button>
         </div>
         <div style="flex:1;overflow-y:auto;padding:1.5rem">
           ${renderMantenimientoColgandoHTML()}
@@ -9448,6 +9448,7 @@ function showRiegoModule(soloLectura){
         </div>
 
         <!-- INV SELECTOR -->
+        ${(currentUserRole!=='REGANTE' || currentUser==='REGANTE1') ? `
         <div style="padding:.5rem 1.25rem;background:#e8f0fb;border-bottom:1px solid #b0c8e0;display:flex;gap:6px;flex-wrap:wrap;align-items:center;flex-shrink:0">
           <span style="font-size:11px;font-weight:700;color:#1558a0;min-width:56px">SALA 1:</span>
           ${Object.keys(INV_LAYOUT_SALA1).map(id=>`
@@ -9455,7 +9456,8 @@ function showRiegoModule(soloLectura){
               style="padding:4px 11px;font-size:11px;font-weight:600;border-radius:5px;cursor:pointer;border:1.5px solid #a8c4e8;background:#fff;color:#1558a0;transition:all .12s">
               ${id}
             </button>`).join('')}
-        </div>
+        </div>` : ''}
+        ${(currentUserRole!=='REGANTE' || currentUser==='REGANTE2') ? `
         <div style="padding:.5rem 1.25rem;background:#e8f0fb;border-bottom:1px solid #b0c8e0;display:flex;gap:6px;flex-wrap:wrap;align-items:center;flex-shrink:0">
           <span style="font-size:11px;font-weight:700;color:#1558a0;min-width:56px">SALA 2:</span>
           ${Object.keys(INV_LAYOUT_SALA2).map(id=>`
@@ -9463,7 +9465,7 @@ function showRiegoModule(soloLectura){
               style="padding:4px 11px;font-size:11px;font-weight:600;border-radius:5px;cursor:pointer;border:1.5px solid #a8c4e8;background:#fff;color:#1558a0;transition:all .12s">
               ${id}
             </button>`).join('')}
-        </div>
+        </div>` : ''}
 
         <!-- GRID AREA -->
         <div id="riego-grid-wrap" style="flex:1;overflow:auto;background:#f8f9fa">
@@ -12169,7 +12171,7 @@ async function generarTareasDesdeRiego(){
   await loadRiegoData();
   const rCloud = await window.storage.get(TAREAS_KEY);
   tareasData = rCloud ? JSON.parse(rCloud.value) : [];
-  tareasData = tareasData.filter(t => !(t.asignadoA==='PEON1' && !t.categoria && t.estado!=='completada'));
+  tareasData = tareasData.filter(t => !((['PEON1','PEON2'].includes(t.asignadoA)) && !t.categoria && t.estado!=='completada'));
   const invIds = [...Object.keys(INV_LAYOUT_SALA1), ...Object.keys(INV_LAYOUT_SALA2)];
   let creadas = 0;
   invIds.forEach(invId=>{
@@ -12189,13 +12191,14 @@ async function generarTareasDesdeRiego(){
         // en tareas/hojas separadas, no fusionarse en una sola.
         const crearOFusionar = (tituloBruto, horarioTarea) => {
           const tituloExpandido = expandirAbreviaturasRiego(tituloBruto);
-          const existente = tareasData.find(t=>t.asignadoA==='PEON1' && !t.categoria && t.inv===invId && t.fechaISO===fechaISO && t.titulo===tituloExpandido && (t.horario||'')===(horarioTarea||''));
+          const peonAsignado = peonDelaSala(invId);
+          const existente = tareasData.find(t=>t.asignadoA===peonAsignado && !t.categoria && t.inv===invId && t.fechaISO===fechaISO && t.titulo===tituloExpandido && (t.horario||'')===(horarioTarea||''));
           if(existente){
             existente.calles = fusionarCallesTarea(existente.calles, callesLabel);
           } else {
             tareasData.push({
               id: 'tarea_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
-              titulo: tituloExpandido, descripcion:'', asignadoA:'PEON1', asignadoPor: currentUser||'—',
+              titulo: tituloExpandido, descripcion:'', asignadoA:peonAsignado, asignadoPor: currentUser||'—',
               inv: invId, calles: callesLabel, fecha: riegoDiaLabelCorto(dia), fechaISO, turno:'',
               horario: horarioTarea||'',
               prioridad:'normal', estado:'pendiente', horaInicio:null, horaFin:null, firmante:null,
@@ -12707,14 +12710,29 @@ function renderIndiceAbonos(){
     // Sala 1 y Sala 2 siempre separadas — a petición de Paula, 2026-08-10.
     const filasSala1 = filas.filter(f=>salaDeInv(f.invId)==='sala1');
     const filasSala2 = filas.filter(f=>salaDeInv(f.invId)==='sala2');
+
+    // Si es REGANTE, mostrar solo su sala
+    let filasAMostrar = filas;
+    let titulo = label;
+    if(currentUserRole==='REGANTE'){
+      if(currentUser==='REGANTE1'){
+        filasAMostrar = filasSala1;
+        titulo = label + ' (Sala 1)';
+      } else {
+        filasAMostrar = filasSala2;
+        titulo = label + ' (Sala 2)';
+      }
+    }
+
     return `
       <div style="margin-bottom:20px">
-        <div style="font-size:12px;font-weight:800;color:#a35d00;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">${escapar(label)}</div>
-        ${filas.length===0 ? `<div style="font-size:12px;color:var(--muted);font-style:italic;padding:6px 2px">Nada marcado.</div>` : `
+        <div style="font-size:12px;font-weight:800;color:#a35d00;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">${escapar(titulo)}</div>
+        ${filasAMostrar.length===0 ? `<div style="font-size:12px;color:var(--muted);font-style:italic;padding:6px 2px">Nada marcado.</div>` : `
+        ${currentUserRole==='REGANTE' ? renderLineas(filasAMostrar, dia) : `
         <div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:8px 0 4px">Sala 1</div>
         ${filasSala1.length===0 ? `<div style="font-size:12px;color:var(--muted);font-style:italic;padding:4px 2px">Nada marcado.</div>` : renderLineas(filasSala1, dia)}
         <div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:14px 0 4px">Sala 2</div>
-        ${filasSala2.length===0 ? `<div style="font-size:12px;color:var(--muted);font-style:italic;padding:4px 2px">Nada marcado.</div>` : renderLineas(filasSala2, dia)}`}
+        ${filasSala2.length===0 ? `<div style="font-size:12px;color:var(--muted);font-style:italic;padding:4px 2px">Nada marcado.</div>` : renderLineas(filasSala2, dia)}`}`}
       </div>`;
   }).join('');
 }
@@ -12754,7 +12772,12 @@ function showEspecificosReganteModule(){
     overlay.style.display = 'flex';
 
     // Renderizar hojas de específicos (igual que impresión)
-    const especificosRegante = tareasData.filter(t=>t.categoria==='especifico' && !esTareaDeAyer(t));
+    // Filtrar por sala si es REGANTE
+    let especificosRegante = tareasData.filter(t=>t.categoria==='especifico' && !esTareaDeAyer(t));
+    if(currentUserRole==='REGANTE'){
+      const saladRegante = currentUser==='REGANTE1' ? 'sala1' : 'sala2';
+      especificosRegante = especificosRegante.filter(t => salaDeInv(t.inv) === saladRegante);
+    }
     const wrap = document.getElementById('especificos-regante-wrap');
     if(!wrap) return;
 
@@ -13110,8 +13133,15 @@ function renderSalaEnVivoContent(overlay){
 function mostrarNotificarProblemaRiego(){
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const hoy = riegoDiaDeHoy();
-  const aguas = recolectarAguaAbonoDia(hoy,'agua').sort((a,b)=>prioridadHorarioRiego(a.horario)-prioridadHorarioRiego(b.horario));
-  const abonos = recolectarAguaAbonoDia(hoy,'abono').sort((a,b)=>prioridadHorarioRiego(a.horario)-prioridadHorarioRiego(b.horario));
+  let aguas = recolectarAguaAbonoDia(hoy,'agua').sort((a,b)=>prioridadHorarioRiego(a.horario)-prioridadHorarioRiego(b.horario));
+  let abonos = recolectarAguaAbonoDia(hoy,'abono').sort((a,b)=>prioridadHorarioRiego(a.horario)-prioridadHorarioRiego(b.horario));
+
+  // Filtrar por sala si es REGANTE
+  if(currentUserRole==='REGANTE'){
+    const saladRegante = currentUser==='REGANTE1' ? 'sala1' : 'sala2';
+    aguas = aguas.filter(a => salaDeInv(a.invId) === saladRegante);
+    abonos = abonos.filter(a => salaDeInv(a.invId) === saladRegante);
+  }
   const filaEntrada = (e, tipoInterno) => {
     const contenido = tipoInterno==='abono' ? [e.tiempo, e.producto].filter(Boolean).join(' ') : (e.tiempo + (e.sal?' SAL':''));
     return `<label style="display:flex;align-items:center;gap:8px;padding:7px 4px;border-bottom:1px solid var(--border);cursor:pointer">
