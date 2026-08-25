@@ -528,11 +528,13 @@ function applyRoleHomeUI(){
       </div>
       <div id="peon-tareas-inline"></div>
       <div style="margin-top:2rem;display:flex;gap:10px;flex-wrap:wrap">
-        <button onclick="showMantenimientoPeonModule()" style="padding:14px 20px;font-size:14px;font-weight:700;background:#8b6f47;color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:8px">
+        <button id="btn-mantenimiento-peon" onclick="showMantenimientoPeonModule()" disabled style="padding:14px 20px;font-size:14px;font-weight:700;background:#8b6f47;color:#fff;border:none;border-radius:10px;cursor:not-allowed;display:flex;align-items:center;gap:8px;opacity:0.5">
           <i class="ti ti-tools" style="font-size:18px"></i> Mantenimiento de parcelas
         </button>
+        <div id="mantenimiento-msg" style="padding:14px 20px;font-size:13px;color:#a35d00;display:none">⏳ Completa todas tus tareas primero</div>
       </div>`;
     renderPeonTareasInline();
+    verificarMantenimientoDisponible();
     return;
   }
 
@@ -2823,6 +2825,27 @@ async function renderPeonTareasInline(){
   } else if(fumigacionTimerInterval){
     clearInterval(fumigacionTimerInterval);
     fumigacionTimerInterval = null;
+  }
+}
+
+function verificarMantenimientoDisponible(){
+  if(currentUserRole !== 'PEON') return;
+  const btn = document.getElementById('btn-mantenimiento-peon');
+  const msg = document.getElementById('mantenimiento-msg');
+  if(!btn || !msg) return;
+
+  const tareasActivas = tareasData.filter(t => t.asignadoA === currentUser && t.estado !== 'completada' && !esTareaDeAyer(t));
+
+  if(tareasActivas.length === 0){
+    btn.disabled = false;
+    btn.style.cursor = 'pointer';
+    btn.style.opacity = '1';
+    msg.style.display = 'none';
+  } else {
+    btn.disabled = true;
+    btn.style.cursor = 'not-allowed';
+    btn.style.opacity = '0.5';
+    msg.style.display = 'block';
   }
 }
 
