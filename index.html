@@ -7476,9 +7476,25 @@ function renderTablaEstiloDatosHTML(etiquetaCabecera, columnas, filas){
 // "Pantalla 10a" → INV, "P.Lateral 15" → Lateral — para agrupar visualmente
 // las dos filas de un mismo invernadero (que llegan sueltas del CSV) y
 // ordenar por nombre de invernadero, no alfabéticamente por "P."/"Pantalla".
+// A petición de Paula (2026-08-25): el CSV de Synopta a veces sube también
+// lecturas genéricas del sensor climático (Temperatura, Humedad, Posición de
+// ventana...) mezcladas con las columnas reales de pantalla — solo deben
+// contar aquí las columnas de Pantalla/Pantalla Lateral de cada invernadero,
+// nunca esas otras. El nombre exacto de la columna puede variar un poco
+// según cómo lo exporte Synopta (may11ísculas, con o sin punto, "Lateral" o
+// "Lat."), así que se reconoce de forma flexible por la palabra "pantalla" +
+// un código de invernadero real, en vez de exigir un formato exacto.
+function esColumnaPantallaLive(nombre){
+  // "Pantalla" completo (principal) o abreviado "P." seguido de "Lateral"/
+  // "Lat." (como llega del CSV de Synopta, ej. "P.Lateral 15").
+  const esPantalla = /pantalla/i.test(nombre) || /^p\.\s*lat/i.test(nombre);
+  if(!esPantalla) return false;
+  return /\d{1,2}[a-z]?\b/i.test(nombre);
+}
 function parsearNombrePantallaLive(nombre){
-  const lateral = /^P\.\s*Lateral\s+/i.test(nombre);
-  const inv = nombre.replace(/^P\.\s*Lateral\s+/i, '').replace(/^Pantalla\s+/i, '').trim();
+  const lateral = /lateral/i.test(nombre) || /^p\.\s*lat\b/i.test(nombre);
+  const m = /(\d{1,2}[a-z]?)\b/i.exec(nombre);
+  const inv = m ? m[1].toLowerCase() : nombre.trim();
   return {inv, lateral};
 }
 // Ordena "0a-0b" antes de "3a", "10a" antes de "15", etc. — por el primer
@@ -7511,12 +7527,10 @@ function renderClimaPantallasLiveHTML(){
   Object.entries(climaPantallasLiveData).forEach(([nombre, d])=>{
     // El CSV de Synopta a veces sube también lecturas genéricas del sensor
     // climático (Temperatura, Humedad, Posición de ventana, etc.) mezcladas
-    // con las filas reales de pantalla por invernadero — solo deben mostrarse
-    // filas cuyo nombre sea realmente "Pantalla <inv>" o "P.Lateral <inv>",
-    // donde <inv> es un código de invernadero real (número + letra opcional).
-    if(!/^(Pantalla|P\.\s*Lateral)\s+/i.test(nombre)) return;
+    // con las columnas reales de pantalla por invernadero — solo deben
+    // mostrarse columnas de Pantalla/Pantalla Lateral con un invernadero real.
+    if(!esColumnaPantallaLive(nombre)) return;
     const {inv, lateral} = parsearNombrePantallaLive(nombre);
-    if(!/^\d{1,2}[a-z]?$/i.test(inv)) return;
     if(!porInv[inv]) porInv[inv] = {inv, principal:null, lateralVal:null, actualizadoEn:d.actualizadoEn};
     if(lateral) porInv[inv].lateralVal = d.valor; else porInv[inv].principal = d.valor;
     if(d.actualizadoEn) porInv[inv].actualizadoEn = d.actualizadoEn;
