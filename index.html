@@ -589,7 +589,7 @@ function applyRoleHomeUI(){
     actualizarBotonAvisosPush();
   } else if(currentUserRole==='CARGADOR'){
     // Perfil de Julio (Cargador): encargado de indicar en qué invernaderos hay
-    // camión cargando plantas y sus horas previstas. Similar al perfil de Sonia (Injerto).
+    // camión cargando plantas y sus horas previstas.
     const block = document.getElementById('quick-access-block');
     if(block){
       block.innerHTML = `
@@ -5029,8 +5029,7 @@ function renderControlChecklistHTML(seccion){
     ${filtroInvHTML}
     ${listaDia.length===0 ? `<div style="text-align:center;padding:2rem;color:var(--muted);font-style:italic;font-size:13px">Sin líneas para este día todavía.</div>`
       : listaMostrada.length===0 ? `<div style="text-align:center;padding:2rem;color:var(--muted);font-style:italic;font-size:13px">${controlCargaInvFiltro?'No hay partidas saliendo de INV '+escapar(controlCargaInvFiltro)+' este día.':'No hay líneas '+(controlFiltroEstado==='completados'?'completadas':'pendientes')+' en este día.'}</div>`
-      : `<div style="display:flex;flex-direction:column;gap:12px">${filas}</div>`}`;
-  `;
+      : `<div style="display:flex;flex-direction:column;gap:12px">${filas}</div>`}`}`;
 }
 function handleControlPdfInput(input, tipo, dia){
   if(!input.files || !input.files[0]) return;
@@ -12853,9 +12852,9 @@ function showEspecificosReganteModule(){
     wrap.innerHTML = hojas;
   });
 }
-// ── ASIGNAR INJERTO (SONIA) ──────────────────────────────────────────────
-// A petición de Paula (2026-08-19): Sonia asigna, por invernadero y día, la
-// hora de inicio y hora prevista de fin de las mujeres injertando — clave
+// ── ASIGNAR INJERTO ──────────────────────────────────────────────────────
+// Asignación por invernadero y día de la hora de inicio y hora prevista de fin
+// de las mujeres injertando — clave
 // dia|invId, un único tramo activo por invernadero/día (si se reasigna, se
 // sobrescribe). Esto es lo que lee la línea "Injerto" de "La Sala en Vivo".
 const INJERTO_ASIGNACION_KEY = 'lasala-injerto-asignacion-v1';
