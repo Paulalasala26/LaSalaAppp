@@ -106,7 +106,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
         <option value="DENNIS">Dennis</option>
         <option value="FRAN">Fran</option>
         <option value="MIGUEL ANGEL">Miguel Angel</option>
-        <option value="SONIA">Sonia</option>
         <option value="REGANTE1">Regante1 (Sala 1)</option>
         <option value="REGANTE2">Regante2 (Sala 2)</option>
         <option value="PEON1">Peon1 (Sala 1)</option>
@@ -368,7 +367,6 @@ let USERS={
   REGANTE2:"318aee3fed8c9d040d35a7fc1fa776fb31303833aa2de885354ddf3d44d8fb69",
   PEON1:"0ffe1abd1a08215353c233d6e009613e95eec4253832a761af28ff37ac5a150c",
   PEON2:"edee29f882543b956620b26d0ee0e7e950399b1c4222f5de05e06425b4c995e9",
-  SONIA:"b6a5723b3725ddbeb986b485e5e60d4add9f4612d163d03210f0bd50c13135d1"
 };
 async function loadUsersFromCloud(){
   try{
@@ -382,7 +380,7 @@ const usersLoadedPromise = loadUsersFromCloud();
 // Roles: guardados APARTE de USERS (nunca junto a la contraseña — así lo
 // pidió Paula).
 const ROLES_KEY = 'lasala-roles-v1';
-let USER_ROLES = { VIGUERAS:'ADMIN', PAULA:'ADMIN', DENNIS:'TECNICO', FRAN:'TECNICO', 'MIGUEL ANGEL':'ADMIN', REGANTE1:'REGANTE', REGANTE2:'REGANTE', PEON1:'PEON', PEON2:'PEON', SONIA:'SONIA', JULIO:'CARGADOR' };
+let USER_ROLES = { VIGUERAS:'ADMIN', PAULA:'ADMIN', DENNIS:'TECNICO', FRAN:'TECNICO', 'MIGUEL ANGEL':'ADMIN', REGANTE1:'REGANTE', REGANTE2:'REGANTE', PEON1:'PEON', PEON2:'PEON', JULIO:'CARGADOR' };
 async function loadRolesFromCloud(){
   try{
     const r = await window.storage.get(ROLES_KEY);
@@ -565,28 +563,6 @@ function applyRoleHomeUI(){
         </div>`;
     }
     actualizarBadgeTareasRegante();
-  } else if(currentUserRole==='SONIA'){
-    // Perfil de Sonia (a petición de Paula, 2026-08-19): encargada de los
-    // Trabajos de Mujeres (Injerto/Recomponer/Pinzar/Plantar/Separar/Quitar
-    // raíces) — no solo Injerto, como se pensó al principio. Dos accesos:
-    // el módulo real de Trabajos→Mujeres (altas normales, sin horario) y un
-    // formulario propio para asignar hora de inicio/fin previsto por
-    // invernadero, que es lo que lee "La Sala en Vivo".
-    const block = document.getElementById('quick-access-block');
-    if(block){
-      block.innerHTML = `
-        <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.75rem;display:flex;align-items:center;gap:6px">
-          <i class="ti ti-bolt" style="font-size:15px;color:var(--verde-mid)"></i>Acceso de Sonia
-        </div>
-        <div style="display:flex;gap:10px;flex-wrap:wrap">
-          <button onclick="showTrabajosModule('mujeres')" style="padding:14px 20px;font-size:14px;font-weight:700;background:#7b5cf0;color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:8px">
-            <i class="ti ti-users" style="font-size:18px"></i> Trabajos de Mujeres
-          </button>
-          <button onclick="showAsignarInjertoModule()" style="padding:14px 20px;font-size:14px;font-weight:700;background:#8e24aa;color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:8px">
-            <i class="ti ti-clock" style="font-size:18px"></i> Asignar horarios
-          </button>
-        </div>`;
-    }
   } else if(currentUserRole==='TECNICO'){
     // A petición de Paula: cuando Fran o Dennis terminan de marcar todas las
     // hojas de riego, este botón manda un aviso a Vigueras (avisarHojasMarcadas).
@@ -5053,7 +5029,8 @@ function renderControlChecklistHTML(seccion){
     ${filtroInvHTML}
     ${listaDia.length===0 ? `<div style="text-align:center;padding:2rem;color:var(--muted);font-style:italic;font-size:13px">Sin líneas para este día todavía.</div>`
       : listaMostrada.length===0 ? `<div style="text-align:center;padding:2rem;color:var(--muted);font-style:italic;font-size:13px">${controlCargaInvFiltro?'No hay partidas saliendo de INV '+escapar(controlCargaInvFiltro)+' este día.':'No hay líneas '+(controlFiltroEstado==='completados'?'completadas':'pendientes')+' en este día.'}</div>`
-      : `<div style="display:flex;flex-direction:column;gap:12px">${filas}</div>`}`}`;
+      : `<div style="display:flex;flex-direction:column;gap:12px">${filas}</div>`}`;
+  `;
 }
 function handleControlPdfInput(input, tipo, dia){
   if(!input.files || !input.files[0]) return;
@@ -5250,6 +5227,15 @@ async function autoCrearLineasDesdePdfControl(tipo, dia, pdfB64){
     // legítimamente más de una vez (repartida en varios destinos), así que
     // la clave de duplicado incluye también el Nº Band y el cliente/variedad.
     const existentes = new Set(controlChecksData.filter(c=>c.tipo===tipo && c.dia===dia).map(c=>c.partida+'|'+c.numBandejas+'|'+c.clienteVariedad));
+
+    // Información del PDF que se acaba de procesar
+    const pdfDelDia = controlPdfsData[tipo+'|'+dia];
+    const pdfOrigenInfo = pdfDelDia ? {
+      nombre: pdfDelDia.nombre,
+      subidoPor: pdfDelDia.subidoPor,
+      subidoEn: pdfDelDia.subidoEn
+    } : null;
+
     let creadas = 0;
     partidas.forEach((p,idx)=>{
       const clienteVariedad = p.variedad ? `${p.cliente} — ${p.variedad}` : p.cliente;
@@ -5270,7 +5256,8 @@ async function autoCrearLineasDesdePdfControl(tipo, dia, pdfB64){
         invId: null, calleDesde: null, calleHasta: null,
         color:{}, tamano:{}, sanidad:{}, flores:{}, raices:{}, observaciones:'',
         creadoPor: currentUser||'—', creadoEn: new Date().toLocaleString('es-ES'),
-        origenPdf: true
+        origenPdf: true,
+        pdfOrigen: pdfOrigenInfo
       });
       creadas++;
     });
@@ -5340,6 +5327,15 @@ async function autoCrearLineasDesdePdfControlCarga(dia, pdfB64){
     // el mismo día (confirmado en los PDF reales) — clave de duplicado con
     // todos los campos, igual que en Túnel.
     const existentes = new Set(controlChecksData.filter(c=>c.tipo==='carga' && c.dia===dia).map(c=>c.partida+'|'+c.numBandejas+'|'+c.cliente+'|'+c.variedad+'|'+c.invernadero));
+
+    // Información del PDF que se acaba de procesar
+    const pdfDelDia = controlPdfsData['carga'+'|'+dia];
+    const pdfOrigenInfo = pdfDelDia ? {
+      nombre: pdfDelDia.nombre,
+      subidoPor: pdfDelDia.subidoPor,
+      subidoEn: pdfDelDia.subidoEn
+    } : null;
+
     let creadas = 0;
     partidas.forEach((p,idx)=>{
       const clave = p.partida+'|'+p.nband+'|'+p.cliente+'|'+p.variedad+'|'+p.inverna;
@@ -5351,7 +5347,8 @@ async function autoCrearLineasDesdePdfControlCarga(dia, pdfB64){
         cliente: p.cliente, partida: p.partida, variedad: p.variedad, numBandejas: p.nband, invernadero: p.inverna,
         color:{}, tamano:{}, sanidad:{}, flores:{}, raices:{}, observaciones:'',
         creadoPor: currentUser||'—', creadoEn: new Date().toLocaleString('es-ES'),
-        origenPdf: true
+        origenPdf: true,
+        pdfOrigen: pdfOrigenInfo
       });
       creadas++;
     });
@@ -5551,15 +5548,6 @@ function renderControlCardHTML(c, seccion){
     ? `<img src="${controlFotosData[c.id]}" onclick="mostrarFotoControlAmpliada('${c.id}')" style="max-height:64px;border-radius:8px;border:1px solid var(--border);cursor:pointer;margin-right:8px" title="Ver foto">`
     : '';
 
-  // Información del PDF del día de esta línea
-  const pdfDelDia = controlPdfsData[seccion.key+'|'+c.dia];
-  const pdfInfoHTML = pdfDelDia ? `<div style="font-size:10px;color:var(--muted);margin-top:8px;padding-top:8px;border-top:1px solid var(--border);display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-    <i class="ti ti-file-type-pdf" style="font-size:13px;color:#c62828"></i>
-    <span><strong>${escapar(pdfDelDia.nombre)}</strong></span>
-    <a href="${pdfDelDia.pdfB64}" target="_blank" style="color:#1558a0;font-weight:700;text-decoration:none;font-size:10px">Ver</a>
-    <span style="font-size:10px;color:var(--muted)">— ${escapar(pdfDelDia.subidoPor)} · ${escapar(pdfDelDia.subidoEn)}</span>
-  </div>` : '';
-
   return `
     <div id="control-card-${c.id}" style="border:1.5px solid var(--border);border-radius:12px;padding:14px 16px;background:#fff;box-shadow:var(--shadow-sm);transition:outline .2s">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
@@ -5631,15 +5619,6 @@ function renderControlCargaCardHTML(c, seccion){
   const fotoHTML = controlFotosData[c.id]
     ? `<img src="${controlFotosData[c.id]}" onclick="mostrarFotoControlAmpliada('${c.id}')" style="max-height:64px;border-radius:8px;border:1px solid var(--border);cursor:pointer;margin-right:8px" title="Ver foto">`
     : '';
-
-  // Información del PDF del día de esta línea
-  const pdfDelDia = controlPdfsData[seccion.key+'|'+c.dia];
-  const pdfInfoHTML = pdfDelDia ? `<div style="font-size:10px;color:var(--muted);margin-top:8px;padding-top:8px;border-top:1px solid var(--border);display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-    <i class="ti ti-file-type-pdf" style="font-size:13px;color:#c62828"></i>
-    <span><strong>${escapar(pdfDelDia.nombre)}</strong></span>
-    <a href="${pdfDelDia.pdfB64}" target="_blank" style="color:#1558a0;font-weight:700;text-decoration:none;font-size:10px">Ver</a>
-    <span style="font-size:10px;color:var(--muted)">— ${escapar(pdfDelDia.subidoPor)} · ${escapar(pdfDelDia.subidoEn)}</span>
-  </div>` : '';
 
   return `
     <div id="control-card-${c.id}" style="border:1.5px solid var(--border);border-radius:12px;padding:14px 16px;background:#fff;box-shadow:var(--shadow-sm);transition:outline .2s">
