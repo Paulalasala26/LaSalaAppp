@@ -5047,9 +5047,17 @@ function handleControlPdfInput(input, tipo, dia){
       showToast('Leyendo PDF y creando líneas...');
       const creadasCarga = await autoCrearLineasDesdePdfControlCarga(dia, e.target.result);
       if(creadasCarga === -2) showToast('❌ Error al GUARDAR las líneas leídas del PDF — no se ha llegado a subir a la nube, inténtalo de nuevo (si se repite, avisa)');
+      else if(creadasCarga === -3) showToast(`⚠️ Se han visto ${window.ultimaCargaPdfNoReconocidas.length} línea${window.ultimaCargaPdfNoReconocidas.length===1?'':'s'} con nº de partida pero con un formato distinto al esperado (falta la hora, el invernadero o algún campo) — no se ha creado ninguna. Mira la consola (F12) para ver el texto exacto.`);
       else if(creadasCarga > 0) showToast(`✓ ${creadasCarga} línea${creadasCarga===1?'':'s'} creada${creadasCarga===1?'':'s'} desde el PDF — falta el check`);
       else if(creadasCarga === 0) showToast('✓ PDF adjuntado (no se han detectado partidas nuevas que añadir)');
       else showToast('✓ PDF adjuntado, pero no se ha podido leer automáticamente — añade las líneas a mano');
+      // Aunque SÍ se hayan creado algunas líneas, puede haber otras partidas
+      // del mismo PDF que no encajaron en el formato esperado — avisar
+      // también en ese caso, no solo cuando "creadas" es 0.
+      if(creadasCarga > 0 && window.ultimaCargaPdfNoReconocidas?.length){
+        showToast(`⚠️ Además, ${window.ultimaCargaPdfNoReconocidas.length} línea${window.ultimaCargaPdfNoReconocidas.length===1?'':'s'} con partida no se ha podido leer (formato distinto) — revisa la consola (F12)`);
+      }
+      if(window.ultimaCargaPdfNoReconocidas?.length) console.warn('Líneas de Carga con partida no reconocidas:', window.ultimaCargaPdfNoReconocidas);
       renderControlContent(document.getElementById('control-overlay'));
       return;
     }
@@ -5286,12 +5294,23 @@ function parseControlCargaPdfPartidas(lineas){
   // si fueran Nº Band/Invernadero, cortando la Variedad a medias.
   const mainRe = /^(?<hora>\d{2}:\d{2})\s+(?<cliente>.+?)\s+(?<partida>\d{2}[A-Z]{0,2}\d{4,6})\s+(?<variedad>.+?)\s+(?<nband>\d+)\s+(?<inverna>\d{1,2}-\d{1,2}-\d{1,2})(?:\s+(?<carros>.*))?$/;
   const cabeceraRe = /^(HORA|DIA:|PARTE DE CARGA|Página|Grupo Semilleros)/i;
+  // Detección laxa de "aquí hay una partida" (solo el código, sin exigir el
+  // resto de campos) — sirve para avisar cuando una línea SÍ trae una
+  // partida real pero el resto del formato no encaja con mainRe (por
+  // ejemplo, le falta la hora, el invernadero no viene como "nn-n-n", o el
+  // texto se partió en dos líneas), en vez de descartarla en silencio sin
+  // que nadie se entere de por qué no se creó la ficha.
+  const partidaSueltaRe = /\d{2}[A-Z]{0,2}\d{4,6}/;
   const records = [];
+  const noReconocidas = [];
   lineas.forEach(l=>{
     const t = l.texto;
     if(!t || t==='***' || cabeceraRe.test(t)) return;
     const m = mainRe.exec(t);
-    if(!m) return;
+    if(!m){
+      if(partidaSueltaRe.test(t) && !/ZE|YE/i.test(t)) noReconocidas.push(t);
+      return;
+    }
     records.push({
       cliente: m.groups.cliente.trim(),
       partida: m.groups.partida,
@@ -5301,7 +5320,7 @@ function parseControlCargaPdfPartidas(lineas){
     });
   });
   // Mismo filtro que en Túnel (parseControlPdfPartidas) — ver comentario allí.
-  return records.filter(r => !/ZE|YE/i.test(r.partida));
+  return { records: records.filter(r => !/ZE|YE/i.test(r.partida)), noReconocidas };
 }
 async function autoCrearLineasDesdePdfControlCarga(dia, pdfB64){
   try{
@@ -5310,8 +5329,14 @@ async function autoCrearLineasDesdePdfControlCarga(dia, pdfB64){
     const bytes = new Uint8Array(binStr.length);
     for(let i=0;i<binStr.length;i++) bytes[i] = binStr.charCodeAt(i);
     const lineas = await extraerLineasControlPdf(bytes);
-    const partidas = parseControlCargaPdfPartidas(lineas);
-    if(!partidas.length) return -1;
+    const { records: partidas, noReconocidas } = parseControlCargaPdfPartidas(lineas);
+    // Guardado global (no solo devuelto) para poder mostrarlo también desde
+    // el toast de aviso sin tener que rehacer el parseo — ver
+    // handleControlPdfInput, que lo usa cuando no se creó ninguna línea pero
+    // SÍ había texto de partida en el PDF (formato de fila distinto al
+    // esperado, en vez de "no había nada que leer").
+    window.ultimaCargaPdfNoReconocidas = noReconocidas;
+    if(!partidas.length) return noReconocidas.length ? -3 : -1;
     // Misma partida puede repetirse en varias franjas horarias/invernaderos
     // el mismo día (confirmado en los PDF reales) — clave de duplicado con
     // todos los campos, igual que en Túnel.
