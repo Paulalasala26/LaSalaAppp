@@ -5051,10 +5051,12 @@ function handleControlPdfInput(input, tipo, dia){
       else if(creadasCarga > 0) showToast(`✓ ${creadasCarga} línea${creadasCarga===1?'':'s'} creada${creadasCarga===1?'':'s'} desde el PDF — falta el check`);
       else if(creadasCarga === 0) showToast('✓ PDF adjuntado (no se han detectado partidas nuevas que añadir)');
       else showToast('✓ PDF adjuntado, pero no se ha podido leer automáticamente — añade las líneas a mano');
-      // Aunque SÍ se hayan creado algunas líneas, puede haber otras partidas
-      // del mismo PDF que no encajaron en el formato esperado — avisar
-      // también en ese caso, no solo cuando "creadas" es 0.
-      if(creadasCarga > 0 && window.ultimaCargaPdfNoReconocidas?.length){
+      // Independientemente de si se creó alguna línea o no (incluso con
+      // creadasCarga===0, que puede significar "todo lo que se leyó ya
+      // existía" y esconder que ALGUNA otra partida del PDF ni siquiera se
+      // llegó a leer) — avisar siempre que queden líneas con partida sin
+      // reconocer, con el texto exacto en consola para poder diagnosticar.
+      if(creadasCarga !== -3 && window.ultimaCargaPdfNoReconocidas?.length){
         showToast(`⚠️ Además, ${window.ultimaCargaPdfNoReconocidas.length} línea${window.ultimaCargaPdfNoReconocidas.length===1?'':'s'} con partida no se ha podido leer (formato distinto) — revisa la consola (F12)`);
       }
       if(window.ultimaCargaPdfNoReconocidas?.length) console.warn('Líneas de Carga con partida no reconocidas:', window.ultimaCargaPdfNoReconocidas);
