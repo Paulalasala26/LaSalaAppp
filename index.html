@@ -13055,6 +13055,7 @@ const SALA_EN_VIVO_LINEAS = [
   {key:'riego', label:'Riego', icon:'ti-droplet', color:'#1558a0', bg:'#eef4fb'},
   {key:'carga', label:'Carga', icon:'ti-truck', color:'#a35d00', bg:'#fff8ec'},
   {key:'injerto', label:'Injerto', icon:'ti-plant-2', color:'#8e24aa', bg:'#f8effb'},
+  {key:'tuneles', label:'Túneles', icon:'ti-building-warehouse', color:'#d97706', bg:'#fff7ed'},
   {key:'peones', label:'Peones', icon:'ti-user', color:'#1a5c2e', bg:'#eafaf0'},
   {key:'regantes', label:'Regantes', icon:'ti-droplet-filled', color:'#00838f', bg:'#e6f7f8'}
 ];
@@ -13101,10 +13102,23 @@ function renderSalaEnVivoInvCard(invId){
   // de desaparecer del todo como antes).
   // A petición de Paula (2026-08-24): cuando pasa la hora de fin, se quita
   // automáticamente de "La Sala en Vivo" (injerto, cargas).
+
+  // Buscar trabajos de túnel para hoy en este invernadero
+  const hoyStr = new Date().toLocaleDateString('es-ES');
+  const tunelesTrabajosHoy = (trabajosData || []).filter(t =>
+    t.seccion === 'tunel' &&
+    t.fecha === hoyStr &&
+    t.inv === invId &&
+    estaEnHorario(t.horaInicio, t.horaFinPrevista)
+  );
+  const tunelesBuscando = (currentUserRole !== 'REGANTE' && tecnicoPresenteAhora('tunel', invId)) ? 'Buscando planta en túnel' : null;
+  const tunelesContenido = tunelesBuscando || (tunelesTrabajosHoy.length ? tunelesTrabajosHoy.map(t=>`Trayendo planta · ${escapar(t.horaInicio||'')}${t.horaFinPrevista?' – '+escapar(t.horaFinPrevista)+' (previsto)':''}`).join('<br>') : null);
+
   const contenidos = {
     riego: (currentUserRole !== 'REGANTE' && riegos.length) ? riegos.map(r=>`${escapar(r.texto)} · ${escapar(r.horaInicio)}${r.horaFin?' – '+escapar(r.horaFin):' (en curso)'}`).join('<br>') : (currentUserRole === 'REGANTE' ? especificos : null),
     carga: cargando ? 'Cargando camión' : (cargaValida ? `Camión · ${escapar(cargaValida.horaInicio)}${cargaValida.horaFinPrevista?' – '+escapar(cargaValida.horaFinPrevista)+' (previsto)':''}` : null),
     injerto: injertoValido ? `Mujeres injertando · ${escapar(injertoValido.horaInicio)}${injertoValido.horaFinPrevista?' – '+escapar(injertoValido.horaFinPrevista)+' (previsto)':''}` : null,
+    tuneles: tunelesContenido,
     peones: (currentUserRole !== 'REGANTE' && peones.length) ? peones.map(t=>`${escapar(nombreLegibleUsuario(t.asignadoA))} — ${escapar(t.titulo)}`).join('<br>') : (currentUserRole === 'REGANTE' ? tareasAsignadas : null),
     regantes: (currentUserRole !== 'REGANTE' && riegos.length && regante) ? `${escapar(nombreLegibleUsuario(regante))} — ${riegos.map(r=>`${escapar(r.texto)} (${escapar(r.horaInicio)}${r.horaFin?'–'+escapar(r.horaFin):''})`).join(', ')}` : null
   };
