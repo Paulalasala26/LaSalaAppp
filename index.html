@@ -9094,9 +9094,21 @@ function renderDashboardInvernaderos(modulo){
         ${invIds.map(invId=>buildMiniaturaInvernadero(modulo, invId, dia)).join('')}
       </div>
     </div>`;
+
+  // Filtrar por sala si es REGANTE
+  let salasAMostrar = [];
+  if(currentUserRole==='REGANTE'){
+    if(currentUser==='REGANTE1'){
+      salasAMostrar = [[Object.keys(INV_LAYOUT_SALA1), 'SALA 1']];
+    } else {
+      salasAMostrar = [[Object.keys(INV_LAYOUT_SALA2), 'SALA 2']];
+    }
+  } else {
+    salasAMostrar = [[Object.keys(INV_LAYOUT_SALA1), 'SALA 1'], [Object.keys(INV_LAYOUT_SALA2), 'SALA 2']];
+  }
+
   const miniaturasHTML = `<div style="padding:1.5rem 0">
-    ${fila(Object.keys(INV_LAYOUT_SALA1), 'SALA 1')}
-    ${fila(Object.keys(INV_LAYOUT_SALA2), 'SALA 2')}
+    ${salasAMostrar.map(([invIds, label])=>fila(invIds, label)).join('')}
   </div>`;
   // A petición de Paula, 2026-07-30: solo en Plaguicidas/Específicos (no en
   // Riego ni en Clima, que también reutilizan este dashboard) la pantalla se
@@ -9160,7 +9172,16 @@ function renderResumenQuincenaTratamientos(modulo){
   const rawGetter = modulo==='fito' ? (invId,dia,c)=>getFitoCellRaw(invId,dia,c) : (invId,dia,c)=>getEspecificoCellRaw(invId,dia,c);
   const offset = modulo==='fito' ? fitoQuincenaOffset : especificosQuincenaOffset;
   const diasQ = riegoQuincenaDias(offset);
-  const allInvIds = [...Object.keys(INV_LAYOUT_SALA1), ...Object.keys(INV_LAYOUT_SALA2)];
+  let allInvIds = [...Object.keys(INV_LAYOUT_SALA1), ...Object.keys(INV_LAYOUT_SALA2)];
+
+  // Filtrar por sala si es REGANTE
+  if(currentUserRole==='REGANTE'){
+    if(currentUser==='REGANTE1'){
+      allInvIds = Object.keys(INV_LAYOUT_SALA1);
+    } else {
+      allInvIds = Object.keys(INV_LAYOUT_SALA2);
+    }
+  }
   // A petición de Paula (2026-07-31): agrupar por el TRATAMIENTO (producto+
   // dosis+horario, ignorando la observación) en vez de por el texto exacto —
   // así, varios tramos/invernaderos con observaciones distintas del mismo
