@@ -5226,15 +5226,6 @@ async function autoCrearLineasDesdePdfControl(tipo, dia, pdfB64){
     // legítimamente más de una vez (repartida en varios destinos), así que
     // la clave de duplicado incluye también el Nº Band y el cliente/variedad.
     const existentes = new Set(controlChecksData.filter(c=>c.tipo===tipo && c.dia===dia).map(c=>c.partida+'|'+c.numBandejas+'|'+c.clienteVariedad));
-
-    // Información del PDF que se acaba de procesar
-    const pdfDelDia = controlPdfsData[tipo+'|'+dia];
-    const pdfOrigenInfo = pdfDelDia ? {
-      nombre: pdfDelDia.nombre,
-      subidoPor: pdfDelDia.subidoPor,
-      subidoEn: pdfDelDia.subidoEn
-    } : null;
-
     let creadas = 0;
     partidas.forEach((p,idx)=>{
       const clienteVariedad = p.variedad ? `${p.cliente} — ${p.variedad}` : p.cliente;
@@ -5255,8 +5246,7 @@ async function autoCrearLineasDesdePdfControl(tipo, dia, pdfB64){
         invId: null, calleDesde: null, calleHasta: null,
         color:{}, tamano:{}, sanidad:{}, flores:{}, raices:{}, observaciones:'',
         creadoPor: currentUser||'—', creadoEn: new Date().toLocaleString('es-ES'),
-        origenPdf: true,
-        pdfOrigen: pdfOrigenInfo
+        origenPdf: true
       });
       creadas++;
     });
@@ -5326,15 +5316,6 @@ async function autoCrearLineasDesdePdfControlCarga(dia, pdfB64){
     // el mismo día (confirmado en los PDF reales) — clave de duplicado con
     // todos los campos, igual que en Túnel.
     const existentes = new Set(controlChecksData.filter(c=>c.tipo==='carga' && c.dia===dia).map(c=>c.partida+'|'+c.numBandejas+'|'+c.cliente+'|'+c.variedad+'|'+c.invernadero));
-
-    // Información del PDF que se acaba de procesar
-    const pdfDelDia = controlPdfsData['carga'+'|'+dia];
-    const pdfOrigenInfo = pdfDelDia ? {
-      nombre: pdfDelDia.nombre,
-      subidoPor: pdfDelDia.subidoPor,
-      subidoEn: pdfDelDia.subidoEn
-    } : null;
-
     let creadas = 0;
     partidas.forEach((p,idx)=>{
       const clave = p.partida+'|'+p.nband+'|'+p.cliente+'|'+p.variedad+'|'+p.inverna;
@@ -5346,8 +5327,7 @@ async function autoCrearLineasDesdePdfControlCarga(dia, pdfB64){
         cliente: p.cliente, partida: p.partida, variedad: p.variedad, numBandejas: p.nband, invernadero: p.inverna,
         color:{}, tamano:{}, sanidad:{}, flores:{}, raices:{}, observaciones:'',
         creadoPor: currentUser||'—', creadoEn: new Date().toLocaleString('es-ES'),
-        origenPdf: true,
-        pdfOrigen: pdfOrigenInfo
+        origenPdf: true
       });
       creadas++;
     });
@@ -5547,6 +5527,15 @@ function renderControlCardHTML(c, seccion){
     ? `<img src="${controlFotosData[c.id]}" onclick="mostrarFotoControlAmpliada('${c.id}')" style="max-height:64px;border-radius:8px;border:1px solid var(--border);cursor:pointer;margin-right:8px" title="Ver foto">`
     : '';
 
+  // Información del PDF del día de esta línea
+  const pdfDelDia = controlPdfsData[seccion.key+'|'+c.dia];
+  const pdfInfoHTML = pdfDelDia ? `<div style="font-size:10px;color:var(--muted);margin-top:8px;padding-top:8px;border-top:1px solid var(--border);display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+    <i class="ti ti-file-type-pdf" style="font-size:13px;color:#c62828"></i>
+    <span><strong>${escapar(pdfDelDia.nombre)}</strong></span>
+    <a href="${pdfDelDia.pdfB64}" target="_blank" style="color:#1558a0;font-weight:700;text-decoration:none;font-size:10px">Ver</a>
+    <span style="font-size:10px;color:var(--muted)">— ${escapar(pdfDelDia.subidoPor)} · ${escapar(pdfDelDia.subidoEn)}</span>
+  </div>` : '';
+
   return `
     <div id="control-card-${c.id}" style="border:1.5px solid var(--border);border-radius:12px;padding:14px 16px;background:#fff;box-shadow:var(--shadow-sm);transition:outline .2s">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
@@ -5618,6 +5607,15 @@ function renderControlCargaCardHTML(c, seccion){
   const fotoHTML = controlFotosData[c.id]
     ? `<img src="${controlFotosData[c.id]}" onclick="mostrarFotoControlAmpliada('${c.id}')" style="max-height:64px;border-radius:8px;border:1px solid var(--border);cursor:pointer;margin-right:8px" title="Ver foto">`
     : '';
+
+  // Información del PDF del día de esta línea
+  const pdfDelDia = controlPdfsData[seccion.key+'|'+c.dia];
+  const pdfInfoHTML = pdfDelDia ? `<div style="font-size:10px;color:var(--muted);margin-top:8px;padding-top:8px;border-top:1px solid var(--border);display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+    <i class="ti ti-file-type-pdf" style="font-size:13px;color:#c62828"></i>
+    <span><strong>${escapar(pdfDelDia.nombre)}</strong></span>
+    <a href="${pdfDelDia.pdfB64}" target="_blank" style="color:#1558a0;font-weight:700;text-decoration:none;font-size:10px">Ver</a>
+    <span style="font-size:10px;color:var(--muted)">— ${escapar(pdfDelDia.subidoPor)} · ${escapar(pdfDelDia.subidoEn)}</span>
+  </div>` : '';
 
   return `
     <div id="control-card-${c.id}" style="border:1.5px solid var(--border);border-radius:12px;padding:14px 16px;background:#fff;box-shadow:var(--shadow-sm);transition:outline .2s">
@@ -12853,8 +12851,8 @@ function showEspecificosReganteModule(){
   });
 }
 // ── ASIGNAR INJERTO ──────────────────────────────────────────────────────
-// Asignación por invernadero y día de la hora de inicio y hora prevista de fin
-// de las mujeres injertando — clave
+// Asignación por invernadero y día de la
+// hora de inicio y hora prevista de fin de las mujeres injertando — clave
 // dia|invId, un único tramo activo por invernadero/día (si se reasigna, se
 // sobrescribe). Esto es lo que lee la línea "Injerto" de "La Sala en Vivo".
 const INJERTO_ASIGNACION_KEY = 'lasala-injerto-asignacion-v1';
