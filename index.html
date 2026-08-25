@@ -7509,7 +7509,14 @@ function renderClimaPantallasLiveHTML(){
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const porInv = {};
   Object.entries(climaPantallasLiveData).forEach(([nombre, d])=>{
+    // El CSV de Synopta a veces sube también lecturas genéricas del sensor
+    // climático (Temperatura, Humedad, Posición de ventana, etc.) mezcladas
+    // con las filas reales de pantalla por invernadero — solo deben mostrarse
+    // filas cuyo nombre sea realmente "Pantalla <inv>" o "P.Lateral <inv>",
+    // donde <inv> es un código de invernadero real (número + letra opcional).
+    if(!/^(Pantalla|P\.\s*Lateral)\s+/i.test(nombre)) return;
     const {inv, lateral} = parsearNombrePantallaLive(nombre);
+    if(!/^\d{1,2}[a-z]?$/i.test(inv)) return;
     if(!porInv[inv]) porInv[inv] = {inv, principal:null, lateralVal:null, actualizadoEn:d.actualizadoEn};
     if(lateral) porInv[inv].lateralVal = d.valor; else porInv[inv].principal = d.valor;
     if(d.actualizadoEn) porInv[inv].actualizadoEn = d.actualizadoEn;
@@ -7663,6 +7670,13 @@ function renderClimaSeccionHTML(seccion){
       <button onclick="actualizarClimaPantallasLive()" style="padding:7px 14px;font-size:12px;font-weight:700;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:7px;cursor:pointer;display:flex;align-items:center;gap:5px"><i class="ti ti-refresh" style="font-size:14px"></i> Actualizar</button>
     </div>
     <div id="clima-pantallas-live-wrap">${renderClimaPantallasLiveHTML()}</div>`;
+  if(seccion.key==='fog' || seccion.key==='cooling'){
+    return `
+      <div style="margin-bottom:1.25rem">
+        <h2 style="font-size:22px;font-weight:800;color:var(--text)">${seccion.label}</h2>
+      </div>
+      <div style="text-align:center;padding:3rem;color:var(--muted);font-style:italic;font-size:13px">Próximamente.</div>`;
+  }
   return `
     <div style="margin-bottom:1.25rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
       <h2 style="font-size:22px;font-weight:800;color:var(--text)">${seccion.label}</h2>
