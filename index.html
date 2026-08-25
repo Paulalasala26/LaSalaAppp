@@ -10446,6 +10446,9 @@ function renderFitoGrid(invId){
   if(!layout){wrap.innerHTML='<p style="padding:2rem;color:#888">Sin datos.</p>';return;}
   const CW=46,DH=esPantallaMovil()?38:28,DAY_W=48,SEM_W=66,HDR_H=28;
   const diasQ = riegoQuincenaDias(fitoQuincenaOffset);
+  // Plaguicidas es solo de ADMIN/TÉCNICO (nunca REGANTE) — la fuente
+  // siempre usa el criterio normal (no el de solo-lectura del REGANTE).
+  const esReganteSoloLectura = false;
 
   function buildFitoSection(calles,secLabel){
     let hdr=`<tr style="background:#fdf0f0;position:sticky;top:0;z-index:10">
@@ -14522,6 +14525,9 @@ function renderEspecificosGrid(invId){
   if(!layout){wrap.innerHTML='<p style="padding:2rem;color:#888">Sin datos.</p>';return;}
   const CW=46,DH=esPantallaMovil()?38:28,DAY_W=48,SEM_W=66,HDR_H=28;
   const diasQ = riegoQuincenaDias(especificosQuincenaOffset);
+  // Este grid completo (con inputs editables) es solo de ADMIN/TÉCNICO — el
+  // REGANTE usa showEspecificosReganteModule (solo lectura), no esta función.
+  const esReganteSoloLectura = false;
 
   function buildEspecificoSection(calles,secLabel){
     let hdr=`<tr style="background:#eaf5ea;position:sticky;top:0;z-index:10">
