@@ -5049,21 +5049,24 @@ function renderControlChecklistHTML(seccion){
     </div>` : '';
   // Líneas cuya calle real todavía no se puede resolver (Túnel: no se le ha
   // asignado calle todavía; Carga: su línea "hermana" de Túnel no existe o
-  // tampoco tiene calle) muestran "Calle: —" en la tarjeta — antes, filtrar
-  // por un invernadero concreto las excluía SIEMPRE (ningún tramo con el que
-  // comparar), así que quedaban invisibles pasara lo que pasara y era fácil
-  // olvidarse de asignarles la calle. Ahora se siguen mostrando bajo
-  // CUALQUIER filtro de invernadero (al final de la lista) hasta que se les
-  // asigna una calle real, en vez de desaparecer en silencio.
+  // tampoco tiene calle) muestran "Calle: —" en la tarjeta. A petición de
+  // Paula (2026-08-26): mostrarlas bajo CUALQUIER filtro de invernadero (a
+  // petición de un cambio anterior) rompía el filtro — al elegir un
+  // invernadero concreto aparecían también líneas de otros invernaderos sin
+  // asignar, mezcladas, así que "filtrar no funcionaba bien". Ahora el
+  // filtro por invernadero vuelve a ser estricto (solo esa calle real); las
+  // líneas sin calle asignada siguen siendo visibles, pero solo en la vista
+  // "Todos los invernaderos" (sin filtro) — ahí es donde hay que fijarse
+  // para acabar de asignarles la calle, no mezcladas con otro invernadero.
   const listaMostrada = (seccion.key==='carga' && controlCargaInvFiltro)
     ? lista.map(c=>({c, tramo: calleTramoDeCarga(c)}))
-        .filter(x=>!x.tramo || x.tramo.invId===controlCargaInvFiltro)
-        .sort((a,b)=> (a.tramo?a.tramo.desde:Infinity) - (b.tramo?b.tramo.desde:Infinity))
+        .filter(x=>x.tramo && x.tramo.invId===controlCargaInvFiltro)
+        .sort((a,b)=> a.tramo.desde - b.tramo.desde)
         .map(x=>x.c)
     : (seccion.key==='tunel' && controlTunelInvFiltro)
     ? lista.map(c=>({c, tramo: calleTramoDeTunel(c)}))
-        .filter(x=>!x.tramo || x.tramo.invId===controlTunelInvFiltro)
-        .sort((a,b)=> (a.tramo?a.tramo.desde:Infinity) - (b.tramo?b.tramo.desde:Infinity))
+        .filter(x=>x.tramo && x.tramo.invId===controlTunelInvFiltro)
+        .sort((a,b)=> a.tramo.desde - b.tramo.desde)
         .map(x=>x.c)
     : lista;
 
