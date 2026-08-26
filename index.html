@@ -3629,7 +3629,23 @@ function calleTramoDeTunel(c){
   const hasta = Math.max(...tramos.map(t=>t.hasta??t.desde));
   return { invId: c.invId, desde, hasta, label: formatTramosLabel(c.invId, tramos) };
 }
+// A petición de Paula (2026-08-26): el propio campo `invernadero` de Carga
+// ("nn-x-y", ej. "11-6-6") YA trae todo lo necesario — el primer número es
+// el invernadero, los otros dos son la calle inicial y final — así que no
+// hace falta depender de que exista una línea "hermana" en Check Túnel
+// (que si no existía, o no tenía calle asignada, dejaba la línea de Carga
+// sin calle y esas líneas se colaban en CUALQUIER filtro de invernadero).
+function calleTramoDeCargaDirecta(c){
+  const m = /^(\d{1,2})-(\d{1,3})-(\d{1,3})$/.exec(c.invernadero || '');
+  if(!m) return null;
+  const invNum = m[1].replace(/^0+(?=\d)/, ''); // quita el cero a la izquierda ("03" -> "3")
+  const desde = Math.min(parseInt(m[2],10), parseInt(m[3],10));
+  const hasta = Math.max(parseInt(m[2],10), parseInt(m[3],10));
+  return { invId: invNum, desde, hasta, label: `${desde===hasta?desde:desde+'-'+hasta}` };
+}
 function calleTramoDeCarga(c){
+  const directa = calleTramoDeCargaDirecta(c);
+  if(directa) return directa;
   if(!c.partida) return null;
   const entrada = controlChecksData.find(x=>x.tipo==='tunel' && x.partida===c.partida && x.invId && x.numBandejas===c.numBandejas)
     || controlChecksData.find(x=>x.tipo==='tunel' && x.partida===c.partida && x.invId);
@@ -3639,6 +3655,16 @@ function calleTramoDeCarga(c){
   const desde = Math.min(...tramos.map(t=>t.desde));
   const hasta = Math.max(...tramos.map(t=>t.hasta??t.desde));
   return { invId: entrada.invId, desde, hasta, label: formatTramosLabel(entrada.invId, tramos) };
+}
+// El invId que sale de `invernadero` es solo el número (ej. "11"), sin lado
+// A/B — el propio parte de Carga no distingue de qué lado del pasillo es.
+// Al filtrar por un invernadero concreto del desplegable ("11A", "11B"...)
+// hay que aceptar cualquiera de los dos lados si el número coincide, ya
+// que no hay forma de saber cuál de los dos es sin esa información.
+function coincideInvernaderoCarga(invIdTramo, filtroSeleccionado){
+  if(invIdTramo === filtroSeleccionado) return true;
+  const numeroFiltro = filtroSeleccionado.replace(/[A-Za-z]+$/, '');
+  return invIdTramo === numeroFiltro;
 }
 function renderPinzarSubSeccionHTML(){
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -5060,7 +5086,7 @@ function renderControlChecklistHTML(seccion){
   // para acabar de asignarles la calle, no mezcladas con otro invernadero.
   const listaMostrada = (seccion.key==='carga' && controlCargaInvFiltro)
     ? lista.map(c=>({c, tramo: calleTramoDeCarga(c)}))
-        .filter(x=>x.tramo && x.tramo.invId===controlCargaInvFiltro)
+        .filter(x=>x.tramo && coincideInvernaderoCarga(x.tramo.invId, controlCargaInvFiltro))
         .sort((a,b)=> a.tramo.desde - b.tramo.desde)
         .map(x=>x.c)
     : (seccion.key==='tunel' && controlTunelInvFiltro)
