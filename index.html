@@ -4976,15 +4976,23 @@ function renderControlChecklistHTML(seccion){
         <optgroup label="Sala 2">${ALL_INV_IDS.map(id=>`<option value="${id}"${(seccion.key==='carga'?controlCargaInvFiltro:controlTunelInvFiltro)===id?' selected':''}>INV ${id}</option>`).join('')}</optgroup>
       </select>
     </div>` : '';
+  // Líneas cuya calle real todavía no se puede resolver (Túnel: no se le ha
+  // asignado calle todavía; Carga: su línea "hermana" de Túnel no existe o
+  // tampoco tiene calle) muestran "Calle: —" en la tarjeta — antes, filtrar
+  // por un invernadero concreto las excluía SIEMPRE (ningún tramo con el que
+  // comparar), así que quedaban invisibles pasara lo que pasara y era fácil
+  // olvidarse de asignarles la calle. Ahora se siguen mostrando bajo
+  // CUALQUIER filtro de invernadero (al final de la lista) hasta que se les
+  // asigna una calle real, en vez de desaparecer en silencio.
   const listaMostrada = (seccion.key==='carga' && controlCargaInvFiltro)
     ? lista.map(c=>({c, tramo: calleTramoDeCarga(c)}))
-        .filter(x=>x.tramo && x.tramo.invId===controlCargaInvFiltro)
-        .sort((a,b)=> a.tramo.desde - b.tramo.desde)
+        .filter(x=>!x.tramo || x.tramo.invId===controlCargaInvFiltro)
+        .sort((a,b)=> (a.tramo?a.tramo.desde:Infinity) - (b.tramo?b.tramo.desde:Infinity))
         .map(x=>x.c)
     : (seccion.key==='tunel' && controlTunelInvFiltro)
     ? lista.map(c=>({c, tramo: calleTramoDeTunel(c)}))
-        .filter(x=>x.tramo && x.tramo.invId===controlTunelInvFiltro)
-        .sort((a,b)=> a.tramo.desde - b.tramo.desde)
+        .filter(x=>!x.tramo || x.tramo.invId===controlTunelInvFiltro)
+        .sort((a,b)=> (a.tramo?a.tramo.desde:Infinity) - (b.tramo?b.tramo.desde:Infinity))
         .map(x=>x.c)
     : lista;
 
