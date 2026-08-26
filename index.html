@@ -4358,8 +4358,29 @@ async function persistControlFotosData(id){
 // sola (ver eliminarControlCheckConfirmado).
 const CONTROL_KEY = 'lasala-control-checks-v1';
 let controlChecksData = [];
+// Bug real encontrado (2026-08-26): con wifi inestable, cada reconexión
+// dispara procesarColaOffline(), que llama a esta función para refrescar
+// "lo último de la nube" ANTES de reaplicar la cola pendiente. Pero esto
+// SOBRESCRIBÍA controlChecksData entero — si en ese mismo instante había
+// checks recién marcados cuyo propio guardado (persistControlChecksData)
+// todavía estaba en el aire (esperando red), esa mutación en memoria SOLO
+// vivía ahí, en ningún otro sitio, y se perdía sin avisar de nada: la nube
+// se quedaba con la versión de ANTES de esos checks. Caso real: ~93 líneas
+// de Check Carga marcadas volvieron a aparecer en blanco. Ahora se hace el
+// mismo merge (nube + local, gana lo local) que ya usa
+// persistControlChecksData, para no poder pisar nunca una edición todavía
+// no guardada.
 async function loadControlChecksData(){
-  try{ const r = await window.storage.get(CONTROL_KEY); if(r) controlChecksData = JSON.parse(r.value); }catch(e){}
+  try{
+    const r = await window.storage.get(CONTROL_KEY);
+    if(r){
+      const cloud = JSON.parse(r.value);
+      const map = {};
+      cloud.forEach(t=>map[t.id]=t);
+      controlChecksData.forEach(t=>map[t.id]=t);
+      controlChecksData = Object.values(map);
+    }
+  }catch(e){}
 }
 async function persistControlChecksData(){
   try{
