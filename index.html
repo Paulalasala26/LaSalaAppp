@@ -4358,6 +4358,7 @@ async function persistControlFotosData(id){
 // creadoEn}. Lista plana, igual que trabajosData — merge-by-id, nunca borra
 // sola (ver eliminarControlCheckConfirmado).
 const CONTROL_KEY = 'lasala-control-checks-v1'; // legado — array entero, solo se usa para la migración de una vez
+let controlChecksData = [];
 // A petición real (2026-08-26), tras perder ~93 líneas marcadas de Check
 // Carga con wifi inestable: guardar TODAS las líneas juntas en un único
 // documento obligaba a leer-fusionar-escribir el array ENTERO en cada
