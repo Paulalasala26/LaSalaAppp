@@ -4200,6 +4200,7 @@ async function aplicarSanidadEnfermedad(id, key, valor){
   // cambio ya estaba aplicado en memoria — ahora se ve al instante siempre.
   renderControlContent(document.getElementById('control-overlay'));
   const qid = encolarAccionOffline('aplicarSanidadEnfermedad', [id, key, valor]);
+  marcarControlCheckSucio(id);
   const ok = await persistControlChecksData();
   if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
 }
@@ -4356,43 +4357,91 @@ async function persistControlFotosData(id){
 // flores:{si,no}, raices:{pocaRaiz,raizVariedad}, observaciones, creadoPor,
 // creadoEn}. Lista plana, igual que trabajosData — merge-by-id, nunca borra
 // sola (ver eliminarControlCheckConfirmado).
-const CONTROL_KEY = 'lasala-control-checks-v1';
-let controlChecksData = [];
-// Bug real encontrado (2026-08-26): con wifi inestable, cada reconexión
-// dispara procesarColaOffline(), que llama a esta función para refrescar
-// "lo último de la nube" ANTES de reaplicar la cola pendiente. Pero esto
-// SOBRESCRIBÍA controlChecksData entero — si en ese mismo instante había
-// checks recién marcados cuyo propio guardado (persistControlChecksData)
-// todavía estaba en el aire (esperando red), esa mutación en memoria SOLO
-// vivía ahí, en ningún otro sitio, y se perdía sin avisar de nada: la nube
-// se quedaba con la versión de ANTES de esos checks. Caso real: ~93 líneas
-// de Check Carga marcadas volvieron a aparecer en blanco. Ahora se hace el
-// mismo merge (nube + local, gana lo local) que ya usa
-// persistControlChecksData, para no poder pisar nunca una edición todavía
-// no guardada.
+const CONTROL_KEY = 'lasala-control-checks-v1'; // legado — array entero, solo se usa para la migración de una vez
+// A petición real (2026-08-26), tras perder ~93 líneas marcadas de Check
+// Carga con wifi inestable: guardar TODAS las líneas juntas en un único
+// documento obligaba a leer-fusionar-escribir el array ENTERO en cada
+// guardado — si dos de esas operaciones se cruzaban en el tiempo (un
+// guardado en curso + una recarga por reconexión, dos toques seguidos...),
+// una podía acabar escribiendo por encima de datos que la otra todavía no
+// había terminado de fusionar, perdiendo checks sin avisar de nada. Se
+// corrigió un caso concreto de esa carrera, pero la única forma de que sea
+// IMPOSIBLE de raíz (no solo improbable) es que cada línea sea su PROPIO
+// documento en la nube: cada guardado toca solo el documento de la línea
+// que cambió, sin tocar ni depender de las demás — no hay nada que
+// fusionar ni nada que se pueda pisar entre dos guardados que no comparten
+// documento.
+const CONTROL_ITEMS_KEY = 'lasala-control-items-v1';
+function controlItemUrl(id){ return `${CLOUD_DB_URL}/${CONTROL_ITEMS_KEY}/${encodeURIComponent(id)}.json`; }
+// Escritura NATIVA de Firebase (un solo JSON.stringify, SIN la doble
+// codificación que usa window.storage para el resto de la app) — aquí cada
+// línea vive como un documento normal de Firebase, no como texto dentro de
+// un string, así que un guardado no necesita tocar ni leer los demás.
+async function guardarControlItemAtomico(id, item){
+  try{
+    if(item===null){
+      await fetchConReintentos(controlItemUrl(id), { method:'DELETE' });
+    } else {
+      await fetchConReintentos(controlItemUrl(id), {
+        method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(item)
+      });
+    }
+    return true;
+  }catch(e){ return false; }
+}
+// Ids de líneas que han cambiado en memoria desde el último guardado con
+// éxito — cada punto que muta controlChecksData (toggle de check,
+// observaciones, nueva línea, borrado...) añade aquí el/los id(s) que tocó
+// justo antes de llamar a persistControlChecksData(). Guardar solo relee
+// este conjunto, así que no hace falta que cada sitio recuerde pasar nada.
+let controlChecksDirtyIds = new Set();
+function marcarControlCheckSucio(id){ controlChecksDirtyIds.add(id); }
 async function loadControlChecksData(){
   try{
-    const r = await window.storage.get(CONTROL_KEY);
-    if(r){
-      const cloud = JSON.parse(r.value);
+    const res = await fetchConReintentos(`${CLOUD_DB_URL}/${CONTROL_ITEMS_KEY}.json`);
+    const obj = await res.json();
+    if(obj && Object.keys(obj).length){
+      // Fusiona con lo que ya hubiera en memoria (gana lo local) en vez de
+      // sustituir el array entero — si en este preciso instante hay algún
+      // id marcado como "sucio" (un guardado todavía en el aire, ver
+      // marcarControlCheckSucio), esta recarga NO puede pisarlo, porque el
+      // objeto local con esa edición sigue siendo el que queda en el mapa.
       const map = {};
-      cloud.forEach(t=>map[t.id]=t);
-      controlChecksData.forEach(t=>map[t.id]=t);
+      Object.values(obj).forEach(t=>map[t.id]=t);
+      controlChecksData.forEach(t=>{ if(controlChecksDirtyIds.has(t.id)) map[t.id]=t; });
       controlChecksData = Object.values(map);
+      return;
     }
+    // Todavía no existe la colección nueva — migración de una vez desde el
+    // array-blob viejo (si lo hay), repartiendo cada línea en su propio
+    // documento para que a partir de ahora ya se guarde de forma atómica.
+    const r = await window.storage.get(CONTROL_KEY);
+    const viejo = r ? JSON.parse(r.value) : [];
+    if(viejo.length){
+      await Promise.all(viejo.map(item => guardarControlItemAtomico(item.id, item)));
+    }
+    controlChecksData = viejo;
   }catch(e){}
 }
-async function persistControlChecksData(){
-  try{
-    const r = await window.storage.get(CONTROL_KEY);
-    if(!r){ avisarFalloGuardado(); return false; }
-    const cloud = JSON.parse(r.value);
-    const map = {};
-    cloud.forEach(t=>map[t.id]=t);
-    controlChecksData.forEach(t=>map[t.id]=t);
-    controlChecksData = Object.values(map);
-    return await window.storage.set(CONTROL_KEY, JSON.stringify(controlChecksData));
-  }catch(e){ return false; }
+// ids opcional: si se pasa, guarda SOLO esos documentos (lo normal — cada
+// sitio que muta controlChecksData marca su propio id con
+// marcarControlCheckSucio ANTES de llamar aquí). Si se omite, cae en los
+// ids marcados como "sucios" desde el último guardado — pensado como red
+// de seguridad, nunca hace falta pasarlo a mano salvo casos excepcionales.
+async function persistControlChecksData(ids){
+  const objetivo = ids && ids.length ? ids : Array.from(controlChecksDirtyIds);
+  if(!objetivo.length) return true;
+  controlChecksDirtyIds = new Set([...controlChecksDirtyIds].filter(id=>!objetivo.includes(id)));
+  const resultados = await Promise.all(objetivo.map(id=>{
+    const item = controlChecksData.find(c=>c.id===id);
+    return guardarControlItemAtomico(id, item || null); // null = ya no existe en local -> borrar en la nube
+  }));
+  const ok = resultados.every(Boolean);
+  if(!ok){
+    objetivo.forEach(id=>controlChecksDirtyIds.add(id)); // reintentar en el próximo guardado
+    avisarFalloGuardado();
+  }
+  return ok;
 }
 // ════════════════════════════════════════════════════════════════
 // GUARDADO SIN CONEXIÓN para Check Túnel/Carga (a petición de Paula,
@@ -5329,8 +5378,9 @@ async function autoCrearLineasDesdePdfControl(tipo, dia, pdfB64){
       const clave = p.partida+'|'+numBandejas+'|'+clienteVariedad;
       if(existentes.has(clave)) return;
       existentes.add(clave);
+      const nuevoId = 'control_'+Date.now()+'_'+idx+'_'+Math.random().toString(36).slice(2,8);
       controlChecksData.push({
-        id: 'control_'+Date.now()+'_'+idx+'_'+Math.random().toString(36).slice(2,8),
+        id: nuevoId,
         tipo, dia, clienteVariedad, partida: p.partida, numBandejas,
         // fentrega (Fecha Entrega del PDF) se guarda ahora también en la línea
         // — a petición de Paula (2026-08-05, módulo "Partidas") para poder
@@ -5342,6 +5392,7 @@ async function autoCrearLineasDesdePdfControl(tipo, dia, pdfB64){
         creadoPor: currentUser||'—', creadoEn: new Date().toLocaleString('es-ES'),
         origenPdf: true
       });
+      marcarControlCheckSucio(nuevoId);
       creadas++;
     });
     // Bug real encontrado 2026-08-14: este persist no comprobaba el
@@ -5439,14 +5490,16 @@ async function autoCrearLineasDesdePdfControlCarga(dia, pdfB64){
       const clave = p.partida+'|'+p.nband+'|'+p.cliente+'|'+p.variedad+'|'+p.inverna;
       if(existentes.has(clave)) return;
       existentes.add(clave);
+      const nuevoId = 'control_'+Date.now()+'_'+idx+'_'+Math.random().toString(36).slice(2,8);
       controlChecksData.push({
-        id: 'control_'+Date.now()+'_'+idx+'_'+Math.random().toString(36).slice(2,8),
+        id: nuevoId,
         tipo:'carga', dia,
         cliente: p.cliente, partida: p.partida, variedad: p.variedad, numBandejas: p.nband, invernadero: p.inverna,
         color:{}, tamano:{}, sanidad:{}, flores:{}, raices:{}, observaciones:'',
         creadoPor: currentUser||'—', creadoEn: new Date().toLocaleString('es-ES'),
         origenPdf: true
       });
+      marcarControlCheckSucio(nuevoId);
       creadas++;
     });
     // Mismo arreglo que Túnel (2026-08-14): comprobar de verdad si se guardó.
@@ -5840,6 +5893,7 @@ async function aplicarNuevaLineaControlCarga(entry){
   showToast('✓ Línea añadida');
   renderControlContent(document.getElementById('control-overlay'));
   const qid = encolarAccionOffline('aplicarNuevaLineaControlCarga', [entry]);
+  marcarControlCheckSucio(entry.id);
   const ok = await persistControlChecksData();
   if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
   return ok;
@@ -5928,6 +5982,7 @@ async function aplicarEditarControlCargaCheck(id, dia, cliente, partida, varieda
   showToast(diaCambio ? `✓ Línea actualizada y movida a ${riegoDiaLabelCorto(dia)}` : '✓ Línea actualizada');
   renderControlContent(document.getElementById('control-overlay'));
   const qid = encolarAccionOffline('aplicarEditarControlCargaCheck', [id, dia, cliente, partida, variedad, numBandejas, invernadero, diaCambio]);
+  marcarControlCheckSucio(id);
   const ok = await persistControlChecksData();
   if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
   return ok;
@@ -5970,7 +6025,7 @@ async function aplicarFotoControl(id, fotoB64){
   // foto, se refuerza también el guardado del check al que pertenece —
   // "sabemos" que existe (ya se comprobó arriba), así que no cuesta nada
   // insistir en persistirlo aquí también.
-  const [okFoto, okCheck] = await Promise.all([persistControlFotosData(id), persistControlChecksData()]);
+  const [okFoto, okCheck] = await Promise.all([persistControlFotosData(id), persistControlChecksData([id])]);
   const ok = okFoto && okCheck;
   if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
   return ok;
@@ -6135,6 +6190,7 @@ async function aplicarAsignarCalleControl(id, invId, tramos){
   showToast('✓ Calle asignada');
   renderControlContent(document.getElementById('control-overlay'));
   const qid = encolarAccionOffline('aplicarAsignarCalleControl', [id, invId, tramos]);
+  marcarControlCheckSucio(id);
   const ok = await persistControlChecksData();
   if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
   return ok;
@@ -6189,6 +6245,7 @@ async function aplicarEditarControlCheck(id, dia, clienteVariedad, partida, numB
   showToast(diaCambio ? `✓ Línea actualizada y movida a ${riegoDiaLabelCorto(dia)}` : '✓ Línea actualizada');
   renderControlContent(document.getElementById('control-overlay'));
   const qid = encolarAccionOffline('aplicarEditarControlCheck', [id, dia, clienteVariedad, partida, numBandejas, diaCambio]);
+  marcarControlCheckSucio(id);
   const ok = await persistControlChecksData();
   if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
   return ok;
@@ -6214,6 +6271,7 @@ async function aplicarControlCheckOpcion(id, categoriaKey, opcionKey, valor){
   // Repintar ANTES de esperar la red — ver comentario igual en aplicarSanidadEnfermedad.
   renderControlContent(document.getElementById('control-overlay'));
   const qid = encolarAccionOffline('aplicarControlCheckOpcion', [id, categoriaKey, opcionKey, valor]);
+  marcarControlCheckSucio(id);
   const ok = await persistControlChecksData();
   if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
 }
@@ -6222,6 +6280,7 @@ async function guardarControlObservaciones(id, valor){
   if(!c) return;
   c.observaciones = valor;
   const qid = encolarAccionOffline('guardarControlObservaciones', [id, valor]);
+  marcarControlCheckSucio(id);
   const ok = await persistControlChecksData();
   if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
 }
@@ -6300,6 +6359,7 @@ async function aplicarNuevaLineaControl(entry){
   showToast('✓ Línea añadida');
   renderControlContent(document.getElementById('control-overlay'));
   const qid = encolarAccionOffline('aplicarNuevaLineaControl', [entry]);
+  marcarControlCheckSucio(entry.id);
   const ok = await persistControlChecksData();
   if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
   return ok;
@@ -6318,14 +6378,10 @@ async function eliminarControlCheckConfirmado(id){
   showToast('✓ Línea eliminada');
   renderControlContent(document.getElementById('control-overlay'));
   const qid = encolarAccionOffline('eliminarControlCheckConfirmado', [id]);
-  let ok = false;
-  try{
-    const r = await window.storage.get(CONTROL_KEY);
-    if(r){
-      let cloud = JSON.parse(r.value).filter(x=>x.id!==id);
-      ok = await window.storage.set(CONTROL_KEY, JSON.stringify(cloud));
-    }
-  }catch(e){}
+  // Documento atómico propio (ver persistControlChecksData): al no
+  // encontrar el id en controlChecksData, envía un DELETE en vez de un PUT.
+  marcarControlCheckSucio(id);
+  const ok = await persistControlChecksData([id]);
   if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
 }
 
@@ -6612,6 +6668,7 @@ async function deshacerMovimientoPartida(){
   partidasHistorialRehacer.push(entradas);
   renderPartidasMapaContent(document.getElementById('partidas-overlay'));
   showToast('↩ Movimiento deshecho');
+  entradas.forEach(({id})=>marcarControlCheckSucio(id));
   await persistControlChecksData();
 }
 async function rehacerMovimientoPartida(){
@@ -6621,6 +6678,7 @@ async function rehacerMovimientoPartida(){
   partidasHistorialDeshacer.push(entradas);
   renderPartidasMapaContent(document.getElementById('partidas-overlay'));
   showToast('↪ Movimiento rehecho');
+  entradas.forEach(({id})=>marcarControlCheckSucio(id));
   await persistControlChecksData();
 }
 // 2026-08-06: "siguen sin poder cambiarse las partidas de sitio entre
@@ -6678,6 +6736,7 @@ async function cambiarPosicionPartida(id, posActual){
   renderPartidasMapaContent(document.getElementById('partidas-overlay'));
   showToast(`✓ Partida movida a posición ${nuevaPos}`);
   const qid = encolarAccionOffline('cambiarPosicionPartida', [id, nuevaPos]);
+  partidasInv.forEach(p=>marcarControlCheckSucio(p.id));
   const ok = await persistControlChecksData();
   if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
 }
@@ -6751,6 +6810,7 @@ async function aplicarMoverPartidaACalle(id, invId, tramo, posManualVal){
   renderPartidasMapaContent(document.getElementById('partidas-overlay'));
   showToast('✓ Partida movida');
   const qid = encolarAccionOffline('aplicarMoverPartidaACalle', [id, invId, tramo, posManualVal]);
+  marcarControlCheckSucio(id);
   const ok = await persistControlChecksData();
   if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
   return ok;
@@ -6819,6 +6879,8 @@ async function aplicarIntercambioPartidas(id1, ubic1, id2, ubic2){
   }
   showToast('✓ Partidas intercambiadas');
   const qid = encolarAccionOffline('aplicarIntercambioPartidas', [id1, ubic1, id2, ubic2]);
+  if(c1) marcarControlCheckSucio(id1);
+  if(c2) marcarControlCheckSucio(id2);
   const ok = await persistControlChecksData();
   if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
   return ok;
@@ -7177,6 +7239,8 @@ async function aplicarSepararPartidaEnCalles(id, calles, nuevosIds){
   renderPartidasMapaContent(document.getElementById('partidas-overlay'));
   showToast(`✓ Separada en ${calles.length} calles`);
   const qid = encolarAccionOffline('aplicarSepararPartidaEnCalles', [id, calles, nuevosIds]);
+  marcarControlCheckSucio(id);
+  nuevosIds.forEach(nid=>marcarControlCheckSucio(nid));
   const ok = await persistControlChecksData();
   if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
   return ok;
@@ -7480,6 +7544,7 @@ async function aplicarSalidaPartida(id, valor){
   }
   renderPartidasMapaContent(document.getElementById('partidas-overlay'));
   const qid = encolarAccionOffline('aplicarSalidaPartida', [id, valor]);
+  marcarControlCheckSucio(id);
   const ok = await persistControlChecksData();
   if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
   return ok;
@@ -7512,6 +7577,7 @@ async function recuperarPartidaPorId(){
   const c = salidas[num-1];
   c.salioDesdeSemanaNumerada = null;
   renderPartidasMapaContent(document.getElementById('partidas-overlay'));
+  marcarControlCheckSucio(c.id);
   await persistControlChecksData();
   showToast(`✓ Partida ${c.id} recuperada`);
 }
