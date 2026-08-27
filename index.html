@@ -4546,6 +4546,7 @@ const ACCIONES_OFFLINE_REPLAYABLES = {
   guardarControlObservaciones,
   eliminarControlCheckConfirmado,
   aplicarAsignarCalleControl,
+  aplicarAsignarCalleControlMulti,
   aplicarNuevaLineaControlCarga,
   aplicarNuevaLineaControl,
   aplicarEditarControlCargaCheck,
@@ -6162,7 +6163,16 @@ function buscarControlPartida(tipo){
 // compatibilidad) para no romper los sitios que aún leen esos dos campos
 // sueltos (p.ej. calleAsignadaParaPartida en Trabajos → Pinzar); c.tramos
 // (array completo) es ahora la fuente de verdad para mostrar todos los tramos.
-let acTramos = [];
+// A petición de Paula (2026-08-27): "asignar calle" tiene que poder repartir
+// una misma partida en VARIOS invernaderos, cada uno con sus propios tramos
+// de calles — no solo varios tramos dentro de un único invernadero, como
+// hasta ahora. acGrupos = [{invId, tramos:[{desde,hasta}]}, ...], un grupo
+// por invernadero. Al guardar, el primer grupo actualiza la línea original;
+// cada grupo adicional crea una copia nueva de la partida (mismo cliente/
+// variedad/nº bandejas/observaciones) en ese otro invernadero — mismo
+// patrón que ya usa separarPartidaEnCalles para repartir una partida en
+// varias calles, aquí aplicado a varios invernaderos.
+let acGrupos = [];
 function mostrarAsignarCalleControl(id){
   const c = controlChecksData.find(x=>x.id===id);
   if(!c) return;
@@ -6172,70 +6182,101 @@ function mostrarAsignarCalleControl(id){
   // calle) — sin esto, si este overlay ya existía en el DOM de antes (uso
   // previo desde Control), quedaría detrás del historial en vez de encima.
   mo.style.zIndex = 2200;
-  const opcionesInv = `<option value="">— Invernadero —</option>
-    <optgroup label="Sala 1">${ALL_INV_IDS_SALA1.map(iid=>`<option value="${iid}"${iid===c.invId?' selected':''}>INV ${iid}</option>`).join('')}</optgroup>
-    <optgroup label="Sala 2">${ALL_INV_IDS.map(iid=>`<option value="${iid}"${iid===c.invId?' selected':''}>INV ${iid}</option>`).join('')}</optgroup>`;
-  acTramos = (c.tramos && c.tramos.length) ? c.tramos.map(t=>({desde:t.desde, hasta:t.hasta}))
-    : c.invId ? [{desde:c.calleDesde, hasta:c.calleHasta}] : [];
+  acGrupos = (c.tramos && c.tramos.length) ? [{invId:c.invId, tramos:c.tramos.map(t=>({desde:t.desde, hasta:t.hasta}))}]
+    : c.invId ? [{invId:c.invId, tramos:[{desde:c.calleDesde, hasta:c.calleHasta}]}]
+    : [{invId:'', tramos:[]}];
   mo.innerHTML = `
-    <div style="background:#fff;border-radius:14px;max-width:380px;width:100%;padding:1.5rem;box-shadow:0 8px 40px rgba(0,0,0,.3)">
-      <div style="font-size:15px;font-weight:800;margin-bottom:12px">Asignar calle real</div>
-      <label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">Invernadero</label>
-      <select id="ac-inv" onchange="actualizarCallesAsignarControl()" style="width:100%;padding:9px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;margin-bottom:10px">${opcionesInv}</select>
-      <label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">Tramos de calles</label>
-      <div id="ac-tramos-rows" style="margin-bottom:8px"></div>
-      <button type="button" onclick="agregarTramoRowAC()" style="width:100%;padding:6px;font-size:11px;font-weight:700;background:#fff;border:1.5px dashed #a8c4e8;border-radius:6px;cursor:pointer;color:#1558a0;margin-bottom:14px">+ Añadir tramo</button>
+    <div style="background:#fff;border-radius:14px;max-width:420px;width:100%;padding:1.5rem;box-shadow:0 8px 40px rgba(0,0,0,.3);max-height:88vh;overflow-y:auto">
+      <div style="font-size:15px;font-weight:800;margin-bottom:4px">Asignar calle real</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:12px">Si la partida está repartida en varios invernaderos, añade uno por cada uno con sus propias calles.</div>
+      <div id="ac-grupos-wrap"></div>
+      <button type="button" onclick="agregarGrupoInvAC()" style="width:100%;padding:8px;font-size:11px;font-weight:700;background:#f0f4f8;border:1.5px dashed #1558a0;border-radius:6px;cursor:pointer;color:#1558a0;margin-bottom:14px">+ Añadir invernadero</button>
       <div style="display:flex;justify-content:flex-end;gap:8px">
         <button onclick="this.closest('.modal-overlay-dyn').style.display='none'" style="padding:9px 16px;font-size:12px;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:7px;cursor:pointer">Cancelar</button>
         <button onclick="guardarAsignarCalleControl('${id}')" style="padding:9px 18px;font-size:12px;font-weight:800;background:#2e7d32;color:#fff;border:none;border-radius:7px;cursor:pointer">Guardar</button>
       </div>
     </div>`;
   mo.style.display = 'flex';
-  actualizarCallesAsignarControl();
+  renderGruposInvAC();
 }
-function renderTramosRowsAC(){
-  const cont = document.getElementById('ac-tramos-rows');
-  const invId = document.getElementById('ac-inv')?.value;
-  if(!cont) return;
-  if(!invId || !INV_LAYOUT[invId]){ cont.innerHTML = ''; return; }
-  const calles = [...INV_LAYOUT[invId].row1, ...INV_LAYOUT[invId].row2].sort((a,b)=>a-b);
-  const opts = sel => calles.map(cc=>`<option value="${cc}"${cc===sel?' selected':''}>${cc}</option>`).join('');
-  if(!acTramos.length) acTramos = [{desde:calles[0], hasta:calles[0]}];
-  cont.innerHTML = acTramos.map((t,i)=>`
-    <div class="ac-tramo-row" style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-bottom:8px">
-      <select class="ac-tramo-desde" style="width:100%;padding:9px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px">${opts(t.desde)}</select>
-      <select class="ac-tramo-hasta" style="width:100%;padding:9px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px">${opts(t.hasta)}</select>
-      ${acTramos.length>1 ? `<button type="button" onclick="quitarTramoRowAC(${i})" style="width:30px;background:#fdecea;color:#c62828;border:1px solid #f3c2bd;border-radius:6px;cursor:pointer;font-size:12px">✕</button>` : '<span></span>'}
-    </div>`).join('');
+function renderGruposInvAC(){
+  const wrap = document.getElementById('ac-grupos-wrap');
+  if(!wrap) return;
+  const opcionesInv = sel => `<option value="">— Invernadero —</option>
+    <optgroup label="Sala 1">${ALL_INV_IDS_SALA1.map(iid=>`<option value="${iid}"${iid===sel?' selected':''}>INV ${iid}</option>`).join('')}</optgroup>
+    <optgroup label="Sala 2">${ALL_INV_IDS.map(iid=>`<option value="${iid}"${iid===sel?' selected':''}>INV ${iid}</option>`).join('')}</optgroup>`;
+  wrap.innerHTML = acGrupos.map((g,gi)=>{
+    const calles = g.invId && INV_LAYOUT[g.invId] ? [...INV_LAYOUT[g.invId].row1, ...INV_LAYOUT[g.invId].row2].sort((a,b)=>a-b) : [];
+    const opts = sel => calles.map(cc=>`<option value="${cc}"${cc===sel?' selected':''}>${cc}</option>`).join('');
+    const tramos = g.tramos.length ? g.tramos : [{desde:calles[0], hasta:calles[0]}];
+    return `
+    <div class="ac-grupo" data-gi="${gi}" style="border:1.5px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;background:#fafbfa">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+        <select class="ac-grupo-inv" onchange="cambiarInvGrupoAC(${gi}, this.value)" style="flex:1;padding:9px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px">${opcionesInv(g.invId)}</select>
+        ${acGrupos.length>1 ? `<button type="button" onclick="quitarGrupoInvAC(${gi})" title="Quitar este invernadero" style="width:32px;height:32px;background:#fdecea;color:#c62828;border:1px solid #f3c2bd;border-radius:6px;cursor:pointer;font-size:13px;flex-shrink:0">✕</button>` : ''}
+      </div>
+      ${g.invId ? `
+      <div class="ac-tramos-rows">
+        ${tramos.map((t,ti)=>`
+          <div class="ac-tramo-row" style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-bottom:6px">
+            <select class="ac-tramo-desde" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px">${opts(t.desde)}</select>
+            <select class="ac-tramo-hasta" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px">${opts(t.hasta)}</select>
+            ${tramos.length>1 ? `<button type="button" onclick="quitarTramoRowAC(${gi},${ti})" style="width:30px;background:#fdecea;color:#c62828;border:1px solid #f3c2bd;border-radius:6px;cursor:pointer;font-size:12px">✕</button>` : '<span></span>'}
+          </div>`).join('')}
+      </div>
+      <button type="button" onclick="agregarTramoRowAC(${gi})" style="width:100%;padding:5px;font-size:10px;font-weight:700;background:#fff;border:1.5px dashed #a8c4e8;border-radius:6px;cursor:pointer;color:#1558a0">+ Añadir tramo en este invernadero</button>` : ''}
+    </div>`;
+  }).join('');
 }
-function leerTramosDesdeDOMAC(){
-  return Array.from(document.querySelectorAll('.ac-tramo-row')).map(row=>({
-    desde: parseInt(row.querySelector('.ac-tramo-desde').value, 10),
-    hasta: parseInt(row.querySelector('.ac-tramo-hasta').value, 10)
+// Lee del DOM el estado actual de TODOS los grupos (invernadero + sus
+// tramos) — se llama antes de cualquier operación que reordene/modifique
+// acGrupos, para no perder lo que el usuario ya haya tocado en pantalla.
+function leerGruposDesdeDOMAC(){
+  return Array.from(document.querySelectorAll('.ac-grupo')).map(div=>({
+    invId: div.querySelector('.ac-grupo-inv')?.value || '',
+    tramos: Array.from(div.querySelectorAll('.ac-tramo-row')).map(row=>({
+      desde: parseInt(row.querySelector('.ac-tramo-desde').value, 10),
+      hasta: parseInt(row.querySelector('.ac-tramo-hasta').value, 10)
+    }))
   }));
 }
-function agregarTramoRowAC(){
-  acTramos = leerTramosDesdeDOMAC();
-  const invId = document.getElementById('ac-inv')?.value;
+function agregarGrupoInvAC(){
+  acGrupos = leerGruposDesdeDOMAC();
+  acGrupos.push({invId:'', tramos:[]});
+  renderGruposInvAC();
+}
+function quitarGrupoInvAC(gi){
+  acGrupos = leerGruposDesdeDOMAC();
+  acGrupos.splice(gi,1);
+  renderGruposInvAC();
+}
+function cambiarInvGrupoAC(gi, invId){
+  acGrupos = leerGruposDesdeDOMAC();
   const calles = invId && INV_LAYOUT[invId] ? [...INV_LAYOUT[invId].row1, ...INV_LAYOUT[invId].row2].sort((a,b)=>a-b) : [];
-  acTramos.push({desde:calles[0], hasta:calles[0]});
-  renderTramosRowsAC();
+  acGrupos[gi] = {invId, tramos: invId ? [{desde:calles[0], hasta:calles[0]}] : []};
+  renderGruposInvAC();
 }
-function quitarTramoRowAC(i){
-  acTramos = leerTramosDesdeDOMAC();
-  acTramos.splice(i,1);
-  renderTramosRowsAC();
+function agregarTramoRowAC(gi){
+  acGrupos = leerGruposDesdeDOMAC();
+  const invId = acGrupos[gi].invId;
+  const calles = invId && INV_LAYOUT[invId] ? [...INV_LAYOUT[invId].row1, ...INV_LAYOUT[invId].row2].sort((a,b)=>a-b) : [];
+  acGrupos[gi].tramos.push({desde:calles[0], hasta:calles[0]});
+  renderGruposInvAC();
 }
-function actualizarCallesAsignarControl(){
-  renderTramosRowsAC();
+function quitarTramoRowAC(gi, ti){
+  acGrupos = leerGruposDesdeDOMAC();
+  acGrupos[gi].tramos.splice(ti,1);
+  renderGruposInvAC();
 }
 async function guardarAsignarCalleControl(id){
   const c = controlChecksData.find(x=>x.id===id);
   if(!c) return;
-  const invId = document.getElementById('ac-inv')?.value || null;
-  const tramos = leerTramosDesdeDOMAC().filter(t=>!isNaN(t.desde) && !isNaN(t.hasta)).map(t=>({desde:Math.min(t.desde,t.hasta), hasta:Math.max(t.desde,t.hasta)}));
-  if(!invId || !tramos.length){ showToast('Elige invernadero y al menos un tramo'); return; }
-  aplicarAsignarCalleControl(id, invId, tramos);
+  const grupos = leerGruposDesdeDOMAC()
+    .filter(g=>g.invId)
+    .map(g=>({ invId:g.invId, tramos: g.tramos.filter(t=>!isNaN(t.desde) && !isNaN(t.hasta)).map(t=>({desde:Math.min(t.desde,t.hasta), hasta:Math.max(t.desde,t.hasta)})) }))
+    .filter(g=>g.tramos.length);
+  if(!grupos.length){ showToast('Elige al menos un invernadero y un tramo'); return; }
+  aplicarAsignarCalleControlMulti(id, grupos);
 }
 // El cierre de modal/aviso/repintado se hacen aquí, ANTES de esperar la red, para
 // que se vean al instante aunque no haya conexión — el guardado real sigue en
@@ -6272,6 +6313,52 @@ async function aplicarAsignarCalleControl(id, invId, tramos){
   }
   const qid = encolarAccionOffline('aplicarAsignarCalleControl', [id, invId, tramos]);
   marcarControlCheckSucio(id);
+  const ok = await persistControlChecksData();
+  if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
+  return ok;
+}
+// Reparte una partida en VARIOS invernaderos a la vez (ver comentario en
+// acGrupos) — el primer grupo actualiza la línea original tal cual
+// (mismo camino que aplicarAsignarCalleControl); cada grupo adicional crea
+// una copia nueva de la partida en su propio invernadero, mismo patrón que
+// ya usa aplicarSepararPartidaEnCalles para repartir en varias calles.
+// Los ids de las copias se generan AQUÍ (no al pulsar Guardar) para que la
+// acción sea idempotente si se reproduce desde la cola offline.
+async function aplicarAsignarCalleControlMulti(id, grupos){
+  const c = controlChecksData.find(x=>x.id===id);
+  if(!c) return;
+  if(grupos.length===1){
+    // Caso normal (un solo invernadero) — sin cambios de comportamiento.
+    return aplicarAsignarCalleControl(id, grupos[0].invId, grupos[0].tramos);
+  }
+  const [primero, ...resto] = grupos;
+  c.invId = primero.invId; c.tramos = primero.tramos;
+  c.calleDesde = primero.tramos[0].desde; c.calleHasta = primero.tramos[0].hasta;
+  const idsNuevos = [];
+  const claveBase = sortKeyPartida(c);
+  resto.forEach((g,i)=>{
+    const nid = 'control_'+Date.now()+'_multi'+i+'_'+Math.random().toString(36).slice(2,8);
+    idsNuevos.push(nid);
+    controlChecksData.push({
+      ...c, id: nid,
+      invId: g.invId, tramos: g.tramos,
+      calleDesde: g.tramos[0].desde, calleHasta: g.tramos[0].hasta,
+      posManual: claveBase + i + 1
+    });
+  });
+  document.getElementById('control-calle-overlay').style.display = 'none';
+  showToast(`✓ Calle asignada en ${grupos.length} invernaderos`);
+  renderControlContent(document.getElementById('control-overlay'));
+  if(document.getElementById('partidas-historial-overlay')?.style.display==='flex') mostrarHistorialPartida(id);
+  if(document.getElementById('partidas-overlay')?.style.display==='flex'){
+    partidasSalaSel = salaDeInv(primero.invId);
+    partidasInvSel = primero.invId;
+    partidasSemanaOffset = partidasSemanaDeFecha(riegoDiaToDate(c.dia));
+    renderPartidasMapaContent(document.getElementById('partidas-overlay'));
+  }
+  const qid = encolarAccionOffline('aplicarAsignarCalleControlMulti', [id, grupos]);
+  marcarControlCheckSucio(id);
+  idsNuevos.forEach(nid=>marcarControlCheckSucio(nid));
   const ok = await persistControlChecksData();
   if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
   return ok;
