@@ -6253,6 +6253,23 @@ async function aplicarAsignarCalleControl(id, invId, tramos){
   // de asignar calle — hay que refrescarlo para que muestre la calle nueva
   // en vez de la vieja.
   if(document.getElementById('partidas-historial-overlay')?.style.display==='flex') mostrarHistorialPartida(id);
+  // Bug real corregido (2026-08-27): "añado un tramo... no aparecen en el
+  // mapa" — el mapa de Partidas (debajo del historial) nunca se repintaba
+  // tras editar la calle desde aquí, así que se quedaba mostrando la
+  // versión de ANTES de la edición hasta que se hiciera otra acción que sí
+  // repintara. Ahora, si el mapa de Partidas está abierto, se navega al
+  // invernadero (y sala) donde se acaba de colocar la partida y se
+  // repinta, para verla ahí de inmediato.
+  if(document.getElementById('partidas-overlay')?.style.display==='flex'){
+    partidasSalaSel = salaDeInv(invId);
+    partidasInvSel = invId;
+    // También hay que saltar a la semana en la que la partida es visible de
+    // verdad (la de su entrada a Túnel) — si se estaba viendo otra semana
+    // distinta, partidaVisibleEnSemana la seguiría escondiendo aunque el
+    // invernadero ya fuera el correcto.
+    partidasSemanaOffset = partidasSemanaDeFecha(riegoDiaToDate(c.dia));
+    renderPartidasMapaContent(document.getElementById('partidas-overlay'));
+  }
   const qid = encolarAccionOffline('aplicarAsignarCalleControl', [id, invId, tramos]);
   marcarControlCheckSucio(id);
   const ok = await persistControlChecksData();
