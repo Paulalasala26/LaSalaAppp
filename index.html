@@ -13276,6 +13276,11 @@ async function guardarSalaEnVivoManualData(){
 function puedeEditarSalaEnVivoManual(){
   return currentUserRole === 'ADMIN' || currentUserRole === 'TECNICO';
 }
+// Mismas categorías que las líneas automáticas (Riego, Carga, Injerto,
+// Túneles, Peones, Regantes) + "Otro" — así una nota manual de tipo
+// "Riego" sale con la misma etiqueta/color que la línea automática de
+// Riego, no como un genérico "Nota" aparte.
+const SALA_EN_VIVO_TIPOS_MANUAL = [...SALA_EN_VIVO_LINEAS, {key:'otro', label:'Otro', icon:'ti-note', color:'#5c3fc4', bg:'#f3f0fb'}];
 function mostrarAñadirSalaEnVivoManual(invId){
   if(!puedeEditarSalaEnVivoManual()) return;
   const escapar = s => String(s==null?'':s).replace(/"/g,'&quot;');
@@ -13287,6 +13292,10 @@ function mostrarAñadirSalaEnVivoManual(invId){
     <div style="background:#fff;border-radius:14px;max-width:380px;width:100%;padding:1.5rem;box-shadow:0 8px 40px rgba(0,0,0,.3)">
       <div style="font-size:15px;font-weight:800;margin-bottom:4px">Añadir a INV ${escapar(invId)}</div>
       <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Se mostrará en La Sala en Vivo mientras esté dentro del horario.</div>
+      <label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">Tipo</label>
+      <select id="sevm-tipo" style="width:100%;padding:9px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;margin-bottom:10px">
+        ${SALA_EN_VIVO_TIPOS_MANUAL.map(t=>`<option value="${t.key}"${t.key==='otro'?' selected':''}>${escapar(t.label)}</option>`).join('')}
+      </select>
       <label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">¿Qué está ocurriendo?</label>
       <textarea id="sevm-texto" rows="2" placeholder="Ej. Revisando riego por goteo" style="width:100%;padding:9px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;font-family:inherit;margin-bottom:10px;resize:vertical"></textarea>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
@@ -13309,9 +13318,10 @@ function mostrarAñadirSalaEnVivoManual(invId){
 async function guardarNuevaNotaSalaEnVivo(invId){
   const texto = document.getElementById('sevm-texto')?.value?.trim();
   if(!texto){ showToast('Escribe qué está ocurriendo'); return; }
+  const tipo = document.getElementById('sevm-tipo')?.value || 'otro';
   const horaInicio = document.getElementById('sevm-inicio')?.value || '';
   const horaFinPrevista = document.getElementById('sevm-fin')?.value || '';
-  const nota = { id:'sevm_'+Date.now()+'_'+Math.random().toString(36).slice(2,8), texto, horaInicio, horaFinPrevista, creadoPor:currentUser||'—', creadoEn:new Date().toLocaleString('es-ES') };
+  const nota = { id:'sevm_'+Date.now()+'_'+Math.random().toString(36).slice(2,8), tipo, texto, horaInicio, horaFinPrevista, creadoPor:currentUser||'—', creadoEn:new Date().toLocaleString('es-ES') };
   if(!salaEnVivoManualData[invId]) salaEnVivoManualData[invId] = [];
   salaEnVivoManualData[invId].push(nota);
   document.getElementById('sala-en-vivo-manual-overlay').style.display = 'none';
@@ -13452,15 +13462,18 @@ function renderSalaEnVivoInvCard(invId){
   // dentro de su horario (igual que carga/injerto), y se pueden borrar.
   const notasActivas = (salaEnVivoManualData[invId]||[]).filter(n=>estaEnHorario(n.horaInicio, n.horaFinPrevista));
   const puedeEditar = puedeEditarSalaEnVivoManual();
-  const notasHTML = notasActivas.map(n=>`
-    <div style="display:flex;gap:8px;padding:7px 8px;border-radius:8px;background:#f3f0fb;margin-bottom:6px;align-items:flex-start">
-      <div style="width:74px;flex-shrink:0;font-size:10px;font-weight:800;color:#fff;background:#5c3fc4;border-radius:999px;padding:2px 8px;text-align:center;height:fit-content">Nota</div>
+  const notasHTML = notasActivas.map(n=>{
+    const def = SALA_EN_VIVO_TIPOS_MANUAL.find(t=>t.key===n.tipo) || SALA_EN_VIVO_TIPOS_MANUAL[SALA_EN_VIVO_TIPOS_MANUAL.length-1];
+    return `
+    <div style="display:flex;gap:8px;padding:7px 8px;border-radius:8px;background:${def.bg};margin-bottom:6px;align-items:flex-start">
+      <div style="width:74px;flex-shrink:0;font-size:10px;font-weight:800;color:#fff;background:${def.color};border-radius:999px;padding:2px 8px;text-align:center;height:fit-content">${escapar(def.label)}</div>
       <div style="flex:1;font-size:12px;color:var(--text);font-weight:600">
         ${escapar(n.texto)} · ${escapar(n.horaInicio)}${n.horaFinPrevista?' – '+escapar(n.horaFinPrevista)+' (previsto)':''}
         <div style="font-size:10px;color:var(--muted);font-weight:400">${escapar(nombreLegibleUsuario(n.creadoPor))}</div>
       </div>
       ${puedeEditar ? `<button onclick="eliminarNotaSalaEnVivo('${invId}','${n.id}')" title="Eliminar" style="background:none;border:none;color:#c62828;cursor:pointer;font-size:14px;padding:0 2px;flex-shrink:0">✕</button>` : ''}
-    </div>`).join('');
+    </div>`;
+  }).join('');
   const añadirBtnHTML = puedeEditar ? `
     <button onclick="mostrarAñadirSalaEnVivoManual('${invId}')" style="width:100%;padding:6px;margin-top:2px;font-size:11px;font-weight:700;background:#f0edfa;color:#5c3fc4;border:1px dashed #b8a8e8;border-radius:8px;cursor:pointer">+ Añadir</button>` : '';
   return `
