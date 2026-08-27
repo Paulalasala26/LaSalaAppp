@@ -7689,7 +7689,12 @@ function renderTablaEstiloDatosHTML(etiquetaCabecera, columnas, filas){
               </td>
               ${f.valores.map(v=>{
                 const esPositivo = f.resaltarPositivo && parseFloat(String(v).replace(',','.').replace('%',''))>0;
-                return `<td style="padding:10px 14px;text-align:center;font-size:15px;color:${esPositivo?'#0b6b2c':'var(--text)'};font-weight:${esPositivo?800:600};white-space:nowrap;background:${esPositivo?'#c6f2d3':'transparent'}">${v}</td>`;
+                // A petición de Paula (2026-08-27): Temperatura interior y
+                // Humedad son las magnitudes que más se miran de un vistazo,
+                // así que su valor sale con letra más grande que el resto.
+                const tamañoFuente = f.destacar ? 20 : 15;
+                const pesoFuente = esPositivo ? 800 : (f.destacar ? 700 : 600);
+                return `<td style="padding:10px 14px;text-align:center;font-size:${tamañoFuente}px;color:${esPositivo?'#0b6b2c':'var(--text)'};font-weight:${pesoFuente};white-space:nowrap;background:${esPositivo?'#c6f2d3':'transparent'}">${v}</td>`;
               }).join('')}
             </tr>`).join('')}
         </table>
@@ -8126,7 +8131,7 @@ function renderClimaSala2CuadroLiveHTML(){
     : `<div style="font-size:11px;color:var(--muted);margin-bottom:6px"><i class="ti ti-arrows-horizontal"></i> Desliza a los lados para ver los ${datos.invIds.length} invernaderos</div>
       <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
         ${renderTablaEstiloDatosHTML('Magnitud', datos.invIds.map(id=>'INV '+id),
-          datos.filas.map(f=>({etiqueta:f.etiqueta, resaltarPositivo:/pantalla/i.test(f.etiqueta), valores:f.valores.map(v=>escapar(v)||'—')})))}
+          datos.filas.map(f=>({etiqueta:f.etiqueta, resaltarPositivo:/pantalla/i.test(f.etiqueta), destacar:/^(temperatura interior|humedad)\b/i.test(f.etiqueta.trim()), valores:f.valores.map(v=>escapar(v)||'—')})))}
       </div>`;
   return `
     <div id="clima-sala2-cuadro-live-wrap" style="margin-bottom:1.5rem">
