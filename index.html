@@ -13276,11 +13276,6 @@ async function guardarSalaEnVivoManualData(){
 function puedeEditarSalaEnVivoManual(){
   return currentUserRole === 'ADMIN' || currentUserRole === 'TECNICO';
 }
-// Mismas categorías que las líneas automáticas (Riego, Carga, Injerto,
-// Túneles, Peones, Regantes) + "Otro" — así una nota manual de tipo
-// "Riego" sale con la misma etiqueta/color que la línea automática de
-// Riego, no como un genérico "Nota" aparte.
-const SALA_EN_VIVO_TIPOS_MANUAL = [...SALA_EN_VIVO_LINEAS, {key:'otro', label:'Otro', icon:'ti-note', color:'#5c3fc4', bg:'#f3f0fb'}];
 function mostrarAñadirSalaEnVivoManual(invId){
   if(!puedeEditarSalaEnVivoManual()) return;
   const escapar = s => String(s==null?'':s).replace(/"/g,'&quot;');
@@ -13387,6 +13382,10 @@ const SALA_EN_VIVO_LINEAS = [
   {key:'peones', label:'Peones', icon:'ti-user', color:'#1a5c2e', bg:'#eafaf0'},
   {key:'regantes', label:'Regantes', icon:'ti-droplet-filled', color:'#00838f', bg:'#e6f7f8'}
 ];
+// Mismas categorías que las líneas automáticas de arriba + "Otro" — así
+// una nota manual de tipo "Riego" sale con la misma etiqueta/color que la
+// línea automática de Riego, no como un genérico "Nota" aparte.
+const SALA_EN_VIVO_TIPOS_MANUAL = [...SALA_EN_VIVO_LINEAS, {key:'otro', label:'Otro', icon:'ti-note', color:'#5c3fc4', bg:'#f3f0fb'}];
 function renderSalaEnVivoInvCard(invId){
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const hoy = riegoDiaDeHoy();
