@@ -8279,6 +8279,75 @@ function formatCallesParaImprimir(invId, calles){
 // todas menos un único tramo contiguo, "ENTERO MENOS C/xx-yy"; si es
 // solo un tramo (o varios tramos sueltos), el/los rango(s) de calles tal
 // cual (formatCallesParaImprimir).
+// A petición de Paula (2026-08-27): en las tareas de PEÓN (no en hojas
+// impresas de Plaguicidas/Específicos ni en el resto de la app, que se
+// dejan tal cual), un tramo que cruza la frontera entre la fila de arriba
+// y la fila de abajo del invernadero (ej. INV 17: fila de arriba
+// calles 1-18, fila de abajo 19-36) debe partirse en dos rangos — el peón
+// entra por un pasillo y sale por otro, así que un tramo "de un tirón" que
+// en realidad está en dos zonas físicas distintas confunde. "C/1716-1730"
+// pasa a ser "C/1716-1718 / C/1719-1730".
+function limiteZonaInv(invId){
+  const layout = INV_LAYOUT[invId];
+  if(!layout || !layout.row1?.length || !layout.row2?.length) return null;
+  return { finZonaArriba: Math.max(...layout.row1), inicioZonaAbajo: Math.min(...layout.row2) };
+}
+function dividirTramoPorZona(invId, desde, hasta){
+  const limite = limiteZonaInv(invId);
+  if(!limite || desde > hasta) return [[desde, hasta]];
+  const { finZonaArriba, inicioZonaAbajo } = limite;
+  if(desde <= finZonaArriba && hasta >= inicioZonaAbajo){
+    return [[desde, finZonaArriba], [inicioZonaAbajo, hasta]];
+  }
+  return [[desde, hasta]];
+}
+function formatRangoConInvPeon(invId, desde, hasta){
+  if(desde===hasta || hasta==null) return formatRangoConInv(invId, desde, hasta);
+  return dividirTramoPorZona(invId, desde, hasta)
+    .map(([d,h]) => formatRangoConInv(invId, d, h))
+    .join(' / ');
+}
+// Mismo criterio que formatCallesParaImprimir pero partiendo cada tramo
+// por la frontera de zona (ver dividirTramoPorZona) — usado solo para el
+// texto de la tarea de peón, no para hojas impresas.
+function formatCallesParaTareaPeon(invId, calles){
+  const ordenadas = [...calles].sort((a,b)=>a-b);
+  const tramos = [];
+  let i = 0;
+  while(i < ordenadas.length){
+    let j = i;
+    while(j+1 < ordenadas.length && ordenadas[j+1] === ordenadas[j]+1) j++;
+    tramos.push(formatRangoConInvPeon(invId, ordenadas[i], ordenadas[j]));
+    i = j+1;
+  }
+  return tramos.join(', ');
+}
+// Igual que formatCallesConEnteroParaImprimir (ENTERO / ENTERO MENOS X-Y /
+// tramo suelto) pero usando formatCallesParaTareaPeon para partir por zona
+// cuando el tramo (o lo que falta, en el caso "ENTERO MENOS") cruza la
+// frontera arriba/abajo del invernadero.
+function formatCallesConEnteroParaTareaPeon(invId, calles){
+  const layout = INV_LAYOUT[invId];
+  if(!layout || !calles.length) return formatCallesParaTareaPeon(invId, calles);
+  const todas = [...layout.row1, ...layout.row2];
+  const setCalles = new Set(calles);
+  const faltantes = todas.filter(c=>!setCalles.has(c));
+  if(faltantes.length===0) return 'ENTERO';
+  const esTramoContiguo = arr => {
+    const ord = [...arr].sort((a,b)=>a-b);
+    for(let i=1;i<ord.length;i++) if(ord[i] !== ord[i-1]+1) return false;
+    return true;
+  };
+  if(esTramoContiguo(calles)){
+    const ord = [...calles].sort((a,b)=>a-b);
+    return formatRangoConInvPeon(invId, ord[0], ord[ord.length-1]);
+  }
+  if(esTramoContiguo(faltantes)){
+    const ordF = [...faltantes].sort((a,b)=>a-b);
+    return `ENTERO MENOS ${formatRangoConInvPeon(invId, ordF[0], ordF[ordF.length-1])}`;
+  }
+  return formatCallesParaTareaPeon(invId, calles);
+}
 function formatCallesConEnteroParaImprimir(invId, calles){
   const layout = INV_LAYOUT[invId];
   if(!layout || !calles.length) return formatCallesParaImprimir(invId, calles);
@@ -12460,7 +12529,7 @@ async function generarTareasDesdeRiego(){
       detectBrackets(invId, dia, allCalles).forEach(br=>{
         const {titulo, horario, tituloFumi} = parsearTrabajoDeTexto(br.text);
         if(!titulo && !tituloFumi) return;
-        const callesLabel = formatCallesConEnteroParaImprimir(invId, br.calles);
+        const callesLabel = formatCallesConEnteroParaTareaPeon(invId, br.calles);
         const fechaISO = fechaLocalISO(riegoDiaToDate(dia));
         // Crea/fusiona una tarea de peón para un título+horario concretos.
         // Mismo invernadero+día+título pero horario DISTINTO no es el mismo
