@@ -7666,25 +7666,34 @@ function colorDegradadoTabla(i, total){
 }
 function renderTablaEstiloDatosHTML(etiquetaCabecera, columnas, filas){
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  // Bug real corregido (2026-08-27): "overflow:hidden" en el contenedor
+  // recortaba y OCULTABA las columnas (invernaderos) que no cabían en el
+  // ancho de pantalla, en vez de permitir desplazarse para verlas — con
+  // Sala 2 (12 invernaderos = 12 columnas) faltaban invernaderos y no
+  // había forma de llegar a ellos. Ahora el contenedor exterior solo pone
+  // el borde redondeado/sombra, y uno interior con overflow-x:auto es el
+  // que permite el scroll horizontal — la tabla ya no se recorta.
   return `
-    <div style="border-radius:12px;overflow:hidden;box-shadow:var(--shadow-sm)">
-      <table style="border-collapse:collapse;width:100%;font-size:12px">
-        <tr>
-          <th style="padding:9px 12px;text-align:left;font-size:11px;font-weight:800;color:#fff;background:#173d6b;white-space:nowrap;position:sticky;left:0">${escapar(etiquetaCabecera)}</th>
-          ${columnas.map((c,i)=>`<th style="padding:9px 12px;font-size:11px;font-weight:800;color:#fff;background:${colorDegradadoTabla(i,columnas.length)};white-space:nowrap">${escapar(c)}</th>`).join('')}
-        </tr>
-        ${filas.map((f,i)=>`
-          <tr style="background:${i%2?'#fff':'#eef3f6'}">
-            <td style="padding:10px 14px;font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;position:sticky;left:0;background:${i%2?'#fff':'#eef3f6'};display:flex;align-items:center;gap:8px">
-              <span style="width:9px;height:9px;border-radius:50%;background:${colorDegradadoTabla(i,filas.length)};flex-shrink:0;display:inline-block"></span>
-              ${escapar(f.etiqueta)}
-            </td>
-            ${f.valores.map(v=>{
-              const esPositivo = f.resaltarPositivo && parseFloat(String(v).replace(',','.').replace('%',''))>0;
-              return `<td style="padding:10px 14px;text-align:center;font-size:15px;color:${esPositivo?'#0b6b2c':'var(--text)'};font-weight:${esPositivo?800:600};white-space:nowrap;background:${esPositivo?'#c6f2d3':'transparent'}">${v}</td>`;
-            }).join('')}
-          </tr>`).join('')}
-      </table>
+    <div style="border-radius:12px;box-shadow:var(--shadow-sm)">
+      <div style="overflow-x:auto;border-radius:12px">
+        <table style="border-collapse:collapse;width:100%;font-size:12px">
+          <tr>
+            <th style="padding:9px 12px;text-align:left;font-size:11px;font-weight:800;color:#fff;background:#173d6b;white-space:nowrap;position:sticky;left:0">${escapar(etiquetaCabecera)}</th>
+            ${columnas.map((c,i)=>`<th style="padding:9px 12px;font-size:11px;font-weight:800;color:#fff;background:${colorDegradadoTabla(i,columnas.length)};white-space:nowrap">${escapar(c)}</th>`).join('')}
+          </tr>
+          ${filas.map((f,i)=>`
+            <tr style="background:${i%2?'#fff':'#eef3f6'}">
+              <td style="padding:10px 14px;font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;position:sticky;left:0;background:${i%2?'#fff':'#eef3f6'};display:flex;align-items:center;gap:8px">
+                <span style="width:9px;height:9px;border-radius:50%;background:${colorDegradadoTabla(i,filas.length)};flex-shrink:0;display:inline-block"></span>
+                ${escapar(f.etiqueta)}
+              </td>
+              ${f.valores.map(v=>{
+                const esPositivo = f.resaltarPositivo && parseFloat(String(v).replace(',','.').replace('%',''))>0;
+                return `<td style="padding:10px 14px;text-align:center;font-size:15px;color:${esPositivo?'#0b6b2c':'var(--text)'};font-weight:${esPositivo?800:600};white-space:nowrap;background:${esPositivo?'#c6f2d3':'transparent'}">${v}</td>`;
+              }).join('')}
+            </tr>`).join('')}
+        </table>
+      </div>
     </div>`;
 }
 // "Pantalla 10a" → INV, "P.Lateral 15" → Lateral — para agrupar visualmente
