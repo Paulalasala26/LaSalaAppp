@@ -4799,6 +4799,15 @@ function seleccionarSeccionControl(sec){
   renderControlContent(document.getElementById('control-overlay'));
 }
 function renderControlContent(overlay){
+  // Guardia añadida (2026-08-27): algunas acciones que tocan
+  // controlChecksData (ej. asignar calle) ahora también se pueden disparar
+  // desde OTRAS pantallas (Partidas → buscar partida → Editar calle) donde
+  // el overlay de Control puede no haberse llegado a abrir nunca en esta
+  // sesión (document.getElementById devuelve null) — sin esto,
+  // overlay.querySelector de abajo lanzaba un TypeError que interrumpía
+  // TODO lo que viniera después en la función que llamaba a este render
+  // (incluido el guardado real en la nube).
+  if(!overlay) return;
   // Marcar/editar un check vuelve a pintar TODO el contenido (mismo patrón
   // que el resto de la app) — sin esto, el <div> con scroll perdía su
   // posición cada vez (innerHTML lo resetea a 0) y la pantalla "saltaba"
@@ -6104,6 +6113,21 @@ function comprimirImagenParaControl(file){
     reader.readAsDataURL(file);
   });
 }
+// A petición de Paula (2026-08-27): buscar una partida en Partidas y
+// Específicos SIN importar en qué semana esté colocada en el mapa —
+// busca en TODAS las líneas de Túnel (que es donde vive la calle real de
+// cada partida) y abre directamente su historial completo (mismo modal
+// que al tocarla en el mapa: check de entrada/salida, calle, fotos,
+// riegos/plaguicidas/específicos aplicados) — desde ahí, el botón
+// "Editar calle" permite cambiarla sin tener que localizarla a mano en
+// el mapa primero.
+function buscarPartidaGlobal(){
+  const valor = document.getElementById('partidas-buscar-partida')?.value?.trim();
+  if(!valor){ showToast('Escribe un número de partida'); return; }
+  const encontrada = controlChecksData.filter(c=>c.tipo==='tunel' && c.partida).find(c=>c.partida.toLowerCase().includes(valor.toLowerCase()));
+  if(!encontrada){ showToast('No se ha encontrado ninguna partida con ese número'); return; }
+  mostrarHistorialPartida(encontrada.id);
+}
 function buscarControlPartida(tipo){
   const valor = document.getElementById('control-buscar-partida')?.value?.trim();
   if(!valor){ showToast('Escribe un número de partida'); return; }
@@ -6143,6 +6167,11 @@ function mostrarAsignarCalleControl(id){
   const c = controlChecksData.find(x=>x.id===id);
   if(!c) return;
   const mo = getOrCreateOverlay('control-calle-overlay');
+  // z-index explícito (2026-08-27): ahora también se puede abrir desde
+  // encima del historial de partida (Partidas → Buscar partida → Editar
+  // calle) — sin esto, si este overlay ya existía en el DOM de antes (uso
+  // previo desde Control), quedaría detrás del historial en vez de encima.
+  mo.style.zIndex = 2200;
   const opcionesInv = `<option value="">— Invernadero —</option>
     <optgroup label="Sala 1">${ALL_INV_IDS_SALA1.map(iid=>`<option value="${iid}"${iid===c.invId?' selected':''}>INV ${iid}</option>`).join('')}</optgroup>
     <optgroup label="Sala 2">${ALL_INV_IDS.map(iid=>`<option value="${iid}"${iid===c.invId?' selected':''}>INV ${iid}</option>`).join('')}</optgroup>`;
@@ -6219,6 +6248,11 @@ async function aplicarAsignarCalleControl(id, invId, tramos){
   document.getElementById('control-calle-overlay').style.display = 'none';
   showToast('✓ Calle asignada');
   renderControlContent(document.getElementById('control-overlay'));
+  // Si se editó la calle desde el historial de la partida (Partidas →
+  // Buscar partida → Editar calle), ese modal se queda abierto DEBAJO del
+  // de asignar calle — hay que refrescarlo para que muestre la calle nueva
+  // en vez de la vieja.
+  if(document.getElementById('partidas-historial-overlay')?.style.display==='flex') mostrarHistorialPartida(id);
   const qid = encolarAccionOffline('aplicarAsignarCalleControl', [id, invId, tramos]);
   marcarControlCheckSucio(id);
   const ok = await persistControlChecksData();
@@ -6570,6 +6604,11 @@ function renderPartidasMapaContent(overlay){
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           <button onclick="seleccionarSalaPartidas('sala1')" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:800;border:1.5px solid rgba(255,255,255,.4);cursor:pointer;background:${partidasSalaSel==='sala1'?'#fff':'transparent'};color:${partidasSalaSel==='sala1'?'#0f5c4a':'#fff'}">Sala 1</button>
           <button onclick="seleccionarSalaPartidas('sala2')" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:800;border:1.5px solid rgba(255,255,255,.4);cursor:pointer;background:${partidasSalaSel==='sala2'?'#fff':'transparent'};color:${partidasSalaSel==='sala2'?'#0f5c4a':'#fff'}">Sala 2</button>
+          <div style="display:flex">
+            <input id="partidas-buscar-partida" type="text" placeholder="Buscar Nº partida..." onkeydown="if(event.key==='Enter') buscarPartidaGlobal()"
+              style="padding:8px 12px;border:1.5px solid rgba(255,255,255,.4);border-right:none;border-radius:8px 0 0 8px;font-size:12px;width:150px;background:rgba(255,255,255,.15);color:#fff">
+            <button onclick="buscarPartidaGlobal()" title="Buscar en todas las semanas" style="padding:8px 12px;background:#fff;color:#0f5c4a;border:none;border-radius:0 8px 8px 0;cursor:pointer"><i class="ti ti-search" style="font-size:14px"></i></button>
+          </div>
           ${sincronizarPartidasBtnHTML()}
           <button onclick="deshacerMovimientoPartida()" ${partidasHistorialDeshacer.length?'':'disabled style="opacity:.35;cursor:default"'} title="Deshacer el último movimiento" style="padding:8px 12px;border-radius:8px;font-size:14px;font-weight:800;background:rgba(255,255,255,.2);color:#fff;border:none;cursor:pointer">←</button>
           <button onclick="rehacerMovimientoPartida()" ${partidasHistorialRehacer.length?'':'disabled style="opacity:.35;cursor:default"'} title="Rehacer el movimiento deshecho" style="padding:8px 12px;border-radius:8px;font-size:14px;font-weight:800;background:rgba(255,255,255,.2);color:#fff;border:none;cursor:pointer">→</button>
@@ -7489,7 +7528,8 @@ async function mostrarHistorialPartida(id){
         <div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Historial de riegos, plaguicidas y específicos</div>
         ${eventosHTML}
       </div>
-      <div style="padding:1rem 1.5rem;text-align:right;display:flex;justify-content:flex-end;gap:8px">
+      <div style="padding:1rem 1.5rem;text-align:right;display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap">
+        <button onclick="mostrarAsignarCalleControl('${c.id}')" style="padding:9px 18px;font-size:12px;font-weight:800;background:#e8f2fd;color:#1558a0;border:1px solid #9ab8d8;border-radius:7px;cursor:pointer;display:flex;align-items:center;gap:5px"><i class="ti ti-map-pin" style="font-size:14px"></i> Editar calle</button>
         <button onclick="imprimirHistorialPartida()" style="padding:9px 18px;font-size:12px;font-weight:800;background:#1558a0;color:#fff;border:none;border-radius:7px;cursor:pointer;display:flex;align-items:center;gap:5px"><i class="ti ti-printer" style="font-size:14px"></i> Imprimir</button>
         <button onclick="document.getElementById('partidas-historial-overlay').style.display='none'" style="padding:9px 18px;font-size:12px;font-weight:700;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:7px;cursor:pointer">Cerrar</button>
       </div>
