@@ -13251,8 +13251,83 @@ function borrarAsignacionCarga(invId){
 // aquí) y cada línea solo aparece cuando hay algo real ocurriendo ahora
 // mismo, nunca como placeholder vacío.
 let salaEnVivoSalaSel = 'sala1';
+// Notas manuales de "La Sala en Vivo" (a petición de Paula, 2026-08-27):
+// además de lo que la app deduce sola (riego, carga, injerto...), ADMIN y
+// TÉCNICO pueden añadir a mano cualquier otra cosa que esté ocurriendo en
+// un invernadero concreto ahora mismo — con su propia hora de inicio/fin
+// previsto, igual que carga/injerto, para que desaparezca sola cuando pase
+// la hora. Guardado por invId (varias notas activas a la vez por
+// invernadero, no solo una).
+const SALA_EN_VIVO_MANUAL_KEY = 'lasala-sala-en-vivo-manual-v1';
+let salaEnVivoManualData = {}; // { invId: [{id, texto, horaInicio, horaFinPrevista, creadoPor, creadoEn}, ...] }
+async function loadSalaEnVivoManualData(){
+  try{ const r = await window.storage.get(SALA_EN_VIVO_MANUAL_KEY); if(r) salaEnVivoManualData = JSON.parse(r.value); }catch(e){}
+}
+async function guardarSalaEnVivoManualData(){
+  try{
+    const r = await window.storage.get(SALA_EN_VIVO_MANUAL_KEY);
+    const cloud = r ? JSON.parse(r.value) : {};
+    // Merge superficial por invId — nunca se pisa entero, igual que geoData.
+    const combinado = { ...cloud, ...salaEnVivoManualData };
+    salaEnVivoManualData = combinado;
+    return await window.storage.set(SALA_EN_VIVO_MANUAL_KEY, JSON.stringify(combinado));
+  }catch(e){ return false; }
+}
+function puedeEditarSalaEnVivoManual(){
+  return currentUserRole === 'ADMIN' || currentUserRole === 'TECNICO';
+}
+function mostrarAñadirSalaEnVivoManual(invId){
+  if(!puedeEditarSalaEnVivoManual()) return;
+  const escapar = s => String(s==null?'':s).replace(/"/g,'&quot;');
+  const ahora = new Date();
+  const horaActual = String(ahora.getHours()).padStart(2,'0')+':'+String(ahora.getMinutes()).padStart(2,'0');
+  const mo = getOrCreateOverlay('sala-en-vivo-manual-overlay');
+  mo.style.zIndex = 2200;
+  mo.innerHTML = `
+    <div style="background:#fff;border-radius:14px;max-width:380px;width:100%;padding:1.5rem;box-shadow:0 8px 40px rgba(0,0,0,.3)">
+      <div style="font-size:15px;font-weight:800;margin-bottom:4px">Añadir a INV ${escapar(invId)}</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Se mostrará en La Sala en Vivo mientras esté dentro del horario.</div>
+      <label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">¿Qué está ocurriendo?</label>
+      <textarea id="sevm-texto" rows="2" placeholder="Ej. Revisando riego por goteo" style="width:100%;padding:9px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;font-family:inherit;margin-bottom:10px;resize:vertical"></textarea>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
+        <div>
+          <label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">Hora inicio</label>
+          <input id="sevm-inicio" type="time" value="${horaActual}" style="width:100%;padding:9px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px">
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">Hora fin prevista</label>
+          <input id="sevm-fin" type="time" style="width:100%;padding:9px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px">
+        </div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px">
+        <button onclick="document.getElementById('sala-en-vivo-manual-overlay').style.display='none'" style="padding:9px 16px;font-size:12px;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:7px;cursor:pointer">Cancelar</button>
+        <button onclick="guardarNuevaNotaSalaEnVivo('${invId}')" style="padding:9px 18px;font-size:12px;font-weight:800;background:#0f5c4a;color:#fff;border:none;border-radius:7px;cursor:pointer">Añadir</button>
+      </div>
+    </div>`;
+  mo.style.display = 'flex';
+}
+async function guardarNuevaNotaSalaEnVivo(invId){
+  const texto = document.getElementById('sevm-texto')?.value?.trim();
+  if(!texto){ showToast('Escribe qué está ocurriendo'); return; }
+  const horaInicio = document.getElementById('sevm-inicio')?.value || '';
+  const horaFinPrevista = document.getElementById('sevm-fin')?.value || '';
+  const nota = { id:'sevm_'+Date.now()+'_'+Math.random().toString(36).slice(2,8), texto, horaInicio, horaFinPrevista, creadoPor:currentUser||'—', creadoEn:new Date().toLocaleString('es-ES') };
+  if(!salaEnVivoManualData[invId]) salaEnVivoManualData[invId] = [];
+  salaEnVivoManualData[invId].push(nota);
+  document.getElementById('sala-en-vivo-manual-overlay').style.display = 'none';
+  showToast('✓ Añadido');
+  renderSalaEnVivoContent(document.getElementById('sala-en-vivo-overlay'));
+  await guardarSalaEnVivoManualData();
+}
+async function eliminarNotaSalaEnVivo(invId, id){
+  if(!puedeEditarSalaEnVivoManual()) return;
+  if(!salaEnVivoManualData[invId]) return;
+  salaEnVivoManualData[invId] = salaEnVivoManualData[invId].filter(n=>n.id!==id);
+  renderSalaEnVivoContent(document.getElementById('sala-en-vivo-overlay'));
+  await guardarSalaEnVivoManualData();
+}
 function showSalaEnVivoModule(){
-  Promise.all([loadRiegoData(), loadPresenciaData(), loadIndiceAbonosEstadoData(), loadInjertoAsignacionData(), loadCargasAsignacionData(), loadTareasData()]).then(()=>{
+  Promise.all([loadRiegoData(), loadPresenciaData(), loadIndiceAbonosEstadoData(), loadInjertoAsignacionData(), loadCargasAsignacionData(), loadTareasData(), loadSalaEnVivoManualData()]).then(()=>{
     const overlay = getOrCreateOverlay('sala-en-vivo-overlay');
     overlay.style.padding = '0';
     renderSalaEnVivoContent(overlay);
@@ -13372,10 +13447,28 @@ function renderSalaEnVivoInvCard(invId){
       <div style="font-size:12px;color:${html?'var(--text)':'var(--muted)'};font-weight:${html?600:400};font-style:${html?'normal':'italic'}">${html || '—'}</div>
     </div>`;
   }).join('');
+  // Notas manuales (ADMIN/TÉCNICO): cualquier otra cosa que esté ocurriendo
+  // en el invernadero, añadida a mano — solo se muestran mientras están
+  // dentro de su horario (igual que carga/injerto), y se pueden borrar.
+  const notasActivas = (salaEnVivoManualData[invId]||[]).filter(n=>estaEnHorario(n.horaInicio, n.horaFinPrevista));
+  const puedeEditar = puedeEditarSalaEnVivoManual();
+  const notasHTML = notasActivas.map(n=>`
+    <div style="display:flex;gap:8px;padding:7px 8px;border-radius:8px;background:#f3f0fb;margin-bottom:6px;align-items:flex-start">
+      <div style="width:74px;flex-shrink:0;font-size:10px;font-weight:800;color:#fff;background:#5c3fc4;border-radius:999px;padding:2px 8px;text-align:center;height:fit-content">Nota</div>
+      <div style="flex:1;font-size:12px;color:var(--text);font-weight:600">
+        ${escapar(n.texto)} · ${escapar(n.horaInicio)}${n.horaFinPrevista?' – '+escapar(n.horaFinPrevista)+' (previsto)':''}
+        <div style="font-size:10px;color:var(--muted);font-weight:400">${escapar(nombreLegibleUsuario(n.creadoPor))}</div>
+      </div>
+      ${puedeEditar ? `<button onclick="eliminarNotaSalaEnVivo('${invId}','${n.id}')" title="Eliminar" style="background:none;border:none;color:#c62828;cursor:pointer;font-size:14px;padding:0 2px;flex-shrink:0">✕</button>` : ''}
+    </div>`).join('');
+  const añadirBtnHTML = puedeEditar ? `
+    <button onclick="mostrarAñadirSalaEnVivoManual('${invId}')" style="width:100%;padding:6px;margin-top:2px;font-size:11px;font-weight:700;background:#f0edfa;color:#5c3fc4;border:1px dashed #b8a8e8;border-radius:8px;cursor:pointer">+ Añadir</button>` : '';
   return `
     <div style="background:#fff;border-radius:12px;padding:12px 14px;box-shadow:var(--shadow-sm);border:1.5px solid var(--border)">
       <div style="font-size:14px;font-weight:800;color:var(--text);margin-bottom:8px">INV ${escapar(invId)}</div>
       ${filasHTML}
+      ${notasHTML}
+      ${añadirBtnHTML}
     </div>`;
 }
 function renderSalaEnVivoContent(overlay){
