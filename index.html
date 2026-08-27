@@ -13458,37 +13458,50 @@ function renderSalaEnVivoInvCard(invId){
     peones: (currentUserRole !== 'REGANTE' && peones.length) ? peones.map(t=>`${escapar(nombreLegibleUsuario(t.asignadoA))} — ${escapar(t.titulo)}`).join('<br>') : (currentUserRole === 'REGANTE' ? tareasAsignadas : null),
     regantes: (currentUserRole !== 'REGANTE' && riegos.length && regante) ? `${escapar(nombreLegibleUsuario(regante))} — ${riegos.map(r=>`${escapar(r.texto)} (${escapar(r.horaInicio)}${r.horaFin?'–'+escapar(r.horaFin):''})`).join(', ')}` : null
   };
-  const filasHTML = SALA_EN_VIVO_LINEAS.map(def=>{
-    const html = contenidos[def.key];
-    return `<div style="display:flex;gap:8px;padding:7px 8px;border-radius:8px;background:${html?def.bg:'#f7f8f6'};margin-bottom:6px">
-      <div style="width:74px;flex-shrink:0;font-size:10px;font-weight:800;color:#fff;background:${def.color};opacity:${html?1:.45};border-radius:999px;padding:2px 8px;text-align:center;height:fit-content">${escapar(def.label)}</div>
-      <div style="font-size:12px;color:${html?'var(--text)':'var(--muted)'};font-weight:${html?600:400};font-style:${html?'normal':'italic'}">${html || '—'}</div>
-    </div>`;
-  }).join('');
   // Notas manuales (ADMIN/TÉCNICO): cualquier otra cosa que esté ocurriendo
-  // en el invernadero, añadida a mano — solo se muestran mientras están
-  // dentro de su horario (igual que carga/injerto), y se pueden borrar.
+  // en el invernadero, añadida a mano — solo se cuentan mientras están
+  // dentro de su horario (igual que carga/injerto). A petición de Paula
+  // (2026-08-27): una nota de tipo "Riego" tiene que salir DENTRO de la
+  // propia línea "Riego" (mezclada con lo automático si lo hay), no como un
+  // bloque aparte al final — así que se reparten por categoría antes de
+  // pintar las líneas fijas. Las de tipo "Otro" (sin categoría fija) sí van
+  // en su propio bloque al final.
   const notasActivas = (salaEnVivoManualData[invId]||[]).filter(n=>estaEnHorario(n.horaInicio, n.horaFinPrevista));
   const puedeEditar = puedeEditarSalaEnVivoManual();
-  const notasHTML = notasActivas.map(n=>{
-    const def = SALA_EN_VIVO_TIPOS_MANUAL.find(t=>t.key===n.tipo) || SALA_EN_VIVO_TIPOS_MANUAL[SALA_EN_VIVO_TIPOS_MANUAL.length-1];
-    return `
-    <div style="display:flex;gap:8px;padding:7px 8px;border-radius:8px;background:${def.bg};margin-bottom:6px;align-items:flex-start">
-      <div style="width:74px;flex-shrink:0;font-size:10px;font-weight:800;color:#fff;background:${def.color};border-radius:999px;padding:2px 8px;text-align:center;height:fit-content">${escapar(def.label)}</div>
-      <div style="flex:1;font-size:12px;color:var(--text);font-weight:600">
-        ${escapar(n.texto)} · ${escapar(n.horaInicio)}${n.horaFinPrevista?' – '+escapar(n.horaFinPrevista)+' (previsto)':''}
-        <div style="font-size:10px;color:var(--muted);font-weight:400">${escapar(nombreLegibleUsuario(n.creadoPor))}</div>
+  const notaLineaHTML = n => `<div style="display:flex;align-items:flex-start;gap:6px;margin-top:${n._primera?0:4}px">
+      <div style="flex:1">${escapar(n.texto)} · ${escapar(n.horaInicio)}${n.horaFinPrevista?' – '+escapar(n.horaFinPrevista)+' (previsto)':''}
+        <span style="font-size:10px;color:var(--muted);font-weight:400"> — ${escapar(nombreLegibleUsuario(n.creadoPor))}</span>
       </div>
-      ${puedeEditar ? `<button onclick="eliminarNotaSalaEnVivo('${invId}','${n.id}')" title="Eliminar" style="background:none;border:none;color:#c62828;cursor:pointer;font-size:14px;padding:0 2px;flex-shrink:0">✕</button>` : ''}
+      ${puedeEditar ? `<button onclick="eliminarNotaSalaEnVivo('${invId}','${n.id}')" title="Eliminar" style="background:none;border:none;color:#c62828;cursor:pointer;font-size:13px;padding:0 2px;flex-shrink:0">✕</button>` : ''}
+    </div>`;
+
+  const filasHTML = SALA_EN_VIVO_LINEAS.map(def=>{
+    const notasCategoria = notasActivas.filter(n=>n.tipo===def.key);
+    const piezas = [];
+    if(contenidos[def.key]) piezas.push(contenidos[def.key]);
+    notasCategoria.forEach((n,i)=>piezas.push(notaLineaHTML({...n, _primera: i===0 && !contenidos[def.key]})));
+    const hayAlgo = piezas.length>0;
+    return `<div style="display:flex;gap:8px;padding:7px 8px;border-radius:8px;background:${hayAlgo?def.bg:'#f7f8f6'};margin-bottom:6px">
+      <div style="width:74px;flex-shrink:0;font-size:10px;font-weight:800;color:#fff;background:${def.color};opacity:${hayAlgo?1:.45};border-radius:999px;padding:2px 8px;text-align:center;height:fit-content">${escapar(def.label)}</div>
+      <div style="flex:1;font-size:12px;color:${hayAlgo?'var(--text)':'var(--muted)'};font-weight:${hayAlgo?600:400};font-style:${hayAlgo?'normal':'italic'}">${piezas.length ? piezas.join('') : '—'}</div>
     </div>`;
   }).join('');
+
+  // Notas sin categoría fija ("Otro") — estas sí van en su propio bloque.
+  const notasOtro = notasActivas.filter(n=>!SALA_EN_VIVO_LINEAS.some(def=>def.key===n.tipo));
+  const otroDef = SALA_EN_VIVO_TIPOS_MANUAL[SALA_EN_VIVO_TIPOS_MANUAL.length-1];
+  const notasOtroHTML = notasOtro.length ? `<div style="display:flex;gap:8px;padding:7px 8px;border-radius:8px;background:${otroDef.bg};margin-bottom:6px">
+      <div style="width:74px;flex-shrink:0;font-size:10px;font-weight:800;color:#fff;background:${otroDef.color};border-radius:999px;padding:2px 8px;text-align:center;height:fit-content">${escapar(otroDef.label)}</div>
+      <div style="flex:1;font-size:12px;color:var(--text);font-weight:600">${notasOtro.map((n,i)=>notaLineaHTML({...n,_primera:i===0})).join('')}</div>
+    </div>` : '';
+
   const añadirBtnHTML = puedeEditar ? `
     <button onclick="mostrarAñadirSalaEnVivoManual('${invId}')" style="width:100%;padding:6px;margin-top:2px;font-size:11px;font-weight:700;background:#f0edfa;color:#5c3fc4;border:1px dashed #b8a8e8;border-radius:8px;cursor:pointer">+ Añadir</button>` : '';
   return `
     <div style="background:#fff;border-radius:12px;padding:12px 14px;box-shadow:var(--shadow-sm);border:1.5px solid var(--border)">
       <div style="font-size:14px;font-weight:800;color:var(--text);margin-bottom:8px">INV ${escapar(invId)}</div>
       ${filasHTML}
-      ${notasHTML}
+      ${notasOtroHTML}
       ${añadirBtnHTML}
     </div>`;
 }
