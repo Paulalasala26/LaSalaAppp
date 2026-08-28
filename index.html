@@ -11454,6 +11454,13 @@ function detectarFitoAlFinal(resto){
 // tarde" — a petición de Paula, antes salían intercaladas entre las 11:00 y
 // las 12:00, y debían ir al final.
 const RIEGO_HORARIOS = ['PROGRAMADO','1º HORA','10:00','11:00','12:00','13:00','13:30','14:00','14:30','15:00','16:00','17:00','18:00','18:30','19:00','19:30','20:00','UH FIN CHICAS','UH FIN TÚNELES','UH','POR LA TARDE','?'];
+// RIEGO_HORARIOS se mantiene completo (con todas las horas en punto de
+// siempre) solo para que el ORDEN y el reconocimiento de datos antiguos
+// sigan funcionando igual. A petición de Paula, el desplegable YA NO ofrece
+// esa lista larga de horas fijas — solo las opciones especiales, más "Otra
+// hora..." para escribir la hora que se quiera con un selector de hora libre.
+const RIEGO_HORARIOS_RAPIDOS = ['PROGRAMADO','1º HORA','UH FIN CHICAS','UH FIN TÚNELES','UH','POR LA TARDE','?'];
+function esHorarioRapido(h){ return !h || RIEGO_HORARIOS_RAPIDOS.includes(h); }
 // Sin horario elegido se entiende "a media mañana" — se ordena justo después
 // de "1º HORA" y antes de las horas en punto, en vez de irse al final como el
 // resto de horarios no reconocidos. Global (no solo dentro de
@@ -11465,7 +11472,59 @@ function prioridadHorarioRiego(h){
   // justo después de "1º HORA".
   if(!h || h==='MEDIA MAÑANA') return RIEGO_HORARIOS.indexOf('1º HORA') + 0.5;
   const idx = RIEGO_HORARIOS.indexOf(h);
-  return idx===-1 ? Infinity : idx;
+  if(idx !== -1) return idx;
+  // Hora libre escrita a mano (p.ej. "14:15", ya no está en la lista fija de
+  // RIEGO_HORARIOS): se ordena cronológicamente justo después de "1º HORA" y
+  // antes de las especiales tipo "UH", en vez de irse siempre al final.
+  const mHora = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(String(h).trim());
+  if(mHora) return RIEGO_HORARIOS.indexOf('1º HORA') + 1 + ((+mHora[1])*60 + (+mHora[2])) / 1440;
+  return Infinity;
+}
+// Genera el HTML de un selector de horario "rápido" (PROGRAMADO/1º HORA/UH/
+// etc.) + un <input type="time"> que aparece solo al elegir "Otra hora..." o
+// si el valor actual ya es una hora concreta escrita a mano. `clase` se usa
+// tanto para el <select> como, con sufijo "-custom", para el input de hora.
+function renderHorarioSelectorHTML(clase, valorActual, placeholder, idBase){
+  const esRapido = esHorarioRapido(valorActual);
+  const idAttr = idBase ? ` id="${idBase}"` : '';
+  const idAttrCustom = idBase ? ` id="${idBase}-custom"` : '';
+  return `<div style="display:flex;flex-direction:column;gap:4px">
+    <select class="${clase}"${idAttr} onchange="actualizarVisibilidadHorarioCustom(this)" style="width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;background:#fff;outline:none">
+      <option value="">${placeholder}</option>
+      ${RIEGO_HORARIOS_RAPIDOS.map(h=>`<option value="${h}"${h===valorActual?' selected':''}>${h}</option>`).join('')}
+      <option value="__otra__"${!esRapido?' selected':''}>Otra hora...</option>
+    </select>
+    <input type="time" class="${clase}-custom"${idAttrCustom} value="${esRapido?'':valorActual}" style="width:100%;padding:6px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;background:#fff;outline:none;${esRapido?'display:none':''}">
+  </div>`;
+}
+function actualizarVisibilidadHorarioCustom(select){
+  const input = select.parentElement?.querySelector('input[type="time"]');
+  if(input) input.style.display = select.value==='__otra__' ? '' : 'none';
+}
+// Lee el valor efectivo de un selector de horario generado por
+// renderHorarioSelectorHTML (la hora escrita a mano si está en "Otra hora...").
+function leerHorarioSelectorValor(select){
+  if(!select) return '';
+  if(select.value==='__otra__'){
+    const input = select.parentElement?.querySelector('input[type="time"]');
+    return input ? input.value : '';
+  }
+  return select.value;
+}
+// Igual que asignar select.value = valor, pero si el valor no es una opción
+// rápida (p.ej. una hora concreta antigua tipo "14:30"), selecciona "Otra
+// hora..." y rellena el input de hora libre — necesario porque un <select>
+// ignora en silencio cualquier valor que no coincida con ninguna <option>.
+function setValorHorarioConCustom(select, valor){
+  if(!select) return;
+  if(!valor){ select.value=''; actualizarVisibilidadHorarioCustom(select); return; }
+  if(esHorarioRapido(valor)){ select.value = valor; }
+  else {
+    select.value = '__otra__';
+    const input = select.parentElement?.querySelector('input[type="time"]');
+    if(input) input.value = valor;
+  }
+  actualizarVisibilidadHorarioCustom(select);
 }
 // ── ROTACIÓN SEMANAL DE TÉCNICOS (mañana/tarde) ─────────────────────────
 // A petición de Paula: cada semana (lunes-domingo) un técnico hace mañanas y
@@ -11851,10 +11910,7 @@ function showRiegoManualForm(){
             </div>
             <div>
               <label style="font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bottom:3px">Horario fito</label>
-              <select id="rm-horario-fito" style="width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;background:#fff;outline:none">
-                <option value="">—</option>
-                ${RIEGO_HORARIOS.map(h=>`<option value="${h}">${h}</option>`).join('')}
-              </select>
+              ${renderHorarioSelectorHTML('rm-horario-fito-sel', '', '—', 'rm-horario-fito')}
             </div>
           </div>
         </div>
@@ -11985,7 +12041,7 @@ function leerAguaRowsDesdeDOM(){
   return Array.from(document.querySelectorAll('.rm-agua-row')).map(row=>({
     minutos: row.querySelector('.rm-agua-min').value,
     sal: row.querySelector('.rm-agua-sal').checked,
-    horario: row.querySelector('.rm-agua-hor').value
+    horario: leerHorarioSelectorValor(row.querySelector('.rm-agua-hor'))
   }));
 }
 function renderAguaRows(){
@@ -12000,10 +12056,7 @@ function renderAguaRows(){
       <label style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:4px;white-space:nowrap">
         <input type="checkbox" class="rm-agua-sal" ${r.sal?'checked':''}> Sal
       </label>
-      <select class="rm-agua-hor" style="width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;background:#fff;outline:none">
-        <option value="">Horario</option>
-        ${RIEGO_HORARIOS.map(h=>`<option value="${h}"${h===r.horario?' selected':''}>${h}</option>`).join('')}
-      </select>
+      ${renderHorarioSelectorHTML('rm-agua-hor', r.horario, 'Horario')}
       ${rmAguaRows.length>1 ? `<button type="button" onclick="quitarAguaRow(${i})" style="width:26px;height:26px;background:#fdecea;color:#c62828;border:1px solid #f3c2bd;border-radius:6px;cursor:pointer;font-size:12px">✕</button>` : '<span></span>'}
     </div>`).join('');
 }
@@ -12025,7 +12078,7 @@ function leerAbonoRowsDesdeDOM(){
     tiempo: row.querySelector('.rm-abono-tiempo').value,
     cat: row.querySelector('.rm-abono-cat').value,
     producto: row.querySelector('.rm-abono-producto').value,
-    horario: row.querySelector('.rm-abono-hor').value
+    horario: leerHorarioSelectorValor(row.querySelector('.rm-abono-hor'))
   }));
 }
 function renderAbonoRows(){
@@ -12053,10 +12106,7 @@ function renderAbonoRows(){
         </select>
         ${rmAbonoRows.length>1 ? `<button type="button" onclick="quitarAbonoRow(${i})" style="width:26px;height:26px;background:#fdecea;color:#c62828;border:1px solid #f3c2bd;border-radius:6px;cursor:pointer;font-size:12px">✕</button>` : '<span></span>'}
       </div>
-      <select class="rm-abono-hor" style="width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;background:#fff;outline:none">
-        <option value="">Horario abono</option>
-        ${RIEGO_HORARIOS.map(h=>`<option value="${h}"${h===r.horario?' selected':''}>${h}</option>`).join('')}
-      </select>
+      ${renderHorarioSelectorHTML('rm-abono-hor', r.horario, 'Horario abono')}
     </div>`;
   }).join('');
 }
@@ -12243,7 +12293,7 @@ function construirPartesRiegoManual(){
     const fitoSal = document.getElementById('rm-fito-sal')?.checked;
     const fitoPrefijo = fitoTiempo ? (fitoTiempo + (fitoSal ? ' SAL' : '')) : '';
     fitoTexto = [fitoPrefijo, fito].filter(Boolean).join(' ');
-    fitoHorario = document.getElementById('rm-horario-fito')?.value || '';
+    fitoHorario = leerHorarioSelectorValor(document.getElementById('rm-horario-fito'));
   }
   // "PROGRAMADO" nunca debe repetirse: si dos o más partes (agua, abono y/o
   // el fitosanitario) llevan ese horario a la vez, se quita de cada una y se
@@ -13882,7 +13932,7 @@ function precargarFormularioRiegoDesdeTexto(texto){
     const fitoDetectado = detectarFitoAlFinal(resto);
     if(fitoDetectado){
       document.getElementById('rm-fito').value = fitoDetectado.canonico;
-      if(horarioEncontrado) document.getElementById('rm-horario-fito').value = horarioEncontrado;
+      if(horarioEncontrado) setValorHorarioConCustom(document.getElementById('rm-horario-fito'), horarioEncontrado);
       resto = resto.slice(0, resto.length - fitoDetectado.encontrado.length).trim();
       if(!resto) return;
       let mAgua = /^(\d+)(\s+SAL)?$/.exec(resto);
@@ -13986,7 +14036,7 @@ function precargarFormularioRiegoDesdeTexto(texto){
     nuevasAguas.forEach(r=>{ if(!r.horario) r.horario = 'PROGRAMADO'; });
     nuevosAbonos.forEach(r=>{ if(!r.horario) r.horario = 'PROGRAMADO'; });
     const fitoHorarioEl = document.getElementById('rm-horario-fito');
-    if(fitoHorarioEl && document.getElementById('rm-fito')?.value && !fitoHorarioEl.value) fitoHorarioEl.value = 'PROGRAMADO';
+    if(fitoHorarioEl && document.getElementById('rm-fito')?.value && !leerHorarioSelectorValor(fitoHorarioEl)) setValorHorarioConCustom(fitoHorarioEl, 'PROGRAMADO');
   }
   if(nuevasAguas.length){ rmAguaRows = nuevasAguas; renderAguaRows(); }
   if(nuevosAbonos.length){ rmAbonoRows = nuevosAbonos; renderAbonoRows(); }
