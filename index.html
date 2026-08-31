@@ -3714,6 +3714,16 @@ function calleAsignadaParaPartida(partida){
   const tramos = (entrada.tramos && entrada.tramos.length) ? entrada.tramos : [{desde:entrada.calleDesde, hasta:entrada.calleHasta}];
   return `INV ${entrada.invId} — ${formatTramosLabel(entrada.invId, tramos)}`;
 }
+// Igual que calleAsignadaParaPartida pero devuelve solo el invId (sin
+// formatear la calle) — usado para saber en qué tarjeta de invernadero de
+// La Sala en Vivo debe aparecer un trabajo de Mujeres (Recomponer/Quitar
+// raíces/Plantar/Separar), ya que estos se crean sin invernadero propio
+// cuando no venía en el parte de origen (ver autoCrearTrabajosMujeresPartida).
+function invIdDePartidaTunel(partida){
+  if(!partida) return null;
+  const entrada = controlChecksData.find(c=>c.tipo==='tunel' && c.partida===partida && c.invId);
+  return entrada ? entrada.invId : null;
+}
 // Para el filtro de invernadero de Check Carga (a petición de Paula,
 // 2026-08-10): busca la calle real de una línea de Carga a partir de su
 // línea hermana de Check Túnel — Carga no guarda calle propia, y su campo
@@ -13864,7 +13874,14 @@ async function eliminarNotaSalaEnVivo(invId, id){
   await guardarSalaEnVivoManualData();
 }
 function showSalaEnVivoModule(){
-  Promise.all([loadRiegoData(), loadPresenciaData(), loadIndiceAbonosEstadoData(), loadInjertoAsignacionData(), loadCargasAsignacionData(), loadTareasData(), loadSalaEnVivoManualData()]).then(()=>{
+  // loadTrabajosData/loadControlChecksData añadidos (a petición de Paula,
+  // 2026-08-31): la línea "Mujeres" (Recomponer/Quitar raíces/Plantar/
+  // Separar) y "Túneles" dependen de trabajosData, y la primera necesita
+  // además controlChecksData para saber en qué invernadero cae cada partida
+  // (ver invIdDePartidaTunel) — antes se confiaba en que ya estuvieran en
+  // memoria por haber abierto otro módulo antes, lo cual fallaba si La Sala
+  // en Vivo era la primera pantalla abierta.
+  Promise.all([loadRiegoData(), loadPresenciaData(), loadIndiceAbonosEstadoData(), loadInjertoAsignacionData(), loadCargasAsignacionData(), loadTareasData(), loadSalaEnVivoManualData(), loadTrabajosData(), loadControlChecksData()]).then(()=>{
     const overlay = getOrCreateOverlay('sala-en-vivo-overlay');
     overlay.style.padding = '0';
     renderSalaEnVivoContent(overlay);
@@ -13978,8 +13995,14 @@ function renderSalaEnVivoInvCard(invId){
   // automáticamente (ver autoCrearTrabajosJiffyPartida) que caen hoy en este
   // invernadero — con el horario editable desde Trabajos → Mujeres.
   const MUJERES_SUBSECCION_LABEL = {recomponer:'Recomponer', quitarRaices:'Quitar raíces', plantar:'Plantar', separar:'Separar'};
+  // El invernadero puede venir vacío en el trabajo (si no lo traía el parte
+  // de origen, ver autoCrearTrabajosMujeresPartida) — en ese caso se busca en
+  // el Check de Túnel de la misma partida (invIdDePartidaTunel), igual que
+  // hace "Calle asignada" en Trabajos → Mujeres.
   const mujeresTrabajosHoy = (trabajosData || []).filter(t =>
-    t.seccion === 'mujeres' && MUJERES_SUBSECCION_LABEL[t.subseccion] && t.fechaISO === fechaLocalISO(new Date()) && t.inv === invId
+    t.seccion === 'mujeres' && MUJERES_SUBSECCION_LABEL[t.subseccion] && t.fechaISO === fechaLocalISO(new Date())
+    && (t.estado||'pendiente') !== 'completado'
+    && (t.inv === invId || (!t.inv && invIdDePartidaTunel(t.origenPartidaJiffy) === invId))
   );
   const mujeresContenido = (currentUserRole !== 'REGANTE' && mujeresTrabajosHoy.length)
     ? mujeresTrabajosHoy.map(t=>`${MUJERES_SUBSECCION_LABEL[t.subseccion]}: ${escapar(t.descripcion)}${t.horaInicio?' · '+escapar(t.horaInicio):''}`).join('<br>')
