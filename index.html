@@ -3531,9 +3531,12 @@ function renderTrabajoSubSeccionHTML(seccionKey, subKey){
     <div class="tarea-card" style="border:1.5px solid var(--border);border-radius:10px;padding:12px;background:#fff">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
         <div style="font-size:14px;font-weight:700;color:var(--text)">${escapar(t.descripcion)||'<span style="font-style:italic;color:var(--muted)">Sin descripción</span>'}</div>
-        <button onclick="eliminarTrabajo('${t.id}')" title="Eliminar" style="padding:4px 8px;font-size:10px;font-weight:700;background:#fdecea;color:#c62828;border:1px solid #f0b0b0;border-radius:6px;cursor:pointer;white-space:nowrap">🗑️</button>
+        <div style="display:flex;gap:4px;flex-shrink:0">
+          <button onclick="mostrarFormNuevoTrabajo('${seccionKey}','${subKey}','${t.id}')" title="Editar" style="padding:4px 8px;font-size:10px;font-weight:700;background:#eef4fb;color:#1558a0;border:1px solid #b8cdea;border-radius:6px;cursor:pointer">✏️</button>
+          <button onclick="eliminarTrabajo('${t.id}')" title="Eliminar" style="padding:4px 8px;font-size:10px;font-weight:700;background:#fdecea;color:#c62828;border:1px solid #f0b0b0;border-radius:6px;cursor:pointer;white-space:nowrap">🗑️</button>
+        </div>
       </div>
-      <div style="font-size:12px;color:var(--muted);margin-top:4px">${escapar(t.fecha||'')}${t.personas?.length?' · '+escapar(t.personas.join(', ')):''}</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px">${escapar(t.fecha||'')}${t.horaInicio?' · '+escapar(t.horaInicio):''}${t.inv?' · INV '+escapar(t.inv):''}${t.personas?.length?' · '+escapar(t.personas.join(', ')):''}</div>
     </div>`).join('');
   return `
     <div style="margin-bottom:1rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
@@ -3753,44 +3756,61 @@ function renderPinzarSubSeccionHTML(){
     ${tabsHTML}
     ${itemsFiltrados.length===0 ? `<div style="text-align:center;padding:2rem;color:var(--muted);font-style:italic;font-size:13px">Sin líneas en este apartado para este día.</div>` : gruposHTML}`;
 }
-function mostrarFormNuevoTrabajo(seccionKey, subKey){
+// `editId` opcional: si se pasa, precarga los datos de ese trabajo (incluida
+// la hora) y guardarNuevoTrabajo actualiza en vez de crear uno nuevo — mismo
+// formulario para dar de alta a mano y para editar (manual o automático,
+// p.ej. los de Jiffy creados por autoCrearTrabajosJiffyPartida).
+function mostrarFormNuevoTrabajo(seccionKey, subKey, editId){
   const wrap = document.getElementById('nuevo-trabajo-form-wrap');
   if(!wrap) return;
+  const t = editId ? trabajosData.find(x=>x.id===editId) : null;
   const hoyISO = new Date().toISOString().slice(0,10);
   wrap.innerHTML = `
     <div style="border:1.5px solid var(--border);border-radius:10px;padding:12px;background:#f8f9fa;margin-bottom:14px">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-        <input id="nw-fecha" type="date" value="${hoyISO}" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px">
-        <input id="nw-descripcion" type="text" placeholder="Descripción del trabajo" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
+        <input id="nw-fecha" type="date" value="${t?.fechaISO||hoyISO}" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px">
+        <input id="nw-hora" type="time" value="${t?.horaInicio||''}" placeholder="Horario" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px">
+        <input id="nw-descripcion" type="text" value="${(t?.descripcion||'').replace(/"/g,'&quot;')}" placeholder="Descripción del trabajo" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px">
       </div>
       <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px">Personas</div>
       <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px">
         ${Object.keys(USERS).map(u=>`
           <label style="font-size:11px;border:1px solid #ccc;border-radius:999px;padding:3px 9px;cursor:pointer;display:inline-flex;align-items:center;gap:4px">
-            <input type="checkbox" class="nw-persona-chk" value="${u}" style="width:11px;height:11px"> ${u}
+            <input type="checkbox" class="nw-persona-chk" value="${u}" ${t?.personas?.includes(u)?'checked':''} style="width:11px;height:11px"> ${u}
           </label>`).join('')}
       </div>
       <div style="display:flex;justify-content:flex-end;gap:8px">
         <button onclick="document.getElementById('nuevo-trabajo-form-wrap').innerHTML=''" style="padding:8px 14px;font-size:11px;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:7px;cursor:pointer">Cancelar</button>
-        <button onclick="guardarNuevoTrabajo('${seccionKey}','${subKey}')" style="padding:8px 16px;font-size:11px;font-weight:800;background:#2e7d32;color:#fff;border:none;border-radius:7px;cursor:pointer">Guardar</button>
+        <button onclick="guardarNuevoTrabajo('${seccionKey}','${subKey}'${editId?`,'${editId}'`:''})" style="padding:8px 16px;font-size:11px;font-weight:800;background:#2e7d32;color:#fff;border:none;border-radius:7px;cursor:pointer">Guardar</button>
       </div>
     </div>`;
 }
-async function guardarNuevoTrabajo(seccionKey, subKey){
+async function guardarNuevoTrabajo(seccionKey, subKey, editId){
   const fechaRaw = document.getElementById('nw-fecha')?.value;
+  const horaInicio = document.getElementById('nw-hora')?.value || '';
   const descripcion = document.getElementById('nw-descripcion')?.value?.trim() || '';
   const personas = Array.from(document.querySelectorAll('.nw-persona-chk:checked')).map(c=>c.value);
   if(!descripcion){ showToast('Indica una descripción del trabajo'); return; }
   const fecha = fechaRaw ? new Date(fechaRaw+'T00:00:00').toLocaleDateString('es-ES',{day:'2-digit',month:'short',year:'numeric'}).replace('.','') : '';
-  trabajosData.push({
-    id: 'trabajo_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
-    seccion: seccionKey, subseccion: subKey,
-    fechaISO: fechaRaw||null, fecha, descripcion, personas,
-    creadoPor: currentUser||'—', creadoEn: new Date().toLocaleString('es-ES')
-  });
-  await persistTrabajosData();
-  logHistorial(`Añadió un trabajo en ${seccionKey}/${subKey}: "${descripcion}"`);
-  showToast('✓ Trabajo añadido');
+  if(editId){
+    const t = trabajosData.find(x=>x.id===editId);
+    if(!t){ showToast('No se encontró el trabajo'); return; }
+    t.fechaISO = fechaRaw||null; t.fecha = fecha; t.horaInicio = horaInicio; t.descripcion = descripcion; t.personas = personas;
+    await persistTrabajosData();
+    logHistorial(`Editó un trabajo en ${seccionKey}/${subKey}: "${descripcion}"`);
+    showToast('✓ Trabajo actualizado');
+  } else {
+    trabajosData.push({
+      id: 'trabajo_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
+      seccion: seccionKey, subseccion: subKey,
+      fechaISO: fechaRaw||null, fecha, horaInicio, descripcion, personas,
+      creadoPor: currentUser||'—', creadoEn: new Date().toLocaleString('es-ES')
+    });
+    await persistTrabajosData();
+    logHistorial(`Añadió un trabajo en ${seccionKey}/${subKey}: "${descripcion}"`);
+    showToast('✓ Trabajo añadido');
+  }
+  document.getElementById('nuevo-trabajo-form-wrap').innerHTML = '';
   renderTrabajosContent(document.getElementById('trabajos-overlay'));
 }
 // persistTrabajosData() fusiona con la nube por id (nunca borra sola) — para
@@ -5345,6 +5365,49 @@ function parseControlPdfPartidas(lineas){
 function detectarHV(variedad){
   const m = /(\d)\s*HV\b/i.exec(variedad||'');
   return m ? parseInt(m[1],10) : null;
+}
+// Programación automática de PLANTAR/RECOMPONER/QUITAR RAÍCES/SEPARAR (a
+// petición de Paula, 2026-08-31): solo para partidas en soporte JIFFY,
+// contadas desde el día real de su salida de túnel (p.entrada, la fecha que
+// se estampa al confirmar la salida pendiente, ver confirmarSalidaPendiente):
+// Recomponer y Quitar raíces el día después de la salida, Plantar 2 días
+// después, Separar 1 día después de Plantar (=3 días después de la salida).
+// Se crea un "trabajo" normal en Trabajos → Mujeres (misma trabajosData de
+// siempre, editable a mano igual que el resto) por cada subsección — idempotente
+// por partida+subsección para poder reconfirmar la misma partida sin duplicar.
+const JIFFY_SUBSECCIONES_DIAS = [
+  {subseccion:'recomponer', dias:1},
+  {subseccion:'quitarRaices', dias:1},
+  {subseccion:'plantar', dias:2},
+  {subseccion:'separar', dias:3}
+];
+function esSoporteJiffy(soporte){ return /jiffy/i.test(soporte||''); }
+async function autoCrearTrabajosJiffyPartida(p){
+  if(!esSoporteJiffy(p.soporte) || !p.entrada) return 0;
+  const [dd,mm,yyyy] = String(p.entrada).split('/');
+  if(!dd || !mm || !yyyy) return 0;
+  const fechaSalida = new Date(`${yyyy}-${mm}-${dd}T00:00:00`);
+  if(isNaN(fechaSalida.getTime())) return 0;
+  const existentes = new Set(trabajosData.filter(t=>t.seccion==='mujeres' && t.origenPartidaJiffy===p.num).map(t=>t.subseccion));
+  let creados = 0;
+  JIFFY_SUBSECCIONES_DIAS.forEach(({subseccion, dias})=>{
+    if(existentes.has(subseccion)) return;
+    const fechaDate = new Date(fechaSalida);
+    fechaDate.setDate(fechaDate.getDate() + dias);
+    const fechaISO = fechaLocalISO(fechaDate);
+    const fecha = fechaDate.toLocaleDateString('es-ES',{day:'2-digit',month:'short',year:'numeric'}).replace('.','');
+    const clienteVariedad = p.variedad ? `${p.cliente} — ${p.variedad}` : p.cliente;
+    trabajosData.push({
+      id: 'trabajo_'+Date.now()+'_'+subseccion+'_'+Math.random().toString(36).slice(2,8),
+      seccion:'mujeres', subseccion,
+      fechaISO, fecha, descripcion: `${p.num} — ${clienteVariedad}`, personas:[], horaInicio:'',
+      inv: p.inv||'', origenPartidaJiffy: p.num,
+      creadoPor: currentUser||'—', creadoEn: new Date().toLocaleString('es-ES')
+    });
+    creados++;
+  });
+  if(creados) await persistTrabajosData();
+  return creados;
 }
 async function autoCrearPinzadosDesdePdfTunel(pdfB64){
   try{
@@ -11297,8 +11360,13 @@ async function confirmarSalidaPendiente(uid){
     if(idx>=0) stored[idx]=p; else stored.push(p);
     await window.storage.set(PARTIDAS_KEY, JSON.stringify(stored));
   }catch(e){}
-  showToast('✓ Salida confirmada: '+p.num);
   logHistorial(`Confirmó salida de ${p.num} en INV ${inv}, ${ini}${fin&&fin!==ini?'–'+fin:''}`);
+  // Jiffy: al confirmar la salida real de túnel se programan automáticamente
+  // Recomponer/Quitar raíces/Plantar/Separar en Trabajos → Mujeres — ver
+  // autoCrearTrabajosJiffyPartida.
+  await loadTrabajosData();
+  const creadosJiffy = await autoCrearTrabajosJiffyPartida(p);
+  showToast('✓ Salida confirmada: '+p.num + (creadosJiffy ? ` (${creadosJiffy} trabajo${creadosJiffy===1?'':'s'} de Jiffy programado${creadosJiffy===1?'':'s'})` : ''));
   renderPartidasContent(document.getElementById('partidas-list-overlay'), document.getElementById('psearch')?.value||'');
 }
 
@@ -13656,6 +13724,7 @@ const SALA_EN_VIVO_LINEAS = [
   {key:'carga', label:'Carga', icon:'ti-truck', color:'#a35d00', bg:'#fff8ec'},
   {key:'injerto', label:'Injerto', icon:'ti-plant-2', color:'#8e24aa', bg:'#f8effb'},
   {key:'tuneles', label:'Túneles', icon:'ti-building-warehouse', color:'#d97706', bg:'#fff7ed'},
+  {key:'mujeres', label:'Mujeres', icon:'ti-scissors', color:'#c2185b', bg:'#fdeef3'},
   {key:'peones', label:'Peones', icon:'ti-user', color:'#1a5c2e', bg:'#eafaf0'},
   {key:'regantes', label:'Regantes', icon:'ti-droplet-filled', color:'#00838f', bg:'#e6f7f8'}
 ];
@@ -13718,11 +13787,23 @@ function renderSalaEnVivoInvCard(invId){
   const tunelesBuscando = (currentUserRole !== 'REGANTE' && tecnicoPresenteAhora('tunel', invId)) ? 'Buscando planta en túnel' : null;
   const tunelesContenido = tunelesBuscando || (tunelesTrabajosHoy.length ? tunelesTrabajosHoy.map(t=>`Trayendo planta · ${escapar(t.horaInicio||'')}${t.horaFinPrevista?' – '+escapar(t.horaFinPrevista)+' (previsto)':''}`).join('<br>') : null);
 
+  // Plantar/Recomponer/Quitar raíces/Separar de Jiffy programados
+  // automáticamente (ver autoCrearTrabajosJiffyPartida) que caen hoy en este
+  // invernadero — con el horario editable desde Trabajos → Mujeres.
+  const MUJERES_SUBSECCION_LABEL = {recomponer:'Recomponer', quitarRaices:'Quitar raíces', plantar:'Plantar', separar:'Separar'};
+  const mujeresTrabajosHoy = (trabajosData || []).filter(t =>
+    t.seccion === 'mujeres' && MUJERES_SUBSECCION_LABEL[t.subseccion] && t.fechaISO === fechaLocalISO(new Date()) && t.inv === invId
+  );
+  const mujeresContenido = (currentUserRole !== 'REGANTE' && mujeresTrabajosHoy.length)
+    ? mujeresTrabajosHoy.map(t=>`${MUJERES_SUBSECCION_LABEL[t.subseccion]}: ${escapar(t.descripcion)}${t.horaInicio?' · '+escapar(t.horaInicio):''}`).join('<br>')
+    : null;
+
   const contenidos = {
     riego: (currentUserRole !== 'REGANTE' && riegos.length) ? riegos.map(r=>`${escapar(r.texto)} · ${escapar(r.horaInicio)}${r.horaFin?' – '+escapar(r.horaFin):' (en curso)'}`).join('<br>') : (currentUserRole === 'REGANTE' ? especificos : null),
     carga: cargando ? 'Cargando camión' : (cargaValida ? `Camión · ${escapar(cargaValida.horaInicio)}${cargaValida.horaFinPrevista?' – '+escapar(cargaValida.horaFinPrevista)+' (previsto)':''}` : null),
     injerto: injertoValido ? `Mujeres injertando · ${escapar(injertoValido.horaInicio)}${injertoValido.horaFinPrevista?' – '+escapar(injertoValido.horaFinPrevista)+' (previsto)':''}` : null,
     tuneles: tunelesContenido,
+    mujeres: mujeresContenido,
     peones: (currentUserRole !== 'REGANTE' && peones.length) ? peones.map(t=>`${escapar(nombreLegibleUsuario(t.asignadoA))} — ${escapar(t.titulo)}`).join('<br>') : (currentUserRole === 'REGANTE' ? tareasAsignadas : null),
     regantes: (currentUserRole !== 'REGANTE' && riegos.length && regante) ? `${escapar(nombreLegibleUsuario(regante))} — ${riegos.map(r=>`${escapar(r.texto)} (${escapar(r.horaInicio)}${r.horaFin?'–'+escapar(r.horaFin):''})`).join(', ')}` : null
   };
