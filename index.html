@@ -5257,11 +5257,18 @@ function handleControlPdfInput(input, tipo, dia){
     // días antes de la Fecha Entrega, 3HV/4HV → 7 días antes), en Trabajos
     // de Mujeres → Pinzar. Ver autoCrearPinzadosDesdePdfTunel.
     const creadosPinzado = await autoCrearPinzadosDesdePdfTunel(e.target.result);
+    // A petición de Paula (2026-08-31): el mismo PDF de Túnel programa además
+    // Recomponer/Quitar raíces (todas las partidas) y, si son Jiffy,
+    // Plantar/Separar — usando FecRealSal del PDF como día de salida real.
+    // Ver autoCrearTrabajosMujeresDesdePdfTunel.
+    await loadTrabajosData();
+    const creadosMujeres = await autoCrearTrabajosMujeresDesdePdfTunel(e.target.result);
     if(creadas === -2) showToast('❌ Error al GUARDAR las líneas leídas del PDF — no se ha llegado a subir a la nube, inténtalo de nuevo (si se repite, avisa)');
     else if(creadas > 0) showToast(`✓ ${creadas} línea${creadas===1?'':'s'} creada${creadas===1?'':'s'} desde el PDF — falta la calle real y el check`);
     else if(creadas === 0) showToast('✓ PDF adjuntado (no se han detectado partidas nuevas que añadir)');
     else showToast('✓ PDF adjuntado, pero no se ha podido leer automáticamente — añade las líneas a mano');
     if(creadosPinzado > 0) showToast(`✓ ${creadosPinzado} pinzado${creadosPinzado===1?'':'s'} programado${creadosPinzado===1?'':'s'} automáticamente`);
+    if(creadosMujeres > 0) showToast(`✓ ${creadosMujeres} trabajo${creadosMujeres===1?'':'s'} de Mujeres (Recomponer/Quitar raíces/Plantar/Separar) programado${creadosMujeres===1?'':'s'}`);
     renderControlContent(document.getElementById('control-overlay'));
   };
   reader.readAsDataURL(file);
@@ -5366,31 +5373,38 @@ function detectarHV(variedad){
   const m = /(\d)\s*HV\b/i.exec(variedad||'');
   return m ? parseInt(m[1],10) : null;
 }
-// Programación automática de PLANTAR/RECOMPONER/QUITAR RAÍCES/SEPARAR (a
-// petición de Paula, 2026-08-31): solo para partidas en soporte JIFFY,
-// contadas desde el día real de su salida de túnel (p.entrada, la fecha que
-// se estampa al confirmar la salida pendiente, ver confirmarSalidaPendiente):
-// Recomponer y Quitar raíces el día después de la salida, Plantar 2 días
-// después, Separar 1 día después de Plantar (=3 días después de la salida).
+// Programación automática de RECOMPONER/QUITAR RAÍCES/PLANTAR/SEPARAR (a
+// petición de Paula, 2026-08-31, corregido el mismo día: "RECOMPONER SE
+// APLICA A TODAS LAS PARTIDAS"): Recomponer y Quitar raíces se programan
+// para CUALQUIER partida el día después de su salida de túnel; Plantar (2
+// días después) y Separar (1 día después de Plantar = 3 días después de la
+// salida) solo para partidas en soporte JIFFY. La fecha de referencia es la
+// salida REAL de túnel (p.entrada — en "Introducir partida" es la fecha en
+// que se confirma la salida pendiente, ver confirmarSalidaPendiente; desde
+// el PDF de Control es FecRealSal, ver autoCrearTrabajosMujeresDesdePdfTunel).
 // Se crea un "trabajo" normal en Trabajos → Mujeres (misma trabajosData de
-// siempre, editable a mano igual que el resto) por cada subsección — idempotente
-// por partida+subsección para poder reconfirmar la misma partida sin duplicar.
-const JIFFY_SUBSECCIONES_DIAS = [
+// siempre, editable a mano igual que el resto) por cada subsección —
+// idempotente por partida+subsección para poder reprocesar sin duplicar.
+const TODAS_PARTIDAS_SUBSECCIONES_DIAS = [
   {subseccion:'recomponer', dias:1},
-  {subseccion:'quitarRaices', dias:1},
+  {subseccion:'quitarRaices', dias:1}
+];
+const JIFFY_SOLO_SUBSECCIONES_DIAS = [
   {subseccion:'plantar', dias:2},
   {subseccion:'separar', dias:3}
 ];
 function esSoporteJiffy(soporte){ return /jiffy/i.test(soporte||''); }
-async function autoCrearTrabajosJiffyPartida(p){
-  if(!esSoporteJiffy(p.soporte) || !p.entrada) return 0;
+async function autoCrearTrabajosMujeresPartida(p){
+  if(!p.entrada) return 0;
   const [dd,mm,yyyy] = String(p.entrada).split('/');
   if(!dd || !mm || !yyyy) return 0;
   const fechaSalida = new Date(`${yyyy}-${mm}-${dd}T00:00:00`);
   if(isNaN(fechaSalida.getTime())) return 0;
+  const esJiffy = p.esJiffy || esSoporteJiffy(p.soporte);
+  const reglas = TODAS_PARTIDAS_SUBSECCIONES_DIAS.concat(esJiffy ? JIFFY_SOLO_SUBSECCIONES_DIAS : []);
   const existentes = new Set(trabajosData.filter(t=>t.seccion==='mujeres' && t.origenPartidaJiffy===p.num).map(t=>t.subseccion));
   let creados = 0;
-  JIFFY_SUBSECCIONES_DIAS.forEach(({subseccion, dias})=>{
+  reglas.forEach(({subseccion, dias})=>{
     if(existentes.has(subseccion)) return;
     const fechaDate = new Date(fechaSalida);
     fechaDate.setDate(fechaDate.getDate() + dias);
@@ -5408,6 +5422,71 @@ async function autoCrearTrabajosJiffyPartida(p){
   });
   if(creados) await persistTrabajosData();
   return creados;
+}
+// Igual que parseControlPdfPartidas pero, además, extrae FecRealSal (última
+// fecha de la fila, después de Fec Entrada) y detecta si la partida cae bajo
+// una sección de cabecera tipo soporte JIFFY (p.ej. "TIJ6 - TINJ JIFFY 5x5")
+// — necesario para programar Recomponer/Quitar raíces/Plantar/Separar desde
+// el mismo PDF que ya se sube en Control → Túnel.
+function parseControlPdfPartidasConSalida(lineas){
+  const PARTIDA_RE = '\\d{2}[A-Z]{1,2}\\d{4,5}';
+  const mainRe = new RegExp('^(?<parte>\\d{6,9})?\\s*(?<fentrega>\\d{2}/\\d{2}/\\d{4})?\\s*(?<partida>'+PARTIDA_RE+')\\s+(?:(?<bandsol>[\\d.,]+)\\s+)?(?<cliente>.+?)\\s+(?<nplantas>[\\d.,]+)\\s+(?<nband>\\d{1,3}(?:,\\d{3})*[.,]\\d)\\s+(?<localiz>\\S*)\\s*(?<fentrada>\\d{2}/\\d{2}/\\d{4})?(?<resto>.*)$');
+  const loneRe = new RegExp('^'+PARTIDA_RE+'$');
+  const seccionHeaderRe = /^TI[A-Z0-9]*\d*\s*-\s*/;
+  const records = [];
+  let seccionJiffy = false;
+  for(let i=0;i<lineas.length;i++){
+    const t = lineas[i].texto;
+    if(!t) continue;
+    if(seccionHeaderRe.test(t)){ seccionJiffy = /jiffy/i.test(t); continue; }
+    const m = mainRe.exec(t);
+    if(m && m.groups.partida && lineas[i].x0 < 100){
+      const fechasResto = (m.groups.resto||'').match(/\d{2}\/\d{2}\/\d{4}/g) || [];
+      const fecrealsal = fechasResto.length ? fechasResto[fechasResto.length-1] : '';
+      const rec = { partida: m.groups.partida, cliente: m.groups.cliente.replace(/\s{2,}/g,' ').trim(), variedad: '', nband: m.groups.nband, fentrega: m.groups.fentrega || '', fecrealsal, esJiffy: seccionJiffy };
+      for(let j=i+1, visto=0; j<lineas.length && visto<4; j++){
+        const t2 = lineas[j].texto;
+        if(!t2) continue;
+        visto++;
+        if(seccionHeaderRe.test(t2)) break;
+        const m2 = mainRe.exec(t2);
+        if(m2 && m2.groups.partida && lineas[j].x0 < 100) break;
+        const esSubtotal = /^[\d.,]+(\s+[\d.,]+)*$/.test(t2);
+        const esGuion = /^_+$/.test(t2);
+        const esCabecera = /^(Empresa|G\.Semilleros|N[ºo°]?\s*Parte|Cliente)\b/i.test(t2);
+        const esPartidaSuelta = loneRe.test(t2);
+        const columnaOk = lineas[j].x0 > 200 && lineas[j].x0 < 300;
+        if(!esSubtotal && !esGuion && !esCabecera && !esPartidaSuelta && columnaOk){
+          rec.variedad = t2.split(/\s{2,}/)[0];
+          break;
+        }
+      }
+      records.push(rec);
+    }
+  }
+  return records.filter(r => !/ZE|YE/i.test(r.partida));
+}
+// Se llama junto a autoCrearPinzadosDesdePdfTunel al subir el PDF de salida
+// de Túnel en Control — idempotente por partida (ver autoCrearTrabajosMujeresPartida).
+async function autoCrearTrabajosMujeresDesdePdfTunel(pdfB64){
+  try{
+    const base64 = pdfB64.split(',')[1];
+    const binStr = atob(base64);
+    const bytes = new Uint8Array(binStr.length);
+    for(let i=0;i<binStr.length;i++) bytes[i] = binStr.charCodeAt(i);
+    const lineas = await extraerLineasControlPdf(bytes);
+    const partidas = parseControlPdfPartidasConSalida(lineas);
+    if(!partidas.length) return 0;
+    let creados = 0;
+    for(const p of partidas){
+      if(!p.fecrealsal) continue;
+      creados += await autoCrearTrabajosMujeresPartida({num:p.partida, cliente:p.cliente, variedad:p.variedad, entrada:p.fecrealsal, esJiffy:p.esJiffy, inv:''});
+    }
+    return creados;
+  }catch(e){
+    console.error('Error programando trabajos de mujeres desde PDF de Túnel:', e);
+    return -1;
+  }
 }
 async function autoCrearPinzadosDesdePdfTunel(pdfB64){
   try{
@@ -11361,12 +11440,12 @@ async function confirmarSalidaPendiente(uid){
     await window.storage.set(PARTIDAS_KEY, JSON.stringify(stored));
   }catch(e){}
   logHistorial(`Confirmó salida de ${p.num} en INV ${inv}, ${ini}${fin&&fin!==ini?'–'+fin:''}`);
-  // Jiffy: al confirmar la salida real de túnel se programan automáticamente
-  // Recomponer/Quitar raíces/Plantar/Separar en Trabajos → Mujeres — ver
-  // autoCrearTrabajosJiffyPartida.
+  // Al confirmar la salida real de túnel se programan automáticamente
+  // Recomponer/Quitar raíces (todas las partidas) y, si es Jiffy, además
+  // Plantar/Separar, en Trabajos → Mujeres — ver autoCrearTrabajosMujeresPartida.
   await loadTrabajosData();
-  const creadosJiffy = await autoCrearTrabajosJiffyPartida(p);
-  showToast('✓ Salida confirmada: '+p.num + (creadosJiffy ? ` (${creadosJiffy} trabajo${creadosJiffy===1?'':'s'} de Jiffy programado${creadosJiffy===1?'':'s'})` : ''));
+  const creadosMujeres = await autoCrearTrabajosMujeresPartida(p);
+  showToast('✓ Salida confirmada: '+p.num + (creadosMujeres ? ` (${creadosMujeres} trabajo${creadosMujeres===1?'':'s'} de Mujeres programado${creadosMujeres===1?'':'s'})` : ''));
   renderPartidasContent(document.getElementById('partidas-list-overlay'), document.getElementById('psearch')?.value||'');
 }
 
