@@ -3479,14 +3479,15 @@ function renderTrabajosResumenHTML(){
     </div>`;
 }
 // Contador de pendientes por botón de subsección (a petición de Paula,
-// 2026-08-12) — Pinzar ya tiene un estado real de pendiente/hecho
-// (sin_pinzar/en_proceso/pinzado, ver PINZADO_ESTADOS/renderPinzarSubSeccionHTML)
-// así que cuenta lo que no está "pinzado"; el resto de subsecciones
-// (Recomponer/Plantar/Separar) son solo un registro sin estado de
-// completado, así que el número es el total de trabajos anotados ahí.
+// 2026-08-12, ampliado 2026-08-31) — Pinzar cuenta lo que no está "pinzado"
+// (PINZADO_ESTADOS/renderPinzarSubSeccionHTML); Recomponer/Quitar
+// raíces/Plantar/Separar cuentan lo que no está "completado" (MUJERES_ESTADOS
+// /renderMujeresSubSeccionConDiasHTML); el resto (Injerto) no tiene estado,
+// así que el número es el total de trabajos anotados ahí.
 function contarPendientesSubseccionTrabajos(seccionKey, subKey){
   const items = trabajosData.filter(t=>t.seccion===seccionKey && t.subseccion===subKey);
   if(seccionKey==='mujeres' && subKey==='pinzar') return items.filter(t=>(t.estado||'sin_pinzar')!=='pinzado').length;
+  if(seccionKey==='mujeres' && MUJERES_SUBSECCIONES_CON_DIAS.includes(subKey)) return items.filter(t=>(t.estado||'pendiente')!=='completado').length;
   return items.length;
 }
 function renderTrabajosSeccionHTML(seccion){
@@ -3527,9 +3528,29 @@ function renderTrabajosSeccionHTML(seccion){
 // (estas subsecciones no tienen sin_pinzar/en_proceso/pinzado, son "solo un
 // registro sin estado de completado", ver contarPendientesSubseccionTrabajos).
 const MUJERES_SUBSECCIONES_CON_DIAS = ['recomponer','quitarRaices','plantar','separar'];
+// A petición de Paula (2026-08-31): estas 4 también necesitan Pendiente/
+// Completado (como Pinzar, aunque con solo 2 estados en vez de 3) y la
+// ubicación (calle asignada, misma fuente que calleAsignadaParaPartida —
+// busca la línea de Check Túnel de esa partida por origenPartidaJiffy).
+const MUJERES_ESTADOS = [
+  {key:'pendiente', label:'Pendiente', color:'#c62828', tinte:'#fdece5'},
+  {key:'completado', label:'Completado', color:'#2e7d32', tinte:'#e8f5e9'}
+];
 let mujeresDiaSel = {};
+let mujeresFiltroEstado = {};
 function cambiarMujeresDia(subKey, fechaISO){
   mujeresDiaSel[subKey] = fechaISO;
+  renderTrabajosContent(document.getElementById('trabajos-overlay'));
+}
+function cambiarMujeresFiltroEstado(subKey, estado){
+  mujeresFiltroEstado[subKey] = estado;
+  renderTrabajosContent(document.getElementById('trabajos-overlay'));
+}
+async function cambiarEstadoMujeres(id, estado){
+  const t = trabajosData.find(x=>x.id===id);
+  if(!t) return;
+  t.estado = estado;
+  await persistTrabajosData();
   renderTrabajosContent(document.getElementById('trabajos-overlay'));
 }
 function renderMujeresSubSeccionConDiasHTML(seccionKey, subKey){
@@ -3561,7 +3582,18 @@ function renderMujeresSubSeccionConDiasHTML(seccionKey, subKey){
     </button>`;
   }).join('');
   const itemsDia = todos.filter(t=>(t.fechaISO||'sin-fecha')===diaSel);
-  const filasHTML = itemsDia.map(t=>`
+  const filtroActual = mujeresFiltroEstado[subKey] || 'pendiente';
+  const contar = estado => itemsDia.filter(t=>(t.estado||'pendiente')===estado).length;
+  const tabsHTML = `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:1.25rem">
+    ${MUJERES_ESTADOS.map(e=>`<button onclick="cambiarMujeresFiltroEstado('${subKey}','${e.key}')" style="padding:9px 18px;border-radius:8px;font-size:12px;font-weight:800;border:none;cursor:pointer;background:${filtroActual===e.key?e.color:'#e8e2dc'};color:${filtroActual===e.key?'#fff':'var(--muted)'}">${e.label} (${contar(e.key)})</button>`).join('')}
+  </div>`;
+  const itemsFiltrados = itemsDia.filter(t=>(t.estado||'pendiente')===filtroActual);
+  const filasHTML = itemsFiltrados.map(t=>{
+    const estadoActual = t.estado || 'pendiente';
+    const calle = calleAsignadaParaPartida(t.origenPartidaJiffy);
+    const botonesEstado = MUJERES_ESTADOS.map(e=>`
+      <button onclick="cambiarEstadoMujeres('${t.id}','${e.key}')" style="padding:6px 12px;border-radius:999px;font-size:11px;font-weight:800;cursor:pointer;border:1.5px solid transparent;background:${estadoActual===e.key?e.color:e.tinte};color:${estadoActual===e.key?'#fff':'var(--text)'}">${e.label}</button>`).join('');
+    return `
     <div class="tarea-card" style="border:1.5px solid var(--border);border-radius:10px;padding:12px;background:#fff">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
         <div style="font-size:13px;font-weight:700;color:var(--text)">${escapar(t.descripcion)||'<span style="font-style:italic;color:var(--muted)">Sin descripción</span>'}</div>
@@ -3570,12 +3602,17 @@ function renderMujeresSubSeccionConDiasHTML(seccionKey, subKey){
           <button onclick="eliminarTrabajo('${t.id}')" title="Eliminar" style="padding:4px 8px;font-size:10px;font-weight:700;background:#fdecea;color:#c62828;border:1px solid #f0b0b0;border-radius:6px;cursor:pointer;white-space:nowrap">🗑️</button>
         </div>
       </div>
-      <div style="font-size:12px;color:var(--muted);margin-top:4px">${t.horaInicio?escapar(t.horaInicio):''}${t.inv?' · INV '+escapar(t.inv):''}${t.personas?.length?' · '+escapar(t.personas.join(', ')):''}</div>
+      <div style="margin-top:6px">
+        <span style="font-size:11px;font-weight:700;background:#f0f4f8;color:#1558a0;border-radius:999px;padding:3px 10px">Calle asignada: ${calle ? escapar(calle) : '<span style="font-style:italic">Sin asignar</span>'}</span>
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-top:6px">${t.horaInicio?escapar(t.horaInicio):''}${t.personas?.length?' · '+escapar(t.personas.join(', ')):''}</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">${botonesEstado}</div>
       <div style="margin-top:8px;display:flex;align-items:center;gap:6px">
         <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Mover a</label>
         <input type="date" value="${escapar(t.fechaISO)}" onchange="cambiarFechaPinzado('${t.id}', this.value)" style="padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:11px">
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
   return `
     <div style="margin-bottom:1rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
       <div style="font-size:16px;font-weight:800;color:var(--text)">${sub?sub.label:subKey} <span style="font-weight:600;color:var(--muted);font-size:13px">(${todos.length})</span></div>
@@ -3583,7 +3620,8 @@ function renderMujeresSubSeccionConDiasHTML(seccionKey, subKey){
     </div>
     <div id="nuevo-trabajo-form-wrap"></div>
     <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:1rem">${diaBotones}</div>
-    <div style="display:flex;flex-direction:column;gap:8px">${filasHTML}</div>`;
+    ${tabsHTML}
+    ${itemsFiltrados.length===0 ? `<div style="text-align:center;padding:2rem;color:var(--muted);font-style:italic;font-size:13px">Sin líneas en este apartado para este día.</div>` : `<div style="display:flex;flex-direction:column;gap:8px">${filasHTML}</div>`}`;
 }
 function renderTrabajoSubSeccionHTML(seccionKey, subKey){
   if(seccionKey==='mujeres' && subKey==='pinzar') return renderPinzarSubSeccionHTML();
