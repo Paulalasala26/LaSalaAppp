@@ -3521,8 +3521,73 @@ function renderTrabajosSeccionHTML(seccion){
 // Pinzar tiene una vista propia (bloques por día + estados + cambio de
 // fecha, ver renderPinzarSubSeccionHTML) — a petición de Paula 2026-08-01;
 // el resto de subsecciones sigue con esta lista genérica sin cambios.
+// Recomponer/Quitar raíces/Plantar/Separar (a petición de Paula, 2026-08-31:
+// "divídelo en días igual que los pinzados") — mismos bloques de día que
+// Pinzar (renderPinzarSubSeccionHTML), pero sin las 3 pestañas de estado
+// (estas subsecciones no tienen sin_pinzar/en_proceso/pinzado, son "solo un
+// registro sin estado de completado", ver contarPendientesSubseccionTrabajos).
+const MUJERES_SUBSECCIONES_CON_DIAS = ['recomponer','quitarRaices','plantar','separar'];
+let mujeresDiaSel = {};
+function cambiarMujeresDia(subKey, fechaISO){
+  mujeresDiaSel[subKey] = fechaISO;
+  renderTrabajosContent(document.getElementById('trabajos-overlay'));
+}
+function renderMujeresSubSeccionConDiasHTML(seccionKey, subKey){
+  const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const sub = (TRABAJOS_SUBSECCIONES[seccionKey]||[]).find(s=>s.key===subKey);
+  const todos = trabajosData.filter(t=>t.seccion===seccionKey && t.subseccion===subKey)
+    .sort((a,b)=>String(a.fechaISO||'9999').localeCompare(String(b.fechaISO||'9999')));
+  const addBtn = `<button onclick="mostrarFormNuevoTrabajo('${seccionKey}','${subKey}')" class="btn-elevado" style="padding:9px 16px;font-size:12px;font-weight:700;background:#2e7d32;color:#fff;border:none;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;gap:6px">
+    <i class="ti ti-plus" style="font-size:14px"></i> Añadir trabajo
+  </button>`;
+  if(!todos.length){
+    return `
+    <div style="margin-bottom:1rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+      <div style="font-size:16px;font-weight:800;color:var(--text)">${sub?sub.label:subKey}</div>
+      ${addBtn}
+    </div>
+    <div id="nuevo-trabajo-form-wrap"></div>
+    <div style="text-align:center;padding:2rem;color:var(--muted);font-style:italic;font-size:13px">Sin trabajos registrados todavía.</div>`;
+  }
+  const diasUnicos = [...new Set(todos.map(t=>t.fechaISO || 'sin-fecha'))].sort();
+  if(mujeresDiaSel[subKey]==null || !diasUnicos.includes(mujeresDiaSel[subKey])) mujeresDiaSel[subKey] = diasUnicos[0];
+  const diaSel = mujeresDiaSel[subKey];
+  const diaBotones = diasUnicos.map(fISO=>{
+    const items = todos.filter(t=>(t.fechaISO||'sin-fecha')===fISO);
+    const label = fISO==='sin-fecha' ? 'Sin fecha' : (items[0].fecha || fISO);
+    const activo = fISO===diaSel;
+    return `<button onclick="cambiarMujeresDia('${subKey}','${fISO}')" style="flex-shrink:0;padding:10px 16px;border-radius:10px;font-size:12px;font-weight:800;cursor:pointer;border:1.5px solid ${activo?'transparent':'var(--border)'};background:${activo?'linear-gradient(135deg,#7b5cf0,#5c8df0)':'#fff'};color:${activo?'#fff':'var(--text)'}">
+      ${escapar(label)}<br><span style="font-weight:700;opacity:.85">${items.length} línea${items.length===1?'':'s'}</span>
+    </button>`;
+  }).join('');
+  const itemsDia = todos.filter(t=>(t.fechaISO||'sin-fecha')===diaSel);
+  const filasHTML = itemsDia.map(t=>`
+    <div class="tarea-card" style="border:1.5px solid var(--border);border-radius:10px;padding:12px;background:#fff">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <div style="font-size:13px;font-weight:700;color:var(--text)">${escapar(t.descripcion)||'<span style="font-style:italic;color:var(--muted)">Sin descripción</span>'}</div>
+        <div style="display:flex;gap:4px;flex-shrink:0">
+          <button onclick="mostrarFormNuevoTrabajo('${seccionKey}','${subKey}','${t.id}')" title="Editar" style="padding:4px 8px;font-size:10px;font-weight:700;background:#eef4fb;color:#1558a0;border:1px solid #b8cdea;border-radius:6px;cursor:pointer">✏️</button>
+          <button onclick="eliminarTrabajo('${t.id}')" title="Eliminar" style="padding:4px 8px;font-size:10px;font-weight:700;background:#fdecea;color:#c62828;border:1px solid #f0b0b0;border-radius:6px;cursor:pointer;white-space:nowrap">🗑️</button>
+        </div>
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px">${t.horaInicio?escapar(t.horaInicio):''}${t.inv?' · INV '+escapar(t.inv):''}${t.personas?.length?' · '+escapar(t.personas.join(', ')):''}</div>
+      <div style="margin-top:8px;display:flex;align-items:center;gap:6px">
+        <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Mover a</label>
+        <input type="date" value="${escapar(t.fechaISO)}" onchange="cambiarFechaPinzado('${t.id}', this.value)" style="padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:11px">
+      </div>
+    </div>`).join('');
+  return `
+    <div style="margin-bottom:1rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+      <div style="font-size:16px;font-weight:800;color:var(--text)">${sub?sub.label:subKey} <span style="font-weight:600;color:var(--muted);font-size:13px">(${todos.length})</span></div>
+      ${addBtn}
+    </div>
+    <div id="nuevo-trabajo-form-wrap"></div>
+    <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:1rem">${diaBotones}</div>
+    <div style="display:flex;flex-direction:column;gap:8px">${filasHTML}</div>`;
+}
 function renderTrabajoSubSeccionHTML(seccionKey, subKey){
   if(seccionKey==='mujeres' && subKey==='pinzar') return renderPinzarSubSeccionHTML();
+  if(seccionKey==='mujeres' && MUJERES_SUBSECCIONES_CON_DIAS.includes(subKey)) return renderMujeresSubSeccionConDiasHTML(seccionKey, subKey);
   const sub = (TRABAJOS_SUBSECCIONES[seccionKey]||[]).find(s=>s.key===subKey);
   const lista = trabajosData.filter(t=>t.seccion===seccionKey && t.subseccion===subKey)
     .sort((a,b)=>String(b.creadoEn||'').localeCompare(String(a.creadoEn||'')));
