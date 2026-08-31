@@ -14004,8 +14004,11 @@ function renderSalaEnVivoInvCard(invId){
     && (t.estado||'pendiente') !== 'completado'
     && (t.inv === invId || (!t.inv && invIdDePartidaTunel(t.origenPartidaJiffy) === invId))
   );
+  // A petición de Paula (2026-08-31): no listar cada partida, solo los
+  // títulos de lo que hay que hacer hoy en ese invernadero (Plantar,
+  // Recomponer, Separar...), sin entrar en el detalle de cada una.
   const mujeresContenido = (currentUserRole !== 'REGANTE' && mujeresTrabajosHoy.length)
-    ? mujeresTrabajosHoy.map(t=>`${MUJERES_SUBSECCION_LABEL[t.subseccion]}: ${escapar(t.descripcion)}${t.horaInicio?' · '+escapar(t.horaInicio):''}`).join('<br>')
+    ? [...new Set(mujeresTrabajosHoy.map(t=>MUJERES_SUBSECCION_LABEL[t.subseccion]))].map(escapar).join(', ')
     : null;
 
   const contenidos = {
