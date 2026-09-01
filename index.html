@@ -9486,7 +9486,16 @@ function riegoReganteDiaCargar(){
     const valor = localStorage.getItem(clave);
     if(valor) riegoReganteDiaActual = parseInt(valor);
   }
-  return riegoReganteDiaActual || riegoDiaHoy();
+  const hoy = riegoDiaHoy();
+  // Autocorrección: si nadie pulsó "avanzar" y el día guardado se quedó
+  // atrás del día real (p.ej. varios días sin usar el botón), nunca debe
+  // mostrarse un día pasado — se realinea automáticamente a hoy. Si el
+  // técnico ya lo adelantó a mañana a propósito, eso se conserva (no está
+  // atrasado, así que no se toca).
+  if(!riegoReganteDiaActual || riegoReganteDiaActual < hoy){
+    riegoReganteDiaGuardar(hoy);
+  }
+  return riegoReganteDiaActual;
 }
 function riegoReganteDiaGuardar(dia){
   riegoReganteDiaActual = dia;
