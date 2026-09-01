@@ -9486,14 +9486,18 @@ function riegoReganteDiaCargar(){
     const valor = localStorage.getItem(clave);
     if(valor) riegoReganteDiaActual = parseInt(valor);
   }
-  const hoy = riegoDiaHoy();
+  // El REGANTE prepara el riego de MAÑANA, no el de hoy (mismo criterio que
+  // el panel de semáforos, ver renderDashboardInvernaderos: "dia = riegoDiaDeHoy()+1"
+  // para el módulo 'riego') — corregido 2026-09-01: esto antes realineaba a
+  // "hoy", desajustado con el resto de la app.
+  const manana = riegoDiaHoy() + 1;
   // Autocorrección: si nadie pulsó "avanzar" y el día guardado se quedó
   // atrás del día real (p.ej. varios días sin usar el botón), nunca debe
-  // mostrarse un día pasado — se realinea automáticamente a hoy. Si el
-  // técnico ya lo adelantó a mañana a propósito, eso se conserva (no está
+  // mostrarse un día pasado — se realinea automáticamente a mañana. Si el
+  // técnico ya lo adelantó más allá a propósito, eso se conserva (no está
   // atrasado, así que no se toca).
-  if(!riegoReganteDiaActual || riegoReganteDiaActual < hoy){
-    riegoReganteDiaGuardar(hoy);
+  if(!riegoReganteDiaActual || riegoReganteDiaActual < manana){
+    riegoReganteDiaGuardar(manana);
   }
   return riegoReganteDiaActual;
 }
@@ -10250,9 +10254,11 @@ function selectRiegoInv(invId, btn){
 // con navegación entre quincenas y colores), pero en modo de solo lectura
 // — sin inputs, sin botón de guardar, sin dictado por voz ni alta manual.
 function showHojasRiego(){
-  // Inicializar el día del REGANTE la primera vez
+  // Inicializar el día del REGANTE la primera vez — mañana, no hoy (ver
+  // riegoReganteDiaCargar, que ya hace la misma autocorrección en cada
+  // apertura si el valor guardado se quedó atrás).
   if(!localStorage.getItem('riego-regante-dia-'+currentUser)){
-    riegoReganteDiaGuardar(riegoDiaHoy());
+    riegoReganteDiaGuardar(riegoDiaHoy() + 1);
   }
   showRiegoModule(true);
 }
