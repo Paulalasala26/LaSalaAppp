@@ -823,8 +823,16 @@ async function limpiarTareasVencidas(){
     await window.storage.set(TAREAS_KEY, JSON.stringify(cloud));
   }catch(e){}
 }
-async function loadTareasData(){
-  try{ const r=await window.storage.get(TAREAS_KEY); if(r) tareasData=JSON.parse(r.value); }catch(e){}
+let tareasDataCargadaEn = 0;
+const TAREAS_DATA_CACHE_TTL_MS = 30000;
+// forzar=false: mismo patrón/TTL que loadRiegoData (ver comentario ahí) — solo
+// se usa en aperturas de pantalla que no dependen de ver el segundo exacto en
+// que otro usuario asignó/completó algo; los flujos que van a escribir sobre
+// tareasData (asignar en lote, crear, completar...) siguen llamando sin
+// argumento y van siempre a la nube antes de fusionar.
+async function loadTareasData(forzar){
+  if(forzar===false && tareasDataCargadaEn && (Date.now()-tareasDataCargadaEn)<TAREAS_DATA_CACHE_TTL_MS) return;
+  try{ const r=await window.storage.get(TAREAS_KEY); if(r) tareasData=JSON.parse(r.value); tareasDataCargadaEn = Date.now(); }catch(e){}
   await limpiarTareasVencidas();
 }
 async function persistTareasData(){
@@ -1439,7 +1447,7 @@ async function persistMantenimientoData(){
   }catch(e){}
 }
 function showTareasModule(){
-  loadTareasData().then(async ()=>{
+  loadTareasData(false).then(async ()=>{
     const overlay = getOrCreateOverlay('tareas-overlay');
     const esGestor = currentUserRole!=='REGANTE' && currentUserRole!=='PEON';
     if(!esGestor) await avisarNuevasTareas(currentUser);
@@ -4919,7 +4927,7 @@ function showControlModule(){
     // Por si quedó algo sin sincronizar de una sesión anterior (se cerró la
     // pestaña estando sin conexión, por ejemplo).
     if(leerColaOffline().length) procesarColaOffline();
-    Promise.all([loadControlFotosData(), loadControlPdfsData()]).then(()=>{
+    Promise.all([loadControlFotosData(false), loadControlPdfsData()]).then(()=>{
       renderControlContent(document.getElementById('control-overlay'));
     });
   });
@@ -7778,7 +7786,7 @@ function togglePartidaEnSeleccionEspecifico(id){
 async function mostrarHistorialPartida(id){
   const c = controlChecksData.find(x=>x.id===id);
   if(!c) return;
-  await Promise.all([loadRiegoData(), loadFitoData(), loadEspecificosData()]);
+  await Promise.all([loadRiegoData(false), loadFitoData(), loadEspecificosData()]);
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const tramos = (c.tramos && c.tramos.length) ? c.tramos : [{desde:c.calleDesde, hasta:c.calleHasta}];
   const calles = [];
@@ -9597,10 +9605,23 @@ let riegoData = {};
 
 // Pre-loaded INV17 day 25 data (C/1702-1705 = calles 2,3,4,5
 
-async function loadRiegoData(){
+let riegoDataCargadaEn = 0;
+const RIEGO_DATA_CACHE_TTL_MS = 30000;
+// forzar=false: si ya se cargó hace menos de 30s en esta sesión, no se vuelve
+// a pedir por red — evita repetir la misma descarga completa de riegoData
+// cada vez que se abre/cierra un módulo en pocos segundos (Riego, Sala en
+// Vivo, Partidas, Índice Abonos... lo llaman todos por separado). TTL corto
+// (no "para siempre" como en loadControlFotosData) porque riegoData lo
+// editan varios técnicos/regantes a la vez y hay que verlo razonablemente
+// al día; los flujos que releen antes de fusionar un guardado (ver
+// generarTareasDesdeRiego/aplicarPropuestaRiego) siguen llamando sin
+// argumento, así que ignoran la caché y van siempre a la nube.
+async function loadRiegoData(forzar){
+  if(forzar===false && riegoDataCargadaEn && (Date.now()-riegoDataCargadaEn)<RIEGO_DATA_CACHE_TTL_MS) return;
   try{
     const r = await window.storage.get(RIEGO_KEY);
     if(r) riegoData = JSON.parse(r.value);
+    riegoDataCargadaEn = Date.now();
   }catch(e){}
   // Pre-load confirmed INV17 riego data (Antonio, 25/06/2026)
   if(!riegoData['17']) riegoData['17']={};
@@ -10167,7 +10188,7 @@ let riegoSoloLectura = false;
 function showRiegoModule(soloLectura){
   riegoSoloLectura = !!soloLectura;
   if(currentUser==='VIGUERAS') avisarAvisosPendientes(currentUser);
-  Promise.all([loadRiegoData(), loadRiegoEjecutadoData()]).then(()=>{
+  Promise.all([loadRiegoData(false), loadRiegoEjecutadoData()]).then(()=>{
     const overlay = getOrCreateOverlay('riego-overlay');
     overlay.style.padding = '0';
     const titulo = riegoSoloLectura ? 'Hojas de riego' : 'Marcaje de riego';
@@ -11065,7 +11086,7 @@ function showFitoModule(){
   // fumigaciones a Pistola en el resumen de la quincena (ver
   // renderResumenQuincenaTratamientos) — a Cañón nunca se guarda caldo en
   // ningún sitio persistente, así que ahí ese dato queda en blanco.
-  Promise.all([loadFitoData(), loadPresenciaData(), loadTareasData()]).then(()=>{
+  Promise.all([loadFitoData(), loadPresenciaData(), loadTareasData(false)]).then(()=>{
     // Se fija ANTES de construir el dashboard (que ya usa fitoQuincenaOffset
     // para el resumen de la quincena) — antes se fijaba después de pintar el
     // innerHTML, así que el resumen se calculaba con el valor viejo (0, la
@@ -11443,7 +11464,7 @@ function showPartidasList(){
   const overlay = getOrCreateOverlay('partidas-list-overlay');
   overlay.style.display = 'flex';
   // Load all data before rendering
-  Promise.all([loadChecksData(), loadRiegoData(), loadFitoData()]).then(()=>{
+  Promise.all([loadChecksData(), loadRiegoData(false), loadFitoData()]).then(()=>{
     renderPartidasContent(overlay, '');
   });
 }
@@ -13561,7 +13582,7 @@ function renderIndiceAbonos(){
 // Específicos ya NO viven dentro de "Mis tareas" del Regante, salen como
 // accesos propios en el menú principal (ver applyRoleHomeUI).
 function showIndiceAbonosReganteModule(){
-  Promise.all([loadRiegoData(), loadRiegoEjecutadoData(), loadIndiceAbonosEstadoData()]).then(()=>{
+  Promise.all([loadRiegoData(false), loadRiegoEjecutadoData(), loadIndiceAbonosEstadoData()]).then(()=>{
     const overlay = getOrCreateOverlay('indice-abonos-regante-overlay');
     overlay.style.padding = '0';
     overlay.innerHTML = `
@@ -13576,7 +13597,7 @@ function showIndiceAbonosReganteModule(){
   });
 }
 function showEspecificosReganteModule(){
-  loadTareasData().then(()=>{
+  loadTareasData(false).then(()=>{
     const overlay = getOrCreateOverlay('especificos-regante-overlay');
     overlay.style.padding = '0';
 
@@ -13896,7 +13917,7 @@ function showSalaEnVivoModule(){
   // (ver invIdDePartidaTunel) — antes se confiaba en que ya estuvieran en
   // memoria por haber abierto otro módulo antes, lo cual fallaba si La Sala
   // en Vivo era la primera pantalla abierta.
-  Promise.all([loadRiegoData(), loadPresenciaData(), loadIndiceAbonosEstadoData(), loadInjertoAsignacionData(), loadCargasAsignacionData(), loadTareasData(), loadSalaEnVivoManualData(), loadTrabajosData(), loadControlChecksData()]).then(()=>{
+  Promise.all([loadRiegoData(false), loadPresenciaData(), loadIndiceAbonosEstadoData(), loadInjertoAsignacionData(), loadCargasAsignacionData(), loadTareasData(false), loadSalaEnVivoManualData(), loadTrabajosData(), loadControlChecksData()]).then(()=>{
     const overlay = getOrCreateOverlay('sala-en-vivo-overlay');
     overlay.style.padding = '0';
     renderSalaEnVivoContent(overlay);
@@ -15263,7 +15284,7 @@ function getEspecifico(invId,dia,calle){
 // Editar/Imprimir de cada tarjeta siguen funcionando igual (reabren
 // showEspecificoManualForm), no se tocó esa lógica.
 function showEspecificoResumenModule(){
-  Promise.all([loadEspecificosData(), loadPresenciaData(), loadTareasData()]).then(()=>{
+  Promise.all([loadEspecificosData(), loadPresenciaData(), loadTareasData(false)]).then(()=>{
     especificosQuincenaOffset = riegoQuincenaOffsetActual();
     const overlay = getOrCreateOverlay('especifico-resumen-overlay');
     overlay.style.padding = '0';
@@ -15360,7 +15381,7 @@ function showEspecificosModule(){
       </div>`;
 
     // Cargar datos en background
-    Promise.all([loadEspecificosData(), loadPresenciaData(), loadTareasData()]).then(()=>{
+    Promise.all([loadEspecificosData(), loadPresenciaData(), loadTareasData(false)]).then(()=>{
       especificosQuincenaOffset = riegoQuincenaOffsetActual();
       const html = `
         <div style="background:#fff;border-radius:0;width:100vw;height:100vh;max-width:100vw;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.3)">
@@ -16711,7 +16732,7 @@ function showPartidaDetail(num, inv){
   const p = partidasDB.find(x=>x.num===num&&x.inv===inv)||partidasDB.find(x=>x.num===num);
   if(!p) return;
   const invReal = inv||p.inv||'17';
-  Promise.all([loadChecksData(), loadRiegoData(), loadFitoData()]).then(()=>{
+  Promise.all([loadChecksData(), loadRiegoData(false), loadFitoData()]).then(()=>{
     _renderPartidaDetail(p, num, invReal);
   });
 }
@@ -17109,7 +17130,7 @@ function _renderPartidaDetail(p, num, inv){
 function generarInformePostMortem(num, inv){
   const p = partidasDB.find(x=>x.num===num&&x.inv===inv)||partidasDB.find(x=>x.num===num);
   if(!p) return;
-  Promise.all([loadChecksData(), loadRiegoData(), loadFitoData()]).then(()=>{
+  Promise.all([loadChecksData(), loadRiegoData(false), loadFitoData()]).then(()=>{
     const riegoLog = getFullRiegoLog(p);
     const fitoLog = getFullFitoLog(p);
     const fotoEntradaSrc = fotoEntrada[p.fotoKey||p.num] || p.fotoEntradaB64 || null;
