@@ -11384,8 +11384,11 @@ async function deshacerFito(){
   if(!mov) return;
   mov.grupos.forEach(({invId, dia, previos})=>{
     Object.entries(previos).forEach(([calle, val])=>{
-      if(val===null) deleteFito(invId, dia, parseInt(calle));
-      else setFito(invId, dia, parseInt(calle), val);
+      // setFito ya trata cualquier val "falsy" (incluido null) como borrado
+      // (ver su propia definición) — no existe (ni existió nunca) una
+      // función deleteFito separada; llamarla rompía deshacer/rehacer con
+      // un ReferenceError cada vez que la celda a restaurar estaba vacía.
+      setFito(invId, dia, parseInt(calle), val);
     });
   });
   fitoHistorialRehacer.push(mov);
@@ -11398,8 +11401,7 @@ async function rehacerFito(){
   if(!mov) return;
   mov.grupos.forEach(({invId, dia, ahoras})=>{
     Object.entries(ahoras).forEach(([calle, val])=>{
-      if(val===null) deleteFito(invId, dia, parseInt(calle));
-      else setFito(invId, dia, parseInt(calle), val);
+      setFito(invId, dia, parseInt(calle), val);
     });
   });
   fitoHistorialDeshacer.push(mov);
