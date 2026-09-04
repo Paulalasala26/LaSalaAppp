@@ -438,7 +438,16 @@ async function entrarApp(user){
   document.getElementById('app').style.display='block';
   const name=user[0]+user.slice(1).toLowerCase();
   document.getElementById('topbar-username').textContent=name;
-  loadPartidasFromStorage();
+  // A petición de Paula (2026-09-04, "¿podemos optimizar aún más?"): este
+  // nodo (partidasDB, "Introducir partida"/"Ver partidas", pantalla
+  // page-geo) pesa ~4.86MB y se descargaba en TODOS los logins, de
+  // cualquier rol — pero solo es alcanzable desde el selector de acciones
+  // rápidas que ADMIN/TÉCNICO/VIGUERAS tienen en su Inicio (REGANTE, PEÓN y
+  // CARGADOR tienen su propio Inicio reducido, sin ningún botón que lleve
+  // ahí, ver applyRoleHomeUI). Se difiere para esos roles — si algún día
+  // necesitan acceso, cualquier función que use partidasDB simplemente lo ve
+  // vacío en vez de fallar (todo son .find/.filter/.forEach).
+  if(!['REGANTE','PEON','CARGADOR'].includes(currentUserRole)) loadPartidasFromStorage();
   // applyRoleHomeUI() se llama ANTES de tocar welcome-name: esa etiqueta
   // vive dentro de #page-home-inner, que la pantalla de PEÓN sustituye por
   // completo, y que para otros roles se restaura desde una plantilla
@@ -4838,6 +4847,14 @@ const CONTROL_PDFS_KEY = 'lasala-control-pdfs-v1'; // legado, solo lectura de mi
 const CONTROL_PDFS_INDICE_KEY = 'lasala-control-pdfs-indice-v1';
 function controlPdfEntryKey(tipo, dia){ return 'lasala-control-pdf-v1-'+tipo+'-'+dia; }
 let controlPdfsData = {};
+// Carga PEREZOSA (a petición de Paula, 2026-09-04, "¿podemos optimizar aún
+// más?"): antes se bajaban las 51 entradas del índice ENTERAS de golpe cada
+// vez que se abría Control (cada PDF pesa 250-500KB en base64 → 15-20MB por
+// apertura, solo para mostrar el enlace "Ver" del día seleccionado). Ahora
+// solo se carga el índice (una lista de claves, <1KB) — el contenido de cada
+// PDF se pide bajo demanda con cargarControlPdfDia(), solo para el día que
+// se está viendo, y se guarda en memoria para no volver a pedirlo.
+let controlPdfsIndice = [];
 async function loadControlPdfsData(){
   try{
     const rIndice = await window.storage.get(CONTROL_PDFS_INDICE_KEY);
@@ -4858,17 +4875,25 @@ async function loadControlPdfsData(){
         indice = clavesViejas;
         await window.storage.set(CONTROL_PDFS_INDICE_KEY, JSON.stringify(indice));
       }
-      controlPdfsData = viejo;
+      controlPdfsData = viejo; // ya migrado, el blob viejo cabe entero en memoria de todas formas
+      controlPdfsIndice = indice;
       return;
     }
-    const entradas = await Promise.all(indice.map(async claveTipoDia=>{
-      try{
-        const parts = claveTipoDia.split('|');
-        const r = await window.storage.get(controlPdfEntryKey(parts[0], parts[1]));
-        return r ? [claveTipoDia, JSON.parse(r.value)] : null;
-      }catch(e){ return null; }
-    }));
-    controlPdfsData = Object.fromEntries(entradas.filter(Boolean));
+    controlPdfsIndice = indice;
+  }catch(e){}
+}
+// Pide UN solo PDF (tipo|día) si existe en el índice y todavía no está en
+// memoria — se llama al pintar el día seleccionado de Control (no bloquea el
+// primer pintado: si no está listo aún, se repinta solo cuando llegue).
+async function cargarControlPdfDia(seccionKey, dia){
+  const clave = seccionKey+'|'+dia;
+  if(controlPdfsData[clave] || !controlPdfsIndice.includes(clave)) return;
+  try{
+    const r = await window.storage.get(controlPdfEntryKey(seccionKey, dia));
+    if(r){
+      controlPdfsData[clave] = JSON.parse(r.value);
+      renderControlContent(document.getElementById('control-overlay'));
+    }
   }catch(e){}
 }
 async function guardarControlPdf(tipo, dia, nombre, pdfB64){
@@ -4885,6 +4910,7 @@ async function guardarControlPdf(tipo, dia, nombre, pdfB64){
       indice.push(claveTipoDia);
       await window.storage.set(CONTROL_PDFS_INDICE_KEY, JSON.stringify(indice));
     }
+    if(!controlPdfsIndice.includes(claveTipoDia)) controlPdfsIndice.push(claveTipoDia);
   }catch(e){}
 }
 let controlSeccion = null;
@@ -5225,6 +5251,10 @@ function renderControlChecklistHTML(seccion){
     : controlFiltroEstado==='pendientes' ? listaDia.filter(c=>!controlLineaCompletada(c))
     : listaDia;
   const pdf = controlPdfsData[seccion.key+'|'+controlDiaSel];
+  // Carga bajo demanda (no bloquea este pintado): si el índice dice que hay
+  // un PDF para este día pero todavía no está en memoria, se pide en segundo
+  // plano y se repinta cuando llegue (ver cargarControlPdfDia).
+  cargarControlPdfDia(seccion.key, controlDiaSel);
 
   const diaBotones = diasQ.map(d=>`
     <button onclick="cambiarControlDia(${d})" style="flex-shrink:0;padding:8px 12px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid ${d===controlDiaSel?'transparent':'var(--border)'};background:${d===controlDiaSel?seccion.color:'#fff'};color:${d===controlDiaSel?'#fff':'var(--text)'}">
@@ -6027,6 +6057,7 @@ function renderControlCardHTML(c, seccion){
 
   // Información del PDF del día de esta línea
   const pdfDelDia = controlPdfsData[seccion.key+'|'+c.dia];
+  cargarControlPdfDia(seccion.key, c.dia);
   const pdfInfoHTML = pdfDelDia ? `<div style="font-size:10px;color:var(--muted);margin-top:8px;padding-top:8px;border-top:1px solid var(--border);display:flex;align-items:center;gap:6px;flex-wrap:wrap">
     <i class="ti ti-file-type-pdf" style="font-size:13px;color:#c62828"></i>
     <span><strong>${escapar(pdfDelDia.nombre)}</strong></span>
@@ -6108,6 +6139,7 @@ function renderControlCargaCardHTML(c, seccion){
 
   // Información del PDF del día de esta línea
   const pdfDelDia = controlPdfsData[seccion.key+'|'+c.dia];
+  cargarControlPdfDia(seccion.key, c.dia);
   const pdfInfoHTML = pdfDelDia ? `<div style="font-size:10px;color:var(--muted);margin-top:8px;padding-top:8px;border-top:1px solid var(--border);display:flex;align-items:center;gap:6px;flex-wrap:wrap">
     <i class="ti ti-file-type-pdf" style="font-size:13px;color:#c62828"></i>
     <span><strong>${escapar(pdfDelDia.nombre)}</strong></span>
