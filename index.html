@@ -14261,8 +14261,8 @@ function renderSalaEnVivoContent(overlay){
 function mostrarNotificarProblemaRiego(){
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const hoy = riegoDiaDeHoy();
-  let aguas = recolectarAguaAbonoDia(hoy,'agua').sort((a,b)=>prioridadHorarioRiego(a.horario)-prioridadHorarioRiego(b.horario));
-  let abonos = recolectarAguaAbonoDia(hoy,'abono').sort((a,b)=>prioridadHorarioRiego(a.horario)-prioridadHorarioRiego(b.horario));
+  let aguas = recolectarAguaAbonoDia(hoy,'agua').sort((a,b)=>prioridadHorarioIndiceAbonos(a.horario)-prioridadHorarioIndiceAbonos(b.horario));
+  let abonos = recolectarAguaAbonoDia(hoy,'abono').sort((a,b)=>prioridadHorarioIndiceAbonos(a.horario)-prioridadHorarioIndiceAbonos(b.horario));
 
   // Filtrar por sala si es REGANTE
   if(currentUserRole==='REGANTE'){
