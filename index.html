@@ -1350,10 +1350,20 @@ async function avisarHojasCorregidas(){
 // cada refresco (refreshTareasViews llama a renderTareasContent
 // directamente, sin pasar por aquí, para no perder en qué sección estaba).
 let tareasGestorVista = null; // null (resumen) | 'antiguas' | 'hoy' | 'manana' | 'mantenimiento'
-function irATareasGestorVista(v){
+async function irATareasGestorVista(v){
   tareasGestorVista = v;
   tareasSeleccionadas.clear();
   renderTareasContent(document.getElementById('tareas-overlay'), true);
+  // "Índice Abonos" depende de riegoData, pero showTareasModule() nunca lo
+  // carga (solo tareasData) — sin este loader a demanda, la vista se queda
+  // en "Nada marcado" para siempre salvo que riegoData ya estuviera en
+  // memoria por casualidad (haber abierto antes Riego/Sala en Vivo/etc en
+  // la misma sesión). Encontrado 2026-09-04: por esto no se veían ni las
+  // filas ni el botón "↕ Ordenar" al entrar aquí directamente desde Tareas.
+  if(v==='indice'){
+    await Promise.all([loadRiegoData(false), loadIndiceAbonosEstadoData(), loadIndiceAbonosOrdenData()]);
+    if(tareasGestorVista==='indice') renderTareasContent(document.getElementById('tareas-overlay'), true);
+  }
 }
 // Clasifica una tarea por fecha para el menú lateral del gestor: "antiguas"
 // (ya pasadas — se eliminan solas, ver esTareaVencidaParaBorrar más abajo),
