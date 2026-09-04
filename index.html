@@ -4444,23 +4444,21 @@ let controlFotosDataCargada = false;
 // se vuelve a pedir nada a la nube. Los sitios que necesitan ver una foto
 // recién subida (Check Túnel/Carga) siguen llamando con forzar=true (o sin
 // argumento, que por defecto sigue refrescando).
+// Carga PEREZOSA (a petición de Paula, 2026-09-04, "¿podemos optimizar aún
+// más?"): las fotos de Control suman 115 shards — 609MB en total — y esta
+// función los descargaba TODOS de golpe la primera vez que se abría Control
+// en cada sesión. Ahora solo carga la lista de shards (para saber dónde
+// escribir una foto nueva, ver elegirShardParaFoto) y el índice ligero
+// id→shard (cargarIndiceFotosPartida, ya existía para el historial de
+// partida) — el contenido de cada foto se pide bajo demanda con
+// fetchFotoPartidaPorId, solo para las que se ven en pantalla.
 async function loadControlFotosData(forzar){
   if(forzar===false && controlFotosDataCargada) return;
   try{
     const idx = await window.storage.get(CONTROL_FOTOS_SHARDS_INDEX_KEY);
     controlFotosShardKeys = idx ? JSON.parse(idx.value) : [CONTROL_FOTOS_KEY];
   }catch(e){ controlFotosShardKeys = [CONTROL_FOTOS_KEY]; }
-  controlFotosData = {};
-  controlFotosShardDeId = {};
-  for(const key of controlFotosShardKeys){
-    try{
-      const r = await window.storage.get(key);
-      if(r){
-        const obj = JSON.parse(r.value);
-        Object.keys(obj).forEach(id=>{ controlFotosData[id] = obj[id]; controlFotosShardDeId[id] = key; });
-      }
-    }catch(e){}
-  }
+  await cargarIndiceFotosPartida();
   controlFotosDataCargada = true;
 }
 // Índice ligero id→shard (2026-08-18, a petición de Paula: el historial de
@@ -4491,6 +4489,10 @@ async function cargarIndiceFotosPartida(){
 // tienen foto, y ese "por si acaso" era justo lo que seguía disparando la
 // descarga de los 29 shards en (casi) cada partida — el motivo real de que
 // "siguiera tardando igual" después del primer intento de arreglo.
+// Cachea TODOS los ids del shard descargado (no solo el que se pidió) — si
+// varias fotos visibles a la vez comparten shard (habitual, un shard guarda
+// muchas fotos), la primera petición ya deja el resto listas sin una
+// descarga por cada una.
 async function fetchFotoPartidaPorId(id){
   if(controlFotosData[id]) return controlFotosData[id];
   const indice = await cargarIndiceFotosPartida();
@@ -4500,10 +4502,19 @@ async function fetchFotoPartidaPorId(id){
     const r = await window.storage.get(shardConocido);
     if(r){
       const obj = JSON.parse(r.value);
-      if(obj[id]){ controlFotosData[id] = obj[id]; controlFotosShardDeId[id] = shardConocido; return obj[id]; }
+      Object.keys(obj).forEach(otroId=>{ controlFotosData[otroId] = obj[otroId]; controlFotosShardDeId[otroId] = shardConocido; });
+      return obj[id] || null;
     }
   }catch(e){}
   return null;
+}
+// Dispara la carga bajo demanda de la foto de una línea del listado de
+// Control si el índice dice que existe y todavía no está en memoria — no
+// bloquea el pintado actual, repinta cuando llegue (mismo patrón que
+// cargarControlPdfDia).
+function cargarFotoControlSiFalta(id){
+  if(controlFotosData[id] || !controlFotosIndiceIdShard || !controlFotosIndiceIdShard[id]) return;
+  fetchFotoPartidaPorId(id).then(f=>{ if(f) renderControlContent(document.getElementById('control-overlay')); });
 }
 async function guardarIndiceFotosPartida(mapaIdShard){
   try{
@@ -6051,6 +6062,7 @@ function renderControlCardHTML(c, seccion){
       ${enfermedadesHTML}
     </div>`;
   }).join('');
+  cargarFotoControlSiFalta(c.id);
   const fotoHTML = controlFotosData[c.id]
     ? `<img src="${fotoSrcMiniatura(controlFotosData[c.id])}" onclick="mostrarFotoControlAmpliada('${c.id}')" style="max-height:64px;border-radius:8px;border:1px solid var(--border);cursor:pointer;margin-right:8px" title="Ver foto">`
     : '';
@@ -6133,6 +6145,7 @@ function renderControlCargaCardHTML(c, seccion){
       ${enfermedadesHTML}
     </div>`;
   }).join('');
+  cargarFotoControlSiFalta(c.id);
   const fotoHTML = controlFotosData[c.id]
     ? `<img src="${fotoSrcMiniatura(controlFotosData[c.id])}" onclick="mostrarFotoControlAmpliada('${c.id}')" style="max-height:64px;border-radius:8px;border:1px solid var(--border);cursor:pointer;margin-right:8px" title="Ver foto">`
     : '';
@@ -11873,6 +11886,26 @@ function prioridadHorarioRiego(h){
   if(mHora) return RIEGO_HORARIOS.indexOf('1º HORA') + 1 + ((+mHora[1])*60 + (+mHora[2])) / 1440;
   return Infinity;
 }
+// Orden específico del Índice Abonos del regante (a petición de Paula,
+// 2026-09-04: "no se ordena bien... primero los programados, después los de
+// primera hora, después los que no tienen horario asignado, y por último los
+// de última hora; si hay una hora asignada hay que respetarla"). A
+// diferencia de prioridadHorarioRiego (usada también por Tareas/impresión,
+// no se toca para no cambiar ese orden) — aquí las horas concretas ("14:00",
+// o escritas a mano) van en SU propio bloque cronológico entre "1º hora" y
+// "sin horario asignado", no mezcladas con ese bloque; "sin horario" va justo
+// antes de "última hora" (UH/UH FIN.../POR LA TARDE), no después de "1º hora"
+// como en prioridadHorarioRiego.
+function prioridadHorarioIndiceAbonos(h){
+  if(h==='PROGRAMADO') return 0;
+  if(h==='1º HORA') return 1;
+  const esUltimaHora = h==='UH' || h==='UH FIN CHICAS' || h==='UH FIN TÚNELES' || h==='POR LA TARDE';
+  if(esUltimaHora) return 4;
+  if(!h || h==='MEDIA MAÑANA') return 3; // sin horario asignado
+  const mHora = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(String(h).trim());
+  if(mHora) return 2 + ((+mHora[1])*60 + (+mHora[2])) / 1440; // hora concreta, respetada cronológicamente
+  return 3; // horario no reconocible -> se trata como "sin horario"
+}
 // Genera el HTML de un selector de horario "rápido" (PROGRAMADO/1º HORA/UH/
 // etc.) + un <input type="time"> que aparece solo al elegir "Otra hora..." o
 // si el valor actual ya es una hora concreta escrita a mano. `clase` se usa
@@ -13640,7 +13673,7 @@ function renderIndiceAbonos(){
   }).join('');
   return dias.map(({dia,label})=>{
     const filas = recolectarIndiceRiegoDia(dia)
-      .sort((a,b)=>prioridadHorarioRiego(a.horario)-prioridadHorarioRiego(b.horario));
+      .sort((a,b)=>prioridadHorarioIndiceAbonos(a.horario)-prioridadHorarioIndiceAbonos(b.horario));
     // Sala 1 y Sala 2 siempre separadas — a petición de Paula, 2026-08-10.
     const filasSala1 = filas.filter(f=>salaDeInv(f.invId)==='sala1');
     const filasSala2 = filas.filter(f=>salaDeInv(f.invId)==='sala2');
