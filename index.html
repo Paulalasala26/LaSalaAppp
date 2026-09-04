@@ -13647,6 +13647,127 @@ function renderIndiceAbonosEnContenedorActual(){
   const wrap = document.getElementById('indice-abonos-wrap');
   if(wrap) wrap.innerHTML = renderIndiceAbonos();
 }
+// Orden MANUAL del Índice Abonos (a petición de Paula/Vigueras, 2026-09-04):
+// el orden automático por horario no siempre refleja el orden real en que
+// conviene abonar — Vigueras/Dennis/Fran, una vez terminado el marcaje de
+// riego de una sala, pueden fijar a mano el orden exacto de esa sala para
+// ese día. indiceAbonosOrdenData[dia][sala] = [clave, clave, ...] (mismo
+// formato de clave que claveIndiceAbono, así identifica cada fila sin
+// depender de un id propio). Si un día/sala no tiene orden guardado, se usa
+// el automático (prioridadHorarioIndiceAbonos) como hasta ahora. Si aparece
+// una fila nueva que no estaba en el orden guardado (p.ej. se añadió un
+// riego después de ordenar), se coloca al final, en su posición automática.
+const INDICE_ABONOS_ORDEN_KEY = 'lasala-indice-abonos-orden-v1';
+let indiceAbonosOrdenData = {};
+async function loadIndiceAbonosOrdenData(){
+  try{ const r = await window.storage.get(INDICE_ABONOS_ORDEN_KEY); indiceAbonosOrdenData = r ? JSON.parse(r.value) : {}; }catch(e){ indiceAbonosOrdenData = {}; }
+}
+// Escribe SOLO el (día, sala) indicado, releyendo la nube justo antes —
+// evita que dos técnicos ordenando salas distintas a la vez se pisen el
+// trabajo (Dennis guardando Sala 1 no debe borrar lo que Fran acaba de
+// guardar en Sala 2, aunque ninguno tuviera la última versión del otro en
+// memoria).
+async function guardarUnDiaSalaOrdenIndice(dia, sala, orden){
+  try{
+    const r = await window.storage.get(INDICE_ABONOS_ORDEN_KEY);
+    const cloud = r ? JSON.parse(r.value) : {};
+    if(!cloud[dia]) cloud[dia] = {};
+    if(orden===null) delete cloud[dia][sala];
+    else cloud[dia][sala] = orden;
+    await window.storage.set(INDICE_ABONOS_ORDEN_KEY, JSON.stringify(cloud));
+    indiceAbonosOrdenData = cloud;
+    return true;
+  }catch(e){ return false; }
+}
+// Aplica, si existe, el orden manual guardado para ese día/sala — las filas
+// ya vienen ordenadas automáticamente (por horario) desde renderIndiceAbonos,
+// así que las que no estén en el orden guardado simplemente mantienen su
+// posición relativa automática al final (sort estable).
+function aplicarOrdenManualIndice(filas, dia, sala){
+  const orden = indiceAbonosOrdenData[dia]?.[sala];
+  if(!orden || !orden.length) return filas;
+  const posicion = new Map(orden.map((clave,i)=>[clave,i]));
+  return [...filas].sort((a,b)=>{
+    const pa = posicion.has(a._clave) ? posicion.get(a._clave) : Infinity;
+    const pb = posicion.has(b._clave) ? posicion.get(b._clave) : Infinity;
+    return pa - pb;
+  });
+}
+
+// ── Pantalla "Ordenar" (ADMIN/TÉCNICO) ──────────────────────────────────
+let ordenIndiceDiaActual = null;
+let ordenIndiceSalaActual = null;
+let ordenIndiceTemporal = [];
+async function mostrarOrdenarIndiceAbonos(dia, sala){
+  // Recarga fresca por si acaso (p.ej. entrando desde Tareas>Índice Abonos,
+  // que no precarga este dato) y por si otra sesión guardó un orden
+  // mientras tanto.
+  await loadIndiceAbonosOrdenData();
+  ordenIndiceDiaActual = dia;
+  ordenIndiceSalaActual = sala;
+  const filas = recolectarIndiceRiegoDia(dia)
+    .filter(f=>salaDeInv(f.invId)===sala)
+    .sort((a,b)=>prioridadHorarioIndiceAbonos(a.horario)-prioridadHorarioIndiceAbonos(b.horario))
+    .map(f=>({...f, _clave: claveIndiceAbono(dia, f.invId, f.texto, f.horario)}));
+  const yaOrdenadas = aplicarOrdenManualIndice(filas, dia, sala);
+  ordenIndiceTemporal = yaOrdenadas.map(f=>f._clave);
+  window.__ordenIndiceFilasPorClave = Object.fromEntries(yaOrdenadas.map(f=>[f._clave, f]));
+  const overlay = getOrCreateOverlay('ordenar-indice-overlay');
+  overlay.style.padding = '0';
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:0;width:100vw;height:100vh;max-width:100vw;overflow:hidden;display:flex;flex-direction:column">
+      <div style="background:var(--grad-blue);color:#fff;padding:.85rem 1.25rem;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;gap:10px">
+        <div>
+          <div style="font-size:16px;font-weight:800">↕ Ordenar Índice Abonos — ${sala==='sala1'?'Sala 1':'Sala 2'}</div>
+          <div style="font-size:12px;opacity:.85">${riegoDiaLabelCorto(dia)} — usa ↑ ↓ para fijar el orden real</div>
+        </div>
+        <button onclick="document.getElementById('ordenar-indice-overlay').style.display='none'" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700;background:rgba(255,255,255,.15);color:#fff;border:none;cursor:pointer">✕ Cerrar</button>
+      </div>
+      <div id="ordenar-indice-lista" style="flex:1;overflow-y:auto;padding:1rem"></div>
+      <div style="padding:1rem;border-top:1px solid var(--border);display:flex;gap:10px;flex-shrink:0">
+        <button onclick="restablecerOrdenIndiceAbonos()" style="padding:10px 16px;border-radius:8px;font-size:12px;font-weight:700;background:#f2f4f0;color:var(--muted);border:1px solid var(--border);cursor:pointer">Restablecer automático</button>
+        <button onclick="guardarOrdenIndiceAbonos()" style="flex:1;padding:10px 16px;border-radius:8px;font-size:13px;font-weight:800;background:#1558a0;color:#fff;border:none;cursor:pointer">Guardar orden</button>
+      </div>
+    </div>`;
+  overlay.style.display = 'flex';
+  renderOrdenarIndiceLista();
+}
+function renderOrdenarIndiceLista(){
+  const wrap = document.getElementById('ordenar-indice-lista');
+  if(!wrap) return;
+  const porClave = window.__ordenIndiceFilasPorClave || {};
+  wrap.innerHTML = ordenIndiceTemporal.map((clave,i)=>{
+    const f = porClave[clave];
+    if(!f) return '';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:10px 8px;border-bottom:1px solid var(--border)">
+      <div style="font-size:13px;font-weight:800;color:var(--muted);width:22px;text-align:center;flex-shrink:0">${i+1}</div>
+      <div style="flex:1;font-size:13px;font-weight:600;min-width:0">${f.texto} - INV ${f.invId} - ${f.horario||'—'}</div>
+      <div style="display:flex;gap:4px;flex-shrink:0">
+        <button onclick="moverOrdenIndiceAbono(${i},-1)" ${i===0?'disabled style="opacity:.3"':''} style="width:32px;height:32px;border-radius:6px;border:1px solid var(--border);background:#fff;font-size:14px;cursor:pointer">↑</button>
+        <button onclick="moverOrdenIndiceAbono(${i},1)" ${i===ordenIndiceTemporal.length-1?'disabled style="opacity:.3"':''} style="width:32px;height:32px;border-radius:6px;border:1px solid var(--border);background:#fff;font-size:14px;cursor:pointer">↓</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+function moverOrdenIndiceAbono(i, delta){
+  const j = i + delta;
+  if(j<0 || j>=ordenIndiceTemporal.length) return;
+  [ordenIndiceTemporal[i], ordenIndiceTemporal[j]] = [ordenIndiceTemporal[j], ordenIndiceTemporal[i]];
+  renderOrdenarIndiceLista();
+}
+async function guardarOrdenIndiceAbonos(){
+  const ok = await guardarUnDiaSalaOrdenIndice(ordenIndiceDiaActual, ordenIndiceSalaActual, ordenIndiceTemporal);
+  showToast(ok ? '✓ Orden guardado' : '✗ No se ha podido guardar — inténtalo de nuevo');
+  if(ok) document.getElementById('ordenar-indice-overlay').style.display='none';
+  renderIndiceAbonosEnContenedorActual();
+}
+async function restablecerOrdenIndiceAbonos(){
+  if(!confirm('¿Volver al orden automático por horario para esta sala y día?')) return;
+  const ok = await guardarUnDiaSalaOrdenIndice(ordenIndiceDiaActual, ordenIndiceSalaActual, null);
+  showToast(ok ? '✓ Orden automático restablecido' : '✗ No se ha podido guardar — inténtalo de nuevo');
+  if(ok) document.getElementById('ordenar-indice-overlay').style.display='none';
+  renderIndiceAbonosEnContenedorActual();
+}
 function renderIndiceAbonos(){
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const hoy = riegoDiaDeHoy();
@@ -13680,15 +13801,22 @@ function renderIndiceAbonos(){
       </div>
     </div>`;
   }).join('');
+  const puedeOrdenar = currentUserRole==='ADMIN' || currentUserRole==='TECNICO';
+  const botonOrdenar = (dia, sala) => puedeOrdenar ? `
+    <button onclick="mostrarOrdenarIndiceAbonos(${dia},'${sala}')" style="padding:3px 10px;font-size:10px;font-weight:800;border-radius:999px;cursor:pointer;border:1.5px solid #a35d00;background:#fff;color:#a35d00;margin-left:8px">↕ Ordenar</button>` : '';
   return dias.map(({dia,label})=>{
-    const filas = recolectarIndiceRiegoDia(dia)
-      .sort((a,b)=>prioridadHorarioIndiceAbonos(a.horario)-prioridadHorarioIndiceAbonos(b.horario));
+    const filasBase = recolectarIndiceRiegoDia(dia)
+      .sort((a,b)=>prioridadHorarioIndiceAbonos(a.horario)-prioridadHorarioIndiceAbonos(b.horario))
+      .map(f=>({...f, _clave: claveIndiceAbono(dia, f.invId, f.texto, f.horario)}));
     // Sala 1 y Sala 2 siempre separadas — a petición de Paula, 2026-08-10.
-    const filasSala1 = filas.filter(f=>salaDeInv(f.invId)==='sala1');
-    const filasSala2 = filas.filter(f=>salaDeInv(f.invId)==='sala2');
+    // Dentro de cada sala, si Vigueras/Dennis/Fran fijaron un orden manual
+    // para este día (botón "Ordenar"), se respeta ese orden en vez del
+    // automático por horario — a petición de Paula, 2026-09-04.
+    const filasSala1 = aplicarOrdenManualIndice(filasBase.filter(f=>salaDeInv(f.invId)==='sala1'), dia, 'sala1');
+    const filasSala2 = aplicarOrdenManualIndice(filasBase.filter(f=>salaDeInv(f.invId)==='sala2'), dia, 'sala2');
 
     // Si es REGANTE, mostrar solo su sala
-    let filasAMostrar = filas;
+    let filasAMostrar = filasBase;
     let titulo = label;
     if(currentUserRole==='REGANTE'){
       if(currentUser==='REGANTE1'){
@@ -13705,9 +13833,9 @@ function renderIndiceAbonos(){
         <div style="font-size:12px;font-weight:800;color:#a35d00;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">${escapar(titulo)}</div>
         ${filasAMostrar.length===0 ? `<div style="font-size:12px;color:var(--muted);font-style:italic;padding:6px 2px">Nada marcado.</div>` : `
         ${currentUserRole==='REGANTE' ? renderLineas(filasAMostrar, dia) : `
-        <div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:8px 0 4px">Sala 1</div>
+        <div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:8px 0 4px;display:flex;align-items:center">Sala 1${botonOrdenar(dia,'sala1')}</div>
         ${filasSala1.length===0 ? `<div style="font-size:12px;color:var(--muted);font-style:italic;padding:4px 2px">Nada marcado.</div>` : renderLineas(filasSala1, dia)}
-        <div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:14px 0 4px">Sala 2</div>
+        <div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:14px 0 4px;display:flex;align-items:center">Sala 2${botonOrdenar(dia,'sala2')}</div>
         ${filasSala2.length===0 ? `<div style="font-size:12px;color:var(--muted);font-style:italic;padding:4px 2px">Nada marcado.</div>` : renderLineas(filasSala2, dia)}`}`}
       </div>`;
   }).join('');
@@ -13716,7 +13844,7 @@ function renderIndiceAbonos(){
 // Específicos ya NO viven dentro de "Mis tareas" del Regante, salen como
 // accesos propios en el menú principal (ver applyRoleHomeUI).
 function showIndiceAbonosReganteModule(){
-  Promise.all([loadRiegoData(false), loadRiegoEjecutadoData(), loadIndiceAbonosEstadoData()]).then(()=>{
+  Promise.all([loadRiegoData(false), loadRiegoEjecutadoData(), loadIndiceAbonosEstadoData(), loadIndiceAbonosOrdenData()]).then(()=>{
     const overlay = getOrCreateOverlay('indice-abonos-regante-overlay');
     overlay.style.padding = '0';
     overlay.innerHTML = `
@@ -14051,7 +14179,7 @@ function showSalaEnVivoModule(){
   // (ver invIdDePartidaTunel) — antes se confiaba en que ya estuvieran en
   // memoria por haber abierto otro módulo antes, lo cual fallaba si La Sala
   // en Vivo era la primera pantalla abierta.
-  Promise.all([loadRiegoData(false), loadPresenciaData(), loadIndiceAbonosEstadoData(), loadInjertoAsignacionData(), loadCargasAsignacionData(), loadTareasData(false), loadSalaEnVivoManualData(), loadTrabajosData(false), loadControlChecksData(false)]).then(()=>{
+  Promise.all([loadRiegoData(false), loadPresenciaData(), loadIndiceAbonosEstadoData(), loadIndiceAbonosOrdenData(), loadInjertoAsignacionData(), loadCargasAsignacionData(), loadTareasData(false), loadSalaEnVivoManualData(), loadTrabajosData(false), loadControlChecksData(false)]).then(()=>{
     const overlay = getOrCreateOverlay('sala-en-vivo-overlay');
     overlay.style.padding = '0';
     renderSalaEnVivoContent(overlay);
