@@ -10672,8 +10672,21 @@ function renderRiegoGrid(invId){
             const textoResaltado = resaltarProgramadoHTML(br.text);
             const colorCelda = colorTextoRiego || '#3a3a1a';
             const readOnlyFontSize = esReganteSoloLectura ? `${fontSizeUnaLinea}px` : '9px';
+            // Los corchetes van FUERA del bloque de texto que envuelve línea
+            // (word-break) — antes "[" y "]" eran parte del mismo texto
+            // centrado, así que si el texto saltaba a 2 líneas (letra grande
+            // del regante), cada línea se centraba por su cuenta y "[" y "]"
+            // acababan en sitios distintos en vez de fijos en los bordes de
+            // la celda (visto por Paula/regante 2026-09-04: "el símbolo [ no
+            // está bien situado"). Con flex, los corchetes quedan siempre
+            // pegados a los extremos de la celda, sea cual sea el número de
+            // líneas que ocupe el texto del medio.
             cells += `<td colspan="${br.span}" style="border:1px solid #9ab8d8;padding:2px 4px;position:relative;background:${bgBase};vertical-align:middle">
-              <div style="font-size:${readOnlyFontSize};font-weight:700;color:${colorCelda};white-space:normal;word-break:break-word;line-height:1.2;text-align:center">[${textoResaltado}]</div>
+              <div style="display:flex;align-items:center;height:100%">
+                <span style="font-size:${readOnlyFontSize};font-weight:900;color:${colorCelda};flex-shrink:0;align-self:flex-start">[</span>
+                <span style="flex:1;font-size:${readOnlyFontSize};font-weight:700;color:${colorCelda};white-space:normal;word-break:break-word;line-height:1.2;text-align:center;min-width:0">${textoResaltado}</span>
+                <span style="font-size:${readOnlyFontSize};font-weight:900;color:${colorCelda};flex-shrink:0;align-self:flex-end">]</span>
+              </div>
             </td>`;
           } else if(fitsOneLine && contieneProgramado(br.text)){
             // A petición de Paula (2026-07-31): la línea roja de PROGRAMADO
