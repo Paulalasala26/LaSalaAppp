@@ -3229,6 +3229,13 @@ async function autoAsignarTareaFumigacion(objetivos, dia, titulo, horario, extra
 // ════════════════════════════════════════════════════════════════
 const PARTIDAS_KEY = 'lasala-partidas-v1';
 
+// `partidasDB` NUNCA está vacío de verdad — arranca con datos de ejemplo de
+// fábrica (ver la declaración `let partidasDB = [...]` unas líneas más
+// arriba), así que un simple `if(!partidasDB.length)` para decidir si hace
+// falta cargar (usado al diferir esta carga, 2026-09-04) NUNCA se cumpliría
+// y esas pantallas se quedarían mostrando solo los datos de ejemplo para
+// siempre. Se usa este flag aparte, como en el resto de loaders con caché.
+let partidasDBCargada = false;
 async function loadPartidasFromStorage(){
   try{
     const r = await window.storage.get(PARTIDAS_KEY);
@@ -3242,6 +3249,7 @@ async function loadPartidasFromStorage(){
       });
       partidasDB = base;
     }
+    partidasDBCargada = true;
   }catch(e){}
 }
 
@@ -3288,9 +3296,9 @@ function showPage(id,btn){
 // ════════════════════════════════════════════════════════════════
 function handleQuickAction(val){
   if(!val) return;
-  if(val==='geo'){ if(!partidasDB.length) loadPartidasFromStorage(); showPage('geo', document.querySelectorAll('.nav-tab')[1]); }
+  if(val==='geo'){ if(!partidasDBCargada) loadPartidasFromStorage(); showPage('geo', document.querySelectorAll('.nav-tab')[1]); }
   else if(val==='ver-partidas') showPartidasList();
-  else if(val==='intro-partida'){ if(!partidasDB.length) loadPartidasFromStorage(); showIntroPartida(); }
+  else if(val==='intro-partida'){ if(!partidasDBCargada) loadPartidasFromStorage(); showIntroPartida(); }
   else if(val==='riego'){
     showRiegoModule();return;
   } else if(val==='plaguicidas'){
@@ -11569,7 +11577,7 @@ function showPartidasList(){
   // el login (a petición de Paula, 2026-09-04, "mínimo gasto de datos"), así
   // que esta es la única pantalla que de verdad LISTA su contenido y debe
   // esperar a tenerlo antes de pintar.
-  const cargarPartidas = partidasDB.length ? Promise.resolve() : loadPartidasFromStorage();
+  const cargarPartidas = partidasDBCargada ? Promise.resolve() : loadPartidasFromStorage();
   Promise.all([cargarPartidas, loadChecksData(), loadRiegoData(false), loadFitoData(false)]).then(()=>{
     renderPartidasContent(overlay, '');
   });
