@@ -3369,8 +3369,15 @@ const TRABAJOS_SUBSECCIONES = {
 // tareasData/mantenimientoData), filtrada por seccion+subseccion al pintar.
 const TRABAJOS_KEY = 'lasala-trabajos-v1';
 let trabajosData = [];
-async function loadTrabajosData(){
-  try{ const r = await window.storage.get(TRABAJOS_KEY); if(r) trabajosData = JSON.parse(r.value); }catch(e){}
+// Caché de 30s (mismo patrón que loadRiegoData/loadControlChecksData) — los
+// sitios que releen antes de crear/fusionar trabajos automáticos (PDF de
+// Túnel, confirmarSalidaPendiente) siguen llamando SIN argumento, para no
+// arriesgarse a duplicar por trabajar con una copia de hace segundos.
+let trabajosDataCargadaEn = 0;
+const TRABAJOS_DATA_CACHE_TTL_MS = 30000;
+async function loadTrabajosData(forzar){
+  if(forzar===false && trabajosDataCargadaEn && (Date.now()-trabajosDataCargadaEn)<TRABAJOS_DATA_CACHE_TTL_MS) return;
+  try{ const r = await window.storage.get(TRABAJOS_KEY); if(r) trabajosData = JSON.parse(r.value); trabajosDataCargadaEn = Date.now(); }catch(e){}
 }
 async function persistTrabajosData(){
   try{
@@ -3386,7 +3393,7 @@ async function persistTrabajosData(){
 let trabajosSeccion = null; // null = resumen; 'mujeres'|'tunel'|'externos'
 let trabajosSubSeccion = null; // key de TRABAJOS_SUBSECCIONES[trabajosSeccion]
 function showTrabajosModule(seccionInicial){
-  loadTrabajosData().then(()=>{
+  loadTrabajosData(false).then(()=>{
     trabajosSeccion = seccionInicial || null;
     trabajosSubSeccion = seccionInicial ? (TRABAJOS_SUBSECCIONES[seccionInicial]?.[0]?.key || null) : null;
     const overlay = getOrCreateOverlay('trabajos-overlay');
@@ -4569,7 +4576,17 @@ async function guardarControlItemAtomico(id, item){
 // este conjunto, así que no hace falta que cada sitio recuerde pasar nada.
 let controlChecksDirtyIds = new Set();
 function marcarControlCheckSucio(id){ controlChecksDirtyIds.add(id); }
-async function loadControlChecksData(){
+// Caché de 30s (a petición de Paula, 2026-09-04, "¿podemos optimizar aún
+// más?" tras el ahorro de datos de Riego/Tareas/Fotos) — este nodo pesa
+// ~7MB (el más pesado de toda la app) y se recargaba entero cada vez que se
+// abría Control, Partidas, Trabajos→Mujeres o Sala en Vivo, aunque se
+// hubiera cargado hace segundos. Mismo patrón que RIEGO_DATA_CACHE_TTL_MS:
+// forzar===false reutiliza si es reciente; los sitios que releen antes de
+// fusionar un guardado siguen llamando SIN argumento (van siempre a la nube).
+let controlChecksDataCargadaEn = 0;
+const CONTROL_CHECKS_CACHE_TTL_MS = 30000;
+async function loadControlChecksData(forzar){
+  if(forzar===false && controlChecksDataCargadaEn && (Date.now()-controlChecksDataCargadaEn)<CONTROL_CHECKS_CACHE_TTL_MS) return;
   try{
     const res = await fetchConReintentos(`${CLOUD_DB_URL}/${CONTROL_ITEMS_KEY}.json`);
     const obj = await res.json();
@@ -4583,6 +4600,7 @@ async function loadControlChecksData(){
       Object.values(obj).forEach(t=>map[t.id]=t);
       controlChecksData.forEach(t=>{ if(controlChecksDirtyIds.has(t.id)) map[t.id]=t; });
       controlChecksData = Object.values(map);
+      controlChecksDataCargadaEn = Date.now();
       return;
     }
     // Todavía no existe la colección nueva — migración de una vez desde el
@@ -4594,6 +4612,7 @@ async function loadControlChecksData(){
       await Promise.all(viejo.map(item => guardarControlItemAtomico(item.id, item)));
     }
     controlChecksData = viejo;
+    controlChecksDataCargadaEn = Date.now();
   }catch(e){}
 }
 // ids opcional: si se pasa, guarda SOLO esos documentos (lo normal — cada
@@ -4918,7 +4937,7 @@ function showControlModule(){
   // para ver el listado de checks. Ahora el listado se pinta en cuanto están
   // listos los checks (rápido, unos pocos KB) y fotos/PDFs se cargan aparte,
   // en segundo plano, repintando cuando terminan.
-  Promise.all([loadControlChecksData(), loadConteoTutaData(), loadControlInvernaderoData()]).then(()=>{
+  Promise.all([loadControlChecksData(false), loadConteoTutaData(), loadControlInvernaderoData()]).then(()=>{
     controlSeccion = null;
     const overlay = getOrCreateOverlay('control-overlay');
     overlay.style.padding = '0';
@@ -6939,7 +6958,7 @@ let partidasSalaSel = 'sala1';
 // selectRiegoInv/data-rinv) y solo se pinta el mapa de ESE invernadero.
 let partidasInvSel = null;
 function showPartidasModule(){
-  Promise.all([loadControlChecksData(), loadEspecificosPartidaData()]).then(()=>{
+  Promise.all([loadControlChecksData(false), loadEspecificosPartidaData()]).then(()=>{
     const overlay = getOrCreateOverlay('partidas-overlay');
     overlay.style.padding = '0';
     partidaSeleccionadaParaMover = null;
@@ -7807,7 +7826,7 @@ function togglePartidaEnSeleccionEspecifico(id){
 async function mostrarHistorialPartida(id){
   const c = controlChecksData.find(x=>x.id===id);
   if(!c) return;
-  await Promise.all([loadRiegoData(false), loadFitoData(), loadEspecificosData()]);
+  await Promise.all([loadRiegoData(false), loadFitoData(false), loadEspecificosData(false)]);
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const tramos = (c.tramos && c.tramos.length) ? c.tramos : [{desde:c.calleDesde, hasta:c.calleHasta}];
   const calles = [];
@@ -11053,8 +11072,13 @@ function renderFitoQuincenaBar(){
   `;
 }
 
-async function loadFitoData(){
-  try{const r=await window.storage.get(FITO_KEY);if(r)fitoData=JSON.parse(r.value);}catch(e){}
+// Caché de 30s (mismo patrón que loadRiegoData) — fitoData pesa ~1.4MB y se
+// recargaba entero en cada apertura de Fito/Clima/Partidas.
+let fitoDataCargadaEn = 0;
+const FITO_DATA_CACHE_TTL_MS = 30000;
+async function loadFitoData(forzar){
+  if(forzar===false && fitoDataCargadaEn && (Date.now()-fitoDataCargadaEn)<FITO_DATA_CACHE_TTL_MS) return;
+  try{const r=await window.storage.get(FITO_KEY);if(r)fitoData=JSON.parse(r.value); fitoDataCargadaEn=Date.now();}catch(e){}
   // Pre-load INV17 Switch treatment: día 25, all calles (INV17 completo)
   if(!fitoData['17']) fitoData['17']={};
   if(!fitoData['17'][25]) fitoData['17'][25]={};
@@ -11107,7 +11131,7 @@ function showFitoModule(){
   // fumigaciones a Pistola en el resumen de la quincena (ver
   // renderResumenQuincenaTratamientos) — a Cañón nunca se guarda caldo en
   // ningún sitio persistente, así que ahí ese dato queda en blanco.
-  Promise.all([loadFitoData(), loadPresenciaData(), loadTareasData(false)]).then(()=>{
+  Promise.all([loadFitoData(false), loadPresenciaData(), loadTareasData(false)]).then(()=>{
     // Se fija ANTES de construir el dashboard (que ya usa fitoQuincenaOffset
     // para el resumen de la quincena) — antes se fijaba después de pintar el
     // innerHTML, así que el resumen se calculaba con el valor viejo (0, la
@@ -11487,7 +11511,7 @@ function showPartidasList(){
   const overlay = getOrCreateOverlay('partidas-list-overlay');
   overlay.style.display = 'flex';
   // Load all data before rendering
-  Promise.all([loadChecksData(), loadRiegoData(false), loadFitoData()]).then(()=>{
+  Promise.all([loadChecksData(), loadRiegoData(false), loadFitoData(false)]).then(()=>{
     renderPartidasContent(overlay, '');
   });
 }
@@ -13940,7 +13964,7 @@ function showSalaEnVivoModule(){
   // (ver invIdDePartidaTunel) — antes se confiaba en que ya estuvieran en
   // memoria por haber abierto otro módulo antes, lo cual fallaba si La Sala
   // en Vivo era la primera pantalla abierta.
-  Promise.all([loadRiegoData(false), loadPresenciaData(), loadIndiceAbonosEstadoData(), loadInjertoAsignacionData(), loadCargasAsignacionData(), loadTareasData(false), loadSalaEnVivoManualData(), loadTrabajosData(), loadControlChecksData()]).then(()=>{
+  Promise.all([loadRiegoData(false), loadPresenciaData(), loadIndiceAbonosEstadoData(), loadInjertoAsignacionData(), loadCargasAsignacionData(), loadTareasData(false), loadSalaEnVivoManualData(), loadTrabajosData(false), loadControlChecksData(false)]).then(()=>{
     const overlay = getOrCreateOverlay('sala-en-vivo-overlay');
     overlay.style.padding = '0';
     renderSalaEnVivoContent(overlay);
@@ -14935,7 +14959,7 @@ async function saveFitoManual(){
   // (un específico de otro día no cuenta), se cancela el alta entera.
   // PERO: si el Específico es "POR LA MAÑANA" y el Plaguicida es por la tarde,
   // SÍ se permite. Solo se bloquea si ambos son por la tarde.
-  if(!Object.keys(especificosData).length) await loadEspecificosData();
+  if(!Object.keys(especificosData).length) await loadEspecificosData(false);
   for(const {invId, calles, tramos} of porInv){
     const callesAComprobar = tramos ? tramos.flatMap(({desde,hasta})=>{
       const s=Math.min(desde,hasta), e=Math.max(desde,hasta), arr=[];
@@ -15262,8 +15286,11 @@ function renderEspecificosQuincenaBar(){
   `;
 }
 
-async function loadEspecificosData(){
-  try{const r=await window.storage.get(ESPECIFICOS_KEY);if(r)especificosData=JSON.parse(r.value);}catch(e){}
+let especificosDataCargadaEn = 0;
+const ESPECIFICOS_DATA_CACHE_TTL_MS = 30000;
+async function loadEspecificosData(forzar){
+  if(forzar===false && especificosDataCargadaEn && (Date.now()-especificosDataCargadaEn)<ESPECIFICOS_DATA_CACHE_TTL_MS) return;
+  try{const r=await window.storage.get(ESPECIFICOS_KEY);if(r)especificosData=JSON.parse(r.value); especificosDataCargadaEn=Date.now();}catch(e){}
 }
 async function saveEspecificosData(){
   try{
@@ -15307,7 +15334,7 @@ function getEspecifico(invId,dia,calle){
 // Editar/Imprimir de cada tarjeta siguen funcionando igual (reabren
 // showEspecificoManualForm), no se tocó esa lógica.
 function showEspecificoResumenModule(){
-  Promise.all([loadEspecificosData(), loadPresenciaData(), loadTareasData(false)]).then(()=>{
+  Promise.all([loadEspecificosData(false), loadPresenciaData(), loadTareasData(false)]).then(()=>{
     especificosQuincenaOffset = riegoQuincenaOffsetActual();
     const overlay = getOrCreateOverlay('especifico-resumen-overlay');
     overlay.style.padding = '0';
@@ -15404,7 +15431,7 @@ function showEspecificosModule(){
       </div>`;
 
     // Cargar datos en background
-    Promise.all([loadEspecificosData(), loadPresenciaData(), loadTareasData(false)]).then(()=>{
+    Promise.all([loadEspecificosData(false), loadPresenciaData(), loadTareasData(false)]).then(()=>{
       especificosQuincenaOffset = riegoQuincenaOffsetActual();
       const html = `
         <div style="background:#fff;border-radius:0;width:100vw;height:100vh;max-width:100vw;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.3)">
@@ -16755,7 +16782,7 @@ function showPartidaDetail(num, inv){
   const p = partidasDB.find(x=>x.num===num&&x.inv===inv)||partidasDB.find(x=>x.num===num);
   if(!p) return;
   const invReal = inv||p.inv||'17';
-  Promise.all([loadChecksData(), loadRiegoData(false), loadFitoData()]).then(()=>{
+  Promise.all([loadChecksData(), loadRiegoData(false), loadFitoData(false)]).then(()=>{
     _renderPartidaDetail(p, num, invReal);
   });
 }
@@ -17153,7 +17180,7 @@ function _renderPartidaDetail(p, num, inv){
 function generarInformePostMortem(num, inv){
   const p = partidasDB.find(x=>x.num===num&&x.inv===inv)||partidasDB.find(x=>x.num===num);
   if(!p) return;
-  Promise.all([loadChecksData(), loadRiegoData(false), loadFitoData()]).then(()=>{
+  Promise.all([loadChecksData(), loadRiegoData(false), loadFitoData(false)]).then(()=>{
     const riegoLog = getFullRiegoLog(p);
     const fitoLog = getFullFitoLog(p);
     const fotoEntradaSrc = fotoEntrada[p.fotoKey||p.num] || p.fotoEntradaB64 || null;
