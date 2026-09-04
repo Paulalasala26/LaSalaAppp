@@ -438,16 +438,13 @@ async function entrarApp(user){
   document.getElementById('app').style.display='block';
   const name=user[0]+user.slice(1).toLowerCase();
   document.getElementById('topbar-username').textContent=name;
-  // A petición de Paula (2026-09-04, "¿podemos optimizar aún más?"): este
-  // nodo (partidasDB, "Introducir partida"/"Ver partidas", pantalla
-  // page-geo) pesa ~4.86MB y se descargaba en TODOS los logins, de
-  // cualquier rol — pero solo es alcanzable desde el selector de acciones
-  // rápidas que ADMIN/TÉCNICO/VIGUERAS tienen en su Inicio (REGANTE, PEÓN y
-  // CARGADOR tienen su propio Inicio reducido, sin ningún botón que lleve
-  // ahí, ver applyRoleHomeUI). Se difiere para esos roles — si algún día
-  // necesitan acceso, cualquier función que use partidasDB simplemente lo ve
-  // vacío en vez de fallar (todo son .find/.filter/.forEach).
-  if(!['REGANTE','PEON','CARGADOR'].includes(currentUserRole)) loadPartidasFromStorage();
+  // A petición de Paula (2026-09-04, "mínimo gasto de datos"): este nodo
+  // (partidasDB, "Introducir partida"/"Ver partidas", pantalla page-geo)
+  // pesa ~4.86MB y se descargaba en TODOS los logins, de TODOS los roles,
+  // aunque ninguna pantalla de uso diario (Riego/Control/Trabajos/Sala en
+  // Vivo/Partidas de Control) lo necesita — ya no se carga aquí en absoluto.
+  // Se carga bajo demanda solo en los 3 puntos que de verdad lo usan:
+  // handleQuickAction('geo'/'intro-partida') y showPartidasList (ver-partidas).
   // applyRoleHomeUI() se llama ANTES de tocar welcome-name: esa etiqueta
   // vive dentro de #page-home-inner, que la pantalla de PEÓN sustituye por
   // completo, y que para otros roles se restaura desde una plantilla
@@ -3291,9 +3288,9 @@ function showPage(id,btn){
 // ════════════════════════════════════════════════════════════════
 function handleQuickAction(val){
   if(!val) return;
-  if(val==='geo') showPage('geo', document.querySelectorAll('.nav-tab')[1]);
+  if(val==='geo'){ if(!partidasDB.length) loadPartidasFromStorage(); showPage('geo', document.querySelectorAll('.nav-tab')[1]); }
   else if(val==='ver-partidas') showPartidasList();
-  else if(val==='intro-partida') showIntroPartida();
+  else if(val==='intro-partida'){ if(!partidasDB.length) loadPartidasFromStorage(); showIntroPartida(); }
   else if(val==='riego'){
     showRiegoModule();return;
   } else if(val==='plaguicidas'){
@@ -11568,8 +11565,12 @@ function showPartidasList(){
   partidasListaTab = 'todas';
   const overlay = getOrCreateOverlay('partidas-list-overlay');
   overlay.style.display = 'flex';
-  // Load all data before rendering
-  Promise.all([loadChecksData(), loadRiegoData(false), loadFitoData(false)]).then(()=>{
+  // Load all data before rendering — partidasDB (~4.86MB) ya no se carga en
+  // el login (a petición de Paula, 2026-09-04, "mínimo gasto de datos"), así
+  // que esta es la única pantalla que de verdad LISTA su contenido y debe
+  // esperar a tenerlo antes de pintar.
+  const cargarPartidas = partidasDB.length ? Promise.resolve() : loadPartidasFromStorage();
+  Promise.all([cargarPartidas, loadChecksData(), loadRiegoData(false), loadFitoData(false)]).then(()=>{
     renderPartidasContent(overlay, '');
   });
 }
