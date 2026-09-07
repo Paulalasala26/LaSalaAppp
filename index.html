@@ -5139,15 +5139,33 @@ function cambiarControlVistaChecklist(v){
 // reutilizado por "Comprobar extensiones" y por las estadísticas pinchables
 // del dashboard del día — muestra Partida/Cliente y variedad/Calle real de
 // cada línea, con botón Imprimir.
+// Cliente/variedad y calle real de una línea de check, sea de Túnel o de
+// Carga — corregido 2026-09-07: esta función asumía siempre el formato de
+// Túnel (c.clienteVariedad, c.invId/c.tramos), pero Carga guarda el cliente
+// y la variedad en campos separados (c.cliente/c.variedad) y no tiene calle
+// propia (la hereda de su línea "hermana" de Túnel, ver calleTramoDeCarga)
+// — por eso las partidas de Carga salían siempre sin cliente/variedad y con
+// "Calle sin asignar" en estos informes (Dashboard del día → pinchar una
+// barra), aunque en el listado normal de Carga sí se veían bien.
+function clienteVariedadDeCheckControl(c){
+  return c.clienteVariedad || [c.cliente, c.variedad].filter(Boolean).join(' — ');
+}
+function calleLabelDeCheckControl(c, escapar, sinAsignarHTML){
+  if(c.tipo === 'carga'){
+    const t = calleTramoDeCarga(c);
+    return t ? `INV ${escapar(t.invId)} — ${escapar(t.label)}` : sinAsignarHTML;
+  }
+  return c.invId ? `INV ${escapar(c.invId)} — ${escapar(formatTramosLabel(c.invId, (c.tramos&&c.tramos.length)?c.tramos:[{desde:c.calleDesde,hasta:c.calleHasta}]))}` : sinAsignarHTML;
+}
 function mostrarListadoPartidasControl(titulo, lineas){
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const overlay = getOrCreateOverlay('control-listado-partidas-overlay');
   overlay.style.zIndex = 2200;
-  const calleLabelDe = c => c.invId ? `INV ${escapar(c.invId)} — ${escapar(formatTramosLabel(c.invId, (c.tramos&&c.tramos.length)?c.tramos:[{desde:c.calleDesde,hasta:c.calleHasta}]))}` : '<span style="font-style:italic;color:var(--muted)">Sin asignar</span>';
+  const calleLabelDe = c => calleLabelDeCheckControl(c, escapar, '<span style="font-style:italic;color:var(--muted)">Sin asignar</span>');
   const filasHTML = lineas.map(c=>`
     <tr>
       <td style="padding:8px 10px;border-bottom:1px solid var(--border);font-weight:800;color:#1558a0">${escapar(c.partida)||'—'}</td>
-      <td style="padding:8px 10px;border-bottom:1px solid var(--border)">${escapar(c.clienteVariedad)||'—'}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid var(--border)">${escapar(clienteVariedadDeCheckControl(c))||'—'}</td>
       <td style="padding:8px 10px;border-bottom:1px solid var(--border);white-space:nowrap">${calleLabelDe(c)}</td>
     </tr>`).join('');
   window.__controlListadoActual = { titulo, lineas };
@@ -5173,8 +5191,8 @@ function mostrarListadoPartidasControl(titulo, lineas){
 function imprimirListadoPartidasControl(){
   const { titulo, lineas } = window.__controlListadoActual || { titulo:'', lineas:[] };
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const calleLabelDe = c => c.invId ? `INV ${escapar(c.invId)} — ${escapar(formatTramosLabel(c.invId, (c.tramos&&c.tramos.length)?c.tramos:[{desde:c.calleDesde,hasta:c.calleHasta}]))}` : 'Sin asignar';
-  const filasHTML = lineas.map(c=>`<tr><td>${escapar(c.partida)||'—'}</td><td>${escapar(c.clienteVariedad)||'—'}</td><td>${calleLabelDe(c)}</td></tr>`).join('');
+  const calleLabelDe = c => calleLabelDeCheckControl(c, escapar, 'Sin asignar');
+  const filasHTML = lineas.map(c=>`<tr><td>${escapar(c.partida)||'—'}</td><td>${escapar(clienteVariedadDeCheckControl(c))||'—'}</td><td>${calleLabelDe(c)}</td></tr>`).join('');
   let iframe = document.getElementById('print-control-listado-iframe');
   if(!iframe){
     iframe = document.createElement('iframe');
