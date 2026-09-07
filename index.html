@@ -6920,7 +6920,8 @@ async function aplicarNuevaLineaControl(entry){
 }
 function eliminarControlCheck(id){
   const c = controlChecksData.find(x=>x.id===id);
-  if(!confirm(`¿Eliminar esta línea${c?.clienteVariedad?' ("'+c.clienteVariedad+'")':''}? Esta acción no se puede deshacer.`)) return;
+  const nombre = c ? clienteVariedadDeCheckControl(c) : '';
+  if(!confirm(`¿Eliminar esta línea${nombre?' ("'+nombre+'")':''}? Esta acción no se puede deshacer.`)) return;
   eliminarControlCheckConfirmado(id);
 }
 async function eliminarControlCheckConfirmado(id){
