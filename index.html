@@ -1233,13 +1233,23 @@ async function guardarEvaluacionAviso(id){
   try{
     const r = await window.storage.get(AVISOS_USUARIO_KEY);
     const cloud = r ? JSON.parse(r.value) : {};
-    const lista = cloud[currentUser] || [];
+    let lista = cloud[currentUser] || [];
     const a = lista.find(x=>x.id===id);
     if(a){
-      a.evaluacion = evaluacion;
-      a.observaciones = observaciones;
-      a.evaluadoPor = currentUser;
-      a.fechaEvaluacion = new Date().toLocaleString('es-ES');
+      // A petición de Paula (2026-09-08): antes el aviso se quedaba en la
+      // lista para siempre (solo desaparecía al cabo de 30 avisos nuevos,
+      // ver notificarUsuario) — en cuanto queda evaluado (Bien/Mal
+      // ejecutado) ya no hace falta seguir viéndolo, se quita directamente,
+      // igual que Pinzado deja de contarse en cuanto se marca pinzado. Si
+      // solo se guardan observaciones sin elegir Bien/Mal, sigue pendiente.
+      if(evaluacion){
+        lista = lista.filter(x=>x.id!==id);
+      } else {
+        a.evaluacion = evaluacion;
+        a.observaciones = observaciones;
+        a.evaluadoPor = currentUser;
+        a.fechaEvaluacion = new Date().toLocaleString('es-ES');
+      }
       cloud[currentUser] = lista;
       await window.storage.set(AVISOS_USUARIO_KEY, JSON.stringify(cloud));
       avisosTecnicoData = lista;
@@ -1287,14 +1297,14 @@ async function guardarSolucionProblemaRiego(id){
   try{
     const r = await window.storage.get(AVISOS_USUARIO_KEY);
     const cloud = r ? JSON.parse(r.value) : {};
-    const lista = cloud[currentUser] || [];
+    let lista = cloud[currentUser] || [];
     const a = lista.find(x=>x.id===id);
     if(a){
-      a.solucion = solucion;
-      a.cabezal = cabezal;
-      a.resuelto = true;
-      a.resueltoPor = currentUser;
-      a.fechaResuelto = new Date().toLocaleString('es-ES');
+      // A petición de Paula (2026-09-08): en cuanto se resuelve, se quita de
+      // la lista del técnico (ver mismo motivo en guardarEvaluacionAviso) —
+      // solucion/cabezal ya no hace falta guardarlos en el propio aviso
+      // porque no va a volver a mostrarse.
+      lista = lista.filter(x=>x.id!==id);
       cloud[currentUser] = lista;
       await window.storage.set(AVISOS_USUARIO_KEY, JSON.stringify(cloud));
       avisosTecnicoData = lista;
