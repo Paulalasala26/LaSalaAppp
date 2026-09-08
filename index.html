@@ -4539,28 +4539,63 @@ async function cargarIndiceFotosPartida(){
 // varias fotos visibles a la vez comparten shard (habitual, un shard guarda
 // muchas fotos), la primera petición ya deja el resto listas sin una
 // descarga por cada una.
+// Bug real (2026-09-08, "los check están fallando, no deja moverse por la
+// pantalla ni buscar partidas"): un día con muchas fotos (p.ej. 49 líneas)
+// disparaba una petición de shard POR CADA línea en CADA repintado, y cada
+// foto que llegaba volvía a repintar TODA la pantalla al instante — como
+// una foto tarda más que un repintado, el mismo id se volvía a pedir una y
+// otra vez antes de que la primera petición terminara. Medido en real:
+// 21 repintados completos y 819 peticiones duplicadas en 5 segundos, sin
+// que ninguna llegara a completarse — la app se quedaba sin responder
+// (scroll y buscador incluidos). Dos arreglos:
+// 1) `controlFotosShardEnCurso`: si dos ids piden el mismo shard a la vez,
+//    la segunda petición espera la promesa de la primera en vez de lanzar
+//    otra descarga igual.
+// 2) `programarRepintadoControl`: agrupa todas las fotos que lleguen dentro
+//    de una misma ventana de 400ms en UN solo repintado, no uno por foto.
+const controlFotosShardEnCurso = {};
 async function fetchFotoPartidaPorId(id){
   if(controlFotosData[id]) return controlFotosData[id];
   const indice = await cargarIndiceFotosPartida();
   const shardConocido = indice[id];
   if(!shardConocido) return null;
-  try{
-    const r = await window.storage.get(shardConocido);
-    if(r){
-      const obj = JSON.parse(r.value);
-      Object.keys(obj).forEach(otroId=>{ controlFotosData[otroId] = obj[otroId]; controlFotosShardDeId[otroId] = shardConocido; });
-      return obj[id] || null;
-    }
-  }catch(e){}
-  return null;
+  if(controlFotosShardEnCurso[shardConocido]) return (await controlFotosShardEnCurso[shardConocido])?.[id] ?? null;
+  const promesa = (async ()=>{
+    try{
+      const r = await window.storage.get(shardConocido);
+      if(r){
+        const obj = JSON.parse(r.value);
+        Object.keys(obj).forEach(otroId=>{ controlFotosData[otroId] = obj[otroId]; controlFotosShardDeId[otroId] = shardConocido; });
+        return obj;
+      }
+    }catch(e){}
+    return null;
+  })();
+  controlFotosShardEnCurso[shardConocido] = promesa;
+  try{ return (await promesa)?.[id] ?? null; }
+  finally{ delete controlFotosShardEnCurso[shardConocido]; }
+}
+let controlContentRepintadoPendiente = null;
+function programarRepintadoControl(){
+  if(controlContentRepintadoPendiente) return;
+  controlContentRepintadoPendiente = setTimeout(()=>{
+    controlContentRepintadoPendiente = null;
+    renderControlContent(document.getElementById('control-overlay'));
+  }, 400);
 }
 // Dispara la carga bajo demanda de la foto de una línea del listado de
 // Control si el índice dice que existe y todavía no está en memoria — no
-// bloquea el pintado actual, repinta cuando llegue (mismo patrón que
-// cargarControlPdfDia).
+// bloquea el pintado actual, repinta (agrupado) cuando llegue. El propio id
+// se marca como "ya pedido" para que repintados de en medio no lo vuelvan a
+// solicitar mientras sigue en marcha.
+const controlFotosIdsPedidas = new Set();
 function cargarFotoControlSiFalta(id){
-  if(controlFotosData[id] || !controlFotosIndiceIdShard || !controlFotosIndiceIdShard[id]) return;
-  fetchFotoPartidaPorId(id).then(f=>{ if(f) renderControlContent(document.getElementById('control-overlay')); });
+  if(controlFotosData[id] || !controlFotosIndiceIdShard || !controlFotosIndiceIdShard[id] || controlFotosIdsPedidas.has(id)) return;
+  controlFotosIdsPedidas.add(id);
+  fetchFotoPartidaPorId(id).then(f=>{
+    controlFotosIdsPedidas.delete(id);
+    if(f) programarRepintadoControl();
+  });
 }
 async function guardarIndiceFotosPartida(mapaIdShard){
   try{
@@ -4942,16 +4977,23 @@ async function loadControlPdfsData(){
 // Pide UN solo PDF (tipo|día) si existe en el índice y todavía no está en
 // memoria — se llama al pintar el día seleccionado de Control (no bloquea el
 // primer pintado: si no está listo aún, se repinta solo cuando llegue).
+// `controlPdfsClavesPedidas` + repintado agrupado: mismo arreglo que
+// cargarFotoControlSiFalta — sin esto, cada repintado (incluidos los que
+// dispara este mismo mecanismo) volvía a pedir el mismo PDF otra vez antes
+// de que la petición anterior terminara.
+const controlPdfsClavesPedidas = new Set();
 async function cargarControlPdfDia(seccionKey, dia){
   const clave = seccionKey+'|'+dia;
-  if(controlPdfsData[clave] || !controlPdfsIndice.includes(clave)) return;
+  if(controlPdfsData[clave] || !controlPdfsIndice.includes(clave) || controlPdfsClavesPedidas.has(clave)) return;
+  controlPdfsClavesPedidas.add(clave);
   try{
     const r = await window.storage.get(controlPdfEntryKey(seccionKey, dia));
     if(r){
       controlPdfsData[clave] = JSON.parse(r.value);
-      renderControlContent(document.getElementById('control-overlay'));
+      programarRepintadoControl();
     }
   }catch(e){}
+  finally{ controlPdfsClavesPedidas.delete(clave); }
 }
 async function guardarControlPdf(tipo, dia, nombre, pdfB64){
   try{
