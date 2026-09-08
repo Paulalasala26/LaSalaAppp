@@ -1065,7 +1065,19 @@ async function avisarAvisosPendientes(usuario){
         try{ new Notification(a.titulo||'App La Sala', {body: a.mensaje}); }catch(e){}
       }
     });
-    cloud[usuario] = lista.map(a=>({...a, visto:true}));
+    // VIGUERAS y TÉCNICO tienen su propia pantalla de avisos (Notificaciones/
+    // Avisos) que ya gestiona cuándo desaparece cada uno — aquí solo se
+    // marcan como vistos para no repetir el toast. El resto de roles (p.ej.
+    // REGANTE, que recibe la respuesta al reportar un problema de riego, ver
+    // guardarSolucionProblemaRiego) no tienen ninguna pantalla donde
+    // volver a verlos — a petición de Paula (2026-09-08, "que no queden más
+    // avisos sin limpiar"), se borran aquí mismo justo después de mostrar el
+    // toast, en vez de quedarse en la nube sin que nadie los borre nunca.
+    if(usuario==='VIGUERAS' || currentUserRole==='TECNICO'){
+      cloud[usuario] = lista.map(a=>({...a, visto:true}));
+    } else {
+      cloud[usuario] = lista.filter(a=>!pendientes.includes(a));
+    }
     await window.storage.set(AVISOS_USUARIO_KEY, JSON.stringify(cloud));
   }catch(e){}
 }
