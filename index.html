@@ -165,7 +165,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
           <i class="ti ti-bug" style="font-size:26px;opacity:.9"></i>
           <div style="font-size:14px;font-weight:700;margin-top:12px">Plaguicidas</div>
         </div>
-        <div class="home-shortcut-card" onclick="handleQuickAction('historial')" style="background:linear-gradient(135deg,#4a5568,#718096);color:#fff;border-radius:14px;padding:1.4rem 1.25rem">
+        <div id="shortcut-historial" class="home-shortcut-card" onclick="handleQuickAction('historial')" style="background:linear-gradient(135deg,#4a5568,#718096);color:#fff;border-radius:14px;padding:1.4rem 1.25rem">
           <i class="ti ti-history" style="font-size:26px;opacity:.9"></i>
           <div style="font-size:14px;font-weight:700;margin-top:12px">Historial</div>
         </div>
@@ -177,7 +177,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
           <i class="ti ti-cloud" style="font-size:26px;opacity:.9"></i>
           <div style="font-size:14px;font-weight:700;margin-top:12px">Clima</div>
         </div>
-        <div class="home-shortcut-card" onclick="handleQuickAction('trabajos')" style="background:linear-gradient(135deg,#0d3d73,#1558a0);color:#fff;border-radius:14px;padding:1.4rem 1.25rem">
+        <div id="shortcut-trabajos" class="home-shortcut-card" onclick="handleQuickAction('trabajos')" style="background:linear-gradient(135deg,#0d3d73,#1558a0);color:#fff;border-radius:14px;padding:1.4rem 1.25rem">
           <i class="ti ti-briefcase" style="font-size:26px;opacity:.9"></i>
           <div style="font-size:14px;font-weight:700;margin-top:12px">Trabajos</div>
         </div>
@@ -570,6 +570,13 @@ function applyRoleHomeUI(){
     }
     actualizarBadgeTareasRegante();
   } else if(currentUserRole==='TECNICO'){
+    // A petición de Paula (2026-09-08): TÉCNICO ya no tiene acceso a
+    // Historial ni a Trabajos (Mujeres/Túnel/Externos) — se ocultan sus
+    // tarjetas de acceso rápido; showHistorialModule/showTrabajosModule
+    // también bloquean la entrada por si se llegara a llamar desde otro
+    // sitio, no solo escondiendo el botón.
+    document.getElementById('shortcut-historial')?.style.setProperty('display','none');
+    document.getElementById('shortcut-trabajos')?.style.setProperty('display','none');
     // A petición de Paula: cuando Fran o Dennis terminan de marcar todas las
     // hojas de riego, este botón manda un aviso a Vigueras (avisarHojasMarcadas).
     // "Activar avisos" (push real, activarNotificacionesPush) para que también
@@ -672,6 +679,7 @@ async function loadHistorialData(){
   try{ const r=await window.storage.get(HISTORIAL_KEY); if(r) historialData=JSON.parse(r.value); }catch(e){}
 }
 function showHistorialModule(){
+  if(currentUserRole==='TECNICO'){ showToast('No tienes acceso a Historial'); return; }
   loadHistorialData().then(()=>{
     const overlay = getOrCreateOverlay('historial-overlay');
     const rows = historialData.slice().reverse().map(h=>`
@@ -3417,6 +3425,7 @@ async function persistTrabajosData(){
 let trabajosSeccion = null; // null = resumen; 'mujeres'|'tunel'|'externos'
 let trabajosSubSeccion = null; // key de TRABAJOS_SUBSECCIONES[trabajosSeccion]
 function showTrabajosModule(seccionInicial){
+  if(currentUserRole==='TECNICO'){ showToast('No tienes acceso a Trabajos'); return; }
   loadTrabajosData(false).then(()=>{
     trabajosSeccion = seccionInicial || null;
     trabajosSubSeccion = seccionInicial ? (TRABAJOS_SUBSECCIONES[seccionInicial]?.[0]?.key || null) : null;
