@@ -6532,6 +6532,26 @@ async function aplicarFotoControl(id, fotoB64){
 // icono de 64-90px. Si falla la compresión, t y f son el mismo original sin
 // tocar (no tiene sentido generar una miniatura de algo que no se pudo leer
 // en canvas).
+// A petición de Paula (2026-09-09): "a veces se queda pillado y te saca de
+// la aplicación" al subir fotos en Túnel y en Carga (las dos pantallas
+// llaman a esta misma función). Causa real: el código de antes cargaba la
+// foto en un <img> a SU RESOLUCIÓN ORIGINAL antes de reducirla — con las
+// cámaras de muchos megapíxeles habituales en Android (48MP o más), solo
+// decodificar esa foto puede necesitar varios cientos de MB de memoria, lo
+// justo para que el navegador (o la app instalada en el móvil) cierre la
+// pestaña de golpe a mitad de subir. Como la sesión ya no se restaura sola
+// al reabrir, ese cierre se sentía igual que si la app hubiera "echado" al
+// usuario. Ahora se usa createImageBitmap con "resize" como primer intento:
+// deja que sea el propio navegador quien decodifique la foto YA acotada a
+// un tamaño pequeño, sin llegar a materializar nunca la imagen original
+// entera en memoria (solo se pide resizeWidth, nunca los dos lados a la
+// vez, para que el navegador calcule el otro lado solo y la foto no salga
+// deformada). El recorte final exacto a 1280/320px se hace después, ya
+// sobre esa imagen pequeña — mismo resultado de siempre, mucha menos
+// memoria de pico. Si el navegador no soporta esto o falla, se cae al
+// método anterior (Image+canvas, ahora leyendo con un object URL en vez de
+// convertir todo el archivo a base64 antes de tiempo) y, en último caso, al
+// archivo original sin comprimir — la foto nunca se pierde.
 function comprimirImagenParaControl(file){
   return new Promise((resolve)=>{
     const leerOriginalSinComprimir = () => {
@@ -6540,32 +6560,50 @@ function comprimirImagenParaControl(file){
       readerOriginal.onerror = () => resolve(null);
       readerOriginal.readAsDataURL(file);
     };
-    const reader = new FileReader();
-    reader.onerror = leerOriginalSinComprimir;
-    reader.onload = (e) => {
+    const escalarDesde = (source, max, calidad) => {
+      let width = source.width, height = source.height;
+      if(width > max || height > max){
+        const escala = max / Math.max(width, height);
+        width = Math.round(width*escala); height = Math.round(height*escala);
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width; canvas.height = height;
+      canvas.getContext('2d').drawImage(source, 0, 0, width, height);
+      return canvas.toDataURL('image/jpeg', calidad);
+    };
+    const intentarConImagen = () => {
+      const objectUrl = URL.createObjectURL(file);
+      const limpiar = () => { try{ URL.revokeObjectURL(objectUrl); }catch(e){} };
       const img = new Image();
-      img.onerror = leerOriginalSinComprimir;
+      img.onerror = () => { limpiar(); leerOriginalSinComprimir(); };
       img.onload = () => {
         try{
-          const escalarA = (max, calidad) => {
-            let width = img.width, height = img.height;
-            if(width > max || height > max){
-              const escala = max / Math.max(width, height);
-              width = Math.round(width*escala); height = Math.round(height*escala);
-            }
-            const canvas = document.createElement('canvas');
-            canvas.width = width; canvas.height = height;
-            canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-            return canvas.toDataURL('image/jpeg', calidad);
-          };
-          resolve({data: {f: escalarA(1280,0.75), t: escalarA(320,0.6)}, comprimida:true});
+          const f = escalarDesde(img, 1280, 0.75);
+          const t = escalarDesde(img, 320, 0.6);
+          limpiar();
+          resolve({data: {f, t}, comprimida:true});
         }catch(err){
+          limpiar();
           leerOriginalSinComprimir();
         }
       };
-      img.src = e.target.result;
+      img.src = objectUrl;
     };
-    reader.readAsDataURL(file);
+    if(typeof createImageBitmap === 'function'){
+      createImageBitmap(file, {resizeWidth:1600, resizeQuality:'medium'}).then(bitmap=>{
+        try{
+          const f = escalarDesde(bitmap, 1280, 0.75);
+          const t = escalarDesde(bitmap, 320, 0.6);
+          bitmap.close();
+          resolve({data: {f, t}, comprimida:true});
+        }catch(err){
+          try{ bitmap.close(); }catch(e2){}
+          intentarConImagen();
+        }
+      }).catch(intentarConImagen);
+    } else {
+      intentarConImagen();
+    }
   });
 }
 // Compatibilidad: las fotos guardadas antes de este cambio son un string
