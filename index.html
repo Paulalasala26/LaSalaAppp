@@ -9219,16 +9219,17 @@ let ipAudioStream = null;
 let ipRecording = false;
 let ipMediaRecorder = null;
 
-function handleIPFoto(input){
+// A petición de Paula (2026-09-09): mismo riesgo que en Check Túnel/Carga y
+// en Ver Partidas (ver comprimirImagenParaControl) — se reutiliza la misma
+// función de compresión en vez de subir el archivo tal cual.
+async function handleIPFoto(input){
   if(!input.files||!input.files[0]) return;
-  const file = input.files[0];
-  const reader = new FileReader();
-  reader.onload = function(e){
-    ipFotoB64 = e.target.result;
-    const preview = document.getElementById('ip-foto-preview');
-    if(preview) preview.innerHTML = `<img src="${ipFotoB64}" style="max-height:150px;border-radius:8px;border:1px solid var(--border)">`;
-  };
-  reader.readAsDataURL(file);
+  const resultado = await comprimirImagenParaControl(input.files[0]);
+  if(!resultado){ showToast('✗ No se ha podido leer esa foto — prueba con otra'); return; }
+  if(!resultado.comprimida) showToast('⚠ Foto subida sin comprimir (formato no compatible) — puede pesar más de lo normal');
+  ipFotoB64 = resultado.data;
+  const preview = document.getElementById('ip-foto-preview');
+  if(preview) preview.innerHTML = `<img src="${fotoSrcMiniatura(ipFotoB64)}" style="max-height:150px;border-radius:8px;border:1px solid var(--border)">`;
 }
 
 function toggleIPAudio(){
@@ -11876,7 +11877,7 @@ function buildPartidaCard(p){
   const fotoLabel = hasFoto ? '\u2713 Foto entrada' : 'Sin foto';
 
   const imgHTML = fotoSrc
-    ? `<img src="${fotoSrc}" style="width:100%;height:90px;object-fit:cover;display:block">`
+    ? `<img src="${fotoSrcMiniatura(fotoSrc)}" style="width:100%;height:90px;object-fit:cover;display:block">`
     : `<div style="width:100%;height:90px;background:var(--verde-light);display:flex;align-items:center;justify-content:center"><i class="ti ti-plant-2" style="font-size:28px;color:var(--verde)"></i></div>`;
 
   // Seguimiento
@@ -17142,39 +17143,44 @@ function showPartidaDetail(num, inv){
   });
 }
 
-function readFileAsDataURL(file){
-  return new Promise((resolve,reject)=>{
-    const r = new FileReader();
-    r.onload = ()=>resolve(r.result);
-    r.onerror = reject;
-    r.readAsDataURL(file);
-  });
-}
-
 // Tomar foto (cámara) o adjuntar foto (galería/archivo) para foto de entrada
 // o de salida directamente desde la ficha de la partida en Ver Partidas.
+// A petición de Paula (2026-09-09): mismo riesgo que en Check Túnel/Carga
+// (ver comprimirImagenParaControl) — aquí la foto se subía SIN comprimir en
+// absoluto, así que se reutiliza la misma función ya probada en vez de
+// duplicar la lógica. Se guarda como {f,t} (foto grande + miniatura) igual
+// que en Control; fotoSrcCompleta/fotoSrcMiniatura ya sabían leer también
+// el formato antiguo (string suelto), así que las fotos guardadas antes de
+// este cambio se siguen viendo bien.
 async function handleFotoPartida(input, num, inv, tipo){
   if(!input.files || !input.files[0]) return;
-  const dataUrl = await readFileAsDataURL(input.files[0]);
   const p = partidasDB.find(x=>x.num===num&&x.inv===inv)||partidasDB.find(x=>x.num===num);
   if(!p) return;
-  if(tipo==='entrada'){
-    p.fotoEntradaB64 = dataUrl;
-    fotoEntrada[p.fotoKey||p.num] = dataUrl;
-  } else {
-    p.fotoSalida = dataUrl;
+  try{
+    const resultado = await comprimirImagenParaControl(input.files[0]);
+    if(!resultado){ showToast('✗ No se ha podido leer esa foto — prueba con otra'); return; }
+    if(!resultado.comprimida) showToast('⚠ Foto subida sin comprimir (formato no compatible) — puede pesar más de lo normal');
+    if(tipo==='entrada'){
+      p.fotoEntradaB64 = resultado.data;
+      fotoEntrada[p.fotoKey||p.num] = resultado.data;
+    } else {
+      p.fotoSalida = resultado.data;
+    }
+    await savePartidaToStorage(p);
+    showToast(tipo==='entrada' ? '✓ Foto de entrada guardada' : '✓ Foto de salida guardada');
+    logHistorial(`Subió foto de ${tipo} de la partida ${num}`);
+    _renderPartidaDetail(p, num, inv);
+  }catch(e){
+    console.error('Error guardando foto de partida:', e);
+    showToast('✗ No se ha podido guardar la foto — inténtalo de nuevo');
   }
-  await savePartidaToStorage(p);
-  showToast(tipo==='entrada' ? '✓ Foto de entrada guardada' : '✓ Foto de salida guardada');
-  logHistorial(`Subió foto de ${tipo} de la partida ${num}`);
-  _renderPartidaDetail(p, num, inv);
 }
 
 function fotoSlotHTML(src, label, num, inv, tipo){
   const camId = `foto-${tipo}-cam-${num}-${inv}`;
   const fileId = `foto-${tipo}-file-${num}-${inv}`;
   const preview = src
-    ? `<img src="${src}" style="width:100%;height:110px;object-fit:cover;border-radius:8px;display:block">`
+    ? `<img src="${fotoSrcMiniatura(src)}" style="width:100%;height:110px;object-fit:cover;border-radius:8px;display:block">`
     : `<div style="width:100%;height:110px;background:var(--bg);border:1.5px dashed var(--border);border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--muted);font-size:11px"><i class="ti ti-camera" style="font-size:22px"></i>Pendiente</div>`;
   return `<div>
     ${preview}
@@ -17544,7 +17550,7 @@ function generarInformePostMortem(num, inv){
     const checkRow = (label, field) => fila(label, getCheck(num, inv, field));
     const checkRowCarga = (label, field) => fila(label, getCheck(num, inv, field+'_carga'));
     const fotoCelda = (src, label) => src
-      ? `<td style="border:0.5pt solid #999;padding:8pt;text-align:center;width:50%"><img src="${src}" style="max-width:100%;max-height:220pt;display:block;margin:0 auto 4pt"><div style="font-size:9pt;color:#555">${label}</div></td>`
+      ? `<td style="border:0.5pt solid #999;padding:8pt;text-align:center;width:50%"><img src="${fotoSrcCompleta(src)}" style="max-width:100%;max-height:220pt;display:block;margin:0 auto 4pt"><div style="font-size:9pt;color:#555">${label}</div></td>`
       : `<td style="border:0.5pt solid #999;padding:24pt 8pt;text-align:center;width:50%;color:#999;font-size:9pt;font-style:italic">Sin foto (${label})</td>`;
 
     const logRows = (log, emptyMsg) => log.length
