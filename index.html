@@ -1159,8 +1159,13 @@ async function avisarAvisosPendientes(usuario){
 // aplica, son avisos informativos, no trabajos que juzgar).
 function mostrarNotificacionesVigueras(){
   window.storage.get(AVISOS_USUARIO_KEY).then(async r=>{
-    const cloud = r ? JSON.parse(r.value) : {};
-    const listaCruda = cloud['VIGUERAS']||[];
+    // Si la lectura falla, r es null — igual que si no hubiera avisos. Hoy
+    // eso acaba siendo inofensivo de casualidad (la lista queda vacía y el
+    // bloque que escribe no llega a ejecutarse), pero se deja explícito:
+    // abajo se VACÍA la lista de avisos en la nube, así que dar por bueno
+    // un null aquí borraría avisos reales que no se han llegado a leer.
+    const cloud = r ? JSON.parse(r.value) : null;
+    const listaCruda = (cloud && cloud['VIGUERAS']) || [];
     const lista = listaCruda.slice().reverse();
     const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const overlay = getOrCreateOverlay('notificaciones-vigueras-overlay');
@@ -1185,7 +1190,7 @@ function mostrarNotificacionesVigueras(){
     // — así no queda un histórico creciendo para siempre ni el badge puede
     // desincronizarse. Se leen aquí (para pintarlas una última vez) y luego
     // se vacía esa lista en la nube.
-    if(listaCruda.length){
+    if(cloud && listaCruda.length){
       cloud['VIGUERAS'] = [];
       try{ await window.storage.set(AVISOS_USUARIO_KEY, JSON.stringify(cloud)); }catch(e){}
     }
@@ -1209,8 +1214,12 @@ async function actualizarBadgeNotificacionesVigueras(){
 // observaciones — queda guardado en el propio aviso (evaluacion/observaciones).
 function mostrarAvisosTecnico(){
   window.storage.get(AVISOS_USUARIO_KEY).then(r=>{
-    const cloud = r ? JSON.parse(r.value) : {};
-    let lista = cloud[currentUser] || [];
+    // Si la lectura falla, r es null — igual que si no hubiera avisos. Se
+    // deja explícito (cloud=null) porque más abajo se reescribe la clave
+    // entera con la migración perezosa: dar por bueno un null borraría los
+    // avisos de TODOS los usuarios, no solo los de este.
+    const cloud = r ? JSON.parse(r.value) : null;
+    let lista = (cloud && cloud[currentUser]) || [];
     // Migración perezosa: avisos creados antes de este cambio no tienen
     // "id" ni los campos de evaluación — se rellenan la primera vez que se
     // abre esta pantalla, para que también se puedan evaluar.
@@ -1225,7 +1234,7 @@ function mostrarAvisosTecnico(){
       };
     });
     avisosTecnicoData = lista;
-    if(migrado){
+    if(cloud && migrado){
       cloud[currentUser] = lista;
       window.storage.set(AVISOS_USUARIO_KEY, JSON.stringify(cloud));
     }
@@ -2673,7 +2682,13 @@ async function guardarEdicionTarea(id){
   const nuevoEstado = document.getElementById('et-estado')?.value || 'pendiente';
   try{
     const r = await window.storage.get(TAREAS_KEY);
-    let cloud = r ? JSON.parse(r.value) : [];
+    // Si la lectura falla, r es null — igual que si no hubiera tareas. Sin
+    // esta comprobación se seguía con cloud=[], el findIndex daba -1 y se
+    // avisaba de que "la tarea ya se ha eliminado", que es falso y confunde:
+    // lo que pasa es que no hay conexión. (No llegaba a borrar nada porque
+    // retornaba antes del set, pero el mensaje era engañoso.)
+    if(!r){ avisarFalloGuardado(); showToast('✗ Sin conexión — no se han podido guardar los cambios'); return; }
+    let cloud = JSON.parse(r.value);
     const idx = cloud.findIndex(x=>x.id===id);
     if(idx<0){ showToast('No se encontró la tarea (puede que ya se haya eliminado)'); return; }
     const fechaRaw = document.getElementById('et-fecha')?.value||'';
@@ -4769,8 +4784,30 @@ async function elegirShardParaFoto(id, fotoB64Len){
   let tamActual = 0;
   try{ const r = await window.storage.get(ultimoKey); if(r) tamActual = r.value.length; }catch(e){}
   if(tamActual + fotoB64Len < CONTROL_FOTOS_SHARD_MAX_CHARS) return ultimoKey;
-  const nuevoKey = `lasala-control-fotos-v1-${controlFotosShardKeys.length+1}`;
-  controlFotosShardKeys = [...controlFotosShardKeys, nuevoKey];
+  // Hace falta un shard nuevo. `controlFotosShardKeys` se cargó UNA vez al
+  // abrir Control y se cachea toda la sesión (ver loadControlFotosData), así
+  // que puede estar desactualizado: si otro dispositivo ha creado shards
+  // mientras tanto, calcular el nombre nuevo desde esta copia daría un
+  // nombre ya en uso, y escribir esta lista encima borraría del índice los
+  // shards que creó el otro (las fotos no se pierden, pero el índice deja
+  // de reflejar la realidad). Por eso se relee el índice fresco de la nube
+  // antes de decidir el nombre y se fusiona (unión), mismo criterio que
+  // guardarIndiceFotosPartida. Detectado en la auditoría del 2026-09-11.
+  let listaFresca = null;
+  try{
+    const rIdx = await window.storage.get(CONTROL_FOTOS_SHARDS_INDEX_KEY);
+    if(rIdx) listaFresca = JSON.parse(rIdx.value);
+  }catch(e){}
+  if(!Array.isArray(listaFresca)){
+    // No se ha podido leer el índice (fallo de red): NO se crea un shard
+    // nuevo a ciegas — se reutiliza el último conocido. Si de verdad está
+    // lleno, el guardado fallará y se avisará al usuario, que es mucho
+    // menos grave que dejar el índice de shards inconsistente.
+    return ultimoKey;
+  }
+  const union = [...new Set([...listaFresca, ...controlFotosShardKeys])];
+  const nuevoKey = `lasala-control-fotos-v1-${union.length+1}`;
+  controlFotosShardKeys = [...union, nuevoKey];
   await window.storage.set(CONTROL_FOTOS_SHARDS_INDEX_KEY, JSON.stringify(controlFotosShardKeys));
   return nuevoKey;
 }
@@ -14086,7 +14123,7 @@ async function guardarUnDiaSalaOrdenIndice(dia, sala, orden){
     // orden manual guardado. Tratarlo como "vacío de verdad" borraría el
     // orden manual de otros días/salas ya guardado. Se aborta en vez de
     // asumirlo.
-    if(!r){ return false; }
+    if(!r){ avisarFalloGuardado(); return false; }
     const cloud = JSON.parse(r.value);
     if(!cloud[dia]) cloud[dia] = {};
     if(orden===null) delete cloud[dia][sala];
@@ -14094,7 +14131,7 @@ async function guardarUnDiaSalaOrdenIndice(dia, sala, orden){
     await window.storage.set(INDICE_ABONOS_ORDEN_KEY, JSON.stringify(cloud));
     indiceAbonosOrdenData = cloud;
     return true;
-  }catch(e){ return false; }
+  }catch(e){ avisarFalloGuardado(); return false; }
 }
 // Aplica, si existe, el orden manual guardado para ese día/sala — las filas
 // ya vienen ordenadas automáticamente (por horario) desde renderIndiceAbonos,
@@ -14535,13 +14572,13 @@ async function guardarSalaEnVivoManualData(){
     // Si la lectura falla, r es null — igual que si no hubiera notas
     // manuales. Tratarlo como "vacío de verdad" borraría las notas de
     // otros invernaderos. Se aborta en vez de asumirlo.
-    if(!r) return false;
+    if(!r){ avisarFalloGuardado(); return false; }
     const cloud = JSON.parse(r.value);
     // Merge superficial por invId — nunca se pisa entero, igual que geoData.
     const combinado = { ...cloud, ...salaEnVivoManualData };
     salaEnVivoManualData = combinado;
     return await window.storage.set(SALA_EN_VIVO_MANUAL_KEY, JSON.stringify(combinado));
-  }catch(e){ return false; }
+  }catch(e){ avisarFalloGuardado(); return false; }
 }
 function puedeEditarSalaEnVivoManual(){
   return currentUserRole === 'ADMIN' || currentUserRole === 'TECNICO';
