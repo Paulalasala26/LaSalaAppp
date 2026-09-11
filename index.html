@@ -368,11 +368,29 @@ let USERS={
   PEON1:"0ffe1abd1a08215353c233d6e009613e95eec4253832a761af28ff37ac5a150c",
   PEON2:"edee29f882543b956620b26d0ee0e7e950399b1c4222f5de05e06425b4c995e9",
 };
+// window.storage.get() devuelve null tanto si la clave no existe todavía
+// (primer arranque de la app) COMO si la lectura ha fallado por red — son
+// indistinguibles. Para USERS/ROLES eso es peligroso: si se tratara
+// cualquier null como "no existe todavía", un simple fallo de red al
+// cargar la app reescribiría la nube con las contraseñas/roles de fábrica
+// (los del propio HTML), borrando cualquier cambio real ya guardado. Esta
+// función hace una comprobación directa (sin los 3 reintentos de
+// fetchConReintentos) para distinguir "de verdad no existe" (respuesta
+// HTTP correcta con valor null) de "ha fallado la petición" — solo en el
+// primer caso es seguro sembrar el valor por defecto. Detectado en la
+// auditoría completa del 2026-09-09.
+async function esClaveRealmenteVacia(key){
+  try{
+    const res = await fetch(`${CLOUD_DB_URL}/${encodeURIComponent(key)}.json`);
+    if(!res.ok) return false;
+    return (await res.json()) === null;
+  }catch(e){ return false; }
+}
 async function loadUsersFromCloud(){
   try{
     const r = await window.storage.get(USERS_KEY);
     if(r && r.value) USERS = JSON.parse(r.value);
-    else await window.storage.set(USERS_KEY, JSON.stringify(USERS));
+    else if(await esClaveRealmenteVacia(USERS_KEY)) await window.storage.set(USERS_KEY, JSON.stringify(USERS));
   }catch(e){}
 }
 const usersLoadedPromise = loadUsersFromCloud();
@@ -385,7 +403,7 @@ async function loadRolesFromCloud(){
   try{
     const r = await window.storage.get(ROLES_KEY);
     if(r && r.value) USER_ROLES = JSON.parse(r.value);
-    else await window.storage.set(ROLES_KEY, JSON.stringify(USER_ROLES));
+    else if(await esClaveRealmenteVacia(ROLES_KEY)) await window.storage.set(ROLES_KEY, JSON.stringify(USER_ROLES));
   }catch(e){}
 }
 const rolesLoadedPromise = loadRolesFromCloud();
@@ -661,7 +679,12 @@ let historialData = [];
 async function logHistorial(accion){
   try{
     const r = await window.storage.get(HISTORIAL_KEY);
-    let hist = r ? JSON.parse(r.value) : [];
+    // Si la lectura falla, r es null — igual que si el histórico estuviera
+    // vacío. Tratarlo como "vacío de verdad" borraría hasta 1000 entradas
+    // reales de auditoría. Se omite este registro en vez de arriesgarse a
+    // machacar el histórico entero.
+    if(!r) return;
+    let hist = JSON.parse(r.value);
     const now = new Date();
     hist.push({
       usuario: currentUser || '—',
@@ -829,7 +852,15 @@ async function limpiarTareasVencidas(){
   tareasData = tareasData.filter(t=>!idsBorrar.has(t.id));
   try{
     const r = await window.storage.get(TAREAS_KEY);
-    let cloud = r ? JSON.parse(r.value) : [];
+    // Si la lectura falla, r es null — igual que si no hubiera tareas.
+    // Esta función se llama en CADA loadTareasData (es decir, en casi
+    // cualquier pantalla que toque Tareas) — tratar un fallo de red como
+    // "sin tareas" y escribir esa lista vacía borraría TODAS las tareas de
+    // todo el mundo, no solo las vencidas. Se omite la limpieza en la nube
+    // en vez de arriesgarse (se reintentará la próxima vez que se cargue).
+    // Detectado en la auditoría completa del 2026-09-09.
+    if(!r) return;
+    let cloud = JSON.parse(r.value);
     cloud = cloud.filter(t=>!idsBorrar.has(t.id)).map(t=>{
       if(t.estado==='completada' && !t.completadoISO) return {...t, completadoISO: completadoISOBackfill(t)};
       return t;
@@ -852,13 +883,18 @@ async function loadTareasData(forzar){
 async function persistTareasData(){
   try{
     const r = await window.storage.get(TAREAS_KEY);
-    const cloud = r ? JSON.parse(r.value) : [];
+    // Si la lectura falla, r es null — igual que si no hubiera tareas.
+    // Tratarlo como "sin tareas de verdad" borraría las de otros
+    // dispositivos/usuarios que esta sesión no tenga en memoria. Se aborta
+    // en vez de asumir que la nube está vacía.
+    if(!r){ avisarFalloGuardado(); return; }
+    const cloud = JSON.parse(r.value);
     const map = {};
     cloud.forEach(t=>map[t.id]=t);
     tareasData.forEach(t=>map[t.id]=t);
     tareasData = Object.values(map);
     await window.storage.set(TAREAS_KEY, JSON.stringify(tareasData));
-  }catch(e){}
+  }catch(e){ avisarFalloGuardado(); }
 }
 function estadoTareaLabel(estado){
   if(estado==='completada') return '✓ Completada';
@@ -887,7 +923,12 @@ async function avisarNuevasTareas(usuario){
   const ids = new Set(nuevas.map(t=>t.id));
   try{
     const r = await window.storage.get(TAREAS_KEY);
-    let cloud = r ? JSON.parse(r.value) : [];
+    // Si la lectura falla, r es null — igual que si no hubiera tareas.
+    // Tratarlo como "sin tareas de verdad" borraría TODAS las tareas al
+    // escribir una lista vacía marcada como "vista". Se omite en vez de
+    // arriesgarse (el aviso ya se mostró igualmente arriba).
+    if(!r) return;
+    let cloud = JSON.parse(r.value);
     cloud = cloud.map(t => ids.has(t.id) ? {...t, visto:true} : t);
     await window.storage.set(TAREAS_KEY, JSON.stringify(cloud));
     tareasData = tareasData.map(t => ids.has(t.id) ? {...t, visto:true} : t);
@@ -937,11 +978,19 @@ async function activarNotificacionesPush(){
     }
     const json = sub.toJSON();
     const r = await window.storage.get(PUSH_SUBS_KEY);
-    const cloud = r ? JSON.parse(r.value) : {};
+    // Si la lectura falla, r es null — igual que si no hubiera ninguna
+    // suscripción guardada. Tratarlo como "vacía de verdad" borraría las
+    // suscripciones push de TODOS los demás usuarios (Dennis, Fran...) al
+    // escribir solo la de este dispositivo. Se aborta el guardado — la
+    // suscripción del navegador ya quedó creada (línea de arriba), así que
+    // un reintento no volverá a pedir permiso, solo reintentará guardarla.
+    if(!r){ showToast('No se pudo activar (sin conexión) — inténtalo de nuevo'); return; }
+    const cloud = JSON.parse(r.value);
     const lista = cloud[currentUser] || [];
     if(!lista.some(s=>s.endpoint===json.endpoint)) lista.push(json);
     cloud[currentUser] = lista;
-    await window.storage.set(PUSH_SUBS_KEY, JSON.stringify(cloud));
+    const ok = await window.storage.set(PUSH_SUBS_KEY, JSON.stringify(cloud));
+    if(!ok){ showToast('No se pudo activar (sin conexión) — inténtalo de nuevo'); return; }
     showToast('✓ Notificaciones activadas en este dispositivo');
   }catch(e){
     showToast('No se pudo activar la notificación push en este dispositivo');
@@ -963,9 +1012,16 @@ async function desactivarNotificacionesPush(){
       const endpoint = sub.endpoint;
       await sub.unsubscribe();
       const r = await window.storage.get(PUSH_SUBS_KEY);
-      const cloud = r ? JSON.parse(r.value) : {};
-      cloud[currentUser] = (cloud[currentUser]||[]).filter(s=>s.endpoint!==endpoint);
-      await window.storage.set(PUSH_SUBS_KEY, JSON.stringify(cloud));
+      // Si la lectura falla, r es null — igual que si no hubiera ninguna
+      // suscripción guardada. Tratarlo como "vacía de verdad" borraría las
+      // suscripciones de TODOS los demás usuarios. Como el unsubscribe()
+      // de arriba ya desactivó el envío real, dejar la entrada vieja sin
+      // limpiar (en vez de arriesgarse a borrar las de otros) es inofensivo.
+      if(r){
+        const cloud = JSON.parse(r.value);
+        cloud[currentUser] = (cloud[currentUser]||[]).filter(s=>s.endpoint!==endpoint);
+        await window.storage.set(PUSH_SUBS_KEY, JSON.stringify(cloud));
+      }
     }
     showToast('🔕 Avisos desactivados en este dispositivo');
   }catch(e){
@@ -1025,7 +1081,15 @@ async function notificarUsuario(target, mensaje, titulo, extra){
   const tituloFinal = titulo || 'App La Sala';
   try{
     const r = await window.storage.get(AVISOS_USUARIO_KEY);
-    const cloud = r ? JSON.parse(r.value) : {};
+    // Si la lectura falla, r es null — igual que si no hubiera avisos.
+    // notificarUsuario se llama constantemente desde toda la app — tratar
+    // un fallo de red como "sin avisos" y escribir solo el aviso nuevo de
+    // este `target` borraría los avisos pendientes de TODOS los demás
+    // usuarios. Se omite el guardado en la nube (el push real de abajo se
+    // sigue intentando igual) en vez de arriesgarse. Detectado en la
+    // auditoría completa del 2026-09-09.
+    if(!r) throw new Error('lectura fallida');
+    const cloud = JSON.parse(r.value);
     const lista = cloud[target] || [];
     lista.push({
       id: 'aviso_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
@@ -1055,7 +1119,13 @@ async function avisarAvisosPendientes(usuario){
   if(!usuario) return;
   try{
     const r = await window.storage.get(AVISOS_USUARIO_KEY);
-    let cloud = r ? JSON.parse(r.value) : {};
+    // Si la lectura falla, r es null — igual que si no hubiera avisos.
+    // Tratarlo como "sin avisos de verdad" y luego escribir de vuelta
+    // borraría los avisos pendientes de TODOS los demás usuarios. Se
+    // omite (no se muestra el toast esta vez, pero tampoco se pierde nada)
+    // en vez de arriesgarse.
+    if(!r) return;
+    let cloud = JSON.parse(r.value);
     const lista = cloud[usuario] || [];
     const pendientes = lista.filter(a=>!a.visto);
     if(!pendientes.length) return;
@@ -1244,7 +1314,12 @@ async function guardarEvaluacionAviso(id){
   const observaciones = document.getElementById('ea-obs')?.value?.trim() || '';
   try{
     const r = await window.storage.get(AVISOS_USUARIO_KEY);
-    const cloud = r ? JSON.parse(r.value) : {};
+    // Si la lectura falla, r es null — igual que si no hubiera avisos.
+    // Tratarlo como "vacío de verdad" borraría los avisos pendientes de
+    // TODOS los demás usuarios. Se aborta y se avisa del fallo en vez de
+    // cerrar el diálogo como si se hubiera guardado.
+    if(!r){ avisarFalloGuardado(); return; }
+    const cloud = JSON.parse(r.value);
     let lista = cloud[currentUser] || [];
     const a = lista.find(x=>x.id===id);
     if(a){
@@ -1263,10 +1338,11 @@ async function guardarEvaluacionAviso(id){
         a.fechaEvaluacion = new Date().toLocaleString('es-ES');
       }
       cloud[currentUser] = lista;
-      await window.storage.set(AVISOS_USUARIO_KEY, JSON.stringify(cloud));
+      const ok = await window.storage.set(AVISOS_USUARIO_KEY, JSON.stringify(cloud));
+      if(!ok){ avisarFalloGuardado(); return; }
       avisosTecnicoData = lista;
     }
-  }catch(e){}
+  }catch(e){ avisarFalloGuardado(); return; }
   mo.style.display='none';
   showToast('✓ Guardado');
   renderAvisosTecnicoContent(document.getElementById('avisos-tecnico-overlay'));
@@ -1308,7 +1384,12 @@ async function guardarSolucionProblemaRiego(id){
   const cabezal = !!document.getElementById('rp-cabezal')?.checked;
   try{
     const r = await window.storage.get(AVISOS_USUARIO_KEY);
-    const cloud = r ? JSON.parse(r.value) : {};
+    // Mismo riesgo que guardarEvaluacionAviso: r=null puede ser un fallo de
+    // red, no "sin avisos". Se aborta en vez de arriesgarse a borrar los
+    // avisos de otros usuarios, y no se cierra el diálogo como si hubiera
+    // ido bien (el regante nunca se enteraría de la solución).
+    if(!r){ avisarFalloGuardado(); return; }
+    const cloud = JSON.parse(r.value);
     let lista = cloud[currentUser] || [];
     const a = lista.find(x=>x.id===id);
     if(a){
@@ -1318,13 +1399,14 @@ async function guardarSolucionProblemaRiego(id){
       // porque no va a volver a mostrarse.
       lista = lista.filter(x=>x.id!==id);
       cloud[currentUser] = lista;
-      await window.storage.set(AVISOS_USUARIO_KEY, JSON.stringify(cloud));
+      const ok = await window.storage.set(AVISOS_USUARIO_KEY, JSON.stringify(cloud));
+      if(!ok){ avisarFalloGuardado(); return; }
       avisosTecnicoData = lista;
       if(a.problemaData?.reportadoPor){
         await notificarUsuario(a.problemaData.reportadoPor, `${nombreLegibleUsuario(currentUser)} respondió a tu problema: "${solucion}"${cabezal?' — Nos vemos en el cabezal.':''}`, '⚠️ Respuesta a tu problema');
       }
     }
-  }catch(e){}
+  }catch(e){ avisarFalloGuardado(); return; }
   document.getElementById('resolver-problema-overlay').style.display='none';
   showToast('✓ Guardado');
   renderAvisosTecnicoContent(document.getElementById('avisos-tecnico-overlay'));
@@ -1484,13 +1566,18 @@ async function revisarTicketsMantenimientoProgramados(){
 async function persistMantenimientoData(){
   try{
     const r = await window.storage.get(MANTENIMIENTO_KEY);
-    const cloud = r ? JSON.parse(r.value) : [];
+    // Si la lectura falla, r es null — igual que si no hubiera tickets.
+    // Tratarlo como "sin tickets de verdad" borraría los tickets de
+    // mantenimiento de otros dispositivos/usuarios. Se aborta en vez de
+    // asumir que la nube está vacía.
+    if(!r){ avisarFalloGuardado(); return; }
+    const cloud = JSON.parse(r.value);
     const map = {};
     cloud.forEach(t=>map[t.id]=t);
     mantenimientoData.forEach(t=>map[t.id]=t);
     mantenimientoData = Object.values(map);
     await window.storage.set(MANTENIMIENTO_KEY, JSON.stringify(mantenimientoData));
-  }catch(e){}
+  }catch(e){ avisarFalloGuardado(); }
 }
 function showTareasModule(){
   loadTareasData(false).then(async ()=>{
@@ -1991,11 +2078,16 @@ function eliminarTicketMantenimiento(id){
 async function eliminarTicketMantenimientoConfirmado(id, titulo){
   try{
     const r = await window.storage.get(MANTENIMIENTO_KEY);
-    let cloud = r ? JSON.parse(r.value) : [];
+    // Borrado atómico (lee+borra+escribe, sin fusión) — si la lectura
+    // falla, r es null, igual que si no hubiera tickets. Tratarlo como
+    // "vacío de verdad" borraría TODOS los tickets de mantenimiento, no
+    // solo el que se quiere eliminar. Se aborta en vez de asumirlo.
+    if(!r){ avisarFalloGuardado(); return; }
+    let cloud = JSON.parse(r.value);
     cloud = cloud.filter(x=>x.id!==id);
     await window.storage.set(MANTENIMIENTO_KEY, JSON.stringify(cloud));
     mantenimientoData = cloud;
-  }catch(e){}
+  }catch(e){ avisarFalloGuardado(); return; }
   mantSeleccionadas.delete(id);
   logHistorial(`Eliminó el ticket de mantenimiento "${titulo||''}"`);
   showToast('✓ Ticket eliminado');
@@ -2631,11 +2723,16 @@ async function eliminarTarea(id){
   if(!confirm(`¿Eliminar la tarea "${t.titulo}" (asignada a ${t.asignadoA})? Esta acción no se puede deshacer.`)) return;
   try{
     const r = await window.storage.get(TAREAS_KEY);
-    let cloud = r ? JSON.parse(r.value) : [];
+    // Borrado atómico (lee+borra+escribe, sin fusión) — si la lectura
+    // falla, r es null, igual que si no hubiera tareas. Tratarlo como
+    // "vacío de verdad" borraría TODAS las tareas, no solo esta. Se aborta
+    // en vez de asumirlo.
+    if(!r){ avisarFalloGuardado(); return; }
+    let cloud = JSON.parse(r.value);
     cloud = cloud.filter(x=>x.id!==id);
     await window.storage.set(TAREAS_KEY, JSON.stringify(cloud));
     tareasData = cloud;
-  }catch(e){}
+  }catch(e){ avisarFalloGuardado(); return; }
   logHistorial(`Eliminó la tarea "${t.titulo}" (asignada a ${t.asignadoA})`);
   showToast('Tarea eliminada');
   refreshTareasViews();
@@ -3296,11 +3393,16 @@ async function loadPartidasFromStorage(){
 async function savePartidaToStorage(p){
   try{
     const r = await window.storage.get(PARTIDAS_KEY);
-    let stored = r ? JSON.parse(r.value) : [];
+    // Si la lectura falla, r es null — igual que si no hubiera partidas
+    // guardadas. Tratarlo como "vacío de verdad" borraría TODAS las demás
+    // partidas al escribir un array con solo esta. Se aborta en vez de
+    // asumirlo.
+    if(!r){ avisarFalloGuardado(); return; }
+    let stored = JSON.parse(r.value);
     const idx = stored.findIndex(x=>x.num===p.num&&x.inv===p.inv);
     if(idx>=0) stored[idx]=p; else stored.push(p);
     await window.storage.set(PARTIDAS_KEY, JSON.stringify(stored));
-  }catch(e){}
+  }catch(e){ avisarFalloGuardado(); }
 }
 
 // "Fecha Técnico": rellenable a mano o (más adelante) por el Agente de Cargas
@@ -3436,13 +3538,21 @@ async function loadTrabajosData(forzar){
 async function persistTrabajosData(){
   try{
     const r = await window.storage.get(TRABAJOS_KEY);
-    const cloud = r ? JSON.parse(r.value) : [];
+    // Si la lectura falla, r es null — igual que si la clave estuviera
+    // vacía. Tratarlo como "vacía de verdad" borraría todos los trabajos
+    // (Mujeres/Túnel/Externos) que otro dispositivo hubiera guardado y esta
+    // sesión nunca llegó a cargar. Se aborta el guardado en vez de asumir
+    // que la nube está vacía.
+    if(!r){ avisarFalloGuardado(); return false; }
+    const cloud = JSON.parse(r.value);
     const map = {};
     cloud.forEach(t=>map[t.id]=t);
     trabajosData.forEach(t=>map[t.id]=t);
     trabajosData = Object.values(map);
-    await window.storage.set(TRABAJOS_KEY, JSON.stringify(trabajosData));
-  }catch(e){}
+    const ok = await window.storage.set(TRABAJOS_KEY, JSON.stringify(trabajosData));
+    if(!ok){ avisarFalloGuardado(); return false; }
+    return true;
+  }catch(e){ avisarFalloGuardado(); return false; }
 }
 let trabajosSeccion = null; // null = resumen; 'mujeres'|'tunel'|'externos'
 let trabajosSubSeccion = null; // key de TRABAJOS_SUBSECCIONES[trabajosSeccion]
@@ -4012,11 +4122,16 @@ function eliminarTrabajo(id){
 async function eliminarTrabajoConfirmado(id){
   try{
     const r = await window.storage.get(TRABAJOS_KEY);
-    let cloud = r ? JSON.parse(r.value) : [];
+    // Borrado atómico (lee+borra+escribe, sin fusión) — si la lectura
+    // falla, r es null, igual que si no hubiera trabajos. Tratarlo como
+    // "vacío de verdad" borraría TODOS los trabajos (Mujeres/Túnel/
+    // Externos), no solo este. Se aborta en vez de asumirlo.
+    if(!r){ avisarFalloGuardado(); return; }
+    let cloud = JSON.parse(r.value);
     cloud = cloud.filter(x=>x.id!==id);
     await window.storage.set(TRABAJOS_KEY, JSON.stringify(cloud));
     trabajosData = cloud;
-  }catch(e){}
+  }catch(e){ avisarFalloGuardado(); return; }
   logHistorial('Eliminó un trabajo');
   showToast('✓ Trabajo eliminado');
   renderTrabajosContent(document.getElementById('trabajos-overlay'));
@@ -4084,12 +4199,21 @@ async function guardarConteoTutaCampo(dia, key, campo, valor){
   conteoTutaData[dia][key][campo] = valor;
   try{
     const r = await window.storage.get(CONTEO_TUTA_KEY);
-    const cloud = r ? JSON.parse(r.value) : {};
+    // Si la lectura falla, r es null — igual que si la clave estuviera
+    // vacía. Tratarlo como "vacía de verdad" borraría el histórico de
+    // TODAS las semanas/invernaderos al escribir solo el campo que se
+    // acaba de tocar (el dato se introduce una vez por semana, así que
+    // perderlo es especialmente costoso). Se aborta el guardado en vez de
+    // asumir que la nube está vacía.
+    if(!r){ avisarFalloGuardado(); return false; }
+    const cloud = JSON.parse(r.value);
     cloud[dia] = cloud[dia] || {};
     cloud[dia][key] = {...(cloud[dia][key]||{}), [campo]: valor};
-    await window.storage.set(CONTEO_TUTA_KEY, JSON.stringify(cloud));
-  }catch(e){}
+    const ok = await window.storage.set(CONTEO_TUTA_KEY, JSON.stringify(cloud));
+    if(!ok){ avisarFalloGuardado(); return false; }
+  }catch(e){ avisarFalloGuardado(); return false; }
   showToast('✓ Guardado');
+  return true;
 }
 let conteoTutaQuincenaOffset = 0;
 let conteoTutaDiaSel = null;
@@ -4245,13 +4369,17 @@ async function loadControlInvernaderoData(){
 async function saveControlInvernaderoData(){
   try{
     const r = await window.storage.get(CONTROL_INVERNADERO_KEY);
-    const cloud = r ? JSON.parse(r.value) : [];
+    // Si la lectura falla, r es null — igual que si no hubiera líneas.
+    // Tratarlo como "vacío de verdad" borraría las líneas de Check
+    // Invernadero de otros dispositivos. Se aborta en vez de asumirlo.
+    if(!r){ avisarFalloGuardado(); return; }
+    const cloud = JSON.parse(r.value);
     const map = {};
     cloud.forEach(l=>map[l.id]=l);
     controlInvernaderoData.forEach(l=>map[l.id]=l);
     controlInvernaderoData = Object.values(map);
     await window.storage.set(CONTROL_INVERNADERO_KEY, JSON.stringify(controlInvernaderoData));
-  }catch(e){}
+  }catch(e){ avisarFalloGuardado(); }
 }
 let controlInvernaderoFiltroVariedad = '';
 let controlInvernaderoFiltroPartida = '';
@@ -4336,11 +4464,15 @@ async function eliminarLineaInvernadero(id){
   if(!confirm('¿Eliminar esta línea?')) return;
   try{
     const r = await window.storage.get(CONTROL_INVERNADERO_KEY);
-    const cloud = r ? JSON.parse(r.value) : [];
+    // Borrado atómico — r=null (fallo de lectura) tratado como "vacío de
+    // verdad" borraría TODAS las líneas de Check Invernadero, no solo
+    // esta. Se aborta en vez de asumirlo.
+    if(!r){ avisarFalloGuardado(); return; }
+    const cloud = JSON.parse(r.value);
     const restante = cloud.filter(l=>l.id!==id);
     await window.storage.set(CONTROL_INVERNADERO_KEY, JSON.stringify(restante));
     controlInvernaderoData = restante;
-  }catch(e){}
+  }catch(e){ avisarFalloGuardado(); return; }
   controlInvernaderoTotalMostrado = null;
   renderControlContent(document.getElementById('control-overlay'));
   showToast('✓ Eliminada');
@@ -4502,8 +4634,20 @@ async function loadControlFotosData(forzar){
   if(forzar===false && controlFotosDataCargada) return;
   try{
     const idx = await window.storage.get(CONTROL_FOTOS_SHARDS_INDEX_KEY);
-    controlFotosShardKeys = idx ? JSON.parse(idx.value) : [CONTROL_FOTOS_KEY];
-  }catch(e){ controlFotosShardKeys = [CONTROL_FOTOS_KEY]; }
+    // Si esta lectura falla, idx es null — igual que si el índice de
+    // shards no existiera todavía (primer arranque). NO se puede tratar
+    // igual: hay ~115 shards reales, y sustituir la lista por el valor por
+    // defecto de 1 solo shard haría que elegirShardParaFoto más tarde
+    // sobrescribiera CONTROL_FOTOS_SHARDS_INDEX_KEY con esa misma lista
+    // truncada, perdiendo la cuenta de más de 100 shards reales (las
+    // fotos en sí no se pierden, pero el índice de shards deja de
+    // reflejar la realidad y puede acabar reutilizando un shard ya lleno).
+    // Se deja controlFotosShardKeys tal cual estuviera (su valor inicial
+    // ya es el correcto para un primer arranque genuino) en vez de
+    // sobrescribirlo con una suposición. Detectado en la auditoría
+    // completa del 2026-09-09.
+    if(idx) controlFotosShardKeys = JSON.parse(idx.value);
+  }catch(e){}
   await cargarIndiceFotosPartida();
   controlFotosDataCargada = true;
 }
@@ -4599,7 +4743,23 @@ function cargarFotoControlSiFalta(id){
 }
 async function guardarIndiceFotosPartida(mapaIdShard){
   try{
-    controlFotosIndiceIdShard = { ...(controlFotosIndiceIdShard||{}), ...mapaIdShard };
+    // cargarIndiceFotosPartida() cachea `controlFotosIndiceIdShard` para
+    // toda la sesión (por rendimiento — ver comentario de esa función). Si
+    // aquí se fusionara la foto nueva sobre esa copia posiblemente antigua
+    // y se sobrescribiera la nube entera, cualquier foto que OTRO
+    // dispositivo hubiera añadido al índice después de que esta sesión
+    // cargara su copia quedaría borrada del índice (la foto en sí no se
+    // pierde, pero deja de ser localizable). Por eso aquí SIEMPRE se relee
+    // el índice fresco de la nube antes de fusionar, en vez de fiarse de
+    // la copia en memoria.
+    const r = await window.storage.get(CONTROL_FOTOS_INDICE_KEY);
+    // Si esta relectura falla, r es null — igual que si el índice
+    // estuviera vacío. NO se puede tratar como "vacío de verdad" (borraría
+    // el índice de todas las demás fotos ya subidas): se aborta en vez de
+    // seguir con un índice a medias.
+    if(!r) return;
+    const fresco = JSON.parse(r.value);
+    controlFotosIndiceIdShard = { ...fresco, ...mapaIdShard };
     await window.storage.set(CONTROL_FOTOS_INDICE_KEY, JSON.stringify(controlFotosIndiceIdShard));
   }catch(e){}
 }
@@ -4622,7 +4782,13 @@ async function persistControlFotosData(id){
     const shardKey = await elegirShardParaFoto(id, JSON.stringify(controlFotosData[id]||'').length);
     controlFotosShardDeId[id] = shardKey;
     const r = await window.storage.get(shardKey);
-    const cloud = r ? JSON.parse(r.value) : {};
+    // Si la lectura falla, r es null — igual que si el shard estuviera
+    // vacío. NUNCA tratarlo como "vacío de verdad": eso borraría todas las
+    // demás fotos ya guardadas en este shard al escribir solo las que esta
+    // sesión tiene en memoria (mismo patrón de incidente que en Riego el
+    // 14/08/2026). Se aborta el guardado en vez de asumir un shard vacío.
+    if(!r) return false;
+    const cloud = JSON.parse(r.value);
     Object.keys(controlFotosData).forEach(otroId=>{
       if(controlFotosShardDeId[otroId]===shardKey) cloud[otroId] = controlFotosData[otroId];
     });
@@ -4950,6 +5116,17 @@ let controlPdfsIndice = [];
 async function loadControlPdfsData(){
   try{
     const rIndice = await window.storage.get(CONTROL_PDFS_INDICE_KEY);
+    // rIndice=null es ambiguo (índice vacío de verdad vs. fallo de red) —
+    // si se asumiera "vacío de verdad" sin más, se relanzaría la
+    // migración de abajo (pensada para ejecutarse UNA sola vez, hace
+    // semanas) y se SOBRESCRIBIRÍA el índice actual con solo las claves
+    // del blob viejo, perdiendo cualquier PDF de Túnel/Carga subido desde
+    // entonces (el PDF en sí no se pierde, pero deja de aparecer en la
+    // app). Se comprueba de forma fiable si la clave realmente no existe
+    // (reutilizando esClaveRealmenteVacia, ya usado para USERS/ROLES)
+    // antes de decidir — si es solo un fallo de red, se aborta sin tocar
+    // nada. Detectado en la auditoría completa del 2026-09-09.
+    if(!rIndice && !(await esClaveRealmenteVacia(CONTROL_PDFS_INDICE_KEY))) return;
     let indice = rIndice ? JSON.parse(rIndice.value) : [];
     if(!indice.length){
       // Migración de una sola vez: el blob viejo (todo-en-uno) todavía
@@ -5003,11 +5180,20 @@ async function guardarControlPdf(tipo, dia, nombre, pdfB64){
     controlPdfsData[claveTipoDia] = valor;
     // Índice: solo una lista de claves, minúsculo (nunca crece como el PDF
     // en sí) — read-merge-write igual que el resto de índices de la app.
+    // Si la lectura falla, rIndice es null — igual que si el índice
+    // estuviera vacío. Tratarlo como "vacío de verdad" borraría del índice
+    // TODOS los PDF de Túnel/Carga subidos anteriormente (el PDF en sí no
+    // se pierde, pero deja de aparecer en la app al no estar en la lista).
+    // Se omite la actualización del índice en vez de asumir que está vacío
+    // — el PDF recién subido ya quedó guardado en su propia clave arriba,
+    // así que solo falta que el índice se entere en un próximo intento.
     const rIndice = await window.storage.get(CONTROL_PDFS_INDICE_KEY);
-    const indice = rIndice ? JSON.parse(rIndice.value) : [];
-    if(!indice.includes(claveTipoDia)){
-      indice.push(claveTipoDia);
-      await window.storage.set(CONTROL_PDFS_INDICE_KEY, JSON.stringify(indice));
+    if(rIndice){
+      const indice = JSON.parse(rIndice.value);
+      if(!indice.includes(claveTipoDia)){
+        indice.push(claveTipoDia);
+        await window.storage.set(CONTROL_PDFS_INDICE_KEY, JSON.stringify(indice));
+      }
     }
     if(!controlPdfsIndice.includes(claveTipoDia)) controlPdfsIndice.push(claveTipoDia);
   }catch(e){}
@@ -8437,10 +8623,17 @@ async function loadClimaData(){
 async function saveClimaData(){
   try{
     const r = await window.storage.get(CLIMA_KEY);
-    const cloud = r ? JSON.parse(r.value) : {};
+    // Si la lectura falla, r es null — igual que si Clima estuviera vacío.
+    // Tratarlo como "vacío de verdad" borraría Fog/Cooling de todos los
+    // invernaderos salvo lo que esta sesión tenga en memoria. Se aborta el
+    // guardado en vez de asumir que la nube está vacía.
+    if(!r){ avisarFalloGuardado(); return false; }
+    const cloud = JSON.parse(r.value);
     climaData = mergeDeepPreferLocal(cloud, climaData);
-    await window.storage.set(CLIMA_KEY, JSON.stringify(climaData));
-  }catch(e){}
+    const ok = await window.storage.set(CLIMA_KEY, JSON.stringify(climaData));
+    if(!ok){ avisarFalloGuardado(); return false; }
+    return true;
+  }catch(e){ avisarFalloGuardado(); return false; }
 }
 function getClima(tipo, invId, dia, calle){ return climaData[tipo]?.[invId]?.[dia]?.[calle] || ''; }
 function setClima(tipo, invId, dia, calle, val){
@@ -8469,12 +8662,17 @@ function detectClimaBrackets(tipo, invId, dia, calles){
 async function guardarClimaConLimpieza(tipo, invId, dia, callesALimpiar){
   try{
     const r = await window.storage.get(CLIMA_KEY);
-    let cloud = r ? JSON.parse(r.value) : {};
+    // Mismo riesgo que saveClimaData: r=null puede ser un fallo de red, no
+    // Clima vacío de verdad. Se aborta en vez de asumir que está vacío.
+    if(!r){ avisarFalloGuardado(); return false; }
+    let cloud = JSON.parse(r.value);
     cloud = mergeDeepPreferLocal(cloud, climaData);
     if(cloud[tipo]?.[invId]?.[dia]) callesALimpiar.forEach(c=>delete cloud[tipo][invId][dia][c]);
     climaData = cloud;
-    await window.storage.set(CLIMA_KEY, JSON.stringify(cloud));
-  }catch(e){}
+    const ok = await window.storage.set(CLIMA_KEY, JSON.stringify(cloud));
+    if(!ok){ avisarFalloGuardado(); return false; }
+    return true;
+  }catch(e){ avisarFalloGuardado(); return false; }
 }
 let climaSeccion = null; // null=resumen | 'fog'|'cooling'|'cuadroSala1'|'cuadroSala2'|'pantallasLive'
 let climaGridInvSel = null; // invernadero elegido dentro de un tipo con cuadrícula
@@ -8742,13 +8940,17 @@ async function loadClimaCuadroData(){
 async function persistClimaCuadroData(){
   try{
     const r = await window.storage.get(CLIMA_CUADRO_KEY);
-    const cloud = r ? JSON.parse(r.value) : [];
+    // Si la lectura falla, r es null — igual que si Cuadro Sala1/Sala2
+    // estuviera vacío. Tratarlo como "vacío de verdad" borraría las
+    // entradas de otros dispositivos. Se aborta en vez de asumirlo.
+    if(!r){ avisarFalloGuardado(); return; }
+    const cloud = JSON.parse(r.value);
     const map = {};
     cloud.forEach(t=>map[t.id]=t);
     climaCuadroData.forEach(t=>map[t.id]=t);
     climaCuadroData = Object.values(map);
     await window.storage.set(CLIMA_CUADRO_KEY, JSON.stringify(climaCuadroData));
-  }catch(e){}
+  }catch(e){ avisarFalloGuardado(); }
 }
 // Tabla en vivo (magnitud × invernadero) subida por el script local
 // sync-sala2.js cada 5 minutos desde el CSV "2021 SALA 2 PEQUEÑO_..." de
@@ -8861,11 +9063,17 @@ function eliminarClimaCuadroEntry(id){
 async function eliminarClimaCuadroEntryConfirmado(id){
   try{
     const r = await window.storage.get(CLIMA_CUADRO_KEY);
-    let cloud = r ? JSON.parse(r.value) : [];
+    // Si la lectura falla, r es null — igual que si la lista estuviera
+    // vacía. Tratarlo como "vacía de verdad" borraría TODO el Cuadro
+    // Sala1/Sala2 (no solo la entrada que se quería eliminar). Se aborta
+    // en vez de asumir que la nube está vacía.
+    if(!r){ avisarFalloGuardado(); return; }
+    let cloud = JSON.parse(r.value);
     cloud = cloud.filter(x=>x.id!==id);
-    await window.storage.set(CLIMA_CUADRO_KEY, JSON.stringify(cloud));
+    const ok = await window.storage.set(CLIMA_CUADRO_KEY, JSON.stringify(cloud));
+    if(!ok){ avisarFalloGuardado(); return; }
     climaCuadroData = cloud;
-  }catch(e){}
+  }catch(e){ avisarFalloGuardado(); return; }
   showToast('✓ Eliminado');
   renderClimaContent(document.getElementById('clima-overlay'));
 }
@@ -9869,13 +10077,15 @@ async function saveRiegoData(){
     // local incompleto). Se aborta el guardado y se avisa, en vez de
     // guardar sobre una base vacía falsa (causó el incidente del 14/08/2026:
     // se perdió el riego de todos los invernaderos salvo uno).
-    if(!r){ avisarFalloGuardado(); return; }
+    if(!r){ avisarFalloGuardado(); return false; }
     const cloud = JSON.parse(r.value);
     riegoData = mergeDeepPreferLocal(cloud, riegoData);
-    await window.storage.set(RIEGO_KEY, JSON.stringify(riegoData));
-  }catch(e){ avisarFalloGuardado(); return; }
+    const ok = await window.storage.set(RIEGO_KEY, JSON.stringify(riegoData));
+    if(!ok){ avisarFalloGuardado(); return false; }
+  }catch(e){ avisarFalloGuardado(); return false; }
   showToast('✓ Riego guardado');
   logHistorial(`Guardó riego${riegoInvSel?' de INV '+riegoInvSel:''}`);
+  return true;
 }
 
 // Cada celda pasa a guardar {texto, marcadoPor, rol} en vez de un string
@@ -10023,7 +10233,12 @@ async function loadPresenciaData(){
 async function marcarPresenciaInvernadero(modulo, invId){
   try{
     const r = await window.storage.get(PRESENCIA_KEY);
-    const cloud = r ? JSON.parse(r.value) : {};
+    // Si la lectura falla, r es null — igual que si no hubiera presencia
+    // marcada. Es un dato efímero (caduca solo en unos minutos) así que el
+    // riesgo es bajo, pero se omite igualmente en vez de arriesgarse a
+    // borrar la presencia marcada en otros invernaderos/módulos.
+    if(!r) return;
+    const cloud = JSON.parse(r.value);
     if(!cloud[modulo]) cloud[modulo] = {};
     cloud[modulo][invId] = { usuario: currentUser||null, ts: Date.now() };
     await window.storage.set(PRESENCIA_KEY, JSON.stringify(cloud));
@@ -11292,10 +11507,16 @@ async function loadFitoData(forzar){
 async function saveFitoData(){
   try{
     const r = await window.storage.get(FITO_KEY);
-    const cloud = r ? JSON.parse(r.value) : {};
+    // Si la lectura falla, r es null — igual que si Plaguicidas estuviera
+    // vacío. Tratarlo como "vacío de verdad" borraría todos los
+    // tratamientos salvo los que esta sesión tenga en memoria. Se aborta
+    // (y se avisa) en vez de mostrar "guardado" con un catch silencioso.
+    if(!r){ avisarFalloGuardado(); return; }
+    const cloud = JSON.parse(r.value);
     fitoData = mergeDeepPreferLocal(cloud, fitoData);
-    await window.storage.set(FITO_KEY, JSON.stringify(fitoData));
-  }catch(e){}
+    const ok = await window.storage.set(FITO_KEY, JSON.stringify(fitoData));
+    if(!ok){ avisarFalloGuardado(); return; }
+  }catch(e){ avisarFalloGuardado(); return; }
   showToast('✓ Plaguicidas guardado');
   logHistorial(`Guardó plaguicidas${fitoInvSel?' de INV '+fitoInvSel:''}`);
 }
@@ -11843,11 +12064,15 @@ async function confirmarSalidaPendiente(uid){
   p.pendienteSalida = false;
   try{
     const r = await window.storage.get(PARTIDAS_KEY);
-    let stored = r ? JSON.parse(r.value) : [];
+    // Mismo riesgo que savePartidaToStorage: r=null puede ser un fallo de
+    // red, no "sin partidas guardadas". Se aborta en vez de asumirlo (si
+    // no, se borrarían todas las demás partidas al guardar solo esta).
+    if(!r){ avisarFalloGuardado(); return; }
+    let stored = JSON.parse(r.value);
     const idx = stored.findIndex(x=>x.num===p.num && x.inv===oldInv);
     if(idx>=0) stored[idx]=p; else stored.push(p);
     await window.storage.set(PARTIDAS_KEY, JSON.stringify(stored));
-  }catch(e){}
+  }catch(e){ avisarFalloGuardado(); return; }
   logHistorial(`Confirmó salida de ${p.num} en INV ${inv}, ${ini}${fin&&fin!==ini?'–'+fin:''}`);
   // Al confirmar la salida real de túnel se programan automáticamente
   // Recomponer/Quitar raíces (todas las partidas) y, si es Jiffy, además
@@ -13287,7 +13512,15 @@ async function generarTareasDesdeRiego(){
   // Riego cuando hay que borrar una calle de verdad.
   await loadRiegoData();
   const rCloud = await window.storage.get(TAREAS_KEY);
-  tareasData = rCloud ? JSON.parse(rCloud.value) : [];
+  // Si la lectura falla, rCloud es null — igual que si no hubiera tareas.
+  // A diferencia de persistTareasData (que fusiona), esta función escribe
+  // DIRECTAMENTE lo que quede en tareasData — tratar un fallo de red como
+  // "sin tareas de verdad" borraría TODAS las tareas de cualquier tipo
+  // (REGANTE, fumigación, específico...), no solo las de peón sin
+  // categoría que este botón reconstruye. Se aborta en vez de asumirlo.
+  // Detectado en la auditoría completa del 2026-09-09.
+  if(!rCloud){ avisarFalloGuardado(); return; }
+  tareasData = JSON.parse(rCloud.value);
   tareasData = tareasData.filter(t => !((['PEON1','PEON2'].includes(t.asignadoA)) && !t.categoria && t.estado!=='completada'));
   const invIds = [...Object.keys(INV_LAYOUT_SALA1), ...Object.keys(INV_LAYOUT_SALA2)];
   let creadas = 0;
@@ -13338,7 +13571,8 @@ async function generarTareasDesdeRiego(){
       });
     });
   });
-  await window.storage.set(TAREAS_KEY, JSON.stringify(tareasData));
+  const ok = await window.storage.set(TAREAS_KEY, JSON.stringify(tareasData));
+  if(!ok){ avisarFalloGuardado(); return; }
   logHistorial(`Generó tareas de peón desde Riego (${creadas} nueva${creadas===1?'':'s'})`);
   showToast(`✓ Tareas generadas (${creadas} nueva${creadas===1?'':'s'})`);
   refreshTareasViews();
@@ -13554,13 +13788,20 @@ async function loadPropuestasRiegoData(){
 async function persistPropuestasRiegoData(){
   try{
     const r = await window.storage.get(PROPUESTAS_RIEGO_KEY);
-    const cloud = r ? JSON.parse(r.value) : [];
+    // Si la lectura falla, r es null — igual que si no hubiera ninguna
+    // propuesta guardada. Tratarlo como "vacía de verdad" borraría todas
+    // las propuestas de riego de otros usuarios/dispositivos. Se aborta en
+    // vez de asumir que la nube está vacía.
+    if(!r){ avisarFalloGuardado(); return false; }
+    const cloud = JSON.parse(r.value);
     const map = {};
     cloud.forEach(p=>map[p.id]=p);
     propuestasRiegoData.forEach(p=>map[p.id]=p);
     propuestasRiegoData = Object.values(map);
-    await window.storage.set(PROPUESTAS_RIEGO_KEY, JSON.stringify(propuestasRiegoData));
-  }catch(e){}
+    const ok = await window.storage.set(PROPUESTAS_RIEGO_KEY, JSON.stringify(propuestasRiegoData));
+    if(!ok){ avisarFalloGuardado(); return false; }
+    return true;
+  }catch(e){ avisarFalloGuardado(); return false; }
 }
 async function actualizarBadgePropuestasRiego(){
   await loadPropuestasRiegoData();
@@ -13634,23 +13875,38 @@ async function aplicarPropuestaRiego(p, textoFinal){
   // lila — a petición de Paula, para distinguir a simple vista lo que viene
   // de una propuesta inminente aceptada del resto del riego.
   for(let c=s;c<=e;c++){ if(p.calles.includes(c)) setRiego(p.invId, p.dia, c, textoFinal, {origenPropuesta:true}); }
-  await saveRiegoData();
+  return await saveRiegoData();
 }
+// Guarda compartida entre las 3 acciones de esta pantalla — sin ella, un
+// doble clic/doble toque duplicaba el push al técnico/regante y ejecutaba
+// dos veces en paralelo el ciclo leer-fusionar-escribir de riego y de
+// propuestas (mismo patrón ya usado en saveRiegoManual para evitar tareas
+// duplicadas). También se comprueba ahora el resultado real de guardar
+// (antes se mostraba "✓ Propuesta aplicada" y se avisaba al técnico aunque
+// el guardado hubiera fallado por red).
+let procesandoPropuestaRiego = false;
 async function aceptarPropuestaRiego(id){
-  await loadPropuestasRiegoData();
-  const p = propuestasRiegoData.find(x=>x.id===id);
-  if(!p) return;
-  await aplicarPropuestaRiego(p, p.textoPropuesto);
-  p.estado = 'aceptada';
-  await persistPropuestasRiegoData();
-  logHistorial(`Aceptó la propuesta de riego de ${nombreLegibleUsuario(p.propuestoPor)} para INV ${p.invId} ${p.calleLabel}: "${p.textoPropuesto}"`);
-  await notificarUsuario(p.propuestoPor, `Vigueras aceptó tu propuesta para INV ${p.invId} ${p.calleLabel}: "${p.textoPropuesto}"`, '📨 Respuesta a tu propuesta');
-  showToast('✓ Propuesta aplicada al riego');
-  renderPropuestasRiegoContent(document.getElementById('propuestas-riego-overlay'));
-  actualizarBadgePropuestasRiego();
-  if(riegoInvSel===p.invId) renderRiegoGrid(p.invId);
+  if(procesandoPropuestaRiego) return;
+  procesandoPropuestaRiego = true;
+  try{
+    await loadPropuestasRiegoData();
+    const p = propuestasRiegoData.find(x=>x.id===id);
+    if(!p) return;
+    const okRiego = await aplicarPropuestaRiego(p, p.textoPropuesto);
+    if(!okRiego) return;
+    p.estado = 'aceptada';
+    const okPersist = await persistPropuestasRiegoData();
+    if(!okPersist) return;
+    logHistorial(`Aceptó la propuesta de riego de ${nombreLegibleUsuario(p.propuestoPor)} para INV ${p.invId} ${p.calleLabel}: "${p.textoPropuesto}"`);
+    await notificarUsuario(p.propuestoPor, `Vigueras aceptó tu propuesta para INV ${p.invId} ${p.calleLabel}: "${p.textoPropuesto}"`, '📨 Respuesta a tu propuesta');
+    showToast('✓ Propuesta aplicada al riego');
+    renderPropuestasRiegoContent(document.getElementById('propuestas-riego-overlay'));
+    actualizarBadgePropuestasRiego();
+    if(riegoInvSel===p.invId) renderRiegoGrid(p.invId);
+  } finally { procesandoPropuestaRiego = false; }
 }
 async function cambiarYAceptarPropuestaRiego(id){
+  if(procesandoPropuestaRiego) return;
   await loadPropuestasRiegoData();
   const p = propuestasRiegoData.find(x=>x.id===id);
   if(!p) return;
@@ -13658,29 +13914,39 @@ async function cambiarYAceptarPropuestaRiego(id){
   if(texto===null) return;
   const t = texto.trim();
   if(!t){ showToast('Indica un texto'); return; }
-  await aplicarPropuestaRiego(p, t);
-  p.estado = 'aceptada';
-  p.textoPropuesto = t;
-  await persistPropuestasRiegoData();
-  logHistorial(`Aceptó (con cambios) la propuesta de riego de ${nombreLegibleUsuario(p.propuestoPor)} para INV ${p.invId} ${p.calleLabel}: "${t}"`);
-  await notificarUsuario(p.propuestoPor, `Vigueras aceptó (con cambios) tu propuesta para INV ${p.invId} ${p.calleLabel}: "${t}"`, '📨 Respuesta a tu propuesta');
-  showToast('✓ Propuesta aplicada al riego');
-  renderPropuestasRiegoContent(document.getElementById('propuestas-riego-overlay'));
-  actualizarBadgePropuestasRiego();
-  if(riegoInvSel===p.invId) renderRiegoGrid(p.invId);
+  procesandoPropuestaRiego = true;
+  try{
+    const okRiego = await aplicarPropuestaRiego(p, t);
+    if(!okRiego) return;
+    p.estado = 'aceptada';
+    p.textoPropuesto = t;
+    const okPersist = await persistPropuestasRiegoData();
+    if(!okPersist) return;
+    logHistorial(`Aceptó (con cambios) la propuesta de riego de ${nombreLegibleUsuario(p.propuestoPor)} para INV ${p.invId} ${p.calleLabel}: "${t}"`);
+    await notificarUsuario(p.propuestoPor, `Vigueras aceptó (con cambios) tu propuesta para INV ${p.invId} ${p.calleLabel}: "${t}"`, '📨 Respuesta a tu propuesta');
+    showToast('✓ Propuesta aplicada al riego');
+    renderPropuestasRiegoContent(document.getElementById('propuestas-riego-overlay'));
+    actualizarBadgePropuestasRiego();
+    if(riegoInvSel===p.invId) renderRiegoGrid(p.invId);
+  } finally { procesandoPropuestaRiego = false; }
 }
 async function rechazarPropuestaRiego(id){
+  if(procesandoPropuestaRiego) return;
   if(!confirm('¿Rechazar esta propuesta? El "?" seguirá igual.')) return;
+  procesandoPropuestaRiego = true;
+  try{
   await loadPropuestasRiegoData();
   const p = propuestasRiegoData.find(x=>x.id===id);
   if(!p) return;
   p.estado = 'rechazada';
-  await persistPropuestasRiegoData();
+  const okPersist = await persistPropuestasRiegoData();
+  if(!okPersist) return;
   logHistorial(`Rechazó la propuesta de riego de ${nombreLegibleUsuario(p.propuestoPor)} para INV ${p.invId} ${p.calleLabel}`);
   await notificarUsuario(p.propuestoPor, `Vigueras rechazó tu propuesta para INV ${p.invId} ${p.calleLabel}: "${p.textoPropuesto}"`, '📨 Respuesta a tu propuesta');
   showToast('Propuesta rechazada');
   renderPropuestasRiegoContent(document.getElementById('propuestas-riego-overlay'));
   actualizarBadgePropuestasRiego();
+  } finally { procesandoPropuestaRiego = false; }
 }
 // Recorre TODOS los invernaderos de las dos salas en un día concreto y junta
 // las entradas de agua o de abono (según "tipo") que haya marcadas, con su
@@ -13765,10 +14031,15 @@ async function loadIndiceAbonosEstadoData(){
 async function saveIndiceAbonosEstadoData(){
   try{
     const r = await window.storage.get(INDICE_ABONOS_ESTADO_KEY);
-    const cloud = r ? JSON.parse(r.value) : {};
+    // Si la lectura falla, r es null — igual que si no hubiera estados
+    // guardados. Tratarlo como "vacío de verdad" borraría los estados
+    // Preparado/Programado/Revisado de otros riegos ya marcados. Se aborta
+    // en vez de asumirlo.
+    if(!r){ avisarFalloGuardado(); return; }
+    const cloud = JSON.parse(r.value);
     indiceAbonosEstadoData = { ...cloud, ...indiceAbonosEstadoData };
     await window.storage.set(INDICE_ABONOS_ESTADO_KEY, JSON.stringify(indiceAbonosEstadoData));
-  }catch(e){}
+  }catch(e){ avisarFalloGuardado(); }
 }
 function claveIndiceAbono(dia, invId, texto, horario){
   return `${dia}||${invId}||${texto}||${horario||''}`;
@@ -13811,7 +14082,12 @@ async function loadIndiceAbonosOrdenData(){
 async function guardarUnDiaSalaOrdenIndice(dia, sala, orden){
   try{
     const r = await window.storage.get(INDICE_ABONOS_ORDEN_KEY);
-    const cloud = r ? JSON.parse(r.value) : {};
+    // Si la lectura falla, r es null — igual que si no hubiera ningún
+    // orden manual guardado. Tratarlo como "vacío de verdad" borraría el
+    // orden manual de otros días/salas ya guardado. Se aborta en vez de
+    // asumirlo.
+    if(!r){ return false; }
+    const cloud = JSON.parse(r.value);
     if(!cloud[dia]) cloud[dia] = {};
     if(orden===null) delete cloud[dia][sala];
     else cloud[dia][sala] = orden;
@@ -14089,10 +14365,15 @@ async function loadInjertoAsignacionData(){
 async function saveInjertoAsignacionData(){
   try{
     const r = await window.storage.get(INJERTO_ASIGNACION_KEY);
-    const cloud = r ? JSON.parse(r.value) : {};
+    // Si la lectura falla, r es null — igual que si no hubiera nada
+    // asignado. Tratarlo como "vacío de verdad" borraría las asignaciones
+    // de injerto de otros días/invernaderos. Se aborta en vez de asumir
+    // que la nube está vacía.
+    if(!r){ avisarFalloGuardado(); return; }
+    const cloud = JSON.parse(r.value);
     injertoAsignacionData = { ...cloud, ...injertoAsignacionData };
     await window.storage.set(INJERTO_ASIGNACION_KEY, JSON.stringify(injertoAsignacionData));
-  }catch(e){}
+  }catch(e){ avisarFalloGuardado(); }
 }
 function claveInjerto(dia, invId){ return `${dia}|${invId}`; }
 function showAsignarInjertoModule(){
@@ -14163,10 +14444,14 @@ async function loadCargasAsignacionData(){
 async function saveCargasAsignacionData(){
   try{
     const r = await window.storage.get(CARGAS_ASIGNACION_KEY);
-    const cloud = r ? JSON.parse(r.value) : {};
+    // Mismo riesgo que saveInjertoAsignacionData: r=null puede ser un
+    // fallo de red, no "sin asignaciones". Se aborta en vez de asumir que
+    // la nube está vacía.
+    if(!r){ avisarFalloGuardado(); return; }
+    const cloud = JSON.parse(r.value);
     cargasAsignacionData = { ...cloud, ...cargasAsignacionData };
     await window.storage.set(CARGAS_ASIGNACION_KEY, JSON.stringify(cargasAsignacionData));
-  }catch(e){}
+  }catch(e){ avisarFalloGuardado(); }
 }
 function claveCarga(dia, invId){ return `${dia}|${invId}`; }
 function showAsignarCargasModule(){
@@ -14247,7 +14532,11 @@ async function loadSalaEnVivoManualData(){
 async function guardarSalaEnVivoManualData(){
   try{
     const r = await window.storage.get(SALA_EN_VIVO_MANUAL_KEY);
-    const cloud = r ? JSON.parse(r.value) : {};
+    // Si la lectura falla, r es null — igual que si no hubiera notas
+    // manuales. Tratarlo como "vacío de verdad" borraría las notas de
+    // otros invernaderos. Se aborta en vez de asumirlo.
+    if(!r) return false;
+    const cloud = JSON.parse(r.value);
     // Merge superficial por invId — nunca se pisa entero, igual que geoData.
     const combinado = { ...cloud, ...salaEnVivoManualData };
     salaEnVivoManualData = combinado;
@@ -14657,6 +14946,20 @@ function precargarFormularioRiegoDesdeTexto(texto){
       document.getElementById('rm-interrogante').checked = true;
       return;
     }
+    // "+ 5'" del fitosanitario (ver construirPartesRiegoManual: siempre se
+    // pega tras el nombre del fito como "... + 5'", y el horario del fito
+    // (si lo hay) va DETRÁS de ese "5'", no del nombre) — al partir el texto
+    // por " + ", ese "5'" (con su horario) sale como un trozo aparte, y
+    // como ningún caso de abajo reconoce un trozo que empiece por "5'", el
+    // horario del fito se perdía en silencio al reabrir la celda para
+    // editar (el nombre del fito sí se detectaba bien, vía
+    // detectarFitoAlFinal en el trozo anterior, pero sin horario). Se
+    // reconoce aquí explícitamente y se aplica al horario del fito.
+    // Detectado en la auditoría completa del 2026-09-09.
+    if(resto==="5'"){
+      if(horarioEncontrado) setValorHorarioConCustom(document.getElementById('rm-horario-fito'), horarioEncontrado);
+      return;
+    }
     // El fitosanitario ya no lleva "+" delante (va pegado sin "+" al agua o
     // abono al que acompaña, ver construirPartesRiegoManual) — se detecta
     // buscando si el final del trozo coincide con un nombre conocido, y lo
@@ -14742,6 +15045,22 @@ function precargarFormularioRiegoDesdeTexto(texto){
     if(mIntegrate){
       document.getElementById('rm-integrate-chk').checked = true;
       if(mIntegrate[1]) document.getElementById('rm-integrate-tiempo').value = mIntegrate[1];
+      return;
+    }
+    // "<CÓDIGO> CON ABONO FOLIAR (0.15)" (opción rápida sin categoría/
+    // producto, ver CODIGOS_FOLIAR_015/actualizarViaTrabajo) — se reconoce
+    // ANTES del "<CÓDIGO> CON <PRODUCTO>" genérico de abajo: si no, ese
+    // regex también hace match (con producto="ABONO FOLIAR (0.15)"),
+    // marca via:'foliar' (no 'foliar015') y deja categoría/producto
+    // vacíos — al reabrir la celda se veía "Abono foliar" roto sin
+    // categoría ni producto, y si se guardaba así se perdía la dosis 0.15
+    // del texto (quedaba solo el código suelto). Detectado en la auditoría
+    // completa del 2026-09-09.
+    const mFoliar015 = /^(PP|PA|RS|DESPAREJOS|MUSTIO)\s+CON\s+ABONO FOLIAR \(0\.15\)$/i.exec(resto);
+    if(mFoliar015){
+      const code = mFoliar015[1].toUpperCase();
+      document.querySelectorAll(`.rm-trabajo-chk[value="${code}"]`).forEach(chk=>{ chk.checked = true; });
+      rmTrabajoVias[code] = {via:'foliar015', cat:'', producto:''};
       return;
     }
     // "<CÓDIGO> CON <PRODUCTO>" (PP/PA/RS/DESPAREJOS marcados con abono
@@ -15257,12 +15576,22 @@ function editarFitoManualDesdeCelda(invId, dia, calles){
 async function guardarBorradoFito(entradas){
   try{
     const r = await window.storage.get(FITO_KEY);
-    const cloud = r ? JSON.parse(r.value) : {};
+    // Si la lectura falla, r es null — igual que si Plaguicidas estuviera
+    // vacío. Tratarlo como "vacío de verdad" aquí es aún más grave que en
+    // un guardado normal: al ser un borrado atómico (lee+borra+escribe,
+    // sin fusión), escribir sobre una base vacía falsa borraría TODOS los
+    // tratamientos de TODOS los invernaderos, no solo la celda que se
+    // quería borrar. Se aborta y se avisa en vez de asumir vacío. Mismo
+    // arreglo ya aplicado a guardarBorradoRiegoMultiInv; faltaba aquí y en
+    // guardarBorradoEspecifico (detectado en la auditoría del 2026-09-09).
+    if(!r){ avisarFalloGuardado(); return; }
+    const cloud = JSON.parse(r.value);
     entradas.forEach(({invId, dia, calles})=>{
       if(cloud[invId] && cloud[invId][dia]) calles.forEach(c=>delete cloud[invId][dia][c]);
     });
-    await window.storage.set(FITO_KEY, JSON.stringify(cloud));
-  }catch(e){}
+    const ok = await window.storage.set(FITO_KEY, JSON.stringify(cloud));
+    if(!ok){ avisarFalloGuardado(); return; }
+  }catch(e){ avisarFalloGuardado(); return; }
   const invs = entradas.map(e=>e.invId);
   logHistorial(invs.length>1 ? `Borró plaguicidas de ${invs.length} invernaderos` : `Borró plaguicidas de INV ${invs[0]}`);
 }
@@ -15411,12 +15740,15 @@ async function saveFitoManual(){
 async function guardarFitoConLimpieza(invId, dia, callesALimpiar){
   try{
     const r = await window.storage.get(FITO_KEY);
-    let cloud = r ? JSON.parse(r.value) : {};
+    // Mismo riesgo que saveFitoData: r=null puede ser un fallo de red, no
+    // Plaguicidas vacío de verdad. Se aborta en vez de asumirlo.
+    if(!r){ avisarFalloGuardado(); return; }
+    let cloud = JSON.parse(r.value);
     cloud = mergeDeepPreferLocal(cloud, fitoData);
     if(cloud[invId] && cloud[invId][dia]) callesALimpiar.forEach(c=>delete cloud[invId][dia][c]);
     fitoData = cloud;
     await window.storage.set(FITO_KEY, JSON.stringify(cloud));
-  }catch(e){}
+  }catch(e){ avisarFalloGuardado(); }
 }
 function normalizarUnidadDosis(u){
   u = u.toLowerCase();
@@ -15611,10 +15943,14 @@ async function loadEspecificosPartidaData(){
 async function saveEspecificosPartidaData(){
   try{
     const r = await window.storage.get(ESPECIFICOS_PARTIDA_KEY);
-    const cloud = r ? JSON.parse(r.value) : {};
+    // Si la lectura falla, r es null — igual que si no hubiera banners de
+    // partida guardados. Tratarlo como "vacío de verdad" borraría los
+    // banners rosa de otras partidas. Se aborta en vez de asumirlo.
+    if(!r){ avisarFalloGuardado(); return; }
+    const cloud = JSON.parse(r.value);
     especificosPartidaData = mergeDeepPreferLocal(cloud, especificosPartidaData);
     await window.storage.set(ESPECIFICOS_PARTIDA_KEY, JSON.stringify(especificosPartidaData));
-  }catch(e){}
+  }catch(e){ avisarFalloGuardado(); }
 }
 let especificosInvSel = null;
 let especificosQuincenaOffset = 0;
@@ -15651,10 +15987,15 @@ async function loadEspecificosData(forzar){
 async function saveEspecificosData(){
   try{
     const r = await window.storage.get(ESPECIFICOS_KEY);
-    const cloud = r ? JSON.parse(r.value) : {};
+    // Mismo riesgo que saveFitoData: r=null puede ser un fallo de red, no
+    // Específicos vacío de verdad. Se aborta (y se avisa) en vez de
+    // mostrar "guardado" con un catch silencioso.
+    if(!r){ avisarFalloGuardado(); return; }
+    const cloud = JSON.parse(r.value);
     especificosData = mergeDeepPreferLocal(cloud, especificosData);
-    await window.storage.set(ESPECIFICOS_KEY, JSON.stringify(especificosData));
-  }catch(e){}
+    const ok = await window.storage.set(ESPECIFICOS_KEY, JSON.stringify(especificosData));
+    if(!ok){ avisarFalloGuardado(); return; }
+  }catch(e){ avisarFalloGuardado(); return; }
   showToast('✓ Específicos guardado');
   logHistorial(`Guardó específicos${especificosInvSel?' de INV '+especificosInvSel:''}`);
 }
@@ -16554,12 +16895,18 @@ async function saveEspecificoManual(){
 async function guardarBorradoEspecifico(entradas){
   try{
     const r = await window.storage.get(ESPECIFICOS_KEY);
-    const cloud = r ? JSON.parse(r.value) : {};
+    // Mismo riesgo que guardarBorradoFito: al ser un borrado atómico
+    // (lee+borra+escribe, sin fusión), r=null tratado como "vacío de
+    // verdad" borraría TODOS los específicos de todos los invernaderos.
+    // Se aborta y se avisa en vez de asumir vacío.
+    if(!r){ avisarFalloGuardado(); return; }
+    const cloud = JSON.parse(r.value);
     entradas.forEach(({invId, dia, calles})=>{
       if(cloud[invId] && cloud[invId][dia]) calles.forEach(c=>delete cloud[invId][dia][c]);
     });
-    await window.storage.set(ESPECIFICOS_KEY, JSON.stringify(cloud));
-  }catch(e){}
+    const ok = await window.storage.set(ESPECIFICOS_KEY, JSON.stringify(cloud));
+    if(!ok){ avisarFalloGuardado(); return; }
+  }catch(e){ avisarFalloGuardado(); return; }
   const invs = entradas.map(e=>e.invId);
   logHistorial(invs.length>1 ? `Borró específicos de ${invs.length} invernaderos` : `Borró específicos de INV ${invs[0]}`);
 }
@@ -16579,7 +16926,15 @@ function borrarEspecificoManual(){
   Object.keys(especificosPartidaData).forEach(partidaId=>{
     especificosPartidaData[partidaId] = especificosPartidaData[partidaId].filter(r=>{
       if(!r.invId || r.dia==null || !r.calles?.length) return true;
-      const afectado = entradas.some(en=>en.invId===r.invId && en.dia===dia && r.calles.some(c=>en.calles.includes(c)));
+      // Bug real (auditoría 2026-09-09): comparaba "en.dia===dia" — como
+      // TODAS las entradas de `entradas` se construyen con este mismo
+      // `dia` (línea de arriba), esa comparación era siempre true y no
+      // filtraba nada por fecha. Se borraba así el banner de cualquier
+      // registro de esta partida con calles solapadas de CUALQUIER otro
+      // día, no solo del día que se está borrando. La comparación correcta
+      // es contra el día real del registro (r.dia), no contra `dia` de
+      // nuevo.
+      const afectado = entradas.some(en=>en.invId===r.invId && r.dia===dia && r.calles.some(c=>en.calles.includes(c)));
       return !afectado;
     });
   });
@@ -17036,10 +17391,15 @@ async function loadChecksData(){
 async function persistChecksData(){
   try{
     const r = await window.storage.get(CHECKS_KEY);
-    const cloud = r ? JSON.parse(r.value) : {};
+    // Si la lectura falla, r es null — igual que si no hubiera checks de
+    // partida guardados. Tratarlo como "vacío de verdad" borraría el
+    // pinzado/sanidad/color/etc. de todas las demás partidas. Se aborta en
+    // vez de asumirlo.
+    if(!r){ avisarFalloGuardado(); return; }
+    const cloud = JSON.parse(r.value);
     checksData = mergeDeepPreferLocal(cloud, checksData);
     await window.storage.set(CHECKS_KEY, JSON.stringify(checksData));
-  }catch(e){}
+  }catch(e){ avisarFalloGuardado(); }
 }
 async function saveCheck(num, inv, field, val){
   const k=num+'|'+inv;
