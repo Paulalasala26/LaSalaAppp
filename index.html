@@ -276,10 +276,18 @@ function avisarFalloGuardado(){
   if(!b){
     b = document.createElement('div');
     b.id = 'aviso-fallo-guardado';
-    b.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#c62828;color:#fff;padding:12px 16px;font-size:13px;font-weight:800;z-index:99999;text-align:center;box-shadow:0 2px 10px rgba(0,0,0,.3)';
-    b.innerHTML = '⚠ No se ha podido guardar el último cambio — revisa tu conexión a internet e inténtalo de nuevo. <button onclick="location.reload()" style="margin-left:10px;padding:4px 10px;background:#fff;color:#c62828;border:none;border-radius:6px;font-weight:800;cursor:pointer">Recargar</button>';
+    b.style.cssText = 'position:fixed;top:0;left:0;right:0;padding:12px 16px;font-size:13px;font-weight:800;z-index:99999;text-align:center;box-shadow:0 2px 10px rgba(0,0,0,.3)';
     document.body.appendChild(b);
   }
+  // El texto y el color se reescriben SIEMPRE, no solo al crear el banner:
+  // avisarGuardadoLocalPendiente reutiliza este mismo elemento (naranja,
+  // "sin conexión, se sincronizará solo"). Si ya estaba puesto ese y luego
+  // fallaba un guardado de verdad, antes solo se hacía display='block' y el
+  // usuario seguía leyendo el mensaje tranquilizador cuando en realidad su
+  // cambio NO se había guardado ni quedaba pendiente de nada.
+  b.style.background = '#c62828';
+  b.style.color = '#fff';
+  b.innerHTML = '⚠ No se ha podido guardar el último cambio — revisa tu conexión a internet e inténtalo de nuevo. <button onclick="location.reload()" style="margin-left:10px;padding:4px 10px;background:#fff;color:#c62828;border:none;border-radius:6px;font-weight:800;cursor:pointer">Recargar</button>';
   b.style.display = 'block';
 }
 function ocultarAvisoFalloGuardado(){
@@ -2723,9 +2731,15 @@ async function guardarEdicionTarea(id){
         asignadoA: u, visto: false
       });
     });
-    await window.storage.set(TAREAS_KEY, JSON.stringify(cloud));
+    const okGuardado = await window.storage.set(TAREAS_KEY, JSON.stringify(cloud));
+    // Antes, cualquier fallo aquí se tragaba con un catch vacío y aun así se
+    // mostraba "✓ Cambios guardados" y se registraba la edición en el
+    // historial: el técnico veía el tick verde y el cambio no existía (muy
+    // fácil de provocar con mala cobertura dentro de los invernaderos).
+    // Ahora se aborta y se avisa, igual que hace eliminarTarea aquí debajo.
+    if(!okGuardado){ avisarFalloGuardado(); showToast('✗ No se han podido guardar los cambios'); return; }
     tareasData = cloud;
-  }catch(e){}
+  }catch(e){ avisarFalloGuardado(); showToast('✗ No se han podido guardar los cambios'); return; }
   logHistorial(`Editó la tarea "${titulo}" (asignada a ${asignadosMarcados.join(', ')})`);
   const wrap = document.getElementById('nueva-tarea-form-wrap');
   if(wrap) wrap.innerHTML = '';
@@ -3453,9 +3467,26 @@ function showPage(id,btn){
 // ════════════════════════════════════════════════════════════════
 function handleQuickAction(val){
   if(!val) return;
-  if(val==='geo'){ if(!partidasDBCargada) loadPartidasFromStorage(); showPage('geo', document.querySelectorAll('.nav-tab')[1]); }
+  // partidasDB (4,86 MB) se carga bajo demanda, pero antes se lanzaba SIN
+  // esperar y sin repintar al terminar — y como parte con datos de ejemplo
+  // de fábrica, la pantalla no salía vacía sino con partidas FALSAS. En
+  // "Introducir partida" era peor: la comprobación de duplicados se hacía
+  // contra esos datos de ejemplo. Ahora se espera la carga y se repinta,
+  // igual que ya hacía showPartidasList (auditoría 2026-09-11).
+  if(val==='geo'){
+    showPage('geo', document.querySelectorAll('.nav-tab')[1]);
+    if(!partidasDBCargada) loadPartidasFromStorage().then(()=>{
+      // Repintar lo que el usuario tenga abierto en ese momento, para que
+      // las partidas reales sustituyan a las de ejemplo en cuanto llegan.
+      if(currentGeoInv) renderGeoInv(currentGeoInv);
+      else if(currentGeoSala) selectGeoSala(currentGeoSala);
+    });
+  }
   else if(val==='ver-partidas') showPartidasList();
-  else if(val==='intro-partida'){ if(!partidasDBCargada) loadPartidasFromStorage(); showIntroPartida(); }
+  else if(val==='intro-partida'){
+    if(!partidasDBCargada) loadPartidasFromStorage().then(()=>showIntroPartida());
+    else showIntroPartida();
+  }
   else if(val==='riego'){
     showRiegoModule();return;
   } else if(val==='plaguicidas'){
@@ -5056,17 +5087,33 @@ async function procesarColaOffline(){
   try{
   showToast(`Sincronizando ${cola.length} cambio${cola.length===1?'':'s'} pendiente${cola.length===1?'':'s'}...`);
   await loadControlChecksData(); // refrescar con lo último de la nube antes de reaplicar
+  // Antes, la entrada original se retiraba SIEMPRE, incluso si la acción no
+  // se había podido aplicar: si `accion.fn` no estaba en el mapa de acciones
+  // reaplicables, o si la llamada lanzaba una excepción ANTES de que la
+  // propia función se volviera a encolar, el cambio desaparecía de la cola
+  // sin haberse guardado — y encima salía "✓ Todo sincronizado". Es justo el
+  // síntoma que reportó Paula (peón hace checks sin cobertura, sincroniza,
+  // ve el tick verde y los checks no están). Ahora solo se retira lo que de
+  // verdad se ha podido aplicar, y si algo queda sin aplicar se dice.
+  let sinAplicar = 0;
   for(const accion of cola){
     const fn = ACCIONES_OFFLINE_REPLAYABLES[accion.fn];
-    if(fn){ try{ await fn(...accion.args); }catch(e){} }
+    if(!fn){ sinAplicar++; continue; } // no se sabe reaplicar: NO se descarta
+    let lanzoExcepcion = false;
+    try{ await fn(...accion.args); }catch(e){ lanzoExcepcion = true; sinAplicar++; }
     // La propia fn ya gestiona su reintento (vuelve a encolarse con un qid
     // nuevo si falla) — aquí solo se retira la entrada ORIGINAL de esta
-    // ronda, nunca antes de haberla intentado.
-    desencolarAccionOriginal(accion);
+    // ronda, nunca antes de haberla intentado, y nunca si lanzó (en ese caso
+    // no ha llegado a re-encolarse sola y se perdería).
+    if(!lanzoExcepcion) desencolarAccionOriginal(accion);
   }
-  if(!leerColaOffline().length){
+  const pendientes = leerColaOffline().length;
+  if(!pendientes && !sinAplicar){
     showToast('✓ Todo sincronizado');
     ocultarAvisoFalloGuardado();
+  } else {
+    showToast(`⚠ Quedan ${pendientes||sinAplicar} cambio${(pendientes||sinAplicar)===1?'':'s'} sin sincronizar — siguen guardados en este dispositivo`);
+    avisarGuardadoLocalPendiente(pendientes||sinAplicar);
   }
   }finally{
     sincronizacionEnCurso = false;
@@ -10671,7 +10718,14 @@ let riegoSoloLectura = false;
 function showRiegoModule(soloLectura){
   riegoSoloLectura = !!soloLectura;
   if(currentUser==='VIGUERAS') avisarAvisosPendientes(currentUser);
-  Promise.all([loadRiegoData(false), loadRiegoEjecutadoData()]).then(()=>{
+  // loadIndiceAbonosEstadoData va aquí porque renderRiegoGrid pinta las
+  // celdas con los colores pastel de Preparado/Programado/Revisado del
+  // Índice Abonos — pero ese dato solo se cargaba al abrir la pantalla de
+  // Índice Abonos. Un regante que entraba directo a "Hojas de riego" (el
+  // flujo normal) no veía ningún color, y sí lo veía si ese día había
+  // abierto antes el Índice: un fallo silencioso e imposible de reproducir
+  // para quien lo reportara (auditoría 2026-09-11).
+  Promise.all([loadRiegoData(false), loadRiegoEjecutadoData(), loadIndiceAbonosEstadoData()]).then(()=>{
     const overlay = getOrCreateOverlay('riego-overlay');
     overlay.style.padding = '0';
     const titulo = riegoSoloLectura ? 'Hojas de riego' : 'Marcaje de riego';
@@ -16948,11 +17002,18 @@ async function guardarBorradoEspecifico(entradas){
   logHistorial(invs.length>1 ? `Borró específicos de ${invs.length} invernaderos` : `Borró específicos de INV ${invs[0]}`);
 }
 
-function borrarEspecificoManual(){
+async function borrarEspecificoManual(){
   if(!confirm('¿Borrar el específico marcado?')) return;
   const dia = parseInt(document.getElementById('esp-dia').value);
   const bulkInvIds = leerInvernaderosBulkSeleccionados('esp');
   if(!bulkInvIds.length){ showToast('Elige al menos un invernadero'); return; }
+  // especificosPartidaData solo se cargaba al abrir el mapa de Partidas, y
+  // esta pantalla (Específicos) no lo carga — así que si el usuario no había
+  // pasado antes por Partidas, el objeto estaba vacío, el filtro de abajo no
+  // quitaba nada y el banner rosa "fantasma" seguía apareciendo en el mapa
+  // pese a haber borrado el específico. Se carga aquí antes de filtrar
+  // (auditoría 2026-09-11).
+  await loadEspecificosPartidaData();
   const entradas = bulkInvIds.map(invId=>({ invId, dia, calles: calcularCallesEspBulk(invId).calles }));
   registrarUndoEspecificoMultiInv(entradas);
   entradas.forEach(({invId, calles})=>calles.forEach(c=>setEspecifico(invId, dia, c, '')));
@@ -18178,6 +18239,43 @@ async function setPinzadoPendiente(num, inv){
   }
 }
 
+// ── GUARDIA DE DOBLE PULSACIÓN (auditoría 2026-09-11) ──────────────────
+// Todas estas acciones hacen push(...) y LUEGO await persist...(), dejando
+// el formulario en pantalla durante la espera: un segundo toque (muy fácil
+// en móvil, o cuando la red va lenta y parece que no ha pasado nada) vuelve
+// a entrar y crea una copia. Ya pasó de verdad con el "Aplicar" del riego
+// manual, que se arregló con la bandera `guardandoRiegoManual` — pero ese
+// patrón no se había replicado en ningún otro botón.
+//
+// Se envuelven aquí, DESPUÉS de que estén todas definidas, en vez de tocar
+// el cuerpo de cada función: así la protección no puede introducir errores
+// dentro de lógica que ya funciona. Mientras una llamada está en curso, las
+// siguientes se ignoran (return inmediato) hasta que la primera termina.
+function conGuardiaReentrada(fn){
+  let enCurso = false;
+  return async function(...args){
+    if(enCurso) return;
+    enCurso = true;
+    try{ return await fn.apply(this, args); }
+    finally{ enCurso = false; }
+  };
+}
+[
+  'crearTarea',                             // duplicaba la tarea por cada persona marcada
+  'guardarEdicionTarea',
+  'asignarTareasEnLote',
+  'guardarNuevoTrabajo',                    // duplicaba el trabajo
+  'crearTicketMantenimientoConTrabajo',     // duplicaba el lote entero de tickets
+  'confirmarAsignacionesMantenimiento',
+  'guardarNuevoClimaCuadro',
+  'aplicarEspecificoAPartidasSeleccionadas',// duplicaba tareas de fumigación y banners
+  'enviarProblemaRiego',                    // enviaba 2 avisos al técnico de guardia
+  'generarTareasDesdeRiego',
+  'guardarNuevaLineaInvernadero',
+  'guardarNuevaNotaSalaEnVivo'
+].forEach(nombre=>{
+  if(typeof window[nombre] === 'function') window[nombre] = conGuardiaReentrada(window[nombre]);
+});
 
 </script>
 </body>
