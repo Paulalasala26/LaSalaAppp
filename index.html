@@ -885,7 +885,9 @@ const TAREAS_DATA_CACHE_TTL_MS = 30000;
 // argumento y van siempre a la nube antes de fusionar.
 async function loadTareasData(forzar){
   if(forzar===false && tareasDataCargadaEn && (Date.now()-tareasDataCargadaEn)<TAREAS_DATA_CACHE_TTL_MS) return;
-  try{ const r=await window.storage.get(TAREAS_KEY); if(r) tareasData=JSON.parse(r.value); tareasDataCargadaEn = Date.now(); }catch(e){}
+  // La marca de caché solo se pone si la lectura fue bien — si no, se
+  // estaría cacheando 30s una lista vacía por un fallo de red.
+  try{ const r=await window.storage.get(TAREAS_KEY); if(r){ tareasData=JSON.parse(r.value); tareasDataCargadaEn = Date.now(); } }catch(e){}
   await limpiarTareasVencidas();
 }
 async function persistTareasData(){
@@ -3579,7 +3581,8 @@ let trabajosDataCargadaEn = 0;
 const TRABAJOS_DATA_CACHE_TTL_MS = 30000;
 async function loadTrabajosData(forzar){
   if(forzar===false && trabajosDataCargadaEn && (Date.now()-trabajosDataCargadaEn)<TRABAJOS_DATA_CACHE_TTL_MS) return;
-  try{ const r = await window.storage.get(TRABAJOS_KEY); if(r) trabajosData = JSON.parse(r.value); trabajosDataCargadaEn = Date.now(); }catch(e){}
+  // Igual que en riego/tareas: no cachear un vacío provocado por fallo de red.
+  try{ const r = await window.storage.get(TRABAJOS_KEY); if(r){ trabajosData = JSON.parse(r.value); trabajosDataCargadaEn = Date.now(); } }catch(e){}
 }
 async function persistTrabajosData(){
   try{
@@ -4942,7 +4945,14 @@ async function loadControlChecksData(forzar){
     // array-blob viejo (si lo hay), repartiendo cada línea en su propio
     // documento para que a partir de ahora ya se guarde de forma atómica.
     const r = await window.storage.get(CONTROL_KEY);
-    const viejo = r ? JSON.parse(r.value) : [];
+    // Si esta lectura falla, r es null — igual que si el blob viejo ya no
+    // existiera. Antes se hacía controlChecksData = [] y se marcaba la
+    // caché: se vaciaba en pantalla lo que ya estuviera cargado y encima se
+    // daba por bueno 30s. No borra nada en la nube (los checks se guardan
+    // como documentos atómicos), pero dejaba la pantalla en blanco sin
+    // motivo. Se sale sin tocar nada (auditoría 2026-09-11).
+    if(!r) return;
+    const viejo = JSON.parse(r.value);
     if(viejo.length){
       await Promise.all(viejo.map(item => guardarControlItemAtomico(item.id, item)));
     }
@@ -10143,8 +10153,12 @@ async function loadRiegoData(forzar){
   if(forzar===false && riegoDataCargadaEn && (Date.now()-riegoDataCargadaEn)<RIEGO_DATA_CACHE_TTL_MS) return;
   try{
     const r = await window.storage.get(RIEGO_KEY);
-    if(r) riegoData = JSON.parse(r.value);
-    riegoDataCargadaEn = Date.now();
+    // Solo se marca la caché como "recién cargada" si la lectura ha ido
+    // bien: si falla (r null), marcarla haría que durante los siguientes
+    // 30s se diera por buena una cuadrícula VACÍA sin volver a intentarlo,
+    // y el usuario vería el riego en blanco sin ningún aviso. Sin la marca,
+    // el siguiente intento vuelve a pedirlo a la nube (auditoría 2026-09-11).
+    if(r){ riegoData = JSON.parse(r.value); riegoDataCargadaEn = Date.now(); }
   }catch(e){}
   // Pre-load confirmed INV17 riego data (Antonio, 25/06/2026)
   if(!riegoData['17']) riegoData['17']={};
