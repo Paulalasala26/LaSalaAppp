@@ -290,6 +290,25 @@ function avisarFalloGuardado(){
   b.innerHTML = '⚠ No se ha podido guardar el último cambio — revisa tu conexión a internet e inténtalo de nuevo. <button onclick="location.reload()" style="margin-left:10px;padding:4px 10px;background:#fff;color:#c62828;border:none;border-radius:6px;font-weight:800;cursor:pointer">Recargar</button>';
   b.style.display = 'block';
 }
+// Mismo banner, mensaje distinto: cuando lo que falla es una LECTURA, decir
+// "no se ha podido guardar" despista de verdad — el usuario ve una pantalla
+// vacía (riego en blanco, lista de tareas sin nada) y ese texto le hace
+// pensar que se han perdido datos, cuando lo único que pasa es que no se
+// han podido traer de la nube. Aquí se dice exactamente eso, y se avisa de
+// que lo que está viendo puede estar incompleto (auditoría 2026-09-11).
+function avisarFalloCarga(){
+  let b = document.getElementById('aviso-fallo-guardado');
+  if(!b){
+    b = document.createElement('div');
+    b.id = 'aviso-fallo-guardado';
+    b.style.cssText = 'position:fixed;top:0;left:0;right:0;padding:12px 16px;font-size:13px;font-weight:800;z-index:99999;text-align:center;box-shadow:0 2px 10px rgba(0,0,0,.3)';
+    document.body.appendChild(b);
+  }
+  b.style.background = '#c62828';
+  b.style.color = '#fff';
+  b.innerHTML = '⚠ No se han podido cargar los datos — revisa tu conexión. Lo que ves puede estar incompleto: NO es que se hayan borrado. <button onclick="location.reload()" style="margin-left:10px;padding:4px 10px;background:#fff;color:#c62828;border:none;border-radius:6px;font-weight:800;cursor:pointer">Reintentar</button>';
+  b.style.display = 'block';
+}
 function ocultarAvisoFalloGuardado(){
   const b = document.getElementById('aviso-fallo-guardado');
   if(b) b.style.display = 'none';
@@ -302,7 +321,15 @@ async function fetchConReintentos(url, opciones){
       ocultarAvisoFalloGuardado();
       return res;
     }catch(e){
-      if(intento===3){ avisarFalloGuardado(); throw e; }
+      if(intento===3){
+        // Sin method (o GET) = lectura; PUT/POST = guardado. Distinguirlo
+        // aquí, en el único punto por el que pasan TODAS las peticiones,
+        // cubre de una vez los ~26 load*Data que se tragaban el fallo con
+        // un catch vacío y dejaban la pantalla vacía sin explicación.
+        const esLectura = !opciones || !opciones.method || opciones.method === 'GET';
+        if(esLectura) avisarFalloCarga(); else avisarFalloGuardado();
+        throw e;
+      }
       await new Promise(r=>setTimeout(r, 700*intento));
     }
   }
@@ -2055,35 +2082,12 @@ async function crearTicketMantenimientoConTrabajo(){
   showToast(`✓ ${invSeleccionados.length} ticket(s) creado(s)`);
   renderTareasContent(document.getElementById('tareas-overlay'), true);
 }
-async function crearTicketMantenimiento(){
-  const titulo = document.getElementById('nm-titulo')?.value?.trim();
-  if(!titulo){ showToast('Indica un título'); return; }
-  const descripcion = document.getElementById('nm-desc')?.value?.trim()||'';
-  const prioridad = document.getElementById('nm-prioridad')?.checked ? 'alta' : 'normal';
-  // Fecha programada (a petición de Paula, 2026-08-12) — distinta de la
-  // recurrencia de abajo: es solo "cuándo toca hacer ESTE ticket", no un
-  // ciclo que se repite solo.
-  const fechaProgramada = document.getElementById('nm-fecha-programada')?.value || null;
-  const esRecurrente = document.getElementById('nm-recurrente')?.checked;
-  let recurrencia = null, proximaFecha = null;
-  if(esRecurrente){
-    const cada = parseInt(document.getElementById('nm-recur-cada')?.value) || 1;
-    const unidad = document.getElementById('nm-recur-unidad')?.value || 'anos';
-    recurrencia = {cada, unidad};
-    proximaFecha = calcularProximaFechaMant(cada, unidad);
-  }
-  await loadMantenimientoData();
-  mantenimientoData.push({
-    id: 'mant_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
-    titulo, descripcion, prioridad, estado:'sin_asignar', asignados:[], fechaProgramada,
-    asignadoPor: currentUser||'—', visto:{}, creadoEn: new Date().toLocaleString('es-ES'),
-    recurrencia, proximaFecha
-  });
-  await persistMantenimientoData();
-  logHistorial(`Creó el ticket de mantenimiento "${titulo}"${recurrencia?` (programado cada ${recurrencia.cada} ${MANT_RECUR_UNIDADES.find(u=>u.key===recurrencia.unidad)?.label.toLowerCase()})`:''}`);
-  showToast('✓ Ticket creado');
-  renderTareasContent(document.getElementById('tareas-overlay'), true);
-}
+// (Aquí vivía crearTicketMantenimiento, eliminada en la auditoría del
+// 2026-09-11: era código muerto — no se llamaba desde ningún sitio y leía
+// #nm-titulo/#nm-desc, ids que no existen en ninguna plantilla, así que si
+// alguien la hubiera vuelto a enganchar habría dado siempre "Indica un
+// título". El alta real de tickets es crearTicketMantenimientoConTrabajo,
+// justo aquí arriba.)
 function eliminarTicketMantenimiento(id){
   const t = mantenimientoData.find(x=>x.id===id);
   if(!confirm(`¿Eliminar el ticket "${t?.titulo||''}"? Esta acción no se puede deshacer.`)) return;
