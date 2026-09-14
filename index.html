@@ -103,8 +103,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
         <option value="">&#8212; Seleccione usuario &#8212;</option>
         <option value="VIGUERAS">Vigueras</option>
         <option value="PAULA">Paula</option>
+        <option value="PILAR">Pilar</option>
         <option value="DENNIS">Dennis</option>
         <option value="FRAN">Fran</option>
+        <option value="GINES">Ginés</option>
+        <option value="RAMON">Ramón</option>
+        <option value="MANUEL">Manuel</option>
+        <option value="CRISTIAN">Cristian</option>
+        <option value="ISMAEL">Ismael</option>
         <option value="MIGUEL ANGEL">Miguel Angel</option>
         <option value="REGANTE1">Regante1 (Sala 1)</option>
         <option value="REGANTE2">Regante2 (Sala 2)</option>
@@ -395,8 +401,14 @@ const USERS_KEY = 'lasala-users-v1';
 let USERS={
   VIGUERAS:"9553627933b214db60798fe40d2b4f8497781d024f53d62dc1b12469b7d53784",
   PAULA:"1ee4e10c0c7e1bd5ff9cd70d1f3c03521abf21ea7ee45aa92deab16f87af4dbb",
+  PILAR:"0ffe1abd1a08215353c233d6e009613e95eec4253832a761af28ff37ac5a150c",
   DENNIS:"16a3e9e922b41fde13be3ae377b18e08d44fb136594e7f9819ff2ac75bab5516",
   FRAN:"6f52d3110a0e41e462ac098244206ed69db33999b743e284fc4c5d34c2d4a529",
+  GINES:"0ffe1abd1a08215353c233d6e009613e95eec4253832a761af28ff37ac5a150c",
+  RAMON:"0ffe1abd1a08215353c233d6e009613e95eec4253832a761af28ff37ac5a150c",
+  MANUEL:"0ffe1abd1a08215353c233d6e009613e95eec4253832a761af28ff37ac5a150c",
+  CRISTIAN:"0ffe1abd1a08215353c233d6e009613e95eec4253832a761af28ff37ac5a150c",
+  ISMAEL:"0ffe1abd1a08215353c233d6e009613e95eec4253832a761af28ff37ac5a150c",
   "MIGUEL ANGEL":"03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4",
   REGANTE1:"0ffe1abd1a08215353c233d6e009613e95eec4253832a761af28ff37ac5a150c",
   REGANTE2:"318aee3fed8c9d040d35a7fc1fa776fb31303833aa2de885354ddf3d44d8fb69",
@@ -433,7 +445,7 @@ const usersLoadedPromise = loadUsersFromCloud();
 // Roles: guardados APARTE de USERS (nunca junto a la contraseña — así lo
 // pidió Paula).
 const ROLES_KEY = 'lasala-roles-v1';
-let USER_ROLES = { VIGUERAS:'ADMIN', PAULA:'ADMIN', DENNIS:'TECNICO', FRAN:'TECNICO', 'MIGUEL ANGEL':'ADMIN', REGANTE1:'REGANTE', REGANTE2:'REGANTE', PEON1:'PEON', PEON2:'PEON', JULIO:'CARGADOR' };
+let USER_ROLES = { VIGUERAS:'ADMIN', PAULA:'ADMIN', PILAR:'ADMIN', DENNIS:'TECNICO', FRAN:'TECNICO', GINES:'TECNICO', RAMON:'TECNICO', MANUEL:'TECNICO', CRISTIAN:'TECNICO', ISMAEL:'TECNICO', 'MIGUEL ANGEL':'ADMIN', REGANTE1:'REGANTE', REGANTE2:'REGANTE', PEON1:'PEON', PEON2:'PEON', JULIO:'CARGADOR' };
 async function loadRolesFromCloud(){
   try{
     const r = await window.storage.get(ROLES_KEY);
