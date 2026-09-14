@@ -104,6 +104,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
         <option value="VIGUERAS">Vigueras</option>
         <option value="PAULA">Paula</option>
         <option value="PILAR">Pilar</option>
+        <option value="SONIA">Sonia</option>
         <option value="DENNIS">Dennis</option>
         <option value="FRAN">Fran</option>
         <option value="GINES">Ginés</option>
@@ -116,6 +117,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
         <option value="REGANTE2">Regante2 (Sala 2)</option>
         <option value="PEON1">Peon1 (Sala 1)</option>
         <option value="PEON2">Peon2 (Sala 2)</option>
+        <option value="JULIO">Julio</option>
       </select>
     </div>
     <div style="margin-bottom:1.5rem;text-align:left">
@@ -402,6 +404,10 @@ let USERS={
   VIGUERAS:"9553627933b214db60798fe40d2b4f8497781d024f53d62dc1b12469b7d53784",
   PAULA:"1ee4e10c0c7e1bd5ff9cd70d1f3c03521abf21ea7ee45aa92deab16f87af4dbb",
   PILAR:"0ffe1abd1a08215353c233d6e009613e95eec4253832a761af28ff37ac5a150c",
+  // Contraseña ya existente de Sonia (llevaba tiempo en la nube sin poder
+  // usarse por el bug de codificación arreglado el 2026-09-14) — se
+  // conserva tal cual, no se resetea a 1111.
+  SONIA:"b6a5723b3725ddbeb986b485e5e60d4add9f4612d163d03210f0bd50c13135d1",
   DENNIS:"16a3e9e922b41fde13be3ae377b18e08d44fb136594e7f9819ff2ac75bab5516",
   FRAN:"6f52d3110a0e41e462ac098244206ed69db33999b743e284fc4c5d34c2d4a529",
   GINES:"0ffe1abd1a08215353c233d6e009613e95eec4253832a761af28ff37ac5a150c",
@@ -414,6 +420,7 @@ let USERS={
   REGANTE2:"318aee3fed8c9d040d35a7fc1fa776fb31303833aa2de885354ddf3d44d8fb69",
   PEON1:"0ffe1abd1a08215353c233d6e009613e95eec4253832a761af28ff37ac5a150c",
   PEON2:"edee29f882543b956620b26d0ee0e7e950399b1c4222f5de05e06425b4c995e9",
+  JULIO:"0ffe1abd1a08215353c233d6e009613e95eec4253832a761af28ff37ac5a150c",
 };
 // window.storage.get() devuelve null tanto si la clave no existe todavía
 // (primer arranque de la app) COMO si la lectura ha fallado por red — son
@@ -445,7 +452,7 @@ const usersLoadedPromise = loadUsersFromCloud();
 // Roles: guardados APARTE de USERS (nunca junto a la contraseña — así lo
 // pidió Paula).
 const ROLES_KEY = 'lasala-roles-v1';
-let USER_ROLES = { VIGUERAS:'ADMIN', PAULA:'ADMIN', PILAR:'ADMIN', DENNIS:'TECNICO', FRAN:'TECNICO', GINES:'TECNICO', RAMON:'TECNICO', MANUEL:'TECNICO', CRISTIAN:'TECNICO', ISMAEL:'TECNICO', 'MIGUEL ANGEL':'ADMIN', REGANTE1:'REGANTE', REGANTE2:'REGANTE', PEON1:'PEON', PEON2:'PEON', JULIO:'CARGADOR' };
+let USER_ROLES = { VIGUERAS:'ADMIN', PAULA:'ADMIN', PILAR:'ADMIN', SONIA:'ADMIN', DENNIS:'TECNICO', FRAN:'TECNICO', GINES:'TECNICO', RAMON:'TECNICO', MANUEL:'TECNICO', CRISTIAN:'TECNICO', ISMAEL:'TECNICO', 'MIGUEL ANGEL':'ADMIN', REGANTE1:'REGANTE', REGANTE2:'REGANTE', PEON1:'PEON', PEON2:'PEON', JULIO:'CARGADOR' };
 async function loadRolesFromCloud(){
   try{
     const r = await window.storage.get(ROLES_KEY);
