@@ -5448,6 +5448,17 @@ function seleccionarSeccionControl(sec){
     controlQuincenaOffset = riegoQuincenaOffsetActual();
     controlDiaSel = riegoDiaDeHoy();
   }
+  if(sec==='tunel'){
+    // Estado del wizard de pruebas (ver CONTROL_TUNEL_WIZARD_USUARIOS) —
+    // se resetea cada vez que se entra a Túnel, para no dejar a Ginés a
+    // mitad de una evaluación de una visita anterior.
+    controlWizardNivel = 'dias';
+    controlWizardQuincenaOffset = null;
+    controlWizardDiaSel = null;
+    controlWizardPartidaId = null;
+    controlWizardPaso = 0;
+    controlWizardEnfermedades = false;
+  }
   if(sec === 'conteo_tuta'){
     conteoTutaQuincenaOffset = riegoQuincenaOffsetActual();
     conteoTutaDiaSel = riegoDiaDeHoy();
@@ -5515,10 +5526,24 @@ function renderControlResumenHTML(){
         </div>`;}).join('')}
     </div>`;
 }
+// Pantalla alternativa de Check Túnel para pruebas (a petición de Vigueras,
+// 2026-09-15): paso a paso, botones grandes para móvil, sin PDF (reservado
+// a ADMIN) — ver más abajo, bloque "WIZARD CHECK TÚNEL". De momento solo
+// para GINES, antes de decidir si se lanza al resto de técnicos. La vista
+// clásica (renderControlChecklistHTML/renderControlCardHTML) no se toca ni
+// una coma para nadie, incluido Ginés cuando esta lista esté vacía.
+const CONTROL_TUNEL_WIZARD_USUARIOS = ['GINES'];
+let controlWizardNivel = 'dias'; // 'dias' | 'partidas' | 'evaluar'
+let controlWizardQuincenaOffset = null;
+let controlWizardDiaSel = null;
+let controlWizardPartidaId = null;
+let controlWizardPaso = 0; // índice dentro de CONTROL_CHECK_CATEGORIAS
+let controlWizardEnfermedades = false; // sub-paso de Sanidad→Enferma
 function renderControlSeccionHTML(seccion){
   if(!seccion) return '';
   if(seccion.tabla) return renderControlConteoTutaHTML(seccion);
   if(seccion.key==='invernadero') return renderControlInvernaderoHTML();
+  if(seccion.key==='tunel' && CONTROL_TUNEL_WIZARD_USUARIOS.includes(currentUser)) return renderControlTunelWizardHTML();
   if(!seccion.conCheck){
     return `
       <div style="margin-bottom:1.25rem">
@@ -5527,6 +5552,220 @@ function renderControlSeccionHTML(seccion){
       <div style="text-align:center;padding:3rem;color:var(--muted);font-style:italic;font-size:13px">Próximamente. Dime qué campos debe llevar esta comprobación y lo construyo.</div>`;
   }
   return renderControlChecklistHTML(seccion);
+}
+
+// ════════════════════════════════════════════════════════════════
+// WIZARD CHECK TÚNEL (pruebas, solo CONTROL_TUNEL_WIZARD_USUARIOS)
+// ════════════════════════════════════════════════════════════════
+// 3 niveles: 'dias' (solo los días, nada más) → 'partidas' (lista de la
+// partidas de ese día, botones grandes) → 'evaluar' (una categoría a la
+// vez, botón grande por opción, avanza sola al tocar). Reutiliza los
+// mismos datos y funciones de guardado que la vista clásica
+// (controlChecksData, aplicarControlCheckOpcion, toggleControlSanidadEnfermedad,
+// guardarControlObservaciones, mostrarAsignarCalleControl) para que lo que
+// marque Ginés aquí se vea exactamente igual en la vista de ADMIN.
+function cambiarControlWizardQuincena(delta){
+  controlWizardQuincenaOffset = Math.max(0, (controlWizardQuincenaOffset||0) + delta);
+  controlWizardDiaSel = null;
+  controlWizardNivel = 'dias';
+  renderControlContent(document.getElementById('control-overlay'));
+}
+function seleccionarControlWizardDia(dia){
+  controlWizardDiaSel = parseInt(dia,10);
+  controlWizardNivel = 'partidas';
+  controlWizardPartidaId = null;
+  renderControlContent(document.getElementById('control-overlay'));
+}
+function abrirControlWizardPartida(id){
+  controlWizardPartidaId = id;
+  controlWizardNivel = 'evaluar';
+  controlWizardPaso = 0;
+  controlWizardEnfermedades = false;
+  renderControlContent(document.getElementById('control-overlay'));
+}
+function volverControlWizardALista(){
+  controlWizardNivel = 'partidas';
+  controlWizardPartidaId = null;
+  controlWizardPaso = 0;
+  controlWizardEnfermedades = false;
+  renderControlContent(document.getElementById('control-overlay'));
+}
+async function seleccionarOpcionControlWizard(id, categoriaKey, opcionKey){
+  if(categoriaKey==='sanidad'){
+    controlWizardEnfermedades = (opcionKey==='enferma');
+    if(!controlWizardEnfermedades) controlWizardPaso++;
+  } else {
+    controlWizardPaso++;
+  }
+  await aplicarControlCheckOpcion(id, categoriaKey, opcionKey, true);
+}
+function avanzarControlWizardTrasEnfermedades(){
+  controlWizardEnfermedades = false;
+  controlWizardPaso++;
+  renderControlContent(document.getElementById('control-overlay'));
+}
+function retrocederControlWizard(){
+  if(controlWizardEnfermedades) controlWizardEnfermedades = false;
+  else if(controlWizardPaso>0) controlWizardPaso--;
+  else { controlWizardNivel = 'partidas'; controlWizardPartidaId = null; }
+  renderControlContent(document.getElementById('control-overlay'));
+}
+function guardarControlWizardYVolver(){
+  controlWizardNivel = 'partidas';
+  controlWizardPartidaId = null;
+  controlWizardPaso = 0;
+  controlWizardEnfermedades = false;
+  renderControlContent(document.getElementById('control-overlay'));
+}
+function botonAtrasWizardHTML(){
+  return `<button onclick="retrocederControlWizard()" style="width:100%;margin-top:14px;padding:16px;border-radius:14px;font-size:15px;font-weight:700;background:#fff;border:2px solid var(--border);color:var(--muted);cursor:pointer">‹ Atrás</button>`;
+}
+function wizardCabeceraPartidaHTML(c){
+  const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return `
+    <button onclick="volverControlWizardALista()" style="background:none;border:none;color:#1558a0;font-size:14px;font-weight:700;cursor:pointer;padding:10px 4px;margin-bottom:6px">‹ Lista de partidas</button>
+    <div style="text-align:center;margin-bottom:20px">
+      <div style="font-size:13px;font-weight:700;color:var(--muted)">${escapar(c.clienteVariedad)||''}</div>
+      <div style="font-size:26px;font-weight:900;color:#1558a0">${escapar(c.partida)||'— Sin partida —'}</div>
+    </div>`;
+}
+function renderControlWizardFilaHTML(c, guionInfo){
+  const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const calleRealLabel = c.invId ? `INV ${escapar(c.invId)} — ${escapar(formatTramosLabel(c.invId, (c.tramos && c.tramos.length) ? c.tramos : [{desde:c.calleDesde, hasta:c.calleHasta}]))}` : 'Sin asignar';
+  const completada = controlLineaCompletada(c);
+  return `
+    <div style="border:2.5px solid ${completada?'#3fa864':'var(--border)'};border-radius:16px;background:#fff;overflow:hidden">
+      <div onclick="abrirControlWizardPartida('${c.id}')" style="padding:18px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:12px">
+        <div style="min-width:0">
+          <div style="font-size:13px;font-weight:700;color:var(--muted)">${escapar(c.clienteVariedad)||'Sin cliente/variedad'}${guionInfo?` · Guión ${guionInfo.n} de ${guionInfo.total}`:''}</div>
+          <div style="font-size:23px;font-weight:900;color:#1558a0;margin-top:2px">${escapar(c.partida)||'— Sin partida —'}</div>
+          <div style="font-size:13px;font-weight:700;color:var(--muted);margin-top:5px">Bandejas: ${escapar(c.numBandejas)||'—'}</div>
+          <div style="font-size:13px;font-weight:700;color:var(--muted);margin-top:2px">Calle: ${calleRealLabel}</div>
+        </div>
+        <div style="flex-shrink:0;font-size:32px">${completada?'✅':'⬜'}</div>
+      </div>
+      <button onclick="event.stopPropagation();mostrarAsignarCalleControl('${c.id}')" style="width:100%;padding:14px;font-size:14px;font-weight:700;background:#e8f2fd;color:#1558a0;border:none;border-top:2px solid #d5e6f7;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px">
+        <i class="ti ti-map-pin" style="font-size:16px"></i> Asignar calle real
+      </button>
+    </div>`;
+}
+function renderControlWizardFinalHTML(c){
+  const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  cargarFotoControlSiFalta(c.id);
+  const fotoHTML = controlFotosData[c.id]
+    ? `<div style="text-align:center;margin-bottom:10px"><img src="${fotoSrcMiniatura(controlFotosData[c.id])}" onclick="mostrarFotoControlAmpliada('${c.id}')" style="max-height:100px;border-radius:12px;border:2px solid var(--border);cursor:pointer"></div>`
+    : '';
+  return `
+    <div style="max-width:480px;margin:0 auto">
+      ${wizardCabeceraPartidaHTML(c)}
+      <div style="text-align:center;font-size:44px;margin-bottom:4px">✅</div>
+      <div style="text-align:center;font-size:17px;font-weight:800;color:#2e7d32;margin-bottom:24px">Evaluación completa</div>
+      <div style="margin-bottom:16px">
+        <div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:7px">Observaciones (opcional)</div>
+        <input type="text" value="${escapar(c.observaciones)}" placeholder="Escribe aquí si hace falta..."
+          onchange="guardarControlObservaciones('${c.id}', this.value)"
+          style="width:100%;padding:16px;border:2px solid var(--border);border-radius:12px;font-size:15px">
+      </div>
+      <div style="margin-bottom:24px;text-align:center">
+        ${fotoHTML}
+        <label style="display:inline-flex;align-items:center;gap:8px;padding:15px 24px;background:#eaf5ea;border:2px solid #a5d6a7;border-radius:12px;cursor:pointer;font-size:14px;font-weight:700;color:#2e7d32">
+          <i class="ti ti-camera" style="font-size:18px"></i> ${controlFotosData[c.id]?'Cambiar foto':'Añadir foto'}
+          <input type="file" accept="image/*" capture="environment" style="display:none" onchange="handleControlFotoInput(this,'${c.id}')">
+        </label>
+      </div>
+      <button onclick="guardarControlWizardYVolver()" style="width:100%;padding:24px;border-radius:16px;font-size:19px;font-weight:800;background:#2e7d32;color:#fff;border:none;cursor:pointer">✓ Guardar check</button>
+      ${botonAtrasWizardHTML()}
+    </div>`;
+}
+function renderControlWizardEvaluarHTML(c){
+  if(controlWizardEnfermedades){
+    return `
+      <div style="max-width:480px;margin:0 auto">
+        ${wizardCabeceraPartidaHTML(c)}
+        <div style="font-size:13px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:16px;text-align:center">¿Qué tiene? (puedes marcar varias)</div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          ${SANIDAD_ENFERMEDADES.map(e=>{
+            const activo = !!(c.sanidadEnfermedades && c.sanidadEnfermedades[e.key]);
+            return `<button onclick="toggleControlSanidadEnfermedad('${c.id}','${e.key}')" style="padding:20px;border-radius:14px;font-size:16px;font-weight:800;cursor:pointer;border:2px solid transparent;background:${activo?'#c62828':'#fdece5'};color:${activo?'#fff':'var(--text)'}">${activo?'✓ ':''}${e.label}</button>`;
+          }).join('')}
+        </div>
+        <button onclick="avanzarControlWizardTrasEnfermedades()" style="width:100%;margin-top:22px;padding:22px;border-radius:16px;font-size:18px;font-weight:800;background:#2e7d32;color:#fff;border:none;cursor:pointer">Continuar →</button>
+        ${botonAtrasWizardHTML()}
+      </div>`;
+  }
+  if(controlWizardPaso >= CONTROL_CHECK_CATEGORIAS.length) return renderControlWizardFinalHTML(c);
+  const cat = CONTROL_CHECK_CATEGORIAS[controlWizardPaso];
+  const opcionesHTML = cat.opciones.map(o=>{
+    const activo = !!(c[cat.key] && c[cat.key][o.key]);
+    return `<button onclick="seleccionarOpcionControlWizard('${c.id}','${cat.key}','${o.key}')" style="padding:28px 16px;border-radius:16px;font-size:20px;font-weight:800;cursor:pointer;border:2px solid transparent;background:${activo?cat.gradiente:cat.tinte};color:${activo?'#fff':'var(--text)'}">${activo?'✓ ':''}${o.label}</button>`;
+  }).join('');
+  return `
+    <div style="max-width:480px;margin:0 auto">
+      ${wizardCabeceraPartidaHTML(c)}
+      <div style="text-align:center;margin-bottom:8px">
+        <span style="font-size:12px;font-weight:800;color:var(--muted)">Paso ${controlWizardPaso+1} de ${CONTROL_CHECK_CATEGORIAS.length}</span>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:center;gap:9px;margin-bottom:18px">
+        <i class="ti ${cat.icon}" style="font-size:24px"></i>
+        <span style="font-size:21px;font-weight:800;color:var(--text)">${cat.label}</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:14px">${opcionesHTML}</div>
+      ${botonAtrasWizardHTML()}
+    </div>`;
+}
+function renderControlTunelWizardHTML(){
+  const seccion = CONTROL_SECCIONES.find(s=>s.key==='tunel');
+  if(controlWizardQuincenaOffset==null) controlWizardQuincenaOffset = riegoQuincenaOffsetActual();
+  const diasQ = riegoQuincenaDias(controlWizardQuincenaOffset);
+  if(controlWizardDiaSel!=null && !diasQ.includes(controlWizardDiaSel)) controlWizardDiaSel = null;
+
+  const diaBotonesHTML = diasQ.map(d=>`
+    <button onclick="seleccionarControlWizardDia(${d})" style="flex:0 0 auto;min-width:68px;padding:16px 10px;border-radius:14px;font-size:14px;font-weight:800;cursor:pointer;border:2px solid ${d===controlWizardDiaSel?'transparent':'var(--border)'};background:${d===controlWizardDiaSel?seccion.color:'#fff'};color:${d===controlWizardDiaSel?'#fff':'var(--text)'}">
+      ${riegoDiaLabelCorto(d)}<br><span style="font-weight:600;opacity:.85;font-size:11px">${riegoDiaSemana(d)}</span>
+    </button>`).join('');
+  const cabeceraHTML = `
+    <div style="margin-bottom:1.1rem">
+      <h2 style="font-size:22px;font-weight:800;color:var(--text)">Check Túnel</h2>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+      <button onclick="cambiarControlWizardQuincena(-1)" ${controlWizardQuincenaOffset<=0?'disabled style="opacity:.35"':''} style="background:#fff;border:2px solid var(--border);border-radius:10px;width:38px;height:38px;font-size:18px;cursor:pointer">&#8249;</button>
+      <span style="font-size:12px;font-weight:700;color:var(--muted)">Quincena ${controlWizardQuincenaOffset+1} · ${riegoQuincenaLabel(controlWizardQuincenaOffset)}</span>
+      <button onclick="cambiarControlWizardQuincena(1)" style="background:#fff;border:2px solid var(--border);border-radius:10px;width:38px;height:38px;font-size:18px;cursor:pointer">&#8250;</button>
+    </div>
+    <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:10px;margin-bottom:1.25rem">${diaBotonesHTML}</div>`;
+
+  if(controlWizardDiaSel==null){
+    return cabeceraHTML + `<div style="text-align:center;padding:2.5rem 1rem;color:var(--muted);font-style:italic">Elige un día para ver sus partidas.</div>`;
+  }
+
+  if(controlWizardNivel==='evaluar' && controlWizardPartidaId){
+    const c = controlChecksData.find(x=>x.id===controlWizardPartidaId);
+    if(c) return cabeceraHTML + renderControlWizardEvaluarHTML(c);
+    controlWizardNivel = 'partidas';
+    controlWizardPartidaId = null;
+  }
+
+  // Misma agrupación en guiones que la vista clásica (partida repetida en
+  // varios días → 1 tarjeta), sin tocar renderControlChecklistHTML — ver
+  // [[lasala_control_tunel_intocable]].
+  const listaDia = controlChecksData.filter(c=>c.tipo==='tunel' && c.dia===controlWizardDiaSel);
+  const gruposYaPintados = new Set();
+  const filasHTML = listaDia.map(c=>{
+    if(!c.partida) return renderControlWizardFilaHTML(c, null);
+    const groupKey = 'tunel|'+c.partida;
+    if(gruposYaPintados.has(groupKey)) return '';
+    const grupo = controlChecksData.filter(x=>x.tipo==='tunel' && x.partida===c.partida).sort((a,b)=>a.dia-b.dia);
+    gruposYaPintados.add(groupKey);
+    const guionInfo = grupo.length>1 ? {n: grupo.findIndex(x=>x.id===c.id)+1, total: grupo.length} : null;
+    return renderControlWizardFilaHTML(c, guionInfo);
+  }).join('');
+  const numCompletados = listaDia.filter(controlLineaCompletada).length;
+
+  return cabeceraHTML + `
+    <div style="font-size:13px;font-weight:700;color:var(--muted);margin-bottom:14px">${listaDia.length} partida${listaDia.length===1?'':'s'} · ${numCompletados} completada${numCompletados===1?'':'s'}</div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      ${filasHTML || `<div style="text-align:center;padding:3rem 1rem;color:var(--muted);font-style:italic">No hay partidas para este día todavía.</div>`}
+    </div>`;
 }
 function cambiarControlQuincena(delta){
   controlQuincenaOffset = Math.max(0, controlQuincenaOffset + delta);
