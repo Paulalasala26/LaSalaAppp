@@ -5458,6 +5458,7 @@ function seleccionarSeccionControl(sec){
     controlWizardPartidaId = null;
     controlWizardPaso = 0;
     controlWizardEnfermedades = false;
+    controlWizardVista = 'partidas';
   }
   if(sec === 'conteo_tuta'){
     conteoTutaQuincenaOffset = riegoQuincenaOffsetActual();
@@ -5539,6 +5540,7 @@ let controlWizardDiaSel = null;
 let controlWizardPartidaId = null;
 let controlWizardPaso = 0; // índice dentro de CONTROL_CHECK_CATEGORIAS
 let controlWizardEnfermedades = false; // sub-paso de Sanidad→Enferma
+let controlWizardVista = 'partidas'; // 'partidas' | 'dashboard' (a petición de Vigueras, 2026-09-15: conservar el dashboard del día también en el wizard)
 function renderControlSeccionHTML(seccion){
   if(!seccion) return '';
   if(seccion.tabla) return renderControlConteoTutaHTML(seccion);
@@ -5568,6 +5570,10 @@ function cambiarControlWizardQuincena(delta){
   controlWizardQuincenaOffset = Math.max(0, (controlWizardQuincenaOffset||0) + delta);
   controlWizardDiaSel = null;
   controlWizardNivel = 'dias';
+  renderControlContent(document.getElementById('control-overlay'));
+}
+function cambiarControlWizardVista(v){
+  controlWizardVista = v;
   renderControlContent(document.getElementById('control-overlay'));
 }
 function seleccionarControlWizardDia(dia){
@@ -5761,7 +5767,21 @@ function renderControlTunelWizardHTML(){
   }).join('');
   const numCompletados = listaDia.filter(controlLineaCompletada).length;
 
-  return cabeceraHTML + `
+  // Toggle Partidas/Dashboard + exportar CSV (a petición de Vigueras,
+  // 2026-09-15) — mismo dashboard que la vista clásica
+  // (renderControlDashboardDiaHTML, sin tocarlo), botones grandes para móvil.
+  const barraSuperiorHTML = `
+    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+      <button onclick="cambiarControlWizardVista('partidas')" style="flex:1;min-width:120px;padding:14px;border-radius:12px;font-size:13px;font-weight:800;border:none;cursor:pointer;background:${controlWizardVista==='partidas'?seccion.color:'#e8e2dc'};color:${controlWizardVista==='partidas'?'#fff':'var(--muted)'}">📋 Partidas</button>
+      <button onclick="cambiarControlWizardVista('dashboard')" style="flex:1;min-width:120px;padding:14px;border-radius:12px;font-size:13px;font-weight:800;border:none;cursor:pointer;background:${controlWizardVista==='dashboard'?seccion.color:'#e8e2dc'};color:${controlWizardVista==='dashboard'?'#fff':'var(--muted)'}">📊 Dashboard</button>
+    </div>
+    <button onclick="exportarControlCSV('tunel', controlWizardDiaSel)" style="width:100%;margin-bottom:16px;padding:16px;border-radius:12px;font-size:14px;font-weight:800;border:2px solid #2e7d32;cursor:pointer;background:#fff;color:#2e7d32;display:flex;align-items:center;justify-content:center;gap:8px"><i class="ti ti-file-spreadsheet" style="font-size:17px"></i> Exportar CSV del día</button>`;
+
+  if(controlWizardVista==='dashboard'){
+    return cabeceraHTML + barraSuperiorHTML + renderControlDashboardDiaHTML(seccion, listaDia);
+  }
+
+  return cabeceraHTML + barraSuperiorHTML + `
     <div style="font-size:13px;font-weight:700;color:var(--muted);margin-bottom:14px">${listaDia.length} partida${listaDia.length===1?'':'s'} · ${numCompletados} completada${numCompletados===1?'':'s'}</div>
     <div style="display:flex;flex-direction:column;gap:12px">
       ${filasHTML || `<div style="text-align:center;padding:3rem 1rem;color:var(--muted);font-style:italic">No hay partidas para este día todavía.</div>`}
@@ -5893,6 +5913,56 @@ function imprimirListadoPartidasControl(){
     </body></html>`);
   doc.close();
   setTimeout(()=>{ iframe.contentWindow.focus(); iframe.contentWindow.print(); }, 200);
+}
+// Informe CSV de un día (a petición de Vigueras, 2026-09-15) — se abre
+// directo en Excel con un doble clic, sin depender de ninguna librería
+// externa (nada de SheetJS: más fiable si el móvil/PC del campo tiene mala
+// conexión). Punto y coma como separador porque Excel en español lo espera
+// así por defecto (coma = separador decimal en ese locale). Reutilizable
+// desde la vista clásica (ADMIN/técnicos) y desde el wizard de Ginés.
+function generarControlCSVDia(tipo, dia){
+  const esc = v => {
+    const s = String(v==null?'':v);
+    return /[",;\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s;
+  };
+  const opcionesMarcadas = (c, cat) => cat.opciones.filter(o=>c[cat.key] && c[cat.key][o.key]).map(o=>o.label).join(' + ');
+  const enfermedadesMarcadas = c => (c.sanidad && c.sanidad.enferma && c.sanidadEnfermedades)
+    ? SANIDAD_ENFERMEDADES.filter(e=>c.sanidadEnfermedades[e.key]).map(e=>e.label).join(' + ')
+    : '';
+  const catColor = CONTROL_CHECK_CATEGORIAS.find(c=>c.key==='color');
+  const catTamano = CONTROL_CHECK_CATEGORIAS.find(c=>c.key==='tamano');
+  const catSanidad = CONTROL_CHECK_CATEGORIAS.find(c=>c.key==='sanidad');
+  const catFlores = CONTROL_CHECK_CATEGORIAS.find(c=>c.key==='flores');
+  const catRaices = CONTROL_CHECK_CATEGORIAS.find(c=>c.key==='raices');
+  const cabecera = ['Partida','Cliente/Variedad','Nº bandejas','Calle real','Color','Tamaño','Sanidad','Enfermedades','Flores','Raíces','Completada','Observaciones'];
+  const listaDia = controlChecksData.filter(c=>c.tipo===tipo && c.dia===dia);
+  const filas = listaDia.map(c=>{
+    const calleReal = c.invId ? `INV ${c.invId} — ${formatTramosLabel(c.invId, (c.tramos && c.tramos.length) ? c.tramos : [{desde:c.calleDesde, hasta:c.calleHasta}])}` : '';
+    return [
+      c.partida||'', c.clienteVariedad||'', c.numBandejas||'', calleReal,
+      opcionesMarcadas(c, catColor), opcionesMarcadas(c, catTamano), opcionesMarcadas(c, catSanidad),
+      enfermedadesMarcadas(c), opcionesMarcadas(c, catFlores), opcionesMarcadas(c, catRaices),
+      controlLineaCompletada(c) ? 'Sí' : 'No', c.observaciones||''
+    ].map(esc).join(';');
+  });
+  return [cabecera.map(esc).join(';'), ...filas].join('\r\n');
+}
+function exportarControlCSV(tipo, dia){
+  const listaDia = controlChecksData.filter(c=>c.tipo===tipo && c.dia===dia);
+  if(!listaDia.length){ showToast('No hay líneas ese día todavía.'); return; }
+  const csv = generarControlCSVDia(tipo, dia);
+  const blob = new Blob(['﻿' + csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const nombreTipo = tipo==='tunel' ? 'CheckTunel' : tipo==='carga' ? 'CheckCarga' : tipo;
+  const f = riegoDiaToDate(dia);
+  const fechaStr = `${f.getFullYear()}-${String(f.getMonth()+1).padStart(2,'0')}-${String(f.getDate()).padStart(2,'0')}`;
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${nombreTipo}_${fechaStr}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
 }
 function renderControlDashboardDiaHTML(seccion, listaDia){
   if(!listaDia.length){
@@ -6089,9 +6159,10 @@ function renderControlChecklistHTML(seccion){
     </div>
     <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:1rem">${diaBotones}</div>
 
-    <div style="display:flex;gap:4px;margin-bottom:1rem">
+    <div style="display:flex;gap:4px;margin-bottom:1rem;align-items:center">
       <button onclick="cambiarControlVistaChecklist('lineas')" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:800;border:none;cursor:pointer;background:${controlVistaChecklist==='lineas'?seccion.color:'#e8e2dc'};color:${controlVistaChecklist==='lineas'?'#fff':'var(--muted)'}">📋 Líneas</button>
       <button onclick="cambiarControlVistaChecklist('dashboard')" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:800;border:none;cursor:pointer;background:${controlVistaChecklist==='dashboard'?seccion.color:'#e8e2dc'};color:${controlVistaChecklist==='dashboard'?'#fff':'var(--muted)'}">📊 Dashboard del día</button>
+      ${seccion.key==='tunel' ? `<button onclick="exportarControlCSV('tunel', controlDiaSel)" style="margin-left:auto;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:800;border:1.5px solid #2e7d32;cursor:pointer;background:#fff;color:#2e7d32;display:flex;align-items:center;gap:6px"><i class="ti ti-file-spreadsheet" style="font-size:14px"></i> Exportar CSV del día</button>` : ''}
     </div>
 
     ${controlVistaChecklist==='dashboard' ? renderControlDashboardDiaHTML(seccion, listaDia) : `
