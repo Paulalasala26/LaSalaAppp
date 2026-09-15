@@ -110,19 +110,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
         <option value="GINES">Ginés</option>
         <option value="RAMON">Ramón</option>
         <option value="MANUEL">Manuel</option>
-        <option value="CRISTIAN">Cristian</option>
         <option value="ISMAEL">Ismael</option>
         <option value="MIGUEL ANGEL">Miguel Angel</option>
         <option value="REGANTE1">Regante1 (Sala 1)</option>
         <option value="REGANTE2">Regante2 (Sala 2)</option>
-        <option value="REGANTE3">Regante3 (Sala 3)</option>
-        <option value="REGANTE4">Regante4 (Sala 4)</option>
-        <option value="REGANTE5">Regante5 (Sala 5)</option>
+        <option value="REGANTE3">Regante3 (Sala 3, 4 y 5)</option>
         <option value="PEON1">Peon1 (Sala 1)</option>
         <option value="PEON2">Peon2 (Sala 2)</option>
-        <option value="PEON3">Peon3 (Sala 3)</option>
-        <option value="PEON4">Peon4 (Sala 4)</option>
-        <option value="PEON5">Peon5 (Sala 5)</option>
+        <option value="PEON3">Peon3 (Sala 3, 4 y 5)</option>
         <option value="JULIO">Julio</option>
       </select>
     </div>
@@ -453,19 +448,14 @@ let USERS={
   GINES:"0ffe1abd1a08215353c233d6e009613e95eec4253832a761af28ff37ac5a150c",
   RAMON:"0ffe1abd1a08215353c233d6e009613e95eec4253832a761af28ff37ac5a150c",
   MANUEL:"0ffe1abd1a08215353c233d6e009613e95eec4253832a761af28ff37ac5a150c",
-  CRISTIAN:"0ffe1abd1a08215353c233d6e009613e95eec4253832a761af28ff37ac5a150c",
   ISMAEL:"0ffe1abd1a08215353c233d6e009613e95eec4253832a761af28ff37ac5a150c",
   "MIGUEL ANGEL":"03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4",
   REGANTE1:"0ffe1abd1a08215353c233d6e009613e95eec4253832a761af28ff37ac5a150c",
   REGANTE2:"318aee3fed8c9d040d35a7fc1fa776fb31303833aa2de885354ddf3d44d8fb69",
   REGANTE3:"0ffe1abd1a08215353c233d6e009613e95eec4253832a761af28ff37ac5a150c",
-  REGANTE4:"0ffe1abd1a08215353c233d6e009613e95eec4253832a761af28ff37ac5a150c",
-  REGANTE5:"0ffe1abd1a08215353c233d6e009613e95eec4253832a761af28ff37ac5a150c",
   PEON1:"0ffe1abd1a08215353c233d6e009613e95eec4253832a761af28ff37ac5a150c",
   PEON2:"edee29f882543b956620b26d0ee0e7e950399b1c4222f5de05e06425b4c995e9",
   PEON3:"0ffe1abd1a08215353c233d6e009613e95eec4253832a761af28ff37ac5a150c",
-  PEON4:"0ffe1abd1a08215353c233d6e009613e95eec4253832a761af28ff37ac5a150c",
-  PEON5:"0ffe1abd1a08215353c233d6e009613e95eec4253832a761af28ff37ac5a150c",
   JULIO:"0ffe1abd1a08215353c233d6e009613e95eec4253832a761af28ff37ac5a150c",
 };
 // window.storage.get() devuelve null tanto si la clave no existe todavía
@@ -498,7 +488,7 @@ const usersLoadedPromise = loadUsersFromCloud();
 // Roles: guardados APARTE de USERS (nunca junto a la contraseña — así lo
 // pidió Paula).
 const ROLES_KEY = 'lasala-roles-v1';
-let USER_ROLES = { VIGUERAS:'ADMIN', PAULA:'ADMIN', PILAR:'ADMIN', SONIA:'ADMIN', DENNIS:'TECNICO', FRAN:'TECNICO', GINES:'TECNICO', RAMON:'TECNICO', MANUEL:'TECNICO', CRISTIAN:'TECNICO', ISMAEL:'TECNICO', 'MIGUEL ANGEL':'ADMIN', REGANTE1:'REGANTE', REGANTE2:'REGANTE', REGANTE3:'REGANTE', REGANTE4:'REGANTE', REGANTE5:'REGANTE', PEON1:'PEON', PEON2:'PEON', PEON3:'PEON', PEON4:'PEON', PEON5:'PEON', JULIO:'CARGADOR' };
+let USER_ROLES = { VIGUERAS:'ADMIN', PAULA:'ADMIN', PILAR:'ADMIN', SONIA:'ADMIN', DENNIS:'TECNICO', FRAN:'TECNICO', GINES:'TECNICO', RAMON:'TECNICO', MANUEL:'TECNICO', ISMAEL:'TECNICO', 'MIGUEL ANGEL':'ADMIN', REGANTE1:'REGANTE', REGANTE2:'REGANTE', REGANTE3:'REGANTE', PEON1:'PEON', PEON2:'PEON', PEON3:'PEON', JULIO:'CARGADOR' };
 async function loadRolesFromCloud(){
   try{
     const r = await window.storage.get(ROLES_KEY);
@@ -10564,8 +10554,8 @@ function renderDashboardInvernaderos(modulo){
     [Object.keys(INV_LAYOUT_SALA1), 'SALA 1', 'REGANTE1'],
     [Object.keys(INV_LAYOUT_SALA2), 'SALA 2', 'REGANTE2'],
     [Object.keys(INV_LAYOUT_SALA3), 'SALA 3', 'REGANTE3'],
-    [Object.keys(INV_LAYOUT_SALA4), 'SALA 4', 'REGANTE4'],
-    [Object.keys(INV_LAYOUT_SALA5), 'SALA 5', 'REGANTE5'],
+    [Object.keys(INV_LAYOUT_SALA4), 'SALA 4', 'REGANTE3'],
+    [Object.keys(INV_LAYOUT_SALA5), 'SALA 5', 'REGANTE3'],
   ];
   let salasAMostrar = [];
   if(currentUserRole==='REGANTE'){
@@ -10643,7 +10633,7 @@ function renderResumenQuincenaTratamientos(modulo){
 
   // Filtrar por sala si es REGANTE
   if(currentUserRole==='REGANTE'){
-    allInvIds = Object.keys({REGANTE1:INV_LAYOUT_SALA1, REGANTE2:INV_LAYOUT_SALA2, REGANTE3:INV_LAYOUT_SALA3, REGANTE4:INV_LAYOUT_SALA4, REGANTE5:INV_LAYOUT_SALA5}[currentUser] || INV_LAYOUT_SALA1);
+    allInvIds = Object.keys({REGANTE1:INV_LAYOUT_SALA1, REGANTE2:INV_LAYOUT_SALA2, REGANTE3:{...INV_LAYOUT_SALA3, ...INV_LAYOUT_SALA4, ...INV_LAYOUT_SALA5}}[currentUser] || INV_LAYOUT_SALA1);
   }
   // A petición de Paula (2026-07-31): agrupar por el TRATAMIENTO (producto+
   // dosis+horario, ignorando la observación) en vez de por el texto exacto —
@@ -10966,7 +10956,7 @@ function showRiegoModule(soloLectura){
               ${id}
             </button>`).join('')}
         </div>` : ''}
-        ${(currentUserRole!=='REGANTE' || currentUser==='REGANTE4') ? `
+        ${(currentUserRole!=='REGANTE' || currentUser==='REGANTE3') ? `
         <div style="padding:.5rem 1.25rem;background:#e8f0fb;border-bottom:1px solid #b0c8e0;display:flex;gap:6px;flex-wrap:wrap;align-items:center;flex-shrink:0">
           <span style="font-size:11px;font-weight:700;color:#1558a0;min-width:56px">SALA 4:</span>
           ${Object.keys(INV_LAYOUT_SALA4).map(id=>`
@@ -10975,7 +10965,7 @@ function showRiegoModule(soloLectura){
               ${id}
             </button>`).join('')}
         </div>` : ''}
-        ${(currentUserRole!=='REGANTE' || currentUser==='REGANTE5') ? `
+        ${(currentUserRole!=='REGANTE' || currentUser==='REGANTE3') ? `
         <div style="padding:.5rem 1.25rem;background:#e8f0fb;border-bottom:1px solid #b0c8e0;display:flex;gap:6px;flex-wrap:wrap;align-items:center;flex-shrink:0">
           <span style="font-size:11px;font-weight:700;color:#1558a0;min-width:56px">SALA 5:</span>
           ${Object.keys(INV_LAYOUT_SALA5).map(id=>`
@@ -11761,11 +11751,11 @@ function salaDeInv(invId){
 // Funciones auxiliares para asignar usuarios según la sala
 function peonDelaSala(invId){
   const s = salaDeInv(invId);
-  return {sala1:'PEON1', sala2:'PEON2', sala3:'PEON3', sala4:'PEON4', sala5:'PEON5'}[s] || 'PEON1';
+  return {sala1:'PEON1', sala2:'PEON2', sala3:'PEON3', sala4:'PEON3', sala5:'PEON3'}[s] || 'PEON1';
 }
 function reganteDelaSala(invId){
   const s = salaDeInv(invId);
-  return {sala1:'REGANTE1', sala2:'REGANTE2', sala3:'REGANTE3', sala4:'REGANTE4', sala5:'REGANTE5'}[s] || 'REGANTE1';
+  return {sala1:'REGANTE1', sala2:'REGANTE2', sala3:'REGANTE3', sala4:'REGANTE3', sala5:'REGANTE3'}[s] || 'REGANTE1';
 }
 
 const FITO_KEY = 'lasala-fito-v1';
@@ -13864,7 +13854,7 @@ async function generarTareasDesdeRiego(){
   // Detectado en la auditoría completa del 2026-09-09.
   if(!rCloud){ avisarFalloGuardado(); return; }
   tareasData = JSON.parse(rCloud.value);
-  tareasData = tareasData.filter(t => !((['PEON1','PEON2','PEON3','PEON4','PEON5'].includes(t.asignadoA)) && !t.categoria && t.estado!=='completada'));
+  tareasData = tareasData.filter(t => !((['PEON1','PEON2','PEON3'].includes(t.asignadoA)) && !t.categoria && t.estado!=='completada'));
   const invIds = [...Object.keys(INV_LAYOUT_SALA1), ...Object.keys(INV_LAYOUT_SALA2), ...Object.keys(INV_LAYOUT_SALA3), ...Object.keys(INV_LAYOUT_SALA4), ...Object.keys(INV_LAYOUT_SALA5)];
   let creadas = 0;
   invIds.forEach(invId=>{
@@ -14577,21 +14567,24 @@ function renderIndiceAbonos(){
     const filasPorSala = {};
     SALAS_IDX.forEach(s=>{ filasPorSala[s] = aplicarOrdenManualIndice(filasBase.filter(f=>salaDeInv(f.invId)===s), dia, s); });
 
-    // Si es REGANTE, mostrar solo su sala
+    // Si es REGANTE, mostrar solo su(s) sala(s) — REGANTE3 cubre Sala 3, 4 y 5
+    // desde la reducción de cuentas del 2026-09-15.
     let filasAMostrar = filasBase;
     let titulo = label;
+    let salasAMostrarIdx = SALAS_IDX;
     if(currentUserRole==='REGANTE'){
-      const salaRegante = {REGANTE1:'sala1', REGANTE2:'sala2', REGANTE3:'sala3', REGANTE4:'sala4', REGANTE5:'sala5'}[currentUser] || 'sala1';
-      filasAMostrar = filasPorSala[salaRegante];
-      titulo = label + ' (' + salaRegante.replace('sala','Sala ') + ')';
+      const SALAS_REGANTE = {REGANTE1:['sala1'], REGANTE2:['sala2'], REGANTE3:['sala3','sala4','sala5']};
+      salasAMostrarIdx = SALAS_REGANTE[currentUser] || ['sala1'];
+      filasAMostrar = salasAMostrarIdx.flatMap(s=>filasPorSala[s]);
+      titulo = label + ' (' + salasAMostrarIdx.map(s=>s.replace('sala','Sala ')).join(', ') + ')';
     }
 
     return `
       <div style="margin-bottom:20px">
         <div style="font-size:12px;font-weight:800;color:#a35d00;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">${escapar(titulo)}</div>
         ${filasAMostrar.length===0 ? `<div style="font-size:12px;color:var(--muted);font-style:italic;padding:6px 2px">Nada marcado.</div>` : `
-        ${currentUserRole==='REGANTE' ? renderLineas(filasAMostrar, dia) : SALAS_IDX.map((s,i)=>`
-        <div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:${i===0?8:14}px 0 4px;display:flex;align-items:center">Sala ${i+1}${botonOrdenar(dia,s)}</div>
+        ${(currentUserRole==='REGANTE' && salasAMostrarIdx.length===1) ? renderLineas(filasAMostrar, dia) : salasAMostrarIdx.map((s,i)=>`
+        <div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:${i===0?8:14}px 0 4px;display:flex;align-items:center">${s.replace('sala','Sala ')}${botonOrdenar(dia,s)}</div>
         ${filasPorSala[s].length===0 ? `<div style="font-size:12px;color:var(--muted);font-style:italic;padding:4px 2px">Nada marcado.</div>` : renderLineas(filasPorSala[s], dia)}`).join('')}`}
       </div>`;
   }).join('');
@@ -14635,8 +14628,8 @@ function showEspecificosReganteModule(){
     // Filtrar por sala si es REGANTE
     let especificosRegante = tareasData.filter(t=>t.categoria==='especifico' && !esTareaDeAyer(t));
     if(currentUserRole==='REGANTE'){
-      const saladRegante = {REGANTE1:'sala1', REGANTE2:'sala2', REGANTE3:'sala3', REGANTE4:'sala4', REGANTE5:'sala5'}[currentUser] || 'sala1';
-      especificosRegante = especificosRegante.filter(t => salaDeInv(t.inv) === saladRegante);
+      const saladRegante = {REGANTE1:['sala1'], REGANTE2:['sala2'], REGANTE3:['sala3','sala4','sala5']}[currentUser] || ['sala1'];
+      especificosRegante = especificosRegante.filter(t => saladRegante.includes(salaDeInv(t.inv)));
     }
     const wrap = document.getElementById('especificos-regante-wrap');
     if(!wrap) return;
@@ -15175,9 +15168,9 @@ function mostrarNotificarProblemaRiego(){
 
   // Filtrar por sala si es REGANTE
   if(currentUserRole==='REGANTE'){
-    const saladRegante = {REGANTE1:'sala1', REGANTE2:'sala2', REGANTE3:'sala3', REGANTE4:'sala4', REGANTE5:'sala5'}[currentUser] || 'sala1';
-    aguas = aguas.filter(a => salaDeInv(a.invId) === saladRegante);
-    abonos = abonos.filter(a => salaDeInv(a.invId) === saladRegante);
+    const saladRegante = {REGANTE1:['sala1'], REGANTE2:['sala2'], REGANTE3:['sala3','sala4','sala5']}[currentUser] || ['sala1'];
+    aguas = aguas.filter(a => saladRegante.includes(salaDeInv(a.invId)));
+    abonos = abonos.filter(a => saladRegante.includes(salaDeInv(a.invId)));
   }
   const filaEntrada = (e, tipoInterno) => {
     const contenido = tipoInterno==='abono' ? [e.tiempo, e.producto].filter(Boolean).join(' ') : (e.tiempo + (e.sal?' SAL':''));
