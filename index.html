@@ -10620,8 +10620,23 @@ function grupoCubaDeInv(invId){
 }
 let resumenQuincenaFilasCache = { fito: [], especifico: [] };
 let resumenQuincenaDiaFiltro = { fito: null, especifico: null };
+// Filtros de Sala e Invernadero (a petición de Vigueras, 2026-09-15) — se
+// suman al filtro de día ya existente, sin sustituirlo. Independientes
+// entre sí: se aplican los dos a la vez (Y lógico) si ambos están puestos.
+let resumenQuincenaSalaFiltro = { fito: null, especifico: null };
+let resumenQuincenaInvFiltro = { fito: null, especifico: null };
 function cambiarResumenQuincenaDiaFiltro(modulo, dia){
   resumenQuincenaDiaFiltro[modulo] = dia===''?null:parseInt(dia,10);
+  const wrap = document.getElementById('resumen-quincena-'+modulo);
+  if(wrap) wrap.outerHTML = renderResumenQuincenaTratamientos(modulo);
+}
+function cambiarResumenQuincenaSalaFiltro(modulo, sala){
+  resumenQuincenaSalaFiltro[modulo] = sala||null;
+  const wrap = document.getElementById('resumen-quincena-'+modulo);
+  if(wrap) wrap.outerHTML = renderResumenQuincenaTratamientos(modulo);
+}
+function cambiarResumenQuincenaInvFiltro(modulo, invId){
+  resumenQuincenaInvFiltro[modulo] = invId||null;
   const wrap = document.getElementById('resumen-quincena-'+modulo);
   if(wrap) wrap.outerHTML = renderResumenQuincenaTratamientos(modulo);
 }
@@ -10687,6 +10702,13 @@ function renderResumenQuincenaTratamientos(modulo){
   // agrupamiento en sí, solo a qué tarjetas se muestran.
   const diaFiltro = resumenQuincenaDiaFiltro[modulo];
   if(diaFiltro!=null) filas = filas.filter(f=>f.dia===diaFiltro);
+  // Filtros de Sala e Invernadero (2026-09-15) — una tarjeta puede agrupar
+  // varios invernaderos (mismo tratamiento/hora), así que "pasa el filtro"
+  // si AL MENOS UNO de sus invernaderos coincide.
+  const salaFiltro = resumenQuincenaSalaFiltro[modulo];
+  if(salaFiltro) filas = filas.filter(f=>Object.keys(f.porInv).some(id=>salaDeInv(id)===salaFiltro));
+  const invFiltro = resumenQuincenaInvFiltro[modulo];
+  if(invFiltro) filas = filas.filter(f=>!!f.porInv[invFiltro]);
   resumenQuincenaFilasCache[modulo] = filas;
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   // Tarjetas de colores con paleta suave y variada — cada tarjeta un color
@@ -10739,16 +10761,31 @@ function renderResumenQuincenaTratamientos(modulo){
   // días de esta quincena que tengan algo aplicado, para no listar días vacíos.
   const diasConDatos = [...new Set(Object.values(grupos).map(g=>g.dia))].sort((a,b)=>a-b);
   const filtroDiaHTML = `
-    <select onchange="cambiarResumenQuincenaDiaFiltro('${modulo}',this.value)" style="padding:6px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:11px;font-weight:700;margin-bottom:10px">
+    <select onchange="cambiarResumenQuincenaDiaFiltro('${modulo}',this.value)" style="padding:6px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:11px;font-weight:700">
       <option value="">Todos los días</option>
       ${diasConDatos.map(d=>`<option value="${d}"${diaFiltro===d?' selected':''}>${escapar(riegoDiaLabelCorto(d))} — ${escapar(riegoDiaSemana(d))}</option>`).join('')}
+    </select>`;
+  // Filtro de Sala (2026-09-15) — mismas 5 salas que el resto de la app.
+  const SALAS_FILTRO = [['sala1','Sala 1'],['sala2','Sala 2'],['sala3','Sala 3'],['sala4','Sala 4'],['sala5','Sala 5']];
+  const filtroSalaHTML = `
+    <select onchange="cambiarResumenQuincenaSalaFiltro('${modulo}',this.value)" style="padding:6px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:11px;font-weight:700">
+      <option value="">Todas las salas</option>
+      ${SALAS_FILTRO.map(([s,label])=>`<option value="${s}"${salaFiltro===s?' selected':''}>${label}</option>`).join('')}
+    </select>`;
+  // Filtro de Invernadero (2026-09-15) — agrupado por sala en optgroups,
+  // igual que el resto de selectores de invernadero de la app.
+  const INV_POR_SALA_FILTRO = [['Sala 1',ALL_INV_IDS_SALA1],['Sala 2',ALL_INV_IDS],['Sala 3',ALL_INV_IDS_SALA3],['Sala 4',ALL_INV_IDS_SALA4],['Sala 5',ALL_INV_IDS_SALA5]];
+  const filtroInvHTML = `
+    <select onchange="cambiarResumenQuincenaInvFiltro('${modulo}',this.value)" style="padding:6px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:11px;font-weight:700">
+      <option value="">Todos los invernaderos</option>
+      ${INV_POR_SALA_FILTRO.map(([label,ids])=>`<optgroup label="${label}">${ids.map(id=>`<option value="${id}"${invFiltro===id?' selected':''}>${id}</option>`).join('')}</optgroup>`).join('')}
     </select>`;
   return `
     <div id="resumen-quincena-${modulo}">
       <div style="font-size:14px;font-weight:800;color:var(--text);margin-bottom:6px;padding:0 .25rem">Aplicado en esta quincena</div>
-      <div style="padding:0 .25rem">${filtroDiaHTML}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;padding:0 .25rem;margin-bottom:10px">${filtroDiaHTML}${filtroSalaHTML}${filtroInvHTML}</div>
       <div style="padding:0 .25rem">
-        ${filas.length===0 ? `<div style="text-align:center;padding:2rem;color:var(--muted);font-style:italic;font-size:13px">Nada aplicado todavía${diaFiltro!=null?' ese día':''}.</div>` : filasHTML}
+        ${filas.length===0 ? `<div style="text-align:center;padding:2rem;color:var(--muted);font-style:italic;font-size:13px">Nada aplicado todavía${(diaFiltro!=null||salaFiltro||invFiltro)?' con ese filtro':''}.</div>` : filasHTML}
       </div>
     </div>`;
 }
