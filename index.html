@@ -182,7 +182,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
           <i class="ti ti-clipboard-list" style="font-size:26px;opacity:.9"></i>
           <div style="font-size:14px;font-weight:700;margin-top:12px">Tareas</div>
         </div>
-        <div class="home-shortcut-card" onclick="handleQuickAction('clima')" style="background:linear-gradient(135deg,#0e7490,#22b8cf);color:#fff;border-radius:14px;padding:1.4rem 1.25rem">
+        <div id="shortcut-clima" class="home-shortcut-card" onclick="handleQuickAction('clima')" style="background:linear-gradient(135deg,#0e7490,#22b8cf);color:#fff;border-radius:14px;padding:1.4rem 1.25rem">
           <i class="ti ti-cloud" style="font-size:26px;opacity:.9"></i>
           <div style="font-size:14px;font-weight:700;margin-top:12px">Clima</div>
         </div>
@@ -685,6 +685,9 @@ function applyRoleHomeUI(){
     // sitio, no solo escondiendo el botón.
     document.getElementById('shortcut-historial')?.style.setProperty('display','none');
     document.getElementById('shortcut-trabajos')?.style.setProperty('display','none');
+    // A petición de Vigueras (2026-09-15, rediseño de roles): TÉCNICO ya no
+    // tiene Clima en Inicio.
+    document.getElementById('shortcut-clima')?.style.setProperty('display','none');
     // A petición de Paula: cuando Fran o Dennis terminan de marcar todas las
     // hojas de riego, este botón manda un aviso a Vigueras (avisarHojasMarcadas).
     // "Activar avisos" (push real, activarNotificacionesPush) para que también
