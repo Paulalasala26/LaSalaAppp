@@ -10928,7 +10928,15 @@ function showRiegoModule(soloLectura){
           </div>
         </div>
 
-        <!-- INV SELECTOR -->
+        <!-- INV SELECTOR — plegable: con Sala 1-5 ya no cabe abierto de
+        entrada en pantallas de móvil (auditoría 2026-09-15), así que empieza
+        cerrado y se abre/cierra con la barra de abajo. -->
+        <div id="riego-inv-selector-toggle" onclick="toggleRiegoInvSelector()"
+          style="padding:.55rem 1.25rem;background:#dce8f8;border-bottom:1px solid #b0c8e0;display:flex;justify-content:space-between;align-items:center;cursor:pointer;flex-shrink:0">
+          <span style="font-size:12px;font-weight:800;color:#1558a0">📍 <span id="riego-inv-selector-label">Elegir invernadero</span></span>
+          <span id="riego-inv-selector-arrow" style="font-size:11px;color:#1558a0;transition:transform .15s">▾</span>
+        </div>
+        <div id="riego-inv-selector-wrap" style="display:none">
         ${(currentUserRole!=='REGANTE' || currentUser==='REGANTE1') ? `
         <div style="padding:.5rem 1.25rem;background:#e8f0fb;border-bottom:1px solid #b0c8e0;display:flex;gap:6px;flex-wrap:wrap;align-items:center;flex-shrink:0">
           <span style="font-size:11px;font-weight:700;color:#1558a0;min-width:56px">SALA 1:</span>
@@ -10974,6 +10982,7 @@ function showRiegoModule(soloLectura){
               ${id}
             </button>`).join('')}
         </div>` : ''}
+        </div>
 
         <!-- GRID AREA -->
         <div id="riego-grid-wrap" style="flex:1;overflow:auto;background:#f8f9fa">
@@ -10993,6 +11002,20 @@ function selectRiegoInv(invId, btn){
   });
   if(btn){ btn.style.background='#1558a0'; btn.style.color='#fff'; btn.style.borderColor='#1558a0'; btn.style.fontWeight='800'; }
   renderRiegoGrid(invId);
+  const label = document.getElementById('riego-inv-selector-label');
+  if(label) label.textContent = 'INV.' + invId + ' · Cambiar';
+  toggleRiegoInvSelector(false);
+}
+// Selector de invernadero plegable (Marcaje de riego / Hojas de riego): con
+// 5 salas ya no cabe abierto de entrada en un móvil, así que arranca
+// cerrado y se pliega solo al elegir un invernadero (auditoría 2026-09-15).
+function toggleRiegoInvSelector(forzarAbierto){
+  const wrap = document.getElementById('riego-inv-selector-wrap');
+  const arrow = document.getElementById('riego-inv-selector-arrow');
+  if(!wrap) return;
+  const abrir = forzarAbierto!==undefined ? forzarAbierto : wrap.style.display==='none';
+  wrap.style.display = abrir ? 'block' : 'none';
+  if(arrow) arrow.style.transform = abrir ? 'rotate(180deg)' : 'rotate(0deg)';
 }
 
 // ── HOJAS DE RIEGO (solo consulta) — pantalla del rol REGANTE ───
