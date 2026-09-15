@@ -15536,26 +15536,46 @@ const FITO_CALDO_OPCIONES = [
 ];
 // Mezclas ya preparadas que se pueden elegir directamente en el desplegable
 // "Mezclas predeterminadas", en vez de escribir cada producto y dosis a mano.
-const FITO_MEZCLAS_PREDETERMINADAS = [
-  'ORTIVA TOP 1cc/L',
-  'BB5 0.5cc/L + SERENADE ASO 8cc/L',
-  'BB5 0.5cc/L + SERENADE ASO 8cc/L + BACTUR 1.5cc/L',
-  'BB5 0.5cc/L + SERENADE ASO 8cc/L + BACTUR 1.5cc/L + VERTIMEC 0.5cc/L',
-  'ALTACOR 0.12gr/L + CUPRIK 3gr/L',
-  'CUPRIK 5gr/L',
-  'SIGNUM 1.5gr/L',
-  'COLLIS 0.5cc/L + SIVANTO 0.5cc/L',
-  'BENEVIA 1.25cc/L',
-  'SWITCH 1gr/L',
-  'ELIO 0.15cc/L',
-  'BB5 0.5cc/L + ATOMINAL 0.5cc/L + ALIGN 1cc/L + CIPERMETRINA 0.75cc/L',
-  'DOMARK 0.4cc/L + CLOSER 0.4cc/L',
-  'TOPAS 0.2cc/L',
-  'EPIK 0.35cc/L + TEPPEKI 0.15cc/L',
-  'RANMAN TOP 0.5cc/L',
-  'REVUS 0.6cc/L + CURZATE 0.2cc/L',
-  'SPINTOR 0.25cc/L + CUPRIK 3gr/L'
-];
+// Agrupadas por tipo de planta (a petición de Vigueras, 2026-09-15): las que
+// había hasta ahora son todas de Postinjerto — Normal y Preinjerto quedan
+// preparadas vacías a la espera de que Vigueras mande esas listas.
+const FITO_MEZCLAS_PREDETERMINADAS = {
+  normal: [
+  ],
+  preinjerto: [
+  ],
+  postinjerto: [
+    'ORTIVA TOP 1cc/L',
+    'BB5 0.5cc/L + SERENADE ASO 8cc/L',
+    'BB5 0.5cc/L + SERENADE ASO 8cc/L + BACTUR 1.5cc/L',
+    'BB5 0.5cc/L + SERENADE ASO 8cc/L + BACTUR 1.5cc/L + VERTIMEC 0.5cc/L',
+    'ALTACOR 0.12gr/L + CUPRIK 3gr/L',
+    'CUPRIK 5gr/L',
+    'SIGNUM 1.5gr/L',
+    'COLLIS 0.5cc/L + SIVANTO 0.5cc/L',
+    'BENEVIA 1.25cc/L',
+    'SWITCH 1gr/L',
+    'ELIO 0.15cc/L',
+    'BB5 0.5cc/L + ATOMINAL 0.5cc/L + ALIGN 1cc/L + CIPERMETRINA 0.75cc/L',
+    'DOMARK 0.4cc/L + CLOSER 0.4cc/L',
+    'TOPAS 0.2cc/L',
+    'EPIK 0.35cc/L + TEPPEKI 0.15cc/L',
+    'RANMAN TOP 0.5cc/L',
+    'REVUS 0.6cc/L + CURZATE 0.2cc/L',
+    'SPINTOR 0.25cc/L + CUPRIK 3gr/L'
+  ]
+};
+const FITO_MEZCLAS_TIPO_LABEL = {normal:'Normal', preinjerto:'Preinjerto', postinjerto:'Postinjerto'};
+function opcionesMezclasPredeterminadasHTML(tipo){
+  const lista = FITO_MEZCLAS_PREDETERMINADAS[tipo] || [];
+  if(!lista.length) return `<option value="">— Sin mezclas de ${FITO_MEZCLAS_TIPO_LABEL[tipo]||tipo} todavía —</option>`;
+  return `<option value="">— Elegir mezcla (opcional) —</option>` +
+    lista.map(m=>`<option value="${m.replace(/"/g,'&quot;')}">${m}</option>`).join('');
+}
+function cambiarTipoMezclaPredeterminada(tipo){
+  const sel = document.getElementById('fm-mezcla');
+  if(sel) sel.innerHTML = opcionesMezclasPredeterminadasHTML(tipo);
+}
 function aplicarMezclaPredeterminada(valor){
   if(!valor) return;
   document.getElementById('fm-trat').value = valor;
@@ -15598,7 +15618,19 @@ function showFitoManualForm(){
           <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Día (${riegoDiaLabelCorto(diasQ[0])} – ${riegoDiaLabelCorto(diasQ[diasQ.length-1])})</label>
           <div style="position:relative">
             <select id="fm-dia" style="width:100%;padding:9px 32px 9px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:14px;font-weight:600;background:#f2f4f0;outline:none;cursor:pointer;-webkit-appearance:none">
-              ${diasQ.map(d=>`<option value="${d}"${d===25?' selected':''}>${riegoDiaLabelCorto(d)} — ${riegoDiaSemana(d)}</option>`).join('')}
+              ${diasQ.map(d=>`<option value="${d}"${d===riegoDiaDeHoy()?' selected':''}>${riegoDiaLabelCorto(d)} — ${riegoDiaSemana(d)}</option>`).join('')}
+            </select>
+            <i class="ti ti-chevron-down" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);pointer-events:none;color:#a32020;font-size:14px"></i>
+          </div>
+        </div>
+        <!-- TIPO DE MEZCLA (Normal/Preinjerto/Postinjerto) -->
+        <div>
+          <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Tipo de mezcla</label>
+          <div style="position:relative">
+            <select id="fm-mezcla-tipo" onchange="cambiarTipoMezclaPredeterminada(this.value)" style="width:100%;padding:9px 32px 9px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;font-weight:600;background:#f2f4f0;outline:none;cursor:pointer;-webkit-appearance:none">
+              <option value="normal">Normal</option>
+              <option value="preinjerto">Preinjerto</option>
+              <option value="postinjerto" selected>Postinjerto</option>
             </select>
             <i class="ti ti-chevron-down" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);pointer-events:none;color:#a32020;font-size:14px"></i>
           </div>
@@ -15608,8 +15640,7 @@ function showFitoManualForm(){
           <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Mezclas predeterminadas</label>
           <div style="position:relative">
             <select id="fm-mezcla" onchange="aplicarMezclaPredeterminada(this.value)" style="width:100%;padding:9px 32px 9px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;font-weight:600;background:#f2f4f0;outline:none;cursor:pointer;-webkit-appearance:none">
-              <option value="">— Elegir mezcla (opcional) —</option>
-              ${FITO_MEZCLAS_PREDETERMINADAS.map(m=>`<option value="${m.replace(/"/g,'&quot;')}">${m}</option>`).join('')}
+              ${opcionesMezclasPredeterminadasHTML('postinjerto')}
             </select>
             <i class="ti ti-chevron-down" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);pointer-events:none;color:#a32020;font-size:14px"></i>
           </div>
