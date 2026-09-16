@@ -8729,6 +8729,31 @@ async function mostrarHistorialPartida(id){
   // historial muestra ahora también "Día N" contado desde ahí (1 = el
   // propio día de salida), no solo la fecha de calendario.
   const diaDesde = c.dia!=null ? c.dia : riegoDiaDeHoy();
+  // Carga (salida): misma partida, mismo Nº de bandejas — igual criterio de
+  // desambiguación que calleTramoDeCarga (ver [[lasala_control_carga_filtro_invernadero]]),
+  // porque una partida puede tener varias líneas de Carga en invernaderos
+  // distintos con el mismo número de partida. Se calcula AQUÍ (antes de
+  // recorrer el historial) porque hace falta para topar hasta qué día
+  // contar — ver comentario de diaHasta más abajo.
+  const cargaSalida = controlChecksData.find(x=>x.tipo==='carga' && x.partida===c.partida && x.numBandejas===c.numBandejas)
+    || controlChecksData.find(x=>x.tipo==='carga' && x.partida===c.partida);
+  // Bug real corregido 2026-09-16 (a petición de Vigueras): antes se
+  // contaba SIEMPRE hasta diaDesde+90, sin mirar si la partida ya tenía
+  // parte de carga real (o un "Marcar salida" manual) — el resumen de
+  // riego/plaguicidas/específicos seguía sumando días de DESPUÉS de que la
+  // partida ya se hubiera ido de su calle, dando un total incorrecto.
+  // Mismo criterio que ya usa partidaVisibleEnSemana para el mapa: con
+  // parte de carga real, el tope es el día ANTERIOR a la salida (ese día ya
+  // no es suyo); si no hay parte de carga pero sí "Marcar salida" manual,
+  // se topa en el primer día de esa semana.
+  let diaHasta = diaDesde + 90;
+  if(cargaSalida){
+    diaHasta = cargaSalida.dia - 1;
+  } else if(c.salioDesdeSemanaNumerada !== null && c.salioDesdeSemanaNumerada !== undefined){
+    const inicioSemanaSalida = new Date(PARTIDAS_ANCHOR_DATE); inicioSemanaSalida.setHours(0,0,0,0);
+    inicioSemanaSalida.setDate(inicioSemanaSalida.getDate() + c.salioDesdeSemanaNumerada*7);
+    diaHasta = 15 + Math.round((inicioSemanaSalida - RIEGO_ANCHOR_DATE) / 86400000) - 1;
+  }
   // A petición de Paula (2026-08-18): "no quiero que aparezcan las calles,
   // solo los días con lo que ha llevado" — antes salía una línea POR CADA
   // calle de la partida (normalmente lo mismo repetido varias veces); ahora
@@ -8737,7 +8762,7 @@ async function mostrarHistorialPartida(id){
   const eventosVistos = new Set();
   const eventos = [];
   if(c.invId && calles.length){
-    for(let dia=diaDesde; dia<=diaDesde+90; dia++){
+    for(let dia=diaDesde; dia<=diaHasta; dia++){
       calles.forEach(calle=>{
         const r = getRiego(c.invId, dia, calle);
         if(r){ const k=`${dia}|Riego|${r}`; if(!eventosVistos.has(k)){ eventosVistos.add(k); eventos.push({dia, tipo:'Riego', color:'#1558a0', texto:r}); } }
@@ -8774,12 +8799,6 @@ async function mostrarHistorialPartida(id){
     }
     return `<span style="font-size:11px;font-weight:700;background:#f0f4f8;color:#1558a0;border-radius:999px;padding:3px 10px;margin-right:6px;margin-bottom:6px;display:inline-block">${escapar(cat.label)}: ${escapar(marcadas.join(', ')+extra)}</span>`;
   }).filter(Boolean).join('') || '<span style="font-style:italic;color:var(--muted);font-size:12px">Sin categorías marcadas</span>';
-  // Carga (salida): misma partida, mismo Nº de bandejas — igual criterio de
-  // desambiguación que calleTramoDeCarga (ver [[lasala_control_carga_filtro_invernadero]]),
-  // porque una partida puede tener varias líneas de Carga en invernaderos
-  // distintos con el mismo número de partida.
-  const cargaSalida = controlChecksData.find(x=>x.tipo==='carga' && x.partida===c.partida && x.numBandejas===c.numBandejas)
-    || controlChecksData.find(x=>x.tipo==='carga' && x.partida===c.partida);
   // Fotos asociadas (Check de entrada y, si existe, Check de salida) — se
   // pide solo la foto de estos 1-2 ids concretos (fetchFotoPartidaPorId),
   // nunca los 29 shards completos de fotos de toda la app.
