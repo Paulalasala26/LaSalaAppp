@@ -11030,11 +11030,21 @@ function renderResumenQuincenaTratamientos(modulo){
         const caldoLabel = (typeof raw==='object' && raw?.caldoLabel) || '';
         const tipoTrat = (typeof raw==='object' && raw?.tipoTrat) || '';
         const esCubaRuedas = /CUBA DE RUEDAS/i.test(caldoLabel);
+        const grupoCubaBase = grupoCubaDeInv(invId);
         // A petición de Vigueras (2026-09-17): con Cañón no hay restricción
         // de cuba — se puede combinar cualquier invernadero, incluso de
         // salas distintas, en la misma hoja. Con Pistola (o sin especificar)
         // sigue limitado a la cuba fija real (grupoCubaDeInv/CUBA_GRUPOS).
-        const grupoCuba = tipoTrat==='Cañón' ? 'CANON' : (esCubaRuedas ? 'RUEDAS' : grupoCubaDeInv(invId));
+        // EXCEPCIÓN por encima de todo lo demás: Sala 1 Ecológica (S1_ECO)
+        // tiene su propio tractor ecológico, dedicado solo a esos 6
+        // invernaderos — nunca se combina con el resto, ni siquiera a
+        // Cañón (aclarado por Vigueras justo después de pedir el bypass de
+        // Cañón, para que no se aplicara también aquí). Dentro del propio
+        // grupo Ecológico sí se sigue combinando con normalidad.
+        const grupoCuba = grupoCubaBase==='S1_ECO' ? 'S1_ECO'
+          : tipoTrat==='Cañón' ? 'CANON'
+          : esCubaRuedas ? 'RUEDAS'
+          : grupoCubaBase;
         // El caldo (litros) entra también en la firma — a petición de Paula,
         // 2026-08-11: dos invernaderos con el mismo tratamiento/hora pero
         // caldo distinto (aunque sea "cuba de ruedas" con litros diferentes,
