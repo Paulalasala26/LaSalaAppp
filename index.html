@@ -2532,18 +2532,24 @@ function imprimirTareas(tareasConPosiblesDuplicados){
   });
   if(!tareas.length){ showToast('No hay tareas para imprimir'); return; }
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  // Mismo trabajo (mismo título) + mismo día + mismo horario, en
-  // invernaderos de la MISMA cuba (ver grupoCubaDeInv/CUBA_GRUPOS, ya usado
-  // para Plaguicidas/Específicos): salen juntos en UNA sola hoja, con un
-  // bloque INV→calles por cada invernadero, en vez de una hoja por
-  // invernadero — a petición de Paula, 2026-08-10 (ejemplo real: "Puntas de
-  // pasillo + Puntas de atrás" en INV 2A/2B/3B, todos Sala 1). Las tareas sin
-  // invernadero (fumigaciones con objetivos propios, etc.) no se agrupan,
-  // cada una imprime su propia hoja como siempre.
+  // Mismo trabajo (mismo título) + mismo día + mismo horario: salen juntos
+  // en UNA sola hoja, con un bloque INV→calles por cada invernadero, en vez
+  // de una hoja por invernadero — a petición de Paula, 2026-08-10 (ejemplo
+  // real: "Puntas de pasillo + Puntas de atrás" en INV 2A/2B/3B, todos Sala
+  // 1). Las tareas sin invernadero (fumigaciones con objetivos propios,
+  // etc.) no se agrupan, cada una imprime su propia hoja como siempre.
+  // A petición de Vigueras (2026-09-21): el agua NO tiene restricción de
+  // cuba (cualquier invernadero se puede combinar en la misma hoja); el
+  // abono foliar SÍ respeta la misma cuba fija que Plaguicidas/Específicos
+  // (ver grupoCubaDeInv/CUBA_GRUPOS) — t.esFoliar ya viene calculado desde
+  // generarTareasDesdeRiego (ver tituloTrabajoEsFoliar). Una tarea sin ese
+  // campo (creada por otra vía, ej. tareas manuales) se trata como sin
+  // restricción, igual que el agua.
   const grupos = [];
   const indice = new Map();
   tareas.forEach(t=>{
-    const key = t.inv ? [t.fechaISO||'', t.titulo, t.horario||t.turno||'', grupoCubaDeInv(t.inv)].join('||') : ('sola_'+t.id);
+    const grupoCuba = t.esFoliar ? grupoCubaDeInv(t.inv) : 'SIN_RESTRICCION_CUBA';
+    const key = t.inv ? [t.fechaISO||'', t.titulo, t.horario||t.turno||'', grupoCuba].join('||') : ('sola_'+t.id);
     if(indice.has(key)) grupos[indice.get(key)].push(t);
     else { indice.set(key, grupos.length); grupos.push([t]); }
   });
@@ -14246,6 +14252,22 @@ const CODIGOS_TRABAJO_CON_TAREA = TRABAJO_AGUA.concat(TRABAJO_ABONO_FOLIAR).filt
 // los códigos de trabajo/fumis/tipo y descarta agua/abono/fito). Devuelve
 // {titulo, horario} — titulo vacío si no hay nada de trabajo (o solo había
 // PREPARAR, que no cuenta).
+// A petición de Vigueras (2026-09-21): el agua no tiene restricción de
+// cuba (se puede combinar cualquier invernadero en la misma hoja de
+// tarea de peón), pero el abono foliar SÍ respeta las mismas cubas fijas
+// que Plaguicidas/Específicos (ver CUBA_GRUPOS/grupoCubaDeInv) — el peón
+// tiene que preparar la mezcla en una cuba física real, igual que un
+// tratamiento. Se detecta sobre el título CRUDO (antes de
+// expandirAbreviaturasRiego, ver parsearTrabajoDeTexto): 'ROAF'/'RSAF'
+// sueltos, o cualquier código con sufijo " CON ..." (abono foliar con
+// categoría/producto, ver TRABAJO_CON_VIA/renderTrabajoVias). Si un
+// mismo bracket mezcla agua y foliar (ej. "RO + PP CON ABONO FOLIAR
+// (0.15)", caso real visto en producción), toda la tarea se trata como
+// foliar — el peón ya necesita la cuba para parte del trabajo.
+function tituloTrabajoEsFoliar(tituloBruto){
+  if(!tituloBruto) return false;
+  return tituloBruto.split(' + ').some(p => p==='ROAF' || p==='RSAF' || /\sCON\s/.test(p));
+}
 function parsearTrabajoDeTexto(texto){
   if(!texto || texto.startsWith('* ')) return {titulo:'', horario:'', tituloFumi:''};
   const partes = texto.split(' + ').map(p=>p.trim()).filter(Boolean);
@@ -14336,7 +14358,7 @@ async function generarTareasDesdeRiego(){
         // los brackets de la misma tarea en _callesNumeros y el ENTERO/
         // ENTERO MENOS/tramo se calcula UNA SOLA VEZ al final, sobre la
         // unión real — ver el bucle de formateo tras este forEach.
-        const crearOFusionar = (tituloBruto, horarioTarea) => {
+        const crearOFusionar = (tituloBruto, horarioTarea, esFoliar) => {
           const tituloExpandido = expandirAbreviaturasRiego(tituloBruto);
           const peonAsignado = peonDelaSala(invId);
           const existente = tareasData.find(t=>t.asignadoA===peonAsignado && !t.categoria && t.inv===invId && t.fechaISO===fechaISO && t.titulo===tituloExpandido && (t.horario||'')===(horarioTarea||''));
@@ -14347,7 +14369,7 @@ async function generarTareasDesdeRiego(){
               id: 'tarea_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
               titulo: tituloExpandido, descripcion:'', asignadoA:peonAsignado, asignadoPor: currentUser||'—',
               inv: invId, calles: '', _callesNumeros:[...br.calles], fecha: riegoDiaLabelCorto(dia), fechaISO, turno:'',
-              horario: horarioTarea||'',
+              horario: horarioTarea||'', esFoliar: !!esFoliar,
               prioridad:'normal', estado:'pendiente', horaInicio:null, horaFin:null, firmante:null,
               visto:false, creadoEn: new Date().toLocaleString('es-ES')
             });
@@ -14363,8 +14385,10 @@ async function generarTareasDesdeRiego(){
         // el horario del otro trabajo las afecte). El resto del trabajo del
         // mismo bracket (si lo hay) sigue como su propia tarea, con su
         // horario real, igual que siempre.
-        if(tituloFumi) crearOFusionar(tituloFumi, '1º HORA');
-        if(titulo) crearOFusionar(titulo, horario);
+        // FUMI CON AF/K.MIX/S siempre es abono foliar (nunca agua) — cuba
+        // fija siempre, sin excepción.
+        if(tituloFumi) crearOFusionar(tituloFumi, '1º HORA', true);
+        if(titulo) crearOFusionar(titulo, horario, tituloTrabajoEsFoliar(titulo));
       });
     });
   });
