@@ -14318,24 +14318,35 @@ async function generarTareasDesdeRiego(){
       detectBrackets(invId, dia, allCalles).forEach(br=>{
         const {titulo, horario, tituloFumi} = parsearTrabajoDeTexto(br.text);
         if(!titulo && !tituloFumi) return;
-        const callesLabel = formatCallesConEnteroParaTareaPeon(invId, br.calles);
         const fechaISO = fechaLocalISO(riegoDiaToDate(dia));
         // Crea/fusiona una tarea de peón para un título+horario concretos.
         // Mismo invernadero+día+título pero horario DISTINTO no es el mismo
         // trabajo real (ej. "Puntas de pasillo" a las 8:00 en un tramo y a
         // las 12:00 en otro) — a petición de Paula, 2026-08-11: deben quedar
         // en tareas/hojas separadas, no fusionarse en una sola.
+        // IMPORTANTE (bug real detectado 2026-09-21): el mismo título+horario
+        // puede venir de VARIOS brackets sueltos el mismo día (ej. calles
+        // marcadas en momentos distintos con texto ligeramente distinto que
+        // resuelve al mismo trabajo). Antes cada bracket calculaba su propio
+        // ENTERO/ENTERO MENOS/tramo COMPARÁNDOSE CONTRA TODO EL INVERNADERO
+        // por separado, y esas etiquetas ya formadas se concatenaban como
+        // texto (fusionarCallesTarea) — resultado real: "C/2010-2012, ENTERO
+        // MENOS C/2005-2015 / C/2016-2028, C/2018-2020" en una sola tarea,
+        // un texto sin sentido. Ahora se acumulan las calles CRUDAS de todos
+        // los brackets de la misma tarea en _callesNumeros y el ENTERO/
+        // ENTERO MENOS/tramo se calcula UNA SOLA VEZ al final, sobre la
+        // unión real — ver el bucle de formateo tras este forEach.
         const crearOFusionar = (tituloBruto, horarioTarea) => {
           const tituloExpandido = expandirAbreviaturasRiego(tituloBruto);
           const peonAsignado = peonDelaSala(invId);
           const existente = tareasData.find(t=>t.asignadoA===peonAsignado && !t.categoria && t.inv===invId && t.fechaISO===fechaISO && t.titulo===tituloExpandido && (t.horario||'')===(horarioTarea||''));
           if(existente){
-            existente.calles = fusionarCallesTarea(existente.calles, callesLabel);
+            existente._callesNumeros = [...new Set([...(existente._callesNumeros||[]), ...br.calles])];
           } else {
             tareasData.push({
               id: 'tarea_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
               titulo: tituloExpandido, descripcion:'', asignadoA:peonAsignado, asignadoPor: currentUser||'—',
-              inv: invId, calles: callesLabel, fecha: riegoDiaLabelCorto(dia), fechaISO, turno:'',
+              inv: invId, calles: '', _callesNumeros:[...br.calles], fecha: riegoDiaLabelCorto(dia), fechaISO, turno:'',
               horario: horarioTarea||'',
               prioridad:'normal', estado:'pendiente', horaInicio:null, horaFin:null, firmante:null,
               visto:false, creadoEn: new Date().toLocaleString('es-ES')
@@ -14356,6 +14367,13 @@ async function generarTareasDesdeRiego(){
         if(titulo) crearOFusionar(titulo, horario);
       });
     });
+  });
+  // Ahora sí: con TODOS los brackets ya acumulados por tarea, se calcula
+  // ENTERO/ENTERO MENOS/tramo una única vez sobre la unión real de calles.
+  tareasData.forEach(t=>{
+    if(!t._callesNumeros) return;
+    t.calles = formatCallesConEnteroParaTareaPeon(t.inv, t._callesNumeros);
+    delete t._callesNumeros;
   });
   const ok = await window.storage.set(TAREAS_KEY, JSON.stringify(tareasData));
   if(!ok){ avisarFalloGuardado(); return; }
