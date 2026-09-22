@@ -10685,7 +10685,14 @@ async function saveRiegoData(){
     const r = await window.storage.get(RIEGO_KEY);
     if(!r){ avisarFalloGuardado(); return false; }
     const cloud = JSON.parse(r.value);
-    riegoData = mergeDeepPreferLocal(cloud, riegoData);
+    // Con carga parcial, riegoData puede contener otros INV antiguos en memoria.
+    // Solo se fusionan los INV realmente tocados; el resto queda exactamente
+    // como acaba de llegar de Firebase, evitando sobrescribir cambios ajenos.
+    afectados.forEach(invId=>{
+      cloud[invId] = mergeDeepPreferLocal(cloud[invId]||{}, riegoData[invId]||{});
+    });
+    riegoData = cloud;
+    riegoDataCargadaEn = Date.now();
     const ok = await window.storage.set(RIEGO_KEY, JSON.stringify(riegoData));
     if(!ok){ avisarFalloGuardado(); return false; }
     // Dual-write temporal: v1 sigue siendo rollback/fuente para módulos aún
