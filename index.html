@@ -10493,27 +10493,44 @@ function valorTextoRiego(raw){
 function textoRiegoConflicto(raw){
   return valorTextoRiego(raw) || 'vacío';
 }
+function nombreRiegoUsuario(raw){
+  const u = (raw && typeof raw==='object' && raw.marcadoPor) ? String(raw.marcadoPor) : '';
+  if(!u) return 'Usuario no identificado';
+  return u.toLowerCase().replace(/(^|\s)\S/g,m=>m.toUpperCase());
+}
+function rolRiegoUsuario(raw){
+  return (raw && typeof raw==='object' && raw.rol) ? String(raw.rol) : '';
+}
 function mostrarConflictoRiego(invId,dia,calle,remoto,local){
   return new Promise(resolve=>{
     const o = getOrCreateOverlay('riego-conflicto-overlay');
     o.style.zIndex = '100000';
     o.innerHTML = `
-      <div style="background:#fff;border-radius:12px;max-width:480px;width:calc(100% - 28px);box-shadow:0 14px 45px rgba(0,0,0,.35);overflow:hidden">
+      <div style="background:#fff;border-radius:12px;max-width:520px;width:calc(100% - 28px);box-shadow:0 14px 45px rgba(0,0,0,.35);overflow:hidden">
         <div style="background:#b42318;color:#fff;padding:12px 16px;font-size:15px;font-weight:900">⚠ Conflicto de riego detectado</div>
         <div style="padding:16px;font-size:13px;line-height:1.45">
-          <div style="font-weight:800;margin-bottom:10px">INV <span id="rc-inv"></span> · día <span id="rc-dia"></span> · calle <span id="rc-calle"></span></div>
+          <div style="font-weight:800;margin-bottom:10px">INV <span id="rc-inv"></span> · <span id="rc-dia"></span> · calle <span id="rc-calle"></span></div>
           <div style="margin-bottom:12px">Otro usuario ha modificado esta misma celda desde que la abriste.</div>
+          <div style="background:#fff4e5;border:1px solid #f0c36d;border-radius:8px;padding:10px;margin-bottom:8px">
+            <b>Modificado por:</b> <span id="rc-usuario"></span><span id="rc-rol-wrap"> · <span id="rc-rol"></span></span>
+          </div>
           <div style="background:#f6f7f8;border-radius:8px;padding:10px;margin-bottom:8px"><b>Valor actual:</b> <span id="rc-remoto"></span></div>
           <div style="background:#eef5ff;border-radius:8px;padding:10px"><b>Tu cambio:</b> <span id="rc-local"></span></div>
-          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
-            <button id="rc-cancelar" style="padding:8px 14px;border:1px solid #bbb;background:#fff;border-radius:7px;font-weight:800;cursor:pointer">Cancelar guardado</button>
-            <button id="rc-sobrescribir" style="padding:8px 14px;border:none;background:#b42318;color:#fff;border-radius:7px;font-weight:800;cursor:pointer">Sobrescribir</button>
+          <div style="font-size:11px;color:#666;margin-top:10px">Si necesitas aclararlo antes de continuar, contacta con el usuario indicado.</div>
+          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap">
+            <button id="rc-cancelar" style="padding:8px 14px;border:1px solid #2e7d32;background:#fff;color:#1b5e20;border-radius:7px;font-weight:800;cursor:pointer">Mantener el valor actual</button>
+            <button id="rc-sobrescribir" style="padding:8px 14px;border:none;background:#b42318;color:#fff;border-radius:7px;font-weight:800;cursor:pointer">Sobrescribir con mi cambio</button>
           </div>
         </div>
       </div>`;
     o.querySelector('#rc-inv').textContent = invId;
-    o.querySelector('#rc-dia').textContent = dia;
+    const diaNum = parseInt(dia,10);
+    o.querySelector('#rc-dia').textContent = Number.isFinite(diaNum) ? riegoDiaLabelCorto(diaNum) : ('día '+dia);
     o.querySelector('#rc-calle').textContent = calle;
+    o.querySelector('#rc-usuario').textContent = nombreRiegoUsuario(remoto);
+    const rol = rolRiegoUsuario(remoto);
+    o.querySelector('#rc-rol').textContent = rol;
+    if(!rol) o.querySelector('#rc-rol-wrap').style.display='none';
     o.querySelector('#rc-remoto').textContent = textoRiegoConflicto(remoto);
     o.querySelector('#rc-local').textContent = textoRiegoConflicto(local);
     const cerrar = v=>{ o.style.display='none'; resolve(v); };
