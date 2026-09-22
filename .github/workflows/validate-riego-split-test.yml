@@ -1,0 +1,67 @@
+name: Validate Riego split TEST
+on:
+  push:
+    branches:
+      - test/v1.0
+    paths:
+      - .github/workflows/validate-riego-split-test.yml
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Static JS syntax
+        run: |
+          python - <<'PY'
+          import re, pathlib, subprocess, sys
+          html=pathlib.Path('index.html').read_text(encoding='utf-8')
+          scripts=re.findall(r'<script([^>]*)>(.*?)</script>', html, flags=re.I|re.S)
+          checked=0
+          for i,(attrs,code) in enumerate(scripts):
+              if 'src=' in attrs.lower(): continue
+              if 'application/json' in attrs.lower(): continue
+              p=pathlib.Path(f'/tmp/script-{i}.js')
+              p.write_text(code,encoding='utf-8')
+              r=subprocess.run(['node','--check',str(p)],capture_output=True,text=True)
+              if r.returncode:
+                  print(f'SCRIPT_SYNTAX_FAIL={i}')
+                  print(r.stderr)
+                  sys.exit(r.returncode)
+              checked+=1
+          print('INLINE_SCRIPTS_SYNTAX_OK=',checked)
+          assert 'async function loadRiegoInvData(invId, forzar)' in html
+          assert 'async function selectRiegoInv(invId, btn)' in html
+          block=html[html.index('function showRiegoModule'):html.index('async function selectRiegoInv')]
+          assert 'loadRiegoData(false)' not in block
+          print('RIEGO_UI_NO_FULL_LOAD_OK')
+          PY
+      - name: Verify split data equals legacy
+        run: |
+          set -euo pipefail
+          TEST="https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app"
+          python - <<'PY'
+          import json,urllib.request,hashlib
+          base='https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app'
+          def get(k):
+              with urllib.request.urlopen(f'{base}/{k}.json',timeout=60) as r:
+                  return json.loads(r.read().decode())
+          src=json.loads(get('lasala-riego-v1'))
+          idx=json.loads(get('lasala-riego-v2-index'))
+          assert len(idx)==20
+          rebuilt={}
+          sizes={}
+          for inv in idx:
+              raw=get(f'lasala-riego-v2-{inv}')
+              assert isinstance(raw,str)
+              rebuilt[inv]=json.loads(raw)
+              sizes[inv]=len(raw.encode())
+          canon=lambda x: json.dumps(x,sort_keys=True,separators=(',',':'),ensure_ascii=False).encode()
+          h1=hashlib.sha256(canon(src)).hexdigest()
+          h2=hashlib.sha256(canon(rebuilt)).hexdigest()
+          print('V1_HASH=',h1)
+          print('V2_HASH=',h2)
+          print('INV17_BYTES=',sizes.get('17'))
+          print('MAX_INV_BYTES=',max(sizes.values()))
+          assert h1==h2
+          print('DATA_SPLIT_EXACT_OK')
+          PY
