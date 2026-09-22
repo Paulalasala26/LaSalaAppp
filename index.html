@@ -10485,10 +10485,42 @@ function canonRiegoValor(v){
 function riegoValorIgual(a,b){
   return JSON.stringify(canonRiegoValor(a))===JSON.stringify(canonRiegoValor(b));
 }
-function textoRiegoConflicto(raw){
-  if(raw==null) return 'vacío';
+function valorTextoRiego(raw){
+  if(raw==null) return '';
   const t = typeof raw==='string' ? raw : (raw.texto||'');
-  return t && String(t).trim() ? String(t).trim() : 'vacío';
+  return t==null ? '' : String(t).trim();
+}
+function textoRiegoConflicto(raw){
+  return valorTextoRiego(raw) || 'vacío';
+}
+function mostrarConflictoRiego(invId,dia,calle,remoto,local){
+  return new Promise(resolve=>{
+    const o = getOrCreateOverlay('riego-conflicto-overlay');
+    o.style.zIndex = '100000';
+    o.innerHTML = `
+      <div style="background:#fff;border-radius:12px;max-width:480px;width:calc(100% - 28px);box-shadow:0 14px 45px rgba(0,0,0,.35);overflow:hidden">
+        <div style="background:#b42318;color:#fff;padding:12px 16px;font-size:15px;font-weight:900">⚠ Conflicto de riego detectado</div>
+        <div style="padding:16px;font-size:13px;line-height:1.45">
+          <div style="font-weight:800;margin-bottom:10px">INV <span id="rc-inv"></span> · día <span id="rc-dia"></span> · calle <span id="rc-calle"></span></div>
+          <div style="margin-bottom:12px">Otro usuario ha modificado esta misma celda desde que la abriste.</div>
+          <div style="background:#f6f7f8;border-radius:8px;padding:10px;margin-bottom:8px"><b>Valor actual:</b> <span id="rc-remoto"></span></div>
+          <div style="background:#eef5ff;border-radius:8px;padding:10px"><b>Tu cambio:</b> <span id="rc-local"></span></div>
+          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+            <button id="rc-cancelar" style="padding:8px 14px;border:1px solid #bbb;background:#fff;border-radius:7px;font-weight:800;cursor:pointer">Cancelar guardado</button>
+            <button id="rc-sobrescribir" style="padding:8px 14px;border:none;background:#b42318;color:#fff;border-radius:7px;font-weight:800;cursor:pointer">Sobrescribir</button>
+          </div>
+        </div>
+      </div>`;
+    o.querySelector('#rc-inv').textContent = invId;
+    o.querySelector('#rc-dia').textContent = dia;
+    o.querySelector('#rc-calle').textContent = calle;
+    o.querySelector('#rc-remoto').textContent = textoRiegoConflicto(remoto);
+    o.querySelector('#rc-local').textContent = textoRiegoConflicto(local);
+    const cerrar = v=>{ o.style.display='none'; resolve(v); };
+    o.querySelector('#rc-cancelar').onclick = ()=>cerrar(false);
+    o.querySelector('#rc-sobrescribir').onclick = ()=>cerrar(true);
+    o.style.display = 'flex';
+  });
 }
 function riegoDirtyCellKey(invId,dia,calle){ return String(invId)+'|'+String(dia)+'|'+String(calle); }
 function marcarRiegoDirtyCell(invId,dia,calle,baseOriginal){
@@ -10499,6 +10531,7 @@ function marcarRiegoDirtyCell(invId,dia,calle,baseOriginal){
   // original para poder detectar si otro usuario la cambió entretanto.
   if(!riegoDirtyCells.has(key)){
     rec.base = clonarRiegoSnapshot(baseOriginal);
+    rec.baseTexto = valorTextoRiego(baseOriginal);
     riegoDirtyCells.set(key, rec);
   }
   riegoDirtyInvs.add(rec.invId);
@@ -10818,23 +10851,31 @@ async function saveRiegoInvPatch(invId, extraDeletes, incluirDirty){
       // confirma expresamente. El ETag sigue protegiendo además la carrera
       // entre esta lectura y el PUT.
       const intenciones = new Map();
-      dirty.forEach(({dia,calle,base})=>{
+      dirty.forEach(({dia,calle,base,baseTexto})=>{
         const d=String(dia), ca=String(calle);
         let local = riegoData[invId]?.[d]?.[ca];
         const textoLocal = (local && typeof local==='object') ? local.texto : local;
         if(local==null || (typeof textoLocal==='string' && textoLocal.trim()==='')) local = null;
-        intenciones.set(d+'|'+ca,{dia:d,calle:ca,local,base:clonarRiegoSnapshot(base)});
+        intenciones.set(d+'|'+ca,{
+          dia:d,
+          calle:ca,
+          local,
+          base:clonarRiegoSnapshot(base),
+          baseTexto:baseTexto==null ? valorTextoRiego(base) : baseTexto
+        });
       });
       extraDeletes.forEach(({dia,calles})=>{
         const d=String(dia);
         (calles||[]).forEach(c=>{
           const ca=String(c), k=d+'|'+ca;
           if(!intenciones.has(k)){
+            const baseBorrado = clonarRiegoSnapshot(riegoBaseInv[invId]?.[d]?.[ca] ?? null);
             intenciones.set(k,{
               dia:d,
               calle:ca,
               local:null,
-              base:clonarRiegoSnapshot(riegoBaseInv[invId]?.[d]?.[ca] ?? null)
+              base:baseBorrado,
+              baseTexto:valorTextoRiego(baseBorrado)
             });
           } else {
             intenciones.get(k).local = null;
@@ -10843,20 +10884,14 @@ async function saveRiegoInvPatch(invId, extraDeletes, incluirDirty){
       });
 
       for(const it of intenciones.values()){
-        const base = ('base' in it) ? it.base : (riegoBaseInv[invId]?.[it.dia]?.[it.calle] ?? null);
+        const baseTexto = it.baseTexto==null ? valorTextoRiego(it.base) : it.baseTexto;
         const remoto = cloud[it.dia]?.[it.calle] ?? null;
-        if(!riegoValorIgual(remoto, base) && !riegoValorIgual(it.local, remoto)){
-          const firma = it.dia+'|'+it.calle+'|'+JSON.stringify(canonRiegoValor(remoto));
+        const remotoTexto = valorTextoRiego(remoto);
+        const localTexto = valorTextoRiego(it.local);
+        if(remotoTexto!==baseTexto && localTexto!==remotoTexto){
+          const firma = it.dia+'|'+it.calle+'|'+remotoTexto;
           if(!conflictosAceptados.has(firma)){
-            const aceptar = confirm(
-              '⚠ CONFLICTO DE RIEGO DETECTADO\n\n'+
-              'INV '+invId+' · día '+it.dia+' · calle '+it.calle+'\n\n'+
-              'Otro usuario modificó esta misma celda desde que la abriste.\n\n'+
-              'Valor actual en Firebase: '+textoRiegoConflicto(remoto)+'\n'+
-              'Tu cambio: '+textoRiegoConflicto(it.local)+'\n\n'+
-              'Aceptar = sobrescribir con tu cambio.\n'+
-              'Cancelar = no guardar esta operación.'
-            );
+            const aceptar = await mostrarConflictoRiego(invId,it.dia,it.calle,remoto,it.local);
             if(!aceptar){
               showToast('⚠ Guardado cancelado por conflicto');
               return false;
