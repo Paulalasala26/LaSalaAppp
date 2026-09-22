@@ -10491,9 +10491,16 @@ function textoRiegoConflicto(raw){
   return t && String(t).trim() ? String(t).trim() : 'vacío';
 }
 function riegoDirtyCellKey(invId,dia,calle){ return String(invId)+'|'+String(dia)+'|'+String(calle); }
-function marcarRiegoDirtyCell(invId,dia,calle){
+function marcarRiegoDirtyCell(invId,dia,calle,baseOriginal){
   const rec = {invId:String(invId), dia:String(dia), calle:String(calle)};
-  riegoDirtyCells.set(riegoDirtyCellKey(rec.invId,rec.dia,rec.calle), rec);
+  const key = riegoDirtyCellKey(rec.invId,rec.dia,rec.calle);
+  // Guardar la versión EXACTA que el usuario vio antes de su primera edición.
+  // Si vuelve a editar la misma celda antes de guardar, se conserva esa base
+  // original para poder detectar si otro usuario la cambió entretanto.
+  if(!riegoDirtyCells.has(key)){
+    rec.base = clonarRiegoSnapshot(baseOriginal);
+    riegoDirtyCells.set(key, rec);
+  }
   riegoDirtyInvs.add(rec.invId);
 }
 const DIAS = [15,16,17,18,19,20,21,22,23,24,25,26,27,28];
@@ -10811,20 +10818,32 @@ async function saveRiegoInvPatch(invId, extraDeletes, incluirDirty){
       // confirma expresamente. El ETag sigue protegiendo además la carrera
       // entre esta lectura y el PUT.
       const intenciones = new Map();
-      dirty.forEach(({dia,calle})=>{
+      dirty.forEach(({dia,calle,base})=>{
         const d=String(dia), ca=String(calle);
         let local = riegoData[invId]?.[d]?.[ca];
         const textoLocal = (local && typeof local==='object') ? local.texto : local;
         if(local==null || (typeof textoLocal==='string' && textoLocal.trim()==='')) local = null;
-        intenciones.set(d+'|'+ca,{dia:d,calle:ca,local});
+        intenciones.set(d+'|'+ca,{dia:d,calle:ca,local,base:clonarRiegoSnapshot(base)});
       });
       extraDeletes.forEach(({dia,calles})=>{
         const d=String(dia);
-        (calles||[]).forEach(c=>intenciones.set(d+'|'+String(c),{dia:d,calle:String(c),local:null}));
+        (calles||[]).forEach(c=>{
+          const ca=String(c), k=d+'|'+ca;
+          if(!intenciones.has(k)){
+            intenciones.set(k,{
+              dia:d,
+              calle:ca,
+              local:null,
+              base:clonarRiegoSnapshot(riegoBaseInv[invId]?.[d]?.[ca] ?? null)
+            });
+          } else {
+            intenciones.get(k).local = null;
+          }
+        });
       });
 
       for(const it of intenciones.values()){
-        const base = riegoBaseInv[invId]?.[it.dia]?.[it.calle] ?? null;
+        const base = ('base' in it) ? it.base : (riegoBaseInv[invId]?.[it.dia]?.[it.calle] ?? null);
         const remoto = cloud[it.dia]?.[it.calle] ?? null;
         if(!riegoValorIgual(remoto, base) && !riegoValorIgual(it.local, remoto)){
           const firma = it.dia+'|'+it.calle+'|'+JSON.stringify(canonRiegoValor(remoto));
@@ -10921,10 +10940,11 @@ async function saveRiegoData(){
 function setRiego(invId, dia, calle, val, extra){
   if(!riegoData[invId]) riegoData[invId]={};
   if(!riegoData[invId][dia]) riegoData[invId][dia]={};
+  const antes = clonarRiegoSnapshot(riegoData[invId][dia][calle] ?? null);
   const texto = typeof val==='string' ? val.trim() : val;
   if(texto) riegoData[invId][dia][calle] = { texto, marcadoPor: currentUser||null, rol: currentUserRole||null, ...(extra||{}) };
   else delete riegoData[invId][dia][calle];
-  marcarRiegoDirtyCell(invId,dia,calle);
+  marcarRiegoDirtyCell(invId,dia,calle,antes);
 }
 function getRiegoCellRaw(invId, dia, calle){
   return riegoData[invId]?.[dia]?.[calle];
@@ -10974,8 +10994,9 @@ async function marcarRiegoRevisadoPorVigueras(unlockKey){
   calles.forEach(c=>{
     const raw = getRiegoCellRaw(invId, dia, c);
     if(raw && typeof raw==='object'){
+      const antes = clonarRiegoSnapshot(raw);
       raw.revisadoPorVigueras = true;
-      marcarRiegoDirtyCell(invId,dia,c);
+      marcarRiegoDirtyCell(invId,dia,c,antes);
     }
   });
   await saveRiegoData();
