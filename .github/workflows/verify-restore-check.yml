@@ -1,0 +1,41 @@
+name: Verify restore check in Firebase TEST
+on:
+  push:
+    branches:
+      - test/v1.0
+    paths:
+      - .github/workflows/verify-restore-check.yml
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify restored backup exactly
+        run: |
+          set -euo pipefail
+          TEST="https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app"
+
+          curl -fsS "$TEST/__restore_check_20260922.json" -o restore.json
+          test -s restore.json
+
+          TOP_KEYS="$(jq 'keys | length' restore.json)"
+          echo "RESTORE_TOP_LEVEL_KEYS=$TOP_KEYS"
+          test "$TOP_KEYS" = "241"
+
+          test "$(jq 'has("lasala-riego-v1")' restore.json)" = "true"
+          test "$(jq 'has("lasala-control-items-v1")' restore.json)" = "true"
+
+          jq -S -c . restore.json > canonical.json
+          HASH="$(sha256sum canonical.json | awk '{print $1}')"
+          echo "RESTORE_CANONICAL_SHA256=$HASH"
+          test "$HASH" = "1772e1e125959196b846b2a0d2cc68373d41396912701f3f973fff169154780a"
+
+          for key in             lasala-riego-v1             lasala-riego-ejecutado-v1             lasala-propuestas-riego-v1             lasala-indice-abonos-estado-v1             lasala-indice-abonos-orden-v1             lasala-control-items-v1
+          do
+            CODE="$(curl -sS -o sibling.json -w "%{http_code}" "$TEST/$key.json")"
+            test "$CODE" = "200"
+            test "$(cat sibling.json)" != "null"
+            echo "SIBLING_OK=$key"
+          done
+
+          echo "RESTORE_VERIFIED_OK"
