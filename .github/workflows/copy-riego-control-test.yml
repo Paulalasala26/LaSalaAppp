@@ -1,0 +1,55 @@
+name: One-time copy Riego Control to TEST
+
+on:
+  push:
+    branches:
+      - test/v1.0
+    paths:
+      - .github/workflows/copy-riego-control-test.yml
+  workflow_dispatch:
+
+jobs:
+  copy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Copy selected Firebase RTDB nodes PRD to TEST
+        shell: bash
+        run: |
+          set -euo pipefail
+          PROD="https://la-sala-app-default-rtdb.europe-west1.firebasedatabase.app"
+          TEST="https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app"
+          KEYS=(
+            "lasala-riego-v1"
+            "lasala-riego-ejecutado-v1"
+            "lasala-propuestas-riego-v1"
+            "lasala-indice-abonos-estado-v1"
+            "lasala-indice-abonos-orden-v1"
+            "lasala-control-items-v1"
+          )
+
+          for key in "${KEYS[@]}"; do
+            src="$(mktemp)"
+            dst="$(mktemp)"
+            resp="$(mktemp)"
+
+            code="$(curl --retry 3 --retry-delay 2 -sS -o "$src" -w "%{http_code}" "$PROD/$key.json")"
+            test "$code" = "200" || { echo "ERROR GET PRD $key HTTP $code"; exit 1; }
+
+            bytes="$(wc -c < "$src" | tr -d ' ')"
+            echo "COPY $key ($bytes bytes)"
+
+            code="$(curl --retry 3 --retry-delay 2 -sS -X PUT               -H "Content-Type: application/json"               --data-binary "@$src"               -o "$resp" -w "%{http_code}"               "$TEST/$key.json")"
+            test "$code" = "200" || { echo "ERROR PUT TEST $key HTTP $code"; cat "$resp"; exit 1; }
+
+            code="$(curl --retry 3 --retry-delay 2 -sS -o "$dst" -w "%{http_code}" "$TEST/$key.json")"
+            test "$code" = "200" || { echo "ERROR VERIFY TEST $key HTTP $code"; exit 1; }
+
+            h1="$(jq -S -c . "$src" | sha256sum | cut -d' ' -f1)"
+            h2="$(jq -S -c . "$dst" | sha256sum | cut -d' ' -f1)"
+            test "$h1" = "$h2" || { echo "ERROR HASH $key"; exit 1; }
+
+            echo "OK $key"
+            rm -f "$src" "$dst" "$resp"
+          done
+
+          echo "COPY COMPLETE"
