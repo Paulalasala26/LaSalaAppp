@@ -16,3 +16,5 @@ jobs:
           code="$(curl -sS -o /tmp/resp -w "%{http_code}" -X PUT             -H "Content-Type: application/json"             --data '{"ready":true}'             "$TEST/__restore_check_20260922.json")"
           test "$code" = "200" || { cat /tmp/resp; exit 1; }
           echo "OK"
+
+# trigger
