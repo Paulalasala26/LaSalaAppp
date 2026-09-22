@@ -1,0 +1,39 @@
+name: Measure Riego structure in TEST
+on:
+  push:
+    branches:
+      - test/v1.0
+    paths:
+      - .github/workflows/measure-riego-test.yml
+
+jobs:
+  measure:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Measure TEST Riego node
+        run: |
+          set -euo pipefail
+          TEST="https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app"
+          curl -fsS "$TEST/lasala-riego-v1.json" -o raw.json
+          python - <<'PY'
+          import json, hashlib
+          raw=json.load(open('raw.json',encoding='utf-8'))
+          print('TOP_TYPE=',type(raw).__name__)
+          assert isinstance(raw,str), 'Esperaba double-JSON string'
+          obj=json.loads(raw)
+          print('INV_COUNT=',len(obj))
+          total=len(raw.encode())
+          print('RAW_STRING_BYTES=',total)
+          sizes=[]
+          for inv,v in obj.items():
+              b=len(json.dumps(v,ensure_ascii=False,separators=(',',':')).encode())
+              days=len(v) if isinstance(v,dict) else 0
+              cells=0
+              if isinstance(v,dict):
+                  for d,calles in v.items():
+                      if isinstance(calles,dict): cells+=len(calles)
+              sizes.append((b,inv,days,cells))
+          for b,inv,days,cells in sorted(sizes, reverse=True):
+              print(f'INV={inv} BYTES={b} DAYS={days} CELLS={cells}')
+          print('CANONICAL_SHA256=',hashlib.sha256(json.dumps(obj,sort_keys=True,separators=(',',':'),ensure_ascii=False).encode()).hexdigest())
+          PY
