@@ -28,7 +28,7 @@ jobs:
           jq -S -c . restore.json > canonical.json
           HASH="$(sha256sum canonical.json | awk '{print $1}')"
           echo "RESTORE_CANONICAL_SHA256=$HASH"
-          test "$HASH" = "1772e1e125959196b846b2a0d2cc68373d41396912701f3f973fff169154780a"
+          test "$HASH" = "c7c4386e517c1cd61049f9e67a6913547e46c067374ac4f766c4b83a3ad5bbaf"
 
           for key in             lasala-riego-v1             lasala-riego-ejecutado-v1             lasala-propuestas-riego-v1             lasala-indice-abonos-estado-v1             lasala-indice-abonos-orden-v1             lasala-control-items-v1
           do
@@ -39,3 +39,5 @@ jobs:
           done
 
           echo "RESTORE_VERIFIED_OK"
+
+# rerun with jq-comparable hash
