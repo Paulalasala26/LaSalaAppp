@@ -1,0 +1,46 @@
+name: Migrate Riego v1 to native v2 in TEST
+on:
+  push:
+    branches:
+      - test/v1.0
+    paths:
+      - .github/workflows/migrate-riego-v2-test.yml
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Migrate Riego preserving v1
+        run: |
+          set -euo pipefail
+          TEST="https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app"
+
+          curl -fsS "$TEST/lasala-riego-v1.json" -o v1raw.json
+          python - <<'PY'
+          import json
+          raw=json.load(open('v1raw.json',encoding='utf-8'))
+          assert isinstance(raw,str)
+          obj=json.loads(raw)
+          json.dump(obj,open('v2.json','w',encoding='utf-8'),ensure_ascii=False,separators=(',',':'))
+          PY
+
+          curl -fsS -X PUT -H "Content-Type: application/json" --data-binary @v2.json             "$TEST/lasala-riego-v2.json" > /tmp/put.json
+
+          curl -fsS "$TEST/lasala-riego-v2.json" -o v2read.json
+
+          python - <<'PY'
+          import json,hashlib
+          v1=json.loads(json.load(open('v1raw.json',encoding='utf-8')))
+          v2=json.load(open('v2read.json',encoding='utf-8'))
+          def canon(x):
+              return json.dumps(x,sort_keys=True,separators=(',',':'),ensure_ascii=False).encode()
+          h1=hashlib.sha256(canon(v1)).hexdigest()
+          h2=hashlib.sha256(canon(v2)).hexdigest()
+          print('V1_HASH=',h1)
+          print('V2_HASH=',h2)
+          print('INV_COUNT=',len(v2))
+          print('V2_NATIVE_BYTES=',len(json.dumps(v2,ensure_ascii=False,separators=(',',':')).encode()))
+          assert h1==h2
+          assert len(v2)==20
+          print('RIEGO_V2_MIGRATION_VERIFIED_OK')
+          PY
