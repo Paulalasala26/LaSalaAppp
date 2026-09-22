@@ -10746,7 +10746,9 @@ async function saveRiegoInvPatch(invId, extraDeletes, incluirDirty){
   dirty.forEach(({dia,calle})=>{
     if(!cloud[dia]) cloud[dia]={};
     const local = riegoData[invId]?.[dia]?.[calle];
-    if(local==null || local==='') delete cloud[dia][calle];
+    const textoLocal = (local && typeof local==='object') ? local.texto : local;
+    const localVacio = local==null || (typeof textoLocal==='string' && textoLocal.trim()==='');
+    if(localVacio) delete cloud[dia][calle];
     else cloud[dia][calle] = local;
     if(cloud[dia] && Object.keys(cloud[dia]).length===0) delete cloud[dia];
   });
@@ -10794,7 +10796,8 @@ async function saveRiegoData(){
 function setRiego(invId, dia, calle, val, extra){
   if(!riegoData[invId]) riegoData[invId]={};
   if(!riegoData[invId][dia]) riegoData[invId][dia]={};
-  if(val) riegoData[invId][dia][calle] = { texto: val, marcadoPor: currentUser||null, rol: currentUserRole||null, ...(extra||{}) };
+  const texto = typeof val==='string' ? val.trim() : val;
+  if(texto) riegoData[invId][dia][calle] = { texto, marcadoPor: currentUser||null, rol: currentUserRole||null, ...(extra||{}) };
   else delete riegoData[invId][dia][calle];
   marcarRiegoDirtyCell(invId,dia,calle);
 }
@@ -10804,7 +10807,8 @@ function getRiegoCellRaw(invId, dia, calle){
 function getRiego(invId,dia,calle){
   const raw = getRiegoCellRaw(invId, dia, calle);
   if(raw==null) return '';
-  return typeof raw==='string' ? raw : (raw.texto||'');
+  const texto = typeof raw==='string' ? raw : (raw.texto||'');
+  return typeof texto==='string' ? texto.trim() : texto;
 }
 function getRiegoMarcadoPor(invId, dia, calle){
   const raw = getRiegoCellRaw(invId, dia, calle);
