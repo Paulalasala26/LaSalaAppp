@@ -1,68 +1,36 @@
-name: Split Riego by greenhouse in TEST
+name: Create Riego v2 index in TEST
 on:
   push:
     branches:
       - test/v1.0
     paths:
       - .github/workflows/migrate-riego-v2-test.yml
-
 jobs:
-  split:
+  index:
     runs-on: ubuntu-latest
     steps:
-      - name: Remove failed native v2 and split exact strings
+      - name: Create verified greenhouse index
         run: |
           set -euo pipefail
           TEST="https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app"
-
-          # Quitar el intento nativo fallido.
-          curl -fsS -X DELETE "$TEST/lasala-riego-v2.json" >/dev/null
-          test "$(curl -fsS "$TEST/lasala-riego-v2.json")" = "null"
-
-          curl -fsS "$TEST/lasala-riego-v1.json" -o v1raw.json
-
+          curl -fsS "$TEST/lasala-riego-v1.json" -o v1.json
           python - <<'PY'
-          import json, pathlib, hashlib
-          raw=json.load(open('v1raw.json',encoding='utf-8'))
-          assert isinstance(raw,str)
-          obj=json.loads(raw)
-          pathlib.Path('parts').mkdir()
-          for inv,data in obj.items():
-              # Cada hijo se almacena COMO STRING JSON, mismo contrato actual.
-              inner=json.dumps(data,ensure_ascii=False,separators=(',',':'))
-              outer=json.dumps(inner,ensure_ascii=False,separators=(',',':'))
-              open(f'parts/{inv}.json','w',encoding='utf-8').write(outer)
-          print('INV_COUNT=',len(obj))
-          print('SOURCE_HASH=',hashlib.sha256(json.dumps(obj,sort_keys=True,separators=(',',':'),ensure_ascii=False).encode()).hexdigest())
+          import json
+          obj=json.loads(json.load(open('v1.json',encoding='utf-8')))
+          ids=list(obj.keys())
+          # storage.set contract: el valor en Firebase es un string JSON.
+          inner=json.dumps(ids,ensure_ascii=False,separators=(',',':'))
+          open('index.json','w',encoding='utf-8').write(json.dumps(inner,ensure_ascii=False))
+          print('INDEX_IDS=',','.join(ids))
+          print('INDEX_COUNT=',len(ids))
           PY
-
-          for f in parts/*.json; do
-            inv="$(basename "$f" .json)"
-            curl -fsS -X PUT -H "Content-Type: application/json" --data-binary @"$f"               "$TEST/lasala-riego-v2-$inv.json" >/dev/null
-          done
-
+          curl -fsS -X PUT -H "Content-Type: application/json" --data-binary @index.json             "$TEST/lasala-riego-v2-index.json" >/dev/null
+          curl -fsS "$TEST/lasala-riego-v2-index.json" -o check.json
           python - <<'PY'
-          import json,urllib.request,hashlib
-          base='https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app'
-          src=json.loads(json.load(open('v1raw.json',encoding='utf-8')))
-          rebuilt={}
-          total=0
-          for inv in src:
-              with urllib.request.urlopen(f'{base}/lasala-riego-v2-{inv}.json') as r:
-                  raw=json.loads(r.read().decode())
-              assert isinstance(raw,str), f'{inv}: no es string'
-              data=json.loads(raw)
-              rebuilt[inv]=data
-              total += len(raw.encode())
-          def canon(x):
-              return json.dumps(x,sort_keys=True,separators=(',',':'),ensure_ascii=False).encode()
-          hs=hashlib.sha256(canon(src)).hexdigest()
-          hr=hashlib.sha256(canon(rebuilt)).hexdigest()
-          print('SOURCE_HASH=',hs)
-          print('REBUILT_HASH=',hr)
-          print('TOTAL_PART_BYTES=',total)
-          print('INV_COUNT=',len(rebuilt))
-          assert hs==hr
-          assert len(rebuilt)==20
-          print('RIEGO_SPLIT_VERIFIED_OK')
+          import json
+          raw=json.load(open('check.json',encoding='utf-8'))
+          ids=json.loads(raw)
+          print('INDEX_CHECK_COUNT=',len(ids))
+          assert len(ids)==20
+          print('RIEGO_V2_INDEX_OK')
           PY
