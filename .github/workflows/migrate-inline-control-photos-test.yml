@@ -1,0 +1,101 @@
+name: Migrate inline Control photos in TEST
+on:
+  push:
+    branches:
+      - test/v1.0
+    paths:
+      - .github/workflows/migrate-inline-control-photos-test.yml
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Migrate and verify TEST only
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/migrate.py <<'PY'
+          import json, urllib.request, hashlib
+
+          BASE='https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app'
+          ITEMS='lasala-control-items-v1'
+          SHARD='lasala-control-fotos-v1-131'
+          SHARDS_INDEX='lasala-control-fotos-shards-index'
+          FOTO_INDEX='lasala-control-fotos-indice-v1'
+
+          def req(path, method='GET', data=None):
+              url=f"{BASE}/{path}.json"
+              body=None if data is None else json.dumps(data, ensure_ascii=False, separators=(',',':')).encode()
+              r=urllib.request.Request(url, data=body, method=method, headers={'Content-Type':'application/json'})
+              with urllib.request.urlopen(r, timeout=120) as resp:
+                  raw=resp.read()
+              return json.loads(raw.decode()) if raw else None
+
+          items=req(ITEMS)
+          assert isinstance(items, dict) and items, 'control-items vacío/no legible'
+          before=len(json.dumps(items,ensure_ascii=False,separators=(',',':')).encode())
+
+          inline={k:v.get('fotoB64') for k,v in items.items() if isinstance(v,dict) and isinstance(v.get('fotoB64'),str) and v.get('fotoB64')}
+          print('INLINE_COUNT=',len(inline))
+          print('INLINE_BYTES=',sum(len(v.encode()) for v in inline.values()))
+          print('ITEMS_BEFORE_BYTES=',before)
+          assert len(inline)==19, f'Esperaba 19 fotos inline y hay {len(inline)}'
+
+          # Leer/crear shard como string JSON, formato que usa la app.
+          shard_raw=req(SHARD)
+          if shard_raw is None:
+              shard={}
+          elif isinstance(shard_raw,str):
+              shard=json.loads(shard_raw)
+          else:
+              raise AssertionError('Formato inesperado del shard')
+          shard.update(inline)
+          req(SHARD,'PUT',json.dumps(shard,ensure_ascii=False,separators=(',',':')))
+
+          # Índice id -> shard, también almacenado como string JSON.
+          idx_raw=req(FOTO_INDEX)
+          if idx_raw is None: idx={}
+          elif isinstance(idx_raw,str): idx=json.loads(idx_raw)
+          else: raise AssertionError('Formato inesperado del índice de fotos')
+          idx.update({k:SHARD for k in inline})
+          req(FOTO_INDEX,'PUT',json.dumps(idx,ensure_ascii=False,separators=(',',':')))
+
+          # Lista de shards.
+          sidx_raw=req(SHARDS_INDEX)
+          if sidx_raw is None: sidx=[]
+          elif isinstance(sidx_raw,str): sidx=json.loads(sidx_raw)
+          else: raise AssertionError('Formato inesperado del índice de shards')
+          if SHARD not in sidx: sidx.append(SHARD)
+          req(SHARDS_INDEX,'PUT',json.dumps(sidx,ensure_ascii=False,separators=(',',':')))
+
+          # Verificar que las 19 fotos ya están replicadas exactamente ANTES de quitarlas del nodo grande.
+          shard_check_raw=req(SHARD)
+          assert isinstance(shard_check_raw,str)
+          shard_check=json.loads(shard_check_raw)
+          idx_check_raw=req(FOTO_INDEX)
+          assert isinstance(idx_check_raw,str)
+          idx_check=json.loads(idx_check_raw)
+          for k,v in inline.items():
+              assert idx_check.get(k)==SHARD, f'Índice incorrecto {k}'
+              assert shard_check.get(k)==v, f'Foto distinta {k}'
+          print('PHOTO_COPY_VERIFIED=19')
+
+          # Eliminar solo el campo fotoB64, registro a registro.
+          for k in inline:
+              req(f'{ITEMS}/{k}','PATCH',{'fotoB64':None})
+
+          after_items=req(ITEMS)
+          remaining=[k for k,v in after_items.items() if isinstance(v,dict) and v.get('fotoB64')]
+          assert not remaining, f'Quedan fotos inline: {remaining}'
+          after=len(json.dumps(after_items,ensure_ascii=False,separators=(',',':')).encode())
+          print('ITEMS_AFTER_BYTES=',after)
+          print('SAVED_BYTES=',before-after)
+          print('REDUCTION_PCT=',round((before-after)*100/before,2))
+
+          # Verificación final de contenido fotográfico.
+          shard_final=json.loads(req(SHARD))
+          for k,v in inline.items():
+              assert shard_final.get(k)==v
+          print('MIGRATION_VERIFIED_OK')
+          PY
+          python /tmp/migrate.py
