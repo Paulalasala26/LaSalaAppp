@@ -89,6 +89,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 </style>
 </head>
 <body>
+<div id="lasala-test-banner" style="position:fixed;top:8px;right:8px;z-index:2147483647;background:#b00020;color:#fff;border:2px solid #fff;border-radius:7px;padding:7px 12px;font:700 13px Arial,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.35);pointer-events:none">⚠ ENTORNO TEST — NO PRODUCCIÓN</div>
 
 <!-- LOGIN -->
 <div id="login-screen" style="position:fixed;inset:0;background:linear-gradient(150deg,#1a5c2e 0%,#2d7a45 50%,#0f3d1e 100%);display:flex;align-items:center;justify-content:center;z-index:9999;padding:1rem">
@@ -284,7 +285,7 @@ const fotoEntrada = {};
 // normal). Si más adelante se necesita más seguridad, esto se sustituye por
 // Firebase Auth + reglas restringidas sin tocar el resto de la app.
 // ════════════════════════════════════════════════════════════════
-const CLOUD_DB_URL = 'https://la-sala-app-default-rtdb.europe-west1.firebasedatabase.app';
+const CLOUD_DB_URL = 'https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app';
 // A petición de Paula (2026-08-03), tras perder trabajo real de un técnico
 // que estuvo marcando checks justo cuando Netlify se cayó: get/set nunca
 // avisaban de un fallo, se tragaban cualquier error de red en silencio y el
