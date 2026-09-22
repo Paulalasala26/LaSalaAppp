@@ -10469,6 +10469,27 @@ function riegoV2Key(invId){ return RIEGO_V2_PREFIX + invId; }
 let riegoInvCargadaEn = {};
 let riegoDirtyInvs = new Set();
 let riegoDirtyCells = new Map();
+let riegoBaseInv = {};
+function clonarRiegoSnapshot(v){
+  return v==null ? v : JSON.parse(JSON.stringify(v));
+}
+function canonRiegoValor(v){
+  if(Array.isArray(v)) return v.map(canonRiegoValor);
+  if(v && typeof v==='object'){
+    const o={};
+    Object.keys(v).sort().forEach(k=>{ o[k]=canonRiegoValor(v[k]); });
+    return o;
+  }
+  return v==null ? null : v;
+}
+function riegoValorIgual(a,b){
+  return JSON.stringify(canonRiegoValor(a))===JSON.stringify(canonRiegoValor(b));
+}
+function textoRiegoConflicto(raw){
+  if(raw==null) return 'vacío';
+  const t = typeof raw==='string' ? raw : (raw.texto||'');
+  return t && String(t).trim() ? String(t).trim() : 'vacío';
+}
 function riegoDirtyCellKey(invId,dia,calle){ return String(invId)+'|'+String(dia)+'|'+String(calle); }
 function marcarRiegoDirtyCell(invId,dia,calle){
   const rec = {invId:String(invId), dia:String(dia), calle:String(calle)};
@@ -10719,6 +10740,7 @@ async function loadRiegoInvData(invId, forzar){
     return false;
   }
   riegoData[invId] = nodo.exists ? nodo.data : {};
+  riegoBaseInv[invId] = clonarRiegoSnapshot(riegoData[invId]);
   riegoInvCargadaEn[invId] = Date.now();
   return true;
 }
@@ -10733,8 +10755,14 @@ async function loadRiegoData(forzar){
       return [invId, nodo.data];
     }));
     const rebuilt = {};
-    pares.forEach(([invId,data])=>{ rebuilt[invId]=data; riegoInvCargadaEn[invId]=Date.now(); });
+    const base = {};
+    pares.forEach(([invId,data])=>{
+      rebuilt[invId]=data;
+      base[invId]=clonarRiegoSnapshot(data);
+      riegoInvCargadaEn[invId]=Date.now();
+    });
     riegoData = rebuilt;
+    riegoBaseInv = base;
     riegoDataCargadaEn = Date.now();
   }catch(e){
     avisarFalloCarga();
@@ -10757,6 +10785,7 @@ async function saveRiegoInvPatch(invId, extraDeletes, incluirDirty){
   const dirty = incluirDirty ? Array.from(riegoDirtyCells.values()).filter(x=>x.invId===invId) : [];
   const url = `${CLOUD_DB_URL}/${encodeURIComponent(riegoV2Key(invId))}.json`;
   let cloudGuardado = null;
+  const conflictosAceptados = new Set();
 
   // Transacción optimista REST con ETag. Si otro usuario modifica el mismo
   // invernadero entre nuestra lectura y escritura, Firebase responde 412:
@@ -10775,6 +10804,48 @@ async function saveRiegoInvPatch(invId, extraDeletes, incluirDirty){
         return false;
       }
       const cloud = existe ? JSON.parse(val) : {};
+
+      // Conflicto a nivel de celda: si la nube ya no coincide con la versión
+      // que este usuario cargó al empezar a editar, NO sobrescribir en silencio.
+      // Se informa del valor actual y del local; solo se pisa si el usuario
+      // confirma expresamente. El ETag sigue protegiendo además la carrera
+      // entre esta lectura y el PUT.
+      const intenciones = new Map();
+      dirty.forEach(({dia,calle})=>{
+        const d=String(dia), ca=String(calle);
+        let local = riegoData[invId]?.[d]?.[ca];
+        const textoLocal = (local && typeof local==='object') ? local.texto : local;
+        if(local==null || (typeof textoLocal==='string' && textoLocal.trim()==='')) local = null;
+        intenciones.set(d+'|'+ca,{dia:d,calle:ca,local});
+      });
+      extraDeletes.forEach(({dia,calles})=>{
+        const d=String(dia);
+        (calles||[]).forEach(c=>intenciones.set(d+'|'+String(c),{dia:d,calle:String(c),local:null}));
+      });
+
+      for(const it of intenciones.values()){
+        const base = riegoBaseInv[invId]?.[it.dia]?.[it.calle] ?? null;
+        const remoto = cloud[it.dia]?.[it.calle] ?? null;
+        if(!riegoValorIgual(remoto, base) && !riegoValorIgual(it.local, remoto)){
+          const firma = it.dia+'|'+it.calle+'|'+JSON.stringify(canonRiegoValor(remoto));
+          if(!conflictosAceptados.has(firma)){
+            const aceptar = confirm(
+              '⚠ CONFLICTO DE RIEGO DETECTADO\n\n'+
+              'INV '+invId+' · día '+it.dia+' · calle '+it.calle+'\n\n'+
+              'Otro usuario modificó esta misma celda desde que la abriste.\n\n'+
+              'Valor actual en Firebase: '+textoRiegoConflicto(remoto)+'\n'+
+              'Tu cambio: '+textoRiegoConflicto(it.local)+'\n\n'+
+              'Aceptar = sobrescribir con tu cambio.\n'+
+              'Cancelar = no guardar esta operación.'
+            );
+            if(!aceptar){
+              showToast('⚠ Guardado cancelado por conflicto');
+              return false;
+            }
+            conflictosAceptados.add(firma);
+          }
+        }
+      }
 
       dirty.forEach(({dia,calle})=>{
         if(!cloud[dia]) cloud[dia]={};
@@ -10817,6 +10888,7 @@ async function saveRiegoInvPatch(invId, extraDeletes, incluirDirty){
   }
 
   riegoData[invId] = cloudGuardado;
+  riegoBaseInv[invId] = clonarRiegoSnapshot(cloudGuardado);
   riegoInvCargadaEn[invId] = Date.now();
   riegoDataCargadaEn = 0;
   dirty.forEach(({dia,calle})=>riegoDirtyCells.delete(riegoDirtyCellKey(invId,dia,calle)));
