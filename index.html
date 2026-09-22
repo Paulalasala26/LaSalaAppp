@@ -10677,18 +10677,35 @@ async function leerRiegoV2Nodo(invId, modoGuardado){
   }
 }
 async function actualizarRiegoV2IndexConInv(invId){
-  try{
-    const r = await window.storage.get(RIEGO_V2_INDEX_KEY);
-    if(!r){ avisarFalloGuardado(); return false; }
-    const ids = JSON.parse(r.value);
-    if(!Array.isArray(ids)){ avisarFalloGuardado(); return false; }
-    const id = String(invId);
-    if(ids.map(String).includes(id)) return true;
-    ids.push(id);
-    const ok = await window.storage.set(RIEGO_V2_INDEX_KEY, JSON.stringify(ids));
-    if(!ok){ avisarFalloGuardado(); return false; }
-    return true;
-  }catch(e){ avisarFalloGuardado(); return false; }
+  const url = `${CLOUD_DB_URL}/${encodeURIComponent(RIEGO_V2_INDEX_KEY)}.json`;
+  const id = String(invId);
+  for(let intento=1; intento<=5; intento++){
+    try{
+      const getRes = await fetch(url, {headers:{'X-Firebase-ETag':'true'}});
+      if(!getRes.ok) throw new Error('HTTP '+getRes.status);
+      const etag = getRes.headers.get('ETag');
+      if(!etag) throw new Error('Firebase no devolvió ETag');
+      const val = await getRes.json();
+      if(val==null){ avisarFalloGuardado(); return false; }
+      const ids = JSON.parse(val);
+      if(!Array.isArray(ids)){ avisarFalloGuardado(); return false; }
+      if(ids.map(String).includes(id)) return true;
+      ids.push(id);
+      const putRes = await fetch(url, {
+        method:'PUT',
+        headers:{'Content-Type':'application/json','if-match':etag},
+        body:JSON.stringify(JSON.stringify(ids))
+      });
+      if(putRes.ok) return true;
+      if(putRes.status!==412) throw new Error('HTTP '+putRes.status);
+      // Otro usuario actualizó el índice entre GET y PUT: releer y reintentar.
+    }catch(e){
+      if(intento===5){ avisarFalloGuardado(); return false; }
+    }
+    await new Promise(r=>setTimeout(r, 120*intento));
+  }
+  avisarFalloGuardado();
+  return false;
 }
 async function loadRiegoInvData(invId, forzar){
   invId = String(invId);
@@ -10733,37 +10750,73 @@ async function saveRiegoInvPatch(invId, extraDeletes, incluirDirty){
   invId = String(invId);
   extraDeletes = extraDeletes || [];
   if(incluirDirty===undefined) incluirDirty = true;
+
   const ids = await loadRiegoV2Index(true);
   if(!ids) return false;
-  const nodo = await leerRiegoV2Nodo(invId, true);
-  if(!nodo.ok) return false;
-  if(!nodo.exists && ids.includes(invId)){
-    avisarFalloGuardado();
-    return false;
-  }
-  const cloud = nodo.exists ? nodo.data : {};
+
   const dirty = incluirDirty ? Array.from(riegoDirtyCells.values()).filter(x=>x.invId===invId) : [];
-  dirty.forEach(({dia,calle})=>{
-    if(!cloud[dia]) cloud[dia]={};
-    const local = riegoData[invId]?.[dia]?.[calle];
-    const textoLocal = (local && typeof local==='object') ? local.texto : local;
-    const localVacio = local==null || (typeof textoLocal==='string' && textoLocal.trim()==='');
-    if(localVacio) delete cloud[dia][calle];
-    else cloud[dia][calle] = local;
-    if(cloud[dia] && Object.keys(cloud[dia]).length===0) delete cloud[dia];
-  });
-  extraDeletes.forEach(({dia,calles})=>{
-    const d = String(dia);
-    if(cloud[d]) (calles||[]).forEach(c=>delete cloud[d][String(c)]);
-    if(cloud[d] && Object.keys(cloud[d]).length===0) delete cloud[d];
-  });
-  const ok = await window.storage.set(riegoV2Key(invId), JSON.stringify(cloud));
-  if(!ok){ avisarFalloGuardado(); return false; }
+  const url = `${CLOUD_DB_URL}/${encodeURIComponent(riegoV2Key(invId))}.json`;
+  let cloudGuardado = null;
+
+  // Transacción optimista REST con ETag. Si otro usuario modifica el mismo
+  // invernadero entre nuestra lectura y escritura, Firebase responde 412:
+  // releemos lo último, reaplicamos SOLO nuestras celdas y reintentamos.
+  for(let intento=1; intento<=5; intento++){
+    try{
+      const getRes = await fetch(url, {headers:{'X-Firebase-ETag':'true'}});
+      if(!getRes.ok) throw new Error('HTTP '+getRes.status);
+      const etag = getRes.headers.get('ETag');
+      if(!etag) throw new Error('Firebase no devolvió ETag');
+
+      const val = await getRes.json();
+      const existe = val!=null;
+      if(!existe && ids.includes(invId)){
+        avisarFalloGuardado();
+        return false;
+      }
+      const cloud = existe ? JSON.parse(val) : {};
+
+      dirty.forEach(({dia,calle})=>{
+        if(!cloud[dia]) cloud[dia]={};
+        const local = riegoData[invId]?.[dia]?.[calle];
+        const textoLocal = (local && typeof local==='object') ? local.texto : local;
+        const localVacio = local==null || (typeof textoLocal==='string' && textoLocal.trim()==='');
+        if(localVacio) delete cloud[dia][calle];
+        else cloud[dia][calle] = local;
+        if(cloud[dia] && Object.keys(cloud[dia]).length===0) delete cloud[dia];
+      });
+
+      extraDeletes.forEach(({dia,calles})=>{
+        const d = String(dia);
+        if(cloud[d]) (calles||[]).forEach(c=>delete cloud[d][String(c)]);
+        if(cloud[d] && Object.keys(cloud[d]).length===0) delete cloud[d];
+      });
+
+      const putRes = await fetch(url, {
+        method:'PUT',
+        headers:{'Content-Type':'application/json','if-match':etag},
+        body:JSON.stringify(JSON.stringify(cloud))
+      });
+      if(putRes.ok){
+        cloudGuardado = cloud;
+        break;
+      }
+      if(putRes.status!==412) throw new Error('HTTP '+putRes.status);
+      // Conflicto real: no se ha escrito nada. Volvemos a leer y fusionar.
+    }catch(e){
+      if(intento===5){ avisarFalloGuardado(); return false; }
+    }
+    await new Promise(r=>setTimeout(r, 120*intento));
+  }
+
+  if(cloudGuardado===null){ avisarFalloGuardado(); return false; }
+
   if(!ids.includes(invId)){
     const idxOk = await actualizarRiegoV2IndexConInv(invId);
     if(!idxOk) return false;
   }
-  riegoData[invId] = cloud;
+
+  riegoData[invId] = cloudGuardado;
   riegoInvCargadaEn[invId] = Date.now();
   riegoDataCargadaEn = 0;
   dirty.forEach(({dia,calle})=>riegoDirtyCells.delete(riegoDirtyCellKey(invId,dia,calle)));
