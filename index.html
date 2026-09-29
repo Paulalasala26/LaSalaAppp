@@ -4912,7 +4912,28 @@ async function elegirShardParaFoto(id, fotoB64Len){
   if(controlFotosShardDeId[id]) return controlFotosShardDeId[id];
   const ultimoKey = controlFotosShardKeys[controlFotosShardKeys.length-1];
   let tamActual = 0;
-  try{ const r = await window.storage.get(ultimoKey); if(r) tamActual = r.value.length; }catch(e){}
+  let ultimoExiste = true;
+  try{
+    const r = await window.storage.get(ultimoKey);
+    if(r) tamActual = r.value.length; else ultimoExiste = false;
+  }catch(e){}
+  // Bug real (detectado 2026-09-29): si el shard "actual" según el índice
+  // todavía no se ha llegado a crear de verdad en Firebase (nadie ha escrito
+  // nunca en él), window.storage.get devuelve null — EXACTAMENTE igual que
+  // si la lectura hubiera fallado. persistControlFotosData no puede
+  // distinguir los dos casos y, para no arriesgarse a pisar un shard que sí
+  // existiera, aborta el guardado sin escribir nada — así que CUALQUIER
+  // foto nueva de Control se perdía en silencio para siempre en cuanto el
+  // shard "actual" era uno recién registrado en el índice pero nunca
+  // inicializado. Aquí sí podemos distinguirlo con seguridad: como esta
+  // función es el ÚNICO sitio de toda la app que decide "shard actual", si
+  // dice que no existe es que de verdad es nuevo (nadie más pudo haber
+  // escrito ahí) — lo inicializamos ahora mismo como {} para que la
+  // siguiente lectura de persistControlFotosData ya lo encuentre.
+  if(!ultimoExiste){
+    await window.storage.set(ultimoKey, JSON.stringify({}));
+    return ultimoKey;
+  }
   if(tamActual + fotoB64Len < CONTROL_FOTOS_SHARD_MAX_CHARS) return ultimoKey;
   // Hace falta un shard nuevo. `controlFotosShardKeys` se cargó UNA vez al
   // abrir Control y se cachea toda la sesión (ver loadControlFotosData), así
