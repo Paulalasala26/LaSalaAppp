@@ -9740,10 +9740,18 @@ function formatCallesParaTareaPeon(invId, calles){
 // tramo suelto) pero usando formatCallesParaTareaPeon para partir por zona
 // cuando el tramo (o lo que falta, en el caso "ENTERO MENOS") cruza la
 // frontera arriba/abajo del invernadero.
-function formatCallesConEnteroParaTareaPeon(invId, calles){
+function formatCallesConEnteroParaTareaPeon(invId, calles, universo){
   const layout = INV_LAYOUT[invId];
   if(!layout || !calles.length) return formatCallesParaTareaPeon(invId, calles);
-  const todas = [...layout.row1, ...layout.row2];
+  // universo (a petición de Vigueras, 2026-10-01): por defecto se compara
+  // contra TODAS las calles físicas del invernadero, pero el llamador puede
+  // pasar un subconjunto más pequeño — las calles que de verdad tienen algo
+  // marcado ese día (ver generarTareasDesdeRiego). Una calle que se queda en
+  // blanco sin marcar NUNCA (ni con este trabajo ni con ningún otro) se
+  // considera "vacía" y no cuenta como "falta" para decidir ENTERO — antes,
+  // un hueco así de calles realmente sin uso ese día hacía que la tarea
+  // dijera "ENTERO MENOS X / Y" en vez de simplemente "ENTERO".
+  const todas = universo || [...layout.row1, ...layout.row2];
   const setCalles = new Set(calles);
   const faltantes = todas.filter(c=>!setCalles.has(c));
   if(faltantes.length===0) return 'ENTERO';
@@ -14389,7 +14397,7 @@ async function generarTareasDesdeRiego(){
             tareasData.push({
               id: 'tarea_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
               titulo: tituloExpandido, descripcion:'', asignadoA:peonAsignado, asignadoPor: currentUser||'—',
-              inv: invId, calles: '', _callesNumeros:[...br.calles], fecha: riegoDiaLabelCorto(dia), fechaISO, turno:'',
+              inv: invId, calles: '', _callesNumeros:[...br.calles], _diaOrigen: dia, fecha: riegoDiaLabelCorto(dia), fechaISO, turno:'',
               horario: horarioTarea||'', esFoliar: !!esFoliar,
               prioridad:'normal', estado:'pendiente', horaInicio:null, horaFin:null, firmante:null,
               visto:false, creadoEn: new Date().toLocaleString('es-ES')
@@ -14415,10 +14423,29 @@ async function generarTareasDesdeRiego(){
   });
   // Ahora sí: con TODOS los brackets ya acumulados por tarea, se calcula
   // ENTERO/ENTERO MENOS/tramo una única vez sobre la unión real de calles.
+  // A petición de Vigueras (2026-10-01): las calles que se quedan en blanco
+  // ese día (sin NINGÚN texto, ni de este trabajo ni de otro) se consideran
+  // vacías y no cuentan para decidir ENTERO — se compara solo contra las
+  // calles que de verdad tienen algo marcado ese día (universo), no contra
+  // todas las calles físicas del invernadero. Caso real que lo motivó: INV
+  // 18 con calles 1-3 y 31-36 marcadas y 4-30 totalmente en blanco (nadie
+  // marcó nada ahí) decía "ENTERO MENOS C/1804-1818 / C/1819-1830" en vez de
+  // "ENTERO".
   tareasData.forEach(t=>{
     if(!t._callesNumeros) return;
-    t.calles = formatCallesConEnteroParaTareaPeon(t.inv, t._callesNumeros);
+    const layout = INV_LAYOUT[t.inv];
+    const diaOrigen = t._diaOrigen;
+    let universo;
+    if(layout && diaOrigen!=null){
+      universo = [...layout.row1, ...layout.row2].filter(c=>{
+        const raw = riegoData[t.inv]?.[diaOrigen]?.[c];
+        const texto = typeof raw==='string' ? raw : raw?.texto;
+        return !!texto;
+      });
+    }
+    t.calles = formatCallesConEnteroParaTareaPeon(t.inv, t._callesNumeros, universo);
     delete t._callesNumeros;
+    delete t._diaOrigen;
   });
   const ok = await window.storage.set(TAREAS_KEY, JSON.stringify(tareasData));
   if(!ok){ avisarFalloGuardado(); return; }
