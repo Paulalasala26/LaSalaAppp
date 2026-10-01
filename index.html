@@ -112,6 +112,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
         <option value="MANUEL">Manuel</option>
         <option value="ISMAEL">Ismael</option>
         <option value="MIGUEL ANGEL">Miguel Angel</option>
+        <option value="FRANCISCO JAVIER">Francisco Javier</option>
         <option value="REGANTE1">Regante1 (Sala 1)</option>
         <option value="REGANTE2">Regante2 (Sala 2)</option>
         <option value="REGANTE3">Regante3 (Sala 3, 4 y 5)</option>
@@ -450,6 +451,7 @@ let USERS={
   MANUEL:"0ffe1abd1a08215353c233d6e009613e95eec4253832a761af28ff37ac5a150c",
   ISMAEL:"0ffe1abd1a08215353c233d6e009613e95eec4253832a761af28ff37ac5a150c",
   "MIGUEL ANGEL":"03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4",
+  "FRANCISCO JAVIER":"0ffe1abd1a08215353c233d6e009613e95eec4253832a761af28ff37ac5a150c",
   REGANTE1:"0ffe1abd1a08215353c233d6e009613e95eec4253832a761af28ff37ac5a150c",
   REGANTE2:"318aee3fed8c9d040d35a7fc1fa776fb31303833aa2de885354ddf3d44d8fb69",
   REGANTE3:"0ffe1abd1a08215353c233d6e009613e95eec4253832a761af28ff37ac5a150c",
@@ -488,7 +490,7 @@ const usersLoadedPromise = loadUsersFromCloud();
 // Roles: guardados APARTE de USERS (nunca junto a la contraseña — así lo
 // pidió Paula).
 const ROLES_KEY = 'lasala-roles-v1';
-let USER_ROLES = { VIGUERAS:'ADMIN', PAULA:'ADMIN', PILAR:'TECNICO', SONIA:'TECNICO', DENNIS:'TECNICO', FRAN:'TECNICO', GINES:'TECNICO', RAMON:'TECNICO', MANUEL:'TECNICO', ISMAEL:'TECNICO', 'MIGUEL ANGEL':'TECNICO', REGANTE1:'REGANTE', REGANTE2:'REGANTE', REGANTE3:'REGANTE', PEON1:'PEON', PEON2:'PEON', PEON3:'PEON', JULIO:'CARGADOR' };
+let USER_ROLES = { VIGUERAS:'ADMIN', PAULA:'ADMIN', PILAR:'TECNICO', SONIA:'TECNICO', DENNIS:'TECNICO', FRAN:'TECNICO', GINES:'TECNICO', RAMON:'TECNICO', MANUEL:'TECNICO', ISMAEL:'TECNICO', 'MIGUEL ANGEL':'TECNICO', 'FRANCISCO JAVIER':'TECNICO', REGANTE1:'REGANTE', REGANTE2:'REGANTE', REGANTE3:'REGANTE', PEON1:'PEON', PEON2:'PEON', PEON3:'PEON', JULIO:'CARGADOR' };
 async function loadRolesFromCloud(){
   try{
     const r = await window.storage.get(ROLES_KEY);
