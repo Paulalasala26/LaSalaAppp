@@ -4323,8 +4323,20 @@ const CONTROL_SECCIONES = [
 // no perder nada al migrar a lista editable).
 // ════════════════════════════════════════════════════════════════
 const CONTEO_TIPOS = {
-  tuta:  { label:'Conteo Tuta',  dataKey:'lasala-conteo-tuta-v1',  invsKey:'lasala-conteo-tuta-invs-v1' },
-  trips: { label:'Conteo Trips', dataKey:'lasala-conteo-trips-v1', invsKey:'lasala-conteo-trips-invs-v1' }
+  tuta:  { label:'Conteo Tuta',  dataKey:'lasala-conteo-tuta-v1',  invsKey:'lasala-conteo-tuta-invs-v1',
+    campos:[
+      {key:'feromona', label:'Feromona', tipo:'fecha'},
+      {key:'placa', label:'Cambio placa', tipo:'fecha'},
+      {key:'conteo', label:'Conteo', tipo:'numero'}
+    ]},
+  trips: { label:'Conteo Trips', dataKey:'lasala-conteo-trips-v1', invsKey:'lasala-conteo-trips-invs-v1',
+    campos:[
+      {key:'placaColocacion', label:'Colocación placa', tipo:'fecha'},
+      {key:'placaCambio', label:'Cambio placa', tipo:'fecha'},
+      {key:'conteoParvispinus', label:'Trips Parvispinus', tipo:'numero'},
+      {key:'conteoOccidentalis', label:'Frankliniella occidentalis', tipo:'numero'},
+      {key:'conteoOtros', label:'Resto de familias', tipo:'numero'}
+    ]}
 };
 // Invernaderos/casetas de la trampa de Tuta ya existentes antes de hacer la
 // lista editable — 19 y 20 tienen dos casetas cada uno (verde y blanca), el
@@ -4398,15 +4410,21 @@ async function guardarConteoCampo(tipo, dia, key, campo, valor){
   est.data[dia][key] = est.data[dia][key] || {};
   est.data[dia][key][campo] = valor;
   try{
-    const r = await window.storage.get(CONTEO_TIPOS[tipo].dataKey);
-    // Si la lectura falla, r es null — igual que si la clave estuviera
-    // vacía. Tratarlo como "vacía de verdad" borraría el histórico de
-    // TODAS las semanas/invernaderos al escribir solo el campo que se
-    // acaba de tocar (el dato se introduce una vez por semana, así que
-    // perderlo es especialmente costoso). Se aborta el guardado en vez de
-    // asumir que la nube está vacía.
-    if(!r){ avisarFalloGuardado(); return false; }
-    const cloud = JSON.parse(r.value);
+    // window.storage.get() no distingue "la clave no existe todavía en
+    // Firebase" (primera vez que se guarda este tipo de conteo) de "ha
+    // fallado la lectura" — ambos devuelven null. Tratar SIEMPRE null como
+    // fallo (como se hacía antes) impedía guardar el primer dato de
+    // cualquier conteo nuevo (ver Conteo Trips, 2026-10-01): la clave
+    // lasala-conteo-trips-v1 nunca llegaba a crearse porque cada intento
+    // de guardar se abortaba. Se pide la respuesta cruda para distinguir
+    // los dos casos (igual que se hizo para las fotos de Control,
+    // elegirShardParaFoto): si la petición en sí falla (red caída),
+    // fetchConReintentos lanza excepción y se sigue abortando el guardado;
+    // si la petición tiene éxito pero el valor es null, es que la clave de
+    // verdad no existe aún y es seguro partir de un objeto vacío.
+    const res = await fetchConReintentos(`${CLOUD_DB_URL}/${encodeURIComponent(CONTEO_TIPOS[tipo].dataKey)}.json`);
+    const val = await res.json();
+    const cloud = val!=null ? JSON.parse(val) : {};
     cloud[dia] = cloud[dia] || {};
     cloud[dia][key] = {...(cloud[dia][key]||{}), [campo]: valor};
     const ok = await window.storage.set(CONTEO_TIPOS[tipo].dataKey, JSON.stringify(cloud));
@@ -4462,27 +4480,27 @@ function renderControlConteoHTML(tipo, seccion){
     </button>`).join('');
 
   const datosSemana = est.data[est.diaSel] || {};
+  const camposFecha = CONTEO_TIPOS[tipo].campos.filter(c=>c.tipo==='fecha');
+  const camposNumero = CONTEO_TIPOS[tipo].campos.filter(c=>c.tipo==='numero');
   const tarjetas = est.filas.map(f=>{
     const d = datosSemana[f.key] || {};
+    const fechasHTML = camposFecha.map(c=>`
+        <div>
+          <label style="font-size:9px;font-weight:800;opacity:.85;text-transform:uppercase;letter-spacing:.03em;display:block;margin-bottom:3px">${escapar(c.label)}</label>
+          <input type="date" value="${escapar(d[c.key])}" onchange="guardarConteoCampo('${tipo}',${est.diaSel},'${f.key}','${c.key}',this.value)" style="width:100%;padding:6px 7px;border:none;border-radius:6px;font-size:11px;background:rgba(255,255,255,.92);color:#1a1e18">
+        </div>`).join('');
+    const numerosHTML = camposNumero.map(c=>`
+      <div style="margin-top:8px;position:relative">
+        <label style="font-size:9px;font-weight:800;opacity:.85;text-transform:uppercase;letter-spacing:.03em;display:block;margin-bottom:3px">${escapar(c.label)}</label>
+        <input type="number" placeholder="0" value="${escapar(d[c.key])}" onchange="guardarConteoCampo('${tipo}',${est.diaSel},'${f.key}','${c.key}',this.value)" style="width:100%;padding:6px 7px;border:none;border-radius:6px;font-size:11px;background:rgba(255,255,255,.92);color:#1a1e18">
+      </div>`).join('');
     return `
     <div style="border-radius:14px;padding:14px 16px;background:${seccion.color};color:#fff;box-shadow:var(--shadow-sm);position:relative;overflow:hidden">
       <button onclick="quitarInvernaderoConteo('${tipo}','${f.key}')" title="Quitar de la lista" style="position:absolute;top:8px;right:8px;width:20px;height:20px;padding:0;background:rgba(255,255,255,.2);color:#fff;border:none;border-radius:5px;font-size:11px;cursor:pointer;z-index:1">🗑️</button>
       <div style="position:absolute;right:-18px;top:-18px;width:80px;height:80px;background:rgba(255,255,255,.08);border-radius:50%;pointer-events:none"></div>
       <div style="font-size:14px;font-weight:800;margin-bottom:10px;position:relative;padding-right:22px">${escapar(f.label)}</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;position:relative">
-        <div>
-          <label style="font-size:9px;font-weight:800;opacity:.85;text-transform:uppercase;letter-spacing:.03em;display:block;margin-bottom:3px">Feromona</label>
-          <input type="date" value="${escapar(d.feromona)}" onchange="guardarConteoCampo('${tipo}',${est.diaSel},'${f.key}','feromona',this.value)" style="width:100%;padding:6px 7px;border:none;border-radius:6px;font-size:11px;background:rgba(255,255,255,.92);color:#1a1e18">
-        </div>
-        <div>
-          <label style="font-size:9px;font-weight:800;opacity:.85;text-transform:uppercase;letter-spacing:.03em;display:block;margin-bottom:3px">Cambio placa</label>
-          <input type="date" value="${escapar(d.placa)}" onchange="guardarConteoCampo('${tipo}',${est.diaSel},'${f.key}','placa',this.value)" style="width:100%;padding:6px 7px;border:none;border-radius:6px;font-size:11px;background:rgba(255,255,255,.92);color:#1a1e18">
-        </div>
-      </div>
-      <div style="margin-top:8px;position:relative">
-        <label style="font-size:9px;font-weight:800;opacity:.85;text-transform:uppercase;letter-spacing:.03em;display:block;margin-bottom:3px">Conteo</label>
-        <input type="number" placeholder="0" value="${escapar(d.conteo)}" onchange="guardarConteoCampo('${tipo}',${est.diaSel},'${f.key}','conteo',this.value)" style="width:100%;padding:6px 7px;border:none;border-radius:6px;font-size:11px;background:rgba(255,255,255,.92);color:#1a1e18">
-      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;position:relative">${fechasHTML}</div>
+      ${numerosHTML}
     </div>`;
   }).join('');
 
@@ -4512,51 +4530,59 @@ function renderConteoDashboardHTML(tipo, seccion){
   }
   const ultimas = semanas.slice(-8);
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const filasHTML = est.filas.map(f=>{
-    const valores = ultimas.map(dia=>{
-      const v = est.data[dia]?.[f.key]?.conteo;
-      return (v!=null && v!=='') ? parseFloat(v) : null;
-    });
-    const conocidos = valores.filter(v=>v!=null);
-    const max = Math.max(1, ...conocidos);
-    const ultimo = valores[valores.length-1];
-    const penultimo = [...valores].slice(0,-1).reverse().find(v=>v!=null);
-    let cambioHTML = '<span style="font-size:11px;color:var(--muted)">—</span>';
-    if(ultimo!=null && penultimo!=null){
-      if(penultimo===0){
-        cambioHTML = ultimo>0 ? `<span style="font-size:11px;font-weight:800;color:#c62828">nuevo</span>` : `<span style="font-size:11px;font-weight:800;color:#2e7d32">0</span>`;
-      } else {
-        const pct = Math.round(((ultimo-penultimo)/penultimo)*100);
-        const subida = pct > 0;
-        cambioHTML = `<span style="font-size:11px;font-weight:800;color:${subida?'#c62828':(pct<0?'#2e7d32':'var(--muted)')}">${subida?'▲':(pct<0?'▼':'=')} ${Math.abs(pct)}%</span>`;
+  const camposNumero = CONTEO_TIPOS[tipo].campos.filter(c=>c.tipo==='numero');
+  const bloquesHTML = camposNumero.map(campo=>{
+    const filasHTML = est.filas.map(f=>{
+      const valores = ultimas.map(dia=>{
+        const v = est.data[dia]?.[f.key]?.[campo.key];
+        return (v!=null && v!=='') ? parseFloat(v) : null;
+      });
+      const conocidos = valores.filter(v=>v!=null);
+      const max = Math.max(1, ...conocidos);
+      const ultimo = valores[valores.length-1];
+      const penultimo = [...valores].slice(0,-1).reverse().find(v=>v!=null);
+      let cambioHTML = '<span style="font-size:11px;color:var(--muted)">—</span>';
+      if(ultimo!=null && penultimo!=null){
+        if(penultimo===0){
+          cambioHTML = ultimo>0 ? `<span style="font-size:11px;font-weight:800;color:#c62828">nuevo</span>` : `<span style="font-size:11px;font-weight:800;color:#2e7d32">0</span>`;
+        } else {
+          const pct = Math.round(((ultimo-penultimo)/penultimo)*100);
+          const subida = pct > 0;
+          cambioHTML = `<span style="font-size:11px;font-weight:800;color:${subida?'#c62828':(pct<0?'#2e7d32':'var(--muted)')}">${subida?'▲':(pct<0?'▼':'=')} ${Math.abs(pct)}%</span>`;
+        }
       }
-    }
-    const barrasHTML = ultimas.map((dia,i)=>{
-      const v = valores[i];
-      const alturaPct = v!=null ? Math.max(6, Math.round((v/max)*100)) : 2;
-      return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0">
-        <div style="width:100%;height:56px;display:flex;align-items:flex-end">
-          <div title="${riegoDiaLabelCorto(dia)}: ${v!=null?v:'sin dato'}" style="width:100%;height:${alturaPct}%;background:${v!=null?seccion.color:'#e0e0e0'};border-radius:4px 4px 0 0;min-height:2px"></div>
+      const barrasHTML = ultimas.map((dia,i)=>{
+        const v = valores[i];
+        const alturaPct = v!=null ? Math.max(6, Math.round((v/max)*100)) : 2;
+        return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0">
+          <div style="width:100%;height:56px;display:flex;align-items:flex-end">
+            <div title="${riegoDiaLabelCorto(dia)}: ${v!=null?v:'sin dato'}" style="width:100%;height:${alturaPct}%;background:${v!=null?seccion.color:'#e0e0e0'};border-radius:4px 4px 0 0;min-height:2px"></div>
+          </div>
+          <div style="font-size:8px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${riegoDiaLabelCorto(dia)}</div>
+        </div>`;
+      }).join('');
+      return `
+      <div style="border:1.5px solid var(--border);border-radius:12px;padding:12px 14px;background:#fff">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px">
+          <div style="font-size:13px;font-weight:800;color:var(--text)">${escapar(f.label)}</div>
+          <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+            <span style="font-size:16px;font-weight:800;color:var(--text)">${ultimo!=null?ultimo:'—'}</span>
+            ${cambioHTML}
+          </div>
         </div>
-        <div style="font-size:8px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${riegoDiaLabelCorto(dia)}</div>
+        <div style="display:flex;gap:4px;align-items:flex-end">${barrasHTML}</div>
       </div>`;
     }).join('');
     return `
-    <div style="border:1.5px solid var(--border);border-radius:12px;padding:12px 14px;background:#fff">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px">
-        <div style="font-size:13px;font-weight:800;color:var(--text)">${escapar(f.label)}</div>
-        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
-          <span style="font-size:16px;font-weight:800;color:var(--text)">${ultimo!=null?ultimo:'—'}</span>
-          ${cambioHTML}
-        </div>
-      </div>
-      <div style="display:flex;gap:4px;align-items:flex-end">${barrasHTML}</div>
+    <div style="margin-bottom:1.5rem">
+      <div style="font-size:13px;font-weight:800;color:var(--text);margin-bottom:.6rem">${escapar(campo.label)}</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px">${filasHTML}</div>
     </div>`;
   }).join('');
   return `
     <div style="background:#fff;border:1.5px solid var(--border);border-top:none;border-radius:0 0 12px 12px;padding:1.25rem">
-      <div style="font-size:11px;color:var(--muted);margin-bottom:1rem">Comparativa de conteo (últimas ${ultimas.length} semana${ultimas.length===1?'':'s'} con datos) — <span style="color:#c62828;font-weight:800">▲ rojo</span> sube la captura, <span style="color:#2e7d32;font-weight:800">▼ verde</span> baja.</div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px">${filasHTML}</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:1rem">Comparativa (últimas ${ultimas.length} semana${ultimas.length===1?'':'s'} con datos) — <span style="color:#c62828;font-weight:800">▲ rojo</span> sube la captura, <span style="color:#2e7d32;font-weight:800">▼ verde</span> baja.</div>
+      ${bloquesHTML}
     </div>`;
 }
 // Categorías de checks de la hoja en papel — cada opción es un check
