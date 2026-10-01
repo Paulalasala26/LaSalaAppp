@@ -15249,12 +15249,19 @@ async function loadCargasAsignacionData(){
 }
 async function saveCargasAsignacionData(){
   try{
-    const r = await window.storage.get(CARGAS_ASIGNACION_KEY);
-    // Mismo riesgo que saveInjertoAsignacionData: r=null puede ser un
-    // fallo de red, no "sin asignaciones". Se aborta en vez de asumir que
-    // la nube está vacía.
-    if(!r){ avisarFalloGuardado(); return; }
-    const cloud = JSON.parse(r.value);
+    // window.storage.get() no distingue "la clave no existe todavía en
+    // Firebase" de "ha fallado la lectura" (mismo bug real encontrado y
+    // corregido en guardarConteoCampo, 2026-10-01: lasala-cargas-
+    // asignacion-v1 nunca llegó a crearse porque esta función abortaba
+    // SIEMPRE el guardado al tratar cualquier null como fallo de red,
+    // impidiendo para siempre la primera asignación de carga de Julio).
+    // Se pide la respuesta cruda para distinguir los dos casos: si la
+    // petición en sí falla, fetchConReintentos lanza y se sigue
+    // abortando; si tiene éxito pero el valor es null, la clave de
+    // verdad no existe aún y es seguro partir de un objeto vacío.
+    const res = await fetchConReintentos(`${CLOUD_DB_URL}/${encodeURIComponent(CARGAS_ASIGNACION_KEY)}.json`);
+    const val = await res.json();
+    const cloud = val!=null ? JSON.parse(val) : {};
     cargasAsignacionData = { ...cloud, ...cargasAsignacionData };
     await window.storage.set(CARGAS_ASIGNACION_KEY, JSON.stringify(cargasAsignacionData));
   }catch(e){ avisarFalloGuardado(); }
