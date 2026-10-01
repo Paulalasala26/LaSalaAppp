@@ -4302,16 +4302,34 @@ async function eliminarTrabajoConfirmado(id){
 const CONTROL_SECCIONES = [
   {key:'tunel', label:'Check Túnel', icon:'ti-building-warehouse', color:'linear-gradient(135deg,#5c8df0,#3fc6b0)', conCheck:true},
   {key:'carga', label:'Check Carga', icon:'ti-truck', color:'linear-gradient(135deg,#f5a35c,#f0715c)', conCheck:true},
-  {key:'invernadero', label:'Check Invernadero', icon:'ti-plant-2', color:'linear-gradient(135deg,#1a5c2e,#3fa864)', conCheck:false},
-  {key:'fechas', label:'Check Fechas', icon:'ti-calendar-event', color:'linear-gradient(135deg,#7b5cf0,#5c8df0)', conCheck:false},
-  {key:'productos', label:'Check Prueba de Productos', icon:'ti-flask', color:'linear-gradient(135deg,#c47f00,#e0a530)', conCheck:false},
-  // Conteo Tuta: tabla semanal (no checklist por día) — a petición de Paula
-  // 2026-08-01, datos actualizados cada jueves.
-  {key:'conteo_tuta', label:'Conteo Tuta', icon:'ti-bug', color:'linear-gradient(135deg,#ad1457,#ec407a)', conCheck:false, tabla:true}
+  // Check Preinjerto (2026-10-01): estructura solo de navegación por ahora,
+  // a la espera de concretar juntos sus campos — mismo patrón que se siguió
+  // con Check Invernadero/Fechas/Prueba de Productos al principio.
+  {key:'preinjerto', label:'Check Preinjerto', icon:'ti-seeding', color:'linear-gradient(135deg,#2e7d32,#66bb6a)', conCheck:false},
+  // Conteos semanales (tabla, no checklist por día) — a petición de Paula
+  // 2026-08-01 (Tuta) y de Vigueras 2026-10-01 (Trips, misma estructura).
+  // Cada uno con su propia lista de invernaderos, editable por separado
+  // (botón "+ Invernadero"/🗑️ en renderControlConteoHTML) porque no todos
+  // los invernaderos llevan siempre el mismo cultivo.
+  {key:'conteo_tuta', label:'Conteo Tuta', icon:'ti-bug', color:'linear-gradient(135deg,#ad1457,#ec407a)', conCheck:false, tabla:true, conteoTipo:'tuta'},
+  {key:'conteo_trips', label:'Conteo Trips', icon:'ti-bug', color:'linear-gradient(135deg,#00838f,#4dd0e1)', conCheck:false, tabla:true, conteoTipo:'trips'}
 ];
-// Invernaderos/casetas de la trampa de Tuta — 19 y 20 tienen dos casetas
-// cada uno (verde y blanca), el resto una sola fila.
-const CONTEO_TUTA_FILAS = [
+// ════════════════════════════════════════════════════════════════
+// CONTEOS SEMANALES (Tuta/Trips) — sistema genérico, un tipo por plaga.
+// Cada tipo tiene su propia clave de datos y su propia LISTA EDITABLE de
+// invernaderos/casetas (antes, en Conteo Tuta, esa lista era un array fijo
+// en el código — CONTEO_TUTA_FILAS_SEMILLA de abajo es justo esa lista de
+// siempre, usada solo como semilla la primera vez que se lee vacía, para
+// no perder nada al migrar a lista editable).
+// ════════════════════════════════════════════════════════════════
+const CONTEO_TIPOS = {
+  tuta:  { label:'Conteo Tuta',  dataKey:'lasala-conteo-tuta-v1',  invsKey:'lasala-conteo-tuta-invs-v1' },
+  trips: { label:'Conteo Trips', dataKey:'lasala-conteo-trips-v1', invsKey:'lasala-conteo-trips-invs-v1' }
+};
+// Invernaderos/casetas de la trampa de Tuta ya existentes antes de hacer la
+// lista editable — 19 y 20 tienen dos casetas cada uno (verde y blanca), el
+// resto una sola fila.
+const CONTEO_TUTA_FILAS_SEMILLA = [
   {key:'0A', label:'INV 0A'},
   {key:'0B', label:'INV 0B'},
   {key:'1A', label:'INV 1A'},
@@ -4329,21 +4347,58 @@ const CONTEO_TUTA_FILAS = [
 ];
 // Datos por SEMANA (a petición de Paula, 2026-08-01 — antes solo se
 // guardaba el último valor; ahora cada jueves crea/edita su propia semana,
-// para poder comparar entre semanas en el dashboard). conteoTutaData[dia]
-// = { [invCasetaKey]: {feromona, placa, conteo} } — "dia" es el mismo
+// para poder comparar entre semanas en el dashboard). data[dia] =
+// { [invCasetaKey]: {feromona, placa, conteo} } — "dia" es el mismo
 // contador de día que usa Riego/Túnel/Carga (riegoDiaDeHoy, etc.), aquí
-// representa la semana en la que Paula dio esos datos (normalmente jueves).
-const CONTEO_TUTA_KEY = 'lasala-conteo-tuta-v1';
-let conteoTutaData = {};
-async function loadConteoTutaData(){
-  try{ const r = await window.storage.get(CONTEO_TUTA_KEY); if(r) conteoTutaData = JSON.parse(r.value); }catch(e){}
+// representa la semana en la que se dieron esos datos (normalmente jueves).
+let conteoEstado = {
+  tuta:  { data:{}, filas:[], filasCargadas:false, quincenaOffset:0, diaSel:null, vista:'datos' },
+  trips: { data:{}, filas:[], filasCargadas:false, quincenaOffset:0, diaSel:null, vista:'datos' }
+};
+async function loadConteoData(tipo){
+  try{ const r = await window.storage.get(CONTEO_TIPOS[tipo].dataKey); if(r) conteoEstado[tipo].data = JSON.parse(r.value); }catch(e){}
 }
-async function guardarConteoTutaCampo(dia, key, campo, valor){
-  conteoTutaData[dia] = conteoTutaData[dia] || {};
-  conteoTutaData[dia][key] = conteoTutaData[dia][key] || {};
-  conteoTutaData[dia][key][campo] = valor;
+async function loadConteoFilas(tipo){
+  if(conteoEstado[tipo].filasCargadas) return;
+  let filas = null;
+  try{ const r = await window.storage.get(CONTEO_TIPOS[tipo].invsKey); if(r) filas = JSON.parse(r.value); }catch(e){}
+  if(!Array.isArray(filas)){
+    filas = tipo==='tuta' ? CONTEO_TUTA_FILAS_SEMILLA : [];
+    // Primera vez que se lee (índice todavía no existe en Firebase): se
+    // persiste ya la semilla para que de aquí en adelante sea la fuente
+    // real, igual para cualquier dispositivo que añada/quite invernaderos.
+    try{ await window.storage.set(CONTEO_TIPOS[tipo].invsKey, JSON.stringify(filas)); }catch(e){}
+  }
+  conteoEstado[tipo].filas = filas;
+  conteoEstado[tipo].filasCargadas = true;
+}
+async function guardarConteoFilas(tipo){
+  const ok = await window.storage.set(CONTEO_TIPOS[tipo].invsKey, JSON.stringify(conteoEstado[tipo].filas));
+  if(!ok) avisarFalloGuardado();
+  return ok;
+}
+async function anadirInvernaderoConteo(tipo){
+  const key = (prompt('Clave del invernadero/caseta (ej. 17, 19-verde):')||'').trim();
+  if(!key) return;
+  if(conteoEstado[tipo].filas.some(f=>f.key===key)){ showToast('Ya existe ese invernadero en la lista'); return; }
+  const label = (prompt('Nombre a mostrar:', 'INV '+key)||'').trim() || ('INV '+key);
+  conteoEstado[tipo].filas.push({key, label});
+  await guardarConteoFilas(tipo);
+  renderControlContent(document.getElementById('control-overlay'));
+}
+async function quitarInvernaderoConteo(tipo, key){
+  if(!confirm('¿Quitar este invernadero de la lista del conteo?\n\nLos datos ya guardados de semanas anteriores no se borran, solo deja de aparecer para introducir datos nuevos.')) return;
+  conteoEstado[tipo].filas = conteoEstado[tipo].filas.filter(f=>f.key!==key);
+  await guardarConteoFilas(tipo);
+  renderControlContent(document.getElementById('control-overlay'));
+}
+async function guardarConteoCampo(tipo, dia, key, campo, valor){
+  const est = conteoEstado[tipo];
+  est.data[dia] = est.data[dia] || {};
+  est.data[dia][key] = est.data[dia][key] || {};
+  est.data[dia][key][campo] = valor;
   try{
-    const r = await window.storage.get(CONTEO_TUTA_KEY);
+    const r = await window.storage.get(CONTEO_TIPOS[tipo].dataKey);
     // Si la lectura falla, r es null — igual que si la clave estuviera
     // vacía. Tratarlo como "vacía de verdad" borraría el histórico de
     // TODAS las semanas/invernaderos al escribir solo el campo que se
@@ -4354,75 +4409,79 @@ async function guardarConteoTutaCampo(dia, key, campo, valor){
     const cloud = JSON.parse(r.value);
     cloud[dia] = cloud[dia] || {};
     cloud[dia][key] = {...(cloud[dia][key]||{}), [campo]: valor};
-    const ok = await window.storage.set(CONTEO_TUTA_KEY, JSON.stringify(cloud));
+    const ok = await window.storage.set(CONTEO_TIPOS[tipo].dataKey, JSON.stringify(cloud));
     if(!ok){ avisarFalloGuardado(); return false; }
   }catch(e){ avisarFalloGuardado(); return false; }
   showToast('✓ Guardado');
   return true;
 }
-let conteoTutaQuincenaOffset = 0;
-let conteoTutaDiaSel = null;
-let conteoTutaVista = 'datos'; // 'datos' | 'dashboard'
-function cambiarConteoTutaQuincena(delta){
-  conteoTutaQuincenaOffset = Math.max(0, conteoTutaQuincenaOffset + delta);
-  conteoTutaDiaSel = null;
+function cambiarConteoQuincena(tipo, delta){
+  conteoEstado[tipo].quincenaOffset = Math.max(0, conteoEstado[tipo].quincenaOffset + delta);
+  conteoEstado[tipo].diaSel = null;
   renderControlContent(document.getElementById('control-overlay'));
 }
-function cambiarConteoTutaDia(dia){
-  conteoTutaDiaSel = parseInt(dia,10);
+function cambiarConteoDia(tipo, dia){
+  conteoEstado[tipo].diaSel = parseInt(dia,10);
   renderControlContent(document.getElementById('control-overlay'));
 }
-function cambiarConteoTutaVista(vista){
-  conteoTutaVista = vista;
+function cambiarConteoVista(tipo, vista){
+  conteoEstado[tipo].vista = vista;
   renderControlContent(document.getElementById('control-overlay'));
 }
-// El conteo de Tuta solo se hace los jueves de cada semana — a petición de
-// Paula, 2026-08-10, no tiene sentido que aparezcan el resto de días. Un día
-// es "jueves" si riegoDiaToDate(d).getDay()===4 (0=domingo..6=sábado, JS
-// Date estándar).
-function esJuevesConteoTuta(dia){
+// El conteo solo se hace los jueves de cada semana — a petición de Paula,
+// 2026-08-10, no tiene sentido que aparezcan el resto de días. Un día es
+// "jueves" si riegoDiaToDate(d).getDay()===4 (0=domingo..6=sábado, JS Date
+// estándar).
+function esJuevesConteo(dia){
   return riegoDiaToDate(dia).getDay()===4;
 }
-function renderControlConteoTutaHTML(seccion){
-  const diasQ = riegoQuincenaDias(conteoTutaQuincenaOffset).filter(esJuevesConteoTuta);
-  if(conteoTutaDiaSel==null || !diasQ.includes(conteoTutaDiaSel)) conteoTutaDiaSel = diasQ.includes(riegoDiaDeHoy()) ? riegoDiaDeHoy() : diasQ[0];
+function renderControlConteoHTML(tipo, seccion){
+  const est = conteoEstado[tipo];
+  const diasQ = riegoQuincenaDias(est.quincenaOffset).filter(esJuevesConteo);
+  if(est.diaSel==null || !diasQ.includes(est.diaSel)) est.diaSel = diasQ.includes(riegoDiaDeHoy()) ? riegoDiaDeHoy() : diasQ[0];
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-  const tabBtn = (v,label) => `<button onclick="cambiarConteoTutaVista('${v}')" style="padding:9px 18px;border-radius:8px 8px 0 0;font-size:12px;font-weight:800;border:none;cursor:pointer;background:${conteoTutaVista===v?seccion.color:'#e8e2dc'};color:${conteoTutaVista===v?'#fff':'var(--muted)'}">${label}</button>`;
+  const tabBtn = (v,label) => `<button onclick="cambiarConteoVista('${tipo}','${v}')" style="padding:9px 18px;border-radius:8px 8px 0 0;font-size:12px;font-weight:800;border:none;cursor:pointer;background:${est.vista===v?seccion.color:'#e8e2dc'};color:${est.vista===v?'#fff':'var(--muted)'}">${label}</button>`;
   const header = `
-    <div style="margin-bottom:1.1rem">
-      <h2 style="font-size:22px;font-weight:800;color:var(--text);margin-bottom:4px">${seccion.label}</h2>
-      <p style="font-size:12px;color:var(--muted)">Datos actualizados semanalmente (cada jueves).</p>
+    <div style="margin-bottom:1.1rem;display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px">
+      <div>
+        <h2 style="font-size:22px;font-weight:800;color:var(--text);margin-bottom:4px">${seccion.label}</h2>
+        <p style="font-size:12px;color:var(--muted)">Datos actualizados semanalmente (cada jueves).</p>
+      </div>
+      <button onclick="anadirInvernaderoConteo('${tipo}')" class="btn-elevado" style="padding:9px 16px;font-size:12px;font-weight:700;background:${seccion.color};color:#fff;border:none;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;gap:6px">
+        <i class="ti ti-plus" style="font-size:14px"></i> Invernadero
+      </button>
     </div>
     <div style="display:flex;gap:4px">${tabBtn('datos','📋 Introducir datos')}${tabBtn('dashboard','📊 Dashboard')}</div>`;
 
-  if(conteoTutaVista === 'dashboard') return header + renderConteoTutaDashboardHTML(seccion);
+  if(est.vista === 'dashboard') return header + renderConteoDashboardHTML(tipo, seccion);
 
   const diaBotones = diasQ.map(d=>`
-    <button onclick="cambiarConteoTutaDia(${d})" style="flex-shrink:0;padding:8px 12px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid ${d===conteoTutaDiaSel?'transparent':'var(--border)'};background:${d===conteoTutaDiaSel?seccion.color:'#fff'};color:${d===conteoTutaDiaSel?'#fff':'var(--text)'}">
+    <button onclick="cambiarConteoDia('${tipo}',${d})" style="flex-shrink:0;padding:8px 12px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid ${d===est.diaSel?'transparent':'var(--border)'};background:${d===est.diaSel?seccion.color:'#fff'};color:${d===est.diaSel?'#fff':'var(--text)'}">
       ${riegoDiaLabelCorto(d)}<br><span style="font-weight:600;opacity:.85">${riegoDiaSemana(d)}</span>
     </button>`).join('');
 
-  const datosSemana = conteoTutaData[conteoTutaDiaSel] || {};
-  const tarjetas = CONTEO_TUTA_FILAS.map(f=>{
+  const datosSemana = est.data[est.diaSel] || {};
+  const tarjetas = est.filas.map(f=>{
     const d = datosSemana[f.key] || {};
     return `
     <div style="border-radius:14px;padding:14px 16px;background:${seccion.color};color:#fff;box-shadow:var(--shadow-sm);position:relative;overflow:hidden">
+      <button onclick="quitarInvernaderoConteo('${tipo}','${f.key}')" title="Quitar de la lista" style="position:absolute;top:8px;right:8px;width:20px;height:20px;padding:0;background:rgba(255,255,255,.2);color:#fff;border:none;border-radius:5px;font-size:11px;cursor:pointer;z-index:1">🗑️</button>
       <div style="position:absolute;right:-18px;top:-18px;width:80px;height:80px;background:rgba(255,255,255,.08);border-radius:50%;pointer-events:none"></div>
-      <div style="font-size:14px;font-weight:800;margin-bottom:10px;position:relative">${escapar(f.label)}</div>
+      <div style="font-size:14px;font-weight:800;margin-bottom:10px;position:relative;padding-right:22px">${escapar(f.label)}</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;position:relative">
         <div>
           <label style="font-size:9px;font-weight:800;opacity:.85;text-transform:uppercase;letter-spacing:.03em;display:block;margin-bottom:3px">Feromona</label>
-          <input type="date" value="${escapar(d.feromona)}" onchange="guardarConteoTutaCampo(${conteoTutaDiaSel},'${f.key}','feromona',this.value)" style="width:100%;padding:6px 7px;border:none;border-radius:6px;font-size:11px;background:rgba(255,255,255,.92);color:#1a1e18">
+          <input type="date" value="${escapar(d.feromona)}" onchange="guardarConteoCampo('${tipo}',${est.diaSel},'${f.key}','feromona',this.value)" style="width:100%;padding:6px 7px;border:none;border-radius:6px;font-size:11px;background:rgba(255,255,255,.92);color:#1a1e18">
         </div>
         <div>
           <label style="font-size:9px;font-weight:800;opacity:.85;text-transform:uppercase;letter-spacing:.03em;display:block;margin-bottom:3px">Cambio placa</label>
-          <input type="date" value="${escapar(d.placa)}" onchange="guardarConteoTutaCampo(${conteoTutaDiaSel},'${f.key}','placa',this.value)" style="width:100%;padding:6px 7px;border:none;border-radius:6px;font-size:11px;background:rgba(255,255,255,.92);color:#1a1e18">
+          <input type="date" value="${escapar(d.placa)}" onchange="guardarConteoCampo('${tipo}',${est.diaSel},'${f.key}','placa',this.value)" style="width:100%;padding:6px 7px;border:none;border-radius:6px;font-size:11px;background:rgba(255,255,255,.92);color:#1a1e18">
         </div>
       </div>
       <div style="margin-top:8px;position:relative">
         <label style="font-size:9px;font-weight:800;opacity:.85;text-transform:uppercase;letter-spacing:.03em;display:block;margin-bottom:3px">Conteo</label>
-        <input type="number" placeholder="0" value="${escapar(d.conteo)}" onchange="guardarConteoTutaCampo(${conteoTutaDiaSel},'${f.key}','conteo',this.value)" style="width:100%;padding:6px 7px;border:none;border-radius:6px;font-size:11px;background:rgba(255,255,255,.92);color:#1a1e18">
+        <input type="number" placeholder="0" value="${escapar(d.conteo)}" onchange="guardarConteoCampo('${tipo}',${est.diaSel},'${f.key}','conteo',this.value)" style="width:100%;padding:6px 7px;border:none;border-radius:6px;font-size:11px;background:rgba(255,255,255,.92);color:#1a1e18">
       </div>
     </div>`;
   }).join('');
@@ -4430,12 +4489,14 @@ function renderControlConteoTutaHTML(seccion){
   return header + `
     <div style="background:#fff;border:1.5px solid var(--border);border-top:none;border-radius:0 0 12px 12px;padding:1.25rem">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-        <button onclick="cambiarConteoTutaQuincena(-1)" ${conteoTutaQuincenaOffset<=0?'disabled style="opacity:.35;cursor:default"':'style="cursor:pointer"'} style="background:#fff;border:1.5px solid var(--border);border-radius:6px;width:26px;height:26px">&#8249;</button>
-        <span style="font-size:11px;font-weight:700;color:var(--muted)">Quincena ${conteoTutaQuincenaOffset+1} · ${riegoQuincenaLabel(conteoTutaQuincenaOffset)}</span>
-        <button onclick="cambiarConteoTutaQuincena(1)" style="background:#fff;border:1.5px solid var(--border);border-radius:6px;width:26px;height:26px;cursor:pointer">&#8250;</button>
+        <button onclick="cambiarConteoQuincena('${tipo}',-1)" ${est.quincenaOffset<=0?'disabled style="opacity:.35;cursor:default"':'style="cursor:pointer"'} style="background:#fff;border:1.5px solid var(--border);border-radius:6px;width:26px;height:26px">&#8249;</button>
+        <span style="font-size:11px;font-weight:700;color:var(--muted)">Quincena ${est.quincenaOffset+1} · ${riegoQuincenaLabel(est.quincenaOffset)}</span>
+        <button onclick="cambiarConteoQuincena('${tipo}',1)" style="background:#fff;border:1.5px solid var(--border);border-radius:6px;width:26px;height:26px;cursor:pointer">&#8250;</button>
       </div>
       <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:1rem">${diaBotones}</div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px">${tarjetas}</div>
+      ${est.filas.length===0
+        ? `<div style="text-align:center;padding:2.5rem;color:var(--muted);font-style:italic;font-size:13px">Todavía no hay invernaderos en esta lista. Pulsa "+ Invernadero" para añadir el primero.</div>`
+        : `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px">${tarjetas}</div>`}
     </div>`;
 }
 // Dashboard comparativo (a petición de Paula, 2026-08-01): un mini gráfico
@@ -4443,16 +4504,17 @@ function renderControlConteoTutaHTML(seccion){
 // por cada invernadero/caseta — usa TODAS las semanas que tengan algún dato
 // guardado (no solo la quincena actual), mostrando como máximo las últimas
 // 8 para que el gráfico no quede ilegible.
-function renderConteoTutaDashboardHTML(seccion){
-  const semanas = Object.keys(conteoTutaData).map(Number).sort((a,b)=>a-b);
+function renderConteoDashboardHTML(tipo, seccion){
+  const est = conteoEstado[tipo];
+  const semanas = Object.keys(est.data).map(Number).sort((a,b)=>a-b);
   if(!semanas.length){
     return `<div style="background:#fff;border:1.5px solid var(--border);border-top:none;border-radius:0 0 12px 12px;padding:2rem;text-align:center;color:var(--muted);font-style:italic;font-size:13px">Todavía no hay datos de ninguna semana.</div>`;
   }
   const ultimas = semanas.slice(-8);
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const filasHTML = CONTEO_TUTA_FILAS.map(f=>{
+  const filasHTML = est.filas.map(f=>{
     const valores = ultimas.map(dia=>{
-      const v = conteoTutaData[dia]?.[f.key]?.conteo;
+      const v = est.data[dia]?.[f.key]?.conteo;
       return (v!=null && v!=='') ? parseFloat(v) : null;
     });
     const conocidos = valores.filter(v=>v!=null);
@@ -4496,171 +4558,6 @@ function renderConteoTutaDashboardHTML(seccion){
       <div style="font-size:11px;color:var(--muted);margin-bottom:1rem">Comparativa de conteo (últimas ${ultimas.length} semana${ultimas.length===1?'':'s'} con datos) — <span style="color:#c62828;font-weight:800">▲ rojo</span> sube la captura, <span style="color:#2e7d32;font-weight:800">▼ verde</span> baja.</div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px">${filasHTML}</div>
     </div>`;
-}
-// ════════════════════════════════════════════════════════════════
-// CHECK INVERNADERO — a petición de Paula, 2026-08-11: líneas sueltas con
-// número de partida, variedad, calle y cantidad de bandejas, cada una como
-// su propia tarjeta ("banner colgando"), filtrables por variedad/nº partida,
-// con un botón "Total bandejas" que suma las bandejas de lo filtrado. NO
-// comparte código ni datos con Check Túnel/Carga (ver
-// [[lasala_control_tunel_intocable]]) — es una lista plana propia, sin días
-// ni categorías de check.
-// ════════════════════════════════════════════════════════════════
-const CONTROL_INVERNADERO_KEY = 'lasala-control-invernadero-v1';
-let controlInvernaderoData = [];
-async function loadControlInvernaderoData(){
-  try{ const r = await window.storage.get(CONTROL_INVERNADERO_KEY); if(r) controlInvernaderoData = JSON.parse(r.value); }catch(e){}
-}
-async function saveControlInvernaderoData(){
-  try{
-    const r = await window.storage.get(CONTROL_INVERNADERO_KEY);
-    // Si la lectura falla, r es null — igual que si no hubiera líneas.
-    // Tratarlo como "vacío de verdad" borraría las líneas de Check
-    // Invernadero de otros dispositivos. Se aborta en vez de asumirlo.
-    if(!r){ avisarFalloGuardado(); return; }
-    const cloud = JSON.parse(r.value);
-    const map = {};
-    cloud.forEach(l=>map[l.id]=l);
-    controlInvernaderoData.forEach(l=>map[l.id]=l);
-    controlInvernaderoData = Object.values(map);
-    await window.storage.set(CONTROL_INVERNADERO_KEY, JSON.stringify(controlInvernaderoData));
-  }catch(e){ avisarFalloGuardado(); }
-}
-let controlInvernaderoFiltroVariedad = '';
-let controlInvernaderoFiltroPartida = '';
-let controlInvernaderoTotalMostrado = null;
-function cambiarControlInvernaderoFiltro(campo, valor){
-  if(campo==='variedad') controlInvernaderoFiltroVariedad = valor;
-  else controlInvernaderoFiltroPartida = valor;
-  controlInvernaderoTotalMostrado = null;
-  renderControlContent(document.getElementById('control-overlay'));
-}
-function controlInvernaderoLineasFiltradas(){
-  const v = controlInvernaderoFiltroVariedad.trim().toUpperCase();
-  const p = controlInvernaderoFiltroPartida.trim().toUpperCase();
-  return controlInvernaderoData.filter(l=>
-    (!v || String(l.variedad||'').toUpperCase().includes(v)) &&
-    (!p || String(l.partida||'').toUpperCase().includes(p))
-  );
-}
-// "A tresbolillo" (a petición de Paula, 2026-08-11): una bandeja marcada así
-// cuenta la MITAD de una normal (ej. M1B a tresbolillo = media normal) — se
-// aplica solo al calcular el total, el número de bandejas guardado en la
-// línea es siempre el real, tal cual se introdujo.
-function bandejasEquivalentes(l){
-  const n = parseFloat(l.bandejas)||0;
-  return l.tresbolillo ? n/2 : n;
-}
-function calcularControlInvernaderoTotal(){
-  const filtradas = controlInvernaderoLineasFiltradas();
-  controlInvernaderoTotalMostrado = filtradas.reduce((sum,l)=>sum + bandejasEquivalentes(l), 0);
-  renderControlContent(document.getElementById('control-overlay'));
-}
-async function toggleLineaTresbolillo(id){
-  const l = controlInvernaderoData.find(x=>x.id===id);
-  if(!l) return;
-  l.tresbolillo = !l.tresbolillo;
-  await saveControlInvernaderoData();
-  controlInvernaderoTotalMostrado = null;
-  renderControlContent(document.getElementById('control-overlay'));
-}
-function mostrarFormNuevaLineaInvernadero(){
-  const overlay = getOrCreateOverlay('control-invernadero-form-overlay');
-  overlay.style.zIndex = 2100;
-  overlay.innerHTML = `
-    <div style="background:#fff;border-radius:14px;max-width:340px;width:100%;padding:1.5rem;box-shadow:0 8px 40px rgba(0,0,0,.3)">
-      <div style="font-size:15px;font-weight:800;margin-bottom:14px">➕ Nueva línea</div>
-      <label style="font-size:11px;font-weight:700;color:var(--muted)">Nº Partida</label>
-      <input id="ci-partida" type="text" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;margin:4px 0 10px">
-      <label style="font-size:11px;font-weight:700;color:var(--muted)">Variedad</label>
-      <input id="ci-variedad" type="text" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;margin:4px 0 10px">
-      <label style="font-size:11px;font-weight:700;color:var(--muted)">Calle</label>
-      <input id="ci-calle" type="text" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;margin:4px 0 10px">
-      <label style="font-size:11px;font-weight:700;color:var(--muted)">Cantidad de bandejas</label>
-      <input id="ci-bandejas" type="number" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;margin:4px 0 10px">
-      <label style="display:flex;align-items:center;gap:7px;font-size:12px;font-weight:700;color:var(--text);margin-bottom:14px;cursor:pointer">
-        <input id="ci-tresbolillo" type="checkbox" style="width:16px;height:16px;cursor:pointer"> A tresbolillo (cuenta la mitad)
-      </label>
-      <div style="display:flex;justify-content:flex-end;gap:10px">
-        <button onclick="document.getElementById('control-invernadero-form-overlay').style.display='none'" style="padding:9px 16px;font-size:12px;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:7px;cursor:pointer">Cancelar</button>
-        <button onclick="guardarNuevaLineaInvernadero()" style="padding:9px 18px;font-size:12px;font-weight:800;background:#1a5c2e;color:#fff;border:none;border-radius:7px;cursor:pointer">Añadir</button>
-      </div>
-    </div>`;
-  overlay.style.display = 'flex';
-}
-async function guardarNuevaLineaInvernadero(){
-  const partida = document.getElementById('ci-partida').value.trim();
-  const variedad = document.getElementById('ci-variedad').value.trim();
-  const calle = document.getElementById('ci-calle').value.trim();
-  const bandejas = document.getElementById('ci-bandejas').value.trim();
-  const tresbolillo = document.getElementById('ci-tresbolillo').checked;
-  if(!partida && !variedad && !calle && !bandejas){ showToast('Rellena al menos un campo'); return; }
-  controlInvernaderoData.push({
-    id: 'ci_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
-    partida, variedad, calle, bandejas: bandejas?parseFloat(bandejas):0, tresbolillo,
-    creadoPor: currentUser||'—', creadoEn: new Date().toLocaleString('es-ES')
-  });
-  document.getElementById('control-invernadero-form-overlay').style.display = 'none';
-  await saveControlInvernaderoData();
-  showToast('✓ Línea añadida');
-  renderControlContent(document.getElementById('control-overlay'));
-}
-async function eliminarLineaInvernadero(id){
-  if(!confirm('¿Eliminar esta línea?')) return;
-  try{
-    const r = await window.storage.get(CONTROL_INVERNADERO_KEY);
-    // Borrado atómico — r=null (fallo de lectura) tratado como "vacío de
-    // verdad" borraría TODAS las líneas de Check Invernadero, no solo
-    // esta. Se aborta en vez de asumirlo.
-    if(!r){ avisarFalloGuardado(); return; }
-    const cloud = JSON.parse(r.value);
-    const restante = cloud.filter(l=>l.id!==id);
-    await window.storage.set(CONTROL_INVERNADERO_KEY, JSON.stringify(restante));
-    controlInvernaderoData = restante;
-  }catch(e){ avisarFalloGuardado(); return; }
-  controlInvernaderoTotalMostrado = null;
-  renderControlContent(document.getElementById('control-overlay'));
-  showToast('✓ Eliminada');
-}
-function renderControlInvernaderoHTML(){
-  const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const filtradas = controlInvernaderoLineasFiltradas();
-  const tarjetas = filtradas.map(l=>`
-    <div style="border-radius:10px 10px 4px 4px;padding:10px 14px;background:linear-gradient(135deg,#1a5c2e,#3fa864);color:#fff;box-shadow:var(--shadow-sm);position:relative">
-      <button onclick="eliminarLineaInvernadero('${l.id}')" title="Eliminar" style="position:absolute;top:6px;right:8px;width:20px;height:20px;padding:0;background:rgba(255,255,255,.2);color:#fff;border:none;border-radius:5px;font-size:11px;cursor:pointer">🗑️</button>
-      <div style="font-size:14px;font-weight:800;padding-right:24px">${escapar(l.partida)||'—'}</div>
-      <div style="font-size:12px;font-weight:600;opacity:.95;margin-top:2px">${escapar(l.variedad)||'—'}</div>
-      <div style="display:flex;gap:12px;margin-top:6px;font-size:11px;font-weight:700;opacity:.9;flex-wrap:wrap">
-        <span>📍 Calle ${escapar(l.calle)||'—'}</span>
-        <span>📦 ${escapar(l.bandejas)||0} bandejas${l.tresbolillo?` <span style="opacity:.85">(= ${bandejasEquivalentes(l)})</span>`:''}</span>
-      </div>
-      <button onclick="toggleLineaTresbolillo('${l.id}')" style="margin-top:8px;padding:5px 11px;font-size:10.5px;font-weight:800;border-radius:6px;cursor:pointer;border:1.5px solid rgba(255,255,255,.5);background:${l.tresbolillo?'#fff':'rgba(255,255,255,.15)'};color:${l.tresbolillo?'#1a5c2e':'#fff'}">${l.tresbolillo?'✓ ':''}⚿ Tresbolillo</button>
-    </div>`).join('');
-  return `
-    <div style="margin-bottom:1.1rem;display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px">
-      <div>
-        <h2 style="font-size:22px;font-weight:800;color:var(--text);margin-bottom:4px">Check Invernadero</h2>
-        <p style="font-size:12px;color:var(--muted)">Líneas por partida — variedad, calle y bandejas.</p>
-      </div>
-      <button onclick="mostrarFormNuevaLineaInvernadero()" class="btn-elevado" style="padding:9px 16px;font-size:12px;font-weight:700;background:#1a5c2e;color:#fff;border:none;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;gap:6px">
-        <i class="ti ti-plus" style="font-size:14px"></i> Añadir
-      </button>
-    </div>
-    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:1rem;background:#f2f4f0;border-radius:10px;padding:10px 12px">
-      <div>
-        <label style="font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase">Filtrar por variedad</label>
-        <input type="text" value="${escapar(controlInvernaderoFiltroVariedad)}" oninput="cambiarControlInvernaderoFiltro('variedad',this.value)" style="display:block;padding:7px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px;margin-top:3px;min-width:150px">
-      </div>
-      <div>
-        <label style="font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase">Filtrar por nº partida</label>
-        <input type="text" value="${escapar(controlInvernaderoFiltroPartida)}" oninput="cambiarControlInvernaderoFiltro('partida',this.value)" style="display:block;padding:7px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px;margin-top:3px;min-width:150px">
-      </div>
-      <button onclick="calcularControlInvernaderoTotal()" style="padding:8px 16px;font-size:12px;font-weight:800;background:#0f5c4a;color:#fff;border:none;border-radius:7px;cursor:pointer;height:34px">Total bandejas</button>
-      ${controlInvernaderoTotalMostrado!=null ? `<div style="font-size:14px;font-weight:800;color:#0f5c4a;display:flex;align-items:center">= ${controlInvernaderoTotalMostrado} bandejas (${filtradas.length} línea${filtradas.length===1?'':'s'})</div>` : ''}
-    </div>
-    ${filtradas.length===0
-      ? `<div style="text-align:center;padding:2.5rem;color:var(--muted);font-style:italic;font-size:13px">${controlInvernaderoData.length===0?'Sin líneas todavía.':'Ninguna línea coincide con el filtro.'}</div>`
-      : `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px">${tarjetas}</div>`}`;
 }
 // Categorías de checks de la hoja en papel — cada opción es un check
 // independiente (no excluyentes entre sí, igual que en el papel). Cada
@@ -5459,7 +5356,7 @@ function showControlModule(){
   // para ver el listado de checks. Ahora el listado se pinta en cuanto están
   // listos los checks (rápido, unos pocos KB) y fotos/PDFs se cargan aparte,
   // en segundo plano, repintando cuando terminan.
-  Promise.all([loadControlChecksData(false), loadConteoTutaData(), loadControlInvernaderoData()]).then(()=>{
+  Promise.all([loadControlChecksData(false), loadConteoData('tuta'), loadConteoFilas('tuta'), loadConteoData('trips'), loadConteoFilas('trips')]).then(()=>{
     controlSeccion = null;
     const overlay = getOrCreateOverlay('control-overlay');
     overlay.style.padding = '0';
@@ -5491,10 +5388,11 @@ function seleccionarSeccionControl(sec){
     controlWizardEnfermedades = false;
     controlWizardVista = 'partidas';
   }
-  if(sec === 'conteo_tuta'){
-    conteoTutaQuincenaOffset = riegoQuincenaOffsetActual();
-    conteoTutaDiaSel = riegoDiaDeHoy();
-    conteoTutaVista = 'datos';
+  if(sec === 'conteo_tuta' || sec === 'conteo_trips'){
+    const tipo = sec === 'conteo_tuta' ? 'tuta' : 'trips';
+    conteoEstado[tipo].quincenaOffset = riegoQuincenaOffsetActual();
+    conteoEstado[tipo].diaSel = riegoDiaDeHoy();
+    conteoEstado[tipo].vista = 'datos';
   }
   renderControlContent(document.getElementById('control-overlay'));
 }
@@ -5574,8 +5472,7 @@ let controlWizardEnfermedades = false; // sub-paso de Sanidad→Enferma
 let controlWizardVista = 'partidas'; // 'partidas' | 'dashboard' (a petición de Vigueras, 2026-09-15: conservar el dashboard del día también en el wizard)
 function renderControlSeccionHTML(seccion){
   if(!seccion) return '';
-  if(seccion.tabla) return renderControlConteoTutaHTML(seccion);
-  if(seccion.key==='invernadero') return renderControlInvernaderoHTML();
+  if(seccion.tabla) return renderControlConteoHTML(seccion.conteoTipo, seccion);
   if(seccion.key==='tunel' && CONTROL_TUNEL_WIZARD_USUARIOS.includes(currentUser)) return renderControlTunelWizardHTML();
   if(!seccion.conCheck){
     return `
@@ -6023,16 +5920,24 @@ function renderControlDashboardDiaHTML(seccion, listaDia){
   // global por índice (evita escapar comillas de clienteVariedad en el
   // onclick) y se recuperan al pinchar.
   window.controlDashboardCacheListas = [];
-  const barraCategoria = (label, n, max, gradiente, tinte, lineasDeEsta) => {
+  // Porcentaje junto a cada recuento (a petición de Vigueras, 2026-10-01):
+  // "pctBase" es el total sobre el que se calcula el % de ESTA barra en
+  // concreto — las categorías normales (Color/Tamaño/...) se reparten sobre
+  // el total de líneas del día; las enfermedades concretas se reparten
+  // sobre el nº de líneas marcadas como "enferma", no sobre el total del
+  // día (si no, el % de cada enfermedad individual casi nunca llegaría a
+  // sumar 100% entre todas y daría una lectura rara).
+  const barraCategoria = (label, n, max, gradiente, tinte, lineasDeEsta, pctBase) => {
     const idx = window.controlDashboardCacheListas.length;
     window.controlDashboardCacheListas.push({ titulo: label, lineas: lineasDeEsta });
+    const pct = pctBase>0 ? Math.round((n/pctBase)*100) : 0;
     return `
     <div onclick="mostrarListadoPartidasControl(window.controlDashboardCacheListas[${idx}].titulo, window.controlDashboardCacheListas[${idx}].lineas)" title="Ver partidas" style="display:flex;align-items:center;gap:8px;margin-bottom:6px;cursor:pointer">
       <div style="width:120px;font-size:11px;font-weight:700;color:var(--text);flex-shrink:0">${label}</div>
       <div style="flex:1;background:${tinte};border-radius:6px;height:18px;overflow:hidden">
         <div style="width:${Math.round((n/max)*100)}%;height:100%;background:${gradiente};border-radius:6px"></div>
       </div>
-      <div style="width:26px;text-align:right;font-size:12px;font-weight:800;color:var(--text);flex-shrink:0">${n}</div>
+      <div style="width:66px;text-align:right;font-size:12px;font-weight:800;color:var(--text);flex-shrink:0">${n} <span style="font-weight:600;color:var(--muted)">(${pct}%)</span></div>
     </div>`;
   };
 
@@ -6044,7 +5949,7 @@ function renderControlDashboardDiaHTML(seccion, listaDia){
       <div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:6px">
         <i class="ti ${cat.icon}" style="font-size:14px"></i> ${cat.label}
       </div>
-      ${conteos.map(x=>barraCategoria(`${cat.label} — ${x.label}`, x.n, max, cat.gradiente, cat.tinte, x.lineas)).join('')}
+      ${conteos.map(x=>barraCategoria(`${cat.label} — ${x.label}`, x.n, max, cat.gradiente, cat.tinte, x.lineas, total)).join('')}
     </div>`;
   }).join('');
 
@@ -6057,7 +5962,7 @@ function renderControlDashboardDiaHTML(seccion, listaDia){
       <div style="font-size:12px;font-weight:800;color:#c62828;margin-bottom:10px;display:flex;align-items:center;gap:6px">
         <i class="ti ti-alert-triangle" style="font-size:14px"></i> Enfermedades (${conEnferma.length} línea${conEnferma.length===1?'':'s'} enferma${conEnferma.length===1?'':'s'})
       </div>
-      ${conteosEnfermedades.map(x=>barraCategoria(x.label, x.n, max, 'linear-gradient(135deg,#c62828,#e57373)', '#fdece5', x.lineas)).join('')}
+      ${conteosEnfermedades.map(x=>barraCategoria(x.label, x.n, max, 'linear-gradient(135deg,#c62828,#e57373)', '#fdece5', x.lineas, conEnferma.length)).join('')}
     </div>`;
   })() : '';
 
