@@ -5416,7 +5416,7 @@ function seleccionarSeccionControl(sec){
     controlQuincenaOffset = riegoQuincenaOffsetActual();
     controlDiaSel = riegoDiaDeHoy();
   }
-  if(sec==='tunel'){
+  if(sec==='tunel' || esSeccionCarga(sec)){
     // Estado del wizard de pruebas (ver CONTROL_TUNEL_WIZARD_USUARIOS) —
     // se resetea cada vez que se entra a Túnel, para no dejar a Ginés a
     // mitad de una evaluación de una visita anterior.
@@ -5513,7 +5513,7 @@ let controlWizardVista = 'partidas'; // 'partidas' | 'dashboard' (a petición de
 function renderControlSeccionHTML(seccion){
   if(!seccion) return '';
   if(seccion.tabla) return renderControlConteoHTML(seccion.conteoTipo, seccion);
-  if(seccion.key==='tunel' && CONTROL_TUNEL_WIZARD_USUARIOS.includes(currentUser)) return renderControlTunelWizardHTML();
+  if((seccion.key==='tunel' || esSeccionCarga(seccion.key)) && CONTROL_TUNEL_WIZARD_USUARIOS.includes(currentUser)) return renderControlTunelWizardHTML(seccion);
   if(!seccion.conCheck){
     return `
       <div style="margin-bottom:1.25rem">
@@ -5599,7 +5599,7 @@ function wizardCabeceraPartidaHTML(c){
   return `
     <button onclick="volverControlWizardALista()" style="background:none;border:none;color:#1558a0;font-size:14px;font-weight:700;cursor:pointer;padding:10px 4px;margin-bottom:6px">‹ Lista de partidas</button>
     <div style="text-align:center;margin-bottom:20px">
-      <div style="font-size:13px;font-weight:700;color:var(--muted)">${escapar(c.clienteVariedad)||''}</div>
+      <div style="font-size:13px;font-weight:700;color:var(--muted)">${escapar(clienteVariedadDeCheckControl(c))||''}</div>
       <div style="font-size:26px;font-weight:900;color:#1558a0">${escapar(c.partida)||'— Sin partida —'}</div>
     </div>`;
 }
@@ -5621,6 +5621,24 @@ function renderControlWizardFilaHTML(c, guionInfo){
       <button onclick="event.stopPropagation();mostrarAsignarCalleControl('${c.id}')" style="width:100%;padding:14px;font-size:14px;font-weight:700;background:#e8f2fd;color:#1558a0;border:none;border-top:2px solid #d5e6f7;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px">
         <i class="ti ti-map-pin" style="font-size:16px"></i> Asignar calle real
       </button>
+    </div>`;
+}
+function renderControlWizardCargaFilaHTML(c){
+  const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const t = calleTramoDeCarga(c);
+  const completada = controlLineaCompletada(c);
+  return `
+    <div style="border:2.5px solid ${completada?'#3fa864':'var(--border)'};border-radius:16px;background:#fff;overflow:hidden">
+      <div onclick="abrirControlWizardPartida('${c.id}')" style="padding:18px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:12px">
+        <div style="min-width:0">
+          <div style="font-size:13px;font-weight:700;color:var(--muted)">${escapar(c.cliente)||'Sin cliente'}</div>
+          <div style="font-size:23px;font-weight:900;color:#1558a0;margin-top:2px">${escapar(c.partida)||'— Sin partida —'}</div>
+          <div style="font-size:13px;font-weight:700;color:var(--muted);margin-top:5px">${escapar(c.variedad)||'—'}</div>
+          <div style="font-size:13px;font-weight:700;color:var(--muted);margin-top:2px">Bandejas: ${escapar(c.numBandejas)||'—'} · Invernadero: ${escapar(c.invernadero)||'—'}</div>
+          <div style="font-size:13px;font-weight:700;color:var(--muted);margin-top:2px">Calle: ${t ? escapar(t.label) : '—'}</div>
+        </div>
+        <div style="flex-shrink:0;font-size:32px">${completada?'✅':'⬜'}</div>
+      </div>
     </div>`;
 }
 function renderControlWizardFinalHTML(c){
@@ -5687,8 +5705,9 @@ function renderControlWizardEvaluarHTML(c){
       ${botonAtrasWizardHTML()}
     </div>`;
 }
-function renderControlTunelWizardHTML(){
-  const seccion = CONTROL_SECCIONES.find(s=>s.key==='tunel');
+function renderControlTunelWizardHTML(seccionParam){
+  const seccion = seccionParam || CONTROL_SECCIONES.find(s=>s.key==='tunel');
+  const esCarga = esSeccionCarga(seccion.key);
   if(controlWizardQuincenaOffset==null) controlWizardQuincenaOffset = riegoQuincenaOffsetActual();
   const diasQ = riegoQuincenaDias(controlWizardQuincenaOffset);
   if(controlWizardDiaSel!=null && !diasQ.includes(controlWizardDiaSel)) controlWizardDiaSel = null;
@@ -5699,7 +5718,7 @@ function renderControlTunelWizardHTML(){
     </button>`).join('');
   const cabeceraHTML = `
     <div style="margin-bottom:1.1rem">
-      <h2 style="font-size:22px;font-weight:800;color:var(--text)">Check Túnel</h2>
+      <h2 style="font-size:22px;font-weight:800;color:var(--text)">${seccion.label}</h2>
     </div>
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
       <button onclick="cambiarControlWizardQuincena(-1)" ${controlWizardQuincenaOffset<=0?'disabled style="opacity:.35"':''} style="background:#fff;border:2px solid var(--border);border-radius:10px;width:38px;height:38px;font-size:18px;cursor:pointer">&#8249;</button>
@@ -5722,9 +5741,27 @@ function renderControlTunelWizardHTML(){
   // Misma agrupación en guiones que la vista clásica (partida repetida en
   // varios días → 1 tarjeta), sin tocar renderControlChecklistHTML — ver
   // [[lasala_control_tunel_intocable]].
-  const listaDia = controlChecksData.filter(c=>c.tipo==='tunel' && c.dia===controlWizardDiaSel);
+  const listaDia = controlChecksData.filter(c=>c.tipo===seccion.key && c.dia===controlWizardDiaSel);
+  // Carga: filtro por invernadero (el mismo de la vista clásica, ordenado por
+  // calle) y sin guiones — igual que su vista clásica.
+  const listaMostrada = (esCarga && controlCargaInvFiltro)
+    ? listaDia.map(c=>({c, tramo: calleTramoDeCarga(c)}))
+        .filter(x=>x.tramo && coincideInvernaderoCarga(x.tramo.invId, controlCargaInvFiltro))
+        .sort((a,b)=> a.tramo.desde - b.tramo.desde)
+        .map(x=>x.c)
+    : listaDia;
+  const filtroInvWizardHTML = esCarga ? `
+    <select onchange="cambiarControlCargaInvFiltro(this.value)" style="width:100%;margin-bottom:16px;padding:16px;border:2px solid var(--border);border-radius:12px;font-size:15px;font-weight:700;background:#fff;cursor:pointer">
+      <option value="">Todos los invernaderos</option>
+      <optgroup label="Sala 1">${ALL_INV_IDS_SALA1.map(id=>`<option value="${id}"${controlCargaInvFiltro===id?' selected':''}>INV ${id}</option>`).join('')}</optgroup>
+      <optgroup label="Sala 2">${ALL_INV_IDS.map(id=>`<option value="${id}"${controlCargaInvFiltro===id?' selected':''}>INV ${id}</option>`).join('')}</optgroup>
+      <optgroup label="Sala 3">${ALL_INV_IDS_SALA3.map(id=>`<option value="${id}"${controlCargaInvFiltro===id?' selected':''}>INV ${id}</option>`).join('')}</optgroup>
+      <optgroup label="Sala 4">${ALL_INV_IDS_SALA4.map(id=>`<option value="${id}"${controlCargaInvFiltro===id?' selected':''}>INV ${id}</option>`).join('')}</optgroup>
+      <optgroup label="Sala 5">${ALL_INV_IDS_SALA5.map(id=>`<option value="${id}"${controlCargaInvFiltro===id?' selected':''}>INV ${id}</option>`).join('')}</optgroup>
+    </select>` : '';
   const gruposYaPintados = new Set();
-  const filasHTML = listaDia.map(c=>{
+  const filasHTML = listaMostrada.map(c=>{
+    if(esCarga) return renderControlWizardCargaFilaHTML(c);
     if(!c.partida) return renderControlWizardFilaHTML(c, null);
     const groupKey = 'tunel|'+c.partida;
     if(gruposYaPintados.has(groupKey)) return '';
@@ -5743,16 +5780,16 @@ function renderControlTunelWizardHTML(){
       <button onclick="cambiarControlWizardVista('partidas')" style="flex:1;min-width:120px;padding:14px;border-radius:12px;font-size:13px;font-weight:800;border:none;cursor:pointer;background:${controlWizardVista==='partidas'?seccion.color:'#e8e2dc'};color:${controlWizardVista==='partidas'?'#fff':'var(--muted)'}">📋 Partidas</button>
       <button onclick="cambiarControlWizardVista('dashboard')" style="flex:1;min-width:120px;padding:14px;border-radius:12px;font-size:13px;font-weight:800;border:none;cursor:pointer;background:${controlWizardVista==='dashboard'?seccion.color:'#e8e2dc'};color:${controlWizardVista==='dashboard'?'#fff':'var(--muted)'}">📊 Dashboard</button>
     </div>
-    <button onclick="exportarControlCSV('tunel', controlWizardDiaSel)" style="width:100%;margin-bottom:16px;padding:16px;border-radius:12px;font-size:14px;font-weight:800;border:2px solid #2e7d32;cursor:pointer;background:#fff;color:#2e7d32;display:flex;align-items:center;justify-content:center;gap:8px"><i class="ti ti-file-spreadsheet" style="font-size:17px"></i> Exportar CSV del día</button>`;
+    ${esCarga ? '' : `<button onclick="exportarControlCSV('tunel', controlWizardDiaSel)" style="width:100%;margin-bottom:16px;padding:16px;border-radius:12px;font-size:14px;font-weight:800;border:2px solid #2e7d32;cursor:pointer;background:#fff;color:#2e7d32;display:flex;align-items:center;justify-content:center;gap:8px"><i class="ti ti-file-spreadsheet" style="font-size:17px"></i> Exportar CSV del día</button>`}`;
 
   if(controlWizardVista==='dashboard'){
     return cabeceraHTML + barraSuperiorHTML + renderControlDashboardDiaHTML(seccion, listaDia);
   }
 
-  return cabeceraHTML + barraSuperiorHTML + `
+  return cabeceraHTML + barraSuperiorHTML + filtroInvWizardHTML + `
     <div style="font-size:13px;font-weight:700;color:var(--muted);margin-bottom:14px">${listaDia.length} partida${listaDia.length===1?'':'s'} · ${numCompletados} completada${numCompletados===1?'':'s'}</div>
     <div style="display:flex;flex-direction:column;gap:12px">
-      ${filasHTML || `<div style="text-align:center;padding:3rem 1rem;color:var(--muted);font-style:italic">No hay partidas para este día todavía.</div>`}
+      ${filasHTML || `<div style="text-align:center;padding:3rem 1rem;color:var(--muted);font-style:italic">${controlCargaInvFiltro && esCarga ? 'No hay partidas saliendo de INV '+controlCargaInvFiltro+' este día.' : 'No hay partidas para este día todavía.'}</div>`}
     </div>`;
 }
 function cambiarControlQuincena(delta){
