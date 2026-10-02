@@ -4614,8 +4614,16 @@ const CONTROL_CHECK_CATEGORIAS = [
   {key:'flores', label:'Flores', icon:'ti-flower', gradiente:'linear-gradient(135deg,#1a5c2e,#3fa864)', tinte:'#e8f5ea',
     opciones:[{key:'si',label:'Sí'},{key:'no',label:'No'}]},
   {key:'raices', label:'Raíces', icon:'ti-plant-2', gradiente:'linear-gradient(135deg,#c47f00,#e0a530)', tinte:'#fbf1e0',
-    opciones:[{key:'pocaRaiz',label:'Poca raíz'},{key:'raizVariedad',label:'Raíz en variedad'},{key:'ok',label:'OK'}]}
+    opciones:[{key:'pocaRaiz',label:'Poca raíz'},{key:'ok',label:'OK'},{key:'raizVieja',label:'Raíz vieja'}]},
+  // 2026-10-02: "Raíz en variedad" sale de Raíces y pasa a ser una pregunta
+  // aparte, solo donde hay planta injertada (Túnel y Carga Injerto) y NO
+  // obligatoria para dar la línea por completada (opcional:true).
+  {key:'raicesInjerto', label:'Raíces en punto de injerto', icon:'ti-seeding', gradiente:'linear-gradient(135deg,#8d6e63,#a1887f)', tinte:'#efebe9',
+    opciones:[{key:'si',label:'Sí'},{key:'no',label:'No'}], soloEnTipos:['tunel','carga'], opcional:true}
 ];
+function categoriasControlPara(tipo){
+  return CONTROL_CHECK_CATEGORIAS.filter(cat => !cat.soloEnTipos || cat.soloEnTipos.includes(tipo));
+}
 // A petición de Paula (2026-08-01): al marcar Sanidad→Enferma aparece un
 // segundo nivel de casillas con el tipo de problema concreto — se guarda
 // aparte (c.sanidadEnfermedades) en vez de dentro de c.sanidad para no mezclar
@@ -5564,14 +5572,22 @@ function volverControlWizardALista(){
   controlWizardEnfermedades = false;
   renderControlContent(document.getElementById('control-overlay'));
 }
+// Tocar una opción solo la marca/desmarca (se puede cambiar cuantas veces haga
+// falta); para pasar a la siguiente pregunta hay que pulsar "Continuar".
 async function seleccionarOpcionControlWizard(id, categoriaKey, opcionKey){
-  if(categoriaKey==='sanidad'){
-    controlWizardEnfermedades = (opcionKey==='enferma');
-    if(!controlWizardEnfermedades) controlWizardPaso++;
-  } else {
-    controlWizardPaso++;
+  await toggleControlCheckOpcion(id, categoriaKey, opcionKey);
+}
+function continuarControlWizard(id){
+  const c = controlChecksData.find(x=>x.id===id);
+  if(!c) return;
+  const cat = categoriasControlPara(c.tipo)[controlWizardPaso];
+  if(cat && !cat.opcional && !(c[cat.key] && Object.values(c[cat.key]).some(Boolean))){
+    showToast('Marca al menos una opción para continuar');
+    return;
   }
-  await aplicarControlCheckOpcion(id, categoriaKey, opcionKey, true);
+  if(cat && cat.key==='sanidad' && c.sanidad && c.sanidad.enferma) controlWizardEnfermedades = true;
+  else controlWizardPaso++;
+  renderControlContent(document.getElementById('control-overlay'));
 }
 function avanzarControlWizardTrasEnfermedades(){
   controlWizardEnfermedades = false;
@@ -5685,8 +5701,9 @@ function renderControlWizardEvaluarHTML(c){
         ${botonAtrasWizardHTML()}
       </div>`;
   }
-  if(controlWizardPaso >= CONTROL_CHECK_CATEGORIAS.length) return renderControlWizardFinalHTML(c);
-  const cat = CONTROL_CHECK_CATEGORIAS[controlWizardPaso];
+  const catsWizard = categoriasControlPara(c.tipo);
+  if(controlWizardPaso >= catsWizard.length) return renderControlWizardFinalHTML(c);
+  const cat = catsWizard[controlWizardPaso];
   const opcionesHTML = cat.opciones.map(o=>{
     const activo = !!(c[cat.key] && c[cat.key][o.key]);
     return `<button onclick="seleccionarOpcionControlWizard('${c.id}','${cat.key}','${o.key}')" style="padding:28px 16px;border-radius:16px;font-size:20px;font-weight:800;cursor:pointer;border:2px solid transparent;background:${activo?cat.gradiente:cat.tinte};color:${activo?'#fff':'var(--text)'}">${activo?'✓ ':''}${o.label}</button>`;
@@ -5695,13 +5712,14 @@ function renderControlWizardEvaluarHTML(c){
     <div style="max-width:480px;margin:0 auto">
       ${wizardCabeceraPartidaHTML(c)}
       <div style="text-align:center;margin-bottom:8px">
-        <span style="font-size:12px;font-weight:800;color:var(--muted)">Paso ${controlWizardPaso+1} de ${CONTROL_CHECK_CATEGORIAS.length}</span>
+        <span style="font-size:12px;font-weight:800;color:var(--muted)">Paso ${controlWizardPaso+1} de ${catsWizard.length}${cat.opcional?' · opcional':''}</span>
       </div>
       <div style="display:flex;align-items:center;justify-content:center;gap:9px;margin-bottom:18px">
         <i class="ti ${cat.icon}" style="font-size:24px"></i>
         <span style="font-size:21px;font-weight:800;color:var(--text)">${cat.label}</span>
       </div>
       <div style="display:flex;flex-direction:column;gap:14px">${opcionesHTML}</div>
+      <button onclick="continuarControlWizard('${c.id}')" style="width:100%;margin-top:22px;padding:22px;border-radius:16px;font-size:18px;font-weight:800;background:#2e7d32;color:#fff;border:none;cursor:pointer">Continuar →</button>
       ${botonAtrasWizardHTML()}
     </div>`;
 }
@@ -5807,7 +5825,7 @@ function cambiarControlDia(dia){
 // Pendientes dentro de cada día en Túnel y Carga (comparten esta misma
 // función porque renderControlChecklistHTML ya es compartida entre ambos).
 function controlLineaCompletada(c){
-  return CONTROL_CHECK_CATEGORIAS.every(cat => c[cat.key] && Object.values(c[cat.key]).some(v=>v));
+  return CONTROL_CHECK_CATEGORIAS.filter(cat => !cat.opcional).every(cat => c[cat.key] && Object.values(c[cat.key]).some(v=>v));
 }
 let controlFiltroEstado = 'todos'; // 'todos' | 'completados' | 'pendientes'
 function cambiarControlFiltroEstado(v){
@@ -5939,29 +5957,32 @@ function generarControlCSVDia(tipo, dia){
   const catSanidad = CONTROL_CHECK_CATEGORIAS.find(c=>c.key==='sanidad');
   const catFlores = CONTROL_CHECK_CATEGORIAS.find(c=>c.key==='flores');
   const catRaices = CONTROL_CHECK_CATEGORIAS.find(c=>c.key==='raices');
+  const catRaicesInj = CONTROL_CHECK_CATEGORIAS.find(c=>c.key==='raicesInjerto');
+  const conRaicesInj = (tipo==='tunel' || tipo==='carga');
   const listaDia = controlChecksData.filter(c=>c.tipo===tipo && c.dia===dia);
   // Carga (Injerto/Normal): campos propios (cliente, variedad, invernadero
   // del parte y calle) en vez de Cliente/Variedad combinado + calle real de Túnel.
   if(esSeccionCarga(tipo)){
-    const cabeceraCarga = ['Partida','Cliente','Variedad','Nº bandejas','Invernadero','Calle','Color','Tamaño','Sanidad','Enfermedades','Flores','Raíces','Completada','Observaciones'];
+    const cabeceraCarga = ['Partida','Cliente','Variedad','Nº bandejas','Invernadero','Calle','Color','Tamaño','Sanidad','Enfermedades','Flores','Raíces', ...(conRaicesInj?['Raíces punto injerto']:[]), 'Completada','Observaciones'];
     const filasCarga = listaDia.map(c=>{
       const t = calleTramoDeCarga(c);
       return [
         c.partida||'', c.cliente||'', c.variedad||'', c.numBandejas||'', c.invernadero||'', t ? t.label : '',
         opcionesMarcadas(c, catColor), opcionesMarcadas(c, catTamano), opcionesMarcadas(c, catSanidad),
         enfermedadesMarcadas(c), opcionesMarcadas(c, catFlores), opcionesMarcadas(c, catRaices),
+        ...(conRaicesInj ? [opcionesMarcadas(c, catRaicesInj)] : []),
         controlLineaCompletada(c) ? 'Sí' : 'No', c.observaciones||''
       ].map(esc).join(';');
     });
     return [cabeceraCarga.map(esc).join(';'), ...filasCarga].join('\r\n');
   }
-  const cabecera = ['Partida','Cliente/Variedad','Nº bandejas','Calle real','Color','Tamaño','Sanidad','Enfermedades','Flores','Raíces','Completada','Observaciones'];
+  const cabecera = ['Partida','Cliente/Variedad','Nº bandejas','Calle real','Color','Tamaño','Sanidad','Enfermedades','Flores','Raíces','Raíces punto injerto','Completada','Observaciones'];
   const filas = listaDia.map(c=>{
     const calleReal = c.invId ? `INV ${c.invId} — ${formatTramosLabel(c.invId, (c.tramos && c.tramos.length) ? c.tramos : [{desde:c.calleDesde, hasta:c.calleHasta}])}` : '';
     return [
       c.partida||'', c.clienteVariedad||'', c.numBandejas||'', calleReal,
       opcionesMarcadas(c, catColor), opcionesMarcadas(c, catTamano), opcionesMarcadas(c, catSanidad),
-      enfermedadesMarcadas(c), opcionesMarcadas(c, catFlores), opcionesMarcadas(c, catRaices),
+      enfermedadesMarcadas(c), opcionesMarcadas(c, catFlores), opcionesMarcadas(c, catRaices), opcionesMarcadas(c, catRaicesInj),
       controlLineaCompletada(c) ? 'Sí' : 'No', c.observaciones||''
     ].map(esc).join(';');
   });
@@ -6033,7 +6054,7 @@ function renderControlDashboardDiaHTML(seccion, listaDia){
     </div>`;
   };
 
-  const categoriasHTML = CONTROL_CHECK_CATEGORIAS.map(cat=>{
+  const categoriasHTML = categoriasControlPara(seccion.key).map(cat=>{
     const conteos = cat.opciones.map(o=>({label:o.label, n: listaDia.filter(c=>c[cat.key] && c[cat.key][o.key]).length, lineas: listaDia.filter(c=>c[cat.key] && c[cat.key][o.key])}));
     const max = Math.max(1, ...conteos.map(x=>x.n));
     return `
@@ -6870,7 +6891,7 @@ function renderControlCardHTML(c, seccion){
   // 2026-07-31) — la opción activa se pinta con el degradado de la
   // categoría, la inactiva con un tinte claro del mismo color (no blanco
   // plano), para que se note de un vistazo qué está marcado.
-  const categoriasHTML = CONTROL_CHECK_CATEGORIAS.map(cat=>{
+  const categoriasHTML = categoriasControlPara(c.tipo).map(cat=>{
     const opcionesHTML = cat.opciones.map(o=>{
       const activo = !!(c[cat.key] && c[cat.key][o.key]);
       return `<button onclick="toggleControlCheckOpcion('${c.id}','${cat.key}','${o.key}')" style="padding:6px 12px;border-radius:999px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid transparent;background:${activo?cat.gradiente:cat.tinte};color:${activo?'#fff':'var(--text)'}">${activo?'✓ ':''}${o.label}</button>`;
@@ -6955,7 +6976,7 @@ function renderControlCardHTML(c, seccion){
 // para no arriesgar el render de Túnel con ninguna refactorización.
 function renderControlCargaCardHTML(c, seccion){
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const categoriasHTML = CONTROL_CHECK_CATEGORIAS.map(cat=>{
+  const categoriasHTML = categoriasControlPara(c.tipo).map(cat=>{
     const opcionesHTML = cat.opciones.map(o=>{
       const activo = !!(c[cat.key] && c[cat.key][o.key]);
       return `<button onclick="toggleControlCheckOpcion('${c.id}','${cat.key}','${o.key}')" style="padding:6px 12px;border-radius:999px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid transparent;background:${activo?cat.gradiente:cat.tinte};color:${activo?'#fff':'var(--text)'}">${activo?'✓ ':''}${o.label}</button>`;
@@ -8831,7 +8852,7 @@ async function mostrarHistorialPartida(id){
   // salida (Carga, si ya se le ha hecho parte) — antes solo se veía la
   // observación del Túnel, ninguna de las categorías marcadas (Color/
   // Tamaño/Sanidad/Flores/Raíces) ni nada de Carga.
-  const resumenCategoriasHTML = ch => CONTROL_CHECK_CATEGORIAS.map(cat=>{
+  const resumenCategoriasHTML = ch => categoriasControlPara(ch.tipo).map(cat=>{
     const marcadas = cat.opciones.filter(o=>ch[cat.key]?.[o.key]).map(o=>o.label);
     if(!marcadas.length) return '';
     let extra = '';
