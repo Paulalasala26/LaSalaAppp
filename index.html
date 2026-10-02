@@ -4302,6 +4302,9 @@ async function eliminarTrabajoConfirmado(id){
 // [[lasala_modulo_trabajos]]).
 // ════════════════════════════════════════════════════════════════
 function esSeccionCarga(k){ return k==='carga' || k==='carga_normal'; }
+// Preinjerto (2026-10-02) usa la misma ficha/formulario/lista que Carga
+// (cliente, partida, variedad, nº bandejas) pero sin invernadero ni calle.
+function usaFichaCarga(k){ return esSeccionCarga(k) || k==='preinjerto'; }
 // Injerto = partida con X o F entre dígitos (26X02330, 26F00554) o variedad
 // TINJ/BINJ/PEINJ; todo lo demás del parte de carga (26010472 CALABACIN...,
 // 26EC0003 TOMATE...) es planta normal.
@@ -4316,10 +4319,11 @@ const CONTROL_SECCIONES = [
   // injerto). La clave 'carga' de Injerto no se renombra a propósito: es la
   // clave de sus líneas (tipo:'carga') y de sus PDFs ya guardados.
   {key:'carga_normal', label:'Check Carga Normal', icon:'ti-truck-delivery', color:'linear-gradient(135deg,#3fc6b0,#1e8f7a)', conCheck:true},
-  // Check Preinjerto (2026-10-01): estructura solo de navegación por ahora,
-  // a la espera de concretar juntos sus campos — mismo patrón que se siguió
-  // con Check Invernadero/Fechas/Prueba de Productos al principio.
-  {key:'preinjerto', label:'Check Preinjerto', icon:'ti-seeding', color:'linear-gradient(135deg,#2e7d32,#66bb6a)', conCheck:false},
+  // Check Preinjerto (2026-10-02): una línea por partida, categorías Color,
+  // Tamaño, Grosor, Sanidad, Flores y Raíces (ver CONTROL_CHECK_CATEGORIAS,
+  // Grosor solo existe aquí). El PDF de origen aún no se lee solo: se adjunta
+  // y las líneas se añaden a mano hasta conocer su formato.
+  {key:'preinjerto', label:'Check Preinjerto', icon:'ti-seeding', color:'linear-gradient(135deg,#2e7d32,#66bb6a)', conCheck:true},
   // Conteos semanales (tabla, no checklist por día) — a petición de Paula
   // 2026-08-01 (Tuta) y de Vigueras 2026-10-01 (Trips, misma estructura).
   // Cada uno con su propia lista de invernaderos, editable por separado
@@ -4609,6 +4613,8 @@ const CONTROL_CHECK_CATEGORIAS = [
     opciones:[{key:'verde',label:'Verde'},{key:'amarillo',label:'Amarillo'},{key:'verdeClaro',label:'Verde claro'},{key:'ok',label:'OK'}]},
   {key:'tamano', label:'Tamaño', icon:'ti-ruler-2', gradiente:'linear-gradient(135deg,#5c8df0,#3fc6b0)', tinte:'#e8f2fd',
     opciones:[{key:'grande',label:'Grande'},{key:'pequeno',label:'Pequeño'},{key:'ok',label:'OK'}]},
+  {key:'grosor', label:'Grosor', icon:'ti-arrows-horizontal', gradiente:'linear-gradient(135deg,#00838f,#4dd0e1)', tinte:'#e0f7fa',
+    opciones:[{key:'fino',label:'Fino'},{key:'ok',label:'OK'},{key:'grueso',label:'Grueso'}], soloEnTipos:['preinjerto']},
   {key:'sanidad', label:'Sanidad', icon:'ti-stethoscope', gradiente:'linear-gradient(135deg,#f5a35c,#f0715c)', tinte:'#fdece5',
     opciones:[{key:'ok',label:'OK'},{key:'enferma',label:'Enferma'}]},
   {key:'flores', label:'Flores', icon:'ti-flower', gradiente:'linear-gradient(135deg,#1a5c2e,#3fa864)', tinte:'#e8f5ea',
@@ -5424,7 +5430,7 @@ function seleccionarSeccionControl(sec){
     controlQuincenaOffset = riegoQuincenaOffsetActual();
     controlDiaSel = riegoDiaDeHoy();
   }
-  if(sec==='tunel' || esSeccionCarga(sec)){
+  if(sec==='tunel' || usaFichaCarga(sec)){
     // Estado del wizard de pruebas (ver CONTROL_TUNEL_WIZARD_USUARIOS) —
     // se resetea cada vez que se entra a Túnel, para no dejar a Ginés a
     // mitad de una evaluación de una visita anterior.
@@ -5521,7 +5527,7 @@ let controlWizardVista = 'partidas'; // 'partidas' | 'dashboard' (a petición de
 function renderControlSeccionHTML(seccion){
   if(!seccion) return '';
   if(seccion.tabla) return renderControlConteoHTML(seccion.conteoTipo, seccion);
-  if((seccion.key==='tunel' || esSeccionCarga(seccion.key)) && CONTROL_TUNEL_WIZARD_USUARIOS.includes(currentUser)) return renderControlTunelWizardHTML(seccion);
+  if((seccion.key==='tunel' || usaFichaCarga(seccion.key)) && CONTROL_TUNEL_WIZARD_USUARIOS.includes(currentUser)) return renderControlTunelWizardHTML(seccion);
   if(!seccion.conCheck){
     return `
       <div style="margin-bottom:1.25rem">
@@ -5650,8 +5656,8 @@ function renderControlWizardCargaFilaHTML(c){
           <div style="font-size:13px;font-weight:700;color:var(--muted)">${escapar(c.cliente)||'Sin cliente'}</div>
           <div style="font-size:23px;font-weight:900;color:#1558a0;margin-top:2px">${escapar(c.partida)||'— Sin partida —'}</div>
           <div style="font-size:13px;font-weight:700;color:var(--muted);margin-top:5px">${escapar(c.variedad)||'—'}</div>
-          <div style="font-size:13px;font-weight:700;color:var(--muted);margin-top:2px">Bandejas: ${escapar(c.numBandejas)||'—'} · Invernadero: ${escapar(c.invernadero)||'—'}</div>
-          <div style="font-size:13px;font-weight:700;color:var(--muted);margin-top:2px">Calle: ${t ? escapar(t.label) : '—'}</div>
+          <div style="font-size:13px;font-weight:700;color:var(--muted);margin-top:2px">Bandejas: ${escapar(c.numBandejas)||'—'}${c.tipo==='preinjerto' ? '' : ' · Invernadero: '+(escapar(c.invernadero)||'—')}</div>
+          ${c.tipo==='preinjerto' ? '' : `<div style="font-size:13px;font-weight:700;color:var(--muted);margin-top:2px">Calle: ${t ? escapar(t.label) : '—'}</div>`}
         </div>
         <div style="flex-shrink:0;font-size:32px">${completada?'✅':'⬜'}</div>
       </div>
@@ -5779,7 +5785,7 @@ function renderControlTunelWizardHTML(seccionParam){
     </select>` : '';
   const gruposYaPintados = new Set();
   const filasHTML = listaMostrada.map(c=>{
-    if(esCarga) return renderControlWizardCargaFilaHTML(c);
+    if(usaFichaCarga(seccion.key)) return renderControlWizardCargaFilaHTML(c);
     if(!c.partida) return renderControlWizardFilaHTML(c, null);
     const groupKey = 'tunel|'+c.partida;
     if(gruposYaPintados.has(groupKey)) return '';
@@ -5798,7 +5804,7 @@ function renderControlTunelWizardHTML(seccionParam){
       <button onclick="cambiarControlWizardVista('partidas')" style="flex:1;min-width:120px;padding:14px;border-radius:12px;font-size:13px;font-weight:800;border:none;cursor:pointer;background:${controlWizardVista==='partidas'?seccion.color:'#e8e2dc'};color:${controlWizardVista==='partidas'?'#fff':'var(--muted)'}">📋 Partidas</button>
       <button onclick="cambiarControlWizardVista('dashboard')" style="flex:1;min-width:120px;padding:14px;border-radius:12px;font-size:13px;font-weight:800;border:none;cursor:pointer;background:${controlWizardVista==='dashboard'?seccion.color:'#e8e2dc'};color:${controlWizardVista==='dashboard'?'#fff':'var(--muted)'}">📊 Dashboard</button>
     </div>
-    ${`<button onclick="exportarControlCSV('${seccion.key}', controlWizardDiaSel)" style="width:100%;margin-bottom:16px;padding:16px;border-radius:12px;font-size:14px;font-weight:800;border:2px solid #2e7d32;cursor:pointer;background:#fff;color:#2e7d32;display:flex;align-items:center;justify-content:center;gap:8px"><i class="ti ti-file-spreadsheet" style="font-size:17px"></i> Exportar CSV del día</button>`}`;
+    ${seccion.key==='preinjerto' ? '' : `<button onclick="exportarControlCSV('${seccion.key}', controlWizardDiaSel)" style="width:100%;margin-bottom:16px;padding:16px;border-radius:12px;font-size:14px;font-weight:800;border:2px solid #2e7d32;cursor:pointer;background:#fff;color:#2e7d32;display:flex;align-items:center;justify-content:center;gap:8px"><i class="ti ti-file-spreadsheet" style="font-size:17px"></i> Exportar CSV del día</button>`}`;
 
   if(controlWizardVista==='dashboard'){
     return cabeceraHTML + barraSuperiorHTML + renderControlDashboardDiaHTML(seccion, listaDia);
@@ -5825,7 +5831,7 @@ function cambiarControlDia(dia){
 // Pendientes dentro de cada día en Túnel y Carga (comparten esta misma
 // función porque renderControlChecklistHTML ya es compartida entre ambos).
 function controlLineaCompletada(c){
-  return CONTROL_CHECK_CATEGORIAS.filter(cat => !cat.opcional).every(cat => c[cat.key] && Object.values(c[cat.key]).some(v=>v));
+  return categoriasControlPara(c.tipo).filter(cat => !cat.opcional).every(cat => c[cat.key] && Object.values(c[cat.key]).some(v=>v));
 }
 let controlFiltroEstado = 'todos'; // 'todos' | 'completados' | 'pendientes'
 function cambiarControlFiltroEstado(v){
@@ -6156,7 +6162,7 @@ function renderControlChecklistHTML(seccion){
   // verlas todas al filtrar por invernadero.
   const gruposYaPintados = new Set();
   const filas = listaMostrada.map(c=>{
-    if(esSeccionCarga(seccion.key) || !c.partida) return renderControlCardHTML(c, seccion);
+    if(usaFichaCarga(seccion.key) || !c.partida) return renderControlCardHTML(c, seccion);
     const groupKey = seccion.key+'|'+c.partida;
     if(gruposYaPintados.has(groupKey)) return '';
     const grupo = controlChecksData.filter(x=>x.tipo===seccion.key && x.partida===c.partida).sort((a,b)=>a.dia-b.dia);
@@ -6187,7 +6193,7 @@ function renderControlChecklistHTML(seccion){
             <i class="ti ti-search" style="font-size:14px"></i>
           </button>
         </div>
-        <button onclick="${esSeccionCarga(seccion.key)?'mostrarFormNuevoControlCargaCheck()':`mostrarFormNuevoControlCheck('${seccion.key}')`}" class="btn-elevado" style="padding:9px 16px;font-size:12px;font-weight:700;background:#2e7d32;color:#fff;border:none;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;gap:6px">
+        <button onclick="${usaFichaCarga(seccion.key)?'mostrarFormNuevoControlCargaCheck()':`mostrarFormNuevoControlCheck('${seccion.key}')`}" class="btn-elevado" style="padding:9px 16px;font-size:12px;font-weight:700;background:#2e7d32;color:#fff;border:none;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;gap:6px">
           <i class="ti ti-plus" style="font-size:14px"></i> Añadir línea
         </button>
         ${seccion.key==='tunel' ? `
@@ -6247,6 +6253,11 @@ function handleControlPdfInput(input, tipo, dia){
     // Carga Injerto y Carga Normal comparten el mismo parte de carga: se sube
     // UNA vez, en cualquiera de los dos, y queda adjunto en los dos.
     if(esSeccionCarga(tipo)) await guardarControlPdf(tipo==='carga' ? 'carga_normal' : 'carga', dia, file.name, e.target.result);
+    if(tipo === 'preinjerto'){
+      showToast('✓ PDF adjuntado. La lectura automática de partidas de Preinjerto aún no está hecha — añade las líneas a mano de momento');
+      renderControlContent(document.getElementById('control-overlay'));
+      return;
+    }
     // El check de Carga tiene otra plantilla de PDF (Cliente/Partida/
     // Variedad/Nº Band/Invernadero en columnas distintas a las de Túnel) —
     // a la espera de que Paula mande un PDF real de Carga para calibrar su
@@ -6884,7 +6895,7 @@ function renderControlCardHTML(c, seccion){
   // función ANTES de tocar nada más, para no arriesgar ni una coma del
   // render de Túnel, que Paula pidió expresamente no tocar (2026-07-31,
   // "el check de túneles está perfecto, no modifiques nada de ahí").
-  if(esSeccionCarga(c.tipo)) return renderControlCargaCardHTML(c, seccion);
+  if(usaFichaCarga(c.tipo)) return renderControlCargaCardHTML(c, seccion);
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const calleRealLabel = c.invId ? `INV ${escapar(c.invId)} — ${escapar(formatTramosLabel(c.invId, (c.tramos && c.tramos.length) ? c.tramos : [{desde:c.calleDesde, hasta:c.calleHasta}]))}` : '<span style="font-style:italic">Sin asignar</span>';
   // Cada categoría con su propio color/icono (a petición de Paula,
@@ -7021,8 +7032,8 @@ function renderControlCargaCardHTML(c, seccion){
           <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">
             <span style="font-size:11px;font-weight:700;background:#f0f4f8;color:#1558a0;border-radius:999px;padding:3px 10px">Variedad: ${escapar(c.variedad)||'—'}</span>
             <span style="font-size:11px;font-weight:700;background:#f0f4f8;color:#1558a0;border-radius:999px;padding:3px 10px">Nº bandejas: ${escapar(c.numBandejas)||'—'}</span>
-            <span style="font-size:11px;font-weight:700;background:#f0f4f8;color:#1558a0;border-radius:999px;padding:3px 10px">Invernadero: ${escapar(c.invernadero)||'—'}</span>
-            <span style="font-size:11px;font-weight:700;background:#eef9f0;color:#2e7d32;border-radius:999px;padding:3px 10px">Calle: ${(()=>{ const t=calleTramoDeCarga(c); return t ? escapar(t.label) : '—'; })()}</span>
+            ${c.tipo==='preinjerto' ? '' : `<span style="font-size:11px;font-weight:700;background:#f0f4f8;color:#1558a0;border-radius:999px;padding:3px 10px">Invernadero: ${escapar(c.invernadero)||'—'}</span>
+            <span style="font-size:11px;font-weight:700;background:#eef9f0;color:#2e7d32;border-radius:999px;padding:3px 10px">Calle: ${(()=>{ const t=calleTramoDeCarga(c); return t ? escapar(t.label) : '—'; })()}</span>`}
           </div>
           ${pdfInfoHTML}
         </div>
@@ -7076,7 +7087,7 @@ function mostrarFormNuevoControlCargaCheck(){
           <input id="ncc-bandejas" type="number" placeholder="Ej. 221" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px">
         </div>
       </div>
-      <div style="margin-bottom:12px">
+      <div style="margin-bottom:12px;${controlSeccion==='preinjerto'?'display:none':''}">
         <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Invernadero</label>
         <select id="ncc-inv" style="width:100%;padding:8px 6px;border:1.5px solid var(--border);border-radius:7px;font-size:12px">
           <option value="">— Invernadero —</option>
@@ -7102,7 +7113,7 @@ async function guardarNuevoControlCargaCheck(){
   if(!cliente){ showToast('Indica el cliente'); return; }
   const entry = {
     id: 'control_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
-    tipo: esSeccionCarga(controlSeccion) ? controlSeccion : 'carga', dia: controlDiaSel,
+    tipo: usaFichaCarga(controlSeccion) ? controlSeccion : 'carga', dia: controlDiaSel,
     cliente, partida, variedad, numBandejas, invernadero,
     color:{}, tamano:{}, sanidad:{}, flores:{}, raices:{}, observaciones:'',
     creadoPor: currentUser||'—', creadoEn: new Date().toLocaleString('es-ES')
@@ -7172,7 +7183,7 @@ function mostrarEditarControlCargaCheck(id){
           <input id="ecc-bandejas" type="text" value="${escapar(c.numBandejas)}" style="width:100%;padding:9px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px">
         </div>
       </div>
-      <div style="margin-bottom:14px">
+      <div style="margin-bottom:14px;${c.tipo==='preinjerto'?'display:none':''}">
         <label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">Invernadero</label>
         <select id="ecc-inv" style="width:100%;padding:9px 6px;border:1.5px solid var(--border);border-radius:7px;font-size:13px">
           <option value="">— Invernadero —</option>
