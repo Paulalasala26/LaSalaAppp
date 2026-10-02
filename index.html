@@ -6223,6 +6223,9 @@ function handleControlPdfInput(input, tipo, dia){
   const reader = new FileReader();
   reader.onload = async function(e){
     await guardarControlPdf(tipo, dia, file.name, e.target.result);
+    // Carga Injerto y Carga Normal comparten el mismo parte de carga: se sube
+    // UNA vez, en cualquiera de los dos, y queda adjunto en los dos.
+    if(esSeccionCarga(tipo)) await guardarControlPdf(tipo==='carga' ? 'carga_normal' : 'carga', dia, file.name, e.target.result);
     // El check de Carga tiene otra plantilla de PDF (Cliente/Partida/
     // Variedad/Nº Band/Invernadero en columnas distintas a las de Túnel) —
     // a la espera de que Paula mande un PDF real de Carga para calibrar su
@@ -6231,13 +6234,11 @@ function handleControlPdfInput(input, tipo, dia){
     // NO tocar la lectura automática de Túnel, que ya funciona perfecta.
     if(esSeccionCarga(tipo)){
       showToast('Leyendo PDF y creando líneas...');
-      const creadasCarga = await autoCrearLineasDesdePdfControlCarga(dia, e.target.result, tipo);
-      if(window.ultimaCargaPdfOtroTipo > 0){
-        showToast(`ℹ️ ${window.ultimaCargaPdfOtroTipo} partida${window.ultimaCargaPdfOtroTipo===1?'':'s'} de planta ${tipo==='carga'?'normal':'de injerto'} del PDF no se ${window.ultimaCargaPdfOtroTipo===1?'ha':'han'} añadido aquí — van en Check Carga ${tipo==='carga'?'Normal':'Injerto'}`);
-      }
+      const creadasCarga = await autoCrearLineasDesdePdfControlCarga(dia, e.target.result, 'ambos');
+      const cr = window.ultimaCargaPdfCreadas || {carga:0, carga_normal:0};
       if(creadasCarga === -2) showToast('❌ Error al GUARDAR las líneas leídas del PDF — no se ha llegado a subir a la nube, inténtalo de nuevo (si se repite, avisa)');
       else if(creadasCarga === -3) showToast(`⚠️ Se han visto ${window.ultimaCargaPdfNoReconocidas.length} línea${window.ultimaCargaPdfNoReconocidas.length===1?'':'s'} con nº de partida pero con un formato distinto al esperado (falta la hora, el invernadero o algún campo) — no se ha creado ninguna. Mira la consola (F12) para ver el texto exacto.`);
-      else if(creadasCarga > 0) showToast(`✓ ${creadasCarga} línea${creadasCarga===1?'':'s'} creada${creadasCarga===1?'':'s'} desde el PDF — falta el check`);
+      else if(creadasCarga > 0) showToast(`✓ ${creadasCarga} línea${creadasCarga===1?'':'s'} creada${creadasCarga===1?'':'s'} desde el PDF (${cr.carga} en Carga Injerto, ${cr.carga_normal} en Carga Normal) — falta el check`);
       else if(creadasCarga === 0) showToast('✓ PDF adjuntado (no se han detectado partidas nuevas que añadir)');
       else showToast('✓ PDF adjuntado, pero no se ha podido leer automáticamente — añade las líneas a mano');
       // Independientemente de si se creó alguna línea o no (incluso con
@@ -6653,6 +6654,7 @@ function parseControlCargaPdfPartidas(lineas){
 async function autoCrearLineasDesdePdfControlCarga(dia, pdfB64, tipo){
   tipo = tipo || 'carga';
   window.ultimaCargaPdfOtroTipo = 0;
+  window.ultimaCargaPdfCreadas = {carga:0, carga_normal:0};
   try{
     const base64 = pdfB64.split(',')[1];
     const binStr = atob(base64);
@@ -6662,7 +6664,7 @@ async function autoCrearLineasDesdePdfControlCarga(dia, pdfB64, tipo){
     const { records: todasPartidas, noReconocidas } = parseControlCargaPdfPartidas(lineas);
     // El mismo parte de carga trae injerto y planta normal mezclados: cada
     // check se queda solo con lo suyo.
-    const partidas = todasPartidas.filter(p => (tipo==='carga') === esPartidaInjertoCarga(p.partida, p.variedad));
+    const partidas = tipo==='ambos' ? todasPartidas : todasPartidas.filter(p => (tipo==='carga') === esPartidaInjertoCarga(p.partida, p.variedad));
     window.ultimaCargaPdfOtroTipo = todasPartidas.length - partidas.length;
     // Guardado global (no solo devuelto) para poder mostrarlo también desde
     // el toast de aviso sin tener que rehacer el parseo — ver
@@ -6674,16 +6676,23 @@ async function autoCrearLineasDesdePdfControlCarga(dia, pdfB64, tipo){
     // Misma partida puede repetirse en varias franjas horarias/invernaderos
     // el mismo día (confirmado en los PDF reales) — clave de duplicado con
     // todos los campos, igual que en Túnel.
-    const existentes = new Set(controlChecksData.filter(c=>c.tipo===tipo && c.dia===dia).map(c=>c.partida+'|'+c.numBandejas+'|'+c.cliente+'|'+c.variedad+'|'+c.invernadero));
+    const claveDe = (c) => c.partida+'|'+c.numBandejas+'|'+c.cliente+'|'+c.variedad+'|'+c.invernadero;
+    const existentesPorTipo = {
+      carga: new Set(controlChecksData.filter(c=>c.tipo==='carga' && c.dia===dia).map(claveDe)),
+      carga_normal: new Set(controlChecksData.filter(c=>c.tipo==='carga_normal' && c.dia===dia).map(claveDe))
+    };
     let creadas = 0;
     partidas.forEach((p,idx)=>{
+      const tipoP = tipo==='ambos' ? (esPartidaInjertoCarga(p.partida, p.variedad) ? 'carga' : 'carga_normal') : tipo;
+      const existentes = existentesPorTipo[tipoP];
       const clave = p.partida+'|'+p.nband+'|'+p.cliente+'|'+p.variedad+'|'+p.inverna;
       if(existentes.has(clave)) return;
       existentes.add(clave);
+      window.ultimaCargaPdfCreadas[tipoP]++;
       const nuevoId = 'control_'+Date.now()+'_'+idx+'_'+Math.random().toString(36).slice(2,8);
       controlChecksData.push({
         id: nuevoId,
-        tipo, dia,
+        tipo: tipoP, dia,
         cliente: p.cliente, partida: p.partida, variedad: p.variedad, numBandejas: p.nband, invernadero: p.inverna,
         color:{}, tamano:{}, sanidad:{}, flores:{}, raices:{}, observaciones:'',
         creadoPor: currentUser||'—', creadoEn: new Date().toLocaleString('es-ES'),
