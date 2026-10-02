@@ -5657,7 +5657,8 @@ function renderControlWizardCargaFilaHTML(c){
           <div style="font-size:23px;font-weight:900;color:#1558a0;margin-top:2px">${escapar(c.partida)||'— Sin partida —'}</div>
           <div style="font-size:13px;font-weight:700;color:var(--muted);margin-top:5px">${escapar(c.variedad)||'—'}</div>
           <div style="font-size:13px;font-weight:700;color:var(--muted);margin-top:2px">Bandejas: ${escapar(c.numBandejas)||'—'}${c.tipo==='preinjerto' ? '' : ' · Invernadero: '+(escapar(c.invernadero)||'—')}</div>
-          ${c.tipo==='preinjerto' ? '' : `<div style="font-size:13px;font-weight:700;color:var(--muted);margin-top:2px">Calle: ${t ? escapar(t.label) : '—'}</div>`}
+          ${c.tipo==='preinjerto' ? `<div style="font-size:13px;font-weight:700;color:var(--muted);margin-top:2px">Siembra: ${escapar(c.fSiembra)||'—'} · Entrega: ${escapar(c.fEntrega)||'—'}</div>
+          <div style="font-size:13px;font-weight:700;color:var(--muted);margin-top:2px">Plantas: ${escapar(c.plantasSol)||'—'} / ${escapar(c.plantasSem)||'—'}</div>` : `<div style="font-size:13px;font-weight:700;color:var(--muted);margin-top:2px">Calle: ${t ? escapar(t.label) : '—'}</div>`}
         </div>
         <div style="flex-shrink:0;font-size:32px">${completada?'✅':'⬜'}</div>
       </div>
@@ -6254,7 +6255,24 @@ function handleControlPdfInput(input, tipo, dia){
     // UNA vez, en cualquiera de los dos, y queda adjunto en los dos.
     if(esSeccionCarga(tipo)) await guardarControlPdf(tipo==='carga' ? 'carga_normal' : 'carga', dia, file.name, e.target.result);
     if(tipo === 'preinjerto'){
-      showToast('✓ PDF adjuntado. La lectura automática de partidas de Preinjerto aún no está hecha — añade las líneas a mano de momento');
+      showToast('Leyendo PDF y creando líneas...');
+      const r = await autoCrearLineasDesdePdfControlPreinjerto(e.target.result);
+      if(r.error === -2) showToast('❌ Error al GUARDAR las líneas leídas del PDF — no se ha llegado a subir a la nube, inténtalo de nuevo (si se repite, avisa)');
+      else if(r.error === -1){
+        showToast('✓ PDF adjuntado, pero no se ha podido leer automáticamente — añade las líneas a mano');
+        if(r.noReconocidas && r.noReconocidas.length) console.warn('Líneas de Preinjerto no reconocidas:', r.noReconocidas);
+      } else {
+        // El PDF también queda adjunto en cada día donde hay partidas, para
+        // que la ficha de cada una enlace a su PDF.
+        for(const d of r.dias){ if(d !== dia) await guardarControlPdf('preinjerto', d, file.name, e.target.result); }
+        const detalle = Object.keys(r.porDia).map(Number).sort((a,b)=>a-b).map(d=>riegoDiaLabelCorto(d)+' ('+r.porDia[d]+')').join(', ');
+        if(r.creadas > 0) showToast(`✓ ${r.creadas} línea${r.creadas===1?'':'s'} creada${r.creadas===1?'':'s'} por fecha de siembra: ${detalle} — falta el check`);
+        else showToast('✓ PDF adjuntado (no se han detectado partidas nuevas que añadir)');
+        if(r.noReconocidas && r.noReconocidas.length){
+          showToast(`⚠️ ${r.noReconocidas.length} línea${r.noReconocidas.length===1?'':'s'} con partida no se ha podido leer (formato distinto) — revisa la consola (F12)`);
+          console.warn('Líneas de Preinjerto no reconocidas:', r.noReconocidas);
+        }
+      }
       renderControlContent(document.getElementById('control-overlay'));
       return;
     }
@@ -6392,10 +6410,12 @@ function parseControlPdfPartidas(lineas){
       records.push(rec);
     }
   }
-  // A petición de Paula (2026-08-04): las partidas cuyo código contiene "ZE" o
-  // "YE" (p.ej. 26YE0066, 25ZE0353) no deben generar ni línea de Check ni
-  // pinzado automático — se filtran aquí, en el origen común de ambos.
-  return records.filter(r => !/ZE|YE/i.test(r.partida));
+  // 2026-10-02 (Vigueras): las partidas ZE/YE (p.ej. 26YE0066, 25ZE0353) YA
+  // SÍ generan línea de Check (antes se ignoraban, Paula 2026-08-04). Siguen
+  // sin programar pinzado automático ni trabajos de Mujeres: ese filtro se
+  // aplica ahora en autoCrearPinzadosDesdePdfTunel y en
+  // parseControlPdfPartidasConSalida.
+  return records;
 }
 // Programación automática de PINZADO a partir del PDF de salida de Túnel (a
 // petición de Paula, 2026-08-01): las partidas 2HV se pinzan 10 días antes
@@ -6530,7 +6550,7 @@ async function autoCrearPinzadosDesdePdfTunel(pdfB64){
     const bytes = new Uint8Array(binStr.length);
     for(let i=0;i<binStr.length;i++) bytes[i] = binStr.charCodeAt(i);
     const lineas = await extraerLineasControlPdf(bytes);
-    const partidas = parseControlPdfPartidas(lineas);
+    const partidas = parseControlPdfPartidas(lineas).filter(r => !/ZE|YE/i.test(r.partida));
     if(!partidas.length) return 0;
     const existentes = new Set(trabajosData.filter(t=>t.seccion==='mujeres' && t.subseccion==='pinzar' && t.origenPdfPartida).map(t=>t.origenPdfPartida+'|'+t.fechaISO));
     let creados = 0;
@@ -6669,7 +6689,7 @@ function parseControlCargaPdfPartidas(lineas){
     if(!t || t==='***' || cabeceraRe.test(t)) return;
     const m = mainReConHora.exec(t) || mainReSinHora.exec(t);
     if(!m){
-      if(partidaSueltaRe.test(t) && !/ZE|YE/i.test(t)) noReconocidas.push(t);
+      if(partidaSueltaRe.test(t)) noReconocidas.push(t);
       return;
     }
     records.push({
@@ -6680,8 +6700,87 @@ function parseControlCargaPdfPartidas(lineas){
       inverna: m.groups.inverna
     });
   });
-  // Mismo filtro que en Túnel (parseControlPdfPartidas) — ver comentario allí.
-  return { records: records.filter(r => !/ZE|YE/i.test(r.partida)), noReconocidas };
+  // 2026-10-02: ZE/YE ya no se ignoran (ver parseControlPdfPartidas).
+  return { records, noReconocidas };
+}
+// PDF de Preinjerto ("PEDIDOS CLIENTE", G.Semilleros): cada cliente aparece
+// como cabecera ("03185 - ROS MENDEZ ANA BELEN") y debajo sus partidas, con
+// columnas PARTIDA, VARIEDAD, F Siembra, F Entrega, T, Pl sol, Sem, Band, S?,
+// (Band Act, Sem act) y OBSERVA. Cada partida se crea en el día de su F
+// Siembra (Vigueras, 2026-10-02). Incluye las ZE/YE.
+function parseControlPreinjertoPdfPartidas(lineas){
+  const clienteRe = /^\d{3,6}\s*-\s*(.+)$/;
+  const filaRe = /^(?<partida>\d{2}[A-Za-z]{0,2}\d{4,6})\s+(?<variedad>.+?)\s+(?<fsiembra>\d{2}\/\d{2}\/\d{4})\s+(?<fentrega>\d{2}\/\d{2}\/\d{4})\s+(?<t>\S+)\s+(?<plsol>[\d.,]+)\s+(?<sem>[\d.,]+)\s+(?<band>\d+(?:[.,]\d+)?)\s+(?<s>[SNsn])(?:\s+(?<resto>.*))?$/;
+  const records = [];
+  const noReconocidas = [];
+  let cliente = '';
+  lineas.forEach(l=>{
+    const t = (l.texto||'').trim();
+    if(!t) return;
+    const mc = clienteRe.exec(t);
+    if(mc && !/\d{2}\/\d{2}\/\d{4}/.test(t)){ cliente = mc[1].trim(); return; }
+    const m = filaRe.exec(t);
+    if(!m){
+      if(/^\d{2}[A-Za-z]{0,2}\d{4,6}\s/.test(t) && /\d{2}\/\d{2}\/\d{4}/.test(t)) noReconocidas.push(t);
+      return;
+    }
+    // Tras "S?" pueden venir Band Act y Sem act (dos números) y luego OBSERVA.
+    let resto = (m.groups.resto||'').trim();
+    const ma = /^(\d+(?:[.,]\d+)?)\s+(\d+(?:[.,]\d+)?)(?:\s+(.*))?$/.exec(resto);
+    if(ma) resto = (ma[3]||'').trim();
+    records.push({
+      cliente, partida: m.groups.partida.toUpperCase(), variedad: m.groups.variedad.trim(),
+      fSiembra: m.groups.fsiembra, fEntrega: m.groups.fentrega,
+      plantasSol: m.groups.plsol, plantasSem: m.groups.sem,
+      nband: m.groups.band.replace(/[.,]0+$/,''), obs: resto
+    });
+  });
+  return { records, noReconocidas };
+}
+// Crea las líneas de Preinjerto, cada una en el día de su F Siembra. Devuelve
+// {creadas, porDia:{dia:n}, dias:[...todos los días con partidas], noReconocidas}
+// o {error:-1|-2}. Idempotente (partida|bandejas|cliente|variedad por día).
+async function autoCrearLineasDesdePdfControlPreinjerto(pdfB64){
+  try{
+    const base64 = pdfB64.split(',')[1];
+    const binStr = atob(base64);
+    const bytes = new Uint8Array(binStr.length);
+    for(let i=0;i<binStr.length;i++) bytes[i] = binStr.charCodeAt(i);
+    const lineas = await extraerLineasControlPdf(bytes);
+    const { records, noReconocidas } = parseControlPreinjertoPdfPartidas(lineas);
+    if(!records.length) return {error:-1, noReconocidas};
+    const claveDe = (x) => x.partida+'|'+x.numBandejas+'|'+x.cliente+'|'+x.variedad;
+    const existentesPorDia = {};
+    let creadas = 0; const porDia = {}; const dias = new Set(); const sinFecha = [];
+    records.forEach((p,idx)=>{
+      const dia = fechaExtensionADiaRiego(p.fSiembra);
+      if(dia==null){ sinFecha.push(p.partida); return; }
+      dias.add(dia);
+      if(!existentesPorDia[dia]) existentesPorDia[dia] = new Set(controlChecksData.filter(x=>x.tipo==='preinjerto' && x.dia===dia).map(claveDe));
+      const clave = p.partida+'|'+p.nband+'|'+p.cliente+'|'+p.variedad;
+      if(existentesPorDia[dia].has(clave)) return;
+      existentesPorDia[dia].add(clave);
+      const nuevoId = 'control_'+Date.now()+'_'+idx+'_'+Math.random().toString(36).slice(2,8);
+      controlChecksData.push({
+        id: nuevoId, tipo:'preinjerto', dia,
+        cliente: p.cliente, partida: p.partida, variedad: p.variedad, numBandejas: p.nband,
+        fSiembra: p.fSiembra, fEntrega: p.fEntrega, plantasSol: p.plantasSol, plantasSem: p.plantasSem,
+        color:{}, tamano:{}, grosor:{}, sanidad:{}, flores:{}, raices:{}, observaciones: p.obs||'',
+        creadoPor: currentUser||'—', creadoEn: new Date().toLocaleString('es-ES'), origenPdf: true
+      });
+      marcarControlCheckSucio(nuevoId);
+      porDia[dia] = (porDia[dia]||0)+1;
+      creadas++;
+    });
+    if(creadas){
+      const ok = await persistControlChecksData();
+      if(!ok) return {error:-2, noReconocidas};
+    }
+    return {creadas, porDia, dias:[...dias], noReconocidas, sinFecha};
+  }catch(e){
+    console.error('Error leyendo PDF de Preinjerto:', e);
+    return {error:-1, noReconocidas:[]};
+  }
 }
 async function autoCrearLineasDesdePdfControlCarga(dia, pdfB64, tipo){
   tipo = tipo || 'carga';
@@ -7032,7 +7131,9 @@ function renderControlCargaCardHTML(c, seccion){
           <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">
             <span style="font-size:11px;font-weight:700;background:#f0f4f8;color:#1558a0;border-radius:999px;padding:3px 10px">Variedad: ${escapar(c.variedad)||'—'}</span>
             <span style="font-size:11px;font-weight:700;background:#f0f4f8;color:#1558a0;border-radius:999px;padding:3px 10px">Nº bandejas: ${escapar(c.numBandejas)||'—'}</span>
-            ${c.tipo==='preinjerto' ? '' : `<span style="font-size:11px;font-weight:700;background:#f0f4f8;color:#1558a0;border-radius:999px;padding:3px 10px">Invernadero: ${escapar(c.invernadero)||'—'}</span>
+            ${c.tipo==='preinjerto' ? `<span style="font-size:11px;font-weight:700;background:#f0f4f8;color:#1558a0;border-radius:999px;padding:3px 10px">F Siembra: ${escapar(c.fSiembra)||'—'}</span>
+            <span style="font-size:11px;font-weight:700;background:#f0f4f8;color:#1558a0;border-radius:999px;padding:3px 10px">F Entrega: ${escapar(c.fEntrega)||'—'}</span>
+            <span style="font-size:11px;font-weight:700;background:#f0f4f8;color:#1558a0;border-radius:999px;padding:3px 10px">Plantas sol. / sem.: ${escapar(c.plantasSol)||'—'} / ${escapar(c.plantasSem)||'—'}</span>` : `<span style="font-size:11px;font-weight:700;background:#f0f4f8;color:#1558a0;border-radius:999px;padding:3px 10px">Invernadero: ${escapar(c.invernadero)||'—'}</span>
             <span style="font-size:11px;font-weight:700;background:#eef9f0;color:#2e7d32;border-radius:999px;padding:3px 10px">Calle: ${(()=>{ const t=calleTramoDeCarga(c); return t ? escapar(t.label) : '—'; })()}</span>`}
           </div>
           ${pdfInfoHTML}
