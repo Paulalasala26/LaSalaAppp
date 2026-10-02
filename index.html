@@ -4301,9 +4301,21 @@ async function eliminarTrabajoConfirmado(id){
 // mismo patrón que se siguió con Clima al principio (ver
 // [[lasala_modulo_trabajos]]).
 // ════════════════════════════════════════════════════════════════
+function esSeccionCarga(k){ return k==='carga' || k==='carga_normal'; }
+// Injerto = partida con X o F entre dígitos (26X02330, 26F00554) o variedad
+// TINJ/BINJ/PEINJ; todo lo demás del parte de carga (26010472 CALABACIN...,
+// 26EC0003 TOMATE...) es planta normal.
+function esPartidaInjertoCarga(partida, variedad){
+  return /^\d+[XF]\d+$/i.test((partida||'').trim()) || /^[A-Z]*INJ\b/i.test((variedad||'').trim());
+}
 const CONTROL_SECCIONES = [
   {key:'tunel', label:'Check Túnel', icon:'ti-building-warehouse', color:'linear-gradient(135deg,#5c8df0,#3fc6b0)', conCheck:true},
-  {key:'carga', label:'Check Carga', icon:'ti-truck', color:'linear-gradient(135deg,#f5a35c,#f0715c)', conCheck:true},
+  {key:'carga', label:'Check Carga Injerto', icon:'ti-truck', color:'linear-gradient(135deg,#f5a35c,#f0715c)', conCheck:true},
+  // Check Carga Normal (2026-10-02): idéntico a Check Carga Injerto pero con
+  // las partidas de planta normal del parte de carga (las que NO son
+  // injerto). La clave 'carga' de Injerto no se renombra a propósito: es la
+  // clave de sus líneas (tipo:'carga') y de sus PDFs ya guardados.
+  {key:'carga_normal', label:'Check Carga Normal', icon:'ti-truck-delivery', color:'linear-gradient(135deg,#3fc6b0,#1e8f7a)', conCheck:true},
   // Check Preinjerto (2026-10-01): estructura solo de navegación por ahora,
   // a la espera de concretar juntos sus campos — mismo patrón que se siguió
   // con Check Invernadero/Fechas/Prueba de Productos al principio.
@@ -5371,7 +5383,7 @@ function renderControlCardConGuionesHTML(grupo, seccion){
       <span>Guión ${idx+1} de ${grupo.length} · ${riegoDiaLabelCorto(activo.dia)} · Nº bandejas: ${activo.numBandejas||'—'}</span>
       <button onclick="cambiarGuionControl('${groupKey}',1)" title="Guión siguiente" style="background:none;border:none;font-size:18px;font-weight:900;color:#7a5000;cursor:pointer;padding:0 6px;line-height:1">&#8250;</button>
     </div>`;
-  const cardHTML = (seccion.key==='carga' ? renderControlCargaCardHTML(activo, seccion) : renderControlCardHTML(activo, seccion))
+  const cardHTML = (esSeccionCarga(seccion.key) ? renderControlCargaCardHTML(activo, seccion) : renderControlCardHTML(activo, seccion))
     .replace('border-radius:12px;', 'border-radius:0 0 12px 12px;');
   return `<div>${pagerHTML}${cardHTML}</div>`;
 }
@@ -5805,7 +5817,7 @@ function clienteVariedadDeCheckControl(c){
   return c.clienteVariedad || [c.cliente, c.variedad].filter(Boolean).join(' — ');
 }
 function calleLabelDeCheckControl(c, escapar, sinAsignarHTML){
-  if(c.tipo === 'carga'){
+  if(esSeccionCarga(c.tipo)){
     const t = calleTramoDeCarga(c);
     return t ? `INV ${escapar(t.invId)} — ${escapar(t.label)}` : sinAsignarHTML;
   }
@@ -6026,15 +6038,15 @@ function renderControlChecklistHTML(seccion){
 
   // Filtro de invernadero por sala (Túnel y Carga): al elegir uno, solo
   // salen las líneas de ESE invernadero, ordenadas por calle de menor a mayor.
-  const filtroInvHTML = (seccion.key==='carga' || seccion.key==='tunel') ? `
+  const filtroInvHTML = (esSeccionCarga(seccion.key) || seccion.key==='tunel') ? `
     <div style="margin-bottom:1rem">
-      <select onchange="${seccion.key==='carga'?'cambiarControlCargaInvFiltro':'cambiarControlTunelInvFiltro'}(this.value)" style="padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:12px;background:#fff;cursor:pointer">
+      <select onchange="${esSeccionCarga(seccion.key)?'cambiarControlCargaInvFiltro':'cambiarControlTunelInvFiltro'}(this.value)" style="padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:12px;background:#fff;cursor:pointer">
         <option value="">Todos los invernaderos</option>
-        <optgroup label="Sala 1">${ALL_INV_IDS_SALA1.map(id=>`<option value="${id}"${(seccion.key==='carga'?controlCargaInvFiltro:controlTunelInvFiltro)===id?' selected':''}>INV ${id}</option>`).join('')}</optgroup>
-        <optgroup label="Sala 2">${ALL_INV_IDS.map(id=>`<option value="${id}"${(seccion.key==='carga'?controlCargaInvFiltro:controlTunelInvFiltro)===id?' selected':''}>INV ${id}</option>`).join('')}</optgroup>
-        <optgroup label="Sala 3">${ALL_INV_IDS_SALA3.map(id=>`<option value="${id}"${(seccion.key==='carga'?controlCargaInvFiltro:controlTunelInvFiltro)===id?' selected':''}>INV ${id}</option>`).join('')}</optgroup>
-        <optgroup label="Sala 4">${ALL_INV_IDS_SALA4.map(id=>`<option value="${id}"${(seccion.key==='carga'?controlCargaInvFiltro:controlTunelInvFiltro)===id?' selected':''}>INV ${id}</option>`).join('')}</optgroup>
-        <optgroup label="Sala 5">${ALL_INV_IDS_SALA5.map(id=>`<option value="${id}"${(seccion.key==='carga'?controlCargaInvFiltro:controlTunelInvFiltro)===id?' selected':''}>INV ${id}</option>`).join('')}</optgroup>
+        <optgroup label="Sala 1">${ALL_INV_IDS_SALA1.map(id=>`<option value="${id}"${(esSeccionCarga(seccion.key)?controlCargaInvFiltro:controlTunelInvFiltro)===id?' selected':''}>INV ${id}</option>`).join('')}</optgroup>
+        <optgroup label="Sala 2">${ALL_INV_IDS.map(id=>`<option value="${id}"${(esSeccionCarga(seccion.key)?controlCargaInvFiltro:controlTunelInvFiltro)===id?' selected':''}>INV ${id}</option>`).join('')}</optgroup>
+        <optgroup label="Sala 3">${ALL_INV_IDS_SALA3.map(id=>`<option value="${id}"${(esSeccionCarga(seccion.key)?controlCargaInvFiltro:controlTunelInvFiltro)===id?' selected':''}>INV ${id}</option>`).join('')}</optgroup>
+        <optgroup label="Sala 4">${ALL_INV_IDS_SALA4.map(id=>`<option value="${id}"${(esSeccionCarga(seccion.key)?controlCargaInvFiltro:controlTunelInvFiltro)===id?' selected':''}>INV ${id}</option>`).join('')}</optgroup>
+        <optgroup label="Sala 5">${ALL_INV_IDS_SALA5.map(id=>`<option value="${id}"${(esSeccionCarga(seccion.key)?controlCargaInvFiltro:controlTunelInvFiltro)===id?' selected':''}>INV ${id}</option>`).join('')}</optgroup>
       </select>
     </div>` : '';
   // Líneas cuya calle real todavía no se puede resolver (Túnel: no se le ha
@@ -6048,7 +6060,7 @@ function renderControlChecklistHTML(seccion){
   // líneas sin calle asignada siguen siendo visibles, pero solo en la vista
   // "Todos los invernaderos" (sin filtro) — ahí es donde hay que fijarse
   // para acabar de asignarles la calle, no mezcladas con otro invernadero.
-  const listaMostrada = (seccion.key==='carga' && controlCargaInvFiltro)
+  const listaMostrada = (esSeccionCarga(seccion.key) && controlCargaInvFiltro)
     ? lista.map(c=>({c, tramo: calleTramoDeCarga(c)}))
         .filter(x=>x.tramo && coincideInvernaderoCarga(x.tramo.invId, controlCargaInvFiltro))
         .sort((a,b)=> a.tramo.desde - b.tramo.desde)
@@ -6071,7 +6083,7 @@ function renderControlChecklistHTML(seccion){
   // verlas todas al filtrar por invernadero.
   const gruposYaPintados = new Set();
   const filas = listaMostrada.map(c=>{
-    if(seccion.key==='carga' || !c.partida) return renderControlCardHTML(c, seccion);
+    if(esSeccionCarga(seccion.key) || !c.partida) return renderControlCardHTML(c, seccion);
     const groupKey = seccion.key+'|'+c.partida;
     if(gruposYaPintados.has(groupKey)) return '';
     const grupo = controlChecksData.filter(x=>x.tipo===seccion.key && x.partida===c.partida).sort((a,b)=>a.dia-b.dia);
@@ -6102,7 +6114,7 @@ function renderControlChecklistHTML(seccion){
             <i class="ti ti-search" style="font-size:14px"></i>
           </button>
         </div>
-        <button onclick="${seccion.key==='carga'?'mostrarFormNuevoControlCargaCheck()':`mostrarFormNuevoControlCheck('${seccion.key}')`}" class="btn-elevado" style="padding:9px 16px;font-size:12px;font-weight:700;background:#2e7d32;color:#fff;border:none;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;gap:6px">
+        <button onclick="${esSeccionCarga(seccion.key)?'mostrarFormNuevoControlCargaCheck()':`mostrarFormNuevoControlCheck('${seccion.key}')`}" class="btn-elevado" style="padding:9px 16px;font-size:12px;font-weight:700;background:#2e7d32;color:#fff;border:none;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;gap:6px">
           <i class="ti ti-plus" style="font-size:14px"></i> Añadir línea
         </button>
         ${seccion.key==='tunel' ? `
@@ -6165,9 +6177,12 @@ function handleControlPdfInput(input, tipo, dia){
     // lectura (mismo proceso que se siguió con Túnel), de momento solo se
     // guarda como adjunto y las líneas de Carga se añaden a mano. IMPORTANTE:
     // NO tocar la lectura automática de Túnel, que ya funciona perfecta.
-    if(tipo === 'carga'){
+    if(esSeccionCarga(tipo)){
       showToast('Leyendo PDF y creando líneas...');
-      const creadasCarga = await autoCrearLineasDesdePdfControlCarga(dia, e.target.result);
+      const creadasCarga = await autoCrearLineasDesdePdfControlCarga(dia, e.target.result, tipo);
+      if(window.ultimaCargaPdfOtroTipo > 0){
+        showToast(`ℹ️ ${window.ultimaCargaPdfOtroTipo} partida${window.ultimaCargaPdfOtroTipo===1?'':'s'} de planta ${tipo==='carga'?'normal':'de injerto'} del PDF no se ${window.ultimaCargaPdfOtroTipo===1?'ha':'han'} añadido aquí — van en Check Carga ${tipo==='carga'?'Normal':'Injerto'}`);
+      }
       if(creadasCarga === -2) showToast('❌ Error al GUARDAR las líneas leídas del PDF — no se ha llegado a subir a la nube, inténtalo de nuevo (si se repite, avisa)');
       else if(creadasCarga === -3) showToast(`⚠️ Se han visto ${window.ultimaCargaPdfNoReconocidas.length} línea${window.ultimaCargaPdfNoReconocidas.length===1?'':'s'} con nº de partida pero con un formato distinto al esperado (falta la hora, el invernadero o algún campo) — no se ha creado ninguna. Mira la consola (F12) para ver el texto exacto.`);
       else if(creadasCarga > 0) showToast(`✓ ${creadasCarga} línea${creadasCarga===1?'':'s'} creada${creadasCarga===1?'':'s'} desde el PDF — falta el check`);
@@ -6583,25 +6598,31 @@ function parseControlCargaPdfPartidas(lineas){
   // Mismo filtro que en Túnel (parseControlPdfPartidas) — ver comentario allí.
   return { records: records.filter(r => !/ZE|YE/i.test(r.partida)), noReconocidas };
 }
-async function autoCrearLineasDesdePdfControlCarga(dia, pdfB64){
+async function autoCrearLineasDesdePdfControlCarga(dia, pdfB64, tipo){
+  tipo = tipo || 'carga';
+  window.ultimaCargaPdfOtroTipo = 0;
   try{
     const base64 = pdfB64.split(',')[1];
     const binStr = atob(base64);
     const bytes = new Uint8Array(binStr.length);
     for(let i=0;i<binStr.length;i++) bytes[i] = binStr.charCodeAt(i);
     const lineas = await extraerLineasControlPdf(bytes);
-    const { records: partidas, noReconocidas } = parseControlCargaPdfPartidas(lineas);
+    const { records: todasPartidas, noReconocidas } = parseControlCargaPdfPartidas(lineas);
+    // El mismo parte de carga trae injerto y planta normal mezclados: cada
+    // check se queda solo con lo suyo.
+    const partidas = todasPartidas.filter(p => (tipo==='carga') === esPartidaInjertoCarga(p.partida, p.variedad));
+    window.ultimaCargaPdfOtroTipo = todasPartidas.length - partidas.length;
     // Guardado global (no solo devuelto) para poder mostrarlo también desde
     // el toast de aviso sin tener que rehacer el parseo — ver
     // handleControlPdfInput, que lo usa cuando no se creó ninguna línea pero
     // SÍ había texto de partida en el PDF (formato de fila distinto al
     // esperado, en vez de "no había nada que leer").
     window.ultimaCargaPdfNoReconocidas = noReconocidas;
-    if(!partidas.length) return noReconocidas.length ? -3 : -1;
+    if(!partidas.length) return todasPartidas.length ? 0 : (noReconocidas.length ? -3 : -1);
     // Misma partida puede repetirse en varias franjas horarias/invernaderos
     // el mismo día (confirmado en los PDF reales) — clave de duplicado con
     // todos los campos, igual que en Túnel.
-    const existentes = new Set(controlChecksData.filter(c=>c.tipo==='carga' && c.dia===dia).map(c=>c.partida+'|'+c.numBandejas+'|'+c.cliente+'|'+c.variedad+'|'+c.invernadero));
+    const existentes = new Set(controlChecksData.filter(c=>c.tipo===tipo && c.dia===dia).map(c=>c.partida+'|'+c.numBandejas+'|'+c.cliente+'|'+c.variedad+'|'+c.invernadero));
     let creadas = 0;
     partidas.forEach((p,idx)=>{
       const clave = p.partida+'|'+p.nband+'|'+p.cliente+'|'+p.variedad+'|'+p.inverna;
@@ -6610,7 +6631,7 @@ async function autoCrearLineasDesdePdfControlCarga(dia, pdfB64){
       const nuevoId = 'control_'+Date.now()+'_'+idx+'_'+Math.random().toString(36).slice(2,8);
       controlChecksData.push({
         id: nuevoId,
-        tipo:'carga', dia,
+        tipo, dia,
         cliente: p.cliente, partida: p.partida, variedad: p.variedad, numBandejas: p.nband, invernadero: p.inverna,
         color:{}, tamano:{}, sanidad:{}, flores:{}, raices:{}, observaciones:'',
         creadoPor: currentUser||'—', creadoEn: new Date().toLocaleString('es-ES'),
@@ -6781,7 +6802,7 @@ function renderControlCardHTML(c, seccion){
   // función ANTES de tocar nada más, para no arriesgar ni una coma del
   // render de Túnel, que Paula pidió expresamente no tocar (2026-07-31,
   // "el check de túneles está perfecto, no modifiques nada de ahí").
-  if(c.tipo === 'carga') return renderControlCargaCardHTML(c, seccion);
+  if(esSeccionCarga(c.tipo)) return renderControlCargaCardHTML(c, seccion);
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const calleRealLabel = c.invId ? `INV ${escapar(c.invId)} — ${escapar(formatTramosLabel(c.invId, (c.tramos && c.tramos.length) ? c.tramos : [{desde:c.calleDesde, hasta:c.calleHasta}]))}` : '<span style="font-style:italic">Sin asignar</span>';
   // Cada categoría con su propio color/icono (a petición de Paula,
@@ -6999,7 +7020,7 @@ async function guardarNuevoControlCargaCheck(){
   if(!cliente){ showToast('Indica el cliente'); return; }
   const entry = {
     id: 'control_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
-    tipo:'carga', dia: controlDiaSel,
+    tipo: esSeccionCarga(controlSeccion) ? controlSeccion : 'carga', dia: controlDiaSel,
     cliente, partida, variedad, numBandejas, invernadero,
     color:{}, tamano:{}, sanidad:{}, flores:{}, raices:{}, observaciones:'',
     creadoPor: currentUser||'—', creadoEn: new Date().toLocaleString('es-ES')
@@ -7584,7 +7605,7 @@ async function aplicarControlCheckOpcion(id, categoriaKey, opcionKey, valor){
   // misma ventana de 5 min que ya usa Plaguicidas/Específicos: tocar
   // cualquier casilla de una línea de Carga cuenta como "hay actividad
   // ahora mismo" en ese invernadero.
-  if(c.tipo==='carga' && c.invId) marcarPresenciaInvernadero('carga', c.invId);
+  if(esSeccionCarga(c.tipo) && c.invId) marcarPresenciaInvernadero('carga', c.invId);
   // Repintar ANTES de esperar la red — ver comentario igual en aplicarSanidadEnfermedad.
   renderControlContent(document.getElementById('control-overlay'));
   const qid = encolarAccionOffline('aplicarControlCheckOpcion', [id, categoriaKey, opcionKey, valor]);
