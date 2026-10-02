@@ -5780,7 +5780,7 @@ function renderControlTunelWizardHTML(seccionParam){
       <button onclick="cambiarControlWizardVista('partidas')" style="flex:1;min-width:120px;padding:14px;border-radius:12px;font-size:13px;font-weight:800;border:none;cursor:pointer;background:${controlWizardVista==='partidas'?seccion.color:'#e8e2dc'};color:${controlWizardVista==='partidas'?'#fff':'var(--muted)'}">📋 Partidas</button>
       <button onclick="cambiarControlWizardVista('dashboard')" style="flex:1;min-width:120px;padding:14px;border-radius:12px;font-size:13px;font-weight:800;border:none;cursor:pointer;background:${controlWizardVista==='dashboard'?seccion.color:'#e8e2dc'};color:${controlWizardVista==='dashboard'?'#fff':'var(--muted)'}">📊 Dashboard</button>
     </div>
-    ${esCarga ? '' : `<button onclick="exportarControlCSV('tunel', controlWizardDiaSel)" style="width:100%;margin-bottom:16px;padding:16px;border-radius:12px;font-size:14px;font-weight:800;border:2px solid #2e7d32;cursor:pointer;background:#fff;color:#2e7d32;display:flex;align-items:center;justify-content:center;gap:8px"><i class="ti ti-file-spreadsheet" style="font-size:17px"></i> Exportar CSV del día</button>`}`;
+    ${`<button onclick="exportarControlCSV('${seccion.key}', controlWizardDiaSel)" style="width:100%;margin-bottom:16px;padding:16px;border-radius:12px;font-size:14px;font-weight:800;border:2px solid #2e7d32;cursor:pointer;background:#fff;color:#2e7d32;display:flex;align-items:center;justify-content:center;gap:8px"><i class="ti ti-file-spreadsheet" style="font-size:17px"></i> Exportar CSV del día</button>`}`;
 
   if(controlWizardVista==='dashboard'){
     return cabeceraHTML + barraSuperiorHTML + renderControlDashboardDiaHTML(seccion, listaDia);
@@ -5939,8 +5939,23 @@ function generarControlCSVDia(tipo, dia){
   const catSanidad = CONTROL_CHECK_CATEGORIAS.find(c=>c.key==='sanidad');
   const catFlores = CONTROL_CHECK_CATEGORIAS.find(c=>c.key==='flores');
   const catRaices = CONTROL_CHECK_CATEGORIAS.find(c=>c.key==='raices');
-  const cabecera = ['Partida','Cliente/Variedad','Nº bandejas','Calle real','Color','Tamaño','Sanidad','Enfermedades','Flores','Raíces','Completada','Observaciones'];
   const listaDia = controlChecksData.filter(c=>c.tipo===tipo && c.dia===dia);
+  // Carga (Injerto/Normal): campos propios (cliente, variedad, invernadero
+  // del parte y calle) en vez de Cliente/Variedad combinado + calle real de Túnel.
+  if(esSeccionCarga(tipo)){
+    const cabeceraCarga = ['Partida','Cliente','Variedad','Nº bandejas','Invernadero','Calle','Color','Tamaño','Sanidad','Enfermedades','Flores','Raíces','Completada','Observaciones'];
+    const filasCarga = listaDia.map(c=>{
+      const t = calleTramoDeCarga(c);
+      return [
+        c.partida||'', c.cliente||'', c.variedad||'', c.numBandejas||'', c.invernadero||'', t ? t.label : '',
+        opcionesMarcadas(c, catColor), opcionesMarcadas(c, catTamano), opcionesMarcadas(c, catSanidad),
+        enfermedadesMarcadas(c), opcionesMarcadas(c, catFlores), opcionesMarcadas(c, catRaices),
+        controlLineaCompletada(c) ? 'Sí' : 'No', c.observaciones||''
+      ].map(esc).join(';');
+    });
+    return [cabeceraCarga.map(esc).join(';'), ...filasCarga].join('\r\n');
+  }
+  const cabecera = ['Partida','Cliente/Variedad','Nº bandejas','Calle real','Color','Tamaño','Sanidad','Enfermedades','Flores','Raíces','Completada','Observaciones'];
   const filas = listaDia.map(c=>{
     const calleReal = c.invId ? `INV ${c.invId} — ${formatTramosLabel(c.invId, (c.tramos && c.tramos.length) ? c.tramos : [{desde:c.calleDesde, hasta:c.calleHasta}])}` : '';
     return [
@@ -5958,7 +5973,7 @@ function exportarControlCSV(tipo, dia){
   const csv = generarControlCSVDia(tipo, dia);
   const blob = new Blob(['﻿' + csv], {type:'text/csv;charset=utf-8;'});
   const url = URL.createObjectURL(blob);
-  const nombreTipo = tipo==='tunel' ? 'CheckTunel' : tipo==='carga' ? 'CheckCarga' : tipo;
+  const nombreTipo = tipo==='tunel' ? 'CheckTunel' : tipo==='carga' ? 'CheckCargaInjerto' : tipo==='carga_normal' ? 'CheckCargaNormal' : tipo;
   const f = riegoDiaToDate(dia);
   const fechaStr = `${f.getFullYear()}-${String(f.getMonth()+1).padStart(2,'0')}-${String(f.getDate()).padStart(2,'0')}`;
   const a = document.createElement('a');
@@ -6175,7 +6190,7 @@ function renderControlChecklistHTML(seccion){
     <div style="display:flex;gap:4px;margin-bottom:1rem;align-items:center">
       <button onclick="cambiarControlVistaChecklist('lineas')" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:800;border:none;cursor:pointer;background:${controlVistaChecklist==='lineas'?seccion.color:'#e8e2dc'};color:${controlVistaChecklist==='lineas'?'#fff':'var(--muted)'}">📋 Líneas</button>
       <button onclick="cambiarControlVistaChecklist('dashboard')" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:800;border:none;cursor:pointer;background:${controlVistaChecklist==='dashboard'?seccion.color:'#e8e2dc'};color:${controlVistaChecklist==='dashboard'?'#fff':'var(--muted)'}">📊 Dashboard del día</button>
-      ${seccion.key==='tunel' ? `<button onclick="exportarControlCSV('tunel', controlDiaSel)" style="margin-left:auto;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:800;border:1.5px solid #2e7d32;cursor:pointer;background:#fff;color:#2e7d32;display:flex;align-items:center;gap:6px"><i class="ti ti-file-spreadsheet" style="font-size:14px"></i> Exportar CSV del día</button>` : ''}
+      ${(seccion.key==='tunel' || esSeccionCarga(seccion.key)) ? `<button onclick="exportarControlCSV('${seccion.key}', controlDiaSel)" style="margin-left:auto;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:800;border:1.5px solid #2e7d32;cursor:pointer;background:#fff;color:#2e7d32;display:flex;align-items:center;gap:6px"><i class="ti ti-file-spreadsheet" style="font-size:14px"></i> Exportar CSV del día</button>` : ''}
     </div>
 
     ${controlVistaChecklist==='dashboard' ? renderControlDashboardDiaHTML(seccion, listaDia) : `
