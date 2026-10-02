@@ -4305,6 +4305,12 @@ function esSeccionCarga(k){ return k==='carga' || k==='carga_normal'; }
 // Preinjerto (2026-10-02) usa la misma ficha/formulario/lista que Carga
 // (cliente, partida, variedad, nº bandejas) pero sin invernadero ni calle.
 function usaFichaCarga(k){ return esSeccionCarga(k) || k==='preinjerto'; }
+// Las cantidades de plantas del PDF de Preinjerto traen la coma como
+// separador de miles ("26,000" = 26.000 plantas). plantasEntero devuelve el
+// número limpio ("26000", para el CSV) y plantasVista lo muestra con punto de
+// miles ("26.000") para que no se lea como 26 en español.
+function plantasEntero(s){ const d = String(s==null?'':s).replace(/[.,]/g,'').trim(); return /^\d+$/.test(d) ? d : ''; }
+function plantasVista(s){ const d = plantasEntero(s); return d ? d.replace(/\B(?=(\d{3})+(?!\d))/g,'.') : ''; }
 // Injerto = partida con X o F entre dígitos (26X02330, 26F00554) o variedad
 // TINJ/BINJ/PEINJ; todo lo demás del parte de carga (26010472 CALABACIN...,
 // 26EC0003 TOMATE...) es planta normal.
@@ -5658,7 +5664,7 @@ function renderControlWizardCargaFilaHTML(c){
           <div style="font-size:13px;font-weight:700;color:var(--muted);margin-top:5px">${escapar(c.variedad)||'—'}</div>
           <div style="font-size:13px;font-weight:700;color:var(--muted);margin-top:2px">Bandejas: ${escapar(c.numBandejas)||'—'}${c.tipo==='preinjerto' ? '' : ' · Invernadero: '+(escapar(c.invernadero)||'—')}</div>
           ${c.tipo==='preinjerto' ? `<div style="font-size:13px;font-weight:700;color:var(--muted);margin-top:2px">Siembra: ${escapar(c.fSiembra)||'—'} · Entrega: ${escapar(c.fEntrega)||'—'}</div>
-          <div style="font-size:13px;font-weight:700;color:var(--muted);margin-top:2px">Plantas: ${escapar(c.plantasSol)||'—'} / ${escapar(c.plantasSem)||'—'}</div>` : `<div style="font-size:13px;font-weight:700;color:var(--muted);margin-top:2px">Calle: ${t ? escapar(t.label) : '—'}</div>`}
+          <div style="font-size:13px;font-weight:700;color:var(--muted);margin-top:2px">Plantas: ${plantasVista(c.plantasSol)||'—'} / ${plantasVista(c.plantasSem)||'—'}</div>` : `<div style="font-size:13px;font-weight:700;color:var(--muted);margin-top:2px">Calle: ${t ? escapar(t.label) : '—'}</div>`}
         </div>
         <div style="flex-shrink:0;font-size:32px">${completada?'✅':'⬜'}</div>
       </div>
@@ -5805,7 +5811,7 @@ function renderControlTunelWizardHTML(seccionParam){
       <button onclick="cambiarControlWizardVista('partidas')" style="flex:1;min-width:120px;padding:14px;border-radius:12px;font-size:13px;font-weight:800;border:none;cursor:pointer;background:${controlWizardVista==='partidas'?seccion.color:'#e8e2dc'};color:${controlWizardVista==='partidas'?'#fff':'var(--muted)'}">📋 Partidas</button>
       <button onclick="cambiarControlWizardVista('dashboard')" style="flex:1;min-width:120px;padding:14px;border-radius:12px;font-size:13px;font-weight:800;border:none;cursor:pointer;background:${controlWizardVista==='dashboard'?seccion.color:'#e8e2dc'};color:${controlWizardVista==='dashboard'?'#fff':'var(--muted)'}">📊 Dashboard</button>
     </div>
-    ${seccion.key==='preinjerto' ? '' : `<button onclick="exportarControlCSV('${seccion.key}', controlWizardDiaSel)" style="width:100%;margin-bottom:16px;padding:16px;border-radius:12px;font-size:14px;font-weight:800;border:2px solid #2e7d32;cursor:pointer;background:#fff;color:#2e7d32;display:flex;align-items:center;justify-content:center;gap:8px"><i class="ti ti-file-spreadsheet" style="font-size:17px"></i> Exportar CSV del día</button>`}`;
+    ${`<button onclick="exportarControlCSV('${seccion.key}', controlWizardDiaSel)" style="width:100%;margin-bottom:16px;padding:16px;border-radius:12px;font-size:14px;font-weight:800;border:2px solid #2e7d32;cursor:pointer;background:#fff;color:#2e7d32;display:flex;align-items:center;justify-content:center;gap:8px"><i class="ti ti-file-spreadsheet" style="font-size:17px"></i> Exportar CSV del día</button>`}`;
 
   if(controlWizardVista==='dashboard'){
     return cabeceraHTML + barraSuperiorHTML + renderControlDashboardDiaHTML(seccion, listaDia);
@@ -5967,6 +5973,18 @@ function generarControlCSVDia(tipo, dia){
   const catRaicesInj = CONTROL_CHECK_CATEGORIAS.find(c=>c.key==='raicesInjerto');
   const conRaicesInj = (tipo==='tunel' || tipo==='carga');
   const listaDia = controlChecksData.filter(c=>c.tipo===tipo && c.dia===dia);
+  // Preinjerto: datos del PDF de pedidos (fechas, plantas) + sus 6 categorías.
+  if(tipo==='preinjerto'){
+    const catGrosor = CONTROL_CHECK_CATEGORIAS.find(x=>x.key==='grosor');
+    const cabeceraPre = ['Partida','Cliente','Variedad','Nº bandejas','F Siembra','F Entrega','Plantas solicitadas','Plantas sembradas','Color','Tamaño','Grosor','Sanidad','Enfermedades','Flores','Raíces','Completada','Observaciones'];
+    const filasPre = listaDia.map(c=>[
+      c.partida||'', c.cliente||'', c.variedad||'', c.numBandejas||'', c.fSiembra||'', c.fEntrega||'', plantasEntero(c.plantasSol), plantasEntero(c.plantasSem),
+      opcionesMarcadas(c, catColor), opcionesMarcadas(c, catTamano), opcionesMarcadas(c, catGrosor), opcionesMarcadas(c, catSanidad),
+      enfermedadesMarcadas(c), opcionesMarcadas(c, catFlores), opcionesMarcadas(c, catRaices),
+      controlLineaCompletada(c) ? 'Sí' : 'No', c.observaciones||''
+    ].map(esc).join(';'));
+    return [cabeceraPre.map(esc).join(';'), ...filasPre].join('\r\n');
+  }
   // Carga (Injerto/Normal): campos propios (cliente, variedad, invernadero
   // del parte y calle) en vez de Cliente/Variedad combinado + calle real de Túnel.
   if(esSeccionCarga(tipo)){
@@ -6001,7 +6019,7 @@ function exportarControlCSV(tipo, dia){
   const csv = generarControlCSVDia(tipo, dia);
   const blob = new Blob(['﻿' + csv], {type:'text/csv;charset=utf-8;'});
   const url = URL.createObjectURL(blob);
-  const nombreTipo = tipo==='tunel' ? 'CheckTunel' : tipo==='carga' ? 'CheckCargaInjerto' : tipo==='carga_normal' ? 'CheckCargaNormal' : tipo;
+  const nombreTipo = tipo==='tunel' ? 'CheckTunel' : tipo==='carga' ? 'CheckCargaInjerto' : tipo==='carga_normal' ? 'CheckCargaNormal' : tipo==='preinjerto' ? 'CheckPreinjerto' : tipo;
   const f = riegoDiaToDate(dia);
   const fechaStr = `${f.getFullYear()}-${String(f.getMonth()+1).padStart(2,'0')}-${String(f.getDate()).padStart(2,'0')}`;
   const a = document.createElement('a');
@@ -6218,7 +6236,7 @@ function renderControlChecklistHTML(seccion){
     <div style="display:flex;gap:4px;margin-bottom:1rem;align-items:center">
       <button onclick="cambiarControlVistaChecklist('lineas')" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:800;border:none;cursor:pointer;background:${controlVistaChecklist==='lineas'?seccion.color:'#e8e2dc'};color:${controlVistaChecklist==='lineas'?'#fff':'var(--muted)'}">📋 Líneas</button>
       <button onclick="cambiarControlVistaChecklist('dashboard')" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:800;border:none;cursor:pointer;background:${controlVistaChecklist==='dashboard'?seccion.color:'#e8e2dc'};color:${controlVistaChecklist==='dashboard'?'#fff':'var(--muted)'}">📊 Dashboard del día</button>
-      ${(seccion.key==='tunel' || esSeccionCarga(seccion.key)) ? `<button onclick="exportarControlCSV('${seccion.key}', controlDiaSel)" style="margin-left:auto;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:800;border:1.5px solid #2e7d32;cursor:pointer;background:#fff;color:#2e7d32;display:flex;align-items:center;gap:6px"><i class="ti ti-file-spreadsheet" style="font-size:14px"></i> Exportar CSV del día</button>` : ''}
+      ${(seccion.key==='tunel' || usaFichaCarga(seccion.key)) ? `<button onclick="exportarControlCSV('${seccion.key}', controlDiaSel)" style="margin-left:auto;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:800;border:1.5px solid #2e7d32;cursor:pointer;background:#fff;color:#2e7d32;display:flex;align-items:center;gap:6px"><i class="ti ti-file-spreadsheet" style="font-size:14px"></i> Exportar CSV del día</button>` : ''}
     </div>
 
     ${controlVistaChecklist==='dashboard' ? renderControlDashboardDiaHTML(seccion, listaDia) : `
@@ -7133,7 +7151,7 @@ function renderControlCargaCardHTML(c, seccion){
             <span style="font-size:11px;font-weight:700;background:#f0f4f8;color:#1558a0;border-radius:999px;padding:3px 10px">Nº bandejas: ${escapar(c.numBandejas)||'—'}</span>
             ${c.tipo==='preinjerto' ? `<span style="font-size:11px;font-weight:700;background:#f0f4f8;color:#1558a0;border-radius:999px;padding:3px 10px">F Siembra: ${escapar(c.fSiembra)||'—'}</span>
             <span style="font-size:11px;font-weight:700;background:#f0f4f8;color:#1558a0;border-radius:999px;padding:3px 10px">F Entrega: ${escapar(c.fEntrega)||'—'}</span>
-            <span style="font-size:11px;font-weight:700;background:#f0f4f8;color:#1558a0;border-radius:999px;padding:3px 10px">Plantas sol. / sem.: ${escapar(c.plantasSol)||'—'} / ${escapar(c.plantasSem)||'—'}</span>` : `<span style="font-size:11px;font-weight:700;background:#f0f4f8;color:#1558a0;border-radius:999px;padding:3px 10px">Invernadero: ${escapar(c.invernadero)||'—'}</span>
+            <span style="font-size:11px;font-weight:700;background:#f0f4f8;color:#1558a0;border-radius:999px;padding:3px 10px">Plantas sol. / sem.: ${plantasVista(c.plantasSol)||'—'} / ${plantasVista(c.plantasSem)||'—'}</span>` : `<span style="font-size:11px;font-weight:700;background:#f0f4f8;color:#1558a0;border-radius:999px;padding:3px 10px">Invernadero: ${escapar(c.invernadero)||'—'}</span>
             <span style="font-size:11px;font-weight:700;background:#eef9f0;color:#2e7d32;border-radius:999px;padding:3px 10px">Calle: ${(()=>{ const t=calleTramoDeCarga(c); return t ? escapar(t.label) : '—'; })()}</span>`}
           </div>
           ${pdfInfoHTML}
