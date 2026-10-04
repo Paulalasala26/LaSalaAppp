@@ -4309,6 +4309,104 @@ function usaFichaCarga(k){ return esSeccionCarga(k) || k==='preinjerto'; }
 // separador de miles ("26,000" = 26.000 plantas). plantasEntero devuelve el
 // número limpio ("26000", para el CSV) y plantasVista lo muestra con punto de
 // miles ("26.000") para que no se lea como 26 en español.
+// ── Conexión Preinjerto <-> Túnel (2026-10-04) ──
+// Se relacionan por el nº de partida; si en algún caso concreto cambia al pasar
+// a Túnel, la línea de Preinjerto guarda "partidaTunel" (editable en su ficha).
+function partidaTunelDePre(pre){ return String(pre.partidaTunel||pre.partida||'').trim().toUpperCase(); }
+function lineasTunelDePreinjerto(pre){
+  const p = partidaTunelDePre(pre);
+  return p ? controlChecksData.filter(x=>x.tipo==='tunel' && String(x.partida||'').trim().toUpperCase()===p).sort((a,b)=>a.dia-b.dia) : [];
+}
+function lineasPreinjertoDeTunel(t){
+  const p = String(t.partida||'').trim().toUpperCase();
+  return p ? controlChecksData.filter(x=>x.tipo==='preinjerto' && partidaTunelDePre(x)===p).sort((a,b)=>a.dia-b.dia) : [];
+}
+function resumenCategoriasControlHTML(ch){
+  const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return categoriasControlPara(ch.tipo).map(cat=>{
+    const marcadas = cat.opciones.filter(o=>ch[cat.key]?.[o.key]).map(o=>o.label);
+    if(!marcadas.length) return '';
+    let extra = '';
+    if(cat.key==='sanidad' && ch.sanidad?.enferma && ch.sanidadEnfermedades){
+      const enf = SANIDAD_ENFERMEDADES.filter(e=>ch.sanidadEnfermedades[e.key]).map(e=>e.label);
+      if(enf.length) extra = ' — '+enf.join(', ');
+    }
+    return `<span style="font-size:11px;font-weight:700;background:#f0f4f8;color:#1558a0;border-radius:999px;padding:3px 10px;margin-right:6px;margin-bottom:6px;display:inline-block">${escapar(cat.label)}: ${escapar(marcadas.join(', ')+extra)}</span>`;
+  }).filter(Boolean).join('') || '<span style="font-style:italic;color:var(--muted);font-size:12px">Sin categorías marcadas</span>';
+}
+// Bloque en la ficha de PREINJERTO: estado de la partida en Túnel.
+function bloqueTunelDePreinjertoHTML(pre){
+  const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const ts = lineasTunelDePreinjerto(pre);
+  const distinta = pre.partidaTunel && String(pre.partidaTunel).trim().toUpperCase() !== String(pre.partida||'').trim().toUpperCase();
+  const btn = `<button onclick="vincularPartidaTunelPreinjerto('${pre.id}')" title="Si esta partida entra en Túnel con otro número" style="padding:3px 9px;font-size:10px;font-weight:700;background:#fff8e1;color:#c47f00;border:1px solid #e0c080;border-radius:6px;cursor:pointer">✏️ Partida en Túnel${distinta?': '+escapar(pre.partidaTunel):''}</button>`;
+  const filas = ts.length ? ts.map(t=>{
+    const calle = t.invId ? 'INV '+escapar(t.invId)+' — '+escapar(formatTramosLabel(t.invId, (t.tramos&&t.tramos.length)?t.tramos:[{desde:t.calleDesde,hasta:t.calleHasta}])) : 'sin calle asignada';
+    return `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11px;font-weight:700;color:var(--text)">
+        <span>Túnel · ${escapar(riegoDiaLabelCorto(t.dia))} · ${calle} · ${controlLineaCompletada(t)?'✅ check completo':'⬜ check pendiente'}</span>
+        <button onclick="saltarAFichaControl('${t.id}')" style="padding:3px 9px;font-size:10px;font-weight:800;background:#e8f2fd;color:#1558a0;border:1px solid #9ab8d8;border-radius:6px;cursor:pointer">Ver en Túnel →</button>
+      </div>`;
+  }).join('') : `<div style="font-size:11px;font-weight:700;color:var(--muted);font-style:italic">Aún no está en Túnel${distinta?' (buscando la partida '+escapar(pre.partidaTunel)+')':''}</div>`;
+  return `<div style="margin-top:8px;padding:8px 10px;background:#f6f9fc;border:1px solid #d5e6f7;border-radius:8px;display:flex;flex-direction:column;gap:6px">${filas}<div>${btn}</div></div>`;
+}
+// Bloque en la ficha de TÚNEL: lo que se vio en Preinjerto (solo si existe).
+function bloquePreinjertoEnTunelHTML(t){
+  const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const ps = lineasPreinjertoDeTunel(t);
+  if(!ps.length) return '';
+  return ps.map(p=>`<div style="margin-top:8px;padding:8px 10px;background:#f1f8f2;border:1px solid #cfe6d2;border-radius:8px">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11px;font-weight:800;color:#2e7d32;margin-bottom:5px">
+        <span>🌱 Preinjerto · siembra ${escapar(p.fSiembra)||escapar(riegoDiaLabelCorto(p.dia))} · ${controlLineaCompletada(p)?'✅ check completo':'⬜ check pendiente'}</span>
+        <button onclick="saltarAFichaControl('${p.id}')" style="padding:3px 9px;font-size:10px;font-weight:800;background:#e8f5ea;color:#2e7d32;border:1px solid #a5d6a7;border-radius:6px;cursor:pointer">Ver en Preinjerto →</button>
+      </div>
+      <div>${resumenCategoriasControlHTML(p)}</div>
+      ${p.observaciones ? `<div style="font-size:11px;color:var(--text)">${escapar(p.observaciones)}</div>` : ''}
+    </div>`).join('');
+}
+async function aplicarPartidaTunelPreinjerto(id, valor){
+  const c = controlChecksData.find(x=>x.id===id);
+  if(!c) return;
+  c.partidaTunel = valor || '';
+  showToast(valor ? '✓ Partida en Túnel: '+valor : '✓ Vuelve a usar el mismo número de partida');
+  renderControlContent(document.getElementById('control-overlay'));
+  const qid = encolarAccionOffline('aplicarPartidaTunelPreinjerto', [id, valor]);
+  marcarControlCheckSucio(id);
+  const ok = await persistControlChecksData();
+  if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
+  return ok;
+}
+function vincularPartidaTunelPreinjerto(id){
+  const c = controlChecksData.find(x=>x.id===id);
+  if(!c) return;
+  const v = prompt('Nº de partida con el que esta partida entra en Túnel.\n(Déjalo igual o vacío si es el mismo: '+c.partida+')', c.partidaTunel || c.partida || '');
+  if(v === null) return;
+  const val = v.trim().toUpperCase();
+  aplicarPartidaTunelPreinjerto(id, (!val || val===String(c.partida||'').trim().toUpperCase()) ? '' : val);
+}
+// Salta a la ficha de otra partida (Túnel <-> Preinjerto), desde Control o
+// desde el historial de Partidas. Funciona en la vista clásica y en el paso a
+// paso de Ginés.
+async function saltarAFichaControl(id){
+  const c = controlChecksData.find(x=>x.id===id);
+  if(!c) return;
+  ['partidas-historial-overlay','partidas-overlay'].forEach(i=>{ const o = document.getElementById(i); if(o) o.style.display = 'none'; });
+  const ov = document.getElementById('control-overlay');
+  if(!ov || ov.style.display==='none' || !ov.innerHTML) await showControlModule();
+  controlFiltroEstado = 'todos'; controlVistaChecklist = 'lineas'; controlTunelInvFiltro = ''; controlCargaInvFiltro = '';
+  seleccionarSeccionControl(c.tipo);
+  const q = Math.max(0, Math.floor((c.dia-15)/14));
+  if(CONTROL_TUNEL_WIZARD_USUARIOS.includes(currentUser)){
+    controlWizardQuincenaOffset = q; controlWizardDiaSel = c.dia; controlWizardNivel = 'partidas'; controlWizardPartidaId = null; controlWizardVista = 'partidas';
+  } else {
+    controlQuincenaOffset = q; controlDiaSel = c.dia;
+    if(c.tipo==='tunel' && c.partida) controlGuionActivo['tunel|'+c.partida] = c.id;
+  }
+  renderControlContent(document.getElementById('control-overlay'));
+  setTimeout(()=>{
+    const el = document.getElementById('control-card-'+c.id);
+    if(el){ el.scrollIntoView({behavior:'smooth', block:'center'}); el.style.outline = '3px solid #ffd54f'; setTimeout(()=>{ if(el) el.style.outline = ''; }, 2500); }
+  }, 150);
+}
 function plantasEntero(s){ const d = String(s==null?'':s).replace(/[.,]/g,'').trim(); return /^\d+$/.test(d) ? d : ''; }
 function plantasVista(s){ const d = plantasEntero(s); return d ? d.replace(/\B(?=(\d{3})+(?!\d))/g,'.') : ''; }
 // Injerto = partida con X o F entre dígitos (26X02330, 26F00554) o variedad
@@ -5135,6 +5233,7 @@ const ACCIONES_OFFLINE_REPLAYABLES = {
   aplicarNuevaLineaControl,
   aplicarEditarControlCargaCheck,
   aplicarEditarControlCheck,
+  aplicarPartidaTunelPreinjerto,
   aplicarFotoControl,
   aplicarSalidaPartida,
   aplicarIntercambioPartidas,
@@ -5416,7 +5515,7 @@ function showControlModule(){
   // para ver el listado de checks. Ahora el listado se pinta en cuanto están
   // listos los checks (rápido, unos pocos KB) y fotos/PDFs se cargan aparte,
   // en segundo plano, repintando cuando terminan.
-  Promise.all([loadControlChecksData(false), loadConteoData('tuta'), loadConteoFilas('tuta'), loadConteoData('trips'), loadConteoFilas('trips')]).then(()=>{
+  return Promise.all([loadControlChecksData(false), loadConteoData('tuta'), loadConteoFilas('tuta'), loadConteoData('trips'), loadConteoFilas('trips')]).then(()=>{
     controlSeccion = null;
     const overlay = getOrCreateOverlay('control-overlay');
     overlay.style.padding = '0';
@@ -5643,6 +5742,7 @@ function renderControlWizardFilaHTML(c, guionInfo){
           <div style="font-size:23px;font-weight:900;color:#1558a0;margin-top:2px">${escapar(c.partida)||'— Sin partida —'}</div>
           <div style="font-size:13px;font-weight:700;color:var(--muted);margin-top:5px">Bandejas: ${escapar(c.numBandejas)||'—'}</div>
           <div style="font-size:13px;font-weight:700;color:var(--muted);margin-top:2px">Calle: ${calleRealLabel}</div>
+          ${(()=>{ const ps = lineasPreinjertoDeTunel(c); return ps.length ? `<div style="font-size:12px;font-weight:800;color:#2e7d32;margin-top:4px">🌱 Preinjerto: ${controlLineaCompletada(ps[0])?'✅ completo':'⬜ pendiente'}</div>` : ''; })()}
         </div>
         <div style="flex-shrink:0;font-size:32px">${completada?'✅':'⬜'}</div>
       </div>
@@ -5664,7 +5764,8 @@ function renderControlWizardCargaFilaHTML(c){
           <div style="font-size:13px;font-weight:700;color:var(--muted);margin-top:5px">${escapar(c.variedad)||'—'}</div>
           <div style="font-size:13px;font-weight:700;color:var(--muted);margin-top:2px">Bandejas: ${escapar(c.numBandejas)||'—'}${c.tipo==='preinjerto' ? '' : ' · Invernadero: '+(escapar(c.invernadero)||'—')}</div>
           ${c.tipo==='preinjerto' ? `<div style="font-size:13px;font-weight:700;color:var(--muted);margin-top:2px">Siembra: ${escapar(c.fSiembra)||'—'} · Entrega: ${escapar(c.fEntrega)||'—'}</div>
-          <div style="font-size:13px;font-weight:700;color:var(--muted);margin-top:2px">Plantas: ${plantasVista(c.plantasSol)||'—'} / ${plantasVista(c.plantasSem)||'—'}</div>` : `<div style="font-size:13px;font-weight:700;color:var(--muted);margin-top:2px">Calle: ${t ? escapar(t.label) : '—'}</div>`}
+          <div style="font-size:13px;font-weight:700;color:var(--muted);margin-top:2px">Plantas: ${plantasVista(c.plantasSol)||'—'} / ${plantasVista(c.plantasSem)||'—'}</div>
+          <div style="font-size:12px;font-weight:800;color:#1558a0;margin-top:4px">${(()=>{ const ts = lineasTunelDePreinjerto(c); return ts.length ? 'Túnel: '+riegoDiaLabelCorto(ts[0].dia)+' · '+(controlLineaCompletada(ts[0])?'✅ completo':'⬜ pendiente') : 'Aún no está en Túnel'; })()}</div>` : `<div style="font-size:13px;font-weight:700;color:var(--muted);margin-top:2px">Calle: ${t ? escapar(t.label) : '—'}</div>`}
         </div>
         <div style="flex-shrink:0;font-size:32px">${completada?'✅':'⬜'}</div>
       </div>
@@ -7068,6 +7169,7 @@ function renderControlCardHTML(c, seccion){
             <span style="font-size:11px;font-weight:700;background:#f0f4f8;color:#1558a0;border-radius:999px;padding:3px 10px">Calle real: ${calleRealLabel}</span>
           </div>
           ${pdfInfoHTML}
+          ${bloquePreinjertoEnTunelHTML(c)}
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0">
           <button onclick="mostrarAsignarCalleControl('${c.id}')" title="Asignar calle" style="padding:5px 9px;font-size:11px;font-weight:700;background:#e8f2fd;color:#1558a0;border:1px solid #9ab8d8;border-radius:6px;cursor:pointer;white-space:nowrap">
@@ -7155,6 +7257,7 @@ function renderControlCargaCardHTML(c, seccion){
             <span style="font-size:11px;font-weight:700;background:#eef9f0;color:#2e7d32;border-radius:999px;padding:3px 10px">Calle: ${(()=>{ const t=calleTramoDeCarga(c); return t ? escapar(t.label) : '—'; })()}</span>`}
           </div>
           ${pdfInfoHTML}
+          ${c.tipo==='preinjerto' ? bloqueTunelDePreinjertoHTML(c) : ''}
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0">
           <button onclick="mostrarEditarControlCargaCheck('${c.id}')" title="Editar" style="padding:5px 9px;font-size:11px;font-weight:700;background:#fff8e1;color:#c47f00;border:1px solid #e0c080;border-radius:6px;cursor:pointer;white-space:nowrap">
@@ -8995,7 +9098,9 @@ async function mostrarHistorialPartida(id){
   // Fotos asociadas (Check de entrada y, si existe, Check de salida) — se
   // pide solo la foto de estos 1-2 ids concretos (fetchFotoPartidaPorId),
   // nunca los 29 shards completos de fotos de toda la app.
+  const pre = lineasPreinjertoDeTunel(c)[0] || null;
   const idsFotoBuscados = [
+    pre ? {id:pre.id, label:'Preinjerto'} : null,
     {id:c.id, label:'Entrada (Túnel)'},
     cargaSalida ? {id:cargaSalida.id, label:'Salida (Carga)'} : null
   ].filter(Boolean);
@@ -9012,7 +9117,7 @@ async function mostrarHistorialPartida(id){
               <div style="font-size:10px;color:var(--muted);margin-top:3px">${escapar(f.label)}</div>
             </div>`).join('')}
         </div>` : '';
-  window.__partidaHistorialActual = { c, cargaSalida, eventos, resumenCategoriasHTML, tipoPlanta, diaDesde, fotosPartida };
+  window.__partidaHistorialActual = { c, cargaSalida, eventos, resumenCategoriasHTML, tipoPlanta, diaDesde, fotosPartida, pre };
   const mo = getOrCreateOverlay('partidas-historial-overlay');
   mo.innerHTML = `
     <div style="background:#fff;border-radius:14px;max-width:640px;width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.3)">
@@ -9022,6 +9127,16 @@ async function mostrarHistorialPartida(id){
         <div style="font-size:11px;opacity:.85;margin-top:2px">${c.fentrega?`📅 Entrega ${escapar(c.fentrega)} · `:''}INV ${escapar(c.invId)||'—'} · Día 1 (salida de Túnel): ${escapar(riegoDiaLabelCorto(diaDesde))}</div>
       </div>
       <div style="padding:1.25rem 1.5rem">
+        <div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Check de Preinjerto${pre?' — siembra '+escapar(pre.fSiembra||riegoDiaLabelCorto(pre.dia)):''}</div>
+        ${pre ? `
+        <div style="font-size:12px;color:var(--text);margin-bottom:6px">
+          ${pre.numBandejas?`<b>Nº bandejas:</b> ${escapar(pre.numBandejas)} · `:''}${pre.fEntrega?`<b>F Entrega:</b> ${escapar(pre.fEntrega)} · `:''}<b>Plantas:</b> ${plantasVista(pre.plantasSol)||'—'} / ${plantasVista(pre.plantasSem)||'—'}
+        </div>
+        <div style="margin-bottom:6px">${resumenCategoriasHTML(pre)}</div>
+        <div style="font-size:12px;color:var(--text);margin-bottom:8px">
+          ${pre.observaciones ? escapar(pre.observaciones) : '<span style="font-style:italic;color:var(--muted)">Sin observaciones</span>'}
+        </div>
+        <button onclick="saltarAFichaControl('${pre.id}')" style="padding:5px 12px;font-size:11px;font-weight:800;background:#e8f5ea;color:#2e7d32;border:1px solid #a5d6a7;border-radius:6px;cursor:pointer;margin-bottom:1.25rem">Ver en Preinjerto →</button>` : `<div style="font-size:12px;color:var(--muted);font-style:italic;margin-bottom:1.25rem">Esta partida no tiene check de Preinjerto.</div>`}
         <div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Check de entrada (Túnel) — ${escapar(riegoDiaLabelCorto(c.dia))}${c.numBandejas?' · Nº bandejas: '+escapar(c.numBandejas):''}</div>
         <div style="margin-bottom:6px">${resumenCategoriasHTML(c)}</div>
         <div style="font-size:12px;color:var(--text);margin-bottom:1.25rem">
@@ -9054,7 +9169,7 @@ async function mostrarHistorialPartida(id){
 function imprimirHistorialPartida(){
   const datos = window.__partidaHistorialActual;
   if(!datos) return;
-  const { c, cargaSalida, eventos, resumenCategoriasHTML, tipoPlanta, diaDesde, fotosPartida } = datos;
+  const { c, cargaSalida, eventos, resumenCategoriasHTML, tipoPlanta, diaDesde, fotosPartida, pre } = datos;
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const eventosHTML = eventos.length ? eventos.map(ev=>`
     <tr>
@@ -9096,6 +9211,8 @@ function imprimirHistorialPartida(){
         </div>
       </div>
       <div class="meta">${c.fentrega?`Entrega ${escapar(c.fentrega)} · `:''}INV ${escapar(c.invId)||'—'} · Día 1 (salida de Túnel): ${escapar(riegoDiaLabelCorto(diaDesde))}</div>
+      <h3>Check de Preinjerto${pre?' — siembra '+escapar(pre.fSiembra||riegoDiaLabelCorto(pre.dia)):''}</h3>
+      <div>${pre ? ((pre.observaciones ? escapar(pre.observaciones) : 'Sin observaciones')+(pre.fEntrega?' · F Entrega '+escapar(pre.fEntrega):'')+' · Plantas '+(plantasVista(pre.plantasSol)||'—')+' / '+(plantasVista(pre.plantasSem)||'—')) : 'No tiene check de Preinjerto.'}</div>
       <h3>Check de entrada (Túnel) — ${escapar(riegoDiaLabelCorto(c.dia))}${c.numBandejas?' · Nº bandejas: '+escapar(c.numBandejas):''}</h3>
       <div>${c.observaciones ? escapar(c.observaciones) : 'Sin observaciones'}</div>
       <h3>Check de salida (Carga)${cargaSalida?' — '+escapar(riegoDiaLabelCorto(cargaSalida.dia)):''}</h3>
