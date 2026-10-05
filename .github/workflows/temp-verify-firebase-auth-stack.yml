@@ -1,0 +1,45 @@
+name: TEMP Verify Firebase Auth stack
+
+on:
+  push:
+    branches:
+      - test/v1.0
+    paths:
+      - .github/workflows/temp-verify-firebase-auth-stack.yml
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verificar backend, RTDB Admin y Firebase Auth TEST
+        shell: bash
+        run: |
+          set -euo pipefail
+          HEALTH="$(curl -fsS --retry 3 --retry-delay 2 https://la-sala-app-test.vercel.app/api/firebase-auth)"
+          echo "AUTH_HEALTH=$HEALTH"
+          python - "$HEALTH" <<'PY'
+          import json,sys
+          j=json.loads(sys.argv[1])
+          for k in ("configured","projectOk","rtdbOk"):
+              if j.get(k) is not True:
+                  raise SystemExit(f"{k} != true")
+          print("AUTH_BACKEND_RESULT OK configured=true projectOk=true rtdbOk=true")
+          PY
+
+          RESP="$(curl -sS -w '\nHTTP_STATUS=%{http_code}\n'             -H 'Content-Type: application/json'             -d '{"token":"not-a-real-custom-token","returnSecureToken":true}'             'https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=AIzaSyDdDdMg6M1jVIssvGYKsdRA-mRug31Yt_g')"
+          echo "$RESP" | sed -n '/HTTP_STATUS=/p'
+          BODY="$(echo "$RESP" | sed '/HTTP_STATUS=/d')"
+          python - "$BODY" <<'PY'
+          import json,sys
+          try:
+              j=json.loads(sys.argv[1])
+          except Exception:
+              raise SystemExit("Identity Toolkit no devolvió JSON")
+          msg=j.get("error",{}).get("message","")
+          print("IDENTITY_TOOLKIT_RESULT", msg)
+          if msg == "CONFIGURATION_NOT_FOUND":
+              raise SystemExit("Firebase Authentication no está inicializado")
+          if not msg:
+              raise SystemExit("Respuesta inesperada de Identity Toolkit")
+          print("FIREBASE_AUTH_API_REACHABLE OK")
+          PY
