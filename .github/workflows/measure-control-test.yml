@@ -1,0 +1,79 @@
+name: Measure Control payload in TEST
+on:
+  push:
+    branches:
+      - test/v1.0
+    paths:
+      - .github/workflows/measure-control-test.yml
+
+jobs:
+  measure:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Measure TEST Control only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, urllib.request, collections, math
+          BASE='https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app'
+          URL=f'{BASE}/lasala-control-items-v1.json'
+          with urllib.request.urlopen(URL, timeout=120) as r:
+              raw=r.read()
+          obj=json.loads(raw.decode())
+          assert isinstance(obj,dict) and obj, 'control-items vacío/no legible'
+
+          def b(v):
+              return len(json.dumps(v,ensure_ascii=False,separators=(',',':')).encode())
+
+          print('RAW_RESPONSE_BYTES=',len(raw))
+          print('ITEM_COUNT=',len(obj))
+
+          by_tipo=collections.defaultdict(lambda:[0,0])
+          by_q=collections.defaultdict(lambda:[0,0])
+          by_tipo_q=collections.defaultdict(lambda:[0,0])
+          field_bytes=collections.Counter()
+          field_count=collections.Counter()
+          dias=[]
+
+          for _,item in obj.items():
+              if not isinstance(item,dict):
+                  continue
+              tipo=str(item.get('tipo') or 'SIN_TIPO')
+              dia=item.get('dia')
+              sz=b(item)
+              by_tipo[tipo][0]+=1; by_tipo[tipo][1]+=sz
+              if isinstance(dia,(int,float)):
+                  dia=int(dia); dias.append(dia)
+                  q=max(0,(dia-15)//14)
+                  by_q[q][0]+=1; by_q[q][1]+=sz
+                  by_tipo_q[(tipo,q)][0]+=1; by_tipo_q[(tipo,q)][1]+=sz
+              for k,v in item.items():
+                  field_count[k]+=1
+                  field_bytes[k]+=b(v)
+
+          print('TIPO_STATS_BEGIN')
+          for tipo,(n,sz) in sorted(by_tipo.items()):
+              print(f'TIPO {tipo}: count={n} bytes={sz}')
+          print('TIPO_STATS_END')
+
+          if dias:
+              print('DIA_MIN=',min(dias))
+              print('DIA_MAX=',max(dias))
+              print('QUINCENA_COUNT=',len(by_q))
+
+          print('QUINCENA_STATS_BEGIN')
+          for q,(n,sz) in sorted(by_q.items()):
+              print(f'Q {q}: count={n} bytes={sz}')
+          print('QUINCENA_STATS_END')
+
+          print('TIPO_QUINCENA_STATS_BEGIN')
+          for (tipo,q),(n,sz) in sorted(by_tipo_q.items(), key=lambda x:(x[0][0],x[0][1])):
+              print(f'TIPO_Q {tipo} {q}: count={n} bytes={sz}')
+          print('TIPO_QUINCENA_STATS_END')
+
+          print('TOP_FIELDS_BEGIN')
+          for k,sz in field_bytes.most_common(20):
+              print(f'FIELD {k}: present={field_count[k]} bytes={sz}')
+          print('TOP_FIELDS_END')
+          PY
