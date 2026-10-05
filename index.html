@@ -8007,8 +8007,12 @@ function partidasSemanaDeFecha(fecha){
   const anchor = new Date(PARTIDAS_ANCHOR_DATE); anchor.setHours(0,0,0,0);
   return Math.floor(Math.round((f - anchor) / 86400000) / 7);
 }
-function changePartidasSemana(delta){
+async function changePartidasSemana(delta){
   partidasSemanaOffset = Math.max(0, partidasSemanaOffset + delta);
+  if(partidasInvSel){
+    const ok=await cargarBannersPartidasVisibles(partidasInvSel,false);
+    if(!ok) return;
+  }
   renderPartidasMapaContent(document.getElementById('partidas-overlay'));
 }
 // Busca la línea real de Check Carga que corresponde a una partida de Túnel
@@ -8056,12 +8060,10 @@ let partidasSalaSel = 'sala1';
 // selectRiegoInv/data-rinv) y solo se pinta el mapa de ESE invernadero.
 let partidasInvSel = null;
 async function showPartidasModule(){
-  // El mapa necesita Túnel (ubicación) y Carga (fecha real de salida), pero
-  // no necesita el nodo v1: ambos tipos se reconstruyen desde sus shards v2.
-  const [controlOk] = await Promise.all([
-    loadControlCompletoV2(false),
-    loadEspecificosPartidaData()
-  ]);
+  // El mapa necesita Túnel + Carga completos para ubicar/retirar partidas.
+  // Los banners de Específicos-Partida NO se descargan globalmente: se cargan
+  // por bucket únicamente cuando hay un INV concreto que pintar.
+  const controlOk = await loadControlCompletoV2(false);
   if(!controlOk){ avisarFalloCarga(); return; }
   const overlay = getOrCreateOverlay('partidas-overlay');
   overlay.style.padding = '0';
@@ -8069,6 +8071,10 @@ async function showPartidasModule(){
   partidasHistorialDeshacer = [];
   partidasHistorialRehacer = [];
   partidasSemanaOffset = partidasSemanaOffsetActual();
+  if(partidasInvSel){
+    const ok=await cargarBannersPartidasVisibles(partidasInvSel,false);
+    if(!ok) return;
+  }
   renderPartidasMapaContent(overlay);
   overlay.style.display = 'flex';
 }
@@ -8088,10 +8094,23 @@ function seleccionarSalaPartidas(sala){
   partidaSeleccionadaParaMover = null;
   renderPartidasMapaContent(document.getElementById('partidas-overlay'));
 }
-function seleccionarInvPartidas(invId){
+async function seleccionarInvPartidas(invId){
   partidasInvSel = invId;
   partidaSeleccionadaParaMover = null;
+  const ok=await cargarBannersPartidasVisibles(invId,false);
+  if(!ok) return;
   renderPartidasMapaContent(document.getElementById('partidas-overlay'));
+}
+function idsBannersPartidasVisibles(invId){
+  return [...new Set(
+    calcularBloquesPartidasInvBase(invId,partidasSemanaOffset)
+      .map(b=>b.entry?.id)
+      .filter(Boolean)
+      .map(String)
+  )];
+}
+async function cargarBannersPartidasVisibles(invId,forzar){
+  return await loadEspecificosPartidaIdsData(idsBannersPartidasVisibles(invId),forzar);
 }
 function renderPartidasMapaContent(overlay){
   // A petición de Paula (2026-08-05): "siguen sin poder moverse las
@@ -8662,6 +8681,7 @@ async function aplicarEspecificoAPartidasSeleccionadas(){
   const fechaLabel = riegoDiaLabelCorto(dia);
   const fechaISO = fechaLocalISO(riegoDiaToDate(dia));
   const ids = [...partidasEspecificoSeleccion];
+  if(!(await loadEspecificosPartidaIdsData(ids,false))) return;
   const semanaDelDia = partidasSemanaDeFecha(riegoDiaToDate(dia));
   for(const id of ids){
     const c = controlChecksData.find(x=>x.id===id);
@@ -8693,6 +8713,7 @@ async function aplicarEspecificoAPartidasSeleccionadas(){
     // cuadrícula") — sin esto, borrar el banner no sabía qué celdas de
     // especificosData había que vaciar también.
     especificosPartidaData[id].push({trat, dosis, horario, fechaLabel, fechaISO, invId:c.invId, dia, calles});
+    marcarEspecificosPartidaDirty(id);
   }
   await saveEspecificosData();
   await saveEspecificosPartidaData();
@@ -8754,7 +8775,7 @@ function editarEspecificoPartidaBanner(partidaId, idx){
     </div>`;
   overlay.style.display = 'flex';
 }
-function guardarEspecificoPartidaBanner(partidaId, idx){
+async function guardarEspecificoPartidaBanner(partidaId, idx){
   const registros = especificosPartidaData[partidaId];
   if(!registros || !registros[idx]) return;
   const dia = parseInt(document.getElementById('eeb-dia').value, 10);
@@ -8763,7 +8784,8 @@ function guardarEspecificoPartidaBanner(partidaId, idx){
   registros[idx].horario = document.getElementById('eeb-horario').value;
   registros[idx].fechaLabel = riegoDiaLabelCorto(dia);
   registros[idx].fechaISO = fechaLocalISO(riegoDiaToDate(dia));
-  saveEspecificosPartidaData();
+  marcarEspecificosPartidaDirty(partidaId);
+  if(!(await saveEspecificosPartidaData())) return;
   document.getElementById('especifico-banner-editar-overlay').style.display = 'none';
   renderPartidasMapaContent(document.getElementById('partidas-overlay'));
   showToast('✓ Específico actualizado');
@@ -8773,7 +8795,8 @@ async function borrarEspecificoPartidaBanner(partidaId, idx){
   const registros = especificosPartidaData[partidaId];
   const registro = registros?.[idx];
   registros.splice(idx,1);
-  saveEspecificosPartidaData();
+  marcarEspecificosPartidaDirty(partidaId);
+  if(!(await saveEspecificosPartidaData())) return;
   // A petición de Paula (2026-08-18): "se debe de poder borrar tanto de ahí
   // como de la cuadrícula" — antes solo se quitaba el banner, la celda
   // seguía marcada en Específicos. Solo se puede vaciar la celda si el
@@ -18139,21 +18162,276 @@ function clonarEspecificosSnapshot(v){
 // (que va por invId/día/calle, no por partida), se apila un registro por
 // cada específico aplicado desde el mapa de Partidas con el tiempo.
 const ESPECIFICOS_PARTIDA_KEY = 'lasala-especificos-partida-v1';
+const ESPECIFICOS_PARTIDA_V2_INDEX_KEY = 'lasala-especificos-partida-v2-index';
+const ESPECIFICOS_PARTIDA_V2_PREFIX = 'lasala-especificos-partida-v2-b';
 let especificosPartidaData = {};
-async function loadEspecificosPartidaData(){
-  try{const r=await window.storage.get(ESPECIFICOS_PARTIDA_KEY);if(r)especificosPartidaData=JSON.parse(r.value);}catch(e){}
+let especificosPartidaV2Index = null;
+let especificosPartidaV2IndexCargadoEn = 0;
+const especificosPartidaBucketCargadoEn = {};
+const especificosPartidaBucketIds = {};
+const especificosPartidaDirty = new Map();
+let especificosPartidaDirtyVersion = 0;
+const ESPECIFICOS_PARTIDA_CACHE_TTL_MS = 30000;
+
+function fnv1a32Utf8(texto){
+  let h=0x811c9dc5;
+  const bytes=new TextEncoder().encode(String(texto));
+  for(const byte of bytes){
+    h ^= byte;
+    h = Math.imul(h,0x01000193) >>> 0;
+  }
+  return h >>> 0;
+}
+function especificosPartidaBucketNumero(partidaId){
+  const n=especificosPartidaV2Index?.bucketCount || 32;
+  return fnv1a32Utf8(String(partidaId)) % n;
+}
+function especificosPartidaBucketKey(bucket){
+  return ESPECIFICOS_PARTIDA_V2_PREFIX + String(bucket).padStart(2,'0');
+}
+function marcarEspecificosPartidaDirty(partidaId){
+  const id=String(partidaId);
+  especificosPartidaDirty.set(id,++especificosPartidaDirtyVersion);
+}
+function clonarEspecificosPartida(v){
+  if(v==null) return null;
+  return JSON.parse(JSON.stringify(v));
+}
+async function loadEspecificosPartidaV2Index(forzar){
+  if(forzar===false && especificosPartidaV2Index && especificosPartidaV2IndexCargadoEn &&
+     (Date.now()-especificosPartidaV2IndexCargadoEn)<ESPECIFICOS_PARTIDA_CACHE_TTL_MS) return true;
+  try{
+    const r=await window.storage.get(ESPECIFICOS_PARTIDA_V2_INDEX_KEY);
+    if(!r) return false;
+    const idx=JSON.parse(r.value);
+    if(!idx || idx.version!==2 || idx.hash!=='fnv1a32-utf8' || !Number.isInteger(idx.bucketCount) || idx.bucketCount<=0) return false;
+    especificosPartidaV2Index=idx;
+    especificosPartidaV2IndexCargadoEn=Date.now();
+    return true;
+  }catch(e){ return false; }
+}
+async function loadEspecificosPartidaBucket(bucket,forzar){
+  const key=especificosPartidaBucketKey(bucket);
+  if(forzar===false && especificosPartidaBucketCargadoEn[key] &&
+     (Date.now()-especificosPartidaBucketCargadoEn[key])<ESPECIFICOS_PARTIDA_CACHE_TTL_MS) return true;
+  try{
+    const r=await window.storage.get(key);
+    if(!r) return false;
+    const cloud=JSON.parse(r.value);
+    if(!cloud || typeof cloud!=='object' || Array.isArray(cloud)) return false;
+
+    // Quitar del caché únicamente las claves antiguas de ESTE bucket que no
+    // tengan una edición local pendiente; luego insertar la versión fresca.
+    const anteriores=especificosPartidaBucketIds[key] || new Set();
+    anteriores.forEach(id=>{
+      if(!especificosPartidaDirty.has(id)) delete especificosPartidaData[id];
+    });
+    const idsActuales=new Set();
+    Object.entries(cloud).forEach(([id,regs])=>{
+      idsActuales.add(String(id));
+      if(!especificosPartidaDirty.has(String(id))) especificosPartidaData[id]=regs;
+    });
+    especificosPartidaBucketIds[key]=idsActuales;
+    especificosPartidaBucketCargadoEn[key]=Date.now();
+    return true;
+  }catch(e){ return false; }
+}
+async function loadEspecificosPartidaIdsData(partidaIds,forzar){
+  const ids=[...new Set((partidaIds||[]).filter(Boolean).map(String))];
+  if(!ids.length) return true;
+  const okIdx=await loadEspecificosPartidaV2Index(false);
+  if(!okIdx){
+    // Fallback transitorio: si v2 no estuviera disponible, conservar el
+    // comportamiento legacy antes que ocultar banners.
+    try{
+      const r=await window.storage.get(ESPECIFICOS_PARTIDA_KEY);
+      if(!r){ avisarFalloCarga(); return false; }
+      const cloud=JSON.parse(r.value);
+      ids.forEach(id=>{ if(!especificosPartidaDirty.has(id)) especificosPartidaData[id]=cloud[id]||[]; });
+      return true;
+    }catch(e){ avisarFalloCarga(); return false; }
+  }
+  const buckets=[...new Set(ids.map(especificosPartidaBucketNumero))];
+  const resultados=await Promise.all(buckets.map(b=>loadEspecificosPartidaBucket(b,forzar)));
+  if(!resultados.every(Boolean)){ avisarFalloCarga(); return false; }
+  return true;
+}
+// Reconstrucción completa solo para operaciones que REALMENTE tienen que
+// recorrer todos los banners (p.ej. borrar desde la cuadrícula por INV/día).
+// El flujo normal de Partidas nunca llama a esto.
+async function loadEspecificosPartidaData(forzar){
+  const okIdx=await loadEspecificosPartidaV2Index(false);
+  if(!okIdx){
+    try{
+      const r=await window.storage.get(ESPECIFICOS_PARTIDA_KEY);
+      if(!r){ avisarFalloCarga(); return false; }
+      const cloud=JSON.parse(r.value);
+      Object.entries(cloud).forEach(([id,regs])=>{
+        if(!especificosPartidaDirty.has(String(id))) especificosPartidaData[id]=regs;
+      });
+      return true;
+    }catch(e){ avisarFalloCarga(); return false; }
+  }
+  const n=especificosPartidaV2Index.bucketCount;
+  const resultados=await Promise.all(Array.from({length:n},(_,i)=>loadEspecificosPartidaBucket(i,forzar)));
+  if(!resultados.every(Boolean)){ avisarFalloCarga(); return false; }
+  return true;
+}
+async function syncEspecificosPartidaV2DesdeV1(cloudV1,partidaIds){
+  const ids=[...new Set((partidaIds||[]).map(String))];
+  if(!ids.length) return true;
+  const okIdx=await loadEspecificosPartidaV2Index(false);
+  if(!okIdx){ avisarFalloGuardado(); return false; }
+
+  const porBucket={};
+  ids.forEach(id=>{
+    const b=especificosPartidaBucketNumero(id);
+    if(!porBucket[b]) porBucket[b]=[];
+    porBucket[b].push(id);
+  });
+
+  // Cada bucket se modifica con ETag y SOLO para las partidaEntryId afectadas.
+  // Así dos usuarios que guardan banners distintos dentro del mismo bucket
+  // tampoco se pisan entre sí.
+  for(const [bucketTxt,idsBucket] of Object.entries(porBucket)){
+    const bucket=parseInt(bucketTxt,10);
+    const key=especificosPartidaBucketKey(bucket);
+    const url=`${CLOUD_DB_URL}/${encodeURIComponent(key)}.json`;
+    let guardado=false;
+    for(let intento=1; intento<=5; intento++){
+      try{
+        const getRes=await fetch(url,{headers:{'X-Firebase-ETag':'true'},cache:'no-store'});
+        if(!getRes.ok) throw new Error('HTTP '+getRes.status);
+        const etag=getRes.headers.get('ETag');
+        if(!etag) throw new Error('Firebase no devolvió ETag');
+        const val=await getRes.json();
+        if(val==null || typeof val!=='string'){ avisarFalloGuardado(); return false; }
+        const bucketCloud=JSON.parse(val);
+        idsBucket.forEach(id=>{ bucketCloud[id]=clonarEspecificosPartida(cloudV1[id]||[]); });
+        const putRes=await fetch(url,{
+          method:'PUT',
+          headers:{'Content-Type':'application/json','if-match':etag},
+          body:JSON.stringify(JSON.stringify(bucketCloud))
+        });
+        if(putRes.ok){
+          guardado=true;
+          especificosPartidaBucketIds[key]=new Set(Object.keys(bucketCloud));
+          especificosPartidaBucketCargadoEn[key]=Date.now();
+          break;
+        }
+        if(putRes.status!==412) throw new Error('HTTP '+putRes.status);
+      }catch(e){
+        if(intento===5){ avisarFalloGuardado(); return false; }
+      }
+      await new Promise(r=>setTimeout(r,120*intento));
+    }
+    if(!guardado) return false;
+  }
+
+  // Estabilización: v1 puede haber cambiado mientras se actualizaban varios
+  // buckets. Releer y reparar únicamente los IDs que hayan quedado desfasados.
+  for(let vuelta=1; vuelta<=4; vuelta++){
+    let latest;
+    try{
+      const r=await window.storage.get(ESPECIFICOS_PARTIDA_KEY);
+      if(!r){ avisarFalloGuardado(); return false; }
+      latest=JSON.parse(r.value);
+    }catch(e){ avisarFalloGuardado(); return false; }
+
+    const desfasados=[];
+    for(const id of ids){
+      const b=especificosPartidaBucketNumero(id);
+      try{
+        const r=await window.storage.get(especificosPartidaBucketKey(b));
+        if(!r){ avisarFalloGuardado(); return false; }
+        const bucketCloud=JSON.parse(r.value);
+        if(JSON.stringify(bucketCloud[id]||[])!==JSON.stringify(latest[id]||[])) desfasados.push(id);
+      }catch(e){ avisarFalloGuardado(); return false; }
+    }
+    if(!desfasados.length) return true;
+
+    const reparar={};
+    desfasados.forEach(id=>{
+      const b=especificosPartidaBucketNumero(id);
+      if(!reparar[b]) reparar[b]=[];
+      reparar[b].push(id);
+    });
+    for(const [bucketTxt,idsBucket] of Object.entries(reparar)){
+      const bucket=parseInt(bucketTxt,10);
+      const key=especificosPartidaBucketKey(bucket);
+      const url=`${CLOUD_DB_URL}/${encodeURIComponent(key)}.json`;
+      let ok=false;
+      for(let intento=1; intento<=5; intento++){
+        try{
+          const getRes=await fetch(url,{headers:{'X-Firebase-ETag':'true'},cache:'no-store'});
+          if(!getRes.ok) throw new Error('HTTP '+getRes.status);
+          const etag=getRes.headers.get('ETag');
+          const val=await getRes.json();
+          if(!etag || val==null || typeof val!=='string') return false;
+          const bucketCloud=JSON.parse(val);
+          idsBucket.forEach(id=>{ bucketCloud[id]=clonarEspecificosPartida(latest[id]||[]); });
+          const putRes=await fetch(url,{
+            method:'PUT',
+            headers:{'Content-Type':'application/json','if-match':etag},
+            body:JSON.stringify(JSON.stringify(bucketCloud))
+          });
+          if(putRes.ok){ ok=true; break; }
+          if(putRes.status!==412) throw new Error('HTTP '+putRes.status);
+        }catch(e){
+          if(intento===5) return false;
+        }
+        await new Promise(r=>setTimeout(r,120*intento));
+      }
+      if(!ok) return false;
+    }
+  }
+  avisarFalloGuardado();
+  return false;
 }
 async function saveEspecificosPartidaData(){
-  try{
-    const r = await window.storage.get(ESPECIFICOS_PARTIDA_KEY);
-    // Si la lectura falla, r es null — igual que si no hubiera banners de
-    // partida guardados. Tratarlo como "vacío de verdad" borraría los
-    // banners rosa de otras partidas. Se aborta en vez de asumirlo.
-    if(!r){ avisarFalloGuardado(); return; }
-    const cloud = JSON.parse(r.value);
-    especificosPartidaData = mergeDeepPreferLocal(cloud, especificosPartidaData);
-    await window.storage.set(ESPECIFICOS_PARTIDA_KEY, JSON.stringify(especificosPartidaData));
-  }catch(e){ avisarFalloGuardado(); }
+  const snapshot=[...especificosPartidaDirty.entries()].map(([id,version])=>({
+    id,version,regs:clonarEspecificosPartida(especificosPartidaData[id]||[])
+  }));
+  if(!snapshot.length) return true;
+
+  const url=`${CLOUD_DB_URL}/${encodeURIComponent(ESPECIFICOS_PARTIDA_KEY)}.json`;
+  let cloudGuardado=null;
+  for(let intento=1; intento<=5; intento++){
+    try{
+      const getRes=await fetch(url,{headers:{'X-Firebase-ETag':'true'},cache:'no-store'});
+      if(!getRes.ok) throw new Error('HTTP '+getRes.status);
+      const etag=getRes.headers.get('ETag');
+      if(!etag) throw new Error('Firebase no devolvió ETag');
+      const val=await getRes.json();
+      if(val==null || typeof val!=='string'){ avisarFalloGuardado(); return false; }
+      const cloud=JSON.parse(val);
+      snapshot.forEach(x=>{ cloud[x.id]=clonarEspecificosPartida(x.regs); });
+      const putRes=await fetch(url,{
+        method:'PUT',
+        headers:{'Content-Type':'application/json','if-match':etag},
+        body:JSON.stringify(JSON.stringify(cloud))
+      });
+      if(putRes.ok){ cloudGuardado=cloud; break; }
+      if(putRes.status!==412) throw new Error('HTTP '+putRes.status);
+    }catch(e){
+      if(intento===5){ avisarFalloGuardado(); return false; }
+    }
+    await new Promise(r=>setTimeout(r,120*intento));
+  }
+  if(!cloudGuardado){ avisarFalloGuardado(); return false; }
+
+  const ids=snapshot.map(x=>x.id);
+  if(!(await syncEspecificosPartidaV2DesdeV1(cloudGuardado,ids))) return false;
+
+  // Limpiar solo la versión que acabamos de persistir. Si durante el guardado
+  // hubo otra edición local del mismo banner, queda dirty para el siguiente.
+  snapshot.forEach(x=>{
+    if(especificosPartidaDirty.get(x.id)===x.version) especificosPartidaDirty.delete(x.id);
+  });
+  snapshot.forEach(x=>{
+    if(!especificosPartidaDirty.has(x.id)) especificosPartidaData[x.id]=clonarEspecificosPartida(cloudGuardado[x.id]||[]);
+  });
+  return true;
 }
 let especificosInvSel = null;
 let especificosQuincenaOffset = 0;
@@ -19340,7 +19618,8 @@ async function saveEspecificoManual(){
       const partidasAsociadas = obs
         ? [resolverPartidaPorObsEspecifico(invId, callesTramo, obs, dia)].filter(Boolean)
         : calcularBloquesPartidasInvBase(invId, semanaDelDia).filter(b=>b.calles.some(c=>callesTramo.includes(c))).map(b=>b.entry);
-      partidasAsociadas.forEach(partidaAsociada=>{
+      for(const partidaAsociada of partidasAsociadas){
+        if(!(await loadEspecificosPartidaIdsData([partidaAsociada.id],false))) return;
         if(!especificosPartidaData[partidaAsociada.id]) especificosPartidaData[partidaAsociada.id] = [];
         // Solo las calles de ESTA partida dentro del tramo tratado (a
         // petición de Paula, 2026-08-18: poder borrar el específico tanto
@@ -19348,7 +19627,8 @@ async function saveEspecificoManual(){
         // exactamente qué celdas vaciar).
         const callesPartida = callesDePartidaEntry(partidaAsociada).filter(c=>callesTramo.includes(c));
         especificosPartidaData[partidaAsociada.id].push({trat, dosis, horario, fechaLabel, fechaISO, invId, dia, calles: callesPartida});
-      });
+        marcarEspecificosPartidaDirty(partidaAsociada.id);
+      }
     }
   }
   await saveEspecificosData();
@@ -19381,7 +19661,7 @@ async function borrarEspecificoManual(){
   // quitaba nada y el banner rosa "fantasma" seguía apareciendo en el mapa
   // pese a haber borrado el específico. Se carga aquí antes de filtrar
   // (auditoría 2026-09-11).
-  await loadEspecificosPartidaData();
+  if(!(await loadEspecificosPartidaData(false))) return;
   const entradas = bulkInvIds.map(invId=>({ invId, dia, calles: calcularCallesEspBulk(invId).calles }));
   registrarUndoEspecificoMultiInv(entradas);
   entradas.forEach(({invId, calles})=>calles.forEach(c=>setEspecifico(invId, dia, c, '')));
@@ -19390,7 +19670,8 @@ async function borrarEspecificoManual(){
   // vínculo invId/dia/calles que guarda especificosPartidaData desde este
   // cambio) — evita que quede un banner "fantasma" de algo ya borrado.
   Object.keys(especificosPartidaData).forEach(partidaId=>{
-    especificosPartidaData[partidaId] = especificosPartidaData[partidaId].filter(r=>{
+    const antes=especificosPartidaData[partidaId];
+    const despues=antes.filter(r=>{
       if(!r.invId || r.dia==null || !r.calles?.length) return true;
       // Bug real (auditoría 2026-09-09): comparaba "en.dia===dia" — como
       // TODAS las entradas de `entradas` se construyen con este mismo
@@ -19403,6 +19684,10 @@ async function borrarEspecificoManual(){
       const afectado = entradas.some(en=>en.invId===r.invId && r.dia===dia && r.calles.some(c=>en.calles.includes(c)));
       return !afectado;
     });
+    if(despues.length!==antes.length){
+      especificosPartidaData[partidaId]=despues;
+      marcarEspecificosPartidaDirty(partidaId);
+    }
   });
   await saveEspecificosPartidaData();
   document.getElementById('especifico-manual-overlay').style.display = 'none';
