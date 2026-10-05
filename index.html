@@ -89,6 +89,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 </style>
 </head>
 <body>
+<div id="lasala-test-banner" style="position:fixed;top:8px;right:8px;z-index:2147483647;background:#b00020;color:#fff;border:2px solid #fff;border-radius:7px;padding:7px 12px;font:700 13px Arial,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.35);pointer-events:none">⚠ ENTORNO TEST — NO PRODUCCIÓN</div>
 
 <!-- LOGIN -->
 <div id="login-screen" style="position:fixed;inset:0;background:linear-gradient(150deg,#1a5c2e 0%,#2d7a45 50%,#0f3d1e 100%);display:flex;align-items:center;justify-content:center;z-index:9999;padding:1rem">
@@ -285,7 +286,7 @@ const fotoEntrada = {};
 // normal). Si más adelante se necesita más seguridad, esto se sustituye por
 // Firebase Auth + reglas restringidas sin tocar el resto de la app.
 // ════════════════════════════════════════════════════════════════
-const CLOUD_DB_URL = 'https://la-sala-app-default-rtdb.europe-west1.firebasedatabase.app';
+const CLOUD_DB_URL = 'https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app';
 // A petición de Paula (2026-08-03), tras perder trabajo real de un técnico
 // que estuvo marcando checks justo cuando Netlify se cayó: get/set nunca
 // avisaban de un fallo, se tragaban cualquier error de red en silencio y el
@@ -10773,7 +10774,447 @@ function renderGeoInv(invId){
 // ════════════════════════════════════════════════════════════════
 // MARCAJE DE RIEGO — Visual Excel-style grid
 // ════════════════════════════════════════════════════════════════
-const RIEGO_KEY = 'lasala-riego-v1';
+const RIEGO_KEY = 'lasala-riego-v1'; // snapshot legado/rollback; v2 ya no lo lee ni lo escribe
+const RIEGO_V2_PREFIX = 'lasala-riego-v2-';
+const RIEGO_V2_INDEX_KEY = 'lasala-riego-v2-index';
+const RIEGO_SYNC_KEY = 'lasala-riego-sync-v1';
+const RIEGO_OFFLINE_KEY = 'lasala-riego-offline-v1';
+const RIEGO_SUPERVISOR_USER = 'VIGUERAS';
+function riegoV2Key(invId){ return RIEGO_V2_PREFIX + invId; }
+function riegoSyncUrl(invId){ return `${CLOUD_DB_URL}/${RIEGO_SYNC_KEY}/${encodeURIComponent(String(invId))}.json`; }
+let riegoInvCargadaEn = {};
+let riegoDirtyInvs = new Set();
+let riegoDirtyCells = new Map();
+let riegoBaseInv = {};
+function clonarRiegoSnapshot(v){
+  return v==null ? v : JSON.parse(JSON.stringify(v));
+}
+function canonRiegoValor(v){
+  if(Array.isArray(v)) return v.map(canonRiegoValor);
+  if(v && typeof v==='object'){
+    const o={};
+    Object.keys(v).sort().forEach(k=>{ o[k]=canonRiegoValor(v[k]); });
+    return o;
+  }
+  return v==null ? null : v;
+}
+function riegoValorIgual(a,b){
+  return JSON.stringify(canonRiegoValor(a))===JSON.stringify(canonRiegoValor(b));
+}
+function valorTextoRiego(raw){
+  if(raw==null) return '';
+  const t = typeof raw==='string' ? raw : (raw.texto||'');
+  return t==null ? '' : String(t).trim();
+}
+function textoRiegoConflicto(raw){
+  return valorTextoRiego(raw) || 'vacío';
+}
+function nombreRiegoUsuario(raw){
+  const u = (raw && typeof raw==='object' && raw.marcadoPor) ? String(raw.marcadoPor) : '';
+  if(!u) return 'Usuario no identificado';
+  return u.toLowerCase().replace(/(^|\s)\S/g,m=>m.toUpperCase());
+}
+function rolRiegoUsuario(raw){
+  return (raw && typeof raw==='object' && raw.rol) ? String(raw.rol) : '';
+}
+function mostrarConflictoRiego(invId,dia,calle,remoto,local){
+  return new Promise(resolve=>{
+    const o = getOrCreateOverlay('riego-conflicto-overlay');
+    o.style.zIndex = '100000';
+    o.innerHTML = `
+      <div style="background:#fff;border-radius:12px;max-width:520px;width:calc(100% - 28px);box-shadow:0 14px 45px rgba(0,0,0,.35);overflow:hidden">
+        <div style="background:#b42318;color:#fff;padding:12px 16px;font-size:15px;font-weight:900">⚠ Conflicto de riego detectado</div>
+        <div style="padding:16px;font-size:13px;line-height:1.45">
+          <div style="font-weight:800;margin-bottom:10px">INV <span id="rc-inv"></span> · <span id="rc-dia"></span> · calle <span id="rc-calle"></span></div>
+          <div style="margin-bottom:12px">Otro usuario ha modificado esta misma celda desde que la abriste.</div>
+          <div style="background:#fff4e5;border:1px solid #f0c36d;border-radius:8px;padding:10px;margin-bottom:8px">
+            <b>Modificado por:</b> <span id="rc-usuario"></span><span id="rc-rol-wrap"> · <span id="rc-rol"></span></span>
+          </div>
+          <div style="background:#f6f7f8;border-radius:8px;padding:10px;margin-bottom:8px"><b>Valor actual:</b> <span id="rc-remoto"></span></div>
+          <div style="background:#eef5ff;border-radius:8px;padding:10px"><b>Tu cambio:</b> <span id="rc-local"></span></div>
+          <div style="font-size:11px;color:#666;margin-top:10px">Si necesitas aclararlo antes de continuar, contacta con el usuario indicado.</div>
+          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap">
+            <button id="rc-cancelar" style="padding:8px 14px;border:1px solid #2e7d32;background:#fff;color:#1b5e20;border-radius:7px;font-weight:800;cursor:pointer">Mantener el valor actual</button>
+            <button id="rc-sobrescribir" style="padding:8px 14px;border:none;background:#b42318;color:#fff;border-radius:7px;font-weight:800;cursor:pointer">Sobrescribir con mi cambio</button>
+          </div>
+        </div>
+      </div>`;
+    o.querySelector('#rc-inv').textContent = invId;
+    const diaNum = parseInt(dia,10);
+    o.querySelector('#rc-dia').textContent = Number.isFinite(diaNum) ? riegoDiaLabelCorto(diaNum) : ('día '+dia);
+    o.querySelector('#rc-calle').textContent = calle;
+    o.querySelector('#rc-usuario').textContent = nombreRiegoUsuario(remoto);
+    const rol = rolRiegoUsuario(remoto);
+    o.querySelector('#rc-rol').textContent = rol;
+    if(!rol) o.querySelector('#rc-rol-wrap').style.display='none';
+    o.querySelector('#rc-remoto').textContent = textoRiegoConflicto(remoto);
+    o.querySelector('#rc-local').textContent = textoRiegoConflicto(local);
+    const cerrar = v=>{ o.style.display='none'; resolve(v); };
+    o.querySelector('#rc-cancelar').onclick = ()=>cerrar(false);
+    o.querySelector('#rc-sobrescribir').onclick = ()=>cerrar(true);
+    o.style.display = 'flex';
+  });
+}
+// ── SINCRONIZACIÓN EN TIEMPO REAL DE RIEGO ───────────────────
+// El nodo v2 sigue siendo la fuente de verdad. Este nodo auxiliar es minúsculo:
+// solo publica "ha cambiado INV X" y permite que las demás pantallas refresquen
+// inmediatamente sin sondear ni descargar el riego completo continuamente.
+let riegoSyncSource = null;
+let riegoSyncInv = null;
+let riegoSyncUltimoEventoPorInv = {};
+let riegoSyncPendiente = null;
+let riegoSyncPendienteTimer = null;
+
+async function leerRiegoSyncActual(invId){
+  try{
+    const r = await fetch(riegoSyncUrl(invId), {cache:'no-store'});
+    if(!r.ok) return null;
+    return await r.json();
+  }catch(e){ return null; }
+}
+function cerrarRiegoSync(){
+  if(riegoSyncSource){
+    try{ riegoSyncSource.close(); }catch(e){}
+  }
+  riegoSyncSource = null;
+  riegoSyncInv = null;
+  riegoSyncPendiente = null;
+  if(riegoSyncPendienteTimer){
+    clearTimeout(riegoSyncPendienteTimer);
+    riegoSyncPendienteTimer = null;
+  }
+}
+function cerrarRiegoModule(){
+  cerrarRiegoSync();
+  riegoInvSel = null;
+  const o = document.getElementById('riego-overlay');
+  if(o) o.style.display='none';
+}
+function riegoEstaEditandoAhora(invId){
+  const manual = document.getElementById('riego-manual-overlay');
+  if(manual && manual.style.display && manual.style.display!=='none') return true;
+  const a = document.activeElement;
+  if(!a || !a.closest) return false;
+  if(!a.closest('#riego-grid-wrap')) return false;
+  if(a.tagName!=='INPUT' && a.tagName!=='TEXTAREA') return false;
+  return !a.dataset.rinv || String(a.dataset.rinv)===String(invId);
+}
+function programarRiegoSyncPendiente(){
+  if(riegoSyncPendienteTimer) return;
+  riegoSyncPendienteTimer = setTimeout(async ()=>{
+    riegoSyncPendienteTimer = null;
+    if(!riegoSyncPendiente) return;
+    if(riegoEstaEditandoAhora(riegoSyncPendiente.invId)){
+      programarRiegoSyncPendiente();
+      return;
+    }
+    const evento = riegoSyncPendiente;
+    riegoSyncPendiente = null;
+    await procesarRiegoSyncEvento(evento);
+  }, 600);
+}
+async function refrescarRiegoInvDesdeNube(invId){
+  invId = String(invId);
+  const nodo = await leerRiegoV2Nodo(invId, false);
+  if(!nodo.ok || !nodo.exists) return false;
+
+  const cloud = nodo.data || {};
+  const localAntes = riegoData[invId] || {};
+  const merged = clonarRiegoSnapshot(cloud) || {};
+  const dirty = Array.from(riegoDirtyCells.values()).filter(x=>x.invId===invId);
+
+  // Los cambios locales todavía NO guardados nunca se pisan por un refresco.
+  // Se conserva cada calle sucia encima de la última versión recibida.
+  dirty.forEach(({dia,calle})=>{
+    const d=String(dia), ca=String(calle);
+    const local = localAntes?.[d]?.[ca];
+    const textoLocal = (local && typeof local==='object') ? local.texto : local;
+    const vacio = local==null || (typeof textoLocal==='string' && textoLocal.trim()==='');
+    if(vacio){
+      if(merged[d]) delete merged[d][ca];
+      if(merged[d] && Object.keys(merged[d]).length===0) delete merged[d];
+    } else {
+      if(!merged[d]) merged[d]={};
+      merged[d][ca] = clonarRiegoSnapshot(local);
+    }
+  });
+
+  riegoData[invId] = merged;
+  // La base global sí pasa a ser la nube fresca. Cada dirty conserva además
+  // su base ORIGINAL propia, que es la que usa el detector de conflicto.
+  riegoBaseInv[invId] = clonarRiegoSnapshot(cloud);
+  riegoInvCargadaEn[invId] = Date.now();
+  riegoDataCargadaEn = 0;
+  if(String(riegoInvSel)===invId) renderRiegoGrid(invId);
+  return true;
+}
+async function procesarRiegoSyncEvento(evento){
+  if(!evento || !evento.id || !evento.invId) return;
+  const invId = String(evento.invId);
+  if(String(riegoInvSel)!==invId) return;
+  if(riegoSyncUltimoEventoPorInv[invId]===evento.id) return;
+  if(evento.usuario===currentUser){
+    riegoSyncUltimoEventoPorInv[invId]=evento.id;
+    return;
+  }
+  if(riegoEstaEditandoAhora(invId)){
+    riegoSyncPendiente = evento;
+    programarRiegoSyncPendiente();
+    return;
+  }
+  const ok = await refrescarRiegoInvDesdeNube(invId);
+  if(!ok) return;
+  riegoSyncUltimoEventoPorInv[invId]=evento.id;
+
+  const quien = nombreLegibleUsuario(evento.usuario);
+  if(evento.avisoSupervisor && currentUser===RIEGO_SUPERVISOR_USER){
+    showToast(`🔔 ${quien} ha modificado un riego ya validado · ${evento.resumen||('INV '+invId)}`);
+  } else if(evento.accion==='validacion'){
+    showToast(`✓ Riego actualizado: ${quien} lo ha validado`);
+  } else if(evento.accion==='correccion_validada'){
+    showToast(`🔄 Riego actualizado: ${quien} lo ha corregido y validado`);
+  } else {
+    showToast(`🔄 Riego actualizado por ${quien}`);
+  }
+}
+function iniciarRiegoSyncInv(invId, baselineId){
+  cerrarRiegoSync();
+  invId = String(invId);
+  riegoSyncInv = invId;
+  riegoSyncUltimoEventoPorInv[invId] = baselineId || null;
+  if(typeof EventSource==='undefined') return;
+  try{
+    const es = new EventSource(riegoSyncUrl(invId));
+    riegoSyncSource = es;
+    const recibir = ev=>{
+      try{
+        const payload = JSON.parse(ev.data||'{}');
+        const evento = payload && payload.data;
+        if(evento && typeof evento==='object') procesarRiegoSyncEvento(evento);
+      }catch(e){}
+    };
+    es.addEventListener('put', recibir);
+    es.addEventListener('patch', recibir);
+    // EventSource reconecta solo si hay un corte; no hace falta polling.
+  }catch(e){}
+}
+function resumenPuntosRiego(invId, puntos){
+  const porDia = {};
+  (puntos||[]).forEach(p=>{
+    const d=String(p.dia), ca=parseInt(p.calle,10);
+    if(!Number.isFinite(ca)) return;
+    if(!porDia[d]) porDia[d]=new Set();
+    porDia[d].add(ca);
+  });
+  return Object.keys(porDia).sort((a,b)=>parseInt(a)-parseInt(b)).map(d=>{
+    const calles=[...porDia[d]].sort((a,b)=>a-b);
+    return `${riegoDiaLabelCorto(parseInt(d,10))} · ${formatCallesParaImprimir(invId, calles)}`;
+  }).join(' | ');
+}
+async function publicarEventoRiego(invId, puntos, accion, avisoSupervisor){
+  const evento = {
+    id:'rs_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
+    invId:String(invId),
+    usuario:currentUser||null,
+    rol:currentUserRole||null,
+    accion:accion||'modificacion',
+    resumen:resumenPuntosRiego(String(invId), puntos),
+    avisoSupervisor:!!avisoSupervisor,
+    ts:Date.now()
+  };
+  try{
+    const r = await fetchConReintentos(riegoSyncUrl(invId), {
+      method:'PUT',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(evento)
+    });
+    if(r && r.ok===false) throw new Error('HTTP '+r.status);
+    riegoSyncUltimoEventoPorInv[String(invId)] = evento.id;
+    return evento;
+  }catch(e){
+    showToast('⚠ Riego guardado, pero no se pudo actualizar las otras pantallas');
+    return null;
+  }
+}
+// ── OFFLINE ROBUSTO DE RIEGO ─────────────────────────────────
+function leerRiegoOffline(){
+  try{
+    const q = JSON.parse(localStorage.getItem(RIEGO_OFFLINE_KEY)||'[]');
+    return Array.isArray(q) ? q : [];
+  }catch(e){ return []; }
+}
+function guardarRiegoOffline(q){
+  try{
+    localStorage.setItem(RIEGO_OFFLINE_KEY, JSON.stringify(q));
+    return true;
+  }catch(e){
+    avisarFalloGuardado();
+    return false;
+  }
+}
+function riegoOfflineClave(usuario,invId,dia,calle){
+  return String(usuario||'')+'|'+String(invId)+'|'+String(dia)+'|'+String(calle);
+}
+function normalizarRiegoDeseado(v){
+  if(v==null) return null;
+  const texto = (v && typeof v==='object') ? v.texto : v;
+  if(typeof texto==='string' && texto.trim()==='') return null;
+  return clonarRiegoSnapshot(v);
+}
+function encolarRiegoOffline(invId, dirty, extraDeletes){
+  const usuario = currentUser||'';
+  if(!usuario) return [];
+  const q = leerRiegoOffline();
+  const tocadas = [];
+  function guardarPunto(dia, calle, base, deseado){
+    const d=String(dia), ca=String(calle);
+    const clave=riegoOfflineClave(usuario,invId,d,ca);
+    const idx=q.findIndex(x=>x.clave===clave);
+    const anterior=idx>=0 ? q[idx] : null;
+    const entry={
+      clave, usuario, invId:String(invId), dia:d, calle:ca,
+      base: anterior ? anterior.base : clonarRiegoSnapshot(base),
+      baseTexto: anterior ? anterior.baseTexto : valorTextoRiego(base),
+      deseado: normalizarRiegoDeseado(deseado),
+      guardadoLocalEn: Date.now()
+    };
+    if(idx>=0) q[idx]=entry; else q.push(entry);
+    tocadas.push(clave);
+  }
+  (dirty||[]).forEach(({dia,calle,base})=>{
+    const local = riegoData[String(invId)]?.[String(dia)]?.[String(calle)] ?? null;
+    guardarPunto(dia,calle,base,local);
+  });
+  (extraDeletes||[]).forEach(({dia,calles})=>{
+    (calles||[]).forEach(c=>{
+      const d=String(dia), ca=String(c);
+      const clave=riegoOfflineClave(usuario,invId,d,ca);
+      const existente=q.find(x=>x.clave===clave);
+      const base=existente ? existente.base : (riegoBaseInv[String(invId)]?.[d]?.[ca] ?? null);
+      guardarPunto(d,ca,base,null);
+    });
+  });
+  if(tocadas.length) guardarRiegoOffline(q);
+  return tocadas;
+}
+function quitarRiegoOfflineClaves(claves){
+  if(!claves || !claves.length) return;
+  const set=new Set(claves);
+  guardarRiegoOffline(leerRiegoOffline().filter(x=>!set.has(x.clave)));
+  actualizarAvisoRiegoOffline();
+}
+function actualizarAvisoRiegoOffline(){
+  const nr = leerRiegoOffline().length;
+  const nc = (typeof leerColaOffline==='function') ? leerColaOffline().length : 0;
+  const total = nr+nc;
+  if(total) avisarGuardadoLocalPendiente(total);
+  else ocultarAvisoFalloGuardado();
+}
+let riegoOfflineSyncEnCurso=false;
+let riegoOfflineReintentoTimer=null;
+function programarRiegoOfflineReintento(){
+  if(riegoOfflineReintentoTimer) return;
+  riegoOfflineReintentoTimer=setTimeout(()=>{
+    riegoOfflineReintentoTimer=null;
+    procesarRiegoOffline();
+  }, 700);
+}
+async function procesarRiegoOffline(){
+  if(riegoOfflineSyncEnCurso || !currentUser || navigator.onLine===false) return false;
+  const pendientes = leerRiegoOffline().filter(x=>x.usuario===currentUser);
+  if(!pendientes.length){ actualizarAvisoRiegoOffline(); return true; }
+
+  // Mientras el usuario está escribiendo no tocamos la cuadrícula. Reintentamos
+  // al poco tiempo para que volver online no dependa de cerrar/reabrir Riego.
+  if(riegoInvSel && riegoEstaEditandoAhora(riegoInvSel)){
+    programarRiegoOfflineReintento();
+    return false;
+  }
+
+  // Tras un guardado sin red las celdas siguen marcadas como dirty hasta que
+  // Firebase confirme la escritura. Eso NO debe bloquear la resincronización:
+  // solo la bloqueamos si existe un dirty que no está en la cola, o si el
+  // usuario volvió a modificar esa celda después del último guardado local.
+  const pendientesPorClave = new Map(pendientes.map(x=>[x.clave,x]));
+  for(const dirty of riegoDirtyCells.values()){
+    const invId=String(dirty.invId), d=String(dirty.dia), ca=String(dirty.calle);
+    const clave=riegoOfflineClave(currentUser,invId,d,ca);
+    const pendiente=pendientesPorClave.get(clave);
+    if(!pendiente) return false;
+    const local=riegoData[invId]?.[d]?.[ca] ?? null;
+    if(!riegoValorIgual(normalizarRiegoDeseado(local), pendiente.deseado)) return false;
+  }
+
+  riegoOfflineSyncEnCurso=true;
+  try{
+    const porInv={};
+    pendientes.forEach(x=>{
+      if(!porInv[x.invId]) porInv[x.invId]=[];
+      porInv[x.invId].push(x);
+    });
+
+    for(const invId of Object.keys(porInv)){
+      const nodo=await leerRiegoV2Nodo(invId, false);
+      if(!nodo.ok || !nodo.exists) throw new Error('No se pudo cargar INV '+invId);
+      const cloud=clonarRiegoSnapshot(nodo.data)||{};
+      riegoData[invId]=clonarRiegoSnapshot(cloud)||{};
+      riegoBaseInv[invId]=clonarRiegoSnapshot(cloud)||{};
+
+      const aAplicar=[];
+      for(const x of porInv[invId]){
+        const remoto=cloud?.[String(x.dia)]?.[String(x.calle)] ?? null;
+        if(riegoValorIgual(remoto, x.deseado)){
+          quitarRiegoOfflineClaves([x.clave]);
+          continue;
+        }
+        aAplicar.push(x);
+        const d=String(x.dia), ca=String(x.calle);
+        if(x.deseado==null){
+          if(riegoData[invId][d]) delete riegoData[invId][d][ca];
+        }else{
+          if(!riegoData[invId][d]) riegoData[invId][d]={};
+          riegoData[invId][d][ca]=clonarRiegoSnapshot(x.deseado);
+        }
+        riegoDirtyCells.set(riegoDirtyCellKey(invId,d,ca),{
+          invId:String(invId), dia:d, calle:ca,
+          base:clonarRiegoSnapshot(x.base),
+          baseTexto:x.baseTexto==null ? valorTextoRiego(x.base) : x.baseTexto
+        });
+        riegoDirtyInvs.add(String(invId));
+      }
+      if(aAplicar.length){
+        const ok=await saveRiegoInvPatch(invId, [], true);
+        if(!ok) throw new Error('Sincronización pendiente INV '+invId);
+      }
+    }
+
+    if(riegoInvSel && riegoData[String(riegoInvSel)]) renderRiegoGrid(String(riegoInvSel));
+    actualizarAvisoRiegoOffline();
+    if(!leerRiegoOffline().some(x=>x.usuario===currentUser)) showToast('✓ Cambios de riego pendientes sincronizados');
+    return true;
+  }catch(e){
+    actualizarAvisoRiegoOffline();
+    return false;
+  }finally{
+    riegoOfflineSyncEnCurso=false;
+  }
+}
+window.addEventListener('online', ()=>{ setTimeout(procesarRiegoOffline, 250); });
+
+function riegoDirtyCellKey(invId,dia,calle){ return String(invId)+'|'+String(dia)+'|'+String(calle); }
+function marcarRiegoDirtyCell(invId,dia,calle,baseOriginal){
+  const rec = {invId:String(invId), dia:String(dia), calle:String(calle)};
+  const key = riegoDirtyCellKey(rec.invId,rec.dia,rec.calle);
+  // Guardar la versión EXACTA que el usuario vio antes de su primera edición.
+  // Si vuelve a editar la misma celda antes de guardar, se conserva esa base
+  // original para poder detectar si otro usuario la cambió entretanto.
+  if(!riegoDirtyCells.has(key)){
+    rec.base = clonarRiegoSnapshot(baseOriginal);
+    rec.baseTexto = valorTextoRiego(baseOriginal);
+    riegoDirtyCells.set(key, rec);
+  }
+  riegoDirtyInvs.add(rec.invId);
+}
 const DIAS = [15,16,17,18,19,20,21,22,23,24,25,26,27,28];
 
 // ── QUINCENAS DE RIEGO (generación automática) ──────────────────
@@ -10952,38 +11393,344 @@ const RIEGO_DATA_CACHE_TTL_MS = 30000;
 // al día; los flujos que releen antes de fusionar un guardado (ver
 // generarTareasDesdeRiego/aplicarPropuestaRiego) siguen llamando sin
 // argumento, así que ignoran la caché y van siempre a la nube.
-async function loadRiegoData(forzar){
-  if(forzar===false && riegoDataCargadaEn && (Date.now()-riegoDataCargadaEn)<RIEGO_DATA_CACHE_TTL_MS) return;
+async function loadRiegoV2Index(modoGuardado){
   try{
-    const r = await window.storage.get(RIEGO_KEY);
-    // Solo se marca la caché como "recién cargada" si la lectura ha ido
-    // bien: si falla (r null), marcarla haría que durante los siguientes
-    // 30s se diera por buena una cuadrícula VACÍA sin volver a intentarlo,
-    // y el usuario vería el riego en blanco sin ningún aviso. Sin la marca,
-    // el siguiente intento vuelve a pedirlo a la nube (auditoría 2026-09-11).
-    if(r){ riegoData = JSON.parse(r.value); riegoDataCargadaEn = Date.now(); }
-  }catch(e){}
+    const r = await window.storage.get(RIEGO_V2_INDEX_KEY);
+    if(!r){ if(modoGuardado) avisarFalloGuardado(); else avisarFalloCarga(); return null; }
+    const ids = JSON.parse(r.value);
+    if(!Array.isArray(ids)) throw new Error('Índice Riego v2 inválido');
+    return ids.map(String);
+  }catch(e){
+    if(modoGuardado) avisarFalloGuardado(); else avisarFalloCarga();
+    return null;
+  }
+}
+async function leerRiegoV2Nodo(invId, modoGuardado){
+  try{
+    const res = await fetchConReintentos(`${CLOUD_DB_URL}/${encodeURIComponent(riegoV2Key(invId))}.json`);
+    const val = await res.json();
+    if(val==null) return {ok:true, exists:false, data:{}};
+    return {ok:true, exists:true, data:JSON.parse(val)};
+  }catch(e){
+    if(modoGuardado) avisarFalloGuardado(); else avisarFalloCarga();
+    return {ok:false, exists:false, data:null};
+  }
+}
+async function actualizarRiegoV2IndexConInv(invId){
+  const url = `${CLOUD_DB_URL}/${encodeURIComponent(RIEGO_V2_INDEX_KEY)}.json`;
+  const id = String(invId);
+  for(let intento=1; intento<=5; intento++){
+    try{
+      const getRes = await fetch(url, {headers:{'X-Firebase-ETag':'true'}});
+      if(!getRes.ok) throw new Error('HTTP '+getRes.status);
+      const etag = getRes.headers.get('ETag');
+      if(!etag) throw new Error('Firebase no devolvió ETag');
+      const val = await getRes.json();
+      if(val==null){ avisarFalloGuardado(); return false; }
+      const ids = JSON.parse(val);
+      if(!Array.isArray(ids)){ avisarFalloGuardado(); return false; }
+      if(ids.map(String).includes(id)) return true;
+      ids.push(id);
+      const putRes = await fetch(url, {
+        method:'PUT',
+        headers:{'Content-Type':'application/json','if-match':etag},
+        body:JSON.stringify(JSON.stringify(ids))
+      });
+      if(putRes.ok) return true;
+      if(putRes.status!==412) throw new Error('HTTP '+putRes.status);
+      // Otro usuario actualizó el índice entre GET y PUT: releer y reintentar.
+    }catch(e){
+      if(intento===5){ avisarFalloGuardado(); return false; }
+    }
+    await new Promise(r=>setTimeout(r, 120*intento));
+  }
+  avisarFalloGuardado();
+  return false;
+}
+async function loadRiegoInvData(invId, forzar){
+  invId = String(invId);
+  if(forzar===false && riegoInvCargadaEn[invId] && (Date.now()-riegoInvCargadaEn[invId])<RIEGO_DATA_CACHE_TTL_MS) return true;
+  const ids = await loadRiegoV2Index(false);
+  if(!ids) return false;
+  const nodo = await leerRiegoV2Nodo(invId, false);
+  if(!nodo.ok) return false;
+  if(!nodo.exists && ids.includes(invId)){
+    avisarFalloCarga();
+    return false;
+  }
+  riegoData[invId] = nodo.exists ? nodo.data : {};
+  riegoBaseInv[invId] = clonarRiegoSnapshot(riegoData[invId]);
+  riegoInvCargadaEn[invId] = Date.now();
+  return true;
+}
+async function loadRiegoData(forzar){
+  if(forzar===false && riegoDataCargadaEn && (Date.now()-riegoDataCargadaEn)<RIEGO_DATA_CACHE_TTL_MS) return true;
+  const ids = await loadRiegoV2Index(false);
+  if(!ids) return false;
+  try{
+    const pares = await Promise.all(ids.map(async invId=>{
+      const nodo = await leerRiegoV2Nodo(invId, false);
+      if(!nodo.ok || !nodo.exists) throw new Error('Falta Riego v2 de INV '+invId);
+      return [invId, nodo.data];
+    }));
+    const rebuilt = {};
+    const base = {};
+    pares.forEach(([invId,data])=>{
+      rebuilt[invId]=data;
+      base[invId]=clonarRiegoSnapshot(data);
+      riegoInvCargadaEn[invId]=Date.now();
+    });
+    riegoData = rebuilt;
+    riegoBaseInv = base;
+    riegoDataCargadaEn = Date.now();
+  }catch(e){
+    avisarFalloCarga();
+    return false;
+  }
   // Pre-load confirmed INV17 riego data (Antonio, 25/06/2026)
   if(!riegoData['17']) riegoData['17']={};
   if(!riegoData['17'][25]) riegoData['17'][25]={};
-  // Día 25 (calendar) = Día 1 de planta: 30+30SAL PREVICUR ENERGY, C/1702-1705 (calles relativas 2,3,4,5)
   [2,3,4,5].forEach(c=>{ if(!riegoData['17'][25][c]) riegoData['17'][25][c]='30+30SAL PREVICUR ENERGY'; });
+  return true;
 }
+async function saveRiegoInvPatch(invId, extraDeletes, incluirDirty){
+  invId = String(invId);
+  extraDeletes = extraDeletes || [];
+  if(incluirDirty===undefined) incluirDirty = true;
 
+  const dirty = incluirDirty ? Array.from(riegoDirtyCells.values()).filter(x=>x.invId===invId) : [];
+
+  // Persistir antes de tocar la red. Si se cierra el navegador o se pierde
+  // cobertura durante el guardado, el cambio queda recuperable.
+  const clavesOffline = encolarRiegoOffline(invId, dirty, extraDeletes);
+  if(navigator.onLine===false){
+    actualizarAvisoRiegoOffline();
+    return true;
+  }
+
+  const ids = await loadRiegoV2Index(true);
+  if(!ids){
+    actualizarAvisoRiegoOffline();
+    return clavesOffline.length>0;
+  }
+
+  // Foto de QUÉ se intenta cambiar, antes de tocar la base global. Se usa
+  // para refresco remoto y para avisar al supervisor si un técnico modifica
+  // algo que ya estaba validado.
+  const cambiosEvento = new Map();
+  dirty.forEach(({dia,calle,base})=>{
+    const d=String(dia), ca=String(calle);
+    cambiosEvento.set(d+'|'+ca,{dia:d,calle:ca,base:clonarRiegoSnapshot(base)});
+  });
+  extraDeletes.forEach(({dia,calles})=>{
+    const d=String(dia);
+    (calles||[]).forEach(c=>{
+      const ca=String(c), k=d+'|'+ca;
+      if(!cambiosEvento.has(k)){
+        cambiosEvento.set(k,{
+          dia:d, calle:ca,
+          base:clonarRiegoSnapshot(riegoBaseInv[invId]?.[d]?.[ca] ?? null)
+        });
+      }
+    });
+  });
+
+  const url = `${CLOUD_DB_URL}/${encodeURIComponent(riegoV2Key(invId))}.json`;
+  let cloudGuardado = null;
+  const conflictosAceptados = new Set();
+
+  // Transacción optimista REST con ETag. Si otro usuario modifica el mismo
+  // invernadero entre nuestra lectura y escritura, Firebase responde 412:
+  // releemos lo último, reaplicamos SOLO nuestras celdas y reintentamos.
+  for(let intento=1; intento<=5; intento++){
+    try{
+      const getRes = await fetch(url, {headers:{'X-Firebase-ETag':'true'}});
+      if(!getRes.ok) throw new Error('HTTP '+getRes.status);
+      const etag = getRes.headers.get('ETag');
+      if(!etag) throw new Error('Firebase no devolvió ETag');
+
+      const val = await getRes.json();
+      const existe = val!=null;
+      if(!existe && ids.includes(invId)){
+        avisarFalloGuardado();
+        return false;
+      }
+      const cloud = existe ? JSON.parse(val) : {};
+
+      // Conflicto a nivel de celda: si la nube ya no coincide con la versión
+      // que este usuario cargó al empezar a editar, NO sobrescribir en silencio.
+      // Se informa del valor actual y del local; solo se pisa si el usuario
+      // confirma expresamente. El ETag sigue protegiendo además la carrera
+      // entre esta lectura y el PUT.
+      const intenciones = new Map();
+      dirty.forEach(({dia,calle,base,baseTexto})=>{
+        const d=String(dia), ca=String(calle);
+        let local = riegoData[invId]?.[d]?.[ca];
+        const textoLocal = (local && typeof local==='object') ? local.texto : local;
+        if(local==null || (typeof textoLocal==='string' && textoLocal.trim()==='')) local = null;
+        intenciones.set(d+'|'+ca,{
+          dia:d,
+          calle:ca,
+          local,
+          base:clonarRiegoSnapshot(base),
+          baseTexto:baseTexto==null ? valorTextoRiego(base) : baseTexto
+        });
+      });
+      extraDeletes.forEach(({dia,calles})=>{
+        const d=String(dia);
+        (calles||[]).forEach(c=>{
+          const ca=String(c), k=d+'|'+ca;
+          if(!intenciones.has(k)){
+            const baseBorrado = clonarRiegoSnapshot(riegoBaseInv[invId]?.[d]?.[ca] ?? null);
+            intenciones.set(k,{
+              dia:d,
+              calle:ca,
+              local:null,
+              base:baseBorrado,
+              baseTexto:valorTextoRiego(baseBorrado)
+            });
+          } else {
+            intenciones.get(k).local = null;
+          }
+        });
+      });
+
+      for(const it of intenciones.values()){
+        const baseTexto = it.baseTexto==null ? valorTextoRiego(it.base) : it.baseTexto;
+        const remoto = cloud[it.dia]?.[it.calle] ?? null;
+        // Si el supervisor validó esta calle DESPUÉS de que el técnico la
+        // empezara a editar, también cuenta como "riego validado modificado"
+        // aunque el texto validado sea idéntico al que el técnico vio al abrir.
+        const metaCambio = cambiosEvento.get(it.dia+'|'+it.calle);
+        if(metaCambio && currentUser!==RIEGO_SUPERVISOR_USER &&
+           remoto && typeof remoto==='object' && remoto.revisadoPorVigueras){
+          metaCambio.remotoValidado = clonarRiegoSnapshot(remoto);
+        }
+        const remotoTexto = valorTextoRiego(remoto);
+        const localTexto = valorTextoRiego(it.local);
+        if(remotoTexto!==baseTexto && localTexto!==remotoTexto){
+          const firma = it.dia+'|'+it.calle+'|'+remotoTexto;
+          if(!conflictosAceptados.has(firma)){
+            const aceptar = await mostrarConflictoRiego(invId,it.dia,it.calle,remoto,it.local);
+            if(!aceptar){
+              quitarRiegoOfflineClaves(clavesOffline);
+              showToast('⚠ Guardado cancelado por conflicto');
+              return false;
+            }
+            conflictosAceptados.add(firma);
+          }
+        }
+      }
+
+      dirty.forEach(({dia,calle})=>{
+        if(!cloud[dia]) cloud[dia]={};
+        const local = riegoData[invId]?.[dia]?.[calle];
+        const textoLocal = (local && typeof local==='object') ? local.texto : local;
+        const localVacio = local==null || (typeof textoLocal==='string' && textoLocal.trim()==='');
+        if(localVacio) delete cloud[dia][calle];
+        else cloud[dia][calle] = local;
+        if(cloud[dia] && Object.keys(cloud[dia]).length===0) delete cloud[dia];
+      });
+
+      extraDeletes.forEach(({dia,calles})=>{
+        const d = String(dia);
+        if(cloud[d]) (calles||[]).forEach(c=>delete cloud[d][String(c)]);
+        if(cloud[d] && Object.keys(cloud[d]).length===0) delete cloud[d];
+      });
+
+      const putRes = await fetch(url, {
+        method:'PUT',
+        headers:{'Content-Type':'application/json','if-match':etag},
+        body:JSON.stringify(JSON.stringify(cloud))
+      });
+      if(putRes.ok){
+        cloudGuardado = cloud;
+        break;
+      }
+      if(putRes.status!==412) throw new Error('HTTP '+putRes.status);
+      // Conflicto real: no se ha escrito nada. Volvemos a leer y fusionar.
+    }catch(e){
+      if(intento===5){
+        actualizarAvisoRiegoOffline();
+        return clavesOffline.length>0;
+      }
+    }
+    await new Promise(r=>setTimeout(r, 120*intento));
+  }
+
+  if(cloudGuardado===null){
+    actualizarAvisoRiegoOffline();
+    return clavesOffline.length>0;
+  }
+
+  if(!ids.includes(invId)){
+    const idxOk = await actualizarRiegoV2IndexConInv(invId);
+    if(!idxOk){
+      actualizarAvisoRiegoOffline();
+      return clavesOffline.length>0;
+    }
+  }
+
+  const puntosEvento = Array.from(cambiosEvento.values());
+  const cambiosSobreValidado = puntosEvento.filter(p=>
+    currentUser!==RIEGO_SUPERVISOR_USER && (
+      (p.base && typeof p.base==='object' && p.base.revisadoPorVigueras) ||
+      (p.remotoValidado && typeof p.remotoValidado==='object' && p.remotoValidado.revisadoPorVigueras)
+    )
+  );
+
+  let accionEvento = 'modificacion';
+  if(currentUser===RIEGO_SUPERVISOR_USER && puntosEvento.length){
+    const estados = puntosEvento.map(p=>{
+      const nuevo = cloudGuardado?.[String(p.dia)]?.[String(p.calle)] ?? null;
+      const mismoTexto = valorTextoRiego(p.base)===valorTextoRiego(nuevo);
+      const antesValidado = !!(p.base && typeof p.base==='object' && p.base.revisadoPorVigueras);
+      const ahoraValidado = !!(nuevo && typeof nuevo==='object' && nuevo.revisadoPorVigueras);
+      return {mismoTexto, antesValidado, ahoraValidado};
+    });
+    if(estados.every(x=>x.mismoTexto && !x.antesValidado && x.ahoraValidado)) accionEvento='validacion';
+    else if(estados.some(x=>x.ahoraValidado)) accionEvento='correccion_validada';
+  } else if(cambiosSobreValidado.length){
+    accionEvento='cambio_post_validacion';
+  }
+
+  riegoData[invId] = cloudGuardado;
+  riegoBaseInv[invId] = clonarRiegoSnapshot(cloudGuardado);
+  riegoInvCargadaEn[invId] = Date.now();
+  riegoDataCargadaEn = 0;
+
+  if(puntosEvento.length){
+    await publicarEventoRiego(invId, puntosEvento, accionEvento, cambiosSobreValidado.length>0);
+    if(cambiosSobreValidado.length){
+      const resumen = resumenPuntosRiego(invId, cambiosSobreValidado);
+      await notificarUsuario(
+        RIEGO_SUPERVISOR_USER,
+        `${nombreLegibleUsuario(currentUser)} ha modificado un riego que ya estaba validado: INV ${invId} · ${resumen}`,
+        '⚠️ Riego validado modificado',
+        {tipo:'cambio_riego_validado', invId:String(invId), resumen, modificadoPor:currentUser||null}
+      );
+    }
+  }
+
+  dirty.forEach(({dia,calle})=>riegoDirtyCells.delete(riegoDirtyCellKey(invId,dia,calle)));
+  extraDeletes.forEach(({dia,calles})=>(calles||[]).forEach(c=>riegoDirtyCells.delete(riegoDirtyCellKey(invId,dia,c))));
+  if(!Array.from(riegoDirtyCells.values()).some(x=>x.invId===invId)) riegoDirtyInvs.delete(invId);
+  quitarRiegoOfflineClaves(clavesOffline);
+  return true;
+}
 async function saveRiegoData(){
+  const afectados = [...new Set(Array.from(riegoDirtyCells.values()).map(x=>x.invId))];
+  if(!afectados.length){
+    showToast('✓ Sin cambios pendientes');
+    return true;
+  }
   try{
-    const r = await window.storage.get(RIEGO_KEY);
-    // Si la lectura falla, r es null — NUNCA tratarlo como "no hay datos
-    // todavía" (eso borraría todo lo demás al fusionar con un riegoData
-    // local incompleto). Se aborta el guardado y se avisa, en vez de
-    // guardar sobre una base vacía falsa (causó el incidente del 14/08/2026:
-    // se perdió el riego de todos los invernaderos salvo uno).
-    if(!r){ avisarFalloGuardado(); return false; }
-    const cloud = JSON.parse(r.value);
-    riegoData = mergeDeepPreferLocal(cloud, riegoData);
-    const ok = await window.storage.set(RIEGO_KEY, JSON.stringify(riegoData));
-    if(!ok){ avisarFalloGuardado(); return false; }
+    for(const invId of afectados){
+      const ok = await saveRiegoInvPatch(invId, [], true);
+      if(!ok) return false;
+    }
   }catch(e){ avisarFalloGuardado(); return false; }
+  if(riegoInvSel && afectados.map(String).includes(String(riegoInvSel))) renderRiegoGrid(String(riegoInvSel));
   showToast('✓ Riego guardado');
   logHistorial(`Guardó riego${riegoInvSel?' de INV '+riegoInvSel:''}`);
   return true;
@@ -10997,8 +11744,11 @@ async function saveRiegoData(){
 function setRiego(invId, dia, calle, val, extra){
   if(!riegoData[invId]) riegoData[invId]={};
   if(!riegoData[invId][dia]) riegoData[invId][dia]={};
-  if(val) riegoData[invId][dia][calle] = { texto: val, marcadoPor: currentUser||null, rol: currentUserRole||null, ...(extra||{}) };
+  const antes = clonarRiegoSnapshot(riegoData[invId][dia][calle] ?? null);
+  const texto = typeof val==='string' ? val.trim() : val;
+  if(texto) riegoData[invId][dia][calle] = { texto, marcadoPor: currentUser||null, rol: currentUserRole||null, ...(extra||{}) };
   else delete riegoData[invId][dia][calle];
+  marcarRiegoDirtyCell(invId,dia,calle,antes);
 }
 function getRiegoCellRaw(invId, dia, calle){
   return riegoData[invId]?.[dia]?.[calle];
@@ -11006,7 +11756,8 @@ function getRiegoCellRaw(invId, dia, calle){
 function getRiego(invId,dia,calle){
   const raw = getRiegoCellRaw(invId, dia, calle);
   if(raw==null) return '';
-  return typeof raw==='string' ? raw : (raw.texto||'');
+  const texto = typeof raw==='string' ? raw : (raw.texto||'');
+  return typeof texto==='string' ? texto.trim() : texto;
 }
 function getRiegoMarcadoPor(invId, dia, calle){
   const raw = getRiegoCellRaw(invId, dia, calle);
@@ -11046,7 +11797,11 @@ async function marcarRiegoRevisadoPorVigueras(unlockKey){
   const calles = callesStr.split(',').map(Number);
   calles.forEach(c=>{
     const raw = getRiegoCellRaw(invId, dia, c);
-    if(raw && typeof raw==='object') raw.revisadoPorVigueras = true;
+    if(raw && typeof raw==='object'){
+      const antes = clonarRiegoSnapshot(raw);
+      raw.revisadoPorVigueras = true;
+      marcarRiegoDirtyCell(invId,dia,c,antes);
+    }
   });
   await saveRiegoData();
   logHistorial(`Vigueras ha confirmado este riego (${formatRangoConInv(invId, Math.min(...calles), Math.max(...calles))})`);
@@ -11607,6 +12362,8 @@ function imprimirHojaResumen(modulo, idx){
 let riegoSoloLectura = false;
 function showRiegoModule(soloLectura){
   riegoSoloLectura = !!soloLectura;
+  if(navigator.onLine!==false) procesarRiegoOffline();
+  else actualizarAvisoRiegoOffline();
   if(currentUser==='VIGUERAS') avisarAvisosPendientes(currentUser);
   // loadIndiceAbonosEstadoData va aquí porque renderRiegoGrid pinta las
   // celdas con los colores pastel de Preparado/Programado/Revisado del
@@ -11615,7 +12372,7 @@ function showRiegoModule(soloLectura){
   // flujo normal) no veía ningún color, y sí lo veía si ese día había
   // abierto antes el Índice: un fallo silencioso e imposible de reproducir
   // para quien lo reportara (auditoría 2026-09-11).
-  Promise.all([loadRiegoData(false), loadRiegoEjecutadoData(), loadIndiceAbonosEstadoData()]).then(()=>{
+  Promise.all([loadRiegoEjecutadoData(), loadIndiceAbonosEstadoData()]).then(()=>{
     const overlay = getOrCreateOverlay('riego-overlay');
     overlay.style.padding = '0';
     const titulo = riegoSoloLectura ? 'Hojas de riego' : 'Marcaje de riego';
@@ -11652,7 +12409,7 @@ function showRiegoModule(soloLectura){
             <button class="hdr-btn" onclick="showImprimirResumenSelector('riego')" title="Imprimir resumen de varios días" style="padding:6px 14px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:5px">
               <i class="ti ti-printer" style="font-size:13px"></i><span class="hdr-btn-label"> Imprimir</span>
             </button>
-            <button onclick="document.getElementById('riego-overlay').style.display='none'" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 11px;cursor:pointer;font-size:13px">✕</button>
+            <button onclick="cerrarRiegoModule()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 11px;cursor:pointer;font-size:13px">✕</button>
           </div>
         </div>
 
@@ -11714,7 +12471,7 @@ function showRiegoModule(soloLectura){
 
         <!-- GRID AREA -->
         <div id="riego-grid-wrap" style="flex:1;overflow:auto;background:#f8f9fa">
-          ${renderDashboardInvernaderos('riego')}
+          <div style="padding:2rem;text-align:center;color:#607080;font-size:13px">Elige un invernadero para cargar su hoja de riego.</div>
         </div>
       </div>`;
     overlay.style.display='flex';
@@ -11723,16 +12480,32 @@ function showRiegoModule(soloLectura){
   });
 }
 
-function selectRiegoInv(invId, btn){
+async function selectRiegoInv(invId, btn){
+  cerrarRiegoSync();
   riegoInvSel = invId;
   document.querySelectorAll('[data-rinv]').forEach(b=>{
     b.style.background='#fff'; b.style.color='#1558a0'; b.style.borderColor='#a8c4e8'; b.style.fontWeight='600';
   });
   if(btn){ btn.style.background='#1558a0'; btn.style.color='#fff'; btn.style.borderColor='#1558a0'; btn.style.fontWeight='800'; }
-  renderRiegoGrid(invId);
   const label = document.getElementById('riego-inv-selector-label');
-  if(label) label.textContent = 'INV.' + invId + ' · Cambiar';
+  if(label) label.textContent = 'INV.' + invId + ' · Cargando…';
   toggleRiegoInvSelector(false);
+
+  // Baseline antes y después de cargar: si alguien guarda justo durante la
+  // apertura, repetimos una sola vez la lectura v2 y no se pierde ese cambio.
+  const syncAntes = await leerRiegoSyncActual(invId);
+  let ok = await loadRiegoInvData(invId, false);
+  if(!ok) return false;
+  const syncDespues = await leerRiegoSyncActual(invId);
+  if((syncDespues?.id || null)!==(syncAntes?.id || null)){
+    ok = await loadRiegoInvData(invId, true);
+    if(!ok) return false;
+  }
+
+  renderRiegoGrid(invId);
+  iniciarRiegoSyncInv(invId, syncDespues?.id || syncAntes?.id || null);
+  if(label) label.textContent = 'INV.' + invId + ' · Cambiar';
+  return true;
 }
 // Selector de invernadero plegable (Marcaje de riego / Hojas de riego): con
 // 5 salas ya no cabe abierto de entrada en un móvil, así que arranca
@@ -12310,6 +13083,7 @@ function registrarUndoRiegoMultiInv(entradas){
 // falta más adelante, pero ya no lo consume ningún botón.
 function retrocederRiego(){
   if(riegoInvSel){
+    cerrarRiegoSync();
     riegoInvSel = null;
     document.querySelectorAll('[data-rinv]').forEach(b=>{
       b.style.background='#fff'; b.style.color='#1558a0'; b.style.borderColor='#a8c4e8'; b.style.fontWeight='600';
@@ -12317,7 +13091,7 @@ function retrocederRiego(){
     const wrap = document.getElementById('riego-grid-wrap');
     if(wrap) wrap.innerHTML = renderDashboardInvernaderos('riego');
   } else {
-    document.getElementById('riego-overlay').style.display = 'none';
+    cerrarRiegoModule();
   }
 }
 // Ya no hace falta habilitar/deshabilitar el botón según si hay algo que
@@ -12405,7 +13179,7 @@ function toggleRiegoAudio(){
   }
 }
 
-function parseRiegoAudio(text){
+async function parseRiegoAudio(text){
   if(!riegoInvSel) return;
   let inv = riegoInvSel;
   let dia = null;
@@ -12417,7 +13191,7 @@ function parseRiegoAudio(text){
   if(invM && INV_LAYOUT[invM[1].toUpperCase()]){
     inv = invM[1].toUpperCase();
     const btn = document.querySelector(`[data-rinv="${inv}"]`);
-    selectRiegoInv(inv, btn);
+    await selectRiegoInv(inv, btn);
   }
 
   // Extract day: "día 25", "el 25", "el día 25"
@@ -14332,7 +15106,7 @@ function leerInvernaderosBulkSeleccionados(prefix){
 // de ahí también su queja de que "la rectificación no se guarda, solo la
 // explicación" — las calles que sí quedaban dentro del nuevo tramo se
 // guardaban bien, pero el resto del invernadero seguía con el marcaje viejo).
-function aplicarTextoRiegoManual(invId, dia, tramos, texto, callesExtraALimpiar){
+async function aplicarTextoRiegoManual(invId, dia, tramos, texto, callesExtraALimpiar){
   const layout = INV_LAYOUT[invId];
   const allCalles = [...layout.row1, ...layout.row2];
   const callesAfectadas = [];
@@ -14358,14 +15132,14 @@ function aplicarTextoRiegoManual(invId, dia, tramos, texto, callesExtraALimpiar)
     // (el guardado normal no sabe "borrar", así que si se hicieran en dos
     // pasos sueltos una fusión tardía podría resucitar lo que la limpieza
     // acababa de borrar).
-    if(sobrantes.length) guardarRiegoConLimpieza(invId, dia, sobrantes);
-    else saveRiegoData();
+    if(sobrantes.length) await guardarRiegoConLimpieza(invId, dia, sobrantes);
+    else await saveRiegoData();
   } else {
     // Borrar: el guardado normal fusiona con la nube y no sabe "borrar" (la
     // celda ya vacía en local heredaría de la nube el valor antiguo que
     // borramos) — aquí se lee la nube fresca y se borra directamente, igual
     // que en Retroceder.
-    guardarBorradoRiego(invId, dia, [...callesAfectadas, ...sobrantes]);
+    await guardarBorradoRiego(invId, dia, [...callesAfectadas, ...sobrantes]);
   }
   renderRiegoGrid(invId);
   const tramosLabel = tramos.map(({desde,hasta})=>{const s=Math.min(desde,hasta),e=Math.max(desde,hasta); return s===e?`${s}`:`${s}-${e}`;}).join(', ');
@@ -14376,33 +15150,31 @@ function aplicarTextoRiegoManual(invId, dia, tramos, texto, callesExtraALimpiar)
 // unas calles sobrantes en la MISMA lectura/escritura de la nube — usado
 // cuando se reduce el tramo de un riego ya existente (ver aplicarTextoRiegoManual).
 async function guardarRiegoConLimpieza(invId, dia, callesALimpiar){
-  try{
-    const r = await window.storage.get(RIEGO_KEY);
-    if(!r){ avisarFalloGuardado(); return; }
-    let cloud = JSON.parse(r.value);
-    cloud = mergeDeepPreferLocal(cloud, riegoData);
-    if(cloud[invId] && cloud[invId][dia]) callesALimpiar.forEach(c=>delete cloud[invId][dia][c]);
-    riegoData = cloud;
-    await window.storage.set(RIEGO_KEY, JSON.stringify(cloud));
-  }catch(e){ avisarFalloGuardado(); return; }
+  const ok = await saveRiegoInvPatch(invId, [{dia, calles:callesALimpiar}], true);
+  if(!ok) return false;
   showToast('✓ Riego guardado');
   logHistorial(`Guardó riego${riegoInvSel?' de INV '+riegoInvSel:''}`);
+  return true;
 }
 async function guardarBorradoRiego(invId, dia, calles){
   await guardarBorradoRiegoMultiInv([{invId, dia, calles}]);
 }
 async function guardarBorradoRiegoMultiInv(entradas){
   try{
-    const r = await window.storage.get(RIEGO_KEY);
-    if(!r){ avisarFalloGuardado(); return; }
-    const cloud = JSON.parse(r.value);
-    entradas.forEach(({invId, dia, calles})=>{
-      if(cloud[invId] && cloud[invId][dia]) calles.forEach(c=>delete cloud[invId][dia][c]);
+    const porInv = {};
+    entradas.forEach(({invId,dia,calles})=>{
+      const id = String(invId);
+      if(!porInv[id]) porInv[id]=[];
+      porInv[id].push({dia,calles});
     });
-    await window.storage.set(RIEGO_KEY, JSON.stringify(cloud));
-  }catch(e){ avisarFalloGuardado(); return; }
+    for(const invId of Object.keys(porInv)){
+      const ok = await saveRiegoInvPatch(invId, porInv[invId], false);
+      if(!ok) return false;
+    }
+  }catch(e){ avisarFalloGuardado(); return false; }
   const invs = entradas.map(e=>e.invId);
   logHistorial(invs.length>1 ? `Borró riego de ${invs.length} invernaderos (${invs.join(',')})` : `Borró riego de INV ${invs[0]}`);
+  return true;
 }
 // aplicarTextoRiegoManualMultiInv (aplicar SIEMPRE el invernadero completo a
 // varios a la vez, sin tramo/exclusión) se quitó el 2026-08-06 al unificar
@@ -14449,7 +15221,7 @@ async function saveRiegoManual(){
         await aplicarTextoRiegoManualMoviendoDia(invId, contextoOriginal.dia, contextoOriginal.calles, dia, tramos, textoCompleto);
       } else {
         const callesOriginalesMismoDia = (contextoOriginal && contextoOriginal.invId===invId && contextoOriginal.dia===dia) ? contextoOriginal.calles : null;
-        aplicarTextoRiegoManual(invId, dia, tramos, textoCompleto, callesOriginalesMismoDia);
+        await aplicarTextoRiegoManual(invId, dia, tramos, textoCompleto, callesOriginalesMismoDia);
       }
     }
   } finally {
@@ -14485,16 +15257,8 @@ async function aplicarTextoRiegoManualMoviendoDia(invId, diaOriginal, callesOrig
   callesOriginal.forEach(c=>{ if(riegoData[invId]?.[diaOriginal]) delete riegoData[invId][diaOriginal][c]; });
 
   document.getElementById('riego-manual-overlay').style.display = 'none';
-  try{
-    const r = await window.storage.get(RIEGO_KEY);
-    if(!r){ avisarFalloGuardado(); return false; }
-    const cloud = JSON.parse(r.value);
-    if(!cloud[invId]) cloud[invId] = {};
-    if(!cloud[invId][diaNuevo]) cloud[invId][diaNuevo] = {};
-    callesNuevas.forEach(c=>{ cloud[invId][diaNuevo][c] = riegoData[invId][diaNuevo][c]; });
-    if(cloud[invId][diaOriginal]) callesOriginal.forEach(c=>delete cloud[invId][diaOriginal][c]);
-    await window.storage.set(RIEGO_KEY, JSON.stringify(cloud));
-  }catch(e){ avisarFalloGuardado(); return false; }
+  const okSave = await saveRiegoInvPatch(invId, [{dia:diaOriginal, calles:callesOriginal}], true);
+  if(!okSave) return false;
   renderRiegoGrid(invId);
   const tramosLabel = tramosNuevos.map(({desde,hasta})=>{const s=Math.min(desde,hasta),e=Math.max(desde,hasta); return s===e?`${s}`:`${s}-${e}`;}).join(', ');
   showToast(`✓ Riego movido del día ${diaOriginal} al día ${diaNuevo}, C/${tramosLabel} → "${texto}"`);
@@ -14510,10 +15274,10 @@ async function borrarRiegoManual(){
   if(!invIds.length){ showToast('Elige al menos un invernadero'); return; }
   // Las tareas de peón ya no se tocan aquí — ver comentario en
   // saveRiegoManual (botón "Generar tareas" en Tareas).
-  invIds.forEach(invId=>{
+  for(const invId of invIds){
     const {tramos} = calcularCallesRmBulk(invId);
-    aplicarTextoRiegoManual(invId, dia, tramos, '');
-  });
+    await aplicarTextoRiegoManual(invId, dia, tramos, '');
+  }
 }
 function tramosLabelTexto(invId, tramos){
   return tramos.map(({desde,hasta})=>{const s=Math.min(desde,hasta),e=Math.max(desde,hasta); return formatRangoConInv(invId, s, e);}).join(', ');
@@ -14750,15 +15514,15 @@ function abrirPostItRiego(){
     </div>`;
   po.style.display = 'flex';
 }
-function guardarPostItRiego(){
+async function guardarPostItRiego(){
   const nota = document.getElementById('rm-postit-texto').value.trim();
   if(!nota){ showToast('Escribe algo en la nota'); return; }
   document.getElementById('riego-postit-overlay').style.display = 'none';
   const dia = parseInt(document.getElementById('rm-dia').value);
-  leerRmBulkInvsSeleccionados().forEach(invId=>{
+  for(const invId of leerRmBulkInvsSeleccionados()){
     const {tramos} = calcularCallesRmBulk(invId);
-    aplicarTextoRiegoManual(invId, dia, tramos, '* '+nota);
-  });
+    await aplicarTextoRiegoManual(invId, dia, tramos, '* '+nota);
+  }
 }
 // Pulsar la etiqueta de un día en la cuadrícula abre el alta manual con ese
 // día ya puesto (para no tener que elegirlo otra vez en el desplegable).
@@ -15028,7 +15792,8 @@ function renderPropuestasRiegoContent(overlay){
 // saveRiegoData, para no arrastrar el "motivo de corrección"/deshacer de
 // updateBracketValue (esto ya es una acción explícita y auditada de Vigueras).
 async function aplicarPropuestaRiego(p, textoFinal){
-  await loadRiegoData();
+  const okLoad = await loadRiegoInvData(p.invId, true);
+  if(!okLoad) return false;
   const s = Math.min(...p.calles), e = Math.max(...p.calles);
   // origenPropuesta:true marca la celda para que renderRiegoGrid la pinte de
   // lila — a petición de Paula, para distinguir a simple vista lo que viene
@@ -19431,3 +20196,4 @@ function conGuardiaReentrada(fn){
 </script>
 </body>
 </html>
+<!-- VERCEL TEST v1.0 deployment trigger 2026-09-22 -->
