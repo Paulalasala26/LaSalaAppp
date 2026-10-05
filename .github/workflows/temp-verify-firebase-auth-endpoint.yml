@@ -1,0 +1,28 @@
+name: TEMP Verify Firebase Auth endpoint
+
+on:
+  push:
+    branches:
+      - test/v1.0
+    paths:
+      - .github/workflows/temp-verify-firebase-auth-endpoint.yml
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Comprobar backend Firebase Auth TEST
+        shell: bash
+        run: |
+          set -euo pipefail
+          BODY="$(curl -fsS --retry 3 --retry-delay 2 https://la-sala-app-test.vercel.app/api/firebase-auth)"
+          echo "AUTH_ENDPOINT_BODY=$BODY"
+          python - "$BODY" <<'PY'
+          import json,sys
+          j=json.loads(sys.argv[1])
+          if j.get("configured") is not True:
+              raise SystemExit("configured != true")
+          if j.get("projectOk") is not True:
+              raise SystemExit("projectOk != true")
+          print("AUTH_ENDPOINT_RESULT OK configured=true projectOk=true")
+          PY
