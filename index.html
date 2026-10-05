@@ -4773,8 +4773,8 @@ let controlFotosDataCargada = false;
 // recién subida (Check Túnel/Carga) siguen llamando con forzar=true (o sin
 // argumento, que por defecto sigue refrescando).
 // Carga PEREZOSA (a petición de Paula, 2026-09-04, "¿podemos optimizar aún
-// más?"): las fotos de Control suman 115 shards — 609MB en total — y esta
-// función los descargaba TODOS de golpe la primera vez que se abría Control
+// más?"): las fotos de Control ocupan más de 100 shards y cientos de MB;
+// antes esta función los descargaba TODOS de golpe la primera vez que se abría Control
 // en cada sesión. Ahora solo carga la lista de shards (para saber dónde
 // escribir una foto nueva, ver elegirShardParaFoto) y el índice ligero
 // id→shard (cargarIndiceFotosPartida, ya existía para el historial de
@@ -4892,81 +4892,117 @@ function cargarFotoControlSiFalta(id){
   });
 }
 async function guardarIndiceFotosPartida(mapaIdShard){
-  try{
-    // cargarIndiceFotosPartida() cachea `controlFotosIndiceIdShard` para
-    // toda la sesión (por rendimiento — ver comentario de esa función). Si
-    // aquí se fusionara la foto nueva sobre esa copia posiblemente antigua
-    // y se sobrescribiera la nube entera, cualquier foto que OTRO
-    // dispositivo hubiera añadido al índice después de que esta sesión
-    // cargara su copia quedaría borrada del índice (la foto en sí no se
-    // pierde, pero deja de ser localizable). Por eso aquí SIEMPRE se relee
-    // el índice fresco de la nube antes de fusionar, en vez de fiarse de
-    // la copia en memoria.
-    const r = await window.storage.get(CONTROL_FOTOS_INDICE_KEY);
-    // Si esta relectura falla, r es null — igual que si el índice
-    // estuviera vacío. NO se puede tratar como "vacío de verdad" (borraría
-    // el índice de todas las demás fotos ya subidas): se aborta en vez de
-    // seguir con un índice a medias.
-    if(!r) return;
-    const fresco = JSON.parse(r.value);
-    controlFotosIndiceIdShard = { ...fresco, ...mapaIdShard };
-    await window.storage.set(CONTROL_FOTOS_INDICE_KEY, JSON.stringify(controlFotosIndiceIdShard));
-  }catch(e){}
+  const url=`${CLOUD_DB_URL}/${encodeURIComponent(CONTROL_FOTOS_INDICE_KEY)}.json`;
+  for(let intento=1; intento<=5; intento++){
+    try{
+      const getRes=await fetch(url,{headers:{'X-Firebase-ETag':'true'},cache:'no-store'});
+      if(!getRes.ok) throw new Error('HTTP '+getRes.status);
+      const etag=getRes.headers.get('ETag');
+      if(!etag) throw new Error('Firebase no devolvió ETag');
+      const val=await getRes.json();
+      // El índice ya existe en PRD/TEST. Si alguna instalación nueva aún no
+      // lo tiene, un null HTTP real sí puede inicializarse de forma segura.
+      const fresco=val==null ? {} : JSON.parse(val);
+      const unido={...fresco,...mapaIdShard};
+      const putRes=await fetch(url,{
+        method:'PUT',
+        headers:{'Content-Type':'application/json','if-match':etag},
+        body:JSON.stringify(JSON.stringify(unido))
+      });
+      if(putRes.ok){
+        controlFotosIndiceIdShard=unido;
+        return true;
+      }
+      if(putRes.status!==412) throw new Error('HTTP '+putRes.status);
+    }catch(e){
+      if(intento===5) return false;
+    }
+    await new Promise(r=>setTimeout(r,120*intento));
+  }
+  return false;
 }
 async function elegirShardParaFoto(id, fotoB64Len){
   if(controlFotosShardDeId[id]) return controlFotosShardDeId[id];
-  const ultimoKey = controlFotosShardKeys[controlFotosShardKeys.length-1];
-  let tamActual = 0;
-  try{ const r = await window.storage.get(ultimoKey); if(r) tamActual = r.value.length; }catch(e){}
-  if(tamActual + fotoB64Len < CONTROL_FOTOS_SHARD_MAX_CHARS) return ultimoKey;
-  // Hace falta un shard nuevo. `controlFotosShardKeys` se cargó UNA vez al
-  // abrir Control y se cachea toda la sesión (ver loadControlFotosData), así
-  // que puede estar desactualizado: si otro dispositivo ha creado shards
-  // mientras tanto, calcular el nombre nuevo desde esta copia daría un
-  // nombre ya en uso, y escribir esta lista encima borraría del índice los
-  // shards que creó el otro (las fotos no se pierden, pero el índice deja
-  // de reflejar la realidad). Por eso se relee el índice fresco de la nube
-  // antes de decidir el nombre y se fusiona (unión), mismo criterio que
-  // guardarIndiceFotosPartida. Detectado en la auditoría del 2026-09-11.
-  let listaFresca = null;
-  try{
-    const rIdx = await window.storage.get(CONTROL_FOTOS_SHARDS_INDEX_KEY);
-    if(rIdx) listaFresca = JSON.parse(rIdx.value);
-  }catch(e){}
-  if(!Array.isArray(listaFresca)){
-    // No se ha podido leer el índice (fallo de red): NO se crea un shard
-    // nuevo a ciegas — se reutiliza el último conocido. Si de verdad está
-    // lleno, el guardado fallará y se avisará al usuario, que es mucho
-    // menos grave que dejar el índice de shards inconsistente.
-    return ultimoKey;
+  const ultimoConocido=controlFotosShardKeys[controlFotosShardKeys.length-1];
+  const cabeEnShard=async key=>{
+    try{
+      const r=await window.storage.get(key);
+      return !!r && (r.value.length+fotoB64Len<CONTROL_FOTOS_SHARD_MAX_CHARS);
+    }catch(e){ return false; }
+  };
+  if(await cabeEnShard(ultimoConocido)) return ultimoConocido;
+
+  // Creación concurrente segura del siguiente shard. Si otro dispositivo
+  // crea uno entre GET y PUT, Firebase devuelve 412; se relee el índice y,
+  // si el nuevo último shard tiene hueco, se reutiliza en vez de crear otro.
+  const url=`${CLOUD_DB_URL}/${encodeURIComponent(CONTROL_FOTOS_SHARDS_INDEX_KEY)}.json`;
+  for(let intento=1; intento<=5; intento++){
+    try{
+      const getRes=await fetch(url,{headers:{'X-Firebase-ETag':'true'},cache:'no-store'});
+      if(!getRes.ok) throw new Error('HTTP '+getRes.status);
+      const etag=getRes.headers.get('ETag');
+      if(!etag) throw new Error('Firebase no devolvió ETag');
+      const val=await getRes.json();
+      const lista=val==null ? [CONTROL_FOTOS_KEY] : JSON.parse(val);
+      if(!Array.isArray(lista) || !lista.length) return null;
+      const union=[...new Set([...lista,...controlFotosShardKeys])];
+      const ultimo=union[union.length-1];
+      if(ultimo!==ultimoConocido && await cabeEnShard(ultimo)){
+        controlFotosShardKeys=union;
+        return ultimo;
+      }
+      const nuevoKey=`lasala-control-fotos-v1-${union.length+1}`;
+      const siguiente=[...union,nuevoKey];
+      const putRes=await fetch(url,{
+        method:'PUT',
+        headers:{'Content-Type':'application/json','if-match':etag},
+        body:JSON.stringify(JSON.stringify(siguiente))
+      });
+      if(putRes.ok){
+        controlFotosShardKeys=siguiente;
+        return nuevoKey;
+      }
+      if(putRes.status!==412) throw new Error('HTTP '+putRes.status);
+    }catch(e){
+      if(intento===5) return null;
+    }
+    await new Promise(r=>setTimeout(r,120*intento));
   }
-  const union = [...new Set([...listaFresca, ...controlFotosShardKeys])];
-  const nuevoKey = `lasala-control-fotos-v1-${union.length+1}`;
-  controlFotosShardKeys = [...union, nuevoKey];
-  await window.storage.set(CONTROL_FOTOS_SHARDS_INDEX_KEY, JSON.stringify(controlFotosShardKeys));
-  return nuevoKey;
+  return null;
 }
 // A diferencia del resto de persist*Data() de la app, este recibe el id de
 // la foto que se acaba de tocar — necesita saber CUÁL es para decidir en
 // qué shard escribir (solo se reescribe ESE shard, no todos).
 async function persistControlFotosData(id){
   try{
-    const shardKey = await elegirShardParaFoto(id, JSON.stringify(controlFotosData[id]||'').length);
-    controlFotosShardDeId[id] = shardKey;
-    const r = await window.storage.get(shardKey);
-    // Si la lectura falla, r es null — igual que si el shard estuviera
-    // vacío. NUNCA tratarlo como "vacío de verdad": eso borraría todas las
-    // demás fotos ya guardadas en este shard al escribir solo las que esta
-    // sesión tiene en memoria (mismo patrón de incidente que en Riego el
-    // 14/08/2026). Se aborta el guardado en vez de asumir un shard vacío.
-    if(!r) return false;
-    const cloud = JSON.parse(r.value);
-    Object.keys(controlFotosData).forEach(otroId=>{
-      if(controlFotosShardDeId[otroId]===shardKey) cloud[otroId] = controlFotosData[otroId];
-    });
-    const ok = await window.storage.set(shardKey, JSON.stringify(cloud));
-    if(ok) guardarIndiceFotosPartida({[id]: shardKey});
-    return ok;
+    const shardKey=await elegirShardParaFoto(id,JSON.stringify(controlFotosData[id]||'').length);
+    if(!shardKey) return false;
+    controlFotosShardDeId[id]=shardKey;
+    const url=`${CLOUD_DB_URL}/${encodeURIComponent(shardKey)}.json`;
+
+    // Solo se reaplica ESTA foto sobre el shard fresco. ETag evita que dos
+    // móviles subiendo fotos al mismo shard se borren mutuamente.
+    for(let intento=1; intento<=5; intento++){
+      const getRes=await fetch(url,{headers:{'X-Firebase-ETag':'true'},cache:'no-store'});
+      if(!getRes.ok) throw new Error('HTTP '+getRes.status);
+      const etag=getRes.headers.get('ETag');
+      if(!etag) throw new Error('Firebase no devolvió ETag');
+      const val=await getRes.json();
+      const cloud=val==null ? {} : JSON.parse(val);
+      cloud[id]=controlFotosData[id];
+      const putRes=await fetch(url,{
+        method:'PUT',
+        headers:{'Content-Type':'application/json','if-match':etag},
+        body:JSON.stringify(JSON.stringify(cloud))
+      });
+      if(putRes.ok){
+        const okIndice=await guardarIndiceFotosPartida({[id]:shardKey});
+        return !!okIndice;
+      }
+      if(putRes.status!==412) throw new Error('HTTP '+putRes.status);
+      await new Promise(r=>setTimeout(r,120*intento));
+    }
+    return false;
   }catch(e){ return false; }
 }
 // Una línea de check: {id, tipo:'tunel'|'carga', dia, clienteVariedad,
@@ -5553,29 +5589,46 @@ async function cargarControlPdfDia(seccionKey, dia){
 }
 async function guardarControlPdf(tipo, dia, nombre, pdfB64){
   try{
-    const claveTipoDia = tipo+'|'+dia;
-    const valor = { nombre, pdfB64, subidoPor: currentUser||'—', subidoEn: new Date().toLocaleString('es-ES') };
-    await window.storage.set(controlPdfEntryKey(tipo, dia), JSON.stringify(valor));
-    controlPdfsData[claveTipoDia] = valor;
-    // Índice: solo una lista de claves, minúsculo (nunca crece como el PDF
-    // en sí) — read-merge-write igual que el resto de índices de la app.
-    // Si la lectura falla, rIndice es null — igual que si el índice
-    // estuviera vacío. Tratarlo como "vacío de verdad" borraría del índice
-    // TODOS los PDF de Túnel/Carga subidos anteriormente (el PDF en sí no
-    // se pierde, pero deja de aparecer en la app al no estar en la lista).
-    // Se omite la actualización del índice en vez de asumir que está vacío
-    // — el PDF recién subido ya quedó guardado en su propia clave arriba,
-    // así que solo falta que el índice se entere en un próximo intento.
-    const rIndice = await window.storage.get(CONTROL_PDFS_INDICE_KEY);
-    if(rIndice){
-      const indice = JSON.parse(rIndice.value);
-      if(!indice.includes(claveTipoDia)){
-        indice.push(claveTipoDia);
-        await window.storage.set(CONTROL_PDFS_INDICE_KEY, JSON.stringify(indice));
+    const claveTipoDia=tipo+'|'+dia;
+    const valor={nombre,pdfB64,subidoPor:currentUser||'—',subidoEn:new Date().toLocaleString('es-ES')};
+    const okPdf=await window.storage.set(controlPdfEntryKey(tipo,dia),JSON.stringify(valor));
+    if(!okPdf) return false;
+
+    const url=`${CLOUD_DB_URL}/${encodeURIComponent(CONTROL_PDFS_INDICE_KEY)}.json`;
+    let indiceGuardado=null;
+    for(let intento=1; intento<=5; intento++){
+      const getRes=await fetch(url,{headers:{'X-Firebase-ETag':'true'},cache:'no-store'});
+      if(!getRes.ok) throw new Error('HTTP '+getRes.status);
+      const etag=getRes.headers.get('ETag');
+      if(!etag) throw new Error('Firebase no devolvió ETag');
+      const val=await getRes.json();
+      const indice=val==null ? [] : JSON.parse(val);
+      if(!Array.isArray(indice)) throw new Error('Índice PDF inválido');
+      if(indice.includes(claveTipoDia)){
+        indiceGuardado=indice;
+        break;
       }
+      const siguiente=[...indice,claveTipoDia];
+      const putRes=await fetch(url,{
+        method:'PUT',
+        headers:{'Content-Type':'application/json','if-match':etag},
+        body:JSON.stringify(JSON.stringify(siguiente))
+      });
+      if(putRes.ok){
+        indiceGuardado=siguiente;
+        break;
+      }
+      if(putRes.status!==412) throw new Error('HTTP '+putRes.status);
+      await new Promise(r=>setTimeout(r,120*intento));
     }
-    if(!controlPdfsIndice.includes(claveTipoDia)) controlPdfsIndice.push(claveTipoDia);
-  }catch(e){}
+    if(!indiceGuardado) return false;
+    controlPdfsData[claveTipoDia]=valor;
+    controlPdfsIndice=indiceGuardado;
+    return true;
+  }catch(e){
+    avisarFalloGuardado();
+    return false;
+  }
 }
 let controlSeccion = null;
 let controlQuincenaOffset = 0;
@@ -6406,7 +6459,11 @@ function handleControlPdfInput(input, tipo, dia){
   const file = input.files[0];
   const reader = new FileReader();
   reader.onload = async function(e){
-    await guardarControlPdf(tipo, dia, file.name, e.target.result);
+    const pdfOk=await guardarControlPdf(tipo,dia,file.name,e.target.result);
+    if(!pdfOk){
+      showToast('❌ Error al guardar el PDF — inténtalo de nuevo');
+      return;
+    }
     // El check de Carga tiene otra plantilla de PDF (Cliente/Partida/
     // Variedad/Nº Band/Invernadero en columnas distintas a las de Túnel) —
     // a la espera de que Paula mande un PDF real de Carga para calibrar su
