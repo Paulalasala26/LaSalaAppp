@@ -8938,7 +8938,7 @@ async function mostrarHistorialPartida(id){
   await Promise.all([
     c.invId ? loadRiegoInvData(c.invId, false) : Promise.resolve(true),
     c.invId ? loadFitoInvData(c.invId, false) : Promise.resolve(true),
-    loadEspecificosData(false)
+    c.invId ? loadEspecificosInvData(c.invId, false) : Promise.resolve(true)
   ]);
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const tramos = (c.tramos && c.tramos.length) ? c.tramos : [{desde:c.calleDesde, hasta:c.calleHasta}];
@@ -17831,7 +17831,10 @@ async function saveFitoManual(){
   // (un específico de otro día no cuenta), se cancela el alta entera.
   // PERO: si el Específico es "POR LA MAÑANA" y el Plaguicida es por la tarde,
   // SÍ se permite. Solo se bloquea si ambos son por la tarde.
-  if(!Object.keys(especificosData).length) await loadEspecificosData(false);
+  // El conflicto Fito↔Específico solo necesita los invernaderos de esta alta.
+  // Cargar el global entero aquí era innecesario y además podía ocultar que la
+  // caché local solo contenía un subconjunto.
+  if(!(await loadEspecificosInvsData(bulkInvIds,false))) return;
   for(const {invId, calles, tramos} of porInv){
     const callesAComprobar = tramos ? tramos.flatMap(({desde,hasta})=>{
       const s=Math.min(desde,hasta), e=Math.max(desde,hasta), arr=[];
@@ -18109,7 +18112,14 @@ function imprimirHojaFitosanitario(){
 // esta pantalla solo muestra lo marcado aquí, nunca lo marcado en Riego.
 // ════════════════════════════════════════════════════════════════
 const ESPECIFICOS_KEY = 'lasala-especificos-v1';
+const ESPECIFICOS_V2_INDEX_KEY = 'lasala-especificos-v2-index';
+function especificosV2Key(invId){ return `lasala-especificos-v2-${String(invId)}`; }
 let especificosData = {}; // especificosData[invId][dia][calle] = texto
+const especificosDirtyInvs = new Set();
+function clonarEspecificosSnapshot(v){
+  if(v==null) return null;
+  return JSON.parse(JSON.stringify(v));
+}
 // Banner rosa en la tarjeta de Partidas (fusión Partidas+Específicos,
 // 2026-08-11): especificosPartidaData[partidaEntryId] = [{trat,dosis,
 // horario,fechaLabel,fechaISO}, ...] — independiente de especificosData
@@ -18159,30 +18169,164 @@ function renderEspecificosQuincenaBar(){
 }
 
 let especificosDataCargadaEn = 0;
+const especificosInvCargadaEn = {};
 const ESPECIFICOS_DATA_CACHE_TTL_MS = 30000;
 async function loadEspecificosData(forzar){
-  if(forzar===false && especificosDataCargadaEn && (Date.now()-especificosDataCargadaEn)<ESPECIFICOS_DATA_CACHE_TTL_MS) return;
-  try{const r=await window.storage.get(ESPECIFICOS_KEY);if(r)especificosData=JSON.parse(r.value); especificosDataCargadaEn=Date.now();}catch(e){}
+  if(forzar===false && especificosDataCargadaEn && (Date.now()-especificosDataCargadaEn)<ESPECIFICOS_DATA_CACHE_TTL_MS) return true;
+  // Si hay ediciones locales pendientes, conservar esos INV al refrescar el
+  // global; el resto sí se sustituye por la nube fresca.
+  const dirtyLocal={};
+  especificosDirtyInvs.forEach(invId=>{ dirtyLocal[invId]=clonarEspecificosSnapshot(especificosData[invId]||{}); });
+  try{
+    const r=await window.storage.get(ESPECIFICOS_KEY);
+    if(!r) return false;
+    especificosData=JSON.parse(r.value);
+    Object.entries(dirtyLocal).forEach(([invId,data])=>{ especificosData[invId]=data; });
+    const ahora=Date.now();
+    especificosDataCargadaEn=ahora;
+    Object.keys(especificosData).forEach(invId=>{
+      if(!especificosDirtyInvs.has(String(invId))) especificosInvCargadaEn[String(invId)]=ahora;
+    });
+    return true;
+  }catch(e){ return false; }
+}
+async function loadEspecificosV2Index(modoGuardado){
+  try{
+    const r=await window.storage.get(ESPECIFICOS_V2_INDEX_KEY);
+    if(!r){ if(modoGuardado) avisarFalloGuardado(); else avisarFalloCarga(); return null; }
+    const ids=JSON.parse(r.value);
+    if(!Array.isArray(ids)) throw new Error('Índice Específicos v2 inválido');
+    return ids.map(String);
+  }catch(e){
+    if(modoGuardado) avisarFalloGuardado(); else avisarFalloCarga();
+    return null;
+  }
+}
+async function leerEspecificosV2Nodo(invId,modoGuardado){
+  try{
+    const res=await fetchConReintentos(`${CLOUD_DB_URL}/${encodeURIComponent(especificosV2Key(invId))}.json`);
+    const val=await res.json();
+    if(val==null) return {ok:true,exists:false,data:{}};
+    return {ok:true,exists:true,data:JSON.parse(val)};
+  }catch(e){
+    if(modoGuardado) avisarFalloGuardado(); else avisarFalloCarga();
+    return {ok:false,exists:false,data:null};
+  }
+}
+async function loadEspecificosInvData(invId,forzar){
+  return loadEspecificosInvsData([String(invId)],forzar);
+}
+async function loadEspecificosInvsData(invIds,forzar){
+  const unicos=[...new Set((invIds||[]).map(String))];
+  if(!unicos.length) return true;
+  const ahora=Date.now();
+  const pendientes=unicos.filter(invId=>{
+    if(especificosDirtyInvs.has(invId)) return false;
+    return !(forzar===false && especificosInvCargadaEn[invId] && (ahora-especificosInvCargadaEn[invId])<ESPECIFICOS_DATA_CACHE_TTL_MS);
+  });
+  if(!pendientes.length) return true;
+  const ids=await loadEspecificosV2Index(false);
+  if(!ids) return false;
+  const existentes=new Set(ids.map(String));
+  try{
+    const pares=await Promise.all(pendientes.map(async invId=>{
+      if(!existentes.has(invId)) return [invId,{}];
+      const nodo=await leerEspecificosV2Nodo(invId,false);
+      if(!nodo.ok || !nodo.exists) throw new Error('Falta Específicos v2 de INV '+invId);
+      return [invId,nodo.data];
+    }));
+    const ts=Date.now();
+    pares.forEach(([invId,data])=>{
+      especificosData[invId]=data;
+      especificosInvCargadaEn[invId]=ts;
+    });
+    return true;
+  }catch(e){
+    avisarFalloCarga();
+    return false;
+  }
+}
+async function actualizarEspecificosV2IndexConInv(invId){
+  const url=`${CLOUD_DB_URL}/${encodeURIComponent(ESPECIFICOS_V2_INDEX_KEY)}.json`;
+  const id=String(invId);
+  for(let intento=1; intento<=5; intento++){
+    try{
+      const getRes=await fetch(url,{headers:{'X-Firebase-ETag':'true'}});
+      if(!getRes.ok) throw new Error('HTTP '+getRes.status);
+      const etag=getRes.headers.get('ETag');
+      if(!etag) throw new Error('Firebase no devolvió ETag');
+      const val=await getRes.json();
+      if(val==null){ avisarFalloGuardado(); return false; }
+      const ids=JSON.parse(val);
+      if(!Array.isArray(ids)){ avisarFalloGuardado(); return false; }
+      if(ids.map(String).includes(id)) return true;
+      ids.push(id);
+      const putRes=await fetch(url,{
+        method:'PUT',
+        headers:{'Content-Type':'application/json','if-match':etag},
+        body:JSON.stringify(JSON.stringify(ids))
+      });
+      if(putRes.ok) return true;
+      if(putRes.status!==412) throw new Error('HTTP '+putRes.status);
+    }catch(e){
+      if(intento===5){ avisarFalloGuardado(); return false; }
+    }
+    await new Promise(r=>setTimeout(r,120*intento));
+  }
+  avisarFalloGuardado();
+  return false;
+}
+async function syncEspecificosV2InvsDesdeCloud(cloud,invIds){
+  const unicos=[...new Set((invIds||[]).map(String))];
+  if(!unicos.length) return true;
+  let ids=await loadEspecificosV2Index(true);
+  if(!ids) return false;
+  for(const invId of unicos){
+    if(!ids.includes(invId)){
+      const okIdx=await actualizarEspecificosV2IndexConInv(invId);
+      if(!okIdx) return false;
+      ids.push(invId);
+    }
+    const ok=await window.storage.set(especificosV2Key(invId),JSON.stringify(cloud[invId]||{}));
+    if(!ok){ avisarFalloGuardado(); return false; }
+  }
+  return true;
 }
 async function saveEspecificosData(){
+  const invsDirty=[...especificosDirtyInvs];
+  if(!invsDirty.length){
+    showToast('✓ Sin cambios pendientes');
+    return true;
+  }
   try{
-    const r = await window.storage.get(ESPECIFICOS_KEY);
-    // Mismo riesgo que saveFitoData: r=null puede ser un fallo de red, no
-    // Específicos vacío de verdad. Se aborta (y se avisa) en vez de
-    // mostrar "guardado" con un catch silencioso.
-    if(!r){ avisarFalloGuardado(); return; }
-    const cloud = JSON.parse(r.value);
-    especificosData = mergeDeepPreferLocal(cloud, especificosData);
-    const ok = await window.storage.set(ESPECIFICOS_KEY, JSON.stringify(especificosData));
-    if(!ok){ avisarFalloGuardado(); return; }
-  }catch(e){ avisarFalloGuardado(); return; }
+    const r=await window.storage.get(ESPECIFICOS_KEY);
+    // Solo se fusionan los INV realmente editados: un shard cargado para
+    // consulta no puede sobrescribir por accidente una versión remota nueva.
+    if(!r){ avisarFalloGuardado(); return false; }
+    const cloud=JSON.parse(r.value);
+    invsDirty.forEach(invId=>{
+      cloud[invId]=mergeDeepPreferLocal(cloud[invId]||{},especificosData[invId]||{});
+    });
+    const ok=await window.storage.set(ESPECIFICOS_KEY,JSON.stringify(cloud));
+    if(!ok){ avisarFalloGuardado(); return false; }
+    if(!(await syncEspecificosV2InvsDesdeCloud(cloud,invsDirty))) return false;
+    invsDirty.forEach(invId=>{
+      especificosData[invId]=clonarEspecificosSnapshot(cloud[invId]||{});
+      especificosInvCargadaEn[invId]=Date.now();
+      especificosDirtyInvs.delete(invId);
+    });
+    especificosDataCargadaEn=0;
+  }catch(e){ avisarFalloGuardado(); return false; }
   showToast('✓ Específicos guardado');
   logHistorial(`Guardó específicos${especificosInvSel?' de INV '+especificosInvSel:''}`);
+  return true;
 }
 // Mismo cambio que setFito/getFito (a petición de Paula, 2026-07-31): el
 // caldo se guarda SIEMPRE en la propia celda, no solo en la tarea que se le
 // asigna al regante.
 function setEspecifico(invId,dia,calle,val,extra){
+  invId=String(invId);
+  especificosDirtyInvs.add(invId);
   if(!especificosData[invId])especificosData[invId]={};
   if(!especificosData[invId][dia])especificosData[invId][dia]={};
   if(val){
@@ -18210,8 +18354,13 @@ function getEspecifico(invId,dia,calle){
 // quincena (renderResumenQuincenaTratamientos), sin invernaderos ni calles.
 // Editar/Imprimir de cada tarjeta siguen funcionando igual (reabren
 // showEspecificoManualForm), no se tocó esa lógica.
+function cargaEspecificosVisibleUsuario(){
+  if(currentUserRole!=='REGANTE') return loadEspecificosData(false);
+  const SALAS_REGANTE_ESP={REGANTE1:['sala1'],REGANTE2:['sala2'],REGANTE3:['sala3','sala4','sala5']};
+  return loadEspecificosInvsData(riegoInvIdsDeSalas(SALAS_REGANTE_ESP[currentUser]||['sala1']),false);
+}
 function showEspecificoResumenModule(){
-  Promise.all([loadEspecificosData(false), loadPresenciaData(), loadTareasData(false)]).then(()=>{
+  Promise.all([cargaEspecificosVisibleUsuario(), loadPresenciaData(), loadTareasData(false)]).then(()=>{
     especificosQuincenaOffset = riegoQuincenaOffsetActual();
     const overlay = getOrCreateOverlay('especifico-resumen-overlay');
     overlay.style.padding = '0';
@@ -18307,8 +18456,9 @@ function showEspecificosModule(){
         <div style="flex:1;display:flex;align-items:center;justify-content:center;color:#999">Cargando específicos...</div>
       </div>`;
 
-    // Cargar datos en background
-    Promise.all([loadEspecificosData(false), loadPresenciaData(), loadTareasData(false)]).then(()=>{
+    // Cargar datos en background. REGANTE solo necesita sus salas; el
+    // dashboard/resumen ya filtra exactamente con ese mismo alcance.
+    Promise.all([cargaEspecificosVisibleUsuario(), loadPresenciaData(), loadTareasData(false)]).then(()=>{
       especificosQuincenaOffset = riegoQuincenaOffsetActual();
       const html = `
         <div style="background:#fff;border-radius:0;width:100vw;height:100vh;max-width:100vw;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.3)">
@@ -19114,10 +19264,19 @@ async function guardarBorradoEspecifico(entradas){
       if(cloud[invId] && cloud[invId][dia]) calles.forEach(c=>delete cloud[invId][dia][c]);
     });
     const ok = await window.storage.set(ESPECIFICOS_KEY, JSON.stringify(cloud));
-    if(!ok){ avisarFalloGuardado(); return; }
-  }catch(e){ avisarFalloGuardado(); return; }
+    if(!ok){ avisarFalloGuardado(); return false; }
+    const afectados=[...new Set(entradas.map(e=>String(e.invId)))];
+    if(!(await syncEspecificosV2InvsDesdeCloud(cloud,afectados))) return false;
+    afectados.forEach(invId=>{
+      especificosData[invId]=clonarEspecificosSnapshot(cloud[invId]||{});
+      especificosInvCargadaEn[invId]=Date.now();
+      especificosDirtyInvs.delete(invId);
+    });
+    especificosDataCargadaEn=0;
+  }catch(e){ avisarFalloGuardado(); return false; }
   const invs = entradas.map(e=>e.invId);
   logHistorial(invs.length>1 ? `Borró específicos de ${invs.length} invernaderos` : `Borró específicos de INV ${invs[0]}`);
+  return true;
 }
 
 async function borrarEspecificoManual(){
@@ -19154,9 +19313,10 @@ async function borrarEspecificoManual(){
       return !afectado;
     });
   });
-  saveEspecificosPartidaData();
+  await saveEspecificosPartidaData();
   document.getElementById('especifico-manual-overlay').style.display = 'none';
-  guardarBorradoEspecifico(entradas);
+  const okBorrado=await guardarBorradoEspecifico(entradas);
+  if(!okBorrado) return;
   if(especificosInvSel) renderEspecificosGrid(especificosInvSel);
 }
 
