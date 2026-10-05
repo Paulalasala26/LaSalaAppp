@@ -9413,16 +9413,13 @@ async function loadClimaData(){
 }
 async function saveClimaData(){
   try{
-    const r = await window.storage.get(CLIMA_KEY);
-    // Si la lectura falla, r es null — igual que si Clima estuviera vacío.
-    // Tratarlo como "vacío de verdad" borraría Fog/Cooling de todos los
-    // invernaderos salvo lo que esta sesión tenga en memoria. Se aborta el
-    // guardado en vez de asumir que la nube está vacía.
-    if(!r){ avisarFalloGuardado(); return false; }
-    const cloud = JSON.parse(r.value);
-    climaData = mergeDeepPreferLocal(cloud, climaData);
-    const ok = await window.storage.set(CLIMA_KEY, JSON.stringify(climaData));
-    if(!ok){ avisarFalloGuardado(); return false; }
+    const local=JSON.parse(JSON.stringify(climaData||{}));
+    const tx=await actualizarStorageJsonConEtag(CLIMA_KEY,{},cloud=>{
+      if(!cloud||typeof cloud!=='object'||Array.isArray(cloud)) cloud={};
+      return mergeDeepPreferLocal(cloud,local);
+    });
+    if(!tx.ok){ avisarFalloGuardado(); return false; }
+    climaData=tx.value;
     return true;
   }catch(e){ avisarFalloGuardado(); return false; }
 }
@@ -9450,18 +9447,17 @@ function detectClimaBrackets(tipo, invId, dia, calles){
 }
 // Igual que guardarFitoConLimpieza (Plaguicidas): un solo read→merge→borrar
 // sobrantes→write, para que no compita con un saveClimaData() suelto.
-async function guardarClimaConLimpieza(tipo, invId, dia, callesALimpiar){
+async function guardarClimaConLimpieza(tipo,invId,dia,callesALimpiar){
   try{
-    const r = await window.storage.get(CLIMA_KEY);
-    // Mismo riesgo que saveClimaData: r=null puede ser un fallo de red, no
-    // Clima vacío de verdad. Se aborta en vez de asumir que está vacío.
-    if(!r){ avisarFalloGuardado(); return false; }
-    let cloud = JSON.parse(r.value);
-    cloud = mergeDeepPreferLocal(cloud, climaData);
-    if(cloud[tipo]?.[invId]?.[dia]) callesALimpiar.forEach(c=>delete cloud[tipo][invId][dia][c]);
-    climaData = cloud;
-    const ok = await window.storage.set(CLIMA_KEY, JSON.stringify(cloud));
-    if(!ok){ avisarFalloGuardado(); return false; }
+    const local=JSON.parse(JSON.stringify(climaData||{}));
+    const tx=await actualizarStorageJsonConEtag(CLIMA_KEY,{},cloud=>{
+      if(!cloud||typeof cloud!=='object'||Array.isArray(cloud)) cloud={};
+      const combinado=mergeDeepPreferLocal(cloud,local);
+      if(combinado[tipo]?.[invId]?.[dia]) callesALimpiar.forEach(c=>delete combinado[tipo][invId][dia][c]);
+      return combinado;
+    });
+    if(!tx.ok){ avisarFalloGuardado(); return false; }
+    climaData=tx.value;
     return true;
   }catch(e){ avisarFalloGuardado(); return false; }
 }
@@ -9730,17 +9726,16 @@ async function loadClimaCuadroData(){
 }
 async function persistClimaCuadroData(){
   try{
-    const r = await window.storage.get(CLIMA_CUADRO_KEY);
-    // Si la lectura falla, r es null — igual que si Cuadro Sala1/Sala2
-    // estuviera vacío. Tratarlo como "vacío de verdad" borraría las
-    // entradas de otros dispositivos. Se aborta en vez de asumirlo.
-    if(!r){ avisarFalloGuardado(); return; }
-    const cloud = JSON.parse(r.value);
-    const map = {};
-    cloud.forEach(t=>map[t.id]=t);
-    climaCuadroData.forEach(t=>map[t.id]=t);
-    climaCuadroData = Object.values(map);
-    await window.storage.set(CLIMA_CUADRO_KEY, JSON.stringify(climaCuadroData));
+    const locales=climaCuadroData.slice();
+    const tx=await actualizarStorageJsonConEtag(CLIMA_CUADRO_KEY,[],cloud=>{
+      if(!Array.isArray(cloud)) cloud=[];
+      const map={};
+      cloud.forEach(t=>map[t.id]=t);
+      locales.forEach(t=>map[t.id]=t);
+      return Object.values(map);
+    });
+    if(!tx.ok){ avisarFalloGuardado(); return; }
+    climaCuadroData=tx.value;
   }catch(e){ avisarFalloGuardado(); }
 }
 // Tabla en vivo (magnitud × invernadero) subida por el script local
@@ -9852,19 +9847,12 @@ function eliminarClimaCuadroEntry(id){
   eliminarClimaCuadroEntryConfirmado(id);
 }
 async function eliminarClimaCuadroEntryConfirmado(id){
-  try{
-    const r = await window.storage.get(CLIMA_CUADRO_KEY);
-    // Si la lectura falla, r es null — igual que si la lista estuviera
-    // vacía. Tratarlo como "vacía de verdad" borraría TODO el Cuadro
-    // Sala1/Sala2 (no solo la entrada que se quería eliminar). Se aborta
-    // en vez de asumir que la nube está vacía.
-    if(!r){ avisarFalloGuardado(); return; }
-    let cloud = JSON.parse(r.value);
-    cloud = cloud.filter(x=>x.id!==id);
-    const ok = await window.storage.set(CLIMA_CUADRO_KEY, JSON.stringify(cloud));
-    if(!ok){ avisarFalloGuardado(); return; }
-    climaCuadroData = cloud;
-  }catch(e){ avisarFalloGuardado(); return; }
+  const tx=await actualizarStorageJsonConEtag(CLIMA_CUADRO_KEY,[],cloud=>{
+    if(!Array.isArray(cloud)) cloud=[];
+    return cloud.filter(x=>x.id!==id);
+  });
+  if(!tx.ok){ avisarFalloGuardado(); return; }
+  climaCuadroData=tx.value;
   showToast('✓ Eliminado');
   renderClimaContent(document.getElementById('clima-overlay'));
 }
@@ -11858,19 +11846,16 @@ let presenciaData = {};
 async function loadPresenciaData(){
   try{ const r = await window.storage.get(PRESENCIA_KEY); if(r) presenciaData = JSON.parse(r.value); }catch(e){}
 }
-async function marcarPresenciaInvernadero(modulo, invId){
+async function marcarPresenciaInvernadero(modulo,invId){
   try{
-    const r = await window.storage.get(PRESENCIA_KEY);
-    // Si la lectura falla, r es null — igual que si no hubiera presencia
-    // marcada. Es un dato efímero (caduca solo en unos minutos) así que el
-    // riesgo es bajo, pero se omite igualmente en vez de arriesgarse a
-    // borrar la presencia marcada en otros invernaderos/módulos.
-    if(!r) return;
-    const cloud = JSON.parse(r.value);
-    if(!cloud[modulo]) cloud[modulo] = {};
-    cloud[modulo][invId] = { usuario: currentUser||null, ts: Date.now() };
-    await window.storage.set(PRESENCIA_KEY, JSON.stringify(cloud));
-    presenciaData = cloud;
+    const marca={usuario:currentUser||null,ts:Date.now()};
+    const tx=await actualizarStorageJsonConEtag(PRESENCIA_KEY,{},cloud=>{
+      if(!cloud||typeof cloud!=='object'||Array.isArray(cloud)) cloud={};
+      cloud[modulo]=cloud[modulo]||{};
+      cloud[modulo][invId]=marca;
+      return cloud;
+    });
+    if(tx.ok) presenciaData=tx.value;
   }catch(e){}
 }
 function tecnicoPresenteAhora(modulo, invId){
@@ -15952,19 +15937,16 @@ async function loadPropuestasRiegoData(){
 // borrado directo que usan otras listas (ver lasala_tareas_module_overhaul).
 async function persistPropuestasRiegoData(){
   try{
-    const r = await window.storage.get(PROPUESTAS_RIEGO_KEY);
-    // Si la lectura falla, r es null — igual que si no hubiera ninguna
-    // propuesta guardada. Tratarlo como "vacía de verdad" borraría todas
-    // las propuestas de riego de otros usuarios/dispositivos. Se aborta en
-    // vez de asumir que la nube está vacía.
-    if(!r){ avisarFalloGuardado(); return false; }
-    const cloud = JSON.parse(r.value);
-    const map = {};
-    cloud.forEach(p=>map[p.id]=p);
-    propuestasRiegoData.forEach(p=>map[p.id]=p);
-    propuestasRiegoData = Object.values(map);
-    const ok = await window.storage.set(PROPUESTAS_RIEGO_KEY, JSON.stringify(propuestasRiegoData));
-    if(!ok){ avisarFalloGuardado(); return false; }
+    const locales=propuestasRiegoData.slice();
+    const tx=await actualizarStorageJsonConEtag(PROPUESTAS_RIEGO_KEY,[],cloud=>{
+      if(!Array.isArray(cloud)) cloud=[];
+      const map={};
+      cloud.forEach(p=>map[p.id]=p);
+      locales.forEach(p=>map[p.id]=p);
+      return Object.values(map);
+    });
+    if(!tx.ok){ avisarFalloGuardado(); return false; }
+    propuestasRiegoData=tx.value;
     return true;
   }catch(e){ avisarFalloGuardado(); return false; }
 }
@@ -16196,15 +16178,13 @@ async function loadIndiceAbonosEstadoData(){
 }
 async function saveIndiceAbonosEstadoData(){
   try{
-    const r = await window.storage.get(INDICE_ABONOS_ESTADO_KEY);
-    // Si la lectura falla, r es null — igual que si no hubiera estados
-    // guardados. Tratarlo como "vacío de verdad" borraría los estados
-    // Preparado/Programado/Revisado de otros riegos ya marcados. Se aborta
-    // en vez de asumirlo.
-    if(!r){ avisarFalloGuardado(); return; }
-    const cloud = JSON.parse(r.value);
-    indiceAbonosEstadoData = { ...cloud, ...indiceAbonosEstadoData };
-    await window.storage.set(INDICE_ABONOS_ESTADO_KEY, JSON.stringify(indiceAbonosEstadoData));
+    const local={...indiceAbonosEstadoData};
+    const tx=await actualizarStorageJsonConEtag(INDICE_ABONOS_ESTADO_KEY,{},cloud=>{
+      if(!cloud||typeof cloud!=='object'||Array.isArray(cloud)) cloud={};
+      return {...cloud,...local};
+    });
+    if(!tx.ok){ avisarFalloGuardado(); return; }
+    indiceAbonosEstadoData=tx.value;
   }catch(e){ avisarFalloGuardado(); }
 }
 function claveIndiceAbono(dia, invId, texto, horario){
@@ -16245,20 +16225,17 @@ async function loadIndiceAbonosOrdenData(){
 // trabajo (Dennis guardando Sala 1 no debe borrar lo que Fran acaba de
 // guardar en Sala 2, aunque ninguno tuviera la última versión del otro en
 // memoria).
-async function guardarUnDiaSalaOrdenIndice(dia, sala, orden){
+async function guardarUnDiaSalaOrdenIndice(dia,sala,orden){
   try{
-    const r = await window.storage.get(INDICE_ABONOS_ORDEN_KEY);
-    // Si la lectura falla, r es null — igual que si no hubiera ningún
-    // orden manual guardado. Tratarlo como "vacío de verdad" borraría el
-    // orden manual de otros días/salas ya guardado. Se aborta en vez de
-    // asumirlo.
-    if(!r){ avisarFalloGuardado(); return false; }
-    const cloud = JSON.parse(r.value);
-    if(!cloud[dia]) cloud[dia] = {};
-    if(orden===null) delete cloud[dia][sala];
-    else cloud[dia][sala] = orden;
-    await window.storage.set(INDICE_ABONOS_ORDEN_KEY, JSON.stringify(cloud));
-    indiceAbonosOrdenData = cloud;
+    const tx=await actualizarStorageJsonConEtag(INDICE_ABONOS_ORDEN_KEY,{},cloud=>{
+      if(!cloud||typeof cloud!=='object'||Array.isArray(cloud)) cloud={};
+      cloud[dia]=cloud[dia]||{};
+      if(orden===null) delete cloud[dia][sala];
+      else cloud[dia][sala]=orden;
+      return cloud;
+    });
+    if(!tx.ok){ avisarFalloGuardado(); return false; }
+    indiceAbonosOrdenData=tx.value;
     return true;
   }catch(e){ avisarFalloGuardado(); return false; }
 }
@@ -16534,15 +16511,13 @@ async function loadInjertoAsignacionData(){
 }
 async function saveInjertoAsignacionData(){
   try{
-    const r = await window.storage.get(INJERTO_ASIGNACION_KEY);
-    // Si la lectura falla, r es null — igual que si no hubiera nada
-    // asignado. Tratarlo como "vacío de verdad" borraría las asignaciones
-    // de injerto de otros días/invernaderos. Se aborta en vez de asumir
-    // que la nube está vacía.
-    if(!r){ avisarFalloGuardado(); return; }
-    const cloud = JSON.parse(r.value);
-    injertoAsignacionData = { ...cloud, ...injertoAsignacionData };
-    await window.storage.set(INJERTO_ASIGNACION_KEY, JSON.stringify(injertoAsignacionData));
+    const local={...injertoAsignacionData};
+    const tx=await actualizarStorageJsonConEtag(INJERTO_ASIGNACION_KEY,{},cloud=>{
+      if(!cloud||typeof cloud!=='object'||Array.isArray(cloud)) cloud={};
+      return {...cloud,...local};
+    });
+    if(!tx.ok){ avisarFalloGuardado(); return; }
+    injertoAsignacionData=tx.value;
   }catch(e){ avisarFalloGuardado(); }
 }
 function claveInjerto(dia, invId){ return `${dia}|${invId}`; }
@@ -16613,14 +16588,13 @@ async function loadCargasAsignacionData(){
 }
 async function saveCargasAsignacionData(){
   try{
-    const r = await window.storage.get(CARGAS_ASIGNACION_KEY);
-    // Mismo riesgo que saveInjertoAsignacionData: r=null puede ser un
-    // fallo de red, no "sin asignaciones". Se aborta en vez de asumir que
-    // la nube está vacía.
-    if(!r){ avisarFalloGuardado(); return; }
-    const cloud = JSON.parse(r.value);
-    cargasAsignacionData = { ...cloud, ...cargasAsignacionData };
-    await window.storage.set(CARGAS_ASIGNACION_KEY, JSON.stringify(cargasAsignacionData));
+    const local={...cargasAsignacionData};
+    const tx=await actualizarStorageJsonConEtag(CARGAS_ASIGNACION_KEY,{},cloud=>{
+      if(!cloud||typeof cloud!=='object'||Array.isArray(cloud)) cloud={};
+      return {...cloud,...local};
+    });
+    if(!tx.ok){ avisarFalloGuardado(); return; }
+    cargasAsignacionData=tx.value;
   }catch(e){ avisarFalloGuardado(); }
 }
 function claveCarga(dia, invId){ return `${dia}|${invId}`; }
@@ -16701,16 +16675,14 @@ async function loadSalaEnVivoManualData(){
 }
 async function guardarSalaEnVivoManualData(){
   try{
-    const r = await window.storage.get(SALA_EN_VIVO_MANUAL_KEY);
-    // Si la lectura falla, r es null — igual que si no hubiera notas
-    // manuales. Tratarlo como "vacío de verdad" borraría las notas de
-    // otros invernaderos. Se aborta en vez de asumirlo.
-    if(!r){ avisarFalloGuardado(); return false; }
-    const cloud = JSON.parse(r.value);
-    // Merge superficial por invId — nunca se pisa entero, igual que geoData.
-    const combinado = { ...cloud, ...salaEnVivoManualData };
-    salaEnVivoManualData = combinado;
-    return await window.storage.set(SALA_EN_VIVO_MANUAL_KEY, JSON.stringify(combinado));
+    const local={...salaEnVivoManualData};
+    const tx=await actualizarStorageJsonConEtag(SALA_EN_VIVO_MANUAL_KEY,{},cloud=>{
+      if(!cloud||typeof cloud!=='object'||Array.isArray(cloud)) cloud={};
+      return {...cloud,...local};
+    });
+    if(!tx.ok){ avisarFalloGuardado(); return false; }
+    salaEnVivoManualData=tx.value;
+    return true;
   }catch(e){ avisarFalloGuardado(); return false; }
 }
 function puedeEditarSalaEnVivoManual(){
@@ -20134,15 +20106,13 @@ async function loadChecksData(){
 }
 async function persistChecksData(){
   try{
-    const r = await window.storage.get(CHECKS_KEY);
-    // Si la lectura falla, r es null — igual que si no hubiera checks de
-    // partida guardados. Tratarlo como "vacío de verdad" borraría el
-    // pinzado/sanidad/color/etc. de todas las demás partidas. Se aborta en
-    // vez de asumirlo.
-    if(!r){ avisarFalloGuardado(); return; }
-    const cloud = JSON.parse(r.value);
-    checksData = mergeDeepPreferLocal(cloud, checksData);
-    await window.storage.set(CHECKS_KEY, JSON.stringify(checksData));
+    const local=JSON.parse(JSON.stringify(checksData||{}));
+    const tx=await actualizarStorageJsonConEtag(CHECKS_KEY,{},cloud=>{
+      if(!cloud||typeof cloud!=='object'||Array.isArray(cloud)) cloud={};
+      return mergeDeepPreferLocal(cloud,local);
+    });
+    if(!tx.ok){ avisarFalloGuardado(); return; }
+    checksData=tx.value;
   }catch(e){ avisarFalloGuardado(); }
 }
 async function saveCheck(num, inv, field, val){
