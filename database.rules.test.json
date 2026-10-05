@@ -1,0 +1,16 @@
+{
+  "rules": {
+    "lasala-users-v1": {
+      ".read": false,
+      ".write": false
+    },
+    "lasala-roles-v1": {
+      ".read": "auth != null && auth.token.appUser != null",
+      ".write": false
+    },
+    "$other": {
+      ".read": "auth != null && auth.token.appUser != null",
+      ".write": "auth != null && auth.token.appUser != null"
+    }
+  }
+}
