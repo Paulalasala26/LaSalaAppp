@@ -110,25 +110,8 @@ function createFirebaseCustomToken(sa, user, role) {
 module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
 
-  if (req.method === 'GET') {
-    let configured = false;
-    let projectOk = false;
-    let rtdbOk = false;
-    try {
-      const sa = getServiceAccount();
-      configured = true;
-      projectOk = sa.project_id === EXPECTED_PROJECT;
-      if (projectOk) {
-        const accessToken = await getGoogleAccessToken(sa);
-        const users = await readRtdbKey(USERS_KEY, accessToken);
-        rtdbOk = !!users && typeof users === 'object';
-      }
-    } catch (_) {}
-    return res.status(200).json({ configured, projectOk, rtdbOk });
-  }
-
   if (req.method !== 'POST') {
-    res.setHeader('Allow', 'GET, POST');
+    res.setHeader('Allow', 'POST');
     return res.status(405).json({ error: 'METHOD_NOT_ALLOWED' });
   }
 
