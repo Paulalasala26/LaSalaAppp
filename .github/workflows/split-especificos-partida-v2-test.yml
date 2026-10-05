@@ -1,0 +1,154 @@
+name: Split Especificos Partida v2 in TEST
+
+on:
+  push:
+    branches:
+      - test/v1.0
+    paths:
+      - .github/workflows/split-especificos-partida-v2-test.yml
+
+jobs:
+  split:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Split banners by stable partidaEntryId hash and verify
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib, json, urllib.request
+
+          BASE='https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app'
+          SOURCE='lasala-especificos-partida-v1'
+          INDEX='lasala-especificos-partida-v2-index'
+          PREFIX='lasala-especificos-partida-v2-b'
+          BUCKETS=32
+
+          def raw_get(key):
+              with urllib.request.urlopen(f'{BASE}/{key}.json',timeout=180) as r:
+                  return r.read()
+
+          def parse_storage(raw,label):
+              outer=json.loads(raw.decode('utf-8'))
+              if outer is None: return None
+              if not isinstance(outer,str):
+                  raise SystemExit(f'{label}: contrato inesperado {type(outer).__name__}, se esperaba string JSON')
+              return json.loads(outer)
+
+          def put_storage(key,obj):
+              inner=json.dumps(obj,ensure_ascii=False,separators=(',',':'))
+              body=json.dumps(inner,ensure_ascii=False,separators=(',',':')).encode('utf-8')
+              req=urllib.request.Request(
+                  f'{BASE}/{key}.json',
+                  data=body,
+                  headers={'Content-Type':'application/json'},
+                  method='PUT'
+              )
+              with urllib.request.urlopen(req,timeout=180) as r:
+                  assert 200 <= r.status < 300
+                  r.read()
+
+          def canon(obj):
+              return json.dumps(obj,ensure_ascii=False,sort_keys=True,separators=(',',':')).encode('utf-8')
+
+          def sha(obj):
+              return hashlib.sha256(canon(obj)).hexdigest()
+
+          # FNV-1a 32-bit sobre UTF-8. El lector JS podrá replicarlo con TextEncoder.
+          def fnv1a32_utf8(s):
+              h=2166136261
+              for byte in str(s).encode('utf-8'):
+                  h ^= byte
+                  h=(h*16777619)&0xffffffff
+              return h
+
+          source_raw=raw_get(SOURCE)
+          source=parse_storage(source_raw,SOURCE)
+          assert isinstance(source,dict) and source, 'Fuente especificos-partida v1 vacía/no legible'
+
+          source_sha=sha(source)
+          source_keys=len(source)
+          source_records=sum(len(v) for v in source.values() if isinstance(v,list))
+          print('SOURCE_RAW_BYTES=',len(source_raw))
+          print('SOURCE_KEYS=',source_keys)
+          print('SOURCE_RECORDS=',source_records)
+          print('SOURCE_SHA256=',source_sha)
+
+          # Debe ser una creación inicial limpia.
+          if raw_get(INDEX)!=b'null':
+              raise SystemExit('ABORT: índice v2 ya existe; no se sobrescribe')
+          for i in range(BUCKETS):
+              key=f'{PREFIX}{i:02d}'
+              if raw_get(key)!=b'null':
+                  raise SystemExit(f'ABORT: {key} ya existe; no se sobrescribe')
+
+          buckets=[{} for _ in range(BUCKETS)]
+          for partida_id,regs in source.items():
+              idx=fnv1a32_utf8(partida_id)%BUCKETS
+              buckets[idx][partida_id]=regs
+
+          for i,bucket in enumerate(buckets):
+              key=f'{PREFIX}{i:02d}'
+              put_storage(key,bucket)
+              raw=raw_get(key)
+              parsed=parse_storage(raw,key)
+              assert parsed==bucket
+              recs=sum(len(v) for v in bucket.values() if isinstance(v,list))
+              print(f'BUCKET b{i:02d}: raw_bytes={len(raw)} keys={len(bucket)} records={recs}')
+
+          index={
+              'version':2,
+              'bucketCount':BUCKETS,
+              'hash':'fnv1a32-utf8',
+              'prefix':PREFIX,
+              'sourceKey':SOURCE,
+              'keyCount':source_keys,
+              'recordCount':source_records
+          }
+          put_storage(INDEX,index)
+
+          # Reconstrucción completa desde los 32 buckets.
+          rebuilt={}
+          total_raw=0
+          total_keys=0
+          total_records=0
+          sizes=[]
+          for i in range(BUCKETS):
+              key=f'{PREFIX}{i:02d}'
+              raw=raw_get(key)
+              obj=parse_storage(raw,key)
+              assert isinstance(obj,dict)
+              for partida_id,regs in obj.items():
+                  if partida_id in rebuilt:
+                      raise SystemExit(f'DUPLICATE KEY: {partida_id}')
+                  rebuilt[partida_id]=regs
+              total_raw+=len(raw)
+              total_keys+=len(obj)
+              total_records+=sum(len(v) for v in obj.values() if isinstance(v,list))
+              sizes.append((len(raw),i,len(obj)))
+
+          idx=parse_storage(raw_get(INDEX),INDEX)
+          assert idx==index
+          rebuilt_sha=sha(rebuilt)
+
+          print('REBUILT_KEYS=',total_keys)
+          print('REBUILT_RECORDS=',total_records)
+          print('REBUILT_SHA256=',rebuilt_sha)
+          print('V2_TOTAL_RAW_BYTES=',total_raw)
+          print('V2_PLUS_INDEX_RAW_BYTES=',total_raw+len(raw_get(INDEX)))
+          print('MAX_BUCKET=',max(sizes))
+          print('MIN_BUCKET=',min(sizes))
+          print('AVG_BUCKET_RAW_BYTES=',round(total_raw/BUCKETS,2))
+
+          assert total_keys==source_keys==827
+          assert total_records==source_records==1231
+          assert rebuilt_sha==source_sha
+
+          # Verificar además que v1 no cambió durante el proceso.
+          source_after=parse_storage(raw_get(SOURCE),SOURCE)
+          source_after_sha=sha(source_after)
+          print('SOURCE_AFTER_SHA256=',source_after_sha)
+          assert source_after_sha==source_sha
+
+          print('ESPECIFICOS_PARTIDA_V2_SPLIT_VERIFIED_OK')
+          PY
