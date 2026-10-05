@@ -5077,6 +5077,14 @@ async function loadControlTipoCompleto(tipo,forzar){
   const resultados=await Promise.all(qs.map(q=>loadControlChecksSlice(tipo,q,forzar)));
   return resultados.every(Boolean);
 }
+// Consumidores que necesitan cruzar Túnel + Carga (por ejemplo Partidas,
+// donde la visibilidad semanal depende de la fecha real de Carga) pueden
+// cargar ambos tipos completos sin volver al nodo monolítico v1.
+async function loadControlCompletoV2(forzar){
+  const tunelOk=await loadControlTipoCompleto('tunel',forzar);
+  if(!tunelOk) return false;
+  return await loadControlTipoCompleto('carga',forzar);
+}
 async function loadControlSeccionSlice(tipo,q,forzar){
   const ok=await loadControlChecksSlice(tipo,q,forzar);
   if(!ok) return false;
@@ -8036,17 +8044,22 @@ let partidasSalaSel = 'sala1';
 // un invernadero concreto primero (mismo patrón de botones que ya usa Riego,
 // selectRiegoInv/data-rinv) y solo se pinta el mapa de ESE invernadero.
 let partidasInvSel = null;
-function showPartidasModule(){
-  Promise.all([loadControlChecksData(false), loadEspecificosPartidaData()]).then(()=>{
-    const overlay = getOrCreateOverlay('partidas-overlay');
-    overlay.style.padding = '0';
-    partidaSeleccionadaParaMover = null;
-    partidasHistorialDeshacer = [];
-    partidasHistorialRehacer = [];
-    partidasSemanaOffset = partidasSemanaOffsetActual();
-    renderPartidasMapaContent(overlay);
-    overlay.style.display = 'flex';
-  });
+async function showPartidasModule(){
+  // El mapa necesita Túnel (ubicación) y Carga (fecha real de salida), pero
+  // no necesita el nodo v1: ambos tipos se reconstruyen desde sus shards v2.
+  const [controlOk] = await Promise.all([
+    loadControlCompletoV2(false),
+    loadEspecificosPartidaData()
+  ]);
+  if(!controlOk){ avisarFalloCarga(); return; }
+  const overlay = getOrCreateOverlay('partidas-overlay');
+  overlay.style.padding = '0';
+  partidaSeleccionadaParaMover = null;
+  partidasHistorialDeshacer = [];
+  partidasHistorialRehacer = [];
+  partidasSemanaOffset = partidasSemanaOffsetActual();
+  renderPartidasMapaContent(overlay);
+  overlay.style.display = 'flex';
 }
 // A petición de Paula (2026-08-06): "no se cambian las que yo quiero... se
 // intercambian otras distintas" — fallo real: partidaSeleccionadaParaMover
@@ -16400,24 +16413,24 @@ async function eliminarNotaSalaEnVivo(invId, id){
   renderSalaEnVivoContent(document.getElementById('sala-en-vivo-overlay'));
   await guardarSalaEnVivoManualData();
 }
-function showSalaEnVivoModule(){
+async function showSalaEnVivoModule(){
   // A petición de Vigueras (2026-09-16, rediseño de roles): La Sala en
   // Vivo pasa a ser exclusiva de ADMIN — bloqueo por código además de
   // esconder la tarjeta de Inicio, por si se llama desde otro sitio.
   if(currentUserRole!=='ADMIN'){ showToast('No tienes acceso a La Sala en Vivo'); return; }
-  // loadTrabajosData/loadControlChecksData añadidos (a petición de Paula,
-  // 2026-08-31): la línea "Mujeres" (Recomponer/Quitar raíces/Plantar/
-  // Separar) y "Túneles" dependen de trabajosData, y la primera necesita
-  // además controlChecksData para saber en qué invernadero cae cada partida
-  // (ver invIdDePartidaTunel) — antes se confiaba en que ya estuvieran en
-  // memoria por haber abierto otro módulo antes, lo cual fallaba si La Sala
-  // en Vivo era la primera pantalla abierta.
-  Promise.all([loadRiegoData(false), loadPresenciaData(), loadIndiceAbonosEstadoData(), loadIndiceAbonosOrdenData(), loadInjertoAsignacionData(), loadCargasAsignacionData(), loadTareasData(false), loadSalaEnVivoManualData(), loadTrabajosData(false), loadControlChecksData(false)]).then(()=>{
-    const overlay = getOrCreateOverlay('sala-en-vivo-overlay');
-    overlay.style.padding = '0';
-    renderSalaEnVivoContent(overlay);
-    overlay.style.display = 'flex';
-  });
+  // Control solo se usa aquí para invIdDePartidaTunel(), que resuelve el
+  // invernadero de trabajos de Mujeres. Carga no interviene en ese cálculo.
+  const resultados = await Promise.all([
+    loadRiegoData(false), loadPresenciaData(), loadIndiceAbonosEstadoData(),
+    loadIndiceAbonosOrdenData(), loadInjertoAsignacionData(), loadCargasAsignacionData(),
+    loadTareasData(false), loadSalaEnVivoManualData(), loadTrabajosData(false),
+    loadControlTipoCompleto('tunel',false)
+  ]);
+  if(resultados[resultados.length-1]===false){ avisarFalloCarga(); return; }
+  const overlay = getOrCreateOverlay('sala-en-vivo-overlay');
+  overlay.style.padding = '0';
+  renderSalaEnVivoContent(overlay);
+  overlay.style.display = 'flex';
 }
 function seleccionarSalaEnVivo(sala){
   salaEnVivoSalaSel = sala;
@@ -18715,7 +18728,12 @@ async function saveEspecificoManual(){
   if(!base){ showToast('Elige al menos tratamiento, dosis u horario'); return; }
   const bulkInvIds = leerInvernaderosBulkSeleccionados('esp');
   if(!bulkInvIds.length){ showToast('Elige al menos un invernadero'); return; }
-  if(!controlChecksData.length) await loadControlChecksData();
+  // La asociación del específico con partidas usa Túnel y, mediante
+  // partidaVisibleEnSemana(), también la fecha real de salida de Carga.
+  // controlChecksData puede contener solo una quincena, así que se garantiza
+  // aquí el conjunto v2 completo antes de resolver qué partidas ocupan el tramo.
+  const controlOk = await loadControlCompletoV2(false);
+  if(!controlOk){ avisarFalloCarga(); return; }
   const porInv = bulkInvIds.map(invId=>({ invId, ...calcularCallesEspBulk(invId) }));
   registrarUndoEspecificoMultiInv(porInv.map(({invId,calles})=>({ invId, dia, calles })));
   const fechaLabel = riegoDiaLabelCorto(dia);
