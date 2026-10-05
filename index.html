@@ -10466,6 +10466,7 @@ const RIEGO_KEY = 'lasala-riego-v1'; // snapshot legado/rollback; v2 ya no lo le
 const RIEGO_V2_PREFIX = 'lasala-riego-v2-';
 const RIEGO_V2_INDEX_KEY = 'lasala-riego-v2-index';
 const RIEGO_SYNC_KEY = 'lasala-riego-sync-v1';
+const RIEGO_OFFLINE_KEY = 'lasala-riego-offline-v1';
 const RIEGO_SUPERVISOR_USER = 'VIGUERAS';
 function riegoV2Key(invId){ return RIEGO_V2_PREFIX + invId; }
 function riegoSyncUrl(invId){ return `${CLOUD_DB_URL}/${RIEGO_SYNC_KEY}/${encodeURIComponent(String(invId))}.json`; }
@@ -10723,6 +10724,143 @@ async function publicarEventoRiego(invId, puntos, accion, avisoSupervisor){
     return null;
   }
 }
+// ── OFFLINE ROBUSTO DE RIEGO ─────────────────────────────────
+function leerRiegoOffline(){
+  try{
+    const q = JSON.parse(localStorage.getItem(RIEGO_OFFLINE_KEY)||'[]');
+    return Array.isArray(q) ? q : [];
+  }catch(e){ return []; }
+}
+function guardarRiegoOffline(q){
+  try{
+    localStorage.setItem(RIEGO_OFFLINE_KEY, JSON.stringify(q));
+    return true;
+  }catch(e){
+    avisarFalloGuardado();
+    return false;
+  }
+}
+function riegoOfflineClave(usuario,invId,dia,calle){
+  return String(usuario||'')+'|'+String(invId)+'|'+String(dia)+'|'+String(calle);
+}
+function normalizarRiegoDeseado(v){
+  if(v==null) return null;
+  const texto = (v && typeof v==='object') ? v.texto : v;
+  if(typeof texto==='string' && texto.trim()==='') return null;
+  return clonarRiegoSnapshot(v);
+}
+function encolarRiegoOffline(invId, dirty, extraDeletes){
+  const usuario = currentUser||'';
+  if(!usuario) return [];
+  const q = leerRiegoOffline();
+  const tocadas = [];
+  function guardarPunto(dia, calle, base, deseado){
+    const d=String(dia), ca=String(calle);
+    const clave=riegoOfflineClave(usuario,invId,d,ca);
+    const idx=q.findIndex(x=>x.clave===clave);
+    const anterior=idx>=0 ? q[idx] : null;
+    const entry={
+      clave, usuario, invId:String(invId), dia:d, calle:ca,
+      base: anterior ? anterior.base : clonarRiegoSnapshot(base),
+      baseTexto: anterior ? anterior.baseTexto : valorTextoRiego(base),
+      deseado: normalizarRiegoDeseado(deseado),
+      guardadoLocalEn: Date.now()
+    };
+    if(idx>=0) q[idx]=entry; else q.push(entry);
+    tocadas.push(clave);
+  }
+  (dirty||[]).forEach(({dia,calle,base})=>{
+    const local = riegoData[String(invId)]?.[String(dia)]?.[String(calle)] ?? null;
+    guardarPunto(dia,calle,base,local);
+  });
+  (extraDeletes||[]).forEach(({dia,calles})=>{
+    (calles||[]).forEach(c=>{
+      const d=String(dia), ca=String(c);
+      const clave=riegoOfflineClave(usuario,invId,d,ca);
+      const existente=q.find(x=>x.clave===clave);
+      const base=existente ? existente.base : (riegoBaseInv[String(invId)]?.[d]?.[ca] ?? null);
+      guardarPunto(d,ca,base,null);
+    });
+  });
+  if(tocadas.length) guardarRiegoOffline(q);
+  return tocadas;
+}
+function quitarRiegoOfflineClaves(claves){
+  if(!claves || !claves.length) return;
+  const set=new Set(claves);
+  guardarRiegoOffline(leerRiegoOffline().filter(x=>!set.has(x.clave)));
+  actualizarAvisoRiegoOffline();
+}
+function actualizarAvisoRiegoOffline(){
+  const nr = leerRiegoOffline().length;
+  const nc = (typeof leerColaOffline==='function') ? leerColaOffline().length : 0;
+  const total = nr+nc;
+  if(total) avisarGuardadoLocalPendiente(total);
+  else ocultarAvisoFalloGuardado();
+}
+let riegoOfflineSyncEnCurso=false;
+async function procesarRiegoOffline(){
+  if(riegoOfflineSyncEnCurso || !currentUser || navigator.onLine===false) return false;
+  if(riegoDirtyCells.size || (riegoInvSel && riegoEstaEditandoAhora(riegoInvSel))) return false;
+  const pendientes = leerRiegoOffline().filter(x=>x.usuario===currentUser);
+  if(!pendientes.length){ actualizarAvisoRiegoOffline(); return true; }
+
+  riegoOfflineSyncEnCurso=true;
+  try{
+    const porInv={};
+    pendientes.forEach(x=>{
+      if(!porInv[x.invId]) porInv[x.invId]=[];
+      porInv[x.invId].push(x);
+    });
+
+    for(const invId of Object.keys(porInv)){
+      const nodo=await leerRiegoV2Nodo(invId, false);
+      if(!nodo.ok || !nodo.exists) throw new Error('No se pudo cargar INV '+invId);
+      const cloud=clonarRiegoSnapshot(nodo.data)||{};
+      riegoData[invId]=clonarRiegoSnapshot(cloud)||{};
+      riegoBaseInv[invId]=clonarRiegoSnapshot(cloud)||{};
+
+      const aAplicar=[];
+      for(const x of porInv[invId]){
+        const remoto=cloud?.[String(x.dia)]?.[String(x.calle)] ?? null;
+        if(riegoValorIgual(remoto, x.deseado)){
+          quitarRiegoOfflineClaves([x.clave]);
+          continue;
+        }
+        aAplicar.push(x);
+        const d=String(x.dia), ca=String(x.calle);
+        if(x.deseado==null){
+          if(riegoData[invId][d]) delete riegoData[invId][d][ca];
+        }else{
+          if(!riegoData[invId][d]) riegoData[invId][d]={};
+          riegoData[invId][d][ca]=clonarRiegoSnapshot(x.deseado);
+        }
+        riegoDirtyCells.set(riegoDirtyCellKey(invId,d,ca),{
+          invId:String(invId), dia:d, calle:ca,
+          base:clonarRiegoSnapshot(x.base),
+          baseTexto:x.baseTexto==null ? valorTextoRiego(x.base) : x.baseTexto
+        });
+        riegoDirtyInvs.add(String(invId));
+      }
+      if(aAplicar.length){
+        const ok=await saveRiegoInvPatch(invId, [], true);
+        if(!ok) throw new Error('Sincronización pendiente INV '+invId);
+      }
+    }
+
+    if(riegoInvSel && riegoData[String(riegoInvSel)]) renderRiegoGrid(String(riegoInvSel));
+    actualizarAvisoRiegoOffline();
+    if(!leerRiegoOffline().some(x=>x.usuario===currentUser)) showToast('✓ Cambios de riego pendientes sincronizados');
+    return true;
+  }catch(e){
+    actualizarAvisoRiegoOffline();
+    return false;
+  }finally{
+    riegoOfflineSyncEnCurso=false;
+  }
+}
+window.addEventListener('online', ()=>{ setTimeout(procesarRiegoOffline, 250); });
+
 function riegoDirtyCellKey(invId,dia,calle){ return String(invId)+'|'+String(dia)+'|'+String(calle); }
 function marcarRiegoDirtyCell(invId,dia,calle,baseOriginal){
   const rec = {invId:String(invId), dia:String(dia), calle:String(calle)};
@@ -11020,10 +11158,21 @@ async function saveRiegoInvPatch(invId, extraDeletes, incluirDirty){
   extraDeletes = extraDeletes || [];
   if(incluirDirty===undefined) incluirDirty = true;
 
-  const ids = await loadRiegoV2Index(true);
-  if(!ids) return false;
-
   const dirty = incluirDirty ? Array.from(riegoDirtyCells.values()).filter(x=>x.invId===invId) : [];
+
+  // Persistir antes de tocar la red. Si se cierra el navegador o se pierde
+  // cobertura durante el guardado, el cambio queda recuperable.
+  const clavesOffline = encolarRiegoOffline(invId, dirty, extraDeletes);
+  if(navigator.onLine===false){
+    actualizarAvisoRiegoOffline();
+    return true;
+  }
+
+  const ids = await loadRiegoV2Index(true);
+  if(!ids){
+    actualizarAvisoRiegoOffline();
+    return clavesOffline.length>0;
+  }
 
   // Foto de QUÉ se intenta cambiar, antes de tocar la base global. Se usa
   // para refresco remoto y para avisar al supervisor si un técnico modifica
@@ -11124,6 +11273,7 @@ async function saveRiegoInvPatch(invId, extraDeletes, incluirDirty){
           if(!conflictosAceptados.has(firma)){
             const aceptar = await mostrarConflictoRiego(invId,it.dia,it.calle,remoto,it.local);
             if(!aceptar){
+              quitarRiegoOfflineClaves(clavesOffline);
               showToast('⚠ Guardado cancelado por conflicto');
               return false;
             }
@@ -11160,16 +11310,25 @@ async function saveRiegoInvPatch(invId, extraDeletes, incluirDirty){
       if(putRes.status!==412) throw new Error('HTTP '+putRes.status);
       // Conflicto real: no se ha escrito nada. Volvemos a leer y fusionar.
     }catch(e){
-      if(intento===5){ avisarFalloGuardado(); return false; }
+      if(intento===5){
+        actualizarAvisoRiegoOffline();
+        return clavesOffline.length>0;
+      }
     }
     await new Promise(r=>setTimeout(r, 120*intento));
   }
 
-  if(cloudGuardado===null){ avisarFalloGuardado(); return false; }
+  if(cloudGuardado===null){
+    actualizarAvisoRiegoOffline();
+    return clavesOffline.length>0;
+  }
 
   if(!ids.includes(invId)){
     const idxOk = await actualizarRiegoV2IndexConInv(invId);
-    if(!idxOk) return false;
+    if(!idxOk){
+      actualizarAvisoRiegoOffline();
+      return clavesOffline.length>0;
+    }
   }
 
   const puntosEvento = Array.from(cambiosEvento.values());
@@ -11216,6 +11375,7 @@ async function saveRiegoInvPatch(invId, extraDeletes, incluirDirty){
   dirty.forEach(({dia,calle})=>riegoDirtyCells.delete(riegoDirtyCellKey(invId,dia,calle)));
   extraDeletes.forEach(({dia,calles})=>(calles||[]).forEach(c=>riegoDirtyCells.delete(riegoDirtyCellKey(invId,dia,c))));
   if(!Array.from(riegoDirtyCells.values()).some(x=>x.invId===invId)) riegoDirtyInvs.delete(invId);
+  quitarRiegoOfflineClaves(clavesOffline);
   return true;
 }
 async function saveRiegoData(){
@@ -11862,6 +12022,8 @@ function imprimirHojaResumen(modulo, idx){
 let riegoSoloLectura = false;
 function showRiegoModule(soloLectura){
   riegoSoloLectura = !!soloLectura;
+  if(navigator.onLine!==false) procesarRiegoOffline();
+  else actualizarAvisoRiegoOffline();
   if(currentUser==='VIGUERAS') avisarAvisosPendientes(currentUser);
   // loadIndiceAbonosEstadoData va aquí porque renderRiegoGrid pinta las
   // celdas con los colores pastel de Preparado/Programado/Revisado del
