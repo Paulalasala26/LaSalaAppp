@@ -1,0 +1,107 @@
+name: Verify Fito ETag TEST
+
+on:
+  push:
+    branches:
+      - test/v1.0
+    paths:
+      - .github/workflows/verify-fito-etag-test.yml
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify optimistic write and v2 convergence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, urllib.request, urllib.error, time
+
+          BASE='https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app'
+          V1='tmp-fito-etag-v1'
+          V2='tmp-fito-etag-v2-A'
+
+          def req(key, method='GET', body=None, headers=None):
+              url=f'{BASE}/{key}.json'
+              data=None if body is None else body
+              r=urllib.request.Request(url,data=data,method=method,headers=headers or {})
+              try:
+                  with urllib.request.urlopen(r,timeout=60) as resp:
+                      return resp.status, dict(resp.headers), resp.read()
+              except urllib.error.HTTPError as e:
+                  return e.code, dict(e.headers), e.read()
+
+          def put_storage(key,obj,etag=None):
+              body=json.dumps(json.dumps(obj,separators=(',',':'))).encode()
+              headers={'Content-Type':'application/json'}
+              if etag is not None: headers['if-match']=etag
+              return req(key,'PUT',body,headers)
+
+          def get_storage(key,with_etag=False):
+              headers={'X-Firebase-ETag':'true'} if with_etag else {}
+              st,h,raw=req(key,'GET',None,headers)
+              outer=json.loads(raw.decode())
+              return st,h,json.loads(outer) if isinstance(outer,str) else outer
+
+          def delete(key):
+              req(key,'DELETE')
+
+          try:
+              initial={'A':{'1':{'1':'BASE','2':'BASE'}}}
+              st,_,_=put_storage(V1,initial)
+              assert 200 <= st < 300
+              st,_,_=put_storage(V2,initial['A'])
+              assert 200 <= st < 300
+
+              # Dos clientes leen exactamente la misma versión.
+              st,h1,c1=get_storage(V1,True); assert st==200
+              st,h2,c2=get_storage(V1,True); assert st==200
+              e1=h1.get('ETag') or h1.get('Etag')
+              e2=h2.get('ETag') or h2.get('Etag')
+              assert e1 and e2 and e1==e2
+
+              # Cliente 1 cambia C/1.
+              c1['A']['1']['1']='CLIENTE1'
+              st,_,_=put_storage(V1,c1,e1)
+              assert 200 <= st < 300
+
+              # Cliente 2 intenta escribir desde base antigua: Firebase DEBE
+              # rechazarlo con 412. Relee, reaplica solo su C/2 y reintenta.
+              c2['A']['1']['2']='CLIENTE2'
+              st,_,_=put_storage(V1,c2,e2)
+              assert st==412, f'Se esperaba 412, llegó {st}'
+
+              st,h3,latest=get_storage(V1,True); assert st==200
+              e3=h3.get('ETag') or h3.get('Etag'); assert e3
+              latest['A']['1']['2']='CLIENTE2'
+              st,_,_=put_storage(V1,latest,e3)
+              assert 200 <= st < 300
+
+              _,_,final=get_storage(V1,False)
+              assert final['A']['1']['1']=='CLIENTE1'
+              assert final['A']['1']['2']=='CLIENTE2'
+              print('ETAG_RETRY_PRESERVES_BOTH_CHANGES=OK')
+
+              # Simular mirror v2 fuera de orden: primero la versión final y
+              # después una instantánea antigua. La comprobación post-escritura
+              # contra v1 debe detectar el desfase y reparar v2.
+              stale={'1':{'1':'CLIENTE1','2':'BASE'}}
+              st,_,_=put_storage(V2,final['A']); assert 200 <= st < 300
+              st,_,_=put_storage(V2,stale); assert 200 <= st < 300
+
+              for _ in range(5):
+                  _,_,v1now=get_storage(V1,False)
+                  st,_,_=put_storage(V2,v1now['A']); assert 200 <= st < 300
+                  _,_,v1check=get_storage(V1,False)
+                  _,_,v2check=get_storage(V2,False)
+                  if v1check['A']==v2check:
+                      break
+                  time.sleep(.12)
+              assert v1check['A']==v2check
+              print('V2_POST_WRITE_CONVERGENCE=OK')
+          finally:
+              delete(V1)
+              delete(V2)
+              print('TEMP_KEYS_REMOVED=OK')
+          PY
