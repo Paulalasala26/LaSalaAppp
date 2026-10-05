@@ -18116,6 +18116,19 @@ const ESPECIFICOS_V2_INDEX_KEY = 'lasala-especificos-v2-index';
 function especificosV2Key(invId){ return `lasala-especificos-v2-${String(invId)}`; }
 let especificosData = {}; // especificosData[invId][dia][calle] = texto
 const especificosDirtyInvs = new Set();
+const especificosDirtyCells = new Map();
+let especificosDirtyVersion = 0;
+function especificosDirtyCellKey(invId,dia,calle){ return String(invId)+'|'+String(dia)+'|'+String(calle); }
+function marcarEspecificosDirtyCell(invId,dia,calle){
+  invId=String(invId); dia=String(dia); calle=String(calle);
+  const version=++especificosDirtyVersion;
+  especificosDirtyCells.set(especificosDirtyCellKey(invId,dia,calle),{invId,dia,calle,version});
+  especificosDirtyInvs.add(invId);
+}
+function recalcularEspecificosDirtyInvs(){
+  especificosDirtyInvs.clear();
+  especificosDirtyCells.forEach(x=>especificosDirtyInvs.add(String(x.invId)));
+}
 function clonarEspecificosSnapshot(v){
   if(v==null) return null;
   return JSON.parse(JSON.stringify(v));
@@ -18276,6 +18289,9 @@ async function actualizarEspecificosV2IndexConInv(invId){
   avisarFalloGuardado();
   return false;
 }
+// Mantener v2 convergente con el blob v1 que sigue siendo la fuente de
+// compatibilidad. Tras escribir los shards se relee v1 y solo se reparan los
+// INV que hayan cambiado durante la sincronización.
 async function syncEspecificosV2InvsDesdeCloud(cloud,invIds){
   const unicos=[...new Set((invIds||[]).map(String))];
   if(!unicos.length) return true;
@@ -18287,36 +18303,131 @@ async function syncEspecificosV2InvsDesdeCloud(cloud,invIds){
       if(!okIdx) return false;
       ids.push(invId);
     }
-    const ok=await window.storage.set(especificosV2Key(invId),JSON.stringify(cloud[invId]||{}));
-    if(!ok){ avisarFalloGuardado(); return false; }
   }
-  return true;
+  const snapshots={};
+  unicos.forEach(invId=>{ snapshots[invId]=clonarEspecificosSnapshot(cloud[invId]||{}); });
+  let pendientes=[...unicos];
+
+  for(let vuelta=1; vuelta<=5; vuelta++){
+    for(const invId of pendientes){
+      const ok=await window.storage.set(especificosV2Key(invId),JSON.stringify(snapshots[invId]||{}));
+      if(!ok){ avisarFalloGuardado(); return false; }
+    }
+    const r=await window.storage.get(ESPECIFICOS_KEY);
+    if(!r){ avisarFalloGuardado(); return false; }
+    const ultimo=JSON.parse(r.value);
+    const desfasados=[];
+    for(const invId of unicos){
+      const actual=ultimo[invId]||{};
+      if(JSON.stringify(actual)!==JSON.stringify(snapshots[invId]||{})){
+        snapshots[invId]=clonarEspecificosSnapshot(actual);
+        desfasados.push(invId);
+      }
+    }
+    if(!desfasados.length) return true;
+    pendientes=desfasados;
+    await new Promise(r=>setTimeout(r,120*vuelta));
+  }
+  avisarFalloGuardado();
+  return false;
 }
+
+// Escritura optimista del blob v1. Ante un 412 se relee la nube y se vuelven
+// a aplicar exclusivamente nuestras celdas. Así dos usuarios pueden modificar
+// calles distintas —incluso del mismo INV— sin que el último PUT borre al otro.
+async function saveEspecificosPatch(extraDeletes){
+  const dirtySnapshot=Array.from(especificosDirtyCells.values()).map(x=>({
+    ...x,
+    local:clonarEspecificosSnapshot(especificosData[x.invId]?.[x.dia]?.[x.calle] ?? null)
+  }));
+  const intenciones=new Map();
+  dirtySnapshot.forEach(x=>intenciones.set(especificosDirtyCellKey(x.invId,x.dia,x.calle),x));
+
+  (extraDeletes||[]).forEach(({invId,dia,calles})=>{
+    invId=String(invId); dia=String(dia);
+    (calles||[]).forEach(c=>{
+      const calle=String(c), key=especificosDirtyCellKey(invId,dia,calle);
+      const previo=intenciones.get(key);
+      intenciones.set(key,previo ? {...previo,local:null} : {invId,dia,calle,version:null,local:null});
+    });
+  });
+
+  if(!intenciones.size) return {ok:true,afectados:[],cloud:null};
+  const afectados=[...new Set(Array.from(intenciones.values()).map(x=>String(x.invId)))];
+  const url=`${CLOUD_DB_URL}/${encodeURIComponent(ESPECIFICOS_KEY)}.json`;
+  let cloudGuardado=null;
+
+  for(let intento=1; intento<=5; intento++){
+    try{
+      const getRes=await fetch(url,{headers:{'X-Firebase-ETag':'true'},cache:'no-store'});
+      if(!getRes.ok) throw new Error('HTTP '+getRes.status);
+      const etag=getRes.headers.get('ETag');
+      if(!etag) throw new Error('Firebase no devolvió ETag');
+      const val=await getRes.json();
+      if(val==null || typeof val!=='string'){ avisarFalloGuardado(); return {ok:false}; }
+      const cloud=JSON.parse(val);
+
+      intenciones.forEach(it=>{
+        const inv=String(it.invId), dia=String(it.dia), calle=String(it.calle);
+        if(it.local==null){
+          if(cloud[inv]?.[dia]) delete cloud[inv][dia][calle];
+          if(cloud[inv]?.[dia] && Object.keys(cloud[inv][dia]).length===0) delete cloud[inv][dia];
+        }else{
+          if(!cloud[inv]) cloud[inv]={};
+          if(!cloud[inv][dia]) cloud[inv][dia]={};
+          cloud[inv][dia][calle]=clonarEspecificosSnapshot(it.local);
+        }
+      });
+
+      const putRes=await fetch(url,{
+        method:'PUT',
+        headers:{'Content-Type':'application/json','if-match':etag},
+        body:JSON.stringify(JSON.stringify(cloud))
+      });
+      if(putRes.ok){ cloudGuardado=cloud; break; }
+      if(putRes.status!==412) throw new Error('HTTP '+putRes.status);
+    }catch(e){
+      if(intento===5){ avisarFalloGuardado(); return {ok:false}; }
+    }
+    await new Promise(r=>setTimeout(r,120*intento));
+  }
+
+  if(!cloudGuardado){ avisarFalloGuardado(); return {ok:false}; }
+  if(!(await syncEspecificosV2InvsDesdeCloud(cloudGuardado,afectados))) return {ok:false};
+
+  dirtySnapshot.forEach(x=>{
+    const actual=especificosDirtyCells.get(especificosDirtyCellKey(x.invId,x.dia,x.calle));
+    if(actual && actual.version===x.version) especificosDirtyCells.delete(especificosDirtyCellKey(x.invId,x.dia,x.calle));
+  });
+  recalcularEspecificosDirtyInvs();
+
+  for(const invId of afectados){
+    const pendientesInv=Array.from(especificosDirtyCells.values())
+      .filter(x=>String(x.invId)===invId)
+      .map(x=>({...x,local:clonarEspecificosSnapshot(especificosData[x.invId]?.[x.dia]?.[x.calle] ?? null)}));
+    especificosData[invId]=clonarEspecificosSnapshot(cloudGuardado[invId]||{});
+    pendientesInv.forEach(x=>{
+      if(x.local==null){
+        if(especificosData[invId]?.[x.dia]) delete especificosData[invId][x.dia][x.calle];
+      }else{
+        if(!especificosData[invId]) especificosData[invId]={};
+        if(!especificosData[invId][x.dia]) especificosData[invId][x.dia]={};
+        especificosData[invId][x.dia][x.calle]=x.local;
+      }
+    });
+    especificosInvCargadaEn[invId]=Date.now();
+  }
+  especificosDataCargadaEn=0;
+  return {ok:true,afectados,cloud:cloudGuardado};
+}
+
 async function saveEspecificosData(){
-  const invsDirty=[...especificosDirtyInvs];
-  if(!invsDirty.length){
+  if(!especificosDirtyCells.size){
     showToast('✓ Sin cambios pendientes');
     return true;
   }
-  try{
-    const r=await window.storage.get(ESPECIFICOS_KEY);
-    // Solo se fusionan los INV realmente editados: un shard cargado para
-    // consulta no puede sobrescribir por accidente una versión remota nueva.
-    if(!r){ avisarFalloGuardado(); return false; }
-    const cloud=JSON.parse(r.value);
-    invsDirty.forEach(invId=>{
-      cloud[invId]=mergeDeepPreferLocal(cloud[invId]||{},especificosData[invId]||{});
-    });
-    const ok=await window.storage.set(ESPECIFICOS_KEY,JSON.stringify(cloud));
-    if(!ok){ avisarFalloGuardado(); return false; }
-    if(!(await syncEspecificosV2InvsDesdeCloud(cloud,invsDirty))) return false;
-    invsDirty.forEach(invId=>{
-      especificosData[invId]=clonarEspecificosSnapshot(cloud[invId]||{});
-      especificosInvCargadaEn[invId]=Date.now();
-      especificosDirtyInvs.delete(invId);
-    });
-    especificosDataCargadaEn=0;
-  }catch(e){ avisarFalloGuardado(); return false; }
+  const r=await saveEspecificosPatch([]);
+  if(!r.ok) return false;
   showToast('✓ Específicos guardado');
   logHistorial(`Guardó específicos${especificosInvSel?' de INV '+especificosInvSel:''}`);
   return true;
@@ -18326,7 +18437,6 @@ async function saveEspecificosData(){
 // asigna al regante.
 function setEspecifico(invId,dia,calle,val,extra){
   invId=String(invId);
-  especificosDirtyInvs.add(invId);
   if(!especificosData[invId])especificosData[invId]={};
   if(!especificosData[invId][dia])especificosData[invId][dia]={};
   if(val){
@@ -18339,6 +18449,7 @@ function setEspecifico(invId,dia,calle,val,extra){
       ...(extra||{})
     };
   } else delete especificosData[invId][dia][calle];
+  marcarEspecificosDirtyCell(invId,dia,calle);
 }
 function getEspecificoCellRaw(invId,dia,calle){ return especificosData[invId]?.[dia]?.[calle]; }
 function getEspecifico(invId,dia,calle){
@@ -19252,28 +19363,8 @@ async function saveEspecificoManual(){
 // no sabe "borrar", una celda ya vacía en local heredaría el valor antiguo
 // de la nube que se acaba de quitar).
 async function guardarBorradoEspecifico(entradas){
-  try{
-    const r = await window.storage.get(ESPECIFICOS_KEY);
-    // Mismo riesgo que guardarBorradoFito: al ser un borrado atómico
-    // (lee+borra+escribe, sin fusión), r=null tratado como "vacío de
-    // verdad" borraría TODOS los específicos de todos los invernaderos.
-    // Se aborta y se avisa en vez de asumir vacío.
-    if(!r){ avisarFalloGuardado(); return; }
-    const cloud = JSON.parse(r.value);
-    entradas.forEach(({invId, dia, calles})=>{
-      if(cloud[invId] && cloud[invId][dia]) calles.forEach(c=>delete cloud[invId][dia][c]);
-    });
-    const ok = await window.storage.set(ESPECIFICOS_KEY, JSON.stringify(cloud));
-    if(!ok){ avisarFalloGuardado(); return false; }
-    const afectados=[...new Set(entradas.map(e=>String(e.invId)))];
-    if(!(await syncEspecificosV2InvsDesdeCloud(cloud,afectados))) return false;
-    afectados.forEach(invId=>{
-      especificosData[invId]=clonarEspecificosSnapshot(cloud[invId]||{});
-      especificosInvCargadaEn[invId]=Date.now();
-      especificosDirtyInvs.delete(invId);
-    });
-    especificosDataCargadaEn=0;
-  }catch(e){ avisarFalloGuardado(); return false; }
+  const r=await saveEspecificosPatch(entradas||[]);
+  if(!r.ok) return false;
   const invs = entradas.map(e=>e.invId);
   logHistorial(invs.length>1 ? `Borró específicos de ${invs.length} invernaderos` : `Borró específicos de INV ${invs[0]}`);
   return true;
