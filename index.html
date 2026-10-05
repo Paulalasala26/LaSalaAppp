@@ -11109,6 +11109,14 @@ async function saveRiegoInvPatch(invId, extraDeletes, incluirDirty){
       for(const it of intenciones.values()){
         const baseTexto = it.baseTexto==null ? valorTextoRiego(it.base) : it.baseTexto;
         const remoto = cloud[it.dia]?.[it.calle] ?? null;
+        // Si el supervisor validó esta calle DESPUÉS de que el técnico la
+        // empezara a editar, también cuenta como "riego validado modificado"
+        // aunque el texto validado sea idéntico al que el técnico vio al abrir.
+        const metaCambio = cambiosEvento.get(it.dia+'|'+it.calle);
+        if(metaCambio && currentUser!==RIEGO_SUPERVISOR_USER &&
+           remoto && typeof remoto==='object' && remoto.revisadoPorVigueras){
+          metaCambio.remotoValidado = clonarRiegoSnapshot(remoto);
+        }
         const remotoTexto = valorTextoRiego(remoto);
         const localTexto = valorTextoRiego(it.local);
         if(remotoTexto!==baseTexto && localTexto!==remotoTexto){
@@ -11166,8 +11174,10 @@ async function saveRiegoInvPatch(invId, extraDeletes, incluirDirty){
 
   const puntosEvento = Array.from(cambiosEvento.values());
   const cambiosSobreValidado = puntosEvento.filter(p=>
-    currentUser!==RIEGO_SUPERVISOR_USER &&
-    p.base && typeof p.base==='object' && p.base.revisadoPorVigueras
+    currentUser!==RIEGO_SUPERVISOR_USER && (
+      (p.base && typeof p.base==='object' && p.base.revisadoPorVigueras) ||
+      (p.remotoValidado && typeof p.remotoValidado==='object' && p.remotoValidado.revisadoPorVigueras)
+    )
   );
 
   let accionEvento = 'modificacion';
@@ -11985,7 +11995,7 @@ async function selectRiegoInv(invId, btn){
   let ok = await loadRiegoInvData(invId, false);
   if(!ok) return false;
   const syncDespues = await leerRiegoSyncActual(invId);
-  if(syncDespues?.id && syncAntes?.id && syncDespues.id!==syncAntes.id){
+  if((syncDespues?.id || null)!==(syncAntes?.id || null)){
     ok = await loadRiegoInvData(invId, true);
     if(!ok) return false;
   }
