@@ -10465,7 +10465,10 @@ function renderGeoInv(invId){
 const RIEGO_KEY = 'lasala-riego-v1'; // snapshot legado/rollback; v2 ya no lo lee ni lo escribe
 const RIEGO_V2_PREFIX = 'lasala-riego-v2-';
 const RIEGO_V2_INDEX_KEY = 'lasala-riego-v2-index';
+const RIEGO_SYNC_KEY = 'lasala-riego-sync-v1';
+const RIEGO_SUPERVISOR_USER = 'VIGUERAS';
 function riegoV2Key(invId){ return RIEGO_V2_PREFIX + invId; }
+function riegoSyncUrl(invId){ return `${CLOUD_DB_URL}/${RIEGO_SYNC_KEY}/${encodeURIComponent(String(invId))}.json`; }
 let riegoInvCargadaEn = {};
 let riegoDirtyInvs = new Set();
 let riegoDirtyCells = new Map();
@@ -10538,6 +10541,187 @@ function mostrarConflictoRiego(invId,dia,calle,remoto,local){
     o.querySelector('#rc-sobrescribir').onclick = ()=>cerrar(true);
     o.style.display = 'flex';
   });
+}
+// ── SINCRONIZACIÓN EN TIEMPO REAL DE RIEGO ───────────────────
+// El nodo v2 sigue siendo la fuente de verdad. Este nodo auxiliar es minúsculo:
+// solo publica "ha cambiado INV X" y permite que las demás pantallas refresquen
+// inmediatamente sin sondear ni descargar el riego completo continuamente.
+let riegoSyncSource = null;
+let riegoSyncInv = null;
+let riegoSyncUltimoEventoPorInv = {};
+let riegoSyncPendiente = null;
+let riegoSyncPendienteTimer = null;
+
+async function leerRiegoSyncActual(invId){
+  try{
+    const r = await fetch(riegoSyncUrl(invId), {cache:'no-store'});
+    if(!r.ok) return null;
+    return await r.json();
+  }catch(e){ return null; }
+}
+function cerrarRiegoSync(){
+  if(riegoSyncSource){
+    try{ riegoSyncSource.close(); }catch(e){}
+  }
+  riegoSyncSource = null;
+  riegoSyncInv = null;
+  riegoSyncPendiente = null;
+  if(riegoSyncPendienteTimer){
+    clearTimeout(riegoSyncPendienteTimer);
+    riegoSyncPendienteTimer = null;
+  }
+}
+function cerrarRiegoModule(){
+  cerrarRiegoSync();
+  riegoInvSel = null;
+  const o = document.getElementById('riego-overlay');
+  if(o) o.style.display='none';
+}
+function riegoEstaEditandoAhora(invId){
+  const manual = document.getElementById('riego-manual-overlay');
+  if(manual && manual.style.display && manual.style.display!=='none') return true;
+  const a = document.activeElement;
+  if(!a || !a.closest) return false;
+  if(!a.closest('#riego-grid-wrap')) return false;
+  if(a.tagName!=='INPUT' && a.tagName!=='TEXTAREA') return false;
+  return !a.dataset.rinv || String(a.dataset.rinv)===String(invId);
+}
+function programarRiegoSyncPendiente(){
+  if(riegoSyncPendienteTimer) return;
+  riegoSyncPendienteTimer = setTimeout(async ()=>{
+    riegoSyncPendienteTimer = null;
+    if(!riegoSyncPendiente) return;
+    if(riegoEstaEditandoAhora(riegoSyncPendiente.invId)){
+      programarRiegoSyncPendiente();
+      return;
+    }
+    const evento = riegoSyncPendiente;
+    riegoSyncPendiente = null;
+    await procesarRiegoSyncEvento(evento);
+  }, 600);
+}
+async function refrescarRiegoInvDesdeNube(invId){
+  invId = String(invId);
+  const nodo = await leerRiegoV2Nodo(invId, false);
+  if(!nodo.ok || !nodo.exists) return false;
+
+  const cloud = nodo.data || {};
+  const localAntes = riegoData[invId] || {};
+  const merged = clonarRiegoSnapshot(cloud) || {};
+  const dirty = Array.from(riegoDirtyCells.values()).filter(x=>x.invId===invId);
+
+  // Los cambios locales todavía NO guardados nunca se pisan por un refresco.
+  // Se conserva cada calle sucia encima de la última versión recibida.
+  dirty.forEach(({dia,calle})=>{
+    const d=String(dia), ca=String(calle);
+    const local = localAntes?.[d]?.[ca];
+    const textoLocal = (local && typeof local==='object') ? local.texto : local;
+    const vacio = local==null || (typeof textoLocal==='string' && textoLocal.trim()==='');
+    if(vacio){
+      if(merged[d]) delete merged[d][ca];
+      if(merged[d] && Object.keys(merged[d]).length===0) delete merged[d];
+    } else {
+      if(!merged[d]) merged[d]={};
+      merged[d][ca] = clonarRiegoSnapshot(local);
+    }
+  });
+
+  riegoData[invId] = merged;
+  // La base global sí pasa a ser la nube fresca. Cada dirty conserva además
+  // su base ORIGINAL propia, que es la que usa el detector de conflicto.
+  riegoBaseInv[invId] = clonarRiegoSnapshot(cloud);
+  riegoInvCargadaEn[invId] = Date.now();
+  riegoDataCargadaEn = 0;
+  if(String(riegoInvSel)===invId) renderRiegoGrid(invId);
+  return true;
+}
+async function procesarRiegoSyncEvento(evento){
+  if(!evento || !evento.id || !evento.invId) return;
+  const invId = String(evento.invId);
+  if(String(riegoInvSel)!==invId) return;
+  if(riegoSyncUltimoEventoPorInv[invId]===evento.id) return;
+  if(evento.usuario===currentUser){
+    riegoSyncUltimoEventoPorInv[invId]=evento.id;
+    return;
+  }
+  if(riegoEstaEditandoAhora(invId)){
+    riegoSyncPendiente = evento;
+    programarRiegoSyncPendiente();
+    return;
+  }
+  const ok = await refrescarRiegoInvDesdeNube(invId);
+  if(!ok) return;
+  riegoSyncUltimoEventoPorInv[invId]=evento.id;
+
+  const quien = nombreLegibleUsuario(evento.usuario);
+  if(evento.avisoSupervisor && currentUser===RIEGO_SUPERVISOR_USER){
+    showToast(`🔔 ${quien} ha modificado un riego ya validado · ${evento.resumen||('INV '+invId)}`);
+  } else if(evento.accion==='validacion'){
+    showToast(`✓ Riego actualizado: ${quien} lo ha validado`);
+  } else if(evento.accion==='correccion_validada'){
+    showToast(`🔄 Riego actualizado: ${quien} lo ha corregido y validado`);
+  } else {
+    showToast(`🔄 Riego actualizado por ${quien}`);
+  }
+}
+function iniciarRiegoSyncInv(invId, baselineId){
+  cerrarRiegoSync();
+  invId = String(invId);
+  riegoSyncInv = invId;
+  riegoSyncUltimoEventoPorInv[invId] = baselineId || null;
+  if(typeof EventSource==='undefined') return;
+  try{
+    const es = new EventSource(riegoSyncUrl(invId));
+    riegoSyncSource = es;
+    const recibir = ev=>{
+      try{
+        const payload = JSON.parse(ev.data||'{}');
+        const evento = payload && payload.data;
+        if(evento && typeof evento==='object') procesarRiegoSyncEvento(evento);
+      }catch(e){}
+    };
+    es.addEventListener('put', recibir);
+    es.addEventListener('patch', recibir);
+    // EventSource reconecta solo si hay un corte; no hace falta polling.
+  }catch(e){}
+}
+function resumenPuntosRiego(invId, puntos){
+  const porDia = {};
+  (puntos||[]).forEach(p=>{
+    const d=String(p.dia), ca=parseInt(p.calle,10);
+    if(!Number.isFinite(ca)) return;
+    if(!porDia[d]) porDia[d]=new Set();
+    porDia[d].add(ca);
+  });
+  return Object.keys(porDia).sort((a,b)=>parseInt(a)-parseInt(b)).map(d=>{
+    const calles=[...porDia[d]].sort((a,b)=>a-b);
+    return `${riegoDiaLabelCorto(parseInt(d,10))} · ${formatCallesParaImprimir(invId, calles)}`;
+  }).join(' | ');
+}
+async function publicarEventoRiego(invId, puntos, accion, avisoSupervisor){
+  const evento = {
+    id:'rs_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
+    invId:String(invId),
+    usuario:currentUser||null,
+    rol:currentUserRole||null,
+    accion:accion||'modificacion',
+    resumen:resumenPuntosRiego(String(invId), puntos),
+    avisoSupervisor:!!avisoSupervisor,
+    ts:Date.now()
+  };
+  try{
+    const r = await fetchConReintentos(riegoSyncUrl(invId), {
+      method:'PUT',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(evento)
+    });
+    if(r && r.ok===false) throw new Error('HTTP '+r.status);
+    riegoSyncUltimoEventoPorInv[String(invId)] = evento.id;
+    return evento;
+  }catch(e){
+    showToast('⚠ Riego guardado, pero no se pudo actualizar las otras pantallas');
+    return null;
+  }
 }
 function riegoDirtyCellKey(invId,dia,calle){ return String(invId)+'|'+String(dia)+'|'+String(calle); }
 function marcarRiegoDirtyCell(invId,dia,calle,baseOriginal){
@@ -10840,6 +11024,28 @@ async function saveRiegoInvPatch(invId, extraDeletes, incluirDirty){
   if(!ids) return false;
 
   const dirty = incluirDirty ? Array.from(riegoDirtyCells.values()).filter(x=>x.invId===invId) : [];
+
+  // Foto de QUÉ se intenta cambiar, antes de tocar la base global. Se usa
+  // para refresco remoto y para avisar al supervisor si un técnico modifica
+  // algo que ya estaba validado.
+  const cambiosEvento = new Map();
+  dirty.forEach(({dia,calle,base})=>{
+    const d=String(dia), ca=String(calle);
+    cambiosEvento.set(d+'|'+ca,{dia:d,calle:ca,base:clonarRiegoSnapshot(base)});
+  });
+  extraDeletes.forEach(({dia,calles})=>{
+    const d=String(dia);
+    (calles||[]).forEach(c=>{
+      const ca=String(c), k=d+'|'+ca;
+      if(!cambiosEvento.has(k)){
+        cambiosEvento.set(k,{
+          dia:d, calle:ca,
+          base:clonarRiegoSnapshot(riegoBaseInv[invId]?.[d]?.[ca] ?? null)
+        });
+      }
+    });
+  });
+
   const url = `${CLOUD_DB_URL}/${encodeURIComponent(riegoV2Key(invId))}.json`;
   let cloudGuardado = null;
   const conflictosAceptados = new Set();
@@ -10958,10 +11164,45 @@ async function saveRiegoInvPatch(invId, extraDeletes, incluirDirty){
     if(!idxOk) return false;
   }
 
+  const puntosEvento = Array.from(cambiosEvento.values());
+  const cambiosSobreValidado = puntosEvento.filter(p=>
+    currentUser!==RIEGO_SUPERVISOR_USER &&
+    p.base && typeof p.base==='object' && p.base.revisadoPorVigueras
+  );
+
+  let accionEvento = 'modificacion';
+  if(currentUser===RIEGO_SUPERVISOR_USER && puntosEvento.length){
+    const estados = puntosEvento.map(p=>{
+      const nuevo = cloudGuardado?.[String(p.dia)]?.[String(p.calle)] ?? null;
+      const mismoTexto = valorTextoRiego(p.base)===valorTextoRiego(nuevo);
+      const antesValidado = !!(p.base && typeof p.base==='object' && p.base.revisadoPorVigueras);
+      const ahoraValidado = !!(nuevo && typeof nuevo==='object' && nuevo.revisadoPorVigueras);
+      return {mismoTexto, antesValidado, ahoraValidado};
+    });
+    if(estados.every(x=>x.mismoTexto && !x.antesValidado && x.ahoraValidado)) accionEvento='validacion';
+    else if(estados.some(x=>x.ahoraValidado)) accionEvento='correccion_validada';
+  } else if(cambiosSobreValidado.length){
+    accionEvento='cambio_post_validacion';
+  }
+
   riegoData[invId] = cloudGuardado;
   riegoBaseInv[invId] = clonarRiegoSnapshot(cloudGuardado);
   riegoInvCargadaEn[invId] = Date.now();
   riegoDataCargadaEn = 0;
+
+  if(puntosEvento.length){
+    await publicarEventoRiego(invId, puntosEvento, accionEvento, cambiosSobreValidado.length>0);
+    if(cambiosSobreValidado.length){
+      const resumen = resumenPuntosRiego(invId, cambiosSobreValidado);
+      await notificarUsuario(
+        RIEGO_SUPERVISOR_USER,
+        `${nombreLegibleUsuario(currentUser)} ha modificado un riego que ya estaba validado: INV ${invId} · ${resumen}`,
+        '⚠️ Riego validado modificado',
+        {tipo:'cambio_riego_validado', invId:String(invId), resumen, modificadoPor:currentUser||null}
+      );
+    }
+  }
+
   dirty.forEach(({dia,calle})=>riegoDirtyCells.delete(riegoDirtyCellKey(invId,dia,calle)));
   extraDeletes.forEach(({dia,calles})=>(calles||[]).forEach(c=>riegoDirtyCells.delete(riegoDirtyCellKey(invId,dia,c))));
   if(!Array.from(riegoDirtyCells.values()).some(x=>x.invId===invId)) riegoDirtyInvs.delete(invId);
@@ -10979,6 +11220,7 @@ async function saveRiegoData(){
       if(!ok) return false;
     }
   }catch(e){ avisarFalloGuardado(); return false; }
+  if(riegoInvSel && afectados.map(String).includes(String(riegoInvSel))) renderRiegoGrid(String(riegoInvSel));
   showToast('✓ Riego guardado');
   logHistorial(`Guardó riego${riegoInvSel?' de INV '+riegoInvSel:''}`);
   return true;
@@ -11655,7 +11897,7 @@ function showRiegoModule(soloLectura){
             <button class="hdr-btn" onclick="showImprimirResumenSelector('riego')" title="Imprimir resumen de varios días" style="padding:6px 14px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:5px">
               <i class="ti ti-printer" style="font-size:13px"></i><span class="hdr-btn-label"> Imprimir</span>
             </button>
-            <button onclick="document.getElementById('riego-overlay').style.display='none'" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 11px;cursor:pointer;font-size:13px">✕</button>
+            <button onclick="cerrarRiegoModule()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 11px;cursor:pointer;font-size:13px">✕</button>
           </div>
         </div>
 
@@ -11727,6 +11969,7 @@ function showRiegoModule(soloLectura){
 }
 
 async function selectRiegoInv(invId, btn){
+  cerrarRiegoSync();
   riegoInvSel = invId;
   document.querySelectorAll('[data-rinv]').forEach(b=>{
     b.style.background='#fff'; b.style.color='#1558a0'; b.style.borderColor='#a8c4e8'; b.style.fontWeight='600';
@@ -11735,9 +11978,20 @@ async function selectRiegoInv(invId, btn){
   const label = document.getElementById('riego-inv-selector-label');
   if(label) label.textContent = 'INV.' + invId + ' · Cargando…';
   toggleRiegoInvSelector(false);
-  const ok = await loadRiegoInvData(invId, false);
+
+  // Baseline antes y después de cargar: si alguien guarda justo durante la
+  // apertura, repetimos una sola vez la lectura v2 y no se pierde ese cambio.
+  const syncAntes = await leerRiegoSyncActual(invId);
+  let ok = await loadRiegoInvData(invId, false);
   if(!ok) return false;
+  const syncDespues = await leerRiegoSyncActual(invId);
+  if(syncDespues?.id && syncAntes?.id && syncDespues.id!==syncAntes.id){
+    ok = await loadRiegoInvData(invId, true);
+    if(!ok) return false;
+  }
+
   renderRiegoGrid(invId);
+  iniciarRiegoSyncInv(invId, syncDespues?.id || syncAntes?.id || null);
   if(label) label.textContent = 'INV.' + invId + ' · Cambiar';
   return true;
 }
@@ -12317,6 +12571,7 @@ function registrarUndoRiegoMultiInv(entradas){
 // falta más adelante, pero ya no lo consume ningún botón.
 function retrocederRiego(){
   if(riegoInvSel){
+    cerrarRiegoSync();
     riegoInvSel = null;
     document.querySelectorAll('[data-rinv]').forEach(b=>{
       b.style.background='#fff'; b.style.color='#1558a0'; b.style.borderColor='#a8c4e8'; b.style.fontWeight='600';
@@ -12324,7 +12579,7 @@ function retrocederRiego(){
     const wrap = document.getElementById('riego-grid-wrap');
     if(wrap) wrap.innerHTML = renderDashboardInvernaderos('riego');
   } else {
-    document.getElementById('riego-overlay').style.display = 'none';
+    cerrarRiegoModule();
   }
 }
 // Ya no hace falta habilitar/deshabilitar el botón según si hay algo que
