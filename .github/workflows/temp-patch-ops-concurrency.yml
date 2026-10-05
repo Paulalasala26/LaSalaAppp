@@ -1,0 +1,205 @@
+name: TEMP Patch ops concurrency
+
+on:
+  push:
+    branches:
+      - test/v1.0
+    paths:
+      - .github/workflows/temp-patch-ops-concurrency.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: test/v1.0
+          fetch-depth: 0
+      - name: Patch index
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          p=Path("index.html")
+          s=p.read_text(encoding="utf-8")
+
+          def replace_function(src,name,replacement):
+              m=re.search(r'(?:async\s+)?function\s+'+re.escape(name)+r'\s*\(',src)
+              if not m:
+                  raise SystemExit(name+"_NOT_FOUND")
+              start=m.start()
+              brace=src.find("{",m.start())
+              depth=0
+              end=-1
+              for i,ch in enumerate(src[brace:],start=brace):
+                  if ch=="{": depth+=1
+                  elif ch=="}":
+                      depth-=1
+                      if depth==0:
+                          end=i+1
+                          break
+              if end<0: raise SystemExit(name+"_NO_END")
+              return src[:start]+replacement+src[end:]
+
+          repl={
+          "persistMantenimientoData": r"""async function persistMantenimientoData(){
+            try{
+              const locales=mantenimientoData.slice();
+              const tx=await actualizarStorageJsonConEtag(MANTENIMIENTO_KEY,[],cloud=>{
+                if(!Array.isArray(cloud)) cloud=[];
+                const map={};
+                cloud.forEach(t=>map[t.id]=t);
+                locales.forEach(t=>map[t.id]=t);
+                return Object.values(map);
+              });
+              if(!tx.ok){ avisarFalloGuardado(); return; }
+              mantenimientoData=tx.value;
+            }catch(e){ avisarFalloGuardado(); }
+          }""",
+          "eliminarTicketMantenimientoConfirmado": r"""async function eliminarTicketMantenimientoConfirmado(id,titulo){
+            const tx=await actualizarStorageJsonConEtag(MANTENIMIENTO_KEY,[],cloud=>{
+              if(!Array.isArray(cloud)) cloud=[];
+              return cloud.filter(x=>x.id!==id);
+            });
+            if(!tx.ok){ avisarFalloGuardado(); return; }
+            mantenimientoData=tx.value;
+            mantSeleccionadas.delete(id);
+            logHistorial(`Eliminó el ticket de mantenimiento "${titulo||''}"`);
+            showToast('✓ Ticket eliminado');
+            renderTareasContent(document.getElementById('tareas-overlay'),true);
+          }""",
+          "savePartidaToStorage": r"""async function savePartidaToStorage(p){
+            try{
+              const copia={...p};
+              const tx=await actualizarStorageJsonConEtag(PARTIDAS_KEY,[],stored=>{
+                if(!Array.isArray(stored)) stored=[];
+                const idx=stored.findIndex(x=>x.num===copia.num&&x.inv===copia.inv);
+                if(idx>=0) stored[idx]=copia; else stored.push(copia);
+                return stored;
+              });
+              if(!tx.ok) avisarFalloGuardado();
+            }catch(e){ avisarFalloGuardado(); }
+          }""",
+          "confirmarSalidaPendiente": r"""async function confirmarSalidaPendiente(uid){
+            const p=partidasDB.find(x=>x.num===uid&&x.pendienteSalida);
+            if(!p){ showToast('No se encontró la partida'); return; }
+            const inv=document.getElementById(`psal-inv-${uid}`)?.value;
+            const lado=document.getElementById(`psal-lado-${uid}`)?.value;
+            const ini=document.getElementById(`psal-ini-${uid}`)?.value;
+            const fin=document.getElementById(`psal-fin-${uid}`)?.value;
+            if(!inv||!lado||!ini){ showToast('Completa invernadero, lado y calle antes de confirmar'); return; }
+            const oldInv=p.inv;
+            const actualizada={...p,inv,lado,calle_inicio:ini,calle_fin:fin||ini,
+              entrada:new Date().toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric'}),
+              pendienteSalida:false};
+            const tx=await actualizarStorageJsonConEtag(PARTIDAS_KEY,[],stored=>{
+              if(!Array.isArray(stored)) stored=[];
+              const idx=stored.findIndex(x=>x.num===actualizada.num&&x.inv===oldInv);
+              if(idx>=0) stored[idx]=actualizada; else stored.push(actualizada);
+              return stored;
+            });
+            if(!tx.ok){ avisarFalloGuardado(); return; }
+            Object.assign(p,actualizada);
+            logHistorial(`Confirmó salida de ${p.num} en INV ${inv}, ${ini}${fin&&fin!==ini?'–'+fin:''}`);
+            await loadTrabajosData();
+            const creadosMujeres=await autoCrearTrabajosMujeresPartida(p);
+            showToast('✓ Salida confirmada: '+p.num+(creadosMujeres?` (${creadosMujeres} trabajo${creadosMujeres===1?'':'s'} de Mujeres programado${creadosMujeres===1?'':'s'})`:''));
+            renderPartidasContent(document.getElementById('partidas-list-overlay'),document.getElementById('psearch')?.value||'');
+          }""",
+          "persistTrabajosData": r"""async function persistTrabajosData(){
+            try{
+              const locales=trabajosData.slice();
+              const tx=await actualizarStorageJsonConEtag(TRABAJOS_KEY,[],cloud=>{
+                if(!Array.isArray(cloud)) cloud=[];
+                const map={};
+                cloud.forEach(t=>map[t.id]=t);
+                locales.forEach(t=>map[t.id]=t);
+                return Object.values(map);
+              });
+              if(!tx.ok){ avisarFalloGuardado(); return false; }
+              trabajosData=tx.value;
+              return true;
+            }catch(e){ avisarFalloGuardado(); return false; }
+          }""",
+          "eliminarTrabajoConfirmado": r"""async function eliminarTrabajoConfirmado(id){
+            const tx=await actualizarStorageJsonConEtag(TRABAJOS_KEY,[],cloud=>{
+              if(!Array.isArray(cloud)) cloud=[];
+              return cloud.filter(x=>x.id!==id);
+            });
+            if(!tx.ok){ avisarFalloGuardado(); return; }
+            trabajosData=tx.value;
+            logHistorial('Eliminó un trabajo');
+            showToast('✓ Trabajo eliminado');
+            renderTrabajosContent(document.getElementById('trabajos-overlay'));
+          }""",
+          "guardarConteoTutaCampo": r"""async function guardarConteoTutaCampo(dia,key,campo,valor){
+            const tx=await actualizarStorageJsonConEtag(CONTEO_TUTA_KEY,{},cloud=>{
+              if(!cloud||typeof cloud!=='object'||Array.isArray(cloud)) cloud={};
+              cloud[dia]=cloud[dia]||{};
+              cloud[dia][key]={...(cloud[dia][key]||{}),[campo]:valor};
+              return cloud;
+            });
+            if(!tx.ok){ avisarFalloGuardado(); return false; }
+            conteoTutaData=tx.value;
+            showToast('✓ Guardado');
+            return true;
+          }""",
+          "saveControlInvernaderoData": r"""async function saveControlInvernaderoData(){
+            try{
+              const locales=controlInvernaderoData.slice();
+              const tx=await actualizarStorageJsonConEtag(CONTROL_INVERNADERO_KEY,[],cloud=>{
+                if(!Array.isArray(cloud)) cloud=[];
+                const map={};
+                cloud.forEach(l=>map[l.id]=l);
+                locales.forEach(l=>map[l.id]=l);
+                return Object.values(map);
+              });
+              if(!tx.ok){ avisarFalloGuardado(); return; }
+              controlInvernaderoData=tx.value;
+            }catch(e){ avisarFalloGuardado(); }
+          }""",
+          "eliminarLineaInvernadero": r"""async function eliminarLineaInvernadero(id){
+            if(!confirm('¿Eliminar esta línea?')) return;
+            const tx=await actualizarStorageJsonConEtag(CONTROL_INVERNADERO_KEY,[],cloud=>{
+              if(!Array.isArray(cloud)) cloud=[];
+              return cloud.filter(l=>l.id!==id);
+            });
+            if(!tx.ok){ avisarFalloGuardado(); return; }
+            controlInvernaderoData=tx.value;
+            controlInvernaderoTotalMostrado=null;
+            renderControlContent(document.getElementById('control-overlay'));
+            showToast('✓ Eliminada');
+          }"""
+          }
+
+          for name,value in repl.items():
+              s=replace_function(s,name,value)
+
+          for key in ["MANTENIMIENTO_KEY","PARTIDAS_KEY","TRABAJOS_KEY","CONTEO_TUTA_KEY","CONTROL_INVERNADERO_KEY"]:
+              if re.search(r'window\.storage\.set\(\s*'+key+r'\b',s):
+                  raise SystemExit("DIRECT_SET_REMAINS_"+key)
+
+          p.write_text(s,encoding="utf-8")
+      - name: Validate inline JS
+        shell: bash
+        run: |
+          node - <<'NODE'
+          const fs=require('fs');
+          const h=fs.readFileSync('index.html','utf8');
+          const a=[...h.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].map(x=>x[1]);
+          for(const [i,s] of a.entries()){ try{ new Function(s); }catch(e){ console.error('script',i+1,e.message); process.exit(1); } }
+          console.log('INLINE_JS_OK',a.length);
+          NODE
+      - name: Commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "fix(test): proteger operaciones productivas ante concurrencia"
+          git push origin HEAD:test/v1.0
