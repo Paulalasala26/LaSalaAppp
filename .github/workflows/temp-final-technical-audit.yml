@@ -1,0 +1,41 @@
+name: TEMP Final technical audit
+
+on:
+  push:
+    branches:
+      - test/v1.0
+    paths:
+      - .github/workflows/temp-final-technical-audit.yml
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify deployed security invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://la-sala-app-test.vercel.app'
+          DB='https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app'
+
+          AUTH_GET="$(curl -sS -o /tmp/auth-get.json -w '%{http_code}' "$BASE/api/firebase-auth")"
+          [ "$AUTH_GET" = "405" ]
+          echo "AUTH_GET_CLOSED OK 405"
+
+          ANON="$(curl -sS -o /tmp/anon.json -w '%{http_code}' "$DB/lasala-roles-v1.json")"
+          case "$ANON" in
+            401|403) echo "ANON_RTDB_BLOCKED OK $ANON" ;;
+            *) echo "Unexpected anonymous RTDB status $ANON"; cat /tmp/anon.json; exit 1 ;;
+          esac
+
+          HTML="$(curl -fsS "$BASE/")"
+          echo "$HTML" | grep -q '/api/firebase-auth'
+          echo "DEPLOYED_AUTH_CLIENT OK"
+
+          if echo "$HTML" | grep -Eq '[0-9a-f]{64}'; then
+            echo "Unexpected SHA-256-like credential material in deployed HTML"
+            exit 1
+          fi
+          echo "NO_PASSWORD_HASHES_IN_HTML OK"
+
+          echo "FINAL_TECHNICAL_AUDIT OK"
