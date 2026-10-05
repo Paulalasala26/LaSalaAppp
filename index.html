@@ -8879,7 +8879,14 @@ function togglePartidaEnSeleccionEspecifico(id){
 async function mostrarHistorialPartida(id){
   const c = controlChecksData.find(x=>x.id===id);
   if(!c) return;
-  await Promise.all([loadRiegoData(false), loadFitoData(false), loadEspecificosData(false)]);
+  // El historial recorre exclusivamente las calles de ESTA partida en su
+  // invernadero; descargar todos los shards de Riego era innecesario.
+  // Si aún no tiene invId, no hay riego que consultar.
+  await Promise.all([
+    c.invId ? loadRiegoInvData(c.invId, false) : Promise.resolve(true),
+    loadFitoData(false),
+    loadEspecificosData(false)
+  ]);
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const tramos = (c.tramos && c.tramos.length) ? c.tramos : [{desde:c.calleDesde, hasta:c.calleHasta}];
   const calles = [];
