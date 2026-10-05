@@ -1,0 +1,69 @@
+name: Measure residual traffic in TEST
+on:
+  push:
+    branches:
+      - test/v1.0
+    paths:
+      - .github/workflows/measure-residual-traffic-test.yml
+
+jobs:
+  measure:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Measure TEST residual nodes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, urllib.request
+          BASE='https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app'
+
+          def fetch_node(key):
+              url=f'{BASE}/{key}.json'
+              with urllib.request.urlopen(url, timeout=120) as r:
+                  raw=r.read()
+              try:
+                  val=json.loads(raw.decode())
+              except Exception:
+                  val=None
+              return raw,val
+
+          def decoded(v):
+              if isinstance(v,str):
+                  try: return json.loads(v)
+                  except Exception: return v
+              return v
+
+          raw,obj=fetch_node('lasala-fito-v1')
+          obj=decoded(obj)
+          print('FITO_RAW_RESPONSE_BYTES=',len(raw))
+          if isinstance(obj,dict):
+              print('FITO_INV_COUNT=',len(obj))
+              total_cells=0
+              for inv,v in sorted(obj.items(), key=lambda kv:str(kv[0])):
+                  days=v if isinstance(v,dict) else {}
+                  cells=sum(len(d) for d in days.values() if isinstance(d,dict))
+                  total_cells+=cells
+                  payload=len(json.dumps(v,ensure_ascii=False,separators=(',',':')).encode())
+                  print(f'FITO_INV {inv}: days={len(days)} cells={cells} bytes={payload}')
+              print('FITO_CELL_COUNT=',total_cells)
+          else:
+              print('FITO_TYPE=',type(obj).__name__)
+
+          for key in [
+              'lasala-control-fotos-shards-index',
+              'lasala-control-fotos-indice-v1',
+              'lasala-control-pdfs-indice-v1'
+          ]:
+              raw,val=fetch_node(key)
+              val=decoded(val)
+              print(f'{key}_RAW_RESPONSE_BYTES=',len(raw))
+              if isinstance(val,list):
+                  print(f'{key}_COUNT=',len(val))
+              elif isinstance(val,dict):
+                  print(f'{key}_COUNT=',len(val))
+              elif val is None:
+                  print(f'{key}_COUNT=0')
+              else:
+                  print(f'{key}_TYPE={type(val).__name__}')
+          PY
