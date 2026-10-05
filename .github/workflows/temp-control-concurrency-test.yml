@@ -1,0 +1,86 @@
+name: TEMP Control concurrency TEST
+
+on:
+  push:
+    branches:
+      - test/v1.0
+    paths:
+      - .github/workflows/temp-control-concurrency-test.yml
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probar ETag 412 y reintento sin pérdida
+        shell: bash
+        run: |
+          node <<'NODE'
+          const base='https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app';
+          const prefix='__tmp_control_concurrency_20261005';
+          const keys={
+            photoIndex: prefix+'_photo_index',
+            shardIndex: prefix+'_shard_index',
+            pdfIndex: prefix+'_pdf_index',
+            photoShard: prefix+'_photo_shard'
+          };
+          const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+          const url=k=>base+'/'+encodeURIComponent(k)+'.json';
+          async function rawGet(k){
+            const r=await fetch(url(k),{headers:{'X-Firebase-ETag':'true'},cache:'no-store'});
+            if(!r.ok) throw new Error('GET '+k+' HTTP '+r.status);
+            const etag=r.headers.get('etag');
+            if(!etag) throw new Error('GET '+k+' sin ETag');
+            const raw=await r.json();
+            return {etag,val:raw===null?null:JSON.parse(raw)};
+          }
+          async function rawPut(k,val,etag){
+            const headers={'Content-Type':'application/json'};
+            if(etag) headers['if-match']=etag;
+            return fetch(url(k),{method:'PUT',headers,body:JSON.stringify(JSON.stringify(val))});
+          }
+          async function rawDelete(k){
+            const r=await fetch(url(k),{method:'DELETE'});
+            if(!r.ok) throw new Error('DELETE '+k+' HTTP '+r.status);
+          }
+          function merge(cur,delta){
+            if(Array.isArray(cur)) return [...new Set([...(cur||[]),...(delta||[])])];
+            return {...(cur||{}),...(delta||{})};
+          }
+          async function race(label,k,initial,a,b,expectedKeys){
+            await rawDelete(k);
+            let r=await rawPut(k,initial);
+            if(!r.ok) throw new Error(label+' init HTTP '+r.status);
+            const g1=await rawGet(k);
+            const g2=await rawGet(k);
+            if(g1.etag!==g2.etag) throw new Error(label+' ETag inicial desigual');
+            r=await rawPut(k,merge(g1.val,a),g1.etag);
+            if(!r.ok) throw new Error(label+' writer A HTTP '+r.status);
+            const stale=await rawPut(k,merge(g2.val,b),g2.etag);
+            if(stale.status!==412) throw new Error(label+' esperaba 412 y obtuvo '+stale.status);
+            let ok=false;
+            for(let intento=1;intento<=5;intento++){
+              const fresh=await rawGet(k);
+              const rr=await rawPut(k,merge(fresh.val,b),fresh.etag);
+              if(rr.ok){ok=true;break;}
+              if(rr.status!==412) throw new Error(label+' retry HTTP '+rr.status);
+              await sleep(50*intento);
+            }
+            if(!ok) throw new Error(label+' agotó reintentos');
+            const fin=(await rawGet(k)).val;
+            for(const ek of expectedKeys){
+              const present=Array.isArray(fin) ? fin.includes(ek) : Object.prototype.hasOwnProperty.call(fin,ek);
+              if(!present) throw new Error(label+' perdió '+ek);
+            }
+            console.log('OK '+label+' 412 + retry + no-loss');
+          }
+          try{
+            await race('photo-index',keys.photoIndex,{base:'s0'},{fotoA:'s1'},{fotoB:'s2'},['base','fotoA','fotoB']);
+            await race('shards-index',keys.shardIndex,['s0'],['sA'],['sB'],['s0','sA','sB']);
+            await race('pdf-index',keys.pdfIndex,['tunel|1'],['tunel|2'],['carga|2'],['tunel|1','tunel|2','carga|2']);
+            await race('photo-shard',keys.photoShard,{base:'old'},{fotoA:'A'},{fotoB:'B'},['base','fotoA','fotoB']);
+            console.log('RESULT CONTROL_CONCURRENCY_TEST OK');
+          } finally {
+            await Promise.all(Object.values(keys).map(k=>rawDelete(k).catch(()=>{})));
+            console.log('CLEANUP OK');
+          }
+          NODE
