@@ -8715,8 +8715,8 @@ async function aplicarEspecificoAPartidasSeleccionadas(){
     especificosPartidaData[id].push({trat, dosis, horario, fechaLabel, fechaISO, invId:c.invId, dia, calles});
     marcarEspecificosPartidaDirty(id);
   }
-  await saveEspecificosData();
-  await saveEspecificosPartidaData();
+  if(!(await saveEspecificosData())) return;
+  if(!(await saveEspecificosPartidaData())) return;
   document.getElementById('especifico-por-partidas-overlay').style.display = 'none';
   partidasEspecificoModo = false;
   partidasEspecificoSeleccion = new Set();
@@ -19631,8 +19631,8 @@ async function saveEspecificoManual(){
       }
     }
   }
-  await saveEspecificosData();
-  await saveEspecificosPartidaData();
+  if(!(await saveEspecificosData())) return;
+  if(!(await saveEspecificosPartidaData())) return;
   document.getElementById('especifico-manual-overlay').style.display = 'none';
   if(especificosInvSel) renderEspecificosGrid(especificosInvSel);
   showToast(`✓ Día ${dia} → aplicado a ${bulkInvIds.length} invernadero(s) (${count} calles)`);
@@ -19689,7 +19689,7 @@ async function borrarEspecificoManual(){
       marcarEspecificosPartidaDirty(partidaId);
     }
   });
-  await saveEspecificosPartidaData();
+  if(!(await saveEspecificosPartidaData())) return;
   document.getElementById('especifico-manual-overlay').style.display = 'none';
   const okBorrado=await guardarBorradoEspecifico(entradas);
   if(!okBorrado) return;
