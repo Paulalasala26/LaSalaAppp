@@ -5519,6 +5519,59 @@ window.addEventListener('online', procesarColaOffline);
 const CONTROL_PDFS_KEY = 'lasala-control-pdfs-v1'; // legado, solo lectura de migración
 const CONTROL_PDFS_INDICE_KEY = 'lasala-control-pdfs-indice-v1';
 function controlPdfEntryKey(tipo, dia){ return 'lasala-control-pdf-v1-'+tipo+'-'+dia; }
+
+async function migrarControlPdfLegacyEntradaSiFalta(tipo,dia,valor){
+  const url=`${CLOUD_DB_URL}/${encodeURIComponent(controlPdfEntryKey(tipo,dia))}.json`;
+  for(let intento=1; intento<=5; intento++){
+    try{
+      const getRes=await fetch(url,{headers:{'X-Firebase-ETag':'true'},cache:'no-store'});
+      if(!getRes.ok) throw new Error('HTTP '+getRes.status);
+      const etag=getRes.headers.get('ETag');
+      if(!etag) throw new Error('Firebase no devolvió ETag');
+      const actual=await getRes.json();
+      if(actual!==null) return true;
+      const putRes=await fetch(url,{
+        method:'PUT',
+        headers:{'Content-Type':'application/json','if-match':etag},
+        body:JSON.stringify(JSON.stringify(valor))
+      });
+      if(putRes.ok) return true;
+      if(putRes.status!==412) throw new Error('HTTP '+putRes.status);
+    }catch(e){
+      if(intento===5) return false;
+    }
+    await new Promise(r=>setTimeout(r,120*intento));
+  }
+  return false;
+}
+
+async function fusionarIndiceControlPdfs(claves){
+  const url=`${CLOUD_DB_URL}/${encodeURIComponent(CONTROL_PDFS_INDICE_KEY)}.json`;
+  for(let intento=1; intento<=5; intento++){
+    try{
+      const getRes=await fetch(url,{headers:{'X-Firebase-ETag':'true'},cache:'no-store'});
+      if(!getRes.ok) throw new Error('HTTP '+getRes.status);
+      const etag=getRes.headers.get('ETag');
+      if(!etag) throw new Error('Firebase no devolvió ETag');
+      const val=await getRes.json();
+      const fresco=val==null ? [] : JSON.parse(val);
+      if(!Array.isArray(fresco)) throw new Error('Índice PDF inválido');
+      const unido=[...new Set([...fresco,...claves])];
+      if(unido.length===fresco.length) return unido;
+      const putRes=await fetch(url,{
+        method:'PUT',
+        headers:{'Content-Type':'application/json','if-match':etag},
+        body:JSON.stringify(JSON.stringify(unido))
+      });
+      if(putRes.ok) return unido;
+      if(putRes.status!==412) throw new Error('HTTP '+putRes.status);
+    }catch(e){
+      if(intento===5) return null;
+    }
+    await new Promise(r=>setTimeout(r,120*intento));
+  }
+  return null;
+}
 let controlPdfsData = {};
 // Carga PEREZOSA (a petición de Paula, 2026-09-04, "¿podemos optimizar aún
 // más?"): antes se bajaban las 51 entradas del índice ENTERAS de golpe cada
@@ -5552,12 +5605,14 @@ async function loadControlPdfsData(){
       const viejo = rViejo ? JSON.parse(rViejo.value) : {};
       const clavesViejas = Object.keys(viejo);
       if(clavesViejas.length){
-        await Promise.all(clavesViejas.map(claveTipoDia=>{
-          const parts = claveTipoDia.split('|');
-          return window.storage.set(controlPdfEntryKey(parts[0], parts[1]), JSON.stringify(viejo[claveTipoDia]));
-        }));
-        indice = clavesViejas;
-        await window.storage.set(CONTROL_PDFS_INDICE_KEY, JSON.stringify(indice));
+      const migrados=await Promise.all(clavesViejas.map(claveTipoDia=>{
+        const parts=claveTipoDia.split('|');
+        return migrarControlPdfLegacyEntradaSiFalta(parts[0],parts[1],viejo[claveTipoDia]);
+      }));
+      if(!migrados.every(Boolean)) return;
+      const indiceMigrado=await fusionarIndiceControlPdfs(clavesViejas);
+      if(!indiceMigrado) return;
+      indice=indiceMigrado;
       }
       controlPdfsData = viejo; // ya migrado, el blob viejo cabe entero en memoria de todas formas
       controlPdfsIndice = indice;
