@@ -286,6 +286,25 @@ const fotoEntrada = {};
 // Firebase Auth + reglas restringidas sin tocar el resto de la app.
 // ════════════════════════════════════════════════════════════════
 const CLOUD_DB_URL = 'https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app';
+
+// Preparación Firebase Auth: mientras no haya ID token, el comportamiento es
+// exactamente el actual. Cuando Firebase Auth esté activado, basta con llamar
+// a setFirebaseIdToken(token): todas las peticiones RTDB pasarán a enviar
+// auth=<ID token> sin reescribir cada módulo.
+let firebaseIdToken = null;
+function setFirebaseIdToken(token){
+  firebaseIdToken = token || null;
+}
+function appFetch(input, init){
+  try{
+    if(firebaseIdToken && typeof input==='string' && input.startsWith(CLOUD_DB_URL)){
+      const u=new URL(input);
+      if(!u.searchParams.has('auth')) u.searchParams.set('auth', firebaseIdToken);
+      return window.fetch(u.toString(), init);
+    }
+  }catch(e){}
+  return window.fetch(input, init);
+}
 // A petición de Paula (2026-08-03), tras perder trabajo real de un técnico
 // que estuvo marcando checks justo cuando Netlify se cayó: get/set nunca
 // avisaban de un fallo, se tragaban cualquier error de red en silencio y el
@@ -341,7 +360,7 @@ function ocultarAvisoFalloGuardado(){
 async function fetchConReintentos(url, opciones){
   for(let intento=1; intento<=3; intento++){
     try{
-      const res = await fetch(url, opciones);
+      const res = await appFetch(url, opciones);
       if(!res.ok) throw new Error('HTTP '+res.status);
       ocultarAvisoFalloGuardado();
       return res;
@@ -472,7 +491,7 @@ let USERS={
 // auditoría completa del 2026-09-09.
 async function esClaveRealmenteVacia(key){
   try{
-    const res = await fetch(`${CLOUD_DB_URL}/${encodeURIComponent(key)}.json`);
+    const res = await appFetch(`${CLOUD_DB_URL}/${encodeURIComponent(key)}.json`);
     if(!res.ok) return false;
     return (await res.json()) === null;
   }catch(e){ return false; }
@@ -1154,7 +1173,7 @@ async function actualizarBotonAvisosPush(){
 const SEND_PUSH_URL = 'https://lasala-send-push.lasala-send-push.workers.dev';
 async function enviarPushA(target, title, body){
   try{
-    await fetch(SEND_PUSH_URL, {
+    await appFetch(SEND_PUSH_URL, {
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({target, title, body})
@@ -4895,7 +4914,7 @@ async function guardarIndiceFotosPartida(mapaIdShard){
   const url=`${CLOUD_DB_URL}/${encodeURIComponent(CONTROL_FOTOS_INDICE_KEY)}.json`;
   for(let intento=1; intento<=5; intento++){
     try{
-      const getRes=await fetch(url,{headers:{'X-Firebase-ETag':'true'},cache:'no-store'});
+      const getRes=await appFetch(url,{headers:{'X-Firebase-ETag':'true'},cache:'no-store'});
       if(!getRes.ok) throw new Error('HTTP '+getRes.status);
       const etag=getRes.headers.get('ETag');
       if(!etag) throw new Error('Firebase no devolvió ETag');
@@ -4904,7 +4923,7 @@ async function guardarIndiceFotosPartida(mapaIdShard){
       // lo tiene, un null HTTP real sí puede inicializarse de forma segura.
       const fresco=val==null ? {} : JSON.parse(val);
       const unido={...fresco,...mapaIdShard};
-      const putRes=await fetch(url,{
+      const putRes=await appFetch(url,{
         method:'PUT',
         headers:{'Content-Type':'application/json','if-match':etag},
         body:JSON.stringify(JSON.stringify(unido))
@@ -4938,7 +4957,7 @@ async function elegirShardParaFoto(id, fotoB64Len){
   const url=`${CLOUD_DB_URL}/${encodeURIComponent(CONTROL_FOTOS_SHARDS_INDEX_KEY)}.json`;
   for(let intento=1; intento<=5; intento++){
     try{
-      const getRes=await fetch(url,{headers:{'X-Firebase-ETag':'true'},cache:'no-store'});
+      const getRes=await appFetch(url,{headers:{'X-Firebase-ETag':'true'},cache:'no-store'});
       if(!getRes.ok) throw new Error('HTTP '+getRes.status);
       const etag=getRes.headers.get('ETag');
       if(!etag) throw new Error('Firebase no devolvió ETag');
@@ -4953,7 +4972,7 @@ async function elegirShardParaFoto(id, fotoB64Len){
       }
       const nuevoKey=`lasala-control-fotos-v1-${union.length+1}`;
       const siguiente=[...union,nuevoKey];
-      const putRes=await fetch(url,{
+      const putRes=await appFetch(url,{
         method:'PUT',
         headers:{'Content-Type':'application/json','if-match':etag},
         body:JSON.stringify(JSON.stringify(siguiente))
@@ -4983,14 +5002,14 @@ async function persistControlFotosData(id){
     // Solo se reaplica ESTA foto sobre el shard fresco. ETag evita que dos
     // móviles subiendo fotos al mismo shard se borren mutuamente.
     for(let intento=1; intento<=5; intento++){
-      const getRes=await fetch(url,{headers:{'X-Firebase-ETag':'true'},cache:'no-store'});
+      const getRes=await appFetch(url,{headers:{'X-Firebase-ETag':'true'},cache:'no-store'});
       if(!getRes.ok) throw new Error('HTTP '+getRes.status);
       const etag=getRes.headers.get('ETag');
       if(!etag) throw new Error('Firebase no devolvió ETag');
       const val=await getRes.json();
       const cloud=val==null ? {} : JSON.parse(val);
       cloud[id]=controlFotosData[id];
-      const putRes=await fetch(url,{
+      const putRes=await appFetch(url,{
         method:'PUT',
         headers:{'Content-Type':'application/json','if-match':etag},
         body:JSON.stringify(JSON.stringify(cloud))
@@ -5147,7 +5166,7 @@ async function actualizarControlV2IndexConteos(shardKeys){
   try{
     const conteos={};
     await Promise.all(claves.map(async key=>{
-      const r=await fetch(`${CLOUD_DB_URL}/${encodeURIComponent(key)}.json?shallow=true`, {cache:'no-store'});
+      const r=await appFetch(`${CLOUD_DB_URL}/${encodeURIComponent(key)}.json?shallow=true`, {cache:'no-store'});
       if(!r.ok) throw new Error('HTTP '+r.status);
       const v=await r.json();
       conteos[key]=(v && typeof v==='object') ? Object.keys(v).length : 0;
@@ -5155,7 +5174,7 @@ async function actualizarControlV2IndexConteos(shardKeys){
 
     const url=`${CLOUD_DB_URL}/${CONTROL_ITEMS_V2_INDEX_KEY}.json`;
     for(let intento=1; intento<=4; intento++){
-      const r=await fetch(url,{headers:{'X-Firebase-ETag':'true'},cache:'no-store'});
+      const r=await appFetch(url,{headers:{'X-Firebase-ETag':'true'},cache:'no-store'});
       if(!r.ok) throw new Error('HTTP '+r.status);
       const etag=r.headers.get('ETag');
       const idx=await r.json();
@@ -5167,7 +5186,7 @@ async function actualizarControlV2IndexConteos(shardKeys){
         const tipo=m[1], q=parseInt(m[2],10), k=tipo+'|'+q;
         idx.shards[k]={...(idx.shards[k]||{}),key,tipo,q,count:conteos[key]};
       }
-      const put=await fetch(url,{
+      const put=await appFetch(url,{
         method:'PUT',
         headers:{'Content-Type':'application/json','if-match':etag},
         body:JSON.stringify(idx)
@@ -5524,13 +5543,13 @@ async function migrarControlPdfLegacyEntradaSiFalta(tipo,dia,valor){
   const url=`${CLOUD_DB_URL}/${encodeURIComponent(controlPdfEntryKey(tipo,dia))}.json`;
   for(let intento=1; intento<=5; intento++){
     try{
-      const getRes=await fetch(url,{headers:{'X-Firebase-ETag':'true'},cache:'no-store'});
+      const getRes=await appFetch(url,{headers:{'X-Firebase-ETag':'true'},cache:'no-store'});
       if(!getRes.ok) throw new Error('HTTP '+getRes.status);
       const etag=getRes.headers.get('ETag');
       if(!etag) throw new Error('Firebase no devolvió ETag');
       const actual=await getRes.json();
       if(actual!==null) return true;
-      const putRes=await fetch(url,{
+      const putRes=await appFetch(url,{
         method:'PUT',
         headers:{'Content-Type':'application/json','if-match':etag},
         body:JSON.stringify(JSON.stringify(valor))
@@ -5549,7 +5568,7 @@ async function fusionarIndiceControlPdfs(claves){
   const url=`${CLOUD_DB_URL}/${encodeURIComponent(CONTROL_PDFS_INDICE_KEY)}.json`;
   for(let intento=1; intento<=5; intento++){
     try{
-      const getRes=await fetch(url,{headers:{'X-Firebase-ETag':'true'},cache:'no-store'});
+      const getRes=await appFetch(url,{headers:{'X-Firebase-ETag':'true'},cache:'no-store'});
       if(!getRes.ok) throw new Error('HTTP '+getRes.status);
       const etag=getRes.headers.get('ETag');
       if(!etag) throw new Error('Firebase no devolvió ETag');
@@ -5558,7 +5577,7 @@ async function fusionarIndiceControlPdfs(claves){
       if(!Array.isArray(fresco)) throw new Error('Índice PDF inválido');
       const unido=[...new Set([...fresco,...claves])];
       if(unido.length===fresco.length) return unido;
-      const putRes=await fetch(url,{
+      const putRes=await appFetch(url,{
         method:'PUT',
         headers:{'Content-Type':'application/json','if-match':etag},
         body:JSON.stringify(JSON.stringify(unido))
@@ -5652,7 +5671,7 @@ async function guardarControlPdf(tipo, dia, nombre, pdfB64){
     const url=`${CLOUD_DB_URL}/${encodeURIComponent(CONTROL_PDFS_INDICE_KEY)}.json`;
     let indiceGuardado=null;
     for(let intento=1; intento<=5; intento++){
-      const getRes=await fetch(url,{headers:{'X-Firebase-ETag':'true'},cache:'no-store'});
+      const getRes=await appFetch(url,{headers:{'X-Firebase-ETag':'true'},cache:'no-store'});
       if(!getRes.ok) throw new Error('HTTP '+getRes.status);
       const etag=getRes.headers.get('ETag');
       if(!etag) throw new Error('Firebase no devolvió ETag');
@@ -5664,7 +5683,7 @@ async function guardarControlPdf(tipo, dia, nombre, pdfB64){
         break;
       }
       const siguiente=[...indice,claveTipoDia];
-      const putRes=await fetch(url,{
+      const putRes=await appFetch(url,{
         method:'PUT',
         headers:{'Content-Type':'application/json','if-match':etag},
         body:JSON.stringify(JSON.stringify(siguiente))
@@ -10913,7 +10932,7 @@ let riegoSyncPendienteTimer = null;
 
 async function leerRiegoSyncActual(invId){
   try{
-    const r = await fetch(riegoSyncUrl(invId), {cache:'no-store'});
+    const r = await appFetch(riegoSyncUrl(invId), {cache:'no-store'});
     if(!r.ok) return null;
     return await r.json();
   }catch(e){ return null; }
@@ -11467,7 +11486,7 @@ async function actualizarRiegoV2IndexConInv(invId){
   const id = String(invId);
   for(let intento=1; intento<=5; intento++){
     try{
-      const getRes = await fetch(url, {headers:{'X-Firebase-ETag':'true'}});
+      const getRes = await appFetch(url, {headers:{'X-Firebase-ETag':'true'}});
       if(!getRes.ok) throw new Error('HTTP '+getRes.status);
       const etag = getRes.headers.get('ETag');
       if(!etag) throw new Error('Firebase no devolvió ETag');
@@ -11477,7 +11496,7 @@ async function actualizarRiegoV2IndexConInv(invId){
       if(!Array.isArray(ids)){ avisarFalloGuardado(); return false; }
       if(ids.map(String).includes(id)) return true;
       ids.push(id);
-      const putRes = await fetch(url, {
+      const putRes = await appFetch(url, {
         method:'PUT',
         headers:{'Content-Type':'application/json','if-match':etag},
         body:JSON.stringify(JSON.stringify(ids))
@@ -11624,7 +11643,7 @@ async function saveRiegoInvPatch(invId, extraDeletes, incluirDirty){
   // releemos lo último, reaplicamos SOLO nuestras celdas y reintentamos.
   for(let intento=1; intento<=5; intento++){
     try{
-      const getRes = await fetch(url, {headers:{'X-Firebase-ETag':'true'}});
+      const getRes = await appFetch(url, {headers:{'X-Firebase-ETag':'true'}});
       if(!getRes.ok) throw new Error('HTTP '+getRes.status);
       const etag = getRes.headers.get('ETag');
       if(!etag) throw new Error('Firebase no devolvió ETag');
@@ -11718,7 +11737,7 @@ async function saveRiegoInvPatch(invId, extraDeletes, incluirDirty){
         if(cloud[d] && Object.keys(cloud[d]).length===0) delete cloud[d];
       });
 
-      const putRes = await fetch(url, {
+      const putRes = await appFetch(url, {
         method:'PUT',
         headers:{'Content-Type':'application/json','if-match':etag},
         body:JSON.stringify(JSON.stringify(cloud))
@@ -13531,7 +13550,7 @@ async function actualizarFitoV2IndexConInv(invId){
   const id = String(invId);
   for(let intento=1; intento<=5; intento++){
     try{
-      const getRes = await fetch(url, {headers:{'X-Firebase-ETag':'true'}});
+      const getRes = await appFetch(url, {headers:{'X-Firebase-ETag':'true'}});
       if(!getRes.ok) throw new Error('HTTP '+getRes.status);
       const etag = getRes.headers.get('ETag');
       if(!etag) throw new Error('Firebase no devolvió ETag');
@@ -13541,7 +13560,7 @@ async function actualizarFitoV2IndexConInv(invId){
       if(!Array.isArray(ids)){ avisarFalloGuardado(); return false; }
       if(ids.map(String).includes(id)) return true;
       ids.push(id);
-      const putRes = await fetch(url, {
+      const putRes = await appFetch(url, {
         method:'PUT',
         headers:{'Content-Type':'application/json','if-match':etag},
         body:JSON.stringify(JSON.stringify(ids))
@@ -13632,7 +13651,7 @@ async function saveFitoPatch(extraDeletes){
 
   for(let intento=1; intento<=5; intento++){
     try{
-      const getRes=await fetch(url,{headers:{'X-Firebase-ETag':'true'},cache:'no-store'});
+      const getRes=await appFetch(url,{headers:{'X-Firebase-ETag':'true'},cache:'no-store'});
       if(!getRes.ok) throw new Error('HTTP '+getRes.status);
       const etag=getRes.headers.get('ETag');
       if(!etag) throw new Error('Firebase no devolvió ETag');
@@ -13652,7 +13671,7 @@ async function saveFitoPatch(extraDeletes){
         }
       });
 
-      const putRes=await fetch(url,{
+      const putRes=await appFetch(url,{
         method:'PUT',
         headers:{'Content-Type':'application/json','if-match':etag},
         body:JSON.stringify(JSON.stringify(cloud))
@@ -18412,7 +18431,7 @@ async function syncEspecificosPartidaV2DesdeV1(cloudV1,partidaIds){
     let guardado=false;
     for(let intento=1; intento<=5; intento++){
       try{
-        const getRes=await fetch(url,{headers:{'X-Firebase-ETag':'true'},cache:'no-store'});
+        const getRes=await appFetch(url,{headers:{'X-Firebase-ETag':'true'},cache:'no-store'});
         if(!getRes.ok) throw new Error('HTTP '+getRes.status);
         const etag=getRes.headers.get('ETag');
         if(!etag) throw new Error('Firebase no devolvió ETag');
@@ -18420,7 +18439,7 @@ async function syncEspecificosPartidaV2DesdeV1(cloudV1,partidaIds){
         if(val==null || typeof val!=='string'){ avisarFalloGuardado(); return false; }
         const bucketCloud=JSON.parse(val);
         idsBucket.forEach(id=>{ bucketCloud[id]=clonarEspecificosPartida(cloudV1[id]||[]); });
-        const putRes=await fetch(url,{
+        const putRes=await appFetch(url,{
           method:'PUT',
           headers:{'Content-Type':'application/json','if-match':etag},
           body:JSON.stringify(JSON.stringify(bucketCloud))
@@ -18475,14 +18494,14 @@ async function syncEspecificosPartidaV2DesdeV1(cloudV1,partidaIds){
       let ok=false;
       for(let intento=1; intento<=5; intento++){
         try{
-          const getRes=await fetch(url,{headers:{'X-Firebase-ETag':'true'},cache:'no-store'});
+          const getRes=await appFetch(url,{headers:{'X-Firebase-ETag':'true'},cache:'no-store'});
           if(!getRes.ok) throw new Error('HTTP '+getRes.status);
           const etag=getRes.headers.get('ETag');
           const val=await getRes.json();
           if(!etag || val==null || typeof val!=='string') return false;
           const bucketCloud=JSON.parse(val);
           idsBucket.forEach(id=>{ bucketCloud[id]=clonarEspecificosPartida(latest[id]||[]); });
-          const putRes=await fetch(url,{
+          const putRes=await appFetch(url,{
             method:'PUT',
             headers:{'Content-Type':'application/json','if-match':etag},
             body:JSON.stringify(JSON.stringify(bucketCloud))
@@ -18510,7 +18529,7 @@ async function saveEspecificosPartidaData(){
   let cloudGuardado=null;
   for(let intento=1; intento<=5; intento++){
     try{
-      const getRes=await fetch(url,{headers:{'X-Firebase-ETag':'true'},cache:'no-store'});
+      const getRes=await appFetch(url,{headers:{'X-Firebase-ETag':'true'},cache:'no-store'});
       if(!getRes.ok) throw new Error('HTTP '+getRes.status);
       const etag=getRes.headers.get('ETag');
       if(!etag) throw new Error('Firebase no devolvió ETag');
@@ -18518,7 +18537,7 @@ async function saveEspecificosPartidaData(){
       if(val==null || typeof val!=='string'){ avisarFalloGuardado(); return false; }
       const cloud=JSON.parse(val);
       snapshot.forEach(x=>{ cloud[x.id]=clonarEspecificosPartida(x.regs); });
-      const putRes=await fetch(url,{
+      const putRes=await appFetch(url,{
         method:'PUT',
         headers:{'Content-Type':'application/json','if-match':etag},
         body:JSON.stringify(JSON.stringify(cloud))
@@ -18654,7 +18673,7 @@ async function actualizarEspecificosV2IndexConInv(invId){
   const id=String(invId);
   for(let intento=1; intento<=5; intento++){
     try{
-      const getRes=await fetch(url,{headers:{'X-Firebase-ETag':'true'}});
+      const getRes=await appFetch(url,{headers:{'X-Firebase-ETag':'true'}});
       if(!getRes.ok) throw new Error('HTTP '+getRes.status);
       const etag=getRes.headers.get('ETag');
       if(!etag) throw new Error('Firebase no devolvió ETag');
@@ -18664,7 +18683,7 @@ async function actualizarEspecificosV2IndexConInv(invId){
       if(!Array.isArray(ids)){ avisarFalloGuardado(); return false; }
       if(ids.map(String).includes(id)) return true;
       ids.push(id);
-      const putRes=await fetch(url,{
+      const putRes=await appFetch(url,{
         method:'PUT',
         headers:{'Content-Type':'application/json','if-match':etag},
         body:JSON.stringify(JSON.stringify(ids))
@@ -18749,7 +18768,7 @@ async function saveEspecificosPatch(extraDeletes){
 
   for(let intento=1; intento<=5; intento++){
     try{
-      const getRes=await fetch(url,{headers:{'X-Firebase-ETag':'true'},cache:'no-store'});
+      const getRes=await appFetch(url,{headers:{'X-Firebase-ETag':'true'},cache:'no-store'});
       if(!getRes.ok) throw new Error('HTTP '+getRes.status);
       const etag=getRes.headers.get('ETag');
       if(!etag) throw new Error('Firebase no devolvió ETag');
@@ -18769,7 +18788,7 @@ async function saveEspecificosPatch(extraDeletes){
         }
       });
 
-      const putRes=await fetch(url,{
+      const putRes=await appFetch(url,{
         method:'PUT',
         headers:{'Content-Type':'application/json','if-match':etag},
         body:JSON.stringify(JSON.stringify(cloud))
