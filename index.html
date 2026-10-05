@@ -1637,18 +1637,16 @@ async function revisarTicketsMantenimientoProgramados(){
 }
 async function persistMantenimientoData(){
   try{
-    const r = await window.storage.get(MANTENIMIENTO_KEY);
-    // Si la lectura falla, r es null — igual que si no hubiera tickets.
-    // Tratarlo como "sin tickets de verdad" borraría los tickets de
-    // mantenimiento de otros dispositivos/usuarios. Se aborta en vez de
-    // asumir que la nube está vacía.
-    if(!r){ avisarFalloGuardado(); return; }
-    const cloud = JSON.parse(r.value);
-    const map = {};
-    cloud.forEach(t=>map[t.id]=t);
-    mantenimientoData.forEach(t=>map[t.id]=t);
-    mantenimientoData = Object.values(map);
-    await window.storage.set(MANTENIMIENTO_KEY, JSON.stringify(mantenimientoData));
+    const locales=mantenimientoData.slice();
+    const tx=await actualizarStorageJsonConEtag(MANTENIMIENTO_KEY,[],cloud=>{
+      if(!Array.isArray(cloud)) cloud=[];
+      const map={};
+      cloud.forEach(t=>map[t.id]=t);
+      locales.forEach(t=>map[t.id]=t);
+      return Object.values(map);
+    });
+    if(!tx.ok){ avisarFalloGuardado(); return; }
+    mantenimientoData=tx.value;
   }catch(e){ avisarFalloGuardado(); }
 }
 function showTareasModule(){
@@ -2127,23 +2125,17 @@ function eliminarTicketMantenimiento(id){
 // de verdad, solo añade/actualiza. Para borrar hay que leer la nube, quitar
 // el ticket ahí directamente, y escribir sin pasar por la fusión (mismo
 // patrón que eliminarTarea).
-async function eliminarTicketMantenimientoConfirmado(id, titulo){
-  try{
-    const r = await window.storage.get(MANTENIMIENTO_KEY);
-    // Borrado atómico (lee+borra+escribe, sin fusión) — si la lectura
-    // falla, r es null, igual que si no hubiera tickets. Tratarlo como
-    // "vacío de verdad" borraría TODOS los tickets de mantenimiento, no
-    // solo el que se quiere eliminar. Se aborta en vez de asumirlo.
-    if(!r){ avisarFalloGuardado(); return; }
-    let cloud = JSON.parse(r.value);
-    cloud = cloud.filter(x=>x.id!==id);
-    await window.storage.set(MANTENIMIENTO_KEY, JSON.stringify(cloud));
-    mantenimientoData = cloud;
-  }catch(e){ avisarFalloGuardado(); return; }
+async function eliminarTicketMantenimientoConfirmado(id,titulo){
+  const tx=await actualizarStorageJsonConEtag(MANTENIMIENTO_KEY,[],cloud=>{
+    if(!Array.isArray(cloud)) cloud=[];
+    return cloud.filter(x=>x.id!==id);
+  });
+  if(!tx.ok){ avisarFalloGuardado(); return; }
+  mantenimientoData=tx.value;
   mantSeleccionadas.delete(id);
   logHistorial(`Eliminó el ticket de mantenimiento "${titulo||''}"`);
   showToast('✓ Ticket eliminado');
-  renderTareasContent(document.getElementById('tareas-overlay'), true);
+  renderTareasContent(document.getElementById('tareas-overlay'),true);
 }
 // Secciones del menú lateral de la vista de gestión (ADMIN/TÉCNICO) — 3 por
 // fecha (ver categoriaFechaTarea) + Mantenimiento de Parcelas (tablero
@@ -3448,16 +3440,14 @@ async function loadPartidasFromStorage(){
 
 async function savePartidaToStorage(p){
   try{
-    const r = await window.storage.get(PARTIDAS_KEY);
-    // Si la lectura falla, r es null — igual que si no hubiera partidas
-    // guardadas. Tratarlo como "vacío de verdad" borraría TODAS las demás
-    // partidas al escribir un array con solo esta. Se aborta en vez de
-    // asumirlo.
-    if(!r){ avisarFalloGuardado(); return; }
-    let stored = JSON.parse(r.value);
-    const idx = stored.findIndex(x=>x.num===p.num&&x.inv===p.inv);
-    if(idx>=0) stored[idx]=p; else stored.push(p);
-    await window.storage.set(PARTIDAS_KEY, JSON.stringify(stored));
+    const copia={...p};
+    const tx=await actualizarStorageJsonConEtag(PARTIDAS_KEY,[],stored=>{
+      if(!Array.isArray(stored)) stored=[];
+      const idx=stored.findIndex(x=>x.num===copia.num&&x.inv===copia.inv);
+      if(idx>=0) stored[idx]=copia; else stored.push(copia);
+      return stored;
+    });
+    if(!tx.ok) avisarFalloGuardado();
   }catch(e){ avisarFalloGuardado(); }
 }
 
@@ -3611,20 +3601,16 @@ async function loadTrabajosData(forzar){
 }
 async function persistTrabajosData(){
   try{
-    const r = await window.storage.get(TRABAJOS_KEY);
-    // Si la lectura falla, r es null — igual que si la clave estuviera
-    // vacía. Tratarlo como "vacía de verdad" borraría todos los trabajos
-    // (Mujeres/Túnel/Externos) que otro dispositivo hubiera guardado y esta
-    // sesión nunca llegó a cargar. Se aborta el guardado en vez de asumir
-    // que la nube está vacía.
-    if(!r){ avisarFalloGuardado(); return false; }
-    const cloud = JSON.parse(r.value);
-    const map = {};
-    cloud.forEach(t=>map[t.id]=t);
-    trabajosData.forEach(t=>map[t.id]=t);
-    trabajosData = Object.values(map);
-    const ok = await window.storage.set(TRABAJOS_KEY, JSON.stringify(trabajosData));
-    if(!ok){ avisarFalloGuardado(); return false; }
+    const locales=trabajosData.slice();
+    const tx=await actualizarStorageJsonConEtag(TRABAJOS_KEY,[],cloud=>{
+      if(!Array.isArray(cloud)) cloud=[];
+      const map={};
+      cloud.forEach(t=>map[t.id]=t);
+      locales.forEach(t=>map[t.id]=t);
+      return Object.values(map);
+    });
+    if(!tx.ok){ avisarFalloGuardado(); return false; }
+    trabajosData=tx.value;
     return true;
   }catch(e){ avisarFalloGuardado(); return false; }
 }
@@ -4198,18 +4184,12 @@ function eliminarTrabajo(id){
   eliminarTrabajoConfirmado(id);
 }
 async function eliminarTrabajoConfirmado(id){
-  try{
-    const r = await window.storage.get(TRABAJOS_KEY);
-    // Borrado atómico (lee+borra+escribe, sin fusión) — si la lectura
-    // falla, r es null, igual que si no hubiera trabajos. Tratarlo como
-    // "vacío de verdad" borraría TODOS los trabajos (Mujeres/Túnel/
-    // Externos), no solo este. Se aborta en vez de asumirlo.
-    if(!r){ avisarFalloGuardado(); return; }
-    let cloud = JSON.parse(r.value);
-    cloud = cloud.filter(x=>x.id!==id);
-    await window.storage.set(TRABAJOS_KEY, JSON.stringify(cloud));
-    trabajosData = cloud;
-  }catch(e){ avisarFalloGuardado(); return; }
+  const tx=await actualizarStorageJsonConEtag(TRABAJOS_KEY,[],cloud=>{
+    if(!Array.isArray(cloud)) cloud=[];
+    return cloud.filter(x=>x.id!==id);
+  });
+  if(!tx.ok){ avisarFalloGuardado(); return; }
+  trabajosData=tx.value;
   logHistorial('Eliminó un trabajo');
   showToast('✓ Trabajo eliminado');
   renderTrabajosContent(document.getElementById('trabajos-overlay'));
@@ -4271,25 +4251,15 @@ let conteoTutaData = {};
 async function loadConteoTutaData(){
   try{ const r = await window.storage.get(CONTEO_TUTA_KEY); if(r) conteoTutaData = JSON.parse(r.value); }catch(e){}
 }
-async function guardarConteoTutaCampo(dia, key, campo, valor){
-  conteoTutaData[dia] = conteoTutaData[dia] || {};
-  conteoTutaData[dia][key] = conteoTutaData[dia][key] || {};
-  conteoTutaData[dia][key][campo] = valor;
-  try{
-    const r = await window.storage.get(CONTEO_TUTA_KEY);
-    // Si la lectura falla, r es null — igual que si la clave estuviera
-    // vacía. Tratarlo como "vacía de verdad" borraría el histórico de
-    // TODAS las semanas/invernaderos al escribir solo el campo que se
-    // acaba de tocar (el dato se introduce una vez por semana, así que
-    // perderlo es especialmente costoso). Se aborta el guardado en vez de
-    // asumir que la nube está vacía.
-    if(!r){ avisarFalloGuardado(); return false; }
-    const cloud = JSON.parse(r.value);
-    cloud[dia] = cloud[dia] || {};
-    cloud[dia][key] = {...(cloud[dia][key]||{}), [campo]: valor};
-    const ok = await window.storage.set(CONTEO_TUTA_KEY, JSON.stringify(cloud));
-    if(!ok){ avisarFalloGuardado(); return false; }
-  }catch(e){ avisarFalloGuardado(); return false; }
+async function guardarConteoTutaCampo(dia,key,campo,valor){
+  const tx=await actualizarStorageJsonConEtag(CONTEO_TUTA_KEY,{},cloud=>{
+    if(!cloud||typeof cloud!=='object'||Array.isArray(cloud)) cloud={};
+    cloud[dia]=cloud[dia]||{};
+    cloud[dia][key]={...(cloud[dia][key]||{}),[campo]:valor};
+    return cloud;
+  });
+  if(!tx.ok){ avisarFalloGuardado(); return false; }
+  conteoTutaData=tx.value;
   showToast('✓ Guardado');
   return true;
 }
@@ -4446,17 +4416,16 @@ async function loadControlInvernaderoData(){
 }
 async function saveControlInvernaderoData(){
   try{
-    const r = await window.storage.get(CONTROL_INVERNADERO_KEY);
-    // Si la lectura falla, r es null — igual que si no hubiera líneas.
-    // Tratarlo como "vacío de verdad" borraría las líneas de Check
-    // Invernadero de otros dispositivos. Se aborta en vez de asumirlo.
-    if(!r){ avisarFalloGuardado(); return; }
-    const cloud = JSON.parse(r.value);
-    const map = {};
-    cloud.forEach(l=>map[l.id]=l);
-    controlInvernaderoData.forEach(l=>map[l.id]=l);
-    controlInvernaderoData = Object.values(map);
-    await window.storage.set(CONTROL_INVERNADERO_KEY, JSON.stringify(controlInvernaderoData));
+    const locales=controlInvernaderoData.slice();
+    const tx=await actualizarStorageJsonConEtag(CONTROL_INVERNADERO_KEY,[],cloud=>{
+      if(!Array.isArray(cloud)) cloud=[];
+      const map={};
+      cloud.forEach(l=>map[l.id]=l);
+      locales.forEach(l=>map[l.id]=l);
+      return Object.values(map);
+    });
+    if(!tx.ok){ avisarFalloGuardado(); return; }
+    controlInvernaderoData=tx.value;
   }catch(e){ avisarFalloGuardado(); }
 }
 let controlInvernaderoFiltroVariedad = '';
@@ -4540,18 +4509,13 @@ async function guardarNuevaLineaInvernadero(){
 }
 async function eliminarLineaInvernadero(id){
   if(!confirm('¿Eliminar esta línea?')) return;
-  try{
-    const r = await window.storage.get(CONTROL_INVERNADERO_KEY);
-    // Borrado atómico — r=null (fallo de lectura) tratado como "vacío de
-    // verdad" borraría TODAS las líneas de Check Invernadero, no solo
-    // esta. Se aborta en vez de asumirlo.
-    if(!r){ avisarFalloGuardado(); return; }
-    const cloud = JSON.parse(r.value);
-    const restante = cloud.filter(l=>l.id!==id);
-    await window.storage.set(CONTROL_INVERNADERO_KEY, JSON.stringify(restante));
-    controlInvernaderoData = restante;
-  }catch(e){ avisarFalloGuardado(); return; }
-  controlInvernaderoTotalMostrado = null;
+  const tx=await actualizarStorageJsonConEtag(CONTROL_INVERNADERO_KEY,[],cloud=>{
+    if(!Array.isArray(cloud)) cloud=[];
+    return cloud.filter(l=>l.id!==id);
+  });
+  if(!tx.ok){ avisarFalloGuardado(); return; }
+  controlInvernaderoData=tx.value;
+  controlInvernaderoTotalMostrado=null;
   renderControlContent(document.getElementById('control-overlay'));
   showToast('✓ Eliminada');
 }
@@ -14202,36 +14166,30 @@ function updatePendienteCalles(uid){
 }
 
 async function confirmarSalidaPendiente(uid){
-  const p = partidasDB.find(x=>x.num===uid && x.pendienteSalida);
+  const p=partidasDB.find(x=>x.num===uid&&x.pendienteSalida);
   if(!p){ showToast('No se encontró la partida'); return; }
-  const inv = document.getElementById(`psal-inv-${uid}`)?.value;
-  const lado = document.getElementById(`psal-lado-${uid}`)?.value;
-  const ini = document.getElementById(`psal-ini-${uid}`)?.value;
-  const fin = document.getElementById(`psal-fin-${uid}`)?.value;
+  const inv=document.getElementById(`psal-inv-${uid}`)?.value;
+  const lado=document.getElementById(`psal-lado-${uid}`)?.value;
+  const ini=document.getElementById(`psal-ini-${uid}`)?.value;
+  const fin=document.getElementById(`psal-fin-${uid}`)?.value;
   if(!inv||!lado||!ini){ showToast('Completa invernadero, lado y calle antes de confirmar'); return; }
-  const oldInv = p.inv; // '' — necesario para localizar el registro original al guardar
-  p.inv = inv; p.lado = lado; p.calle_inicio = ini; p.calle_fin = fin||ini;
-  p.entrada = new Date().toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric'});
-  p.pendienteSalida = false;
-  try{
-    const r = await window.storage.get(PARTIDAS_KEY);
-    // Mismo riesgo que savePartidaToStorage: r=null puede ser un fallo de
-    // red, no "sin partidas guardadas". Se aborta en vez de asumirlo (si
-    // no, se borrarían todas las demás partidas al guardar solo esta).
-    if(!r){ avisarFalloGuardado(); return; }
-    let stored = JSON.parse(r.value);
-    const idx = stored.findIndex(x=>x.num===p.num && x.inv===oldInv);
-    if(idx>=0) stored[idx]=p; else stored.push(p);
-    await window.storage.set(PARTIDAS_KEY, JSON.stringify(stored));
-  }catch(e){ avisarFalloGuardado(); return; }
+  const oldInv=p.inv;
+  const actualizada={...p,inv,lado,calle_inicio:ini,calle_fin:fin||ini,
+    entrada:new Date().toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric'}),
+    pendienteSalida:false};
+  const tx=await actualizarStorageJsonConEtag(PARTIDAS_KEY,[],stored=>{
+    if(!Array.isArray(stored)) stored=[];
+    const idx=stored.findIndex(x=>x.num===actualizada.num&&x.inv===oldInv);
+    if(idx>=0) stored[idx]=actualizada; else stored.push(actualizada);
+    return stored;
+  });
+  if(!tx.ok){ avisarFalloGuardado(); return; }
+  Object.assign(p,actualizada);
   logHistorial(`Confirmó salida de ${p.num} en INV ${inv}, ${ini}${fin&&fin!==ini?'–'+fin:''}`);
-  // Al confirmar la salida real de túnel se programan automáticamente
-  // Recomponer/Quitar raíces (todas las partidas) y, si es Jiffy, además
-  // Plantar/Separar, en Trabajos → Mujeres — ver autoCrearTrabajosMujeresPartida.
   await loadTrabajosData();
-  const creadosMujeres = await autoCrearTrabajosMujeresPartida(p);
-  showToast('✓ Salida confirmada: '+p.num + (creadosMujeres ? ` (${creadosMujeres} trabajo${creadosMujeres===1?'':'s'} de Mujeres programado${creadosMujeres===1?'':'s'})` : ''));
-  renderPartidasContent(document.getElementById('partidas-list-overlay'), document.getElementById('psearch')?.value||'');
+  const creadosMujeres=await autoCrearTrabajosMujeresPartida(p);
+  showToast('✓ Salida confirmada: '+p.num+(creadosMujeres?` (${creadosMujeres} trabajo${creadosMujeres===1?'':'s'} de Mujeres programado${creadosMujeres===1?'':'s'})`:''));
+  renderPartidasContent(document.getElementById('partidas-list-overlay'),document.getElementById('psearch')?.value||'');
 }
 
 function buildPartidaCard(p){
