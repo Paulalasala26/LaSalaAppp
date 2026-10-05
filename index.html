@@ -10799,11 +10799,39 @@ function actualizarAvisoRiegoOffline(){
   else ocultarAvisoFalloGuardado();
 }
 let riegoOfflineSyncEnCurso=false;
+let riegoOfflineReintentoTimer=null;
+function programarRiegoOfflineReintento(){
+  if(riegoOfflineReintentoTimer) return;
+  riegoOfflineReintentoTimer=setTimeout(()=>{
+    riegoOfflineReintentoTimer=null;
+    procesarRiegoOffline();
+  }, 700);
+}
 async function procesarRiegoOffline(){
   if(riegoOfflineSyncEnCurso || !currentUser || navigator.onLine===false) return false;
-  if(riegoDirtyCells.size || (riegoInvSel && riegoEstaEditandoAhora(riegoInvSel))) return false;
   const pendientes = leerRiegoOffline().filter(x=>x.usuario===currentUser);
   if(!pendientes.length){ actualizarAvisoRiegoOffline(); return true; }
+
+  // Mientras el usuario está escribiendo no tocamos la cuadrícula. Reintentamos
+  // al poco tiempo para que volver online no dependa de cerrar/reabrir Riego.
+  if(riegoInvSel && riegoEstaEditandoAhora(riegoInvSel)){
+    programarRiegoOfflineReintento();
+    return false;
+  }
+
+  // Tras un guardado sin red las celdas siguen marcadas como dirty hasta que
+  // Firebase confirme la escritura. Eso NO debe bloquear la resincronización:
+  // solo la bloqueamos si existe un dirty que no está en la cola, o si el
+  // usuario volvió a modificar esa celda después del último guardado local.
+  const pendientesPorClave = new Map(pendientes.map(x=>[x.clave,x]));
+  for(const dirty of riegoDirtyCells.values()){
+    const invId=String(dirty.invId), d=String(dirty.dia), ca=String(dirty.calle);
+    const clave=riegoOfflineClave(currentUser,invId,d,ca);
+    const pendiente=pendientesPorClave.get(clave);
+    if(!pendiente) return false;
+    const local=riegoData[invId]?.[d]?.[ca] ?? null;
+    if(!riegoValorIgual(normalizarRiegoDeseado(local), pendiente.deseado)) return false;
+  }
 
   riegoOfflineSyncEnCurso=true;
   try{
