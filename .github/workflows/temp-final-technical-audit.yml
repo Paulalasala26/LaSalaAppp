@@ -28,11 +28,11 @@ jobs:
             *) echo "Unexpected anonymous RTDB status $ANON"; cat /tmp/anon.json; exit 1 ;;
           esac
 
-          HTML="$(curl -fsS "$BASE/")"
-          echo "$HTML" | grep -q '/api/firebase-auth'
+          curl -fsS "$BASE/" -o /tmp/app.html
+          grep -q '/api/firebase-auth' /tmp/app.html
           echo "DEPLOYED_AUTH_CLIENT OK"
 
-          if echo "$HTML" | grep -Eq '[0-9a-f]{64}'; then
+          if grep -Eq '[0-9a-f]{64}' /tmp/app.html; then
             echo "Unexpected SHA-256-like credential material in deployed HTML"
             exit 1
           fi
