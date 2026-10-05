@@ -19339,7 +19339,10 @@ function showPartidaDetail(num, inv){
   const p = partidasDB.find(x=>x.num===num&&x.inv===inv)||partidasDB.find(x=>x.num===num);
   if(!p) return;
   const invReal = inv||p.inv||'17';
-  Promise.all([loadChecksData(), loadRiegoData(false), loadFitoData(false)]).then(()=>{
+  // getFullRiegoLog(p) solo consulta p.inv (o 17 por defecto), por tanto
+  // cargar todos los invernaderos de Riego aquí era innecesario.
+  const invRiego = p.inv||'17';
+  Promise.all([loadChecksData(), loadRiegoInvData(invRiego, false), loadFitoData(false)]).then(()=>{
     _renderPartidaDetail(p, num, invReal);
   });
 }
