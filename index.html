@@ -13635,18 +13635,26 @@ function parseFitoAudio(text){
 // ════════════════════════════════════════════════════════════════
 let partidasListaTab = 'todas'; // 'todas' | 'pasadas' | 'pendientes'
 
-function showPartidasList(){
+async function showPartidasList(){
   partidasListaTab = 'todas';
   const overlay = getOrCreateOverlay('partidas-list-overlay');
   overlay.style.display = 'flex';
-  // Load all data before rendering — partidasDB (~4.86MB) ya no se carga en
-  // el login (a petición de Paula, 2026-09-04, "mínimo gasto de datos"), así
-  // que esta es la única pantalla que de verdad LISTA su contenido y debe
-  // esperar a tenerlo antes de pintar.
-  const cargarPartidas = partidasDBCargada ? Promise.resolve() : loadPartidasFromStorage();
-  Promise.all([cargarPartidas, loadChecksData(), loadRiegoData(false), loadFitoData(false)]).then(()=>{
-    renderPartidasContent(overlay, '');
-  });
+  // partidasDB (~4.86MB) ya no se carga en el login. Primero se carga aquí
+  // porque necesitamos saber QUÉ invernaderos aparecen realmente en la lista
+  // antes de pedir Riego. Las tarjetas solo consultan getSeguimientoRiego(p,inv)
+  // de su propio INV; las partidas pendientes no muestran seguimiento.
+  if(!partidasDBCargada) await loadPartidasFromStorage();
+  const invsRiego = [...new Set(
+    partidasDB
+      .filter(p=>!p.pendienteSalida)
+      .map(p=>String(p.inv||'17'))
+  )];
+  await Promise.all([
+    loadChecksData(),
+    loadFitoData(false),
+    ...invsRiego.map(invId=>loadRiegoInvData(invId,false))
+  ]);
+  renderPartidasContent(overlay, '');
 }
 
 function selectPartidasListaTab(tab){
