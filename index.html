@@ -13249,7 +13249,13 @@ function reganteDelaSala(invId){
 }
 
 const FITO_KEY = 'lasala-fito-v1';
+const FITO_V2_INDEX_KEY = 'lasala-fito-v2-index';
+function fitoV2Key(invId){ return `lasala-fito-v2-${String(invId)}`; }
 let fitoData = {}; // fitoData[invId][dia][calle] = texto
+// Durante la transición v1→v2, v1 sigue siendo la fuente de compatibilidad.
+// Este Set permite replicar a v2 únicamente los invernaderos realmente
+// modificados, en vez de reescribir los 22 shards en cada guardado.
+const fitoDirtyInvs = new Set();
 let fitoInvSel = null;
 let fitoQuincenaOffset = 0;
 let fitoAudioActive = false;
@@ -13286,9 +13292,73 @@ async function loadFitoData(forzar){
   if(!fitoData['17']) fitoData['17']={};
   if(!fitoData['17'][25]) fitoData['17'][25]={};
   const inv17All=[...INV_LAYOUT['17'].row1,...INV_LAYOUT['17'].row2];
-  inv17All.forEach(c=>{ if(!fitoData['17'][25][c]) fitoData['17'][25][c]='Switch 1cc/l'; });
+  let preloadCambio=false;
+  inv17All.forEach(c=>{ if(!fitoData['17'][25][c]){ fitoData['17'][25][c]='Switch 1cc/l'; preloadCambio=true; } });
+  if(preloadCambio) fitoDirtyInvs.add('17');
+}
+async function loadFitoV2Index(modoGuardado){
+  try{
+    const r = await window.storage.get(FITO_V2_INDEX_KEY);
+    if(!r){ if(modoGuardado) avisarFalloGuardado(); else avisarFalloCarga(); return null; }
+    const ids = JSON.parse(r.value);
+    if(!Array.isArray(ids)) throw new Error('Índice Fito v2 inválido');
+    return ids.map(String);
+  }catch(e){
+    if(modoGuardado) avisarFalloGuardado(); else avisarFalloCarga();
+    return null;
+  }
+}
+async function actualizarFitoV2IndexConInv(invId){
+  const url = `${CLOUD_DB_URL}/${encodeURIComponent(FITO_V2_INDEX_KEY)}.json`;
+  const id = String(invId);
+  for(let intento=1; intento<=5; intento++){
+    try{
+      const getRes = await fetch(url, {headers:{'X-Firebase-ETag':'true'}});
+      if(!getRes.ok) throw new Error('HTTP '+getRes.status);
+      const etag = getRes.headers.get('ETag');
+      if(!etag) throw new Error('Firebase no devolvió ETag');
+      const val = await getRes.json();
+      if(val==null){ avisarFalloGuardado(); return false; }
+      const ids = JSON.parse(val);
+      if(!Array.isArray(ids)){ avisarFalloGuardado(); return false; }
+      if(ids.map(String).includes(id)) return true;
+      ids.push(id);
+      const putRes = await fetch(url, {
+        method:'PUT',
+        headers:{'Content-Type':'application/json','if-match':etag},
+        body:JSON.stringify(JSON.stringify(ids))
+      });
+      if(putRes.ok) return true;
+      if(putRes.status!==412) throw new Error('HTTP '+putRes.status);
+    }catch(e){
+      if(intento===5){ avisarFalloGuardado(); return false; }
+    }
+    await new Promise(r=>setTimeout(r,120*intento));
+  }
+  avisarFalloGuardado();
+  return false;
+}
+async function syncFitoV2InvsDesdeCloud(cloud, invIds){
+  const unicos=[...new Set((invIds||[]).map(String))];
+  if(!unicos.length) return true;
+  let ids=await loadFitoV2Index(true);
+  if(!ids) return false;
+  for(const invId of unicos){
+    if(!ids.includes(invId)){
+      const okIndex=await actualizarFitoV2IndexConInv(invId);
+      if(!okIndex) return false;
+      ids.push(invId);
+    }
+    const ok=await window.storage.set(fitoV2Key(invId), JSON.stringify(cloud[invId]||{}));
+    if(!ok){ avisarFalloGuardado(); return false; }
+  }
+  return true;
+}
+function limpiarFitoDirtyInvs(invIds){
+  (invIds||[]).forEach(invId=>fitoDirtyInvs.delete(String(invId)));
 }
 async function saveFitoData(){
+  const invsDirty=[...fitoDirtyInvs];
   try{
     const r = await window.storage.get(FITO_KEY);
     // Si la lectura falla, r es null — igual que si Plaguicidas estuviera
@@ -13300,6 +13370,11 @@ async function saveFitoData(){
     fitoData = mergeDeepPreferLocal(cloud, fitoData);
     const ok = await window.storage.set(FITO_KEY, JSON.stringify(fitoData));
     if(!ok){ avisarFalloGuardado(); return; }
+    // Dual-write transitorio: v1 sigue vivo para consumidores heredados, pero
+    // los shards v2 se mantienen idénticos para poder migrar las lecturas sin
+    // riesgo de servir datos obsoletos.
+    if(!(await syncFitoV2InvsDesdeCloud(fitoData, invsDirty))) return;
+    limpiarFitoDirtyInvs(invsDirty);
   }catch(e){ avisarFalloGuardado(); return; }
   showToast('✓ Plaguicidas guardado');
   logHistorial(`Guardó plaguicidas${fitoInvSel?' de INV '+fitoInvSel:''}`);
@@ -13312,6 +13387,8 @@ async function saveFitoData(){
 // sustituye entero) para que un simple retoque de texto en la celda (sin
 // pasar por el formulario, ver setFitoUndo) no borre el caldo ya guardado.
 function setFito(invId,dia,calle,val,extra){
+  invId=String(invId);
+  fitoDirtyInvs.add(invId);
   if(!fitoData[invId])fitoData[invId]={};
   if(!fitoData[invId][dia])fitoData[invId][dia]={};
   if(val){
@@ -17506,6 +17583,10 @@ async function guardarBorradoFito(entradas){
     });
     const ok = await window.storage.set(FITO_KEY, JSON.stringify(cloud));
     if(!ok){ avisarFalloGuardado(); return; }
+    const invsAfectados=[...new Set(entradas.map(e=>String(e.invId)))];
+    if(!(await syncFitoV2InvsDesdeCloud(cloud, invsAfectados))) return;
+    fitoData = cloud;
+    limpiarFitoDirtyInvs(invsAfectados);
   }catch(e){ avisarFalloGuardado(); return; }
   const invs = entradas.map(e=>e.invId);
   logHistorial(invs.length>1 ? `Borró plaguicidas de ${invs.length} invernaderos` : `Borró plaguicidas de INV ${invs[0]}`);
@@ -17662,7 +17743,11 @@ async function guardarFitoConLimpieza(invId, dia, callesALimpiar){
     cloud = mergeDeepPreferLocal(cloud, fitoData);
     if(cloud[invId] && cloud[invId][dia]) callesALimpiar.forEach(c=>delete cloud[invId][dia][c]);
     fitoData = cloud;
-    await window.storage.set(FITO_KEY, JSON.stringify(cloud));
+    const ok = await window.storage.set(FITO_KEY, JSON.stringify(cloud));
+    if(!ok){ avisarFalloGuardado(); return; }
+    const invsAfectados=[...new Set([...fitoDirtyInvs].map(String).concat(String(invId)))];
+    if(!(await syncFitoV2InvsDesdeCloud(cloud, invsAfectados))) return;
+    limpiarFitoDirtyInvs(invsAfectados);
   }catch(e){ avisarFalloGuardado(); }
 }
 function normalizarUnidadDosis(u){
