@@ -1,0 +1,87 @@
+name: Verify Especificos Partida v2 TEST
+
+on:
+  push:
+    branches:
+      - test/v1.0
+    paths:
+      - .github/workflows/verify-especificos-partida-v2-test.yml
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse inline JavaScript
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import re, pathlib
+          html=pathlib.Path('index.html').read_text(encoding='utf-8')
+          blocks=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',html,flags=re.I|re.S)
+          pathlib.Path('/tmp/app-inline.js').write_text('\n;\n'.join(blocks),encoding='utf-8')
+          print('INLINE_SCRIPT_BLOCKS=',len(blocks))
+          PY
+          node --check /tmp/app-inline.js
+
+      - name: Verify v1 equals 32 v2 buckets and hash routing
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, hashlib, urllib.request
+
+          BASE='https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app'
+          SOURCE='lasala-especificos-partida-v1'
+          INDEX='lasala-especificos-partida-v2-index'
+
+          def raw_get(key):
+              with urllib.request.urlopen(f'{BASE}/{key}.json',timeout=180) as r:
+                  return r.read()
+
+          def parse_storage(raw,label):
+              outer=json.loads(raw.decode())
+              if outer is None: return None
+              assert isinstance(outer,str), f'{label}: expected storage string'
+              return json.loads(outer)
+
+          def canon(obj):
+              return json.dumps(obj,ensure_ascii=False,sort_keys=True,separators=(',',':')).encode()
+
+          def sha(obj):
+              return hashlib.sha256(canon(obj)).hexdigest()
+
+          def fnv1a32_utf8(s):
+              h=2166136261
+              for byte in str(s).encode('utf-8'):
+                  h ^= byte
+                  h=(h*16777619)&0xffffffff
+              return h
+
+          source=parse_storage(raw_get(SOURCE),SOURCE)
+          idx=parse_storage(raw_get(INDEX),INDEX)
+          assert isinstance(source,dict)
+          assert idx['version']==2
+          assert idx['bucketCount']==32
+          assert idx['hash']=='fnv1a32-utf8'
+
+          rebuilt={}
+          for i in range(idx['bucketCount']):
+              key=f"lasala-especificos-partida-v2-b{i:02d}"
+              bucket=parse_storage(raw_get(key),key)
+              assert isinstance(bucket,dict)
+              for partida_id,regs in bucket.items():
+                  expected=fnv1a32_utf8(partida_id)%idx['bucketCount']
+                  assert expected==i, f'{partida_id}: bucket {i}, expected {expected}'
+                  assert partida_id not in rebuilt
+                  rebuilt[partida_id]=regs
+
+          assert len(rebuilt)==827
+          assert sum(len(v) for v in rebuilt.values())==1231
+          assert sha(rebuilt)==sha(source)
+          print('SOURCE_SHA=',sha(source))
+          print('REBUILT_SHA=',sha(rebuilt))
+          print('HASH_ROUTING_ALL_827_KEYS=OK')
+          print('ESPECIFICOS_PARTIDA_V2_VERIFY_OK')
+          PY
