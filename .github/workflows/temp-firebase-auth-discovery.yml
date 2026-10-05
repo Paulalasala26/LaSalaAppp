@@ -1,0 +1,89 @@
+name: TEMP Firebase Auth discovery TEST
+
+on:
+  push:
+    branches:
+      - test/v1.0
+    paths:
+      - .github/workflows/temp-firebase-auth-discovery.yml
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descubrir configuración pública Firebase TEST
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, urllib.request, urllib.error
+
+          urls = [
+            "https://la-sala-app-test.web.app/__/firebase/init.json",
+            "https://la-sala-app-test.firebaseapp.com/__/firebase/init.json",
+          ]
+
+          cfg = None
+          for u in urls:
+            try:
+              with urllib.request.urlopen(u, timeout=15) as r:
+                body = r.read().decode("utf-8", "replace")
+                print("INIT_STATUS", r.status, u)
+                try:
+                  j=json.loads(body)
+                  safe={k:j.get(k) for k in ("projectId","authDomain","databaseURL","storageBucket","messagingSenderId","appId","apiKey") if k in j}
+                  print("INIT_CONFIG", json.dumps(safe, sort_keys=True))
+                  cfg=j
+                  break
+                except Exception:
+                  print("INIT_BODY_PREFIX", body[:180].replace("\n"," "))
+            except Exception as e:
+              print("INIT_ERROR", u, type(e).__name__, str(e)[:180])
+
+          # Comprobar si el endpoint de reglas es públicamente legible (no debería serlo).
+          rules_url="https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app/.settings/rules.json"
+          try:
+            with urllib.request.urlopen(rules_url, timeout=15) as r:
+              body=r.read().decode("utf-8","replace")
+              print("RULES_ENDPOINT_STATUS", r.status)
+              print("RULES_ENDPOINT_PREFIX", body[:220].replace("\n"," "))
+          except urllib.error.HTTPError as e:
+            print("RULES_ENDPOINT_STATUS", e.code)
+          except Exception as e:
+            print("RULES_ENDPOINT_ERROR", type(e).__name__, str(e)[:180])
+
+          if not cfg or not cfg.get("apiKey"):
+            print("AUTH_DISCOVERY_RESULT NO_PUBLIC_CONFIG")
+            raise SystemExit(0)
+
+          api=cfg["apiKey"]
+          signup="https://identitytoolkit.googleapis.com/v1/accounts:signUp?key="+api
+          req=urllib.request.Request(signup, data=json.dumps({"returnSecureToken":True}).encode(), headers={"Content-Type":"application/json"})
+          token=None
+          try:
+            with urllib.request.urlopen(req, timeout=15) as r:
+              j=json.loads(r.read().decode())
+              token=j.get("idToken")
+              print("ANON_AUTH_STATUS", r.status)
+              print("ANON_AUTH_RESULT ENABLED")
+          except urllib.error.HTTPError as e:
+            body=e.read().decode("utf-8","replace")
+            try:
+              msg=json.loads(body).get("error",{}).get("message","")
+            except Exception:
+              msg=body[:160]
+            print("ANON_AUTH_STATUS", e.code)
+            print("ANON_AUTH_RESULT", msg[:180])
+          except Exception as e:
+            print("ANON_AUTH_ERROR", type(e).__name__, str(e)[:180])
+
+          if token:
+            delete="https://identitytoolkit.googleapis.com/v1/accounts:delete?key="+api
+            req=urllib.request.Request(delete, data=json.dumps({"idToken":token}).encode(), headers={"Content-Type":"application/json"})
+            try:
+              with urllib.request.urlopen(req, timeout=15) as r:
+                print("ANON_AUTH_CLEANUP", r.status)
+            except Exception as e:
+              print("ANON_AUTH_CLEANUP_ERROR", type(e).__name__, str(e)[:180])
+
+          print("AUTH_DISCOVERY_RESULT OK")
+          PY
