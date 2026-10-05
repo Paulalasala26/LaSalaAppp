@@ -77,5 +77,36 @@ jobs:
                   snippet=re.sub(r'\s+',' ',s[max(0,m.start()-120):min(len(s),m.end()+180)]).strip()
                   print(f'CHECK|{name}|L{ln}|{snippet[:520]}')
 
+          targets = [
+              'loadControlChecksData',
+              'syncFitoV2InvsDesdeCloud',
+              'saveFitoPatch',
+              'syncEspecificosV2InvsDesdeCloud',
+              'saveEspecificosPatch',
+              'loadEspecificosPartidaIdsData',
+              'loadEspecificosPartidaData',
+              'syncEspecificosPartidaV2DesdeV1',
+              'saveEspecificosPartidaData',
+          ]
+          for fn in targets:
+              hits=[]
+              rx=re.compile(r'\\b'+re.escape(fn)+r'\\s*\\(')
+              for m in rx.finditer(s):
+                  ln=s.count('\\n',0,m.start())+1
+                  line=re.sub(r'\\s+',' ',lines[ln-1].strip())[:600]
+                  hits.append((ln,nearest_context(ln),line))
+              print(f'CALLS|{fn}|COUNT={len(hits)}')
+              for ln,ctx,line in hits:
+                  print(f'CALLS|{fn}|L{ln}|CTX={ctx}|{line}')
+
+          ranges=[(5090,5165),(13435,13520),(18530,18620),(18190,18390)]
+          for a,b in ranges:
+              print(f'RANGE|{a}-{b}|BEGIN')
+              for n in range(a,min(b,len(lines))+1):
+                  line=re.sub(r'\\s+',' ',lines[n-1].strip())
+                  if line:
+                      print(f'RANGE|L{n}|{line[:900]}')
+              print(f'RANGE|{a}-{b}|END')
+
           print('LEGACY_ROUTE_AUDIT_OK')
           PY
