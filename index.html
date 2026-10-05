@@ -5264,7 +5264,9 @@ async function persistControlChecksData(ids){
 // acción se reaplica sobre esos datos frescos — el único riesgo que queda
 // es que dos personas toquen EXACTAMENTE el mismo campo mientras una está
 // sin cobertura, el mismo riesgo que ya existe hoy si dos guardan casi a
-// la vez, no uno nuevo. Las acciones se guardan como "aplicar valor X"
+// la vez, no uno nuevo. Antes de reaplicar se reconstruye Túnel + Carga desde
+// los shards v2 (loadControlCompletoV2), no desde el nodo monolítico v1.
+// Las acciones se guardan como "aplicar valor X"
 // (no "alternar/toggle") para que reaplicarlas sea idempotente — si se
 // reaplicara un toggle dos veces por error, revertiría el cambio.
 const OFFLINE_QUEUE_KEY = 'lasala-offline-queue-v1';
@@ -5345,8 +5347,8 @@ const ACCIONES_OFFLINE_REPLAYABLES = {
 // ponía que se estaban sincronizando y ya no salen" — bug real encontrado:
 // esta función vaciaba la cola ENTERA de golpe (guardarColaOffline([])) ANTES
 // de intentar reaplicar nada. Si la app se cerraba (o el móvil se quedaba sin
-// batería/se recargaba solo) mientras loadControlChecksData() o el bucle de
-// reaplicación todavía estaban en marcha, la cola ya estaba vacía en
+// batería/se recargaba solo) mientras la recarga fresca de Control o el
+// bucle de reaplicación todavía estaban en marcha, la cola ya estaba vacía en
 // localStorage — los cambios pendientes desaparecían sin haberse guardado en
 // la nube ni haberse conservado localmente. Mismo fallo de fondo que ya se
 // corrigió para cada acción individual (ver aplicarControlCheckOpcion y
@@ -5370,7 +5372,16 @@ async function procesarColaOffline(){
   sincronizacionEnCurso = true;
   try{
   showToast(`Sincronizando ${cola.length} cambio${cola.length===1?'':'s'} pendiente${cola.length===1?'':'s'}...`);
-  await loadControlChecksData(); // refrescar con lo último de la nube antes de reaplicar
+  // Forzar lectura fresca de Túnel + Carga v2 antes de reaplicar. No se usa
+  // caché porque estas acciones pueden llevar horas/días guardadas offline y
+  // deben partir del estado remoto actual. Si falla la reconstrucción, NO se
+  // intenta ninguna acción y, sobre todo, NO se retira nada de la cola local.
+  const controlOk = await loadControlCompletoV2();
+  if(!controlOk){
+    showToast(`⚠ No se ha podido leer Control para sincronizar — los ${cola.length} cambios siguen guardados en este dispositivo`);
+    avisarGuardadoLocalPendiente(cola.length);
+    return;
+  }
   // Antes, la entrada original se retiraba SIEMPRE, incluso si la acción no
   // se había podido aplicar: si `accion.fn` no estaba en el mapa de acciones
   // reaplicables, o si la llamada lanzaba una excepción ANTES de que la
