@@ -113,12 +113,18 @@ module.exports = async function handler(req, res) {
   if (req.method === 'GET') {
     let configured = false;
     let projectOk = false;
+    let rtdbOk = false;
     try {
       const sa = getServiceAccount();
       configured = true;
       projectOk = sa.project_id === EXPECTED_PROJECT;
+      if (projectOk) {
+        const accessToken = await getGoogleAccessToken(sa);
+        const users = await readRtdbKey(USERS_KEY, accessToken);
+        rtdbOk = !!users && typeof users === 'object';
+      }
     } catch (_) {}
-    return res.status(200).json({ configured, projectOk });
+    return res.status(200).json({ configured, projectOk, rtdbOk });
   }
 
   if (req.method !== 'POST') {
