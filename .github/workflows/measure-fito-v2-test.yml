@@ -1,0 +1,75 @@
+name: Measure Fito v2 TEST
+
+on:
+  push:
+    branches:
+      - test/v1.0
+    paths:
+      - .github/workflows/measure-fito-v2-test.yml
+
+jobs:
+  measure:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Measure Fito v1 and v2 read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib, json, urllib.request
+
+          BASE='https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app'
+
+          def raw_get(key):
+              with urllib.request.urlopen(f'{BASE}/{key}.json', timeout=180) as r:
+                  return r.read()
+
+          def parse_storage(raw, label):
+              outer=json.loads(raw.decode('utf-8'))
+              if outer is None: return None
+              if not isinstance(outer,str):
+                  raise SystemExit(f'{label}: expected string JSON, got {type(outer).__name__}')
+              return json.loads(outer)
+
+          def canon(v):
+              return json.dumps(v,ensure_ascii=False,sort_keys=True,separators=(',',':')).encode('utf-8')
+
+          v1_raw=raw_get('lasala-fito-v1')
+          v1=parse_storage(v1_raw,'lasala-fito-v1')
+          idx_raw=raw_get('lasala-fito-v2-index')
+          ids=parse_storage(idx_raw,'lasala-fito-v2-index')
+
+          assert isinstance(v1,dict) and v1
+          assert isinstance(ids,list) and ids
+
+          print('V1_RAW_BYTES=',len(v1_raw))
+          print('INDEX_RAW_BYTES=',len(idx_raw))
+          print('INDEX_COUNT=',len(ids))
+
+          rows=[]
+          rebuilt={}
+          total_raw=0
+          for inv in ids:
+              key=f'lasala-fito-v2-{inv}'
+              raw=raw_get(key)
+              obj=parse_storage(raw,key)
+              assert isinstance(obj,dict)
+              rebuilt[str(inv)]=obj
+              total_raw += len(raw)
+              cells=sum(len(day) for day in obj.values() if isinstance(day,dict))
+              rows.append((len(raw),str(inv),len(obj),cells))
+              print(f'SHARD inv={inv} raw_bytes={len(raw)} days={len(obj)} cells={cells}')
+
+          hv1=hashlib.sha256(canon(v1)).hexdigest()
+          hv2=hashlib.sha256(canon(rebuilt)).hexdigest()
+          print('V2_TOTAL_RAW_BYTES=',total_raw)
+          print('V2_PLUS_INDEX_RAW_BYTES=',total_raw+len(idx_raw))
+          print('V1_SHA256=',hv1)
+          print('V2_REBUILT_SHA256=',hv2)
+          print('MAX_SHARD=',max(rows))
+          print('MIN_SHARD=',min(rows))
+          print('AVG_SHARD_RAW_BYTES=',round(total_raw/len(rows),2))
+          assert hv1==hv2, 'Fito v2 ya no reconstruye exactamente v1'
+          assert len(rebuilt)==len(v1)==len(ids)
+          print('FITO_V2_MEASURE_VERIFY_OK')
+          PY
