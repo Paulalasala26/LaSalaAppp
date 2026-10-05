@@ -1,0 +1,34 @@
+name: TEMP Locate TEST banner
+
+on:
+  push:
+    branches:
+      - test/v1.0
+    paths:
+      - .github/workflows/temp-locate-test-banner.yml
+
+jobs:
+  locate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Locate non-production banner
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          lines=s.splitlines()
+          terms=['NO PRODUCCIÓN','NO PRODUCCION','NO PRODUCCIÓN - TEST','ENTORNO TEST','TEST']
+          hits=[]
+          for i,line in enumerate(lines,1):
+              up=line.upper()
+              if ('PRODUCCI' in up and ('NO ' in up or 'TEST' in up)) or ('ENTORNO' in up and 'TEST' in up):
+                  hits.append(i)
+          print('HITS', hits[:30])
+          for i in hits[:30]:
+              a=max(1,i-15); b=min(len(lines),i+20)
+              print(f'---CTX {a}-{b}---')
+              for n in range(a,b+1):
+                  print(f'L{n}|{lines[n-1][:1000]}')
+          PY
