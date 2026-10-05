@@ -8933,11 +8933,11 @@ async function mostrarHistorialPartida(id){
   const c = controlChecksData.find(x=>x.id===id);
   if(!c) return;
   // El historial recorre exclusivamente las calles de ESTA partida en su
-  // invernadero; descargar todos los shards de Riego era innecesario.
-  // Si aún no tiene invId, no hay riego que consultar.
+  // invernadero; Riego y Fito se cargan solo para ese INV. Específicos sigue
+  // global hasta su bloque de segmentación propio.
   await Promise.all([
     c.invId ? loadRiegoInvData(c.invId, false) : Promise.resolve(true),
-    loadFitoData(false),
+    c.invId ? loadFitoInvData(c.invId, false) : Promise.resolve(true),
     loadEspecificosData(false)
   ]);
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -13281,20 +13281,34 @@ function renderFitoQuincenaBar(){
   `;
 }
 
-// Caché de 30s (mismo patrón que loadRiegoData) — fitoData pesa ~1.4MB y se
-// recargaba entero en cada apertura de Fito/Clima/Partidas.
+// Caché de 30s (mismo patrón que loadRiegoData) — Fito v1 mide ~2,08 MB
+// en PRD (medición 05/10/2026), por eso los consumidores acotados deben usar v2.
 let fitoDataCargadaEn = 0;
+const fitoInvCargadaEn = {};
 const FITO_DATA_CACHE_TTL_MS = 30000;
-async function loadFitoData(forzar){
-  if(forzar===false && fitoDataCargadaEn && (Date.now()-fitoDataCargadaEn)<FITO_DATA_CACHE_TTL_MS) return;
-  try{const r=await window.storage.get(FITO_KEY);if(r)fitoData=JSON.parse(r.value); fitoDataCargadaEn=Date.now();}catch(e){}
-  // Pre-load INV17 Switch treatment: día 25, all calles (INV17 completo)
+function aplicarPreloadFito17(){
+  // Pre-load histórico INV17 Switch treatment: día 25, all calles.
   if(!fitoData['17']) fitoData['17']={};
   if(!fitoData['17'][25]) fitoData['17'][25]={};
   const inv17All=[...INV_LAYOUT['17'].row1,...INV_LAYOUT['17'].row2];
   let preloadCambio=false;
   inv17All.forEach(c=>{ if(!fitoData['17'][25][c]){ fitoData['17'][25][c]='Switch 1cc/l'; preloadCambio=true; } });
   if(preloadCambio) fitoDirtyInvs.add('17');
+}
+async function loadFitoData(forzar){
+  if(forzar===false && fitoDataCargadaEn && (Date.now()-fitoDataCargadaEn)<FITO_DATA_CACHE_TTL_MS) return true;
+  try{
+    const r=await window.storage.get(FITO_KEY);
+    if(!r) return false;
+    fitoData=JSON.parse(r.value);
+    const ahora=Date.now();
+    fitoDataCargadaEn=ahora;
+    Object.keys(fitoData).forEach(invId=>{ fitoInvCargadaEn[String(invId)]=ahora; });
+    aplicarPreloadFito17();
+    return true;
+  }catch(e){
+    return false;
+  }
 }
 async function loadFitoV2Index(modoGuardado){
   try{
@@ -13307,6 +13321,36 @@ async function loadFitoV2Index(modoGuardado){
     if(modoGuardado) avisarFalloGuardado(); else avisarFalloCarga();
     return null;
   }
+}
+async function leerFitoV2Nodo(invId, modoGuardado){
+  try{
+    const res=await fetchConReintentos(`${CLOUD_DB_URL}/${encodeURIComponent(fitoV2Key(invId))}.json`);
+    const val=await res.json();
+    if(val==null) return {ok:true,exists:false,data:{}};
+    return {ok:true,exists:true,data:JSON.parse(val)};
+  }catch(e){
+    if(modoGuardado) avisarFalloGuardado(); else avisarFalloCarga();
+    return {ok:false,exists:false,data:null};
+  }
+}
+async function loadFitoInvData(invId, forzar){
+  invId=String(invId);
+  // Una edición local pendiente tiene prioridad: no se pisa con una relectura
+  // destinada únicamente a mostrar historial/ficha/informe.
+  if(fitoDirtyInvs.has(invId)) return true;
+  if(forzar===false && fitoInvCargadaEn[invId] && (Date.now()-fitoInvCargadaEn[invId])<FITO_DATA_CACHE_TTL_MS) return true;
+  const ids=await loadFitoV2Index(false);
+  if(!ids) return false;
+  const nodo=await leerFitoV2Nodo(invId,false);
+  if(!nodo.ok) return false;
+  if(!nodo.exists && ids.includes(invId)){
+    avisarFalloCarga();
+    return false;
+  }
+  fitoData[invId]=nodo.exists ? nodo.data : {};
+  if(invId==='17') aplicarPreloadFito17();
+  fitoInvCargadaEn[invId]=Date.now();
+  return true;
 }
 async function actualizarFitoV2IndexConInv(invId){
   const url = `${CLOUD_DB_URL}/${encodeURIComponent(FITO_V2_INDEX_KEY)}.json`;
@@ -19537,10 +19581,10 @@ function showPartidaDetail(num, inv){
   const p = partidasDB.find(x=>x.num===num&&x.inv===inv)||partidasDB.find(x=>x.num===num);
   if(!p) return;
   const invReal = inv||p.inv||'17';
-  // getFullRiegoLog(p) solo consulta p.inv (o 17 por defecto), por tanto
-  // cargar todos los invernaderos de Riego aquí era innecesario.
+  // getFullRiegoLog/getFullFitoLog solo consultan p.inv (o 17 por defecto):
+  // no reconstruir Riego ni Fito completos para esta ficha.
   const invRiego = p.inv||'17';
-  Promise.all([loadChecksData(), loadRiegoInvData(invRiego, false), loadFitoData(false)]).then(()=>{
+  Promise.all([loadChecksData(), loadRiegoInvData(invRiego, false), loadFitoInvData(invRiego, false)]).then(()=>{
     _renderPartidaDetail(p, num, invReal);
   });
 }
@@ -19943,10 +19987,10 @@ function _renderPartidaDetail(p, num, inv){
 function generarInformePostMortem(num, inv){
   const p = partidasDB.find(x=>x.num===num&&x.inv===inv)||partidasDB.find(x=>x.num===num);
   if(!p) return;
-  // El informe usa getFullRiegoLog(p), que consulta exclusivamente p.inv
-  // (o INV17 como fallback histórico). No hace falta reconstruir todo Riego.
+  // El informe usa getFullRiegoLog/getFullFitoLog, ambos acotados a p.inv
+  // (o INV17 como fallback histórico). No reconstruir Riego ni Fito completos.
   const invRiego = p.inv||'17';
-  Promise.all([loadChecksData(), loadRiegoInvData(invRiego, false), loadFitoData(false)]).then(()=>{
+  Promise.all([loadChecksData(), loadRiegoInvData(invRiego, false), loadFitoInvData(invRiego, false)]).then(()=>{
     const riegoLog = getFullRiegoLog(p);
     const fitoLog = getFullFitoLog(p);
     const fotoEntradaSrc = fotoEntrada[p.fotoKey||p.num] || p.fotoEntradaB64 || null;
