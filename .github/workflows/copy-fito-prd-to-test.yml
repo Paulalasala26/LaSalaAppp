@@ -1,0 +1,105 @@
+name: Copy Fito PRD to TEST safely
+
+on:
+  push:
+    branches:
+      - test/v1.0
+    paths:
+      - .github/workflows/copy-fito-prd-to-test.yml
+
+jobs:
+  copy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Copy lasala-fito-v1 PRD to TEST and verify
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib, json, urllib.request
+
+          PRD='https://la-sala-app-default-rtdb.europe-west1.firebasedatabase.app'
+          TEST='https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app'
+          KEY='lasala-fito-v1'
+
+          def get(base):
+              req=urllib.request.Request(f'{base}/{KEY}.json', method='GET')
+              with urllib.request.urlopen(req, timeout=180) as r:
+                  return r.read()
+
+          def put_test(raw):
+              req=urllib.request.Request(
+                  f'{TEST}/{KEY}.json',
+                  data=raw,
+                  headers={'Content-Type':'application/json'},
+                  method='PUT'
+              )
+              with urllib.request.urlopen(req, timeout=180) as r:
+                  return r.status, r.read()
+
+          def decode(raw):
+              outer=json.loads(raw.decode('utf-8'))
+              if isinstance(outer,str):
+                  return json.loads(outer)
+              return outer
+
+          def canon_sha(obj):
+              canon=json.dumps(obj,ensure_ascii=False,sort_keys=True,separators=(',',':')).encode('utf-8')
+              return hashlib.sha256(canon).hexdigest()
+
+          prd_raw=get(PRD)
+          test_before_raw=get(TEST)
+          prd_obj=decode(prd_raw)
+          test_before_obj=decode(test_before_raw) if test_before_raw != b'null' else None
+
+          if not isinstance(prd_obj,dict) or not prd_obj:
+              raise SystemExit('ABORT: PRD lasala-fito-v1 no contiene un objeto no vacío')
+
+          prd_sha=canon_sha(prd_obj)
+          print('PRD raw_bytes=',len(prd_raw))
+          print('PRD inv_count=',len(prd_obj))
+          print('PRD canonical_sha256=',prd_sha)
+          print('TEST before raw_bytes=',len(test_before_raw))
+          print('TEST before state=', 'null' if test_before_obj is None else f'nonempty type={type(test_before_obj).__name__}')
+
+          # Protección: no sobrescribir un TEST inesperadamente poblado.
+          if test_before_obj is not None:
+              before_sha=canon_sha(test_before_obj) if isinstance(test_before_obj,dict) else None
+              if before_sha != prd_sha:
+                  raise SystemExit(f'ABORT: TEST ya contiene Fito distinto (sha={before_sha}); no se sobrescribe')
+              print('TEST ya era idéntico a PRD; no hace falta escribir')
+          else:
+              status,_=put_test(prd_raw)
+              print('TEST PUT status=',status)
+              if status < 200 or status >= 300:
+                  raise SystemExit('ABORT: PUT a TEST no fue 2xx')
+
+          test_after_raw=get(TEST)
+          test_after_obj=decode(test_after_raw)
+          test_after_sha=canon_sha(test_after_obj)
+
+          print('TEST after raw_bytes=',len(test_after_raw))
+          print('TEST after inv_count=',len(test_after_obj) if isinstance(test_after_obj,dict) else 'n/a')
+          print('TEST after canonical_sha256=',test_after_sha)
+
+          if test_after_sha != prd_sha:
+              raise SystemExit('VERIFY FAIL: SHA canónico PRD != TEST')
+          if len(test_after_obj) != len(prd_obj):
+              raise SystemExit('VERIFY FAIL: recuento superior PRD != TEST')
+
+          def count_cells(obj):
+              total=0
+              for days in obj.values():
+                  if isinstance(days,dict):
+                      total += sum(len(day) for day in days.values() if isinstance(day,dict))
+              return total
+
+          prd_cells=count_cells(prd_obj)
+          test_cells=count_cells(test_after_obj)
+          print('PRD cells=',prd_cells)
+          print('TEST cells=',test_cells)
+          if prd_cells != test_cells:
+              raise SystemExit('VERIFY FAIL: número de celdas PRD != TEST')
+
+          print('VERIFY OK: lasala-fito-v1 copiado a TEST sin modificar PRD')
+          PY
