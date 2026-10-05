@@ -1,0 +1,81 @@
+name: TEMP Legacy route audit
+
+on:
+  push:
+    branches:
+      - test/v1.0
+    paths:
+      - .github/workflows/temp-legacy-route-audit.yml
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect executable legacy references
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+          lines = s.splitlines()
+
+          terms = [
+              'CONTROL_KEY',
+              'CONTROL_ITEMS_KEY',
+              'FITO_KEY',
+              'ESPECIFICOS_KEY',
+              'ESPECIFICOS_PARTIDA_KEY',
+              'RIEGO_KEY',
+              'RIEGO_SYNC_KEY',
+              'RIEGO_OFFLINE_KEY',
+          ]
+
+          def nearest_context(line_no):
+              lo=max(0,line_no-120)
+              pats=[
+                  re.compile(r'\b(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\('),
+                  re.compile(r'\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?\([^)]*\)\s*=>'),
+                  re.compile(r'\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?function\b'),
+              ]
+              for j in range(line_no-1,lo-1,-1):
+                  for pat in pats:
+                      m=pat.search(lines[j])
+                      if m:
+                          return m.group(1)
+              return '-'
+
+          print('INDEX_LINES', len(lines))
+          for term in terms:
+              occ=[]
+              for i,line in enumerate(lines,1):
+                  if term in line:
+                      occ.append((i,nearest_context(i),re.sub(r'\s+',' ',line.strip())[:520]))
+              print(f'### {term} COUNT {len(occ)}')
+              for i,ctx,line in occ[:40]:
+                  print(f'{term}|L{i}|CTX={ctx}|{line}')
+              if len(occ)>40:
+                  print(f'{term}|TRUNCATED|{len(occ)-40}')
+
+          checks = {
+            'RAW_FETCH_CLOUD': r'(?m)^[^\n]*\bfetch\s*\([^\n]*CLOUD_DB_URL',
+            'WINDOW_FETCH_CLOUD': r'(?m)^[^\n]*\bwindow\.fetch\s*\([^\n]*CLOUD_DB_URL',
+            'AUTH_API': r'/api/firebase-auth',
+            'SW_REGISTER': r'serviceWorker\.register',
+            'FITO_V2_LOAD': r'(?i)fito[^\n]{0,120}v2|v2[^\n]{0,120}fito',
+            'ESPECIFICOS_V2_LOAD': r'(?i)especific[^\n]{0,120}v2|v2[^\n]{0,120}especific',
+            'CONTROL_V2_LOAD': r'(?i)control[^\n]{0,120}v2|v2[^\n]{0,120}control',
+          }
+          for name,pat in checks.items():
+              ms=list(re.finditer(pat,s))
+              print(f'CHECK|{name}|COUNT={len(ms)}')
+              for m in ms[:12]:
+                  ln=s.count('\n',0,m.start())+1
+                  snippet=re.sub(r'\s+',' ',s[max(0,m.start()-120):min(len(s),m.end()+180)]).strip()
+                  print(f'CHECK|{name}|L{ln}|{snippet[:520]}')
+
+          print('LEGACY_ROUTE_AUDIT_OK')
+          PY
