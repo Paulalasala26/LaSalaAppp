@@ -405,6 +405,41 @@ window.storage = {
   }
 };
 
+async function actualizarStorageJsonConEtag(key, valorInicial, mutador){
+  const url=`${CLOUD_DB_URL}/${encodeURIComponent(key)}.json`;
+  for(let intento=1; intento<=5; intento++){
+    try{
+      const getRes=await appFetch(url,{headers:{'X-Firebase-ETag':'true'}});
+      if(!getRes.ok) throw new Error('HTTP '+getRes.status);
+      const etag=getRes.headers.get('ETag');
+      if(!etag) throw new Error('Firebase no devolvió ETag');
+      const raw=await getRes.json();
+      let actual;
+      if(raw==null){
+        actual=typeof valorInicial==='function' ? valorInicial() : JSON.parse(JSON.stringify(valorInicial));
+      }else{
+        actual=typeof raw==='string' ? JSON.parse(raw) : raw;
+      }
+      const cambio=await mutador(actual);
+      if(cambio===undefined) return {ok:true,value:actual,noChange:true,result:undefined};
+      const tieneValue=cambio && typeof cambio==='object' && !Array.isArray(cambio) && Object.prototype.hasOwnProperty.call(cambio,'value');
+      const siguiente=tieneValue ? cambio.value : cambio;
+      const result=tieneValue ? cambio.result : undefined;
+      const putRes=await appFetch(url,{
+        method:'PUT',
+        headers:{'Content-Type':'application/json','if-match':etag},
+        body:JSON.stringify(JSON.stringify(siguiente))
+      });
+      if(putRes.ok) return {ok:true,value:siguiente,result};
+      if(putRes.status!==412) throw new Error('HTTP '+putRes.status);
+      if(intento===5) return {ok:false,conflict:true};
+    }catch(e){
+      if(intento===5) return {ok:false,error:e};
+    }
+  }
+  return {ok:false};
+}
+
 // Antes de guardar riego/plaguicidas/checks, releemos lo último que haya en la
 // nube y lo fusionamos con los cambios locales (en vez de sobrescribir el bloque
 // entero). Con 3 usuarios guardando desde ordenadores distintos, sobrescribir a
@@ -815,24 +850,19 @@ const HISTORIAL_KEY = 'lasala-historial-v1';
 let historialData = [];
 async function logHistorial(accion){
   try{
-    const r = await window.storage.get(HISTORIAL_KEY);
-    // Si la lectura falla, r es null — igual que si el histórico estuviera
-    // vacío. Tratarlo como "vacío de verdad" borraría hasta 1000 entradas
-    // reales de auditoría. Se omite este registro en vez de arriesgarse a
-    // machacar el histórico entero.
-    if(!r) return;
-    let hist = JSON.parse(r.value);
-    const now = new Date();
-    hist.push({
-      usuario: currentUser || '—',
-      rol: currentUserRole || '—',
-      accion,
-      fecha: now.toLocaleDateString('es-ES'),
-      hora: now.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit',second:'2-digit'})
+    const now=new Date();
+    const entrada={
+      usuario:currentUser||'—', rol:currentUserRole||'—', accion,
+      fecha:now.toLocaleDateString('es-ES'),
+      hora:now.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit',second:'2-digit'})
+    };
+    const tx=await actualizarStorageJsonConEtag(HISTORIAL_KEY,[],hist=>{
+      if(!Array.isArray(hist)) hist=[];
+      hist.push(entrada);
+      if(hist.length>1000) hist=hist.slice(hist.length-1000);
+      return hist;
     });
-    if(hist.length>1000) hist = hist.slice(hist.length-1000);
-    historialData = hist;
-    await window.storage.set(HISTORIAL_KEY, JSON.stringify(hist));
+    if(tx.ok) historialData=tx.value;
   }catch(e){}
 }
 async function loadHistorialData(){
@@ -970,40 +1000,25 @@ function completadoISOBackfill(t){
   return parseFechaHoraToISO(t.horaFin) || t.fechaISO || fechaLocalISO(new Date());
 }
 async function limpiarTareasVencidas(){
-  // Tareas ya completadas antes de que existiera completadoISO (no tienen
-  // por dónde contar los días) se rellenan la primera vez que se detectan,
-  // usando la fecha real en que se marcaron como completadas (horaFin) para
-  // que el conteo de "Tareas antiguas" / borrado sea correcto desde ya — si
-  // no, se quedarían para siempre sin borrarse por no tener ninguna fecha de
-  // referencia.
-  let necesitaGuardar = false;
+  let necesitaGuardar=false;
   tareasData.forEach(t=>{
     if(t.estado==='completada' && !t.completadoISO){
-      t.completadoISO = completadoISOBackfill(t);
-      necesitaGuardar = true;
+      t.completadoISO=completadoISOBackfill(t);
+      necesitaGuardar=true;
     }
   });
-  const aBorrar = tareasData.filter(esTareaVencidaParaBorrar);
+  const aBorrar=tareasData.filter(esTareaVencidaParaBorrar);
   if(!aBorrar.length && !necesitaGuardar) return;
-  const idsBorrar = new Set(aBorrar.map(t=>t.id));
-  tareasData = tareasData.filter(t=>!idsBorrar.has(t.id));
-  try{
-    const r = await window.storage.get(TAREAS_KEY);
-    // Si la lectura falla, r es null — igual que si no hubiera tareas.
-    // Esta función se llama en CADA loadTareasData (es decir, en casi
-    // cualquier pantalla que toque Tareas) — tratar un fallo de red como
-    // "sin tareas" y escribir esa lista vacía borraría TODAS las tareas de
-    // todo el mundo, no solo las vencidas. Se omite la limpieza en la nube
-    // en vez de arriesgarse (se reintentará la próxima vez que se cargue).
-    // Detectado en la auditoría completa del 2026-09-09.
-    if(!r) return;
-    let cloud = JSON.parse(r.value);
-    cloud = cloud.filter(t=>!idsBorrar.has(t.id)).map(t=>{
-      if(t.estado==='completada' && !t.completadoISO) return {...t, completadoISO: completadoISOBackfill(t)};
+  const idsBorrar=new Set(aBorrar.map(t=>t.id));
+  tareasData=tareasData.filter(t=>!idsBorrar.has(t.id));
+  const tx=await actualizarStorageJsonConEtag(TAREAS_KEY,[],cloud=>{
+    if(!Array.isArray(cloud)) cloud=[];
+    return cloud.filter(t=>!idsBorrar.has(t.id)).map(t=>{
+      if(t.estado==='completada' && !t.completadoISO) return {...t,completadoISO:completadoISOBackfill(t)};
       return t;
     });
-    await window.storage.set(TAREAS_KEY, JSON.stringify(cloud));
-  }catch(e){}
+  });
+  if(tx.ok) tareasData=tx.value;
 }
 let tareasDataCargadaEn = 0;
 const TAREAS_DATA_CACHE_TTL_MS = 30000;
@@ -1021,18 +1036,16 @@ async function loadTareasData(forzar){
 }
 async function persistTareasData(){
   try{
-    const r = await window.storage.get(TAREAS_KEY);
-    // Si la lectura falla, r es null — igual que si no hubiera tareas.
-    // Tratarlo como "sin tareas de verdad" borraría las de otros
-    // dispositivos/usuarios que esta sesión no tenga en memoria. Se aborta
-    // en vez de asumir que la nube está vacía.
-    if(!r){ avisarFalloGuardado(); return; }
-    const cloud = JSON.parse(r.value);
-    const map = {};
-    cloud.forEach(t=>map[t.id]=t);
-    tareasData.forEach(t=>map[t.id]=t);
-    tareasData = Object.values(map);
-    await window.storage.set(TAREAS_KEY, JSON.stringify(tareasData));
+    const locales=tareasData.slice();
+    const tx=await actualizarStorageJsonConEtag(TAREAS_KEY,[],cloud=>{
+      if(!Array.isArray(cloud)) cloud=[];
+      const map={};
+      cloud.forEach(t=>map[t.id]=t);
+      locales.forEach(t=>map[t.id]=t);
+      return Object.values(map);
+    });
+    if(!tx.ok){ avisarFalloGuardado(); return; }
+    tareasData=tx.value;
   }catch(e){ avisarFalloGuardado(); }
 }
 function estadoTareaLabel(estado){
@@ -1052,26 +1065,19 @@ function contarTareasNuevas(usuario){
   return tareasData.filter(t=>t.asignadoA===usuario && t.visto===false).length;
 }
 async function avisarNuevasTareas(usuario){
-  const nuevas = tareasData.filter(t=>t.asignadoA===usuario && t.visto===false);
+  const nuevas=tareasData.filter(t=>t.asignadoA===usuario && t.visto===false);
   if(!nuevas.length) return;
-  const resumen = nuevas.length===1 ? `Nueva tarea: "${nuevas[0].titulo}"` : `${nuevas.length} tareas nuevas asignadas`;
+  const resumen=nuevas.length===1 ? `Nueva tarea: "${nuevas[0].titulo}"` : `${nuevas.length} tareas nuevas asignadas`;
   showToast('🔔 '+resumen);
   if(typeof Notification!=='undefined' && Notification.permission==='granted'){
-    try{ new Notification('App La Sala', {body: resumen}); }catch(e){}
+    try{ new Notification('App La Sala',{body:resumen}); }catch(e){}
   }
-  const ids = new Set(nuevas.map(t=>t.id));
-  try{
-    const r = await window.storage.get(TAREAS_KEY);
-    // Si la lectura falla, r es null — igual que si no hubiera tareas.
-    // Tratarlo como "sin tareas de verdad" borraría TODAS las tareas al
-    // escribir una lista vacía marcada como "vista". Se omite en vez de
-    // arriesgarse (el aviso ya se mostró igualmente arriba).
-    if(!r) return;
-    let cloud = JSON.parse(r.value);
-    cloud = cloud.map(t => ids.has(t.id) ? {...t, visto:true} : t);
-    await window.storage.set(TAREAS_KEY, JSON.stringify(cloud));
-    tareasData = tareasData.map(t => ids.has(t.id) ? {...t, visto:true} : t);
-  }catch(e){}
+  const ids=new Set(nuevas.map(t=>t.id));
+  const tx=await actualizarStorageJsonConEtag(TAREAS_KEY,[],cloud=>{
+    if(!Array.isArray(cloud)) cloud=[];
+    return cloud.map(t=>ids.has(t.id)?{...t,visto:true}:t);
+  });
+  if(tx.ok) tareasData=tx.value;
 }
 function pedirPermisoNotificaciones(){
   if(typeof Notification==='undefined'){ showToast('Este navegador no admite notificaciones'); return; }
@@ -1099,41 +1105,28 @@ function urlBase64ToUint8Array(base64String){
   return outputArray;
 }
 async function activarNotificacionesPush(){
-  if(!('serviceWorker' in navigator) || !('PushManager' in window)){
+  if(!('serviceWorker' in navigator)||!('PushManager' in window)){
     showToast('Este navegador no admite notificaciones push. En iPhone: añade la app a la pantalla de inicio (compartir → Añadir a pantalla de inicio) y ábrela desde ese icono.');
     return;
   }
   try{
-    const permiso = await Notification.requestPermission();
+    const permiso=await Notification.requestPermission();
     if(permiso!=='granted'){ showToast('No se han activado los avisos'); return; }
-    const reg = await navigator.serviceWorker.register('sw.js');
+    const reg=await navigator.serviceWorker.register('sw.js');
     await navigator.serviceWorker.ready;
-    let sub = await reg.pushManager.getSubscription();
-    if(!sub){
-      sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
-      });
-    }
-    const json = sub.toJSON();
-    const r = await window.storage.get(PUSH_SUBS_KEY);
-    // Si la lectura falla, r es null — igual que si no hubiera ninguna
-    // suscripción guardada. Tratarlo como "vacía de verdad" borraría las
-    // suscripciones push de TODOS los demás usuarios (Dennis, Fran...) al
-    // escribir solo la de este dispositivo. Se aborta el guardado — la
-    // suscripción del navegador ya quedó creada (línea de arriba), así que
-    // un reintento no volverá a pedir permiso, solo reintentará guardarla.
-    if(!r){ showToast('No se pudo activar (sin conexión) — inténtalo de nuevo'); return; }
-    const cloud = JSON.parse(r.value);
-    const lista = cloud[currentUser] || [];
-    if(!lista.some(s=>s.endpoint===json.endpoint)) lista.push(json);
-    cloud[currentUser] = lista;
-    const ok = await window.storage.set(PUSH_SUBS_KEY, JSON.stringify(cloud));
-    if(!ok){ showToast('No se pudo activar (sin conexión) — inténtalo de nuevo'); return; }
+    let sub=await reg.pushManager.getSubscription();
+    if(!sub) sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array(VAPID_PUBLIC_KEY)});
+    const json=sub.toJSON();
+    const tx=await actualizarStorageJsonConEtag(PUSH_SUBS_KEY,{},cloud=>{
+      if(!cloud||typeof cloud!=='object'||Array.isArray(cloud)) cloud={};
+      const lista=Array.isArray(cloud[currentUser])?cloud[currentUser].slice():[];
+      if(!lista.some(x=>x.endpoint===json.endpoint)) lista.push(json);
+      cloud[currentUser]=lista;
+      return cloud;
+    });
+    if(!tx.ok){ showToast('No se pudo activar (sin conexión) — inténtalo de nuevo'); return; }
     showToast('✓ Notificaciones activadas en este dispositivo');
-  }catch(e){
-    showToast('No se pudo activar la notificación push en este dispositivo');
-  }
+  }catch(e){ showToast('No se pudo activar la notificación push en este dispositivo'); }
   actualizarBotonAvisosPush();
 }
 // A petición de Paula: una vez activados, el botón pasa a "Desactivar
@@ -1145,27 +1138,19 @@ async function activarNotificacionesPush(){
 // esto solo controla la suscripción push real de esta app.
 async function desactivarNotificacionesPush(){
   try{
-    const reg = await navigator.serviceWorker.getRegistration('sw.js');
-    const sub = reg ? await reg.pushManager.getSubscription() : null;
+    const reg=await navigator.serviceWorker.getRegistration('sw.js');
+    const sub=reg?await reg.pushManager.getSubscription():null;
     if(sub){
-      const endpoint = sub.endpoint;
+      const endpoint=sub.endpoint;
       await sub.unsubscribe();
-      const r = await window.storage.get(PUSH_SUBS_KEY);
-      // Si la lectura falla, r es null — igual que si no hubiera ninguna
-      // suscripción guardada. Tratarlo como "vacía de verdad" borraría las
-      // suscripciones de TODOS los demás usuarios. Como el unsubscribe()
-      // de arriba ya desactivó el envío real, dejar la entrada vieja sin
-      // limpiar (en vez de arriesgarse a borrar las de otros) es inofensivo.
-      if(r){
-        const cloud = JSON.parse(r.value);
-        cloud[currentUser] = (cloud[currentUser]||[]).filter(s=>s.endpoint!==endpoint);
-        await window.storage.set(PUSH_SUBS_KEY, JSON.stringify(cloud));
-      }
+      await actualizarStorageJsonConEtag(PUSH_SUBS_KEY,{},cloud=>{
+        if(!cloud||typeof cloud!=='object'||Array.isArray(cloud)) cloud={};
+        cloud[currentUser]=(Array.isArray(cloud[currentUser])?cloud[currentUser]:[]).filter(s=>s.endpoint!==endpoint);
+        return cloud;
+      });
     }
     showToast('🔕 Avisos desactivados en este dispositivo');
-  }catch(e){
-    showToast('No se pudo desactivar');
-  }
+  }catch(e){ showToast('No se pudo desactivar'); }
   actualizarBotonAvisosPush();
 }
 async function estaPushActivado(){
@@ -1215,79 +1200,51 @@ const AVISOS_USUARIO_KEY = 'lasala-avisos-usuario-v1';
 // siempre decía "App La Sala", sin más detalle) como en la lista de
 // Notificaciones/Avisos — cada sitio que llama a notificarUsuario pasa uno
 // distinto ("📨 Propuesta inminente", "✅ Hojas marcadas", etc.).
-async function notificarUsuario(target, mensaje, titulo, extra){
-  if(!target || !mensaje) return;
-  const tituloFinal = titulo || 'App La Sala';
+async function notificarUsuario(target,mensaje,titulo,extra){
+  if(!target||!mensaje) return;
+  const tituloFinal=titulo||'App La Sala';
+  const aviso={
+    id:'aviso_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
+    titulo:tituloFinal,mensaje,fecha:new Date().toLocaleString('es-ES'),visto:false,
+    leido:false,evaluacion:null,observaciones:'',evaluadoPor:null,fechaEvaluacion:null,
+    ...(extra||{})
+  };
   try{
-    const r = await window.storage.get(AVISOS_USUARIO_KEY);
-    // Si la lectura falla, r es null — igual que si no hubiera avisos.
-    // notificarUsuario se llama constantemente desde toda la app — tratar
-    // un fallo de red como "sin avisos" y escribir solo el aviso nuevo de
-    // este `target` borraría los avisos pendientes de TODOS los demás
-    // usuarios. Se omite el guardado en la nube (el push real de abajo se
-    // sigue intentando igual) en vez de arriesgarse. Detectado en la
-    // auditoría completa del 2026-09-09.
-    if(!r) throw new Error('lectura fallida');
-    const cloud = JSON.parse(r.value);
-    const lista = cloud[target] || [];
-    lista.push({
-      id: 'aviso_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
-      titulo: tituloFinal, mensaje, fecha: new Date().toLocaleString('es-ES'), visto:false,
-      // "leido" (a petición de Paula): distinto de "visto" (que solo controla
-      // el toast/Notification de bienvenida y se marca en avisarAvisosPendientes
-      // nada más entrar) — este se marca al ABRIR la pantalla "Notificaciones"
-      // de Vigueras, y es lo que controla el número del badge de ese botón.
-      leido:false,
-      // A petición de Paula: el TÉCNICO puede abrir cada aviso (trabajo/riego
-      // ejecutado, o respuesta de Vigueras a una propuesta inminente) y dejar
-      // constancia de si se hizo bien o mal, con observaciones — ver
-      // mostrarAvisosTecnico/guardarEvaluacionAviso.
-      evaluacion: null, observaciones: '', evaluadoPor: null, fechaEvaluacion: null,
-      // "extra": campos propios de un tipo de aviso concreto (p.ej.
-      // problema_ejecucion, ver mostrarNotificarProblemaRiego/
-      // abrirResolverProblemaRiego) — se mezclan tal cual, por encima de los
-      // campos genéricos de arriba.
-      ...(extra||{})
+    await actualizarStorageJsonConEtag(AVISOS_USUARIO_KEY,{},cloud=>{
+      if(!cloud||typeof cloud!=='object'||Array.isArray(cloud)) cloud={};
+      const lista=Array.isArray(cloud[target])?cloud[target].slice():[];
+      lista.push(aviso);
+      cloud[target]=lista.slice(-30);
+      return cloud;
     });
-    cloud[target] = lista.slice(-30);
-    await window.storage.set(AVISOS_USUARIO_KEY, JSON.stringify(cloud));
   }catch(e){}
-  enviarPushA(target, tituloFinal, mensaje);
+  enviarPushA(target,tituloFinal,mensaje);
 }
 async function avisarAvisosPendientes(usuario){
   if(!usuario) return;
   try{
-    const r = await window.storage.get(AVISOS_USUARIO_KEY);
-    // Si la lectura falla, r es null — igual que si no hubiera avisos.
-    // Tratarlo como "sin avisos de verdad" y luego escribir de vuelta
-    // borraría los avisos pendientes de TODOS los demás usuarios. Se
-    // omite (no se muestra el toast esta vez, pero tampoco se pierde nada)
-    // en vez de arriesgarse.
+    const r=await window.storage.get(AVISOS_USUARIO_KEY);
     if(!r) return;
-    let cloud = JSON.parse(r.value);
-    const lista = cloud[usuario] || [];
-    const pendientes = lista.filter(a=>!a.visto);
+    const cloud=JSON.parse(r.value);
+    const lista=Array.isArray(cloud?.[usuario])?cloud[usuario]:[];
+    const pendientes=lista.filter(a=>!a.visto);
     if(!pendientes.length) return;
     pendientes.forEach(a=>{
       showToast('🔔 '+(a.titulo?a.titulo+': ':'')+a.mensaje);
-      if(typeof Notification!=='undefined' && Notification.permission==='granted'){
-        try{ new Notification(a.titulo||'App La Sala', {body: a.mensaje}); }catch(e){}
+      if(typeof Notification!=='undefined'&&Notification.permission==='granted'){
+        try{ new Notification(a.titulo||'App La Sala',{body:a.mensaje}); }catch(e){}
       }
     });
-    // VIGUERAS y TÉCNICO tienen su propia pantalla de avisos (Notificaciones/
-    // Avisos) que ya gestiona cuándo desaparece cada uno — aquí solo se
-    // marcan como vistos para no repetir el toast. El resto de roles (p.ej.
-    // REGANTE, que recibe la respuesta al reportar un problema de riego, ver
-    // guardarSolucionProblemaRiego) no tienen ninguna pantalla donde
-    // volver a verlos — a petición de Paula (2026-09-08, "que no queden más
-    // avisos sin limpiar"), se borran aquí mismo justo después de mostrar el
-    // toast, en vez de quedarse en la nube sin que nadie los borre nunca.
-    if(usuario==='VIGUERAS' || currentUserRole==='TECNICO'){
-      cloud[usuario] = lista.map(a=>({...a, visto:true}));
-    } else {
-      cloud[usuario] = lista.filter(a=>!pendientes.includes(a));
-    }
-    await window.storage.set(AVISOS_USUARIO_KEY, JSON.stringify(cloud));
+    const claves=new Set(pendientes.map(a=>a.id||JSON.stringify(a)));
+    const conservar=(usuario==='VIGUERAS'||currentUserRole==='TECNICO');
+    await actualizarStorageJsonConEtag(AVISOS_USUARIO_KEY,{},fresh=>{
+      if(!fresh||typeof fresh!=='object'||Array.isArray(fresh)) fresh={};
+      const l=Array.isArray(fresh[usuario])?fresh[usuario]:[];
+      fresh[usuario]=conservar
+        ? l.map(a=>claves.has(a.id||JSON.stringify(a))?{...a,visto:true}:a)
+        : l.filter(a=>!claves.has(a.id||JSON.stringify(a)));
+      return fresh;
+    });
   }catch(e){}
 }
 // ── PANTALLA "NOTIFICACIONES" DE VIGUERAS ───────────────────────────────
@@ -1298,24 +1255,19 @@ async function avisarAvisosPendientes(usuario){
 // aplica, son avisos informativos, no trabajos que juzgar).
 function mostrarNotificacionesVigueras(){
   window.storage.get(AVISOS_USUARIO_KEY).then(async r=>{
-    // Si la lectura falla, r es null — igual que si no hubiera avisos. Hoy
-    // eso acaba siendo inofensivo de casualidad (la lista queda vacía y el
-    // bloque que escribe no llega a ejecutarse), pero se deja explícito:
-    // abajo se VACÍA la lista de avisos en la nube, así que dar por bueno
-    // un null aquí borraría avisos reales que no se han llegado a leer.
-    const cloud = r ? JSON.parse(r.value) : null;
-    const listaCruda = (cloud && cloud['VIGUERAS']) || [];
-    const lista = listaCruda.slice().reverse();
-    const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    const overlay = getOrCreateOverlay('notificaciones-vigueras-overlay');
-    overlay.innerHTML = `
+    const cloud=r?JSON.parse(r.value):null;
+    const listaCruda=(cloud&&Array.isArray(cloud['VIGUERAS']))?cloud['VIGUERAS']:[];
+    const lista=listaCruda.slice().reverse();
+    const escapar=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const overlay=getOrCreateOverlay('notificaciones-vigueras-overlay');
+    overlay.innerHTML=`
       <div style="background:#fff;border-radius:14px;max-width:640px;width:100%;max-height:92vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.25)">
         <div style="background:var(--grad-blue);color:#fff;padding:1.1rem 1.5rem;border-radius:14px 14px 0 0;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0">
           <div style="font-size:16px;font-weight:800">🔔 Notificaciones</div>
           <button onclick="this.closest('.modal-overlay-dyn').style.display='none'" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:12px">✕</button>
         </div>
         <div style="padding:1rem 1.25rem">
-          ${lista.length===0 ? `<div style="text-align:center;padding:2rem;color:var(--muted);font-style:italic">No tienes notificaciones.</div>` : lista.map(a=>`
+          ${lista.length===0?'<div style="text-align:center;padding:2rem;color:var(--muted);font-style:italic">No tienes notificaciones.</div>':lista.map(a=>`
             <div style="border:1.5px solid var(--border);border-radius:10px;padding:12px;background:#fff;margin-bottom:10px">
               <div style="font-size:11px;font-weight:800;color:#1558a0;text-transform:uppercase;letter-spacing:.03em;margin-bottom:4px">${escapar(a.titulo||'App La Sala')}</div>
               <div style="font-size:13px;font-weight:700">${escapar(a.mensaje)}</div>
@@ -1323,15 +1275,15 @@ function mostrarNotificacionesVigueras(){
             </div>`).join('')}
         </div>
       </div>`;
-    overlay.style.display = 'flex';
-    // A petición de Paula (2026-07-30): las notificaciones se BORRAN en
-    // cuanto se leen (se abre esta pantalla), no solo se marcan como leídas
-    // — así no queda un histórico creciendo para siempre ni el badge puede
-    // desincronizarse. Se leen aquí (para pintarlas una última vez) y luego
-    // se vacía esa lista en la nube.
-    if(cloud && listaCruda.length){
-      cloud['VIGUERAS'] = [];
-      try{ await window.storage.set(AVISOS_USUARIO_KEY, JSON.stringify(cloud)); }catch(e){}
+    overlay.style.display='flex';
+    if(listaCruda.length){
+      const claves=new Set(listaCruda.map(a=>a.id||JSON.stringify(a)));
+      await actualizarStorageJsonConEtag(AVISOS_USUARIO_KEY,{},fresh=>{
+        if(!fresh||typeof fresh!=='object'||Array.isArray(fresh)) fresh={};
+        const l=Array.isArray(fresh['VIGUERAS'])?fresh['VIGUERAS']:[];
+        fresh['VIGUERAS']=l.filter(a=>!claves.has(a.id||JSON.stringify(a)));
+        return fresh;
+      });
     }
     actualizarBadgeNotificacionesVigueras();
   });
@@ -1352,35 +1304,34 @@ async function actualizarBadgeNotificacionesVigueras(){
 // Al pulsar un aviso, el técnico puede marcarlo Bien/Mal ejecutado y escribir
 // observaciones — queda guardado en el propio aviso (evaluacion/observaciones).
 function mostrarAvisosTecnico(){
-  window.storage.get(AVISOS_USUARIO_KEY).then(r=>{
-    // Si la lectura falla, r es null — igual que si no hubiera avisos. Se
-    // deja explícito (cloud=null) porque más abajo se reescribe la clave
-    // entera con la migración perezosa: dar por bueno un null borraría los
-    // avisos de TODOS los usuarios, no solo los de este.
-    const cloud = r ? JSON.parse(r.value) : null;
-    let lista = (cloud && cloud[currentUser]) || [];
-    // Migración perezosa: avisos creados antes de este cambio no tienen
-    // "id" ni los campos de evaluación — se rellenan la primera vez que se
-    // abre esta pantalla, para que también se puedan evaluar.
-    let migrado = false;
-    lista = lista.map(a=>{
-      if(a.id) return a;
-      migrado = true;
-      return { ...a,
-        id: 'aviso_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
-        evaluacion: a.evaluacion ?? null, observaciones: a.observaciones ?? '',
-        evaluadoPor: a.evaluadoPor ?? null, fechaEvaluacion: a.fechaEvaluacion ?? null
-      };
+  (async()=>{
+    const tx=await actualizarStorageJsonConEtag(AVISOS_USUARIO_KEY,{},cloud=>{
+      if(!cloud||typeof cloud!=='object'||Array.isArray(cloud)) cloud={};
+      const lista=Array.isArray(cloud[currentUser])?cloud[currentUser]:[];
+      let migrado=false;
+      const nueva=lista.map(a=>{
+        if(a.id) return a;
+        migrado=true;
+        return {...a,id:'aviso_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
+          evaluacion:a.evaluacion??null,observaciones:a.observaciones??'',
+          evaluadoPor:a.evaluadoPor??null,fechaEvaluacion:a.fechaEvaluacion??null};
+      });
+      if(!migrado) return undefined;
+      cloud[currentUser]=nueva;
+      return cloud;
     });
-    avisosTecnicoData = lista;
-    if(cloud && migrado){
-      cloud[currentUser] = lista;
-      window.storage.set(AVISOS_USUARIO_KEY, JSON.stringify(cloud));
+    if(tx.ok){
+      const cloud=tx.value||{};
+      avisosTecnicoData=Array.isArray(cloud[currentUser])?cloud[currentUser]:[];
+    }else{
+      const r=await window.storage.get(AVISOS_USUARIO_KEY);
+      const cloud=r?JSON.parse(r.value):{};
+      avisosTecnicoData=Array.isArray(cloud?.[currentUser])?cloud[currentUser]:[];
     }
-    const overlay = getOrCreateOverlay('avisos-tecnico-overlay');
+    const overlay=getOrCreateOverlay('avisos-tecnico-overlay');
     renderAvisosTecnicoContent(overlay);
     overlay.style.display='flex';
-  });
+  })();
 }
 let avisosTecnicoData = [];
 function renderAvisosTecnicoContent(overlay){
@@ -1457,40 +1408,22 @@ function seleccionarEvaluacionAviso(valor){
   mal.style.color = sel==='mal' ? '#fff' : '#c62828';
 }
 async function guardarEvaluacionAviso(id){
-  const mo = document.getElementById('evaluar-aviso-overlay');
-  const evaluacion = mo.dataset.evaluacion || null;
-  const observaciones = document.getElementById('ea-obs')?.value?.trim() || '';
-  try{
-    const r = await window.storage.get(AVISOS_USUARIO_KEY);
-    // Si la lectura falla, r es null — igual que si no hubiera avisos.
-    // Tratarlo como "vacío de verdad" borraría los avisos pendientes de
-    // TODOS los demás usuarios. Se aborta y se avisa del fallo en vez de
-    // cerrar el diálogo como si se hubiera guardado.
-    if(!r){ avisarFalloGuardado(); return; }
-    const cloud = JSON.parse(r.value);
-    let lista = cloud[currentUser] || [];
-    const a = lista.find(x=>x.id===id);
-    if(a){
-      // A petición de Paula (2026-09-08): antes el aviso se quedaba en la
-      // lista para siempre (solo desaparecía al cabo de 30 avisos nuevos,
-      // ver notificarUsuario) — en cuanto queda evaluado (Bien/Mal
-      // ejecutado) ya no hace falta seguir viéndolo, se quita directamente,
-      // igual que Pinzado deja de contarse en cuanto se marca pinzado. Si
-      // solo se guardan observaciones sin elegir Bien/Mal, sigue pendiente.
-      if(evaluacion){
-        lista = lista.filter(x=>x.id!==id);
-      } else {
-        a.evaluacion = evaluacion;
-        a.observaciones = observaciones;
-        a.evaluadoPor = currentUser;
-        a.fechaEvaluacion = new Date().toLocaleString('es-ES');
-      }
-      cloud[currentUser] = lista;
-      const ok = await window.storage.set(AVISOS_USUARIO_KEY, JSON.stringify(cloud));
-      if(!ok){ avisarFalloGuardado(); return; }
-      avisosTecnicoData = lista;
-    }
-  }catch(e){ avisarFalloGuardado(); return; }
+  const mo=document.getElementById('evaluar-aviso-overlay');
+  const evaluacion=mo.dataset.evaluacion||null;
+  const observaciones=document.getElementById('ea-obs')?.value?.trim()||'';
+  const tx=await actualizarStorageJsonConEtag(AVISOS_USUARIO_KEY,{},cloud=>{
+    if(!cloud||typeof cloud!=='object'||Array.isArray(cloud)) cloud={};
+    let lista=Array.isArray(cloud[currentUser])?cloud[currentUser].slice():[];
+    const idx=lista.findIndex(x=>x.id===id);
+    if(idx<0) return {value:cloud,result:{missing:true}};
+    if(evaluacion) lista=lista.filter(x=>x.id!==id);
+    else lista[idx]={...lista[idx],evaluacion,observaciones,evaluadoPor:currentUser,fechaEvaluacion:new Date().toLocaleString('es-ES')};
+    cloud[currentUser]=lista;
+    return {value:cloud,result:{missing:false,lista}};
+  });
+  if(!tx.ok){ avisarFalloGuardado();return; }
+  if(tx.result?.missing){ showToast('El aviso ya no está disponible');return; }
+  avisosTecnicoData=tx.result.lista;
   mo.style.display='none';
   showToast('✓ Guardado');
   renderAvisosTecnicoContent(document.getElementById('avisos-tecnico-overlay'));
@@ -1527,34 +1460,25 @@ function abrirResolverProblemaRiego(id){
   mo.style.display='flex';
 }
 async function guardarSolucionProblemaRiego(id){
-  const solucion = document.getElementById('rp-solucion')?.value?.trim() || '';
+  const solucion=document.getElementById('rp-solucion')?.value?.trim()||'';
   if(!solucion){ showToast('Especifica la solución'); return; }
-  const cabezal = !!document.getElementById('rp-cabezal')?.checked;
-  try{
-    const r = await window.storage.get(AVISOS_USUARIO_KEY);
-    // Mismo riesgo que guardarEvaluacionAviso: r=null puede ser un fallo de
-    // red, no "sin avisos". Se aborta en vez de arriesgarse a borrar los
-    // avisos de otros usuarios, y no se cierra el diálogo como si hubiera
-    // ido bien (el regante nunca se enteraría de la solución).
-    if(!r){ avisarFalloGuardado(); return; }
-    const cloud = JSON.parse(r.value);
-    let lista = cloud[currentUser] || [];
-    const a = lista.find(x=>x.id===id);
-    if(a){
-      // A petición de Paula (2026-09-08): en cuanto se resuelve, se quita de
-      // la lista del técnico (ver mismo motivo en guardarEvaluacionAviso) —
-      // solucion/cabezal ya no hace falta guardarlos en el propio aviso
-      // porque no va a volver a mostrarse.
-      lista = lista.filter(x=>x.id!==id);
-      cloud[currentUser] = lista;
-      const ok = await window.storage.set(AVISOS_USUARIO_KEY, JSON.stringify(cloud));
-      if(!ok){ avisarFalloGuardado(); return; }
-      avisosTecnicoData = lista;
-      if(a.problemaData?.reportadoPor){
-        await notificarUsuario(a.problemaData.reportadoPor, `${nombreLegibleUsuario(currentUser)} respondió a tu problema: "${solucion}"${cabezal?' — Nos vemos en el cabezal.':''}`, '⚠️ Respuesta a tu problema');
-      }
-    }
-  }catch(e){ avisarFalloGuardado(); return; }
+  const cabezal=!!document.getElementById('rp-cabezal')?.checked;
+  const tx=await actualizarStorageJsonConEtag(AVISOS_USUARIO_KEY,{},cloud=>{
+    if(!cloud||typeof cloud!=='object'||Array.isArray(cloud)) cloud={};
+    let lista=Array.isArray(cloud[currentUser])?cloud[currentUser].slice():[];
+    const a=lista.find(x=>x.id===id);
+    if(!a) return {value:cloud,result:{missing:true}};
+    lista=lista.filter(x=>x.id!==id);
+    cloud[currentUser]=lista;
+    return {value:cloud,result:{missing:false,lista,aviso:a}};
+  });
+  if(!tx.ok){ avisarFalloGuardado();return; }
+  if(tx.result?.missing){ showToast('El aviso ya no está disponible');return; }
+  avisosTecnicoData=tx.result.lista;
+  const a=tx.result.aviso;
+  if(a.problemaData?.reportadoPor){
+    await notificarUsuario(a.problemaData.reportadoPor,`${nombreLegibleUsuario(currentUser)} respondió a tu problema: "${solucion}"${cabezal?' — Nos vemos en el cabezal.':''}`,'⚠️ Respuesta a tu problema');
+  }
   document.getElementById('resolver-problema-overlay').style.display='none';
   showToast('✓ Guardado');
   renderAvisosTecnicoContent(document.getElementById('avisos-tecnico-overlay'));
@@ -2815,91 +2739,56 @@ function showEditarTareaForm(id){
   wrap.scrollIntoView({behavior:'smooth', block:'nearest'});
 }
 async function guardarEdicionTarea(id){
-  const titulo = document.getElementById('et-titulo')?.value?.trim();
-  // Asignar a varias personas también al EDITAR una tarea ya existente (a
-  // petición de Paula, 2026-08-11) — la tarea que se edita se queda con la
-  // primera persona marcada; por cada persona ADICIONAL marcada se crea una
-  // COPIA nueva de la tarea ya actualizada (mismo patrón fan-out que
-  // crearTarea, sin tocar ningún sitio de lectura existente).
-  const asignadosMarcados = Array.from(document.querySelectorAll('#et-asignado-chips .chip-asignado-on')).map(b=>b.dataset.etAsignadoChip);
-  const asignadoA = asignadosMarcados[0];
-  const extraAsignados = asignadosMarcados.slice(1);
+  const titulo=document.getElementById('et-titulo')?.value?.trim();
+  const asignadosMarcados=Array.from(document.querySelectorAll('#et-asignado-chips .chip-asignado-on')).map(b=>b.dataset.etAsignadoChip);
+  const asignadoA=asignadosMarcados[0];
+  const extraAsignados=asignadosMarcados.slice(1);
   if(!titulo||!asignadoA){ showToast('Indica al menos un título y a quién se asigna'); return; }
-  const nuevoEstado = document.getElementById('et-estado')?.value || 'pendiente';
-  try{
-    const r = await window.storage.get(TAREAS_KEY);
-    // Si la lectura falla, r es null — igual que si no hubiera tareas. Sin
-    // esta comprobación se seguía con cloud=[], el findIndex daba -1 y se
-    // avisaba de que "la tarea ya se ha eliminado", que es falso y confunde:
-    // lo que pasa es que no hay conexión. (No llegaba a borrar nada porque
-    // retornaba antes del set, pero el mensaje era engañoso.)
-    if(!r){ avisarFalloGuardado(); showToast('✗ Sin conexión — no se han podido guardar los cambios'); return; }
-    let cloud = JSON.parse(r.value);
-    const idx = cloud.findIndex(x=>x.id===id);
-    if(idx<0){ showToast('No se encontró la tarea (puede que ya se haya eliminado)'); return; }
-    const fechaRaw = document.getElementById('et-fecha')?.value||'';
-    const fechaLabel = fechaRaw ? new Date(fechaRaw+'T00:00:00').toLocaleDateString('es-ES',{day:'2-digit',month:'short'}).replace('.','') : '';
-    // Si cambia de verdad de dueño, se marca como "no vista" otra vez — igual
-    // que la asignación en lote — para que a quien se le acaba de asignar le
-    // llegue el aviso de "tarea nueva" (si no, se quedaría sin avisar porque
-    // la tarea ya estaba "vista" por el dueño anterior).
-    const cambioDeDueño = cloud[idx].asignadoA !== asignadoA;
-    const actualizada = {
-      ...cloud[idx],
-      titulo, asignadoA,
-      descripcion: document.getElementById('et-desc')?.value?.trim()||'',
-      inv: document.getElementById('et-inv')?.value||'',
-      calles: document.getElementById('et-calles')?.value?.trim()||'',
-      fecha: fechaLabel, fechaISO: fechaRaw||null,
-      turno: document.getElementById('et-turno')?.value||'',
-      prioridad: document.getElementById('et-prioridad')?.checked ? 'alta' : 'normal',
-      estado: nuevoEstado,
-      visto: cambioDeDueño ? false : cloud[idx].visto
-    };
-    // Cambiar el estado a mano desde aquí limpia los datos de horas/firma
-    // que ya no encajan con el nuevo estado.
-    if(nuevoEstado==='pendiente'){ actualizada.horaInicio=null; actualizada.horaFin=null; actualizada.firmante=null; actualizada.completadoISO=null; }
-    if(nuevoEstado==='iniciada'){ actualizada.horaFin=null; actualizada.firmante=null; actualizada.completadoISO=null; if(!actualizada.horaInicio) actualizada.horaInicio=new Date().toLocaleString('es-ES'); }
-    if(nuevoEstado==='completada' && !actualizada.horaFin){ actualizada.horaFin=new Date().toLocaleString('es-ES'); actualizada.completadoISO=fechaLocalISO(new Date()); if(!actualizada.firmante) actualizada.firmante=currentUser||'—'; }
-    cloud[idx] = actualizada;
-    extraAsignados.forEach(u=>{
-      cloud.push({
-        ...actualizada,
-        id: 'tarea_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
-        asignadoA: u, visto: false
-      });
-    });
-    const okGuardado = await window.storage.set(TAREAS_KEY, JSON.stringify(cloud));
-    // Antes, cualquier fallo aquí se tragaba con un catch vacío y aun así se
-    // mostraba "✓ Cambios guardados" y se registraba la edición en el
-    // historial: el técnico veía el tick verde y el cambio no existía (muy
-    // fácil de provocar con mala cobertura dentro de los invernaderos).
-    // Ahora se aborta y se avisa, igual que hace eliminarTarea aquí debajo.
-    if(!okGuardado){ avisarFalloGuardado(); showToast('✗ No se han podido guardar los cambios'); return; }
-    tareasData = cloud;
-  }catch(e){ avisarFalloGuardado(); showToast('✗ No se han podido guardar los cambios'); return; }
+  const nuevoEstado=document.getElementById('et-estado')?.value||'pendiente';
+  const fechaRaw=document.getElementById('et-fecha')?.value||'';
+  const fechaLabel=fechaRaw ? new Date(fechaRaw+'T00:00:00').toLocaleDateString('es-ES',{day:'2-digit',month:'short'}).replace('.','') : '';
+  const campos={
+    titulo,asignadoA,
+    descripcion:document.getElementById('et-desc')?.value?.trim()||'',
+    inv:document.getElementById('et-inv')?.value||'',
+    calles:document.getElementById('et-calles')?.value?.trim()||'',
+    fecha:fechaLabel,fechaISO:fechaRaw||null,
+    turno:document.getElementById('et-turno')?.value||'',
+    prioridad:document.getElementById('et-prioridad')?.checked?'alta':'normal',
+    estado:nuevoEstado
+  };
+  const tx=await actualizarStorageJsonConEtag(TAREAS_KEY,[],cloud=>{
+    if(!Array.isArray(cloud)) cloud=[];
+    const idx=cloud.findIndex(x=>x.id===id);
+    if(idx<0) return {value:cloud,result:{missing:true}};
+    const cambioDeDueño=cloud[idx].asignadoA!==asignadoA;
+    const actualizada={...cloud[idx],...campos,visto:cambioDeDueño?false:cloud[idx].visto};
+    if(nuevoEstado==='pendiente'){ actualizada.horaInicio=null;actualizada.horaFin=null;actualizada.firmante=null;actualizada.completadoISO=null; }
+    if(nuevoEstado==='iniciada'){ actualizada.horaFin=null;actualizada.firmante=null;actualizada.completadoISO=null;if(!actualizada.horaInicio) actualizada.horaInicio=new Date().toLocaleString('es-ES'); }
+    if(nuevoEstado==='completada' && !actualizada.horaFin){ actualizada.horaFin=new Date().toLocaleString('es-ES');actualizada.completadoISO=fechaLocalISO(new Date());if(!actualizada.firmante) actualizada.firmante=currentUser||'—'; }
+    cloud[idx]=actualizada;
+    extraAsignados.forEach(u=>cloud.push({...actualizada,id:'tarea_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),asignadoA:u,visto:false}));
+    return {value:cloud,result:{missing:false}};
+  });
+  if(!tx.ok){ avisarFalloGuardado();showToast('✗ No se han podido guardar los cambios');return; }
+  if(tx.result?.missing){ showToast('No se encontró la tarea (puede que ya se haya eliminado)');return; }
+  tareasData=tx.value;
   logHistorial(`Editó la tarea "${titulo}" (asignada a ${asignadosMarcados.join(', ')})`);
-  const wrap = document.getElementById('nueva-tarea-form-wrap');
-  if(wrap) wrap.innerHTML = '';
+  const wrap=document.getElementById('nueva-tarea-form-wrap');
+  if(wrap) wrap.innerHTML='';
   showToast('✓ Cambios guardados');
   refreshTareasViews();
 }
 async function eliminarTarea(id){
-  const t = tareasData.find(x=>x.id===id);
+  const t=tareasData.find(x=>x.id===id);
   if(!t){ showToast('No se encontró la tarea'); return; }
   if(!confirm(`¿Eliminar la tarea "${t.titulo}" (asignada a ${t.asignadoA})? Esta acción no se puede deshacer.`)) return;
-  try{
-    const r = await window.storage.get(TAREAS_KEY);
-    // Borrado atómico (lee+borra+escribe, sin fusión) — si la lectura
-    // falla, r es null, igual que si no hubiera tareas. Tratarlo como
-    // "vacío de verdad" borraría TODAS las tareas, no solo esta. Se aborta
-    // en vez de asumirlo.
-    if(!r){ avisarFalloGuardado(); return; }
-    let cloud = JSON.parse(r.value);
-    cloud = cloud.filter(x=>x.id!==id);
-    await window.storage.set(TAREAS_KEY, JSON.stringify(cloud));
-    tareasData = cloud;
-  }catch(e){ avisarFalloGuardado(); return; }
+  const tx=await actualizarStorageJsonConEtag(TAREAS_KEY,[],cloud=>{
+    if(!Array.isArray(cloud)) cloud=[];
+    return cloud.filter(x=>x.id!==id);
+  });
+  if(!tx.ok){ avisarFalloGuardado();return; }
+  tareasData=tx.value;
   logHistorial(`Eliminó la tarea "${t.titulo}" (asignada a ${t.asignadoA})`);
   showToast('Tarea eliminada');
   refreshTareasViews();
@@ -15883,8 +15772,14 @@ async function generarTareasDesdeRiego(){
     t.calles = formatCallesConEnteroParaTareaPeon(t.inv, t._callesNumeros);
     delete t._callesNumeros;
   });
-  const ok = await window.storage.set(TAREAS_KEY, JSON.stringify(tareasData));
-  if(!ok){ avisarFalloGuardado(); return; }
+  const generadasRiego=tareasData.filter(t=>['PEON1','PEON2','PEON3'].includes(t.asignadoA) && !t.categoria && t.estado!=='completada');
+  const txTareas=await actualizarStorageJsonConEtag(TAREAS_KEY,[],fresh=>{
+    if(!Array.isArray(fresh)) fresh=[];
+    const base=fresh.filter(t=>!((['PEON1','PEON2','PEON3'].includes(t.asignadoA)) && !t.categoria && t.estado!=='completada'));
+    return base.concat(generadasRiego);
+  });
+  if(!txTareas.ok){ avisarFalloGuardado(); return; }
+  tareasData=txTareas.value;
   logHistorial(`Generó tareas de peón desde Riego (${creadas} nueva${creadas===1?'':'s'})`);
   showToast(`✓ Tareas generadas (${creadas} nueva${creadas===1?'':'s'})`);
   refreshTareasViews();
