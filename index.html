@@ -19745,7 +19745,10 @@ function _renderPartidaDetail(p, num, inv){
 function generarInformePostMortem(num, inv){
   const p = partidasDB.find(x=>x.num===num&&x.inv===inv)||partidasDB.find(x=>x.num===num);
   if(!p) return;
-  Promise.all([loadChecksData(), loadRiegoData(false), loadFitoData(false)]).then(()=>{
+  // El informe usa getFullRiegoLog(p), que consulta exclusivamente p.inv
+  // (o INV17 como fallback histórico). No hace falta reconstruir todo Riego.
+  const invRiego = p.inv||'17';
+  Promise.all([loadChecksData(), loadRiegoInvData(invRiego, false), loadFitoData(false)]).then(()=>{
     const riegoLog = getFullRiegoLog(p);
     const fitoLog = getFullFitoLog(p);
     const fotoEntradaSrc = fotoEntrada[p.fotoKey||p.num] || p.fotoEntradaB64 || null;
