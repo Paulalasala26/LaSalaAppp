@@ -6960,7 +6960,12 @@ async function handleExtensionesPdfInput(input){
     const lineas = await extraerLineasControlPdf(bytes);
     const registros = parseExtensionesPdf(lineas);
     if(!registros.length){ showToast('No se encontraron partidas 26X/26F reconocibles en ese PDF'); input.value=''; return; }
-    await loadControlChecksData();
+    // Este import solo busca y modifica líneas de Túnel. Cargar Carga
+    // completa era innecesario. Se fuerza lectura fresca de todos los shards
+    // v2 de Túnel porque después se modifican líneas y hay que partir del
+    // estado actual de Firebase, no de una caché parcial.
+    const tunelOk = await loadControlTipoCompleto('tunel');
+    if(!tunelOk){ avisarFalloCarga(); input.value=''; return; }
     // aplicarAsignarCalleControl cierra el modal #control-calle-overlay al
     // terminar — si nunca se abrió en esta sesión el elemento no existe
     // todavía y esa línea lanzaría un error; se crea aquí (oculto) para que
