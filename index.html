@@ -9140,13 +9140,18 @@ async function aplicarSalidaPartida(id, valor){
   return ok;
 }
 async function recuperarPartidaPorId(){
-  // Cargar datos si no están disponibles
-  if(!controlChecksData.length) {
-    await loadControlChecksData();
-  }
+  // Las partidas del mapa son líneas de Check Túnel. Desde la carga por
+  // shards, controlChecksData puede contener solo una quincena aunque no esté
+  // vacío; por eso aquí se fuerza Túnel completo y fresco antes de listar.
+  const tunelOk = await loadControlTipoCompleto('tunel');
+  if(!tunelOk){ avisarFalloCarga(); return; }
 
-  // Encontrar partidas marcadas como salida
-  const salidas = controlChecksData.filter(c=>c.salioDesdeSemanaNumerada !== null && c.salioDesdeSemanaNumerada !== undefined);
+  // Solo una línea de Túnel puede haberse marcado como salida desde este mapa.
+  const salidas = controlChecksData.filter(c=>
+    c.tipo==='tunel' &&
+    c.salioDesdeSemanaNumerada !== null &&
+    c.salioDesdeSemanaNumerada !== undefined
+  );
 
   if(!salidas.length){
     showToast('ℹ️ No hay partidas marcadas como salida');
