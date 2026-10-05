@@ -13335,22 +13335,41 @@ async function leerFitoV2Nodo(invId, modoGuardado){
 }
 async function loadFitoInvData(invId, forzar){
   invId=String(invId);
-  // Una edición local pendiente tiene prioridad: no se pisa con una relectura
-  // destinada únicamente a mostrar historial/ficha/informe.
-  if(fitoDirtyInvs.has(invId)) return true;
-  if(forzar===false && fitoInvCargadaEn[invId] && (Date.now()-fitoInvCargadaEn[invId])<FITO_DATA_CACHE_TTL_MS) return true;
+  return loadFitoInvsData([invId], forzar);
+}
+// Carga un subconjunto de Fito v2 con una sola lectura del índice. Los INV
+// que no existen en el índice se tratan como vacíos sin hacer GET de un shard
+// inexistente. Una edición local pendiente nunca se pisa.
+async function loadFitoInvsData(invIds, forzar){
+  const unicos=[...new Set((invIds||[]).map(String))];
+  if(!unicos.length) return true;
+  const ahora=Date.now();
+  const pendientes=unicos.filter(invId=>{
+    if(fitoDirtyInvs.has(invId)) return false;
+    return !(forzar===false && fitoInvCargadaEn[invId] && (ahora-fitoInvCargadaEn[invId])<FITO_DATA_CACHE_TTL_MS);
+  });
+  if(!pendientes.length) return true;
   const ids=await loadFitoV2Index(false);
   if(!ids) return false;
-  const nodo=await leerFitoV2Nodo(invId,false);
-  if(!nodo.ok) return false;
-  if(!nodo.exists && ids.includes(invId)){
+  const existentes=new Set(ids.map(String));
+  try{
+    const pares=await Promise.all(pendientes.map(async invId=>{
+      if(!existentes.has(invId)) return [invId,{}];
+      const nodo=await leerFitoV2Nodo(invId,false);
+      if(!nodo.ok || !nodo.exists) throw new Error('Falta Fito v2 de INV '+invId);
+      return [invId,nodo.data];
+    }));
+    const ts=Date.now();
+    pares.forEach(([invId,data])=>{
+      fitoData[invId]=data;
+      fitoInvCargadaEn[invId]=ts;
+    });
+    if(pendientes.includes('17')) aplicarPreloadFito17();
+    return true;
+  }catch(e){
     avisarFalloCarga();
     return false;
   }
-  fitoData[invId]=nodo.exists ? nodo.data : {};
-  if(invId==='17') aplicarPreloadFito17();
-  fitoInvCargadaEn[invId]=Date.now();
-  return true;
 }
 async function actualizarFitoV2IndexConInv(invId){
   const url = `${CLOUD_DB_URL}/${encodeURIComponent(FITO_V2_INDEX_KEY)}.json`;
@@ -13457,11 +13476,18 @@ function getFito(invId,dia,calle){
 }
 
 function showFitoModule(){
+  // El dashboard/resumen necesita todos los INV visibles para el usuario.
+  // ADMIN/TÉCNICO siguen necesitando el global completo; un REGANTE solo ve
+  // su(s) sala(s), así que carga únicamente esos shards Fito v2.
+  const SALAS_REGANTE_FITO={REGANTE1:['sala1'],REGANTE2:['sala2'],REGANTE3:['sala3','sala4','sala5']};
+  const cargaFito = currentUserRole==='REGANTE'
+    ? loadFitoInvsData(riegoInvIdsDeSalas(SALAS_REGANTE_FITO[currentUser]||['sala1']), false)
+    : loadFitoData(false);
   // loadTareasData() se añade aquí solo para poder sacar el caldo de las
   // fumigaciones a Pistola en el resumen de la quincena (ver
   // renderResumenQuincenaTratamientos) — a Cañón nunca se guarda caldo en
   // ningún sitio persistente, así que ahí ese dato queda en blanco.
-  Promise.all([loadFitoData(false), loadPresenciaData(), loadTareasData(false)]).then(()=>{
+  Promise.all([cargaFito, loadPresenciaData(), loadTareasData(false)]).then(()=>{
     // Se fija ANTES de construir el dashboard (que ya usa fitoQuincenaOffset
     // para el resumen de la quincena) — antes se fijaba después de pintar el
     // innerHTML, así que el resumen se calculaba con el valor viejo (0, la
@@ -13854,18 +13880,18 @@ async function showPartidasList(){
   overlay.style.display = 'flex';
   // partidasDB (~4.86MB) ya no se carga en el login. Primero se carga aquí
   // porque necesitamos saber QUÉ invernaderos aparecen realmente en la lista
-  // antes de pedir Riego. Las tarjetas solo consultan getSeguimientoRiego(p,inv)
-  // de su propio INV; las partidas pendientes no muestran seguimiento.
+  // antes de pedir seguimiento. Las tarjetas solo consultan Riego/Fito de su
+  // propio INV; las partidas pendientes no muestran seguimiento.
   if(!partidasDBCargada) await loadPartidasFromStorage();
-  const invsRiego = [...new Set(
+  const invsSeguimiento = [...new Set(
     partidasDB
       .filter(p=>!p.pendienteSalida)
       .map(p=>String(p.inv||'17'))
   )];
   await Promise.all([
     loadChecksData(),
-    loadFitoData(false),
-    ...invsRiego.map(invId=>loadRiegoInvData(invId,false))
+    loadFitoInvsData(invsSeguimiento,false),
+    loadRiegoInvsData(invsSeguimiento,false)
   ]);
   renderPartidasContent(overlay, '');
 }
