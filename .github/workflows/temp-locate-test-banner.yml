@@ -1,4 +1,7 @@
-name: TEMP Locate TEST banner
+name: TEMP Move TEST banner
+
+permissions:
+  contents: write
 
 on:
   push:
@@ -8,27 +11,37 @@ on:
       - .github/workflows/temp-locate-test-banner.yml
 
 jobs:
-  locate:
+  patch:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Locate non-production banner
+        with:
+          ref: test/v1.0
+      - name: Move banner and remove workflow
         shell: bash
         run: |
+          set -euo pipefail
+          git fetch origin test/v1.0
+          REMOTE="$(git rev-parse origin/test/v1.0)"
+          [ "$REMOTE" = "$GITHUB_SHA" ] || { echo "HEAD changed: $REMOTE != $GITHUB_SHA"; exit 1; }
+
           python3 - <<'PY'
           from pathlib import Path
-          s=Path('index.html').read_text(encoding='utf-8')
-          lines=s.splitlines()
-          terms=['NO PRODUCCIÓN','NO PRODUCCION','NO PRODUCCIÓN - TEST','ENTORNO TEST','TEST']
-          hits=[]
-          for i,line in enumerate(lines,1):
-              up=line.upper()
-              if ('PRODUCCI' in up and ('NO ' in up or 'TEST' in up)) or ('ENTORNO' in up and 'TEST' in up):
-                  hits.append(i)
-          print('HITS', hits[:30])
-          for i in hits[:30]:
-              a=max(1,i-15); b=min(len(lines),i+20)
-              print(f'---CTX {a}-{b}---')
-              for n in range(a,b+1):
-                  print(f'L{n}|{lines[n-1][:1000]}')
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          old='position:fixed;top:8px;right:8px;z-index:2147483647'
+          new='position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:2147483647'
+          if s.count(old)!=1:
+              raise SystemExit(f'Expected exactly 1 banner style, found {s.count(old)}')
+          s=s.replace(old,new,1)
+          p.write_text(s,encoding='utf-8')
           PY
+
+          grep -Fq 'id="lasala-test-banner" style="position:fixed;top:8px;left:50%;transform:translateX(-50%)' index.html
+
+          git config user.name "Viveros La Sala"
+          git config user.email "dev@viveroslasala.com"
+          git rm .github/workflows/temp-locate-test-banner.yml
+          git add index.html
+          git commit -m "fix(test): centrar cartel de entorno TEST"
+          git push origin HEAD:test/v1.0
