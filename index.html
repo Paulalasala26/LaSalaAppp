@@ -13491,18 +13491,13 @@ function aplicarPreloadFito17(){
 }
 async function loadFitoData(forzar){
   if(forzar===false && fitoDataCargadaEn && (Date.now()-fitoDataCargadaEn)<FITO_DATA_CACHE_TTL_MS) return true;
-  try{
-    const r=await window.storage.get(FITO_KEY);
-    if(!r) return false;
-    fitoData=JSON.parse(r.value);
-    const ahora=Date.now();
-    fitoDataCargadaEn=ahora;
-    Object.keys(fitoData).forEach(invId=>{ fitoInvCargadaEn[String(invId)]=ahora; });
-    aplicarPreloadFito17();
-    return true;
-  }catch(e){
-    return false;
-  }
+  const ids=await loadFitoV2Index(false);
+  if(!ids) return false;
+  const ok=await loadFitoInvsData(ids,forzar);
+  if(!ok) return false;
+  fitoDataCargadaEn=Date.now();
+  aplicarPreloadFito17();
+  return true;
 }
 async function loadFitoV2Index(modoGuardado){
   try{
@@ -18615,22 +18610,12 @@ const especificosInvCargadaEn = {};
 const ESPECIFICOS_DATA_CACHE_TTL_MS = 30000;
 async function loadEspecificosData(forzar){
   if(forzar===false && especificosDataCargadaEn && (Date.now()-especificosDataCargadaEn)<ESPECIFICOS_DATA_CACHE_TTL_MS) return true;
-  // Si hay ediciones locales pendientes, conservar esos INV al refrescar el
-  // global; el resto sí se sustituye por la nube fresca.
-  const dirtyLocal={};
-  especificosDirtyInvs.forEach(invId=>{ dirtyLocal[invId]=clonarEspecificosSnapshot(especificosData[invId]||{}); });
-  try{
-    const r=await window.storage.get(ESPECIFICOS_KEY);
-    if(!r) return false;
-    especificosData=JSON.parse(r.value);
-    Object.entries(dirtyLocal).forEach(([invId,data])=>{ especificosData[invId]=data; });
-    const ahora=Date.now();
-    especificosDataCargadaEn=ahora;
-    Object.keys(especificosData).forEach(invId=>{
-      if(!especificosDirtyInvs.has(String(invId))) especificosInvCargadaEn[String(invId)]=ahora;
-    });
-    return true;
-  }catch(e){ return false; }
+  const ids=await loadEspecificosV2Index(false);
+  if(!ids) return false;
+  const ok=await loadEspecificosInvsData(ids,forzar);
+  if(!ok) return false;
+  especificosDataCargadaEn=Date.now();
+  return true;
 }
 async function loadEspecificosV2Index(modoGuardado){
   try{
