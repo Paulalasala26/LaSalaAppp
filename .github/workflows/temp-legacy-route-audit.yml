@@ -90,11 +90,11 @@ jobs:
           ]
           for fn in targets:
               hits=[]
-              rx=re.compile(r'\\b'+re.escape(fn)+r'\\s*\\(')
-              for m in rx.finditer(s):
-                  ln=s.count('\\n',0,m.start())+1
-                  line=re.sub(r'\\s+',' ',lines[ln-1].strip())[:600]
-                  hits.append((ln,nearest_context(ln),line))
+              needle=fn+'('
+              for ln,line0 in enumerate(lines,1):
+                  if needle in line0:
+                      line=re.sub(r'\\s+',' ',line0.strip())[:600]
+                      hits.append((ln,nearest_context(ln),line))
               print(f'CALLS|{fn}|COUNT={len(hits)}')
               for ln,ctx,line in hits:
                   print(f'CALLS|{fn}|L{ln}|CTX={ctx}|{line}')
