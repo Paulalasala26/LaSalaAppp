@@ -13253,9 +13253,26 @@ const FITO_V2_INDEX_KEY = 'lasala-fito-v2-index';
 function fitoV2Key(invId){ return `lasala-fito-v2-${String(invId)}`; }
 let fitoData = {}; // fitoData[invId][dia][calle] = texto
 // Durante la transición v1→v2, v1 sigue siendo la fuente de compatibilidad.
-// Este Set permite replicar a v2 únicamente los invernaderos realmente
-// modificados, en vez de reescribir los 22 shards en cada guardado.
+// Se rastrean las CELDAS realmente modificadas: el guardado con ETag puede
+// releer la nube y reaplicar solo esas intenciones, sin pisar cambios ajenos.
 const fitoDirtyInvs = new Set();
+const fitoDirtyCells = new Map();
+let fitoDirtyVersion = 0;
+function fitoDirtyCellKey(invId,dia,calle){ return String(invId)+'|'+String(dia)+'|'+String(calle); }
+function marcarFitoDirtyCell(invId,dia,calle){
+  invId=String(invId); dia=String(dia); calle=String(calle);
+  const version=++fitoDirtyVersion;
+  fitoDirtyCells.set(fitoDirtyCellKey(invId,dia,calle),{invId,dia,calle,version});
+  fitoDirtyInvs.add(invId);
+}
+function recalcularFitoDirtyInvs(){
+  fitoDirtyInvs.clear();
+  fitoDirtyCells.forEach(x=>fitoDirtyInvs.add(String(x.invId)));
+}
+function clonarFitoSnapshot(v){
+  if(v==null) return null;
+  return JSON.parse(JSON.stringify(v));
+}
 let fitoInvSel = null;
 let fitoQuincenaOffset = 0;
 let fitoAudioActive = false;
@@ -13291,9 +13308,12 @@ function aplicarPreloadFito17(){
   if(!fitoData['17']) fitoData['17']={};
   if(!fitoData['17'][25]) fitoData['17'][25]={};
   const inv17All=[...INV_LAYOUT['17'].row1,...INV_LAYOUT['17'].row2];
-  let preloadCambio=false;
-  inv17All.forEach(c=>{ if(!fitoData['17'][25][c]){ fitoData['17'][25][c]='Switch 1cc/l'; preloadCambio=true; } });
-  if(preloadCambio) fitoDirtyInvs.add('17');
+  inv17All.forEach(c=>{
+    if(!fitoData['17'][25][c]){
+      fitoData['17'][25][c]='Switch 1cc/l';
+      marcarFitoDirtyCell('17',25,c);
+    }
+  });
 }
 async function loadFitoData(forzar){
   if(forzar===false && fitoDataCargadaEn && (Date.now()-fitoDataCargadaEn)<FITO_DATA_CACHE_TTL_MS) return true;
@@ -13401,6 +13421,10 @@ async function actualizarFitoV2IndexConInv(invId){
   avisarFalloGuardado();
   return false;
 }
+// Dual-write v1→v2 estabilizado. Tras escribir los shards, se relee v1:
+// si otro usuario ganó una transacción v1 mientras sincronizábamos, se vuelve
+// a escribir SOLO el/los INV desfasados. Así un mirror antiguo no puede quedar
+// como último escritor de v2 después de un guardado más nuevo en v1.
 async function syncFitoV2InvsDesdeCloud(cloud, invIds){
   const unicos=[...new Set((invIds||[]).map(String))];
   if(!unicos.length) return true;
@@ -13412,35 +13436,150 @@ async function syncFitoV2InvsDesdeCloud(cloud, invIds){
       if(!okIndex) return false;
       ids.push(invId);
     }
-    const ok=await window.storage.set(fitoV2Key(invId), JSON.stringify(cloud[invId]||{}));
-    if(!ok){ avisarFalloGuardado(); return false; }
   }
-  return true;
+
+  const snapshots={};
+  unicos.forEach(invId=>{ snapshots[invId]=clonarFitoSnapshot(cloud[invId]||{}); });
+  let pendientes=[...unicos];
+
+  for(let vuelta=1; vuelta<=5; vuelta++){
+    for(const invId of pendientes){
+      const ok=await window.storage.set(fitoV2Key(invId), JSON.stringify(snapshots[invId]||{}));
+      if(!ok){ avisarFalloGuardado(); return false; }
+    }
+
+    // Comprobación POST-escritura: si v1 cambió antes/durante nuestro SET v2,
+    // la siguiente vuelta empuja la versión realmente más reciente.
+    const r=await window.storage.get(FITO_KEY);
+    if(!r){ avisarFalloGuardado(); return false; }
+    const ultimo=JSON.parse(r.value);
+    const desfasados=[];
+    for(const invId of unicos){
+      const actual=ultimo[invId]||{};
+      if(JSON.stringify(actual)!==JSON.stringify(snapshots[invId]||{})){
+        snapshots[invId]=clonarFitoSnapshot(actual);
+        desfasados.push(invId);
+      }
+    }
+    if(!desfasados.length) return true;
+    pendientes=desfasados;
+    await new Promise(r=>setTimeout(r,120*vuelta));
+  }
+  avisarFalloGuardado();
+  return false;
 }
-function limpiarFitoDirtyInvs(invIds){
-  (invIds||[]).forEach(invId=>fitoDirtyInvs.delete(String(invId)));
+
+// Transacción optimista sobre el blob v1. Firebase protege con ETag el
+// intervalo GET→PUT: ante 412 se relee y se reaplican SOLO nuestras celdas.
+// De este modo dos técnicos que editan calles distintas no se pisan aunque
+// ambos partieran de una copia antigua de los 2,08 MB.
+async function saveFitoPatch(extraDeletes){
+  const dirtySnapshot=Array.from(fitoDirtyCells.values()).map(x=>{
+    const local=clonarFitoSnapshot(fitoData[x.invId]?.[x.dia]?.[x.calle] ?? null);
+    return {...x,local};
+  });
+  const intenciones=new Map();
+  dirtySnapshot.forEach(x=>intenciones.set(fitoDirtyCellKey(x.invId,x.dia,x.calle),x));
+
+  (extraDeletes||[]).forEach(({invId,dia,calles})=>{
+    invId=String(invId); dia=String(dia);
+    (calles||[]).forEach(c=>{
+      const calle=String(c), key=fitoDirtyCellKey(invId,dia,calle);
+      const previo=intenciones.get(key);
+      intenciones.set(key, previo ? {...previo,local:null} : {invId,dia,calle,version:null,local:null});
+    });
+  });
+
+  if(!intenciones.size) return {ok:true,afectados:[],cloud:null};
+  const afectados=[...new Set(Array.from(intenciones.values()).map(x=>String(x.invId)))];
+  const url=`${CLOUD_DB_URL}/${encodeURIComponent(FITO_KEY)}.json`;
+  let cloudGuardado=null;
+
+  for(let intento=1; intento<=5; intento++){
+    try{
+      const getRes=await fetch(url,{headers:{'X-Firebase-ETag':'true'},cache:'no-store'});
+      if(!getRes.ok) throw new Error('HTTP '+getRes.status);
+      const etag=getRes.headers.get('ETag');
+      if(!etag) throw new Error('Firebase no devolvió ETag');
+      const val=await getRes.json();
+      if(val==null || typeof val!=='string'){ avisarFalloGuardado(); return {ok:false}; }
+      const cloud=JSON.parse(val);
+
+      intenciones.forEach(it=>{
+        const inv=String(it.invId), dia=String(it.dia), calle=String(it.calle);
+        if(it.local==null){
+          if(cloud[inv]?.[dia]) delete cloud[inv][dia][calle];
+          if(cloud[inv]?.[dia] && Object.keys(cloud[inv][dia]).length===0) delete cloud[inv][dia];
+        }else{
+          if(!cloud[inv]) cloud[inv]={};
+          if(!cloud[inv][dia]) cloud[inv][dia]={};
+          cloud[inv][dia][calle]=clonarFitoSnapshot(it.local);
+        }
+      });
+
+      const putRes=await fetch(url,{
+        method:'PUT',
+        headers:{'Content-Type':'application/json','if-match':etag},
+        body:JSON.stringify(JSON.stringify(cloud))
+      });
+      if(putRes.ok){
+        cloudGuardado=cloud;
+        break;
+      }
+      if(putRes.status!==412) throw new Error('HTTP '+putRes.status);
+    }catch(e){
+      if(intento===5){ avisarFalloGuardado(); return {ok:false}; }
+    }
+    await new Promise(r=>setTimeout(r,120*intento));
+  }
+
+  if(!cloudGuardado){ avisarFalloGuardado(); return {ok:false}; }
+
+  // v1 ya está confirmado. Mantener v2 convergente antes de dar el guardado
+  // por bueno al usuario.
+  if(!(await syncFitoV2InvsDesdeCloud(cloudGuardado, afectados))) return {ok:false};
+
+  // Limpiar únicamente las versiones que formaban parte de ESTA transacción.
+  // Si el usuario volvió a editar una celda mientras el fetch estaba en curso,
+  // su versión nueva permanece dirty y se conserva en pantalla.
+  dirtySnapshot.forEach(x=>{
+    const actual=fitoDirtyCells.get(fitoDirtyCellKey(x.invId,x.dia,x.calle));
+    if(actual && actual.version===x.version) fitoDirtyCells.delete(fitoDirtyCellKey(x.invId,x.dia,x.calle));
+  });
+  recalcularFitoDirtyInvs();
+
+  // Refrescar en memoria los INV guardados con el resultado remoto, pero
+  // reinyectar cualquier edición posterior que haya quedado pendiente.
+  for(const invId of afectados){
+    const pendientesInv=Array.from(fitoDirtyCells.values())
+      .filter(x=>String(x.invId)===invId)
+      .map(x=>({...x,local:clonarFitoSnapshot(fitoData[x.invId]?.[x.dia]?.[x.calle] ?? null)}));
+    fitoData[invId]=clonarFitoSnapshot(cloudGuardado[invId]||{});
+    pendientesInv.forEach(x=>{
+      if(x.local==null){
+        if(fitoData[invId]?.[x.dia]) delete fitoData[invId][x.dia][x.calle];
+      }else{
+        if(!fitoData[invId]) fitoData[invId]={};
+        if(!fitoData[invId][x.dia]) fitoData[invId][x.dia]={};
+        fitoData[invId][x.dia][x.calle]=x.local;
+      }
+    });
+    fitoInvCargadaEn[invId]=Date.now();
+  }
+  fitoDataCargadaEn=0;
+  return {ok:true,afectados,cloud:cloudGuardado};
 }
+
 async function saveFitoData(){
-  const invsDirty=[...fitoDirtyInvs];
-  try{
-    const r = await window.storage.get(FITO_KEY);
-    // Si la lectura falla, r es null — igual que si Plaguicidas estuviera
-    // vacío. Tratarlo como "vacío de verdad" borraría todos los
-    // tratamientos salvo los que esta sesión tenga en memoria. Se aborta
-    // (y se avisa) en vez de mostrar "guardado" con un catch silencioso.
-    if(!r){ avisarFalloGuardado(); return; }
-    const cloud = JSON.parse(r.value);
-    fitoData = mergeDeepPreferLocal(cloud, fitoData);
-    const ok = await window.storage.set(FITO_KEY, JSON.stringify(fitoData));
-    if(!ok){ avisarFalloGuardado(); return; }
-    // Dual-write transitorio: v1 sigue vivo para consumidores heredados, pero
-    // los shards v2 se mantienen idénticos para poder migrar las lecturas sin
-    // riesgo de servir datos obsoletos.
-    if(!(await syncFitoV2InvsDesdeCloud(fitoData, invsDirty))) return;
-    limpiarFitoDirtyInvs(invsDirty);
-  }catch(e){ avisarFalloGuardado(); return; }
+  if(!fitoDirtyCells.size){
+    showToast('✓ Sin cambios pendientes');
+    return true;
+  }
+  const r=await saveFitoPatch([]);
+  if(!r.ok) return false;
   showToast('✓ Plaguicidas guardado');
   logHistorial(`Guardó plaguicidas${fitoInvSel?' de INV '+fitoInvSel:''}`);
+  return true;
 }
 // A petición de Paula, 2026-07-31: el caldo (y el tipo de tratamiento) deben
 // guardarse SIEMPRE, no solo cuando generan una tarea de fumigación a
@@ -13451,7 +13590,6 @@ async function saveFitoData(){
 // pasar por el formulario, ver setFitoUndo) no borre el caldo ya guardado.
 function setFito(invId,dia,calle,val,extra){
   invId=String(invId);
-  fitoDirtyInvs.add(invId);
   if(!fitoData[invId])fitoData[invId]={};
   if(!fitoData[invId][dia])fitoData[invId][dia]={};
   if(val){
@@ -13465,6 +13603,7 @@ function setFito(invId,dia,calle,val,extra){
       ...(extra||{})
     };
   } else delete fitoData[invId][dia][calle];
+  marcarFitoDirtyCell(invId,dia,calle);
 }
 // Los datos antiguos (guardados como string plano, de antes de este cambio)
 // se siguen leyendo bien — getFito() solo da el texto, igual que siempre.
@@ -17636,33 +17775,14 @@ function editarFitoManualDesdeCelda(invId, dia, calles){
 // "borrar" — una celda ya vacía en local heredaría de la nube el valor
 // antiguo que se acaba de quitar). Mismo patrón que guardarBorradoRiego.
 async function guardarBorradoFito(entradas){
-  try{
-    const r = await window.storage.get(FITO_KEY);
-    // Si la lectura falla, r es null — igual que si Plaguicidas estuviera
-    // vacío. Tratarlo como "vacío de verdad" aquí es aún más grave que en
-    // un guardado normal: al ser un borrado atómico (lee+borra+escribe,
-    // sin fusión), escribir sobre una base vacía falsa borraría TODOS los
-    // tratamientos de TODOS los invernaderos, no solo la celda que se
-    // quería borrar. Se aborta y se avisa en vez de asumir vacío. Mismo
-    // arreglo ya aplicado a guardarBorradoRiegoMultiInv; faltaba aquí y en
-    // guardarBorradoEspecifico (detectado en la auditoría del 2026-09-09).
-    if(!r){ avisarFalloGuardado(); return; }
-    const cloud = JSON.parse(r.value);
-    entradas.forEach(({invId, dia, calles})=>{
-      if(cloud[invId] && cloud[invId][dia]) calles.forEach(c=>delete cloud[invId][dia][c]);
-    });
-    const ok = await window.storage.set(FITO_KEY, JSON.stringify(cloud));
-    if(!ok){ avisarFalloGuardado(); return; }
-    const invsAfectados=[...new Set(entradas.map(e=>String(e.invId)))];
-    if(!(await syncFitoV2InvsDesdeCloud(cloud, invsAfectados))) return;
-    fitoData = cloud;
-    limpiarFitoDirtyInvs(invsAfectados);
-  }catch(e){ avisarFalloGuardado(); return; }
+  const r=await saveFitoPatch(entradas||[]);
+  if(!r.ok) return false;
   const invs = entradas.map(e=>e.invId);
   logHistorial(invs.length>1 ? `Borró plaguicidas de ${invs.length} invernaderos` : `Borró plaguicidas de INV ${invs[0]}`);
+  return true;
 }
 
-function borrarFitoManual(){
+async function borrarFitoManual(){
   if(!confirm('¿Borrar el tratamiento marcado?')) return;
   const dia = parseInt(document.getElementById('fm-dia').value);
   const bulkInvIds = leerInvernaderosBulkSeleccionados('fm');
@@ -17672,7 +17792,8 @@ function borrarFitoManual(){
   entradas.forEach(({invId, calles})=>calles.forEach(c=>setFito(invId, dia, c, '')));
   completarUndoFitoParaTodosGrupos();
   document.getElementById('fito-manual-overlay').style.display = 'none';
-  guardarBorradoFito(entradas);
+  const ok=await guardarBorradoFito(entradas);
+  if(!ok) return;
   if(fitoInvSel) renderFitoGrid(fitoInvSel);
 }
 
@@ -17794,7 +17915,8 @@ async function saveFitoManual(){
     sobrantes.forEach(c=>{ if(fitoData[contextoOriginal.invId]?.[contextoOriginal.dia]) delete fitoData[contextoOriginal.invId][contextoOriginal.dia][c]; });
     await guardarFitoConLimpieza(contextoOriginal.invId, contextoOriginal.dia, sobrantes);
   } else {
-    saveFitoData();
+    const ok=await saveFitoData();
+    if(!ok) return;
   }
   if(fitoInvSel) renderFitoGrid(fitoInvSel);
   showToast(`✓ Día ${dia} → "${valor}" aplicado a ${bulkInvIds.length} invernadero(s) (${count} calles)`);
@@ -17804,21 +17926,9 @@ async function saveFitoManual(){
 // cuando se reduce el tramo (o se cambia de día) de un tratamiento ya
 // existente (ver saveFitoManual).
 async function guardarFitoConLimpieza(invId, dia, callesALimpiar){
-  try{
-    const r = await window.storage.get(FITO_KEY);
-    // Mismo riesgo que saveFitoData: r=null puede ser un fallo de red, no
-    // Plaguicidas vacío de verdad. Se aborta en vez de asumirlo.
-    if(!r){ avisarFalloGuardado(); return; }
-    let cloud = JSON.parse(r.value);
-    cloud = mergeDeepPreferLocal(cloud, fitoData);
-    if(cloud[invId] && cloud[invId][dia]) callesALimpiar.forEach(c=>delete cloud[invId][dia][c]);
-    fitoData = cloud;
-    const ok = await window.storage.set(FITO_KEY, JSON.stringify(cloud));
-    if(!ok){ avisarFalloGuardado(); return; }
-    const invsAfectados=[...new Set([...fitoDirtyInvs].map(String).concat(String(invId)))];
-    if(!(await syncFitoV2InvsDesdeCloud(cloud, invsAfectados))) return;
-    limpiarFitoDirtyInvs(invsAfectados);
-  }catch(e){ avisarFalloGuardado(); }
+  const r=await saveFitoPatch([{invId,dia,calles:callesALimpiar||[]}]);
+  if(!r.ok) return false;
+  return true;
 }
 function normalizarUnidadDosis(u){
   u = u.toLowerCase();
