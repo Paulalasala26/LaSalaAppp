@@ -3733,10 +3733,14 @@ function seleccionarSubSeccionTrabajos(sub){
 function subSeccionTrabajosNecesitaControlChecks(subKey){
   return subKey==='pinzar' || MUJERES_SUBSECCIONES_CON_DIAS.includes(subKey);
 }
-function irARenderTrabajos(){
-  if(subSeccionTrabajosNecesitaControlChecks(trabajosSubSeccion) && !controlChecksData.length){
-    loadControlChecksData().then(()=> renderTrabajosContent(document.getElementById('trabajos-overlay')));
-    return;
+async function irARenderTrabajos(){
+  if(subSeccionTrabajosNecesitaControlChecks(trabajosSubSeccion)){
+    // calleAsignadaParaPartida/invIdDePartidaTunel buscan por nº de partida
+    // sin saber la quincena. Deben estar TODOS los shards de Túnel; comprobar
+    // solo controlChecksData.length ya no es válido desde que Control carga
+    // slices v2, porque podría haber únicamente una quincena en memoria.
+    const ok=await loadControlTipoCompleto('tunel',false);
+    if(!ok){ avisarFalloCarga(); return; }
   }
   renderTrabajosContent(document.getElementById('trabajos-overlay'));
 }
@@ -5052,6 +5056,26 @@ async function loadControlChecksSlice(tipo,q,forzar){
     controlV2ShardCargadoEn[shardKey]=Date.now();
     return true;
   }catch(e){ return false; }
+}
+// Carga completa de UN SOLO tipo de Control. Necesaria para consumidores
+// heredados que buscan una partida por número sin conocer su quincena
+// (Trabajos → Mujeres, por ejemplo). Evita descargar el otro tipo entero:
+// para calles de trabajos solo hace falta Túnel, nunca Carga.
+async function loadControlTipoCompleto(tipo,forzar){
+  const okIndice=await loadControlV2Index(false);
+  if(!okIndice){
+    // Fallback de seguridad si el índice v2 no estuviera disponible.
+    await loadControlChecksData(forzar);
+    return true;
+  }
+  const qs=[...new Set(
+    Object.values(controlV2Index.shards||{})
+      .filter(m=>m && m.tipo===tipo && Number.isFinite(parseInt(m.q,10)))
+      .map(m=>parseInt(m.q,10))
+  )].sort((a,b)=>a-b);
+  if(!qs.length) return true;
+  const resultados=await Promise.all(qs.map(q=>loadControlChecksSlice(tipo,q,forzar)));
+  return resultados.every(Boolean);
 }
 async function loadControlSeccionSlice(tipo,q,forzar){
   const ok=await loadControlChecksSlice(tipo,q,forzar);
