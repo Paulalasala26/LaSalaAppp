@@ -20091,19 +20091,17 @@ function showImprimirResumenSelector(tipo){
         <section style="background:#fff;border:1px solid #d6e0ec;border-radius:9px;padding:12px">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:9px">
             <div style="font-size:14px;font-weight:800;color:#1a1e18">Días a imprimir</div>
-            <label style="font-size:12px;font-weight:700;color:#1558a0;display:flex;align-items:center;gap:5px;cursor:pointer">
-              <input type="checkbox" id="rr-dia-all" onchange="seleccionarTodosResumen('dias',this.checked)"> Todos
-            </label>
+            <div style="font-size:11px;color:#68727d">Elige una opción</div>
           </div>
-          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:9px">
-            <button type="button" class="rr-preset-btn" onclick="aplicarPresetDiasResumen('hoy')" style="padding:6px 11px;background:#1558a0;border:1px solid #1558a0;color:#fff;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">Hoy</button>
-            <button type="button" class="rr-preset-btn" onclick="aplicarPresetDiasResumen('manana')" style="padding:6px 11px;background:#1558a0;border:1px solid #1558a0;color:#fff;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">Mañana</button>
-            <button type="button" class="rr-preset-btn" onclick="aplicarPresetDiasResumen('quincena')" style="padding:6px 11px;background:#1558a0;border:1px solid #1558a0;color:#fff;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">Quincena completa</button>
-            <button type="button" class="rr-preset-btn" onclick="aplicarPresetDiasResumen('laborables')" style="padding:6px 11px;background:#1558a0;border:1px solid #1558a0;color:#fff;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">Laborables</button>
-            <button type="button" class="rr-preset-btn" onclick="aplicarPresetDiasResumen('manual')" style="padding:6px 11px;background:#1558a0;border:1px solid #1558a0;color:#fff;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">Manual</button>
-          </div>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:3px;padding:8px;background:#f7f9fc;border:1px solid #d6e0ec;border-radius:7px">
-            ${diasHTML}
+          <select id="rr-dia-preset" onchange="aplicarPresetDiasResumen(this.value)" style="width:100%;padding:10px 12px;background:#1558a0;border:1px solid #1558a0;color:#fff;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer">
+            <option value="hoy" selected>Hoy</option>
+            <option value="manana">Mañana</option>
+            <option value="quincena">Quincena completa</option>
+            <option value="laborables">Días laborables</option>
+            <option value="manual">Selección manual</option>
+          </select>
+          <div id="rr-manual-days" style="display:none;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:3px;margin-top:9px;padding:8px;background:#f7f9fc;border:1px solid #d6e0ec;border-radius:7px">
+            \${diasHTML}
           </div>
         </section>
       </div>
@@ -20134,6 +20132,8 @@ function seleccionarSalaResumen(salaId, checked){
   actualizarImpresionResumenUI();
 }
 function aplicarPresetDiasResumen(preset){
+  const manual = document.getElementById('rr-manual-days');
+  if(manual) manual.style.display = preset === 'manual' ? 'grid' : 'none';
   const checks = Array.from(document.querySelectorAll('.rr-dia-chk'));
   if(preset === 'manual'){
     actualizarImpresionResumenUI();
@@ -20157,6 +20157,9 @@ function aplicarPresetDiasResumen(preset){
   actualizarImpresionResumenUI();
 }
 function actualizarImpresionResumenUI(){
+  const preset = document.getElementById('rr-dia-preset');
+  const manualDays = document.getElementById('rr-manual-days');
+  if(manualDays) manualDays.style.display = preset && preset.value === 'manual' ? 'grid' : 'none';
   const invChecks = Array.from(document.querySelectorAll('.rr-inv-chk'));
   const diaChecks = Array.from(document.querySelectorAll('.rr-dia-chk'));
   const invSelected = invChecks.filter(el=>el.checked).length;
