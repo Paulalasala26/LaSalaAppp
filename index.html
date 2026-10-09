@@ -12341,27 +12341,22 @@ function showRiegoModule(soloLectura){
       <div style="background:#fff;border-radius:0;width:100vw;height:100vh;max-width:100vw;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.3)">
 
         <!-- HEADER -->
-        <div style="background:var(--grad-blue);color:#fff;padding:.85rem 1.25rem;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;gap:10px;overflow:visible">
+        <div style="background:var(--grad-blue);color:#fff;padding:.45rem .75rem;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;gap:8px;overflow:visible">
           <div style="min-width:0">
-            <div style="font-size:16px;font-weight:800">&#128167; ${titulo}</div>
-            <div style="font-size:11px;opacity:.7;margin:1px 0 4px;min-height:0">${subtitulo}</div>
-            <div id="riego-quincena-bar" style="display:flex;align-items:center;gap:8px"></div>
+            <div style="font-size:14px;line-height:1.15;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">&#128167; ${titulo}</div>
+            <div style="font-size:10px;line-height:1.1;opacity:.7;margin:0 0 2px;display:${subtitulo ? 'block' : 'none'}">${subtitulo}</div>
+            <div id="riego-quincena-bar" style="display:flex;align-items:center;gap:5px"></div>
           </div>
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end">
-            <div id="riego-more-wrap" style="display:none;position:relative">
-              <button id="riego-more-btn" onclick="toggleRiegoMoreOptions()" title="Más opciones"
-                style="padding:6px 12px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">
-                &#8942; Más opciones
+          <div id="riego-header-actions" style="display:flex;align-items:center;gap:5px;flex-wrap:nowrap;justify-content:flex-end;margin-left:auto;flex-shrink:0">
+            <div id="riego-print-wrap" style="display:none">
+              <button id="riego-print-btn" onclick="showImprimirResumenSelector('riego')" title="Imprimir resumen" aria-label="Imprimir resumen"
+                style="width:30px;height:30px;padding:0;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center">
+                <i class="ti ti-printer" style="font-size:16px"></i>
               </button>
-              <div id="riego-more-menu" style="display:none;position:absolute;right:0;top:44px;z-index:20;background:#fff;border:1px solid #a8c4e8;border-radius:8px;padding:6px;box-shadow:0 8px 24px rgba(0,0,0,.2);min-width:170px">
-                <button onclick="showImprimirResumenSelector('riego');toggleRiegoMoreOptions()" style="width:100%;padding:8px 10px;background:#fff;border:none;color:#1558a0;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;text-align:left">
-                  <i class="ti ti-printer" style="font-size:14px;vertical-align:-2px"></i> Imprimir resumen
-                </button>
-              </div>
             </div>
-            <button onclick="cerrarRiegoModule()" title="Salir de Riego"
-              style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:7px;padding:6px 12px;cursor:pointer;font-size:12px;font-weight:700;white-space:nowrap">
-              Salir
+            <button id="riego-close-btn" onclick="cerrarRiegoModule()" title="Cerrar Riego" aria-label="Cerrar Riego"
+              style="width:30px;height:30px;padding:0;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:21px;line-height:1">
+              &times;
             </button>
           </div>
         </div>
@@ -12470,21 +12465,14 @@ function actualizarVistaRiegoSeleccion(invId){
   const selection = document.getElementById('riego-selection-bar');
   const label = document.getElementById('riego-selection-label');
   const actions = document.getElementById('riego-actions-row');
-  const more = document.getElementById('riego-more-wrap');
-  const menu = document.getElementById('riego-more-menu');
+  const printWrap = document.getElementById('riego-print-wrap');
   const selected = !!invId;
   if(selectorWrap) selectorWrap.style.display = selected ? 'none' : 'block';
   if(selection) selection.style.display = selected ? 'flex' : 'none';
   if(label) label.textContent = selected ? (riegoSalaTexto(invId) + ' · INV. ' + invId) : '';
   if(actions) actions.style.display = selected && !riegoSoloLectura ? 'flex' : 'none';
-  if(more) more.style.display = selected ? 'block' : 'none';
-  if(menu) menu.style.display = 'none';
+  if(printWrap) printWrap.style.display = selected ? 'block' : 'none';
   actualizarEstadoBotonGuardarRiego();
-}
-function toggleRiegoMoreOptions(){
-  const menu = document.getElementById('riego-more-menu');
-  if(!menu) return;
-  menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
 }
 
 async function selectRiegoInv(invId){
