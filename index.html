@@ -12432,6 +12432,8 @@ function showRiegoModule(soloLectura){
         </div>
       </div>`;
     overlay.style.display='flex';
+    // Marcaje: mostrar los invernaderos al entrar, sin una pulsación adicional.
+    if(!riegoSoloLectura) toggleRiegoInvSelector(true);
     riegoQuincenaOffset = riegoQuincenaOffsetActual();
     renderRiegoQuincenaBar();
   });
