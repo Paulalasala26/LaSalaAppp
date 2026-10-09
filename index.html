@@ -12370,9 +12370,7 @@ function showRiegoModule(soloLectura){
           </div>
         </div>
 
-        <!-- INV SELECTOR — plegable: con Sala 1-5 ya no cabe abierto de
-        entrada en pantallas de móvil (auditoría 2026-09-15), así que empieza
-        cerrado y se abre/cierra con la barra de abajo. -->
+        <!-- Selector por sala: una única selección activa; Marcaje lo abre al entrar. -->
         <div id="riego-inv-selector-toggle" onclick="toggleRiegoInvSelector()"
           style="padding:.55rem 1.25rem;background:#dce8f8;border-bottom:1px solid #b0c8e0;display:flex;justify-content:space-between;align-items:center;cursor:pointer;flex-shrink:0">
           <span style="font-size:12px;font-weight:800;color:#1558a0">📍 <span id="riego-inv-selector-label">Elegir invernadero</span></span>
@@ -12381,48 +12379,48 @@ function showRiegoModule(soloLectura){
         <div id="riego-inv-selector-wrap" style="display:none">
         ${(currentUserRole!=='REGANTE' || currentUser==='REGANTE1') ? `
         <div style="padding:.5rem 1.25rem;background:#e8f0fb;border-bottom:1px solid #b0c8e0;display:flex;gap:6px;flex-wrap:wrap;align-items:center;flex-shrink:0">
-          <span style="font-size:11px;font-weight:700;color:#1558a0;min-width:56px">SALA 1:</span>
-          ${Object.keys(INV_LAYOUT_SALA1).map(id=>`
-            <button onclick="selectRiegoInv('${id}',this)" data-rinv="${id}"
-              style="padding:4px 11px;font-size:11px;font-weight:600;border-radius:5px;cursor:pointer;border:1.5px solid #a8c4e8;background:#fff;color:#1558a0;transition:all .12s">
-              ${id}
-            </button>`).join('')}
+          <label for="riego-sala-1" style="font-size:14px;font-weight:700;color:#1558a0;min-width:64px">Sala 1</label>
+          <select id="riego-sala-1" data-riego-sala="1" onchange="if(this.value) selectRiegoInv(this.value)"
+            style="flex:1;min-width:0;min-height:44px;padding:8px 10px;font-size:16px;border-radius:7px;border:1.5px solid #a8c4e8;background:#fff;color:#1558a0">
+            <option value="" disabled selected>Elegir invernadero…</option>
+            ${Object.keys(INV_LAYOUT_SALA1).sort((a,b)=>a.localeCompare(b,'es',{numeric:true})).map(id=>`<option value="${id}">${id}</option>`).join('')}
+          </select>
         </div>` : ''}
         ${(currentUserRole!=='REGANTE' || currentUser==='REGANTE2') ? `
         <div style="padding:.5rem 1.25rem;background:#e8f0fb;border-bottom:1px solid #b0c8e0;display:flex;gap:6px;flex-wrap:wrap;align-items:center;flex-shrink:0">
-          <span style="font-size:11px;font-weight:700;color:#1558a0;min-width:56px">SALA 2:</span>
-          ${Object.keys(INV_LAYOUT_SALA2).map(id=>`
-            <button onclick="selectRiegoInv('${id}',this)" data-rinv="${id}"
-              style="padding:4px 11px;font-size:11px;font-weight:600;border-radius:5px;cursor:pointer;border:1.5px solid #a8c4e8;background:#fff;color:#1558a0;transition:all .12s">
-              ${id}
-            </button>`).join('')}
+          <label for="riego-sala-2" style="font-size:14px;font-weight:700;color:#1558a0;min-width:64px">Sala 2</label>
+          <select id="riego-sala-2" data-riego-sala="2" onchange="if(this.value) selectRiegoInv(this.value)"
+            style="flex:1;min-width:0;min-height:44px;padding:8px 10px;font-size:16px;border-radius:7px;border:1.5px solid #a8c4e8;background:#fff;color:#1558a0">
+            <option value="" disabled selected>Elegir invernadero…</option>
+            ${Object.keys(INV_LAYOUT_SALA2).sort((a,b)=>a.localeCompare(b,'es',{numeric:true})).map(id=>`<option value="${id}">${id}</option>`).join('')}
+          </select>
         </div>` : ''}
         ${(currentUserRole!=='REGANTE' || currentUser==='REGANTE3') ? `
         <div style="padding:.5rem 1.25rem;background:#e8f0fb;border-bottom:1px solid #b0c8e0;display:flex;gap:6px;flex-wrap:wrap;align-items:center;flex-shrink:0">
-          <span style="font-size:11px;font-weight:700;color:#1558a0;min-width:56px">SALA 3:</span>
-          ${Object.keys(INV_LAYOUT_SALA3).map(id=>`
-            <button onclick="selectRiegoInv('${id}',this)" data-rinv="${id}"
-              style="padding:4px 11px;font-size:11px;font-weight:600;border-radius:5px;cursor:pointer;border:1.5px solid #a8c4e8;background:#fff;color:#1558a0;transition:all .12s">
-              ${id}
-            </button>`).join('')}
+          <label for="riego-sala-3" style="font-size:14px;font-weight:700;color:#1558a0;min-width:64px">Sala 3</label>
+          <select id="riego-sala-3" data-riego-sala="3" onchange="if(this.value) selectRiegoInv(this.value)"
+            style="flex:1;min-width:0;min-height:44px;padding:8px 10px;font-size:16px;border-radius:7px;border:1.5px solid #a8c4e8;background:#fff;color:#1558a0">
+            <option value="" disabled selected>Elegir invernadero…</option>
+            ${Object.keys(INV_LAYOUT_SALA3).sort((a,b)=>a.localeCompare(b,'es',{numeric:true})).map(id=>`<option value="${id}">${id}</option>`).join('')}
+          </select>
         </div>` : ''}
         ${(currentUserRole!=='REGANTE' || currentUser==='REGANTE3') ? `
         <div style="padding:.5rem 1.25rem;background:#e8f0fb;border-bottom:1px solid #b0c8e0;display:flex;gap:6px;flex-wrap:wrap;align-items:center;flex-shrink:0">
-          <span style="font-size:11px;font-weight:700;color:#1558a0;min-width:56px">SALA 4:</span>
-          ${Object.keys(INV_LAYOUT_SALA4).map(id=>`
-            <button onclick="selectRiegoInv('${id}',this)" data-rinv="${id}"
-              style="padding:4px 11px;font-size:11px;font-weight:600;border-radius:5px;cursor:pointer;border:1.5px solid #a8c4e8;background:#fff;color:#1558a0;transition:all .12s">
-              ${id}
-            </button>`).join('')}
+          <label for="riego-sala-4" style="font-size:14px;font-weight:700;color:#1558a0;min-width:64px">Sala 4</label>
+          <select id="riego-sala-4" data-riego-sala="4" onchange="if(this.value) selectRiegoInv(this.value)"
+            style="flex:1;min-width:0;min-height:44px;padding:8px 10px;font-size:16px;border-radius:7px;border:1.5px solid #a8c4e8;background:#fff;color:#1558a0">
+            <option value="" disabled selected>Elegir invernadero…</option>
+            ${Object.keys(INV_LAYOUT_SALA4).sort((a,b)=>a.localeCompare(b,'es',{numeric:true})).map(id=>`<option value="${id}">${id}</option>`).join('')}
+          </select>
         </div>` : ''}
         ${(currentUserRole!=='REGANTE' || currentUser==='REGANTE3') ? `
         <div style="padding:.5rem 1.25rem;background:#e8f0fb;border-bottom:1px solid #b0c8e0;display:flex;gap:6px;flex-wrap:wrap;align-items:center;flex-shrink:0">
-          <span style="font-size:11px;font-weight:700;color:#1558a0;min-width:56px">SALA 5:</span>
-          ${Object.keys(INV_LAYOUT_SALA5).map(id=>`
-            <button onclick="selectRiegoInv('${id}',this)" data-rinv="${id}"
-              style="padding:4px 11px;font-size:11px;font-weight:600;border-radius:5px;cursor:pointer;border:1.5px solid #a8c4e8;background:#fff;color:#1558a0;transition:all .12s">
-              ${id}
-            </button>`).join('')}
+          <label for="riego-sala-5" style="font-size:14px;font-weight:700;color:#1558a0;min-width:64px">Sala 5</label>
+          <select id="riego-sala-5" data-riego-sala="5" onchange="if(this.value) selectRiegoInv(this.value)"
+            style="flex:1;min-width:0;min-height:44px;padding:8px 10px;font-size:16px;border-radius:7px;border:1.5px solid #a8c4e8;background:#fff;color:#1558a0">
+            <option value="" disabled selected>Elegir invernadero…</option>
+            ${Object.keys(INV_LAYOUT_SALA5).sort((a,b)=>a.localeCompare(b,'es',{numeric:true})).map(id=>`<option value="${id}">${id}</option>`).join('')}
+          </select>
         </div>` : ''}
         </div>
 
@@ -12439,13 +12437,16 @@ function showRiegoModule(soloLectura){
   });
 }
 
-async function selectRiegoInv(invId, btn){
+function sincronizarSelectoresRiego(invId){
+  document.querySelectorAll('[data-riego-sala]').forEach(selector=>{
+    selector.value = invId && Array.from(selector.options).some(op=>op.value===invId) ? invId : '';
+  });
+}
+
+async function selectRiegoInv(invId){
   cerrarRiegoSync();
   riegoInvSel = invId;
-  document.querySelectorAll('[data-rinv]').forEach(b=>{
-    b.style.background='#fff'; b.style.color='#1558a0'; b.style.borderColor='#a8c4e8'; b.style.fontWeight='600';
-  });
-  if(btn){ btn.style.background='#1558a0'; btn.style.color='#fff'; btn.style.borderColor='#1558a0'; btn.style.fontWeight='800'; }
+  sincronizarSelectoresRiego(invId);
   const label = document.getElementById('riego-inv-selector-label');
   if(label) label.textContent = 'INV.' + invId + ' · Cargando…';
   toggleRiegoInvSelector(false);
@@ -12466,9 +12467,7 @@ async function selectRiegoInv(invId, btn){
   if(label) label.textContent = 'INV.' + invId + ' · Cambiar';
   return true;
 }
-// Selector de invernadero plegable (Marcaje de riego / Hojas de riego): con
-// 5 salas ya no cabe abierto de entrada en un móvil, así que arranca
-// cerrado y se pliega solo al elegir un invernadero (auditoría 2026-09-15).
+// Selector plegable: Marcaje lo abre al entrar; se pliega al elegir invernadero.
 function toggleRiegoInvSelector(forzarAbierto){
   const wrap = document.getElementById('riego-inv-selector-wrap');
   const arrow = document.getElementById('riego-inv-selector-arrow');
@@ -13044,9 +13043,10 @@ function retrocederRiego(){
   if(riegoInvSel){
     cerrarRiegoSync();
     riegoInvSel = null;
-    document.querySelectorAll('[data-rinv]').forEach(b=>{
-      b.style.background='#fff'; b.style.color='#1558a0'; b.style.borderColor='#a8c4e8'; b.style.fontWeight='600';
-    });
+    sincronizarSelectoresRiego(null);
+    const label = document.getElementById('riego-inv-selector-label');
+    if(label) label.textContent = 'Elegir invernadero';
+    toggleRiegoInvSelector(true);
     const wrap = document.getElementById('riego-grid-wrap');
     if(wrap) wrap.innerHTML = renderDashboardInvernaderos('riego');
   } else {
@@ -13149,8 +13149,7 @@ async function parseRiegoAudio(text){
   const invM = text.match(/invernadero\s+(\w+)/i);
   if(invM && INV_LAYOUT[invM[1].toUpperCase()]){
     inv = invM[1].toUpperCase();
-    const btn = document.querySelector(`[data-rinv="${inv}"]`);
-    await selectRiegoInv(inv, btn);
+    await selectRiegoInv(inv);
   }
 
   // Extract day: "día 25", "el 25", "el día 25"
