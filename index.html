@@ -11140,6 +11140,7 @@ function marcarRiegoDirtyCell(invId,dia,calle,baseOriginal){
     riegoDirtyCells.set(key, rec);
   }
   riegoDirtyInvs.add(rec.invId);
+  actualizarEstadoBotonGuardarRiego();
 }
 const DIAS = [15,16,17,18,19,20,21,22,23,24,25,26,27,28];
 
@@ -11247,7 +11248,7 @@ function renderRiegoQuincenaBar(){
   bar.innerHTML = `
     <button onclick="changeRiegoQuincena(-1)" ${riegoQuincenaOffset<=0?'disabled style="opacity:.35;cursor:default"':''}
       style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:5px;width:22px;height:22px;cursor:pointer;font-size:13px;line-height:1">&#8249;</button>
-    <span style="font-size:11px;font-weight:700">Quincena ${riegoQuincenaOffset+1} &middot; ${riegoQuincenaLabel(riegoQuincenaOffset)}</span>
+    <span style="font-size:11px;font-weight:700">${riegoQuincenaLabel(riegoQuincenaOffset)}</span>
     <button onclick="changeRiegoQuincena(1)"
       style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:5px;width:22px;height:22px;cursor:pointer;font-size:13px;line-height:1">&#8250;</button>
   `;
@@ -11681,6 +11682,7 @@ async function saveRiegoInvPatch(invId, extraDeletes, incluirDirty){
 async function saveRiegoData(){
   const afectados = [...new Set(Array.from(riegoDirtyCells.values()).map(x=>x.invId))];
   if(!afectados.length){
+    actualizarEstadoBotonGuardarRiego();
     showToast('✓ Sin cambios pendientes');
     return true;
   }
@@ -11691,6 +11693,7 @@ async function saveRiegoData(){
     }
   }catch(e){ avisarFalloGuardado(); return false; }
   if(riegoInvSel && afectados.map(String).includes(String(riegoInvSel))) renderRiegoGrid(String(riegoInvSel));
+  actualizarEstadoBotonGuardarRiego();
   showToast('✓ Riego guardado');
   logHistorial(`Guardó riego${riegoInvSel?' de INV '+riegoInvSel:''}`);
   return true;
@@ -12332,51 +12335,39 @@ function showRiegoModule(soloLectura){
   Promise.all([loadRiegoEjecutadoData(), loadIndiceAbonosEstadoData()]).then(()=>{
     const overlay = getOrCreateOverlay('riego-overlay');
     overlay.style.padding = '0';
-    const titulo = riegoSoloLectura ? 'Hojas de riego' : 'Marcaje de riego';
-    const subtitulo = riegoSoloLectura ? 'Solo consulta &mdash; no se puede modificar' : 'Formato Excel &middot; Corchete = rango de calles';
+    const titulo = riegoSoloLectura ? 'Hojas de riego' : 'Marcar riego';
+    const subtitulo = riegoSoloLectura ? 'Solo consulta &mdash; no se puede modificar' : '';
     overlay.innerHTML = `
       <div style="background:#fff;border-radius:0;width:100vw;height:100vh;max-width:100vw;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.3)">
 
         <!-- HEADER -->
-        <div style="background:var(--grad-blue);color:#fff;padding:.85rem 1.25rem;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;gap:10px">
-          <div>
+        <div style="background:var(--grad-blue);color:#fff;padding:.85rem 1.25rem;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;gap:10px;overflow:visible">
+          <div style="min-width:0">
             <div style="font-size:16px;font-weight:800">&#128167; ${titulo}</div>
-            <div style="font-size:11px;opacity:.7;margin:1px 0 4px">${subtitulo}</div>
+            <div style="font-size:11px;opacity:.7;margin:1px 0 4px;min-height:0">${subtitulo}</div>
             <div id="riego-quincena-bar" style="display:flex;align-items:center;gap:8px"></div>
           </div>
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-            ${riegoSoloLectura ? '' : `
-            <div style="display:flex;align-items:center;gap:6px">
-              <button id="riego-audio-btn" onclick="toggleRiegoAudio()" title="Dictado por voz"
-                style="width:40px;height:40px;border-radius:50%;background:#e53935;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(229,57,53,.4);flex-shrink:0">
-                <i class="ti ti-microphone" style="font-size:17px;color:#fff"></i>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+            <div id="riego-more-wrap" style="display:none;position:relative">
+              <button id="riego-more-btn" onclick="toggleRiegoMoreOptions()" title="Más opciones"
+                style="padding:6px 12px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">
+                &#8942; Más opciones
               </button>
-              <span id="riego-audio-status" style="font-size:11px;opacity:.85;min-width:80px"></span>
+              <div id="riego-more-menu" style="display:none;position:absolute;right:0;top:44px;z-index:20;background:#fff;border:1px solid #a8c4e8;border-radius:8px;padding:6px;box-shadow:0 8px 24px rgba(0,0,0,.2);min-width:170px">
+                <button onclick="showImprimirResumenSelector('riego');toggleRiegoMoreOptions()" style="width:100%;padding:8px 10px;background:#fff;border:none;color:#1558a0;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;text-align:left">
+                  <i class="ti ti-printer" style="font-size:14px;vertical-align:-2px"></i> Imprimir resumen
+                </button>
+              </div>
             </div>
-            <button class="hdr-btn" onclick="showRiegoManualForm()" title="Añadir manualmente" style="padding:6px 14px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:5px">
-              <i class="ti ti-plus" style="font-size:13px"></i><span class="hdr-btn-label"> Añadir manualmente</span>
+            <button onclick="cerrarRiegoModule()" title="Salir de Riego"
+              style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:7px;padding:6px 12px;cursor:pointer;font-size:12px;font-weight:700;white-space:nowrap">
+              Salir
             </button>
-            <button id="riego-btn-retroceder" class="hdr-btn" onclick="retrocederRiego()" title="Volver a la pantalla anterior"
-              style="padding:6px 14px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:5px">
-              <i class="ti ti-arrow-back-up" style="font-size:13px"></i><span class="hdr-btn-label"> Retroceder</span>
-            </button>
-            <button class="hdr-btn" onclick="saveRiegoData()" title="Guardar" style="padding:6px 14px;background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">
-              <i class="ti ti-device-floppy" style="font-size:13px;vertical-align:-2px"></i><span class="hdr-btn-label"> Guardar</span>
-            </button>`}
-            <button class="hdr-btn" onclick="showImprimirResumenSelector('riego')" title="Imprimir resumen de varios días" style="padding:6px 14px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:5px">
-              <i class="ti ti-printer" style="font-size:13px"></i><span class="hdr-btn-label"> Imprimir</span>
-            </button>
-            <button onclick="cerrarRiegoModule()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 11px;cursor:pointer;font-size:13px">✕</button>
           </div>
         </div>
 
-        <!-- Selector por sala: una única selección activa; Marcaje lo abre al entrar. -->
-        <div id="riego-inv-selector-toggle" onclick="toggleRiegoInvSelector()"
-          style="padding:.55rem 1.25rem;background:#dce8f8;border-bottom:1px solid #b0c8e0;display:flex;justify-content:space-between;align-items:center;cursor:pointer;flex-shrink:0">
-          <span style="font-size:12px;font-weight:800;color:#1558a0">📍 <span id="riego-inv-selector-label">Elegir invernadero</span></span>
-          <span id="riego-inv-selector-arrow" style="font-size:11px;color:#1558a0;transition:transform .15s">▾</span>
-        </div>
-        <div id="riego-inv-selector-wrap" style="display:none">
+        <!-- Selector por sala: una única selección activa. -->
+        <div id="riego-inv-selector-wrap" style="display:block">
         ${(currentUserRole!=='REGANTE' || currentUser==='REGANTE1') ? `
         <div style="padding:.5rem 1.25rem;background:#e8f0fb;border-bottom:1px solid #b0c8e0;display:flex;gap:6px;flex-wrap:wrap;align-items:center;flex-shrink:0">
           <label for="riego-sala-1" style="font-size:14px;font-weight:700;color:#1558a0;min-width:64px">Sala 1</label>
@@ -12424,14 +12415,31 @@ function showRiegoModule(soloLectura){
         </div>` : ''}
         </div>
 
+        <div id="riego-selection-bar" style="display:none;padding:.65rem 1.25rem;background:#dce8f8;border-bottom:1px solid #b0c8e0;align-items:center;justify-content:space-between;gap:10px;flex-shrink:0">
+          <span id="riego-selection-label" style="font-size:13px;font-weight:800;color:#1558a0"></span>
+          <button id="riego-btn-retroceder" onclick="retrocederRiego()" title="Cambiar invernadero"
+            style="padding:6px 12px;background:#fff;border:1px solid #a8c4e8;color:#1558a0;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">
+            Cambiar
+          </button>
+        </div>
+        <div id="riego-actions-row" style="display:none;padding:.65rem 1.25rem;background:#fff;border-bottom:1px solid #dce4ed;align-items:center;gap:8px;flex-shrink:0">
+          <button onclick="showRiegoManualForm()" title="Añadir riego"
+            style="padding:7px 14px;background:#1558a0;border:1px solid #1558a0;color:#fff;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">
+            <i class="ti ti-plus" style="font-size:14px;vertical-align:-2px"></i> Añadir riego
+          </button>
+          <button id="riego-btn-guardar" onclick="saveRiegoData()" disabled title="Guardar cambios"
+            style="padding:7px 14px;background:#fff;border:1px solid #a8c4e8;color:#1558a0;border-radius:7px;font-size:12px;font-weight:700;cursor:default;opacity:.55;white-space:nowrap">
+            <i class="ti ti-device-floppy" style="font-size:14px;vertical-align:-2px"></i> Guardar
+          </button>
+          <span id="riego-save-hint" style="font-size:11px;color:#6b7568">Guardar se activa al haber cambios.</span>
+        </div>
+
         <!-- GRID AREA -->
         <div id="riego-grid-wrap" style="flex:1;overflow:auto;background:#f8f9fa">
           <div style="padding:2rem;text-align:center;color:#607080;font-size:13px">Elige un invernadero para cargar su hoja de riego.</div>
         </div>
       </div>`;
     overlay.style.display='flex';
-    // Marcaje: mostrar los invernaderos al entrar, sin una pulsación adicional.
-    if(!riegoSoloLectura) toggleRiegoInvSelector(true);
     riegoQuincenaOffset = riegoQuincenaOffsetActual();
     renderRiegoQuincenaBar();
   });
@@ -12443,38 +12451,81 @@ function sincronizarSelectoresRiego(invId){
   });
 }
 
+function riegoSalaTexto(invId){
+  const sala = salaDeInv(String(invId));
+  return sala ? 'Sala ' + sala.replace(/^sala/i,'') : 'Invernadero';
+}
+function actualizarEstadoBotonGuardarRiego(){
+  const btn = document.getElementById('riego-btn-guardar');
+  if(!btn) return;
+  const dirty = !!riegoInvSel && Array.from(riegoDirtyCells.values()).some(x=>String(x.invId)===String(riegoInvSel));
+  btn.disabled = !dirty;
+  btn.style.opacity = dirty ? '1' : '.55';
+  btn.style.cursor = dirty ? 'pointer' : 'default';
+  btn.style.background = dirty ? '#1558a0' : '#fff';
+  btn.style.color = dirty ? '#fff' : '#1558a0';
+}
+function actualizarVistaRiegoSeleccion(invId){
+  const selectorWrap = document.getElementById('riego-inv-selector-wrap');
+  const selection = document.getElementById('riego-selection-bar');
+  const label = document.getElementById('riego-selection-label');
+  const actions = document.getElementById('riego-actions-row');
+  const more = document.getElementById('riego-more-wrap');
+  const menu = document.getElementById('riego-more-menu');
+  const selected = !!invId;
+  if(selectorWrap) selectorWrap.style.display = selected ? 'none' : 'block';
+  if(selection) selection.style.display = selected ? 'flex' : 'none';
+  if(label) label.textContent = selected ? (riegoSalaTexto(invId) + ' · INV. ' + invId) : '';
+  if(actions) actions.style.display = selected && !riegoSoloLectura ? 'flex' : 'none';
+  if(more) more.style.display = selected ? 'block' : 'none';
+  if(menu) menu.style.display = 'none';
+  actualizarEstadoBotonGuardarRiego();
+}
+function toggleRiegoMoreOptions(){
+  const menu = document.getElementById('riego-more-menu');
+  if(!menu) return;
+  menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+}
+
 async function selectRiegoInv(invId){
   cerrarRiegoSync();
   riegoInvSel = invId;
   sincronizarSelectoresRiego(invId);
-  const label = document.getElementById('riego-inv-selector-label');
-  if(label) label.textContent = 'INV.' + invId + ' · Cargando…';
-  toggleRiegoInvSelector(false);
+  actualizarVistaRiegoSeleccion(invId);
+  const label = document.getElementById('riego-selection-label');
+  if(label) label.textContent = riegoSalaTexto(invId) + ' · INV. ' + invId + ' · Cargando…';
 
   // Baseline antes y después de cargar: si alguien guarda justo durante la
   // apertura, repetimos una sola vez la lectura v2 y no se pierde ese cambio.
   const syncAntes = await leerRiegoSyncActual(invId);
   let ok = await loadRiegoInvData(invId, false);
-  if(!ok) return false;
+  if(!ok){
+    riegoInvSel = null;
+    actualizarVistaRiegoSeleccion(null);
+    return false;
+  }
   const syncDespues = await leerRiegoSyncActual(invId);
   if((syncDespues?.id || null)!==(syncAntes?.id || null)){
     ok = await loadRiegoInvData(invId, true);
-    if(!ok) return false;
+    if(!ok){
+      riegoInvSel = null;
+      actualizarVistaRiegoSeleccion(null);
+      return false;
+    }
   }
 
   renderRiegoGrid(invId);
   iniciarRiegoSyncInv(invId, syncDespues?.id || syncAntes?.id || null);
-  if(label) label.textContent = 'INV.' + invId + ' · Cambiar';
+  if(label) label.textContent = riegoSalaTexto(invId) + ' · INV. ' + invId;
+  actualizarEstadoBotonGuardarRiego();
   return true;
 }
-// Selector plegable: Marcaje lo abre al entrar; se pliega al elegir invernadero.
+// Compatibilidad para llamadas antiguas: el selector se muestra u oculta desde
+// actualizarVistaRiegoSeleccion, que mantiene una sola selección activa.
 function toggleRiegoInvSelector(forzarAbierto){
   const wrap = document.getElementById('riego-inv-selector-wrap');
-  const arrow = document.getElementById('riego-inv-selector-arrow');
   if(!wrap) return;
-  const abrir = forzarAbierto!==undefined ? forzarAbierto : wrap.style.display==='none';
-  wrap.style.display = abrir ? 'block' : 'none';
-  if(arrow) arrow.style.transform = abrir ? 'rotate(180deg)' : 'rotate(0deg)';
+  wrap.style.display = forzarAbierto === false ? 'none' : 'block';
 }
 
 // ── HOJAS DE RIEGO (solo consulta) — pantalla del rol REGANTE ───
@@ -12968,7 +13019,7 @@ function renderRiegoGrid(invId){
       <div style="font-size:14px;font-weight:800;color:#1a1e18;margin-bottom:4px;display:flex;align-items:center;gap:8px">
         <i class="ti ti-droplet" style="color:#1558a0"></i>
         ${layout.label}
-        <span style="font-size:11px;font-weight:400;color:#888">— Quincena ${riegoQuincenaOffset+1}: ${riegoQuincenaLabel(riegoQuincenaOffset)}</span>
+        <span style="font-size:11px;font-weight:400;color:#888">— ${riegoQuincenaLabel(riegoQuincenaOffset)}</span>
       </div>
       <div style="font-size:11px;color:#888;margin-bottom:12px">
         Para marcar varias calles: introduce el texto en la primera calle del rango y las calles adyacentes con el mismo valor se unen autom&#225;ticamente con corchete.
@@ -13044,11 +13095,9 @@ function retrocederRiego(){
     cerrarRiegoSync();
     riegoInvSel = null;
     sincronizarSelectoresRiego(null);
-    const label = document.getElementById('riego-inv-selector-label');
-    if(label) label.textContent = 'Elegir invernadero';
-    toggleRiegoInvSelector(true);
+    actualizarVistaRiegoSeleccion(null);
     const wrap = document.getElementById('riego-grid-wrap');
-    if(wrap) wrap.innerHTML = renderDashboardInvernaderos('riego');
+    if(wrap) wrap.innerHTML = '<div style="padding:2rem;text-align:center;color:#607080;font-size:13px">Elige un invernadero para cargar su hoja de riego.</div>';
   } else {
     cerrarRiegoModule();
   }
