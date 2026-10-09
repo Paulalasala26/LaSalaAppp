@@ -12417,7 +12417,7 @@ function showRiegoModule(soloLectura){
             Cambiar
           </button>
         </div>
-        <div id="riego-actions-row" style="display:none;padding:.65rem 1.25rem;background:#fff;border-bottom:1px solid #dce4ed;align-items:center;gap:8px;flex-shrink:0">
+        <div id="riego-actions-row" style="display:none;position:relative;z-index:30;padding:.65rem 1.25rem;background:#fff;border-bottom:1px solid #dce4ed;align-items:center;gap:8px;flex-shrink:0">
           <button onclick="showRiegoManualForm()" title="Añadir riego"
             style="padding:7px 14px;background:#1558a0;border:1px solid #1558a0;color:#fff;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">
             <i class="ti ti-plus" style="font-size:14px;vertical-align:-2px"></i> Añadir riego
@@ -12426,7 +12426,17 @@ function showRiegoModule(soloLectura){
             style="padding:7px 14px;background:#fff;border:1px solid #a8c4e8;color:#1558a0;border-radius:7px;font-size:12px;font-weight:700;cursor:default;opacity:.55;white-space:nowrap">
             <i class="ti ti-device-floppy" style="font-size:14px;vertical-align:-2px"></i> Guardar
           </button>
-          
+          <div style="position:relative">
+            <button id="riego-help-btn" onclick="toggleRiegoAyuda()" title="Ayuda sobre rangos" aria-label="Ayuda sobre rangos"
+              style="width:30px;height:30px;padding:0;background:#fff;border:1px solid #a8c4e8;color:#1558a0;border-radius:7px;font-size:16px;font-weight:800;line-height:1;cursor:pointer">
+              ?
+            </button>
+            <div id="riego-help-popover" role="dialog" aria-label="Ayuda sobre rangos"
+              style="display:none;position:absolute;left:0;top:36px;z-index:100;width:290px;max-width:calc(100vw - 2rem);padding:10px 12px;background:#fff;border:1px solid #a8c4e8;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.2);color:#34495e;font-size:12px;line-height:1.35">
+              <strong style="color:#1558a0">Ayuda</strong><br>
+              Para marcar varias calles, introduce el texto en la primera calle del rango. Las calles adyacentes con el mismo valor se unen automáticamente con corchete.
+            </div>
+          </div>
         </div>
 
         <!-- GRID AREA -->
@@ -12466,13 +12476,20 @@ function actualizarVistaRiegoSeleccion(invId){
   const label = document.getElementById('riego-selection-label');
   const actions = document.getElementById('riego-actions-row');
   const printWrap = document.getElementById('riego-print-wrap');
+  const help = document.getElementById('riego-help-popover');
   const selected = !!invId;
   if(selectorWrap) selectorWrap.style.display = selected ? 'none' : 'block';
   if(selection) selection.style.display = selected ? 'flex' : 'none';
   if(label) label.textContent = selected ? (riegoSalaTexto(invId) + ' · INV. ' + invId) : '';
   if(actions) actions.style.display = selected && !riegoSoloLectura ? 'flex' : 'none';
   if(printWrap) printWrap.style.display = selected ? 'block' : 'none';
+  if(help) help.style.display = 'none';
   actualizarEstadoBotonGuardarRiego();
+}
+function toggleRiegoAyuda(){
+  const help = document.getElementById('riego-help-popover');
+  if(!help) return;
+  help.style.display = help.style.display === 'none' ? 'block' : 'none';
 }
 
 async function selectRiegoInv(invId){
@@ -13008,9 +13025,6 @@ function renderRiegoGrid(invId){
         <i class="ti ti-droplet" style="color:#1558a0"></i>
         ${layout.label}
         <span style="font-size:11px;font-weight:400;color:#888">— ${riegoQuincenaLabel(riegoQuincenaOffset)}</span>
-      </div>
-      <div style="font-size:11px;color:#888;margin-bottom:12px">
-        Para marcar varias calles: introduce el texto en la primera calle del rango y las calles adyacentes con el mismo valor se unen autom&#225;ticamente con corchete.
       </div>
       ${histHTML}
       ${buildSection(layout.row1, 'Fila 1 — Calles ' + layout.row1[0] + ' → ' + layout.row1[layout.row1.length-1])}
