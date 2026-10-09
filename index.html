@@ -11245,12 +11245,13 @@ function changeRiegoQuincena(delta){
 function renderRiegoQuincenaBar(){
   const bar = document.getElementById('riego-quincena-bar');
   if(!bar) return;
+  const anteriorDeshabilitado = riegoQuincenaOffset <= 0;
   bar.innerHTML = `
-    <button onclick="changeRiegoQuincena(-1)" ${riegoQuincenaOffset<=0?'disabled style="opacity:.35;cursor:default"':''}
-      style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:5px;width:22px;height:22px;cursor:pointer;font-size:13px;line-height:1">&#8249;</button>
+    <button onclick="changeRiegoQuincena(-1)" ${anteriorDeshabilitado?'disabled':''}
+      style="background:${anteriorDeshabilitado?'#d6dbe1':'#1558a0'};border:1px solid ${anteriorDeshabilitado?'#b8c0ca':'#1558a0'};color:${anteriorDeshabilitado?'#68727d':'#fff'};border-radius:5px;width:22px;height:22px;cursor:${anteriorDeshabilitado?'default':'pointer'};font-size:13px;line-height:1">&#8249;</button>
     <span style="font-size:11px;font-weight:700">${riegoQuincenaLabel(riegoQuincenaOffset)}</span>
     <button onclick="changeRiegoQuincena(1)"
-      style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:5px;width:22px;height:22px;cursor:pointer;font-size:13px;line-height:1">&#8250;</button>
+      style="background:#1558a0;border:1px solid #1558a0;color:#fff;border-radius:5px;width:22px;height:22px;cursor:pointer;font-size:13px;line-height:1">&#8250;</button>
   `;
 }
 
@@ -12350,12 +12351,12 @@ function showRiegoModule(soloLectura){
           <div id="riego-header-actions" style="display:flex;align-items:center;gap:5px;flex-wrap:nowrap;justify-content:flex-end;margin-left:auto;flex-shrink:0">
             <div id="riego-print-wrap" style="display:none">
               <button id="riego-print-btn" onclick="showImprimirResumenSelector('riego')" title="Imprimir resumen" aria-label="Imprimir resumen"
-                style="width:30px;height:30px;padding:0;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center">
+                style="width:30px;height:30px;padding:0;background:#1558a0;border:1px solid #1558a0;color:#fff;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center">
                 <i class="ti ti-printer" style="font-size:16px"></i>
               </button>
             </div>
             <button id="riego-close-btn" onclick="cerrarRiegoModule()" title="Cerrar Riego" aria-label="Cerrar Riego"
-              style="width:30px;height:30px;padding:0;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:21px;line-height:1">
+              style="width:30px;height:30px;padding:0;background:#1558a0;border:1px solid #1558a0;color:#fff;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:21px;line-height:1">
               &times;
             </button>
           </div>
@@ -12413,7 +12414,7 @@ function showRiegoModule(soloLectura){
         <div id="riego-selection-bar" style="display:none;padding:.65rem 1.25rem;background:#dce8f8;border-bottom:1px solid #b0c8e0;align-items:center;justify-content:space-between;gap:10px;flex-shrink:0">
           <span id="riego-selection-label" style="font-size:13px;font-weight:800;color:#1558a0"></span>
           <button id="riego-btn-retroceder" onclick="retrocederRiego()" title="Cambiar invernadero"
-            style="padding:6px 12px;background:#fff;border:1px solid #a8c4e8;color:#1558a0;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">
+            style="padding:6px 12px;background:#1558a0;border:1px solid #1558a0;color:#fff;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">
             Cambiar
           </button>
         </div>
@@ -12423,16 +12424,16 @@ function showRiegoModule(soloLectura){
             <i class="ti ti-plus" style="font-size:14px;vertical-align:-2px"></i> Añadir riego
           </button>
           <button id="riego-btn-guardar" onclick="saveRiegoData()" disabled title="Guardar cambios"
-            style="padding:7px 14px;background:#fff;border:1px solid #a8c4e8;color:#1558a0;border-radius:7px;font-size:12px;font-weight:700;cursor:default;opacity:.55;white-space:nowrap">
+            style="padding:7px 14px;background:#d6dbe1;border:1px solid #b8c0ca;color:#68727d;border-radius:7px;font-size:12px;font-weight:700;cursor:default;opacity:1;white-space:nowrap">
             <i class="ti ti-device-floppy" style="font-size:14px;vertical-align:-2px"></i> Guardar
           </button>
           <div style="position:relative">
             <button id="riego-help-btn" onclick="toggleRiegoAyuda()" title="Ayuda sobre rangos" aria-label="Ayuda sobre rangos"
-              style="width:30px;height:30px;padding:0;background:#fff;border:1px solid #a8c4e8;color:#1558a0;border-radius:7px;font-size:16px;font-weight:800;line-height:1;cursor:pointer">
+              style="width:30px;height:30px;padding:0;background:#1558a0;border:1px solid #1558a0;color:#fff;border-radius:7px;font-size:16px;font-weight:800;line-height:1;cursor:pointer">
               ?
             </button>
             <div id="riego-help-popover" role="dialog" aria-label="Ayuda sobre rangos"
-              style="display:none;position:absolute;left:0;top:36px;z-index:100;width:290px;max-width:calc(100vw - 2rem);padding:10px 12px;background:#fff;border:1px solid #a8c4e8;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.2);color:#34495e;font-size:12px;line-height:1.35">
+              style="display:none;position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:2147483646;width:360px;max-width:calc(100vw - 2rem);max-height:calc(100vh - 2rem);overflow:auto;padding:14px 16px;background:#fff;border:1px solid #a8c4e8;border-radius:9px;box-shadow:0 10px 32px rgba(0,0,0,.28);color:#34495e;font-size:13px;line-height:1.4">
               <strong style="color:#1558a0">Ayuda</strong><br>
               Para marcar varias calles, introduce el texto en la primera calle del rango. Las calles adyacentes con el mismo valor se unen automáticamente con corchete.
             </div>
@@ -12465,10 +12466,11 @@ function actualizarEstadoBotonGuardarRiego(){
   if(!btn) return;
   const dirty = !!riegoInvSel && Array.from(riegoDirtyCells.values()).some(x=>String(x.invId)===String(riegoInvSel));
   btn.disabled = !dirty;
-  btn.style.opacity = dirty ? '1' : '.55';
+  btn.style.opacity = '1';
   btn.style.cursor = dirty ? 'pointer' : 'default';
-  btn.style.background = dirty ? '#1558a0' : '#fff';
-  btn.style.color = dirty ? '#fff' : '#1558a0';
+  btn.style.background = dirty ? '#1558a0' : '#d6dbe1';
+  btn.style.borderColor = dirty ? '#1558a0' : '#b8c0ca';
+  btn.style.color = dirty ? '#fff' : '#68727d';
 }
 function actualizarVistaRiegoSeleccion(invId){
   const selectorWrap = document.getElementById('riego-inv-selector-wrap');
