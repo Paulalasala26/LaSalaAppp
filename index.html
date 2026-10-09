@@ -20029,53 +20029,179 @@ function showImprimirResumenSelector(tipo){
   const cfg = RESUMEN_CONFIG[tipo];
   const diasQ = riegoQuincenaDias(cfg.quincenaOffset());
   const invSelActual = cfg.invSelActual();
-  const mo = getOrCreateOverlay('imprimir-resumen-overlay');
-  mo.innerHTML = `
-    <div style="background:#fff;border-radius:14px;max-width:480px;width:100%;max-height:92vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.25)">
-      <div style="background:${cfg.color};color:#fff;padding:1rem 1.5rem;border-radius:14px 14px 0 0;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:2">
-        <div style="font-size:15px;font-weight:800">&#128424; Imprimir resumen — ${cfg.titulo}</div>
-        <button onclick="document.getElementById('imprimir-resumen-overlay').style.display='none'" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer">✕</button>
+  const salas = [
+    {id:'1',label:'Sala 1',layout:INV_LAYOUT_SALA1},
+    {id:'2',label:'Sala 2',layout:INV_LAYOUT_SALA2},
+    {id:'3',label:'Sala 3',layout:INV_LAYOUT_SALA3},
+    {id:'4',label:'Sala 4',layout:INV_LAYOUT_SALA4},
+    {id:'5',label:'Sala 5',layout:INV_LAYOUT_SALA5}
+  ];
+  const salasHTML = salas.map(sala=>{
+    const ids = Object.keys(sala.layout).sort((a,b)=>a.localeCompare(b,'es',{numeric:true}));
+    const items = ids.map(id=>'<label style="font-size:12px;display:flex;align-items:center;gap:5px;background:#f7f9fc;border:1px solid #d6e0ec;border-radius:6px;padding:6px 9px;cursor:pointer;min-height:32px"><input type="checkbox" class="rr-inv-chk" data-sala="'+sala.id+'" value="'+id+'" '+(id===invSelActual?'checked':'')+' onchange="actualizarImpresionResumenUI()"> '+id+'</label>').join('');
+    return `<section style="border:1px solid #d6e0ec;border-radius:9px;background:#fff;padding:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:7px">
+          <strong style="font-size:14px;color:#1558a0">${sala.label}</strong>
+          <span id="rr-sala-${sala.id}-count" style="font-size:11px;color:#68727d">0 seleccionados</span>
+        </div>
+        <label style="font-size:11px;font-weight:700;color:#1558a0;display:flex;align-items:center;gap:4px;cursor:pointer">
+          <input type="checkbox" id="rr-sala-${sala.id}-all" onchange="seleccionarSalaResumen('${sala.id}',this.checked)"> Todos
+        </label>
       </div>
-      <div style="padding:1.25rem;display:flex;flex-direction:column;gap:12px">
-        <div>
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-            <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Invernaderos</label>
-            <label style="font-size:11px;font-weight:600;color:${cfg.color};display:flex;align-items:center;gap:4px;cursor:pointer">
-              <input type="checkbox" onchange="document.querySelectorAll('.rr-inv-chk').forEach(c=>c.checked=this.checked)"> Todos
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(86px,1fr));gap:5px;max-height:180px;overflow-y:auto">
+        ${items}
+      </div>
+    </section>`;
+  }).join('');
+  const diasHTML = diasQ.map(d=>'<label style="font-size:12px;display:flex;align-items:center;gap:5px;cursor:pointer;padding:5px 4px"><input type="checkbox" class="rr-dia-chk" value="'+d+'" '+(d===riegoDiaDeHoy()?'checked':'')+' onchange="actualizarImpresionResumenUI()"> '+riegoDiaLabelCorto(d)+'</label>').join('');
+
+  const mo = getOrCreateOverlay('imprimir-resumen-overlay');
+  mo.style.padding = '0';
+  mo.style.alignItems = 'stretch';
+  mo.style.justifyContent = 'stretch';
+  mo.innerHTML = `
+    <div id="imprimir-resumen-shell" style="background:#f7f9fc;width:100vw;height:100vh;max-width:none;max-height:none;overflow:hidden;display:flex;flex-direction:column;box-shadow:none">
+      <div style="background:${cfg.color};color:#fff;padding:.65rem .85rem;display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
+        <div style="font-size:15px;font-weight:800">&#128424; Imprimir resumen — ${cfg.titulo}</div>
+        <button onclick="document.getElementById('imprimir-resumen-overlay').style.display='none'" title="Cerrar" aria-label="Cerrar"
+          style="width:30px;height:30px;padding:0;background:#1558a0;border:1px solid #1558a0;color:#fff;border-radius:6px;cursor:pointer;font-size:20px;line-height:1">&times;</button>
+      </div>
+      <div style="flex:1;overflow-y:auto;padding:clamp(12px,3vw,24px);display:flex;flex-direction:column;gap:14px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+          <div>
+            <div style="font-size:17px;font-weight:800;color:#1a1e18">¿Qué quieres imprimir?</div>
+            <div style="font-size:12px;color:#68727d;margin-top:3px">Selecciona los invernaderos y los días. Todo se imprimirá junto.</div>
+          </div>
+          <div id="rr-selection-summary-top" style="font-size:12px;font-weight:700;color:#1558a0;background:#e8f0fb;border-radius:7px;padding:7px 10px">0 invernaderos · 0 días</div>
+        </div>
+
+        <section style="background:#fff;border:1px solid #d6e0ec;border-radius:9px;padding:12px">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:9px">
+            <div style="font-size:14px;font-weight:800;color:#1a1e18">Invernaderos</div>
+            <label style="font-size:12px;font-weight:700;color:#1558a0;display:flex;align-items:center;gap:5px;cursor:pointer">
+              <input type="checkbox" id="rr-inv-all" onchange="seleccionarTodosResumen('invernaderos',this.checked)"> Todos
             </label>
           </div>
-          <div style="display:flex;flex-wrap:wrap;gap:6px;max-height:140px;overflow-y:auto;border:1px solid var(--border);border-radius:7px;padding:8px">
-            ${Object.keys(INV_LAYOUT_SALA1).map(id=>`<label style="font-size:11px;display:flex;align-items:center;gap:3px;background:#f2f4f0;border:1px solid #ddd;border-radius:5px;padding:4px 8px;cursor:pointer"><input type="checkbox" class="rr-inv-chk" value="${id}" ${id===invSelActual?'checked':''}> ${id}</label>`).join('')}
-            ${Object.keys(INV_LAYOUT_SALA2).map(id=>`<label style="font-size:11px;display:flex;align-items:center;gap:3px;background:#f2f4f0;border:1px solid #ddd;border-radius:5px;padding:4px 8px;cursor:pointer"><input type="checkbox" class="rr-inv-chk" value="${id}" ${id===invSelActual?'checked':''}> ${id}</label>`).join('')}
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px">
+            ${salasHTML}
           </div>
-        </div>
-        <div>
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-            <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Días a imprimir</label>
-            <label style="font-size:11px;font-weight:600;color:${cfg.color};display:flex;align-items:center;gap:4px;cursor:pointer">
-              <input type="checkbox" onchange="document.querySelectorAll('.rr-dia-chk').forEach(c=>c.checked=this.checked)"> Todos
+        </section>
+
+        <section style="background:#fff;border:1px solid #d6e0ec;border-radius:9px;padding:12px">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:9px">
+            <div style="font-size:14px;font-weight:800;color:#1a1e18">Días a imprimir</div>
+            <label style="font-size:12px;font-weight:700;color:#1558a0;display:flex;align-items:center;gap:5px;cursor:pointer">
+              <input type="checkbox" id="rr-dia-all" onchange="seleccionarTodosResumen('dias',this.checked)"> Todos
             </label>
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;max-height:180px;overflow-y:auto;border:1px solid var(--border);border-radius:7px;padding:8px">
-            ${diasQ.map(d=>`
-              <label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer">
-                <input type="checkbox" class="rr-dia-chk" value="${d}" ${d===riegoDiaDeHoy()?'checked':''}> ${riegoDiaLabelCorto(d)}
-              </label>`).join('')}
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:9px">
+            <button type="button" class="rr-preset-btn" onclick="aplicarPresetDiasResumen('hoy')" style="padding:6px 11px;background:#1558a0;border:1px solid #1558a0;color:#fff;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">Hoy</button>
+            <button type="button" class="rr-preset-btn" onclick="aplicarPresetDiasResumen('manana')" style="padding:6px 11px;background:#1558a0;border:1px solid #1558a0;color:#fff;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">Mañana</button>
+            <button type="button" class="rr-preset-btn" onclick="aplicarPresetDiasResumen('quincena')" style="padding:6px 11px;background:#1558a0;border:1px solid #1558a0;color:#fff;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">Quincena completa</button>
+            <button type="button" class="rr-preset-btn" onclick="aplicarPresetDiasResumen('laborables')" style="padding:6px 11px;background:#1558a0;border:1px solid #1558a0;color:#fff;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">Laborables</button>
+            <button type="button" class="rr-preset-btn" onclick="aplicarPresetDiasResumen('manual')" style="padding:6px 11px;background:#1558a0;border:1px solid #1558a0;color:#fff;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">Manual</button>
           </div>
-        </div>
-        <div style="font-size:11px;color:var(--muted);font-style:italic">Todo lo elegido sale junto, en la misma hoja.</div>
-        <div style="display:flex;justify-content:flex-end;gap:8px;padding-top:4px">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:3px;padding:8px;background:#f7f9fc;border:1px solid #d6e0ec;border-radius:7px">
+            ${diasHTML}
+          </div>
+        </section>
+      </div>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:10px 14px;background:#fff;border-top:1px solid #d6e0ec;box-shadow:0 -2px 8px rgba(0,0,0,.06);flex-shrink:0">
+        <div id="rr-selection-summary" style="font-size:12px;font-weight:700;color:#1558a0">0 invernaderos · 0 días seleccionados</div>
+        <div style="display:flex;gap:8px">
           <button onclick="document.getElementById('imprimir-resumen-overlay').style.display='none'"
-            style="padding:9px 18px;font-size:13px;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:8px;cursor:pointer">Cancelar</button>
-          <button onclick="imprimirResumen()"
-            style="padding:9px 20px;font-size:13px;font-weight:700;background:${cfg.color};color:#fff;border:none;border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:6px">
+            style="padding:8px 16px;font-size:13px;font-weight:700;background:#1558a0;color:#fff;border:1px solid #1558a0;border-radius:7px;cursor:pointer">Cancelar</button>
+          <button id="rr-print-btn" onclick="imprimirResumen()" disabled
+            style="padding:8px 18px;font-size:13px;font-weight:700;background:#d6dbe1;color:#68727d;border:1px solid #b8c0ca;border-radius:7px;cursor:default;display:flex;align-items:center;gap:6px">
             <i class="ti ti-printer" style="font-size:14px"></i> Imprimir
           </button>
         </div>
       </div>
     </div>`;
   mo.style.display = 'flex';
+  actualizarImpresionResumenUI();
 }
+
+function seleccionarTodosResumen(tipo, checked){
+  const selector = tipo === 'invernaderos' ? '.rr-inv-chk' : '.rr-dia-chk';
+  document.querySelectorAll(selector).forEach(el=>{ el.checked = checked; });
+  actualizarImpresionResumenUI();
+}
+function seleccionarSalaResumen(salaId, checked){
+  document.querySelectorAll('.rr-inv-chk[data-sala="'+salaId+'"]').forEach(el=>{ el.checked = checked; });
+  actualizarImpresionResumenUI();
+}
+function aplicarPresetDiasResumen(preset){
+  const checks = Array.from(document.querySelectorAll('.rr-dia-chk'));
+  if(preset === 'manual'){
+    actualizarImpresionResumenUI();
+    return;
+  }
+  const hoy = riegoDiaDeHoy();
+  const manana = hoy + 1;
+  checks.forEach(el=>{
+    const dia = parseInt(el.value,10);
+    let activo = false;
+    if(preset === 'hoy') activo = dia === hoy;
+    if(preset === 'manana') activo = dia === manana;
+    if(preset === 'quincena') activo = true;
+    if(preset === 'laborables'){
+      const fecha = riegoDiaToDate(dia);
+      const semana = fecha ? fecha.getDay() : 0;
+      activo = semana >= 1 && semana <= 5;
+    }
+    el.checked = activo;
+  });
+  actualizarImpresionResumenUI();
+}
+function actualizarImpresionResumenUI(){
+  const invChecks = Array.from(document.querySelectorAll('.rr-inv-chk'));
+  const diaChecks = Array.from(document.querySelectorAll('.rr-dia-chk'));
+  const invSelected = invChecks.filter(el=>el.checked).length;
+  const diaSelected = diaChecks.filter(el=>el.checked).length;
+
+  document.querySelectorAll('[id^="rr-sala-"][id$="-count"]').forEach(el=>{
+    const salaId = el.id.replace('rr-sala-','').replace('-count','');
+    const total = document.querySelectorAll('.rr-inv-chk[data-sala="'+salaId+'"]').length;
+    const selected = document.querySelectorAll('.rr-inv-chk[data-sala="'+salaId+'"]:checked').length;
+    el.textContent = selected + ' de ' + total;
+    const salaAll = document.getElementById('rr-sala-'+salaId+'-all');
+    if(salaAll){
+      salaAll.checked = total > 0 && selected === total;
+      salaAll.indeterminate = selected > 0 && selected < total;
+    }
+  });
+
+  const invAll = document.getElementById('rr-inv-all');
+  if(invAll){
+    invAll.checked = invChecks.length > 0 && invSelected === invChecks.length;
+    invAll.indeterminate = invSelected > 0 && invSelected < invChecks.length;
+  }
+  const diaAll = document.getElementById('rr-dia-all');
+  if(diaAll){
+    diaAll.checked = diaChecks.length > 0 && diaSelected === diaChecks.length;
+    diaAll.indeterminate = diaSelected > 0 && diaSelected < diaChecks.length;
+  }
+
+  const texto = invSelected + (invSelected === 1 ? ' invernadero' : ' invernaderos') + ' · ' + diaSelected + (diaSelected === 1 ? ' día' : ' días');
+  const top = document.getElementById('rr-selection-summary-top');
+  const bottom = document.getElementById('rr-selection-summary');
+  if(top) top.textContent = texto;
+  if(bottom) bottom.textContent = texto + ' seleccionados';
+
+  const printBtn = document.getElementById('rr-print-btn');
+  const listo = invSelected > 0 && diaSelected > 0;
+  if(printBtn){
+    printBtn.disabled = !listo;
+    printBtn.style.background = listo ? '#1558a0' : '#d6dbe1';
+    printBtn.style.borderColor = listo ? '#1558a0' : '#b8c0ca';
+    printBtn.style.color = listo ? '#fff' : '#68727d';
+    printBtn.style.cursor = listo ? 'pointer' : 'default';
+  }
+}
+
 
 // Uno o varios invernaderos, con uno o varios días cada uno — todo junto en
 // una sola hoja continua (sin salto de página forzado por día ni por
