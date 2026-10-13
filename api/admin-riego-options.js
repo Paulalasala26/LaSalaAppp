@@ -38,7 +38,8 @@ function groupOf(v){
   return g;
 }
 function valueOf(raw,g){
-  if(typeof raw!=='string'||raw!==raw.trim()||!raw||raw.length>60)
+  // El texto del riego separa conceptos con " + ": impedir códigos ambiguos.
+  if(typeof raw!=='string'||raw!==raw.trim()||!raw||raw.length>60||raw.includes('+'))
     throw httpError(400,'INVALID_VALUE');
   if(g.numeric){
     if(!/^\d{1,4}$/.test(raw)||Number(raw)<1||Number(raw)>1440||
