@@ -34,3 +34,38 @@
   .catalog-content .page-head{align-items:flex-start;gap:12px}
   .catalog-content .page-head .button{flex:none}
 }
+
+/* El formulario de catálogo no heredaba los márgenes internos de .modal-heading:
+   campos, aviso y pie quedaban pegados a los bordes del diálogo. */
+#catalog-modal{padding:16px;}
+#catalog-modal .modal{
+  width:min(100%,500px);
+  max-width:100%;
+  max-height:calc(100dvh - 32px);
+  overflow-y:auto;
+  overflow-x:hidden;
+}
+#catalog-modal .modal-heading{padding:23px 27px 14px;}
+#catalog-modal #catalog-form{
+  width:100%;
+  min-width:0;
+  box-sizing:border-box;
+  padding:0 27px 27px;
+}
+#catalog-modal #catalog-form .field,
+#catalog-modal #catalog-form .modal-info,
+#catalog-modal #catalog-form .modal-footer{
+  min-width:0;
+  max-width:100%;
+}
+#catalog-modal #catalog-form input,
+#catalog-modal #catalog-form select{max-width:100%;min-width:0;}
+#catalog-modal .catalog-modal-footer{align-items:center;gap:10px;}
+#catalog-modal .catalog-modal-footer .button{max-width:100%;}
+@media(max-width:520px){
+  #catalog-modal{padding:12px;}
+  #catalog-modal .modal{max-height:calc(100dvh - 24px);}
+  #catalog-modal .modal-heading{padding:19px 18px 12px;}
+  #catalog-modal #catalog-form{padding:0 18px 20px;}
+  #catalog-modal .catalog-modal-footer .button{white-space:normal;}
+}
