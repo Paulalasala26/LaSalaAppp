@@ -676,6 +676,7 @@ async function entrarApp(user, roleHint){
   const name=user[0]+user.slice(1).toLowerCase();
 
   applyRoleHomeUI();
+  if(currentUserRole==='ADMIN') void abrirRegistroRiegoDesdeBackoffice();
   const welcomeEl = document.getElementById('welcome-name');
   if(welcomeEl) welcomeEl.textContent=name;
 }
@@ -12600,7 +12601,7 @@ function showRiegoModule(soloLectura){
   // flujo normal) no veía ningún color, y sí lo veía si ese día había
   // abierto antes el Índice: un fallo silencioso e imposible de reproducir
   // para quien lo reportara (auditoría 2026-09-11).
-  Promise.all([loadRiegoEjecutadoData(), loadIndiceAbonosEstadoData(), cargarOpcionesRiegoTest()]).then(()=>{
+  return Promise.all([loadRiegoEjecutadoData(), loadIndiceAbonosEstadoData(), cargarOpcionesRiegoTest()]).then(()=>{
     const overlay = getOrCreateOverlay('riego-overlay');
     overlay.style.padding = '0';
     const titulo = riegoSoloLectura ? 'Hojas de riego' : 'Marcar riego';
@@ -16197,6 +16198,40 @@ function editarRiegoManualDesdeCelda(invId, dia, calles){
   const infoEl = document.getElementById('rm-info-marcador');
   if(infoEl) infoEl.innerHTML = construirInfoMarcadorRiego(raw);
   precargarFormularioRiegoDesdeTexto(getRiego(invId, dia, calles[0]) || '');
+}
+// Puente exclusivo ADMIN TEST: el Backoffice nunca escribe los registros directamente.
+async function abrirRegistroRiegoDesdeBackoffice(){
+  const key='lasala-backoffice-riego-v1';
+  let raw=null;
+  try{raw=sessionStorage.getItem(key);sessionStorage.removeItem(key);}catch(e){return;}
+  if(!raw||currentUserRole!=='ADMIN')return;
+  let request;try{request=JSON.parse(raw);}catch(e){return;}
+  if(!request||!['edit','print'].includes(request.action)||
+     typeof request.invId!=='string'||!INV_LAYOUT[request.invId]||
+     !Number.isInteger(request.dia)||request.dia<15||request.dia>4000||
+     !/^\d{1,3}$/.test(String(request.calle))||
+     !Number.isFinite(request.ts)||Math.abs(Date.now()-request.ts)>120000)return;
+  const inv=request.invId,dia=request.dia,calle=String(request.calle);
+  try{
+    await showRiegoModule(false);
+    riegoQuincenaOffset=Math.floor((dia-15)/14);
+    renderRiegoQuincenaBar();
+    const loaded=await selectRiegoInv(inv);
+    if(!loaded){showToast('No se ha podido consultar Riego TEST.');return;}
+    if(request.action==='edit'){
+      if(!getRiego(inv,dia,calle)){showToast('El registro ya no existe.');return;}
+      editarRiegoManualDesdeCelda(inv,dia,[Number(calle)]);
+    }else{
+      showImprimirResumenSelector('riego');
+      const preset=document.getElementById('rr-dia-preset');
+      if(preset)preset.value='manual';
+      document.querySelectorAll('.rr-dia-chk').forEach(e=>{e.checked=Number(e.value)===dia;});
+      actualizarImpresionResumenUI();
+    }
+  }catch(e){
+    console.warn('Error al abrir el registro de Backoffice',e);
+    showToast('No se ha podido abrir el registro desde Backoffice.');
+  }
 }
 function nombreLegibleUsuario(u){
   return u ? (u[0]+u.slice(1).toLowerCase()) : 'alguien sin identificar (dato antiguo)';

@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="theme-color" content="#1558a0">
+  <title>ViguerAPP · Registros de riego · TEST</title>
+  <link rel="icon" href="../icon-192.png">
+  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./catalog.css">
+  <style>
+.reg-filter{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;align-items:end;background:#fff;border:1px solid #d4e1f0;border-radius:9px;padding:15px;margin-bottom:18px}
+.reg-filter label{font-size:12px;font-weight:750;color:#1558a0;display:block;margin-bottom:5px}
+.reg-filter input,.reg-filter select{font-size:12px;width:100%;min-height:39px;padding:8px;box-sizing:border-box;background:white;border:1px solid #b9cde4;border-radius:7px}
+.reg-filter button{min-height:39px}
+.reg-results{min-width:780px}.reg-results td:nth-child(3){max-width:360px;overflow-wrap:anywhere;white-space:pre-wrap}
+.reg-results td:last-child{white-space:nowrap}.reg-results .action-button{margin-left:5px}
+@media(max-width:850px){.reg-filter{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:530px){.reg-filter{grid-template-columns:1fr}.reg-stats{grid-template-columns:1fr}}
+</style>
+  <script src="./registros.js" defer></script>
+</head>
+<body>
+  <div id="access-gate" class="access-gate" role="status" aria-live="polite">
+    <div class="access-panel">
+      <div class="brand-mark">VA</div>
+      <h1 id="gate-title">Comprobando acceso</h1>
+      <p id="gate-description">Verificando tu sesión de administrador…</p>
+      <a id="gate-link" href="../" class="primary-link" hidden>Volver a la aplicación</a>
+    </div>
+  </div>
+  <div id="workspace" class="shell" hidden>
+    <aside class="sidebar" aria-label="Navegación del Backoffice">
+      <div class="brand">
+        <div class="brand-mark">VA</div><div><strong>ViguerAPP</strong><span>Backoffice TEST</span></div>
+      </div>
+      <div class="sidebar-label">GENERAL</div>
+      <nav class="sidebar-nav">
+        <a href="./" class="nav-item"><span class="nav-symbol">◉</span> Usuarios</a>
+        <div class="sidebar-label menu-label">RIEGO</div>
+        <a href="./catalog.html#salas" class="nav-item"><span class="nav-symbol">◧</span> Salas</a>
+        <a href="./catalog.html#invernaderos" class="nav-item"><span class="nav-symbol">▦</span> Invernaderos</a>
+        <a href="./options.html" class="nav-item"><span class="nav-symbol">≡</span> Opciones de riego</a>
+        <a href="./registros.html" class="nav-item selected" aria-current="page"><span class="nav-symbol">▤</span> Registros de riego</a>
+        <div class="sidebar-label menu-label">MÓDULOS</div>
+        <span class="nav-item muted"><span class="nav-symbol">◫</span> Control de calidad</span>
+        <span class="nav-item muted"><span class="nav-symbol">▤</span> Otros módulos</span>
+      </nav>
+      <div class="sidebar-footer"><a href="../">← Volver a ViguerAPP</a><span>Entorno TEST · v1</span></div>
+    </aside>
+    <div class="main-area">
+      <header class="topbar">
+        <div class="breadcrumbs">Backoffice <span>/</span> Riego <span>/</span> Registros</div>
+        <div class="topbar-right"><span class="test-flag">TEST</span><span class="session-user" id="session-user">Administrador</span></div>
+      </header>
+      <main class="content catalog-content">
+  <div class="page-head">
+    <div><p class="eyebrow">SEGUIMIENTO DE RIEGO</p><h1>Registros de riego</h1>
+      <p class="description">Consulta, edición e impresión de registros guardados en Firebase TEST.</p></div>
+    <button type="button" id="reg-reload" class="button ghost">Actualizar</button>
+  </div>
+  <div class="catalog-notice"><strong>Solo TEST.</strong> La consulta no escribe datos.
+    Editar e imprimir utiliza la pantalla operativa de Riego y conserva sus controles de concurrencia.</div>
+  <div id="reg-feedback" class="operation-feedback" role="status" aria-live="polite" hidden></div>
+  <form id="reg-form" class="reg-filter">
+    <div><label for="reg-room">Sala</label><select id="reg-room"><option value="">Todas las salas</option></select></div>
+    <div><label for="reg-inv">Invernadero</label><select id="reg-inv" required><option value="">Seleccionar invernadero</option></select></div>
+    <div><label for="reg-start">Desde</label><input id="reg-start" type="date" min="2026-06-15" required></div>
+    <div><label for="reg-end">Hasta</label><input id="reg-end" type="date" min="2026-06-15" required></div>
+    <div><label for="reg-search">Filtrar texto / usuario</label><input id="reg-search" type="search" placeholder="Buscar en registros"></div>
+    <button id="reg-query" class="button primary" type="submit">Consultar</button>
+  </form>
+  <section class="stats catalog-stats reg-stats" aria-label="Resumen de registros">
+    <div class="stat"><span>Registros</span><strong id="reg-total">—</strong></div>
+    <div class="stat"><span>Días con registros</span><strong id="reg-days">—</strong></div>
+    <div class="stat"><span>Calles distintas</span><strong id="reg-streets">—</strong></div>
+  </section>
+  <section class="table-card">
+    <div class="table-toolbar"><div class="table-title"><h2>Listado de registros</h2><p id="reg-desc">Selecciona un invernadero y pulsa Consultar.</p></div>
+      <button id="reg-print" class="button ghost" type="button" disabled>Imprimir desde Riego</button></div>
+    <div class="table-scroll"><table class="catalog-table reg-results">
+      <thead><tr><th>Fecha</th><th>Invernadero / calle</th><th>Marcaje</th><th>Usuario</th><th class="actions-col">Acciones</th></tr></thead>
+      <tbody id="reg-body"><tr><td colspan="5" class="empty-cell">Sin consulta todavía.</td></tr></tbody>
+    </table></div>
+    <div class="table-footer"><span id="reg-count">—</span><button id="reg-more" class="button ghost" type="button" hidden>Mostrar más</button></div>
+  </section>
+</main>
+    </div>
+  </div>
+
+</body>
+</html>
