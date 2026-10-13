@@ -1,7 +1,7 @@
 'use strict';
 
 // Backoffice TEST: opciones de Riego. Catálogo aditivo y no destructivo.
-// No sustituye los catálogos del módulo operativo hasta que se valide la integración.
+// La integración operativa en TEST conserva el reconocimiento de valores históricos.
 const crypto=require('node:crypto');
 const {
   verifyFirebaseIdToken,serviceAccount,serviceAccessToken,readKey,
@@ -97,7 +97,7 @@ function list(raw){
   const records=Object.values(readCatalog(raw))
     .sort((a,b)=>GROUPS.findIndex(g=>g.id===a.group)-GROUPS.findIndex(g=>g.id===b.group)||
       a.order-b.order||a.value.localeCompare(b.value,'es',{numeric:true}));
-  return {groups:GROUPS.map(({id,label,numeric})=>({id,label,numeric:!!numeric})),options:records,operationalIntegration:false};
+  return {groups:GROUPS.map(({id,label,numeric})=>({id,label,numeric:!!numeric})),options:records,operationalIntegration:true};
 }
 function positiveOrder(order,alt){
   if(order===undefined||order===null)return alt;

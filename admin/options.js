@@ -1,6 +1,6 @@
 'use strict';
 
-// Backoffice TEST: catálogo de opciones, sin eliminaciones y sin cambios operativos.
+// Backoffice TEST: catálogo conectado a los formularios de Riego; sin eliminaciones.
 (function(){
   const KEY='lasala-firebase-auth-v1';
   const FIREBASE_WEB_API_KEY='AIzaSyDdDdMg6M1jVIssvGYKsdRA-mRug31Yt_g';
