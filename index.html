@@ -5777,10 +5777,6 @@ function renderControlContent(overlay){
 }
 function renderControlResumenHTML(){
   return `
-    <div style="margin-bottom:1.5rem">
-      <h2 style="font-size:22px;font-weight:800;color:var(--text);margin-bottom:4px">Control</h2>
-      <p style="font-size:13px;color:var(--muted)">Comprobaciones de calidad y seguimiento.</p>
-    </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px">
       ${CONTROL_SECCIONES.map(s=>{
         const totalV2 = s.conCheck ? controlV2TotalTipo(s.key) : null;
