@@ -49,10 +49,12 @@
           <button type="button" class="button primary" id="new-user">+ Nuevo usuario</button>
         </div>
 
-        <div class="notice"><span class="notice-dot"></span><div><strong>Primera fase: consulta protegida.</strong> Los usuarios proceden de Firebase TEST. Crear, editar, desactivar y restablecer contraseñas se habilitarán cuando esté terminado el backend de administración.</div></div>
+        <div class="notice"><span class="notice-dot"></span><div><strong>Gestión de cuentas de TEST.</strong> Las altas, los roles y las contraseñas se guardan desde el servidor y requieren autorización ADMIN. Las bajas son desactivaciones, sin borrar datos.</div></div>
+        <div id="operation-feedback" class="operation-feedback" role="status" aria-live="polite" hidden></div>
 
         <section class="stats" aria-label="Resumen de cuentas">
           <div class="stat"><span>Total usuarios</span><strong id="total-users">—</strong></div>
+          <div class="stat"><span>Usuarios activos</span><strong id="active-users">—</strong></div>
           <div class="stat"><span>Acceso configurado</span><strong id="configured-users">—</strong></div>
           <div class="stat"><span>Roles diferentes</span><strong id="different-roles">—</strong></div>
         </section>
@@ -82,18 +84,31 @@
   <div id="modal" class="modal-backdrop" hidden>
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
       <div class="modal-heading"><div><p class="eyebrow">ADMINISTRACIÓN</p><h2 id="modal-title">Usuario</h2></div><button type="button" id="modal-close" class="close" aria-label="Cerrar">×</button></div>
-      <p id="modal-desc" class="modal-desc">Vista previa del formulario administrativo.</p>
+      <p id="modal-desc" class="modal-desc">Gestiona una cuenta desde Firebase TEST.</p>
       <form id="user-form">
-        <div class="field"><label for="form-user">Identificador de usuario</label><input id="form-user" autocomplete="off" maxlength="80" placeholder="Ej. USUARIO01"></div>
-        <div class="field"><label for="form-name">Nombre visible</label><input id="form-name" autocomplete="off" placeholder="Nombre y apellidos"><small>Campo nuevo; se almacenará en el perfil cuando se habilite el backend.</small></div>
+        <div class="field"><label for="form-user">Identificador de usuario</label><input id="form-user" autocomplete="off" maxlength="40" placeholder="Ej. USUARIO01"></div>
         <div class="field"><label for="form-role">Rol</label><select id="form-role"><option value="ADMIN">Administrador</option><option value="TECNICO">Técnico</option><option value="REGANTE">Regante</option><option value="PEON">Peón</option><option value="CARGADOR">Cargador</option></select></div>
         <div class="form-divider"></div>
-        <div class="pending-actions">
-          <button type="button" disabled title="Pendiente de backend seguro">Restablecer contraseña</button>
-          <button type="button" disabled title="Pendiente de backend seguro">Desactivar usuario</button>
+        <div class="field">
+          <label for="form-password">Contraseña</label>
+          <input type="password" id="form-password" autocomplete="new-password" maxlength="128" placeholder="Contraseña nueva">
+          <small id="password-description">Mínimo 12 caracteres, con letras y números.</small>
         </div>
-        <div class="modal-info">Solo el administrador podrá gestionar estas operaciones. Ningún usuario verá ni modificará su propia contraseña desde la aplicación.</div>
-        <div class="modal-footer"><button class="button ghost" type="button" id="modal-cancel">Cerrar</button><button class="button primary" disabled title="Pendiente de backend">Guardar cambios</button></div>
+        <div class="field">
+          <label for="form-confirm">Confirmar contraseña</label>
+          <input type="password" id="form-confirm" autocomplete="new-password" maxlength="128" placeholder="Repetir contraseña">
+        </div>
+        <div class="password-tools">
+          <button class="button ghost" type="button" id="password-generate">Generar contraseña segura</button>
+          <label class="password-show"><input type="checkbox" id="password-show"> Mostrar</label>
+        </div>
+        <div class="pending-actions">
+          <button class="button ghost" type="button" id="reset-password" hidden>Restablecer contraseña</button>
+          <button class="button danger" type="button" id="status-user" hidden>Desactivar usuario</button>
+        </div>
+        <p id="modal-feedback" class="modal-feedback" role="status" aria-live="polite"></p>
+        <div class="modal-info">Solo ADMIN puede guardar. La contraseña nunca se muestra en el listado. Desactivar una cuenta bloquea los nuevos inicios de sesión.</div>
+        <div class="modal-footer"><button class="button ghost" type="button" id="modal-cancel">Cancelar</button><button class="button primary" type="submit" id="save-user">Guardar rol</button></div>
       </form>
     </div>
   </div>
