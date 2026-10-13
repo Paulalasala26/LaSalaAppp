@@ -63,7 +63,7 @@ function catalog(map){
         throw new Error('Catálogo inválido');
       if(type==='rooms')roomId(id);else greenhouseId(id);
       if(entry.active!==true&&entry.active!==false)throw new Error('Catálogo inválido');
-      if(!Number.isSafeInteger(entry.version)||entry.version<1)throw new Error('Catálogo inválido');
+      if(!Number.isSafeInteger(entry.version)||entry.version<0)throw new Error('Catálogo inválido');
       if(typeof entry.label!=='string')throw new Error('Catálogo inválido');
       if(type==='greenhouses'&&!entry.roomId)throw new Error('Catálogo inválido');
       base[type][id]={...entry};
