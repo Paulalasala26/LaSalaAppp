@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    {
+      "source": "/api/firebase-auth",
+      "destination": "https://la-sala-app-test.vercel.app/api/firebase-auth"
+    }
+  ]
+}
