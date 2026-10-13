@@ -282,3 +282,6 @@ module.exports=async function handler(req,res) {
     return res.status(status).json({error:status===503?'SERVICE_UNAVAILABLE':err.code});
   }
 };
+
+// Reutilizar la misma verificación ADMIN para catálogos del Backoffice TEST.
+module.exports._adminCatalogHelpers = {verifyFirebaseIdToken,serviceAccount,serviceAccessToken,readKey,updateKey,validHash,httpError};
