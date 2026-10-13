@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="theme-color" content="#1558a0">
+  <title>ViguerAPP · Opciones de riego · TEST</title>
+  <link rel="icon" href="../icon-192.png">
+  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./catalog.css">
+  <link rel="stylesheet" href="./options.css">
+  <script src="./options.js" defer></script>
+</head>
+<body>
+  <div id="access-gate" class="access-gate" role="status" aria-live="polite">
+    <div class="access-panel">
+      <div class="brand-mark">VA</div>
+      <h1 id="gate-title">Comprobando acceso</h1>
+      <p id="gate-description">Verificando tu sesión de administrador…</p>
+      <a id="gate-link" href="../" class="primary-link" hidden>Volver a la aplicación</a>
+    </div>
+  </div>
+  <div id="workspace" class="shell" hidden>
+    <aside class="sidebar" aria-label="Navegación del Backoffice">
+      <div class="brand">
+        <div class="brand-mark">VA</div><div><strong>ViguerAPP</strong><span>Backoffice TEST</span></div>
+      </div>
+      <div class="sidebar-label">GENERAL</div>
+      <nav class="sidebar-nav">
+        <a href="./" class="nav-item"><span class="nav-symbol">◉</span> Usuarios</a>
+        <div class="sidebar-label menu-label">RIEGO</div>
+        <a href="./catalog.html#salas" class="nav-item"><span class="nav-symbol">◧</span> Salas</a>
+        <a href="./catalog.html#invernaderos" class="nav-item"><span class="nav-symbol">▦</span> Invernaderos</a>
+        <a href="./options.html" class="nav-item selected" aria-current="page"><span class="nav-symbol">≡</span> Opciones de riego</a>
+        <div class="sidebar-label menu-label">MÓDULOS</div>
+        <span class="nav-item muted"><span class="nav-symbol">◫</span> Control de calidad</span>
+        <span class="nav-item muted"><span class="nav-symbol">▤</span> Otros módulos</span>
+      </nav>
+      <div class="sidebar-footer"><a href="../">← Volver a ViguerAPP</a><span>Entorno TEST · v1</span></div>
+    </aside>
+    <div class="main-area">
+      <header class="topbar">
+        <div class="breadcrumbs">Backoffice <span>/</span> Riego <span>/</span> Opciones</div>
+        <div class="topbar-right"><span class="test-flag">TEST</span><span class="session-user" id="session-user">Administrador</span></div>
+      </header>
+      <main class="content catalog-content">
+        <div class="page-head">
+          <div>
+            <p class="eyebrow">CONFIGURACIÓN DE RIEGO</p>
+            <h1>Opciones de riego</h1>
+            <p class="description">Gestiona las opciones de los formularios sin borrar registros históricos.</p>
+          </div>
+          <button class="button primary" id="new-option" type="button">+ Nueva opción</button>
+        </div>
+        <div class="catalog-notice">
+          <strong>Configuración en TEST.</strong> Los valores técnicos originales se conservan y no pueden editarse.
+          Se permite cambiar la etiqueta, el orden, activar o desactivar.
+          Los cambios aún no se aplican a los formularios operativos de Riego.
+        </div>
+        <div class="operation-feedback" id="options-feedback" role="status" aria-live="polite" hidden></div>
+        <div class="options-group-select">
+          <label for="group-selector">Grupo de opciones</label>
+          <select id="group-selector" aria-label="Grupo de opciones"></select>
+        </div>
+        <section class="stats catalog-stats" aria-label="Resumen del grupo">
+          <div class="stat"><span>Opciones</span><strong id="total-records">—</strong></div>
+          <div class="stat"><span>Activas</span><strong id="active-records">—</strong></div>
+          <div class="stat"><span>Desactivadas</span><strong id="inactive-records">—</strong></div>
+        </section>
+        <section class="table-card">
+          <div class="table-toolbar">
+            <div class="table-title">
+              <h2 id="list-title">Opciones</h2>
+              <p>Los valores técnicos se conservan para compatibilidad con el histórico</p>
+            </div>
+            <div class="filters catalog-filters">
+              <label class="sr-only" for="search-option">Buscar opción</label>
+              <input id="search-option" type="search" placeholder="Buscar opción…">
+              <label class="sr-only" for="filter-status">Estado</label>
+              <select id="filter-status">
+                <option value="all">Todas</option>
+                <option value="active">Activas</option>
+                <option value="inactive">Desactivadas</option>
+              </select>
+            </div>
+          </div>
+          <div class="table-scroll">
+            <table class="catalog-table">
+              <thead><tr><th>Valor técnico</th><th>Etiqueta</th><th>Orden</th><th>Estado</th><th class="actions-col">Acciones</th></tr></thead>
+              <tbody id="options-body"><tr><td colspan="5" class="empty-cell">Cargando opciones…</td></tr></tbody>
+            </table>
+          </div>
+          <div class="table-footer"><span id="result-count">—</span><span>Firebase TEST · Sin eliminaciones</span></div>
+        </section>
+      </main>
+    </div>
+  </div>
+  <div id="options-modal" class="modal-backdrop" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="options-modal-title">
+      <div class="modal-heading">
+        <div><p class="eyebrow">OPCIONES DE RIEGO</p><h2 id="options-modal-title">Nueva opción</h2></div>
+        <button id="modal-close" class="close" type="button" aria-label="Cerrar">×</button>
+      </div>
+      <form id="options-form">
+        <div class="field">
+          <label for="form-value">Valor técnico</label>
+          <input id="form-value" maxlength="60" autocomplete="off" required>
+          <small>Quedará fijo tras crear la opción, para conservar compatibilidad con el histórico.</small>
+        </div>
+        <div class="field"><label for="form-label">Etiqueta visible</label>
+          <input id="form-label" maxlength="80" autocomplete="off" required></div>
+        <div class="field"><label for="form-order">Orden de aparición</label>
+          <input id="form-order" type="number" min="0" max="9999" step="1" required></div>
+        <div id="option-status" class="catalog-modal-status" hidden></div>
+        <p id="modal-feedback" class="modal-feedback" role="status" aria-live="polite"></p>
+        <div class="modal-info">No se permiten eliminaciones. Desactivar oculta la opción cuando se integre con el formulario, sin borrar datos anteriores.</div>
+        <div class="modal-footer catalog-modal-footer">
+          <button id="toggle-option" type="button" class="button catalog-state-button" hidden>Desactivar</button>
+          <button id="modal-cancel" type="button" class="button ghost">Cancelar</button>
+          <button id="save-option" type="submit" class="button primary">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</body>
+</html>
