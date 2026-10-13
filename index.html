@@ -12600,7 +12600,7 @@ function showRiegoModule(soloLectura){
   // flujo normal) no veía ningún color, y sí lo veía si ese día había
   // abierto antes el Índice: un fallo silencioso e imposible de reproducir
   // para quien lo reportara (auditoría 2026-09-11).
-  Promise.all([loadRiegoEjecutadoData(), loadIndiceAbonosEstadoData()]).then(()=>{
+  Promise.all([loadRiegoEjecutadoData(), loadIndiceAbonosEstadoData(), cargarOpcionesRiegoTest()]).then(()=>{
     const overlay = getOrCreateOverlay('riego-overlay');
     overlay.style.padding = '0';
     const titulo = riegoSoloLectura ? 'Hojas de riego' : 'Marcar riego';
@@ -14637,7 +14637,7 @@ const RIEGO_FITOSANITARIOS = ['PROPLANT','PREVICUR ENERGY','DAGONIS','NIMROD','L
 // "Orden Abonos"/"Orden Aguas" del regante).
 const RIEGO_FITO_ALIAS = {LASTOP:'LALSTOP'};
 function detectarFitoAlFinal(resto){
-  const candidatos = [...RIEGO_FITOSANITARIOS, ...Object.keys(RIEGO_FITO_ALIAS)];
+  const candidatos = [...opcionesRiegoConocidas('fitosanitarios',RIEGO_FITOSANITARIOS), ...Object.keys(RIEGO_FITO_ALIAS)].sort((a,b)=>b.length-a.length);
   const encontrado = candidatos.find(f => resto===f || resto.endsWith(' '+f));
   if(!encontrado) return null;
   return { encontrado, canonico: RIEGO_FITO_ALIAS[encontrado] || encontrado };
@@ -14656,7 +14656,7 @@ const RIEGO_HORARIOS = ['PROGRAMADO','1º HORA','10:00','11:00','12:00','13:00',
 // esa lista larga de horas fijas — solo las opciones especiales, más "Otra
 // hora..." para escribir la hora que se quiera con un selector de hora libre.
 const RIEGO_HORARIOS_RAPIDOS = ['PROGRAMADO','1º HORA','UH FIN CHICAS','UH FIN TÚNELES','UH','POR LA TARDE','?'];
-function esHorarioRapido(h){ return !h || RIEGO_HORARIOS_RAPIDOS.includes(h); }
+function esHorarioRapido(h){ return !h || opcionesRiegoConocidas('horarios_riego',RIEGO_HORARIOS_RAPIDOS).includes(h); }
 // Sin horario elegido se entiende "a media mañana" — se ordena justo después
 // de "1º HORA" y antes de las horas en punto, en vez de irse al final como el
 // resto de horarios no reconocidos. Global (no solo dentro de
@@ -14707,7 +14707,7 @@ function renderHorarioSelectorHTML(clase, valorActual, placeholder, idBase){
   return `<div style="display:flex;flex-direction:column;gap:4px">
     <select class="${clase}"${idAttr} onchange="actualizarVisibilidadHorarioCustom(this)" style="width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;background:#fff;outline:none">
       <option value="">${placeholder}</option>
-      ${RIEGO_HORARIOS_RAPIDOS.map(h=>`<option value="${h}"${h===valorActual?' selected':''}>${h}</option>`).join('')}
+      ${opcionesRiegoSelectHTML('horarios_riego',RIEGO_HORARIOS_RAPIDOS,valorActual)}
       <option value="__otra__"${!esRapido?' selected':''}>Otra hora...</option>
     </select>
     <input type="time" class="${clase}-custom"${idAttrCustom} value="${esRapido?'':valorActual}" style="width:100%;padding:6px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;background:#fff;outline:none;${esRapido?'display:none':''}">
@@ -14734,7 +14734,7 @@ function leerHorarioSelectorValor(select){
 function setValorHorarioConCustom(select, valor){
   if(!select) return;
   if(!valor){ select.value=''; actualizarVisibilidadHorarioCustom(select); return; }
-  if(esHorarioRapido(valor)){ select.value = valor; }
+  if(esHorarioRapido(valor)){ seleccionarValorRiegoHistorico(select,valor); }
   else {
     select.value = '__otra__';
     const input = select.parentElement?.querySelector('input[type="time"]');
@@ -14824,6 +14824,61 @@ const TRABAJO_CON_VIA = ['PP','PA','RS','DESPAREJOS','MUSTIO'];
 const CODIGOS_FOLIAR_015 = ['PP','PA'];
 const TRABAJO_TIPOS = ['SUAVE','SECAS','NORMAL'];
 const TRABAJO_HORARIOS = ['1º HORA','MEDIA MAÑANA','POR LA TARDE','UH'];
+// Configuración de Riego TEST: los selectores usan opciones activas, pero se
+// reconoce también cualquier código histórico (aunque esté desactivado).
+const OPCIONES_RIEGO_TEST_KEY='lasala-config-riego-opciones-v1';
+let opcionesRiegoTest=null;
+async function cargarOpcionesRiegoTest(){
+  try{
+    const response=await appFetch(CLOUD_DB_URL+'/'+encodeURIComponent(OPCIONES_RIEGO_TEST_KEY)+'.json',{cache:'no-store'});
+    if(!response.ok) throw new Error('HTTP '+response.status);
+    let raw=await response.json();
+    if(typeof raw==='string') raw=JSON.parse(raw);
+    if(raw==null){opcionesRiegoTest=null;return;}
+    if(!raw || typeof raw!=='object'||Array.isArray(raw)||
+       !raw.items||typeof raw.items!=='object'||Array.isArray(raw.items))
+      throw new Error('Formato del catálogo no válido');
+    const validGroups=new Set(['agua_minutos','abono_minutos','abono_tinj','abono_sinj','abono_minj','fitosanitarios','horarios_riego','tipos_trabajo','horarios_trabajo']);
+    opcionesRiegoTest=Object.entries(raw.items).map(([id,item])=>{
+      if(!item||id!==item.id||!validGroups.has(item.group)||typeof item.value!=='string'||
+         !item.value||item.value.length>60||typeof item.label!=='string'||
+         item.label.length>80||typeof item.active!=='boolean'||!Number.isInteger(item.order)||
+         item.order<0||item.order>9999)
+        throw new Error('Opción de riego inválida');
+      return {group:item.group,value:item.value,label:item.label,active:item.active,order:item.order};
+    });
+  }catch(e){
+    opcionesRiegoTest=null; // Ante cualquier fallo, usar catálogos originales.
+    console.warn('Opciones de Riego TEST no disponibles; usando valores anteriores',e.message);
+  }
+}
+function escaparOpcionRiego(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function opcionesRiegoConocidas(grupo,defaults){
+  return [...new Set([...defaults.map(String),...(opcionesRiegoTest||[])
+    .filter(x=>x.group===grupo).map(x=>x.value)])];
+}
+function opcionesRiegoSelectHTML(grupo,defaults,seleccion=''){
+  const elegido=String(seleccion||'');
+  const lista=opcionesRiegoTest===null
+    ? defaults.map((v,i)=>({value:String(v),label:String(v),order:i}))
+    : opcionesRiegoTest.filter(x=>x.group===grupo&&x.active)
+      .sort((a,b)=>a.order-b.order||a.value.localeCompare(b.value,'es',{numeric:true}));
+  if(elegido && !lista.some(x=>x.value===elegido)){
+    const previo=(opcionesRiegoTest||[]).find(x=>x.group===grupo&&x.value===elegido);
+    lista.push({value:elegido,label:previo?.label||elegido});
+  }
+  return lista.map(x=>'<option value="'+escaparOpcionRiego(x.value)+'"'+
+    (x.value===elegido?' selected':'')+'>'+escaparOpcionRiego(x.label)+'</option>').join('');
+}
+function seleccionarValorRiegoHistorico(select,valor){
+  if(!select||!valor)return;
+  if(![...select.options].some(x=>x.value===valor))select.add(new Option(valor,valor));
+  select.value=valor;
+}
+
 // Estado del formulario: agua/abono/tramos de calles son repetibles (varias
 // aguas, varios abonos, varios tramos no contiguos para el mismo riego), así
 // que se guardan como listas y se repintan cada vez que se añade/quita una
@@ -15121,7 +15176,7 @@ function showRiegoManualForm(){
               <label style="font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bottom:3px">Tiempo de agua con el fitosanitario (opcional)</label>
               <select id="rm-fito-tiempo" style="width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;background:#fff;outline:none">
                 <option value="">—</option>
-                ${RIEGO_AGUA_MINUTOS.map(m=>`<option value="${m}">${m}</option>`).join('')}
+                ${opcionesRiegoSelectHTML('agua_minutos',RIEGO_AGUA_MINUTOS)}
               </select>
             </div>
             <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:var(--text);padding-bottom:8px;cursor:pointer;white-space:nowrap">
@@ -15133,7 +15188,7 @@ function showRiegoManualForm(){
               <label style="font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bottom:3px">Fitosanitarios</label>
               <select id="rm-fito" style="width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;background:#fff;outline:none">
                 <option value="">—</option>
-                ${RIEGO_FITOSANITARIOS.map(f=>`<option value="${f}">${f}</option>`).join('')}
+                ${opcionesRiegoSelectHTML('fitosanitarios',RIEGO_FITOSANITARIOS)}
               </select>
             </div>
             <div>
@@ -15229,14 +15284,14 @@ function showRiegoManualForm(){
               <label style="font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bottom:3px">Tipo</label>
               <select id="rm-tipo-trabajo" style="width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;background:#fff;outline:none">
                 <option value="">—</option>
-                ${TRABAJO_TIPOS.map(t=>`<option value="${t}">${t}</option>`).join('')}
+                ${opcionesRiegoSelectHTML('tipos_trabajo',TRABAJO_TIPOS)}
               </select>
             </div>
             <div>
               <label style="font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bottom:3px">Horario</label>
               <select id="rm-horario-trabajo" style="width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;background:#fff;outline:none">
                 <option value="">—</option>
-                ${TRABAJO_HORARIOS.map(h=>`<option value="${h}">${h}</option>`).join('')}
+                ${opcionesRiegoSelectHTML('horarios_trabajo',TRABAJO_HORARIOS)}
               </select>
             </div>
           </div>
@@ -15279,7 +15334,7 @@ function renderAguaRows(){
     <div class="rm-agua-row" style="display:grid;grid-template-columns:1fr auto 1fr auto;gap:6px;margin-bottom:6px;align-items:center">
       <select class="rm-agua-min" style="width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;background:#fff;outline:none">
         <option value="">Agua (min)</option>
-        ${RIEGO_AGUA_MINUTOS.map(m=>`<option value="${m}"${String(m)===String(r.minutos)?' selected':''}>${m}</option>`).join('')}
+        ${opcionesRiegoSelectHTML('agua_minutos',RIEGO_AGUA_MINUTOS,r.minutos)}
       </select>
       <label style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:4px;white-space:nowrap">
         <input type="checkbox" class="rm-agua-sal" ${r.sal?'checked':''}> Sal
@@ -15319,7 +15374,7 @@ function renderAbonoRows(){
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:6px;margin-bottom:6px;align-items:center">
         <select class="rm-abono-tiempo" style="width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;background:#fff;outline:none">
           <option value="">Abono (min)</option>
-          ${RIEGO_ABONO_TIEMPOS.map(t=>`<option value="${t}"${String(t)===String(r.tiempo)?' selected':''}>${t}</option>`).join('')}
+          ${opcionesRiegoSelectHTML('abono_minutos',RIEGO_ABONO_TIEMPOS,r.tiempo)}
         </select>
         <select class="rm-abono-cat" onchange="updateAbonoTipoOptionsRow(this)" style="width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;background:#fff;outline:none">
           <option value="">Categoría</option>
@@ -15330,7 +15385,7 @@ function renderAbonoRows(){
         </select>
         <select class="rm-abono-producto" ${r.cat==='SAL'?'disabled':''} style="width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;background:#fff;outline:none">
           <option value="">Producto</option>
-          ${opciones.map(o=>`<option value="${o}"${o===r.producto?' selected':''}>${o}</option>`).join('')}
+          ${opcionesRiegoSelectHTML('abono_'+r.cat.toLowerCase(),opciones,r.producto)}
         </select>
         ${rmAbonoRows.length>1 ? `<button type="button" onclick="quitarAbonoRow(${i})" style="width:26px;height:26px;background:#fdecea;color:#c62828;border:1px solid #f3c2bd;border-radius:6px;cursor:pointer;font-size:12px">✕</button>` : '<span></span>'}
       </div>
@@ -15349,7 +15404,7 @@ function updateAbonoTipoOptionsRow(catSelect){
   }
   sel.disabled = false;
   const opciones = RIEGO_ABONO_TIPOS[cat] || [];
-  sel.innerHTML = `<option value="">Producto</option>` + opciones.map(o=>`<option value="${o}">${o}</option>`).join('');
+  sel.innerHTML = `<option value="">Producto</option>` + opcionesRiegoSelectHTML('abono_'+cat.toLowerCase(),opciones);
 }
 function agregarAbonoRow(){
   rmAbonoRows = leerAbonoRowsDesdeDOM();
@@ -15418,7 +15473,7 @@ function renderTrabajoVias(){
         </select>
         <select onchange="actualizarProductoTrabajoVia('${code}',this.value)" ${v.cat==='SAL'?'disabled':''} style="width:100%;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:11px;background:#fff;outline:none">
           <option value="">Producto</option>
-          ${opciones.map(o=>`<option value="${o}"${o===v.producto?' selected':''}>${o}</option>`).join('')}
+          ${opcionesRiegoSelectHTML('abono_'+v.cat.toLowerCase(),opciones,v.producto)}
         </select>
       </div>` : ''}
     </div>`;
@@ -15927,7 +15982,7 @@ function parsearTrabajoDeTexto(texto){
       if(m[1]!=='PREPARAR') tokens.push(parte); // PREPARAR nunca entra en el título
       return;
     }
-    if(TRABAJO_TIPOS.includes(parte)){ tokens.push(parte); return; }
+    if(opcionesRiegoConocidas('tipos_trabajo',TRABAJO_TIPOS).includes(parte)){ tokens.push(parte); return; }
     // Un horario suelto (no pegado a ningún texto) solo puede ser el horario
     // de Trabajo — los horarios de riego siempre van pegados a su agua/
     // abono/fito, nunca sueltos como parte propia. El "?" (propuesta
@@ -15935,7 +15990,7 @@ function parsearTrabajoDeTexto(texto){
     // un horario real de Trabajo — a petición de Paula, 2026-08-11: no debe
     // aparecer como horario en las tareas de peón.
     if(parte==='?') return;
-    if((RIEGO_HORARIOS.includes(parte) || TRABAJO_HORARIOS.includes(parte))){ horarioTrabajo = parte; return; }
+    if((opcionesRiegoConocidas('horarios_riego',RIEGO_HORARIOS).includes(parte) || opcionesRiegoConocidas('horarios_trabajo',TRABAJO_HORARIOS).includes(parte))){ horarioTrabajo = parte; return; }
     // Cualquier otra cosa (agua/abono/fito con su horario ya incrustado) no
     // es de trabajo — se ignora, igual que hace parsearAguaAbonoDeTexto con
     // lo que no reconoce.
@@ -16185,7 +16240,7 @@ function construirInfoMarcadorRiego(raw){
 function parsearAguaAbonoDeTexto(texto){
   const entradas = [];
   if(!texto || texto.startsWith('* ')) return entradas;
-  const horariosConocidos = RIEGO_HORARIOS.concat(TRABAJO_HORARIOS);
+  const horariosConocidos = [...new Set([...RIEGO_HORARIOS,...opcionesRiegoConocidas('horarios_riego',RIEGO_HORARIOS_RAPIDOS),...opcionesRiegoConocidas('horarios_trabajo',TRABAJO_HORARIOS)])].sort((a,b)=>b.length-a.length);
   // Cuando 2+ partes de riego comparten el mismo horario PROGRAMADO,
   // construirPartesRiegoManual NO lo repite en cada una — lo quita de todas
   // y añade un único "PROGRAMADO" suelto como su propia parte al final (ver
@@ -16213,12 +16268,12 @@ function parsearAguaAbonoDeTexto(texto){
     if(!resto) return; // fito suelto sin agua/abono delante — no encaja en ninguna de las dos listas
     if(!horarioEncontrado && tieneProgramadoSuelto) horarioEncontrado = 'PROGRAMADO';
     let m = /^(\d+)(\s+SAL)?$/.exec(resto);
-    if(m && RIEGO_AGUA_MINUTOS.includes(parseInt(m[1]))){
+    if(m && opcionesRiegoConocidas('agua_minutos',RIEGO_AGUA_MINUTOS).includes(String(parseInt(m[1])))){
       entradas.push({tipo:'agua', tiempo:m[1], sal:!!m[2], fito:fitoNombre, horario:horarioEncontrado});
       return;
     }
     m = /^(\d+)(\s+(.+))?$/.exec(resto);
-    if(m && RIEGO_ABONO_TIEMPOS.includes(parseInt(m[1]))){
+    if(m && opcionesRiegoConocidas('abono_minutos',RIEGO_ABONO_TIEMPOS).includes(String(parseInt(m[1])))){
       entradas.push({tipo:'abono', tiempo:m[1], producto:m[3]||'', fito:fitoNombre, horario:horarioEncontrado});
       return;
     }
@@ -17388,7 +17443,7 @@ function precargarFormularioRiegoDesdeTexto(texto){
   // — de forma orientativa, se reasigna a los tramos de agua/abono que
   // hayan quedado sin ningún horario propio.
   let programadoSuelto = false;
-  const horariosConocidos = RIEGO_HORARIOS.concat(TRABAJO_HORARIOS);
+  const horariosConocidos = [...new Set([...RIEGO_HORARIOS,...opcionesRiegoConocidas('horarios_riego',RIEGO_HORARIOS_RAPIDOS),...opcionesRiegoConocidas('horarios_trabajo',TRABAJO_HORARIOS)])].sort((a,b)=>b.length-a.length);
   texto.split(' + ').map(p=>p.trim()).filter(Boolean).forEach(parte=>{
     // "?" suelto (sin horario) hay que distinguirlo ANTES de quitar horarios
     // — ahora que "?" es también un horario válido (ver RIEGO_HORARIOS), si
@@ -17410,7 +17465,7 @@ function precargarFormularioRiegoDesdeTexto(texto){
     }
     if(!resto){
       if(horarioEncontrado==='PROGRAMADO') programadoSuelto = true;
-      else if(horarioEncontrado && TRABAJO_HORARIOS.includes(horarioEncontrado)) document.getElementById('rm-horario-trabajo').value = horarioEncontrado;
+      else if(horarioEncontrado && opcionesRiegoConocidas('horarios_trabajo',TRABAJO_HORARIOS).includes(horarioEncontrado)) seleccionarValorRiegoHistorico(document.getElementById('rm-horario-trabajo'),horarioEncontrado);
       return;
     }
     if(resto==='?'){
@@ -17440,21 +17495,21 @@ function precargarFormularioRiegoDesdeTexto(texto){
     // propio del fito, igual que antes se hacía con el trozo "+" aparte.
     const fitoDetectado = detectarFitoAlFinal(resto);
     if(fitoDetectado){
-      document.getElementById('rm-fito').value = fitoDetectado.canonico;
+      seleccionarValorRiegoHistorico(document.getElementById('rm-fito'),fitoDetectado.canonico);
       if(horarioEncontrado) setValorHorarioConCustom(document.getElementById('rm-horario-fito'), horarioEncontrado);
       resto = resto.slice(0, resto.length - fitoDetectado.encontrado.length).trim();
       if(!resto) return;
       let mAgua = /^(\d+)(\s+SAL)?$/.exec(resto);
-      if(mAgua && RIEGO_AGUA_MINUTOS.includes(parseInt(mAgua[1]))){
+      if(mAgua && opcionesRiegoConocidas('agua_minutos',RIEGO_AGUA_MINUTOS).includes(String(parseInt(mAgua[1])))){
         nuevasAguas.push({minutos:mAgua[1], sal:!!mAgua[2], horario:''});
         return;
       }
       let mAbono = /^(\d+)(\s+(.+))?$/.exec(resto);
-      if(mAbono && RIEGO_ABONO_TIEMPOS.includes(parseInt(mAbono[1]))){
+      if(mAbono && opcionesRiegoConocidas('abono_minutos',RIEGO_ABONO_TIEMPOS).includes(String(parseInt(mAbono[1])))){
         const prod = mAbono[3];
         let cat = '';
         if(prod==='SAL') cat='SAL';
-        else if(prod){ for(const c in RIEGO_ABONO_TIPOS){ if(RIEGO_ABONO_TIPOS[c].includes(prod)){ cat=c; break; } } }
+        else if(prod){ for(const c in RIEGO_ABONO_TIPOS){ if(opcionesRiegoConocidas('abono_'+c.toLowerCase(),RIEGO_ABONO_TIPOS[c]).includes(prod)){ cat=c; break; } } }
         nuevosAbonos.push({tiempo:mAbono[1], cat, producto: prod==='SAL'?'':(prod||''), horario:''});
         return;
       }
@@ -17462,23 +17517,23 @@ function precargarFormularioRiegoDesdeTexto(texto){
       // deja como el propio tiempo (y sal) del fitosanitario.
       const mFitoPrefijo = /^(\d+)(\s+SAL)?$/.exec(resto);
       if(mFitoPrefijo){
-        document.getElementById('rm-fito-tiempo').value = mFitoPrefijo[1];
+        seleccionarValorRiegoHistorico(document.getElementById('rm-fito-tiempo'),mFitoPrefijo[1]);
         document.getElementById('rm-fito-sal').checked = !!mFitoPrefijo[2];
       }
       return;
     }
     let m = /^(\d+)(\s+SAL)?$/.exec(resto);
-    if(m && RIEGO_AGUA_MINUTOS.includes(parseInt(m[1]))){
+    if(m && opcionesRiegoConocidas('agua_minutos',RIEGO_AGUA_MINUTOS).includes(String(parseInt(m[1])))){
       nuevasAguas.push({minutos:m[1], sal:!!m[2], horario:horarioEncontrado});
       return;
     }
     m = /^(\d+)(\s+(.+))?$/.exec(resto);
-    if(m && RIEGO_ABONO_TIEMPOS.includes(parseInt(m[1]))){
+    if(m && opcionesRiegoConocidas('abono_minutos',RIEGO_ABONO_TIEMPOS).includes(String(parseInt(m[1])))){
       const prod = m[3];
       let cat = '';
       if(prod==='SAL') cat='SAL';
       else if(prod){
-        for(const c in RIEGO_ABONO_TIPOS){ if(RIEGO_ABONO_TIPOS[c].includes(prod)){ cat=c; break; } }
+        for(const c in RIEGO_ABONO_TIPOS){ if(opcionesRiegoConocidas('abono_'+c.toLowerCase(),RIEGO_ABONO_TIPOS[c]).includes(prod)){ cat=c; break; } }
       }
       nuevosAbonos.push({tiempo:m[1], cat, producto: prod==='SAL'?'':(prod||''), horario:horarioEncontrado});
       return;
@@ -17508,8 +17563,8 @@ function precargarFormularioRiegoDesdeTexto(texto){
       actualizarVisibilidadFumi(3);
       return;
     }
-    if(TRABAJO_TIPOS.includes(resto)){
-      document.getElementById('rm-tipo-trabajo').value = resto;
+    if(opcionesRiegoConocidas('tipos_trabajo',TRABAJO_TIPOS).includes(resto)){
+      seleccionarValorRiegoHistorico(document.getElementById('rm-tipo-trabajo'),resto);
       return;
     }
     // "INTEGRATE" (con o sin tiempo delante) — se reconoce aparte porque el
@@ -17546,7 +17601,7 @@ function precargarFormularioRiegoDesdeTexto(texto){
       const producto = mVia[2].trim();
       document.querySelectorAll(`.rm-trabajo-chk[value="${code}"]`).forEach(chk=>{ chk.checked = true; });
       let cat = '';
-      for(const c in RIEGO_ABONO_TIPOS){ if(RIEGO_ABONO_TIPOS[c].includes(producto)){ cat=c; break; } }
+      for(const c in RIEGO_ABONO_TIPOS){ if(opcionesRiegoConocidas('abono_'+c.toLowerCase(),RIEGO_ABONO_TIPOS[c]).includes(producto)){ cat=c; break; } }
       rmTrabajoVias[code] = {via:'foliar', cat, producto};
       return;
     }
