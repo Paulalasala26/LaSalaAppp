@@ -743,6 +743,49 @@ restaurarSesion();
 // roles (o sin rol asignado) ven la pantalla de inicio de siempre, sin
 // ningún cambio.
 let pageHomeInnerDefaultHTML = null;
+// Diseño común de los accesos de Inicio, respetando acciones y permisos de cada rol.
+function aplicarTarjetasCuadradasHome(block){
+  if(!block) return;
+  block.style.display='grid';
+  block.style.gridTemplateColumns='repeat(2,minmax(0,1fr))';
+  block.style.gap='12px';
+  block.style.maxWidth='430px';
+  block.style.width='100%';
+  block.style.alignItems='stretch';
+  block.querySelectorAll(':scope > .home-shortcut-card').forEach(card=>{
+    if(card.style.display==='none') return;
+    card.style.aspectRatio='1 / 1';
+    card.style.background='linear-gradient(120deg,#2b6fae,#3c80c2 55%,#5b9bd5)';
+    card.style.color='#fff';
+    card.style.borderRadius='14px';
+    card.style.padding='12px';
+    card.style.display='flex';
+    card.style.flexDirection='column';
+    card.style.alignItems='center';
+    card.style.justifyContent='center';
+    card.style.textAlign='center';
+    card.style.gap='12px';
+    card.style.minWidth='0';
+    card.style.whiteSpace='normal';
+    card.style.fontSize='15px';
+    card.style.fontWeight='800';
+    card.style.lineHeight='1.25';
+    const icon=card.querySelector(':scope > i');
+    if(icon){
+      icon.style.fontSize='28px';
+      icon.style.opacity='.95';
+      icon.style.flexShrink='0';
+    }
+    const label=card.querySelector(':scope > span, :scope > div');
+    if(label){
+      label.style.fontSize='15px';
+      label.style.fontWeight='800';
+      label.style.lineHeight='1.25';
+      label.style.marginTop='0';
+      label.style.whiteSpace='normal';
+    }
+  });
+}
 function applyRoleHomeUI(){
   const homeInner = document.getElementById('page-home-inner');
   if(!homeInner) return;
@@ -761,12 +804,13 @@ function applyRoleHomeUI(){
         <button onclick="pedirPermisoNotificaciones()" title="Recibir un aviso cuando te asignen una tarea nueva" style="padding:9px 12px;font-size:18px;background:#f2f4f0;color:var(--muted);border:1px solid var(--border);border-radius:10px;cursor:pointer;line-height:1">&#128276;</button>
       </div>
       <div id="peon-tareas-inline"></div>
-      <div style="margin-top:2rem;display:flex;gap:10px;flex-wrap:wrap">
-        <button id="btn-mantenimiento-peon" onclick="showMantenimientoPeonModule()" disabled style="padding:14px 20px;font-size:14px;font-weight:700;background:#8b6f47;color:#fff;border:none;border-radius:10px;cursor:not-allowed;display:flex;align-items:center;gap:8px;opacity:0.5">
-          <i class="ti ti-tools" style="font-size:18px"></i> Mantenimiento de parcelas
+      <div id="peon-home-accesos" style="margin-top:2rem;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;max-width:430px">
+        <button id="btn-mantenimiento-peon" class="home-shortcut-card" onclick="showMantenimientoPeonModule()" disabled style="cursor:not-allowed;opacity:0.5;border:none">
+          <i class="ti ti-tools" style="font-size:18px"></i><span>Mantenimiento de parcelas</span>
         </button>
-        <div id="mantenimiento-msg" style="padding:14px 20px;font-size:13px;color:#a35d00;display:none">⏳ Completa todas tus tareas primero</div>
-      </div>`;
+      </div>
+      <div id="mantenimiento-msg" style="padding:14px 20px;font-size:13px;color:#a35d00;display:none">⏳ Completa todas tus tareas primero</div>`;
+    aplicarTarjetasCuadradasHome(document.getElementById('peon-home-accesos'));
     renderPeonTareasInline();
     verificarMantenimientoDisponible();
     return;
@@ -778,26 +822,28 @@ function applyRoleHomeUI(){
   if(currentUserRole==='REGANTE'){
     const block = document.getElementById('quick-access-block');
     if(block){
+      block.style.display='block';
       block.innerHTML = `
         <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.75rem;display:flex;align-items:center;justify-content:space-between;gap:6px">
           <span style="display:flex;align-items:center;gap:6px"><i class="ti ti-bolt" style="font-size:15px;color:var(--verde-mid)"></i>Acceso de Regante</span>
           <button onclick="pedirPermisoNotificaciones()" title="Recibir un aviso cuando te asignen una tarea nueva" style="padding:5px 10px;font-size:10px;font-weight:700;background:#f2f4f0;color:var(--muted);border:1px solid var(--border);border-radius:7px;cursor:pointer;text-transform:none;letter-spacing:normal;white-space:nowrap">&#128276; Activar avisos</button>
         </div>
-        <div style="display:flex;gap:10px;flex-wrap:wrap">
-          <button onclick="showHojasRiego()" style="padding:14px 20px;font-size:14px;font-weight:700;background:var(--verde);color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:8px">
-            <i class="ti ti-droplet" style="font-size:18px"></i> Hojas de riego
+        <div id="regante-home-accesos" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px">
+          <button class="home-shortcut-card" onclick="showHojasRiego()" style="padding:14px 20px;font-size:14px;font-weight:700;background:var(--verde);color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:8px">
+            <i class="ti ti-droplet" style="font-size:18px"></i><span>Hojas de riego</span>
           </button>
-          <button onclick="showIndiceAbonosReganteModule()" style="padding:14px 20px;font-size:14px;font-weight:700;background:#a35d00;color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:8px">
-            <i class="ti ti-clipboard-list" style="font-size:18px"></i> Índice Abonos
+          <button class="home-shortcut-card" onclick="showIndiceAbonosReganteModule()" style="padding:14px 20px;font-size:14px;font-weight:700;background:#a35d00;color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:8px">
+            <i class="ti ti-clipboard-list" style="font-size:18px"></i><span>Índice Abonos</span>
           </button>
-          <button onclick="showEspecificosReganteModule()" style="padding:14px 20px;font-size:14px;font-weight:700;background:#2e7d32;color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:8px">
-            <i class="ti ti-target-arrow" style="font-size:18px"></i> Específicos <span id="regante-tareas-badge"></span>
+          <button class="home-shortcut-card" onclick="showEspecificosReganteModule()" style="padding:14px 20px;font-size:14px;font-weight:700;background:#2e7d32;color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:8px">
+            <i class="ti ti-target-arrow" style="font-size:18px"></i><span>Específicos <span id="regante-tareas-badge"></span></span>
           </button>
-          <button onclick="mostrarNotificarProblemaRiego()" style="padding:14px 20px;font-size:14px;font-weight:700;background:#c62828;color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:8px">
-            <i class="ti ti-alert-triangle" style="font-size:18px"></i> Notificar problema de ejecución
+          <button class="home-shortcut-card" onclick="mostrarNotificarProblemaRiego()" style="padding:14px 20px;font-size:14px;font-weight:700;background:#c62828;color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:8px">
+            <i class="ti ti-alert-triangle" style="font-size:18px"></i><span>Notificar problema de ejecución</span>
           </button>
         </div>`;
     }
+    aplicarTarjetasCuadradasHome(document.getElementById('regante-home-accesos'));
     actualizarBadgeTareasRegante();
   } else if(currentUserRole==='TECNICO'){
     // A petición de Paula (2026-09-08): TÉCNICO ya no tiene acceso a
@@ -821,38 +867,6 @@ function applyRoleHomeUI(){
     // ejecute un trabajo/riego de su turno (notificarUsuario/tecnicoDeGuardia).
     const block = document.getElementById('quick-access-block');
     if(block){
-      // Solo TÉCNICO: seis accesos cuadrados, dos por fila, sin modificar los demás roles.
-      block.style.gridTemplateColumns='repeat(2,minmax(0,1fr))';
-      block.style.gap='12px';
-      block.style.maxWidth='430px';
-      block.style.width='100%';
-      block.style.alignItems='stretch';
-      Array.from(block.querySelectorAll('.home-shortcut-card')).forEach(card=>{
-        if(card.style.display==='none') return; // respetar accesos ocultos por permisos
-        card.style.aspectRatio='1 / 1';
-        card.style.borderRadius='14px';
-        card.style.padding='12px';
-        card.style.display='flex';
-        card.style.flexDirection='column';
-        card.style.alignItems='center';
-        card.style.justifyContent='center';
-        card.style.textAlign='center';
-        card.style.gap='12px';
-        card.style.whiteSpace='normal';
-        const icon=card.querySelector('i');
-        if(icon){
-          icon.style.fontSize='28px';
-          icon.style.opacity='.95';
-        }
-        const label=card.querySelector('span') || card.querySelector('div');
-        if(label){
-          label.style.fontSize='15px';
-          label.style.fontWeight='800';
-          label.style.lineHeight='1.25';
-          label.style.marginTop='0';
-          label.style.whiteSpace='normal';
-        }
-      });
       // Sexta tarjeta reservada: sin acción hasta recibir instrucciones.
       const avisoCard=document.createElement('div');
       avisoCard.id='shortcut-avisos-tecnico';
@@ -876,6 +890,7 @@ function applyRoleHomeUI(){
           </button>
         </div>`);
     }
+    aplicarTarjetasCuadradasHome(block);
     actualizarBadgeAvisosTecnico();
     actualizarBotonAvisosPush();
   } else if(currentUserRole==='CARGADOR'){
@@ -883,15 +898,17 @@ function applyRoleHomeUI(){
     // camión cargando plantas y sus horas previstas.
     const block = document.getElementById('quick-access-block');
     if(block){
+      block.style.display='block';
       block.innerHTML = `
         <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.75rem;display:flex;align-items:center;gap:6px">
           <i class="ti ti-truck" style="font-size:15px;color:#ff6b35"></i>Acceso de Julio (Cargas)
         </div>
-        <div style="display:flex;gap:10px;flex-wrap:wrap">
-          <button onclick="showAsignarCargasModule()" style="padding:14px 20px;font-size:14px;font-weight:700;background:#ff6b35;color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:8px">
-            <i class="ti ti-truck" style="font-size:18px"></i> Cargas de camión
+        <div id="cargador-home-accesos" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px">
+          <button class="home-shortcut-card" onclick="showAsignarCargasModule()" style="padding:14px 20px;font-size:14px;font-weight:700;background:#ff6b35;color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:8px">
+            <i class="ti ti-truck" style="font-size:18px"></i><span>Cargas de camión</span>
           </button>
         </div>`;
+      aplicarTarjetasCuadradasHome(document.getElementById('cargador-home-accesos'));
     }
   } else if(currentUser==='VIGUERAS'){
     // Para que Vigueras pueda recibir el aviso de "Hojas marcadas" (y de las
@@ -900,7 +917,7 @@ function applyRoleHomeUI(){
     // PEÓN/REGANTE ya podían.
     const block = document.getElementById('quick-access-block');
     if(block){
-      block.insertAdjacentHTML('beforeend', `
+      block.insertAdjacentHTML('afterend', `
         <div style="margin-top:.9rem;padding-top:.9rem;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap">
           <button id="btn-avisos-push" onclick="toggleAvisosPush()" title="Recibir una notificación en el dispositivo cuando Fran/Dennis marquen las hojas o envíen una propuesta, aunque la app esté cerrada" style="padding:7px 12px;font-size:11px;font-weight:700;background:#f2f4f0;color:var(--muted);border:1px solid var(--border);border-radius:8px;cursor:pointer;white-space:nowrap">&#128276; Activar avisos</button>
           <button onclick="mostrarNotificacionesVigueras()" title="Ver todas las notificaciones recibidas" style="padding:9px 16px;font-size:12px;font-weight:800;background:#a35d00;color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:6px">
@@ -917,6 +934,10 @@ function applyRoleHomeUI(){
     actualizarBadgePropuestasRiego();
     actualizarBadgeNotificacionesVigueras();
     actualizarBotonAvisosPush();
+  }
+  // ADMIN, VIGUERAS y perfiles estándar: mismas tarjetas cuadradas, accesos sin alterar.
+  if(currentUserRole!=='REGANTE' && currentUserRole!=='TECNICO' && currentUserRole!=='CARGADOR'){
+    aplicarTarjetasCuadradasHome(document.getElementById('quick-access-block'));
   }
 }
 async function actualizarBadgeTareasRegante(){
