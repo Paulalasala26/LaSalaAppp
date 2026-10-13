@@ -5782,7 +5782,7 @@ function renderControlResumenHTML(){
         const totalV2 = s.conCheck ? controlV2TotalTipo(s.key) : null;
         const n = s.conCheck ? (totalV2==null ? controlChecksData.filter(c=>c.tipo===s.key).length : totalV2) : null;
         return `
-        <div onclick="seleccionarSeccionControl('${s.key}')" style="cursor:pointer;background:${s.color};color:#fff;border-radius:14px;padding:1.25rem 1.4rem;box-shadow:0 6px 18px rgba(0,0,0,.12)">
+        <div onclick="seleccionarSeccionControl('${s.key}')" style="cursor:pointer;background:linear-gradient(120deg,#2b6fae,#3c80c2 55%,#5b9bd5);color:#fff;border-radius:14px;padding:1.25rem 1.4rem;box-shadow:0 6px 18px rgba(0,0,0,.12)">
           <i class="ti ${s.icon}" style="font-size:22px;opacity:.9"></i>
           <div style="font-size:13px;font-weight:700;margin-top:10px;opacity:.9">${s.label}</div>
           ${n!=null ? `<div style="font-size:28px;font-weight:800;margin-top:4px">${n}</div><div style="font-size:11px;opacity:.85;margin-top:2px">${n===1?'línea registrada':'líneas registradas'}</div>` : (s.tabla ? `<div style="font-size:11px;opacity:.85;margin-top:10px">Tabla semanal</div>` : `<div style="font-size:11px;opacity:.85;margin-top:10px;font-style:italic">Próximamente</div>`)}
