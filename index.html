@@ -768,8 +768,16 @@ function aplicarTarjetasCuadradasHome(block){
   block.style.maxWidth='430px';
   block.style.width='100%';
   block.style.alignItems='stretch';
+  block.style.justifyItems='stretch';
   block.querySelectorAll(':scope > .home-shortcut-card').forEach(card=>{
     if(card.style.display==='none') return;
+    // Ancho fijo al carril: evita que aspect-ratio reduzca algunas tarjetas según su contenido.
+    card.style.width='100%';
+    card.style.maxWidth='none';
+    card.style.minWidth='0';
+    card.style.height='auto';
+    card.style.boxSizing='border-box';
+    card.style.justifySelf='stretch';
     card.style.aspectRatio='1 / 1';
     card.style.background='linear-gradient(120deg,#2b6fae,#3c80c2 55%,#5b9bd5)';
     card.style.color='#fff';
@@ -892,7 +900,7 @@ function applyRoleHomeUI(){
       avisoCard.setAttribute('tabindex','0');
       avisoCard.onclick=mostrarModuloAvisos;
       avisoCard.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();mostrarModuloAvisos();}};
-      avisoCard.style.cssText='background:linear-gradient(120deg,#2b6fae,#3c80c2 55%,#5b9bd5);color:#fff;border-radius:14px;padding:12px;aspect-ratio:1 / 1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:12px;white-space:normal;cursor:pointer';
+      avisoCard.style.cssText='background:linear-gradient(120deg,#2b6fae,#3c80c2 55%,#5b9bd5);color:#fff;border-radius:14px;padding:12px;aspect-ratio:1 / 1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:12px;white-space:normal;cursor:pointer;width:100%;max-width:none;min-width:0;height:auto;box-sizing:border-box;justify-self:stretch';
       avisoCard.innerHTML='<i class="ti ti-bell" style="font-size:28px;opacity:.95" aria-hidden="true"></i><span style="font-size:15px;font-weight:800;line-height:1.25">Avisos</span>';
       block.appendChild(avisoCard);
       // Los cuatro botones existentes permanecen idénticos, por debajo de la cuadrícula.
