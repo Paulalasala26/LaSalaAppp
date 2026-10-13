@@ -5748,6 +5748,9 @@ function renderControlContent(overlay){
       <i class="ti ${s.icon}" aria-hidden="true"></i><span>${s.label}</span>
     </button>`;
   };
+  const navHTML=controlSeccion===null ? '' : `<nav class="control-ui-nav" aria-label="Apartados de Control de Calidad">
+        ${CONTROL_SECCIONES.map(navBtn).join('')}
+      </nav>`;
   overlay.innerHTML=`
     <div class="control-ui-shell">
       <header class="control-ui-header">
@@ -5762,9 +5765,7 @@ function renderControlContent(overlay){
             title="Cerrar Control de Calidad" aria-label="Cerrar Control de Calidad">&times;</button>
         </div>
       </header>
-      <nav class="control-ui-nav" aria-label="Apartados de Control de Calidad">
-        ${CONTROL_SECCIONES.map(navBtn).join('')}
-      </nav>
+      ${navHTML}
       <main id="control-content-wrap" class="control-ui-content">
         ${controlSeccion===null ? renderControlResumenHTML() : renderControlSeccionHTML(CONTROL_SECCIONES.find(s=>s.key===controlSeccion))}
       </main>
