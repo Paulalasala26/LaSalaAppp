@@ -1,0 +1,36 @@
+/* Pantallas de catálogos Riego, con la paleta azul de ViguerAPP. */
+:root{--focus:#4f93d5;--accent:#1558a0}
+.catalog-content{max-width:1200px}
+.catalog-tabs{display:flex;gap:8px;margin-bottom:22px;flex-wrap:wrap}
+.catalog-tab{display:inline-flex;align-items:center;padding:10px 18px;border:1px solid #d4e1ef;
+  border-radius:9px;text-decoration:none;font-weight:750;font-size:13px;background:#fff;color:#345d82}
+.catalog-tab.selected{color:#fff;background:#1558a0;border-color:#1558a0}
+.catalog-notice{padding:13px 16px;border:1px solid #b8cce2;background:#edf5fd;color:#244b72;
+  border-radius:9px;font-size:12px;line-height:1.6;margin-bottom:22px}
+.catalog-notice strong{font-weight:800}
+.catalog-stats{grid-template-columns:repeat(3,minmax(0,1fr))}
+.catalog-stats .stat strong{color:#1558a0}
+.catalog-table{min-width:600px}
+.catalog-filters{justify-content:flex-end}
+.catalog-status{display:inline-block;border-radius:999px;padding:5px 10px;font-size:11px;font-weight:750}
+.catalog-status.is-active{background:#e5f4ea;color:#23623e}
+.catalog-status.is-inactive{background:#f1f2f4;color:#656b73}
+.catalog-modal-status{font-size:12px;font-weight:700;color:#356383;margin:12px 0}
+.catalog-modal-footer{flex-wrap:wrap}
+.catalog-state-button{margin-right:auto;background:#e6f2fc;border-color:#bad1e8;color:#185788}
+.catalog-state-button.is-danger{background:#fff2f0;border-color:#edc6c1;color:#a3342e}
+.catalog-modal-footer button{min-height:42px}
+.catalog-content .button.primary{background:#1558a0;border-color:#1558a0}
+.catalog-content .button.primary:hover:not(:disabled){background:#124a86}
+#catalog-modal .button.primary{background:#1558a0;border-color:#1558a0}
+.catalog-tab:focus-visible,.catalog-content button:focus-visible{outline:3px solid #7eb4eb}
+@media(max-width:690px){
+  .catalog-content{padding-top:18px}
+  .catalog-tabs{position:sticky;top:0;background:#f4f7f4;padding:7px 0;z-index:5}
+  .catalog-tab{flex:1;justify-content:center}
+  .catalog-filters{width:100%}
+  .catalog-filters input{width:100%;min-width:0;flex:1 1 100%}
+  .catalog-filters select{flex:1}
+  .catalog-content .page-head{align-items:flex-start;gap:12px}
+  .catalog-content .page-head .button{flex:none}
+}
