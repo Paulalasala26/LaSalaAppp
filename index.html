@@ -821,7 +821,48 @@ function applyRoleHomeUI(){
     // ejecute un trabajo/riego de su turno (notificarUsuario/tecnicoDeGuardia).
     const block = document.getElementById('quick-access-block');
     if(block){
-      block.insertAdjacentHTML('beforeend', `
+      // Solo TÉCNICO: seis accesos cuadrados, dos por fila, sin modificar los demás roles.
+      block.style.gridTemplateColumns='repeat(2,minmax(0,1fr))';
+      block.style.gap='12px';
+      block.style.maxWidth='430px';
+      block.style.width='100%';
+      block.style.alignItems='stretch';
+      Array.from(block.querySelectorAll('.home-shortcut-card')).forEach(card=>{
+        if(card.style.display==='none') return; // respetar accesos ocultos por permisos
+        card.style.aspectRatio='1 / 1';
+        card.style.borderRadius='14px';
+        card.style.padding='12px';
+        card.style.display='flex';
+        card.style.flexDirection='column';
+        card.style.alignItems='center';
+        card.style.justifyContent='center';
+        card.style.textAlign='center';
+        card.style.gap='12px';
+        card.style.whiteSpace='normal';
+        const icon=card.querySelector('i');
+        if(icon){
+          icon.style.fontSize='28px';
+          icon.style.opacity='.95';
+        }
+        const label=card.querySelector('span') || card.querySelector('div');
+        if(label){
+          label.style.fontSize='15px';
+          label.style.fontWeight='800';
+          label.style.lineHeight='1.25';
+          label.style.marginTop='0';
+          label.style.whiteSpace='normal';
+        }
+      });
+      // Sexta tarjeta reservada: sin acción hasta recibir instrucciones.
+      const avisoCard=document.createElement('div');
+      avisoCard.id='shortcut-avisos-tecnico';
+      avisoCard.className='home-shortcut-card';
+      avisoCard.setAttribute('aria-label','Avisos: pendiente de configurar');
+      avisoCard.style.cssText='background:linear-gradient(120deg,#2b6fae,#3c80c2 55%,#5b9bd5);color:#fff;border-radius:14px;padding:12px;aspect-ratio:1 / 1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:12px;white-space:normal;cursor:default;transform:none';
+      avisoCard.innerHTML='<i class="ti ti-bell" style="font-size:28px;opacity:.95" aria-hidden="true"></i><span style="font-size:15px;font-weight:800;line-height:1.25">Avisos</span>';
+      block.appendChild(avisoCard);
+      // Los cuatro botones existentes permanecen idénticos, por debajo de la cuadrícula.
+      block.insertAdjacentHTML('afterend', `
         <div style="margin-top:.9rem;padding-top:.9rem;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap">
           <button id="btn-avisos-push" onclick="toggleAvisosPush()" title="Recibir en el dispositivo el aviso cuando un peón/regante ejecute un trabajo de tu turno" style="padding:11px 14px;font-size:12px;font-weight:700;background:#f2f4f0;color:var(--muted);border:1px solid var(--border);border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:6px">&#128276; Activar avisos</button>
           <button onclick="mostrarAvisosTecnico()" title="Ver avisos: respuestas de Vigueras a propuestas y trabajos/riegos ejecutados para evaluar" style="padding:11px 18px;font-size:13px;font-weight:800;background:#a35d00;color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:8px">
