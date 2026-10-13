@@ -667,6 +667,8 @@ function showLoginAlert(msg,type){
   el.style.border='1px solid';el.style.display='block';
 }
 function doLogout(){
+  // No dejar conexiones con el token de la sesión anterior.
+  cerrarRiegoSync();
   currentUser=null;currentUserRole=null;
   borrarFirebaseAuth();
   document.getElementById('app').style.display='none';
@@ -10778,6 +10780,10 @@ let riegoSyncInv = null;
 let riegoSyncUltimoEventoPorInv = {};
 let riegoSyncPendiente = null;
 let riegoSyncPendienteTimer = null;
+let riegoSyncReconexionTimer = null;
+let riegoSyncRenovacionTimer = null;
+let riegoSyncGeneracion = 0;
+let riegoSyncFallos = 0;
 
 async function leerRiegoSyncActual(invId){
   try{
@@ -10787,16 +10793,18 @@ async function leerRiegoSyncActual(invId){
   }catch(e){ return null; }
 }
 function cerrarRiegoSync(){
+  // Cancela también intentos asíncronos de abrir conexiones antiguas.
+  riegoSyncGeneracion++;
   if(riegoSyncSource){
     try{ riegoSyncSource.close(); }catch(e){}
   }
   riegoSyncSource = null;
   riegoSyncInv = null;
   riegoSyncPendiente = null;
-  if(riegoSyncPendienteTimer){
-    clearTimeout(riegoSyncPendienteTimer);
-    riegoSyncPendienteTimer = null;
-  }
+  riegoSyncFallos = 0;
+  if(riegoSyncPendienteTimer){ clearTimeout(riegoSyncPendienteTimer); riegoSyncPendienteTimer = null; }
+  if(riegoSyncReconexionTimer){ clearTimeout(riegoSyncReconexionTimer); riegoSyncReconexionTimer = null; }
+  if(riegoSyncRenovacionTimer){ clearTimeout(riegoSyncRenovacionTimer); riegoSyncRenovacionTimer = null; }
 }
 function cerrarRiegoModule(){
   cerrarRiegoSync();
@@ -10891,26 +10899,86 @@ async function procesarRiegoSyncEvento(evento){
     showToast(`🔄 Riego actualizado por ${quien}`);
   }
 }
-function iniciarRiegoSyncInv(invId, baselineId){
-  cerrarRiegoSync();
-  invId = String(invId);
-  riegoSyncInv = invId;
-  riegoSyncUltimoEventoPorInv[invId] = baselineId || null;
-  if(typeof EventSource==='undefined') return;
+// Realtime Database exige auth=<ID token> incluso para eventos SSE.
+// EventSource no permite añadir cabeceras personalizadas.
+// La URL autenticada solo existe en memoria; nunca se registra en consola.
+function riegoSyncSigueActivo(invId, generacion){
+  return riegoSyncGeneracion===generacion && riegoSyncInv===invId && !!currentUser;
+}
+function programarReconexionRiegoSync(invId,generacion){
+  if(!riegoSyncSigueActivo(invId,generacion) || riegoSyncReconexionTimer) return;
+  riegoSyncFallos=Math.min(riegoSyncFallos+1,7);
+  const espera=Math.min(60000,1500*Math.pow(2,Math.min(riegoSyncFallos,6)));
+  riegoSyncReconexionTimer=setTimeout(()=>{
+    riegoSyncReconexionTimer=null;
+    if(riegoSyncSigueActivo(invId,generacion)) conectarRiegoSyncInv(invId,generacion);
+  },espera);
+}
+async function conectarRiegoSyncInv(invId,generacion){
+  if(!riegoSyncSigueActivo(invId,generacion)) return;
   try{
-    const es = new EventSource(riegoSyncUrl(invId));
-    riegoSyncSource = es;
-    const recibir = ev=>{
+    const autenticado=await ensureFirebaseIdTokenFresh();
+    if(!riegoSyncSigueActivo(invId,generacion)) return;
+    if(!autenticado || !firebaseIdToken){
+      programarReconexionRiegoSync(invId,generacion);
+      return;
+    }
+    const url=new URL(riegoSyncUrl(invId));
+    url.searchParams.set('auth',firebaseIdToken);
+    const expiraEn=firebaseTokenExpiresAt;
+    const es=new EventSource(url.toString());
+    if(!riegoSyncSigueActivo(invId,generacion)){ es.close(); return; }
+    riegoSyncSource=es;
+    const vigente=()=>riegoSyncSigueActivo(invId,generacion) && riegoSyncSource===es;
+    const cerrarConexion=()=>{
+      try{ es.close(); }catch(e){}
+      if(riegoSyncSource===es) riegoSyncSource=null;
+      if(riegoSyncRenovacionTimer){
+        clearTimeout(riegoSyncRenovacionTimer);
+        riegoSyncRenovacionTimer=null;
+      }
+    };
+    es.addEventListener('open',()=>{
+      if(!vigente()) return;
+      riegoSyncFallos=0;
+      if(riegoSyncRenovacionTimer) clearTimeout(riegoSyncRenovacionTimer);
+      const espera=Math.max(1000,Math.min(2147483647,expiraEn-Date.now()-60000));
+      riegoSyncRenovacionTimer=setTimeout(()=>{
+        riegoSyncRenovacionTimer=null;
+        if(!vigente()) return;
+        cerrarConexion();
+        conectarRiegoSyncInv(invId,generacion);
+      },espera);
+    });
+    const recuperar=()=>{
+      if(!vigente()) return;
+      cerrarConexion();
+      programarReconexionRiegoSync(invId,generacion);
+    };
+    es.addEventListener('error',recuperar);
+    es.addEventListener('cancel',recuperar);
+    es.addEventListener('auth_revoked',recuperar);
+    const recibir=ev=>{
+      if(!vigente()) return;
       try{
-        const payload = JSON.parse(ev.data||'{}');
-        const evento = payload && payload.data;
+        const payload=JSON.parse(ev.data||'{}');
+        const evento=payload && payload.data;
         if(evento && typeof evento==='object') procesarRiegoSyncEvento(evento);
       }catch(e){}
     };
-    es.addEventListener('put', recibir);
-    es.addEventListener('patch', recibir);
-    // EventSource reconecta solo si hay un corte; no hace falta polling.
-  }catch(e){}
+    es.addEventListener('put',recibir);
+    es.addEventListener('patch',recibir);
+  }catch(e){
+    if(riegoSyncSigueActivo(invId,generacion)) programarReconexionRiegoSync(invId,generacion);
+  }
+}
+function iniciarRiegoSyncInv(invId,baselineId){
+  cerrarRiegoSync();
+  invId=String(invId);
+  riegoSyncInv=invId;
+  riegoSyncUltimoEventoPorInv[invId]=baselineId || null;
+  if(typeof EventSource==='undefined') return;
+  conectarRiegoSyncInv(invId,riegoSyncGeneracion);
 }
 function resumenPuntosRiego(invId, puntos){
   const porDia = {};
