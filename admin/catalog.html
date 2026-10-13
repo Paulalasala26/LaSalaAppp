@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="theme-color" content="#1558a0">
+  <title>ViguerAPP · Salas e Invernaderos · TEST</title>
+  <link rel="icon" href="../icon-192.png">
+  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./catalog.css">
+  <script src="./catalog.js" defer></script>
+</head>
+<body>
+  <div id="access-gate" class="access-gate" role="status" aria-live="polite">
+    <div class="access-panel">
+      <div class="brand-mark">VA</div>
+      <h1 id="gate-title">Comprobando acceso</h1>
+      <p id="gate-description">Verificando tu sesión de administrador…</p>
+      <a id="gate-link" href="../" class="primary-link" hidden>Volver a la aplicación</a>
+    </div>
+  </div>
+  <div id="workspace" class="shell" hidden>
+    <aside class="sidebar" aria-label="Navegación del Backoffice">
+      <div class="brand">
+        <div class="brand-mark">VA</div>
+        <div><strong>ViguerAPP</strong><span>Backoffice TEST</span></div>
+      </div>
+      <div class="sidebar-label">GENERAL</div>
+      <nav class="sidebar-nav">
+        <a href="./" class="nav-item"><span class="nav-symbol">◉</span> Usuarios</a>
+        <div class="sidebar-label menu-label">RIEGO</div>
+        <a href="./catalog.html#salas" class="nav-item" data-catalog-nav="rooms"><span class="nav-symbol">◧</span> Salas</a>
+        <a href="./catalog.html#invernaderos" class="nav-item" data-catalog-nav="greenhouses"><span class="nav-symbol">▦</span> Invernaderos</a>
+        <div class="sidebar-label menu-label">MÓDULOS</div>
+        <span class="nav-item muted"><span class="nav-symbol">◫</span> Control de calidad</span>
+        <span class="nav-item muted"><span class="nav-symbol">▤</span> Otros módulos</span>
+      </nav>
+      <div class="sidebar-footer"><a href="../">← Volver a ViguerAPP</a><span>Entorno TEST · v1</span></div>
+    </aside>
+    <div class="main-area">
+      <header class="topbar">
+        <div class="breadcrumbs">Backoffice <span>/</span> Riego <span>/</span> <span id="breadcrumb-name">Salas</span></div>
+        <div class="topbar-right"><span class="test-flag">TEST</span><span id="session-user" class="session-user">Administrador</span></div>
+      </header>
+      <main class="content catalog-content">
+        <div class="catalog-tabs" role="navigation" aria-label="Catálogos de Riego">
+          <a href="#salas" class="catalog-tab" data-catalog-tab="rooms">Salas</a>
+          <a href="#invernaderos" class="catalog-tab" data-catalog-tab="greenhouses">Invernaderos</a>
+        </div>
+        <div class="page-head">
+          <div><p class="eyebrow">CONFIGURACIÓN DE RIEGO</p><h1 id="catalog-title">Salas</h1>
+            <p class="description">Crear, editar y desactivar. No se permite eliminar registros.</p>
+          </div>
+          <button class="button primary" type="button" id="new-item">+ Nueva sala</button>
+        </div>
+        <div class="catalog-notice" role="note">
+          <strong>Catálogo de configuración TEST.</strong>
+          Los códigos son permanentes y los registros desactivados se conservan para el histórico.
+          Esta fase guarda el catálogo, pero aún no cambia las pantallas operativas de Riego ni Control.
+        </div>
+        <div class="operation-feedback" id="catalog-feedback" role="status" aria-live="polite" hidden></div>
+        <section class="stats catalog-stats" aria-label="Resumen del catálogo">
+          <div class="stat"><span>Total</span><strong id="total-records">—</strong></div>
+          <div class="stat"><span>Activos</span><strong id="active-records">—</strong></div>
+          <div class="stat"><span>Desactivados</span><strong id="inactive-records">—</strong></div>
+        </section>
+        <section class="table-card">
+          <div class="table-toolbar">
+            <div class="table-title"><h2 id="list-title">Listado de salas</h2><p>Incluye registros activos e inactivos</p></div>
+            <div class="filters catalog-filters">
+              <label class="sr-only" for="search-item">Buscar</label>
+              <input type="search" id="search-item" placeholder="Buscar por código o nombre">
+              <label class="sr-only" for="filter-status">Estado</label>
+              <select id="filter-status">
+                <option value="all">Todos los estados</option>
+                <option value="active">Activos</option>
+                <option value="inactive">Desactivados</option>
+              </select>
+              <label class="sr-only" for="filter-room">Sala</label>
+              <select id="filter-room" hidden><option value="">Todas las salas</option></select>
+            </div>
+          </div>
+          <div class="table-scroll">
+            <table class="catalog-table">
+              <thead><tr><th>Código</th><th>Nombre</th><th id="relation-head">Invernaderos</th><th>Estado</th><th class="actions-col">Acciones</th></tr></thead>
+              <tbody id="catalog-body"><tr><td colspan="5" class="empty-cell">Cargando catálogo…</td></tr></tbody>
+            </table>
+          </div>
+          <div class="table-footer"><span id="result-count">—</span><span>Firebase TEST · Sin eliminaciones</span></div>
+        </section>
+      </main>
+    </div>
+  </div>
+  <div id="catalog-modal" class="modal-backdrop" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="catalog-modal-title">
+      <div class="modal-heading">
+        <div><p class="eyebrow">CONFIGURACIÓN</p><h2 id="catalog-modal-title">Nueva sala</h2></div>
+        <button type="button" class="close" id="catalog-modal-close" aria-label="Cerrar">×</button>
+      </div>
+      <form id="catalog-form">
+        <div class="field"><label for="form-code">Código</label><input id="form-code" maxlength="12" autocomplete="off" required>
+          <small id="code-note">El código no se podrá cambiar después de crear el registro.</small></div>
+        <div class="field"><label for="form-label">Nombre</label><input id="form-label" maxlength="60" autocomplete="off" required></div>
+        <div class="field" id="room-field" hidden><label for="form-room">Sala</label><select id="form-room"></select>
+          <small>La asignación de sala no se modifica después del alta, para conservar las referencias históricas.</small></div>
+        <div class="catalog-modal-status" id="status-line" hidden></div>
+        <p class="modal-feedback" id="catalog-modal-feedback" role="status" aria-live="polite"></p>
+        <div class="modal-info">No existe la opción Eliminar. Para retirar una sala o invernadero se utiliza Desactivar, conservando su código y datos.</div>
+        <div class="modal-footer catalog-modal-footer">
+          <button type="button" class="button catalog-state-button" id="toggle-item" hidden>Desactivar</button>
+          <button type="button" class="button ghost" id="catalog-modal-cancel">Cancelar</button>
+          <button type="submit" class="button primary" id="save-item">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</body>
+</html>
