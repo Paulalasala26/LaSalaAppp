@@ -127,6 +127,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .control-ui-tab i{font-size:15px}
 .control-ui-tab:hover{background:#f4f9ff;border-color:#7fa4cb}
 .control-ui-tab.is-active{background:#1558a0;color:#fff;border-color:#1558a0}
+.control-ui-tab:disabled,.control-ui-tab:disabled:hover{background:#e0e4e8;color:#858d96;border-color:#cfd5db;cursor:not-allowed;opacity:1}
 .control-ui-content{flex:1;min-height:0;overflow-y:auto;min-width:0;padding:1.15rem 1.5rem}
 @media(max-width:640px){
  .control-ui-section-label{display:none}
@@ -4268,6 +4269,8 @@ const CONTROL_SECCIONES = [
   // 2026-08-01, datos actualizados cada jueves.
   {key:'conteo_tuta', label:'Conteo Tuta', icon:'ti-bug', color:'linear-gradient(135deg,#ad1457,#ec407a)', conCheck:false, tabla:true}
 ];
+// Las secciones rotuladas Próximamente no pueden abrirse desde Control.
+function controlSeccionEsProximamente(s){ return !!s && !s.conCheck && !s.tabla; }
 // Invernaderos/casetas de la trampa de Tuta — 19 y 20 tienen dos casetas
 // cada uno (verde y blanca), el resto una sola fila.
 const CONTEO_TUTA_FILAS = [
@@ -5737,9 +5740,11 @@ function renderControlContent(overlay){
   controlUltimaSeccionRenderizada=controlSeccion;
   const navBtn=s=>{
     const activo=controlSeccion===s.key;
+    const pendiente=controlSeccionEsProximamente(s);
     return `<button type="button" class="control-ui-tab${activo?' is-active':''}"
-      onclick="seleccionarSeccionControl('${s.key}')" ${activo?'aria-current="page"':''}
-      title="${s.label}">
+      ${pendiente ? 'disabled aria-disabled="true"' : `onclick="seleccionarSeccionControl('${s.key}')"`}
+      ${activo?'aria-current="page"':''}
+      title="${pendiente?'Próximamente':s.label}">
       <i class="ti ${s.icon}" aria-hidden="true"></i><span>${s.label}</span>
     </button>`;
   };
@@ -5781,8 +5786,10 @@ function renderControlResumenHTML(){
       ${CONTROL_SECCIONES.map(s=>{
         const totalV2 = s.conCheck ? controlV2TotalTipo(s.key) : null;
         const n = s.conCheck ? (totalV2==null ? controlChecksData.filter(c=>c.tipo===s.key).length : totalV2) : null;
+        const pendiente=controlSeccionEsProximamente(s);
         return `
-        <div onclick="seleccionarSeccionControl('${s.key}')" style="cursor:pointer;background:linear-gradient(120deg,#2b6fae,#3c80c2 55%,#5b9bd5);color:#fff;border-radius:14px;padding:1.25rem 1.4rem;box-shadow:0 6px 18px rgba(0,0,0,.12)">
+        <div ${pendiente?'aria-disabled="true" title="Próximamente"':`onclick="seleccionarSeccionControl('${s.key}')"`}
+          style="cursor:${pendiente?'not-allowed':'pointer'};background:${pendiente?'#d8dde3':'linear-gradient(120deg,#2b6fae,#3c80c2 55%,#5b9bd5)'};color:${pendiente?'#68717c':'#fff'};border:1px solid ${pendiente?'#c7cdd5':'transparent'};border-radius:14px;padding:1.25rem 1.4rem;box-shadow:${pendiente?'none':'0 6px 18px rgba(0,0,0,.12)'}">
           <i class="ti ${s.icon}" style="font-size:22px;opacity:.9"></i>
           <div style="font-size:13px;font-weight:700;margin-top:10px;opacity:.9">${s.label}</div>
           ${n!=null ? `<div style="font-size:28px;font-weight:800;margin-top:4px">${n}</div><div style="font-size:11px;opacity:.85;margin-top:2px">${n===1?'línea registrada':'líneas registradas'}</div>` : (s.tabla ? `<div style="font-size:11px;opacity:.85;margin-top:10px">Tabla semanal</div>` : `<div style="font-size:11px;opacity:.85;margin-top:10px;font-style:italic">Próximamente</div>`)}
