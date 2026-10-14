@@ -810,6 +810,20 @@ function aplicarTarjetasCuadradasHome(block){
     }
   });
 }
+function crearTarjetaAvisosHome(block, perfil){
+  if(!block)return;
+  const card=document.createElement('div');
+  card.id='shortcut-avisos-'+perfil;
+  card.className='home-shortcut-card';
+  card.setAttribute('aria-label','Abrir Avisos');
+  card.setAttribute('role','button');
+  card.setAttribute('tabindex','0');
+  card.onclick=mostrarModuloAvisos;
+  card.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();mostrarModuloAvisos();}};
+  card.style.cssText='background:linear-gradient(120deg,#2b6fae,#3c80c2 55%,#5b9bd5);color:#fff;border-radius:14px;padding:12px;aspect-ratio:1 / 1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:12px;white-space:normal;cursor:pointer;width:100%;max-width:none;min-width:0;height:auto;box-sizing:border-box;justify-self:stretch';
+  card.innerHTML='<i class="ti ti-bell" style="font-size:28px;opacity:.95" aria-hidden="true"></i><span style="font-size:15px;font-weight:800;line-height:1.25">Avisos <span id="avisos-'+perfil+'-badge"></span></span>';
+  block.appendChild(card);
+}
 function applyRoleHomeUI(){
   const homeInner = document.getElementById('page-home-inner');
   if(!homeInner) return;
@@ -886,18 +900,7 @@ function applyRoleHomeUI(){
     // ejecute un trabajo/riego de su turno (notificarUsuario/tecnicoDeGuardia).
     const block = document.getElementById('quick-access-block');
     if(block){
-      // Acceso único a Avisos desde Inicio; el resto de acciones vive dentro del módulo.
-      const avisoCard=document.createElement('div');
-      avisoCard.id='shortcut-avisos-tecnico';
-      avisoCard.className='home-shortcut-card';
-      avisoCard.setAttribute('aria-label','Abrir Avisos');
-      avisoCard.setAttribute('role','button');
-      avisoCard.setAttribute('tabindex','0');
-      avisoCard.onclick=mostrarModuloAvisos;
-      avisoCard.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();mostrarModuloAvisos();}};
-      avisoCard.style.cssText='background:linear-gradient(120deg,#2b6fae,#3c80c2 55%,#5b9bd5);color:#fff;border-radius:14px;padding:12px;aspect-ratio:1 / 1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:12px;white-space:normal;cursor:pointer;width:100%;max-width:none;min-width:0;height:auto;box-sizing:border-box;justify-self:stretch';
-      avisoCard.innerHTML='<i class="ti ti-bell" style="font-size:28px;opacity:.95" aria-hidden="true"></i><span style="font-size:15px;font-weight:800;line-height:1.25">Avisos <span id="avisos-tecnico-badge"></span></span>';
-      block.appendChild(avisoCard);
+      crearTarjetaAvisosHome(block,'tecnico');
     }
     aplicarTarjetasCuadradasHome(block);
     actualizarBadgeAvisosTecnico();
@@ -918,30 +921,11 @@ function applyRoleHomeUI(){
         </div>`;
       aplicarTarjetasCuadradasHome(document.getElementById('cargador-home-accesos'));
     }
-  } else if(currentUser==='VIGUERAS'){
-    // Para que Vigueras pueda recibir el aviso de "Hojas marcadas" (y de las
-    // propuestas inminentes de riego) como notificación real del navegador
-    // (no solo el toast), necesita poder activar el permiso igual que
-    // PEÓN/REGANTE ya podían.
-    const block = document.getElementById('quick-access-block');
-    if(block){
-      block.insertAdjacentHTML('afterend', `
-        <div style="margin-top:.9rem;padding-top:.9rem;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap">
-          <button id="btn-avisos-push" onclick="toggleAvisosPush()" title="Recibir una notificación en el dispositivo cuando Fran/Dennis marquen las hojas o envíen una propuesta, aunque la app esté cerrada" style="padding:7px 12px;font-size:11px;font-weight:700;background:#f2f4f0;color:var(--muted);border:1px solid var(--border);border-radius:8px;cursor:pointer;white-space:nowrap">&#128276; Activar avisos</button>
-          <button onclick="mostrarNotificacionesVigueras()" title="Ver todas las notificaciones recibidas" style="padding:9px 16px;font-size:12px;font-weight:800;background:#a35d00;color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:6px">
-            <i class="ti ti-bell" style="font-size:15px"></i> Notificaciones <span id="notificaciones-vigueras-badge"></span>
-          </button>
-          <button onclick="showPropuestasRiegoModule()" title="Revisar las propuestas inminentes de riego enviadas por los técnicos" style="padding:9px 16px;font-size:12px;font-weight:800;background:#1558a0;color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:6px">
-            <i class="ti ti-mail" style="font-size:15px"></i> Propuestas de riego <span id="propuestas-riego-badge"></span>
-          </button>
-          <button onclick="avisarHojasCorregidas()" title="Avisar a Fran y Dennis de que ya has corregido las hojas" style="padding:9px 16px;font-size:12px;font-weight:800;background:#6a1b9a;color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:6px">
-            <i class="ti ti-check" style="font-size:15px"></i> Hojas corregidas
-          </button>
-        </div>`);
-    }
-    actualizarBadgePropuestasRiego();
-    actualizarBadgeNotificacionesVigueras();
-    actualizarBotonAvisosPush();
+  } else if(currentUserRole==='ADMIN'){
+    // Acceso único a Avisos para cualquier ADMIN; Vigueras mantiene sus acciones de riego dentro.
+    const block=document.getElementById('quick-access-block');
+    crearTarjetaAvisosHome(block,'admin');
+    actualizarBadgeNotificacionesAdmin();
   }
   // ADMIN, VIGUERAS y perfiles estándar: mismas tarjetas cuadradas, accesos sin alterar.
   if(currentUserRole!=='REGANTE' && currentUserRole!=='TECNICO' && currentUserRole!=='CARGADOR'){
@@ -1329,10 +1313,11 @@ async function avisarAvisosPendientes(usuario){
 // (hojas marcadas, propuestas inminentes enviadas por los técnicos) — vista
 // simple de solo lectura, sin el "evaluar bien/mal" del técnico (aquí no
 // aplica, son avisos informativos, no trabajos que juzgar).
-function mostrarNotificacionesVigueras(){
+function mostrarNotificacionesAdmin(){
+  if(currentUserRole!=='ADMIN'||!currentUser)return;
   window.storage.get(AVISOS_USUARIO_KEY).then(async r=>{
     const cloud=r?JSON.parse(r.value):null;
-    const listaCruda=(cloud&&Array.isArray(cloud['VIGUERAS']))?cloud['VIGUERAS']:[];
+    const listaCruda=(cloud&&Array.isArray(cloud[currentUser]))?cloud[currentUser]:[];
     const lista=listaCruda.slice().reverse();
     const escapar=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const overlay=getOrCreateOverlay('notificaciones-vigueras-overlay');
@@ -1356,21 +1341,22 @@ function mostrarNotificacionesVigueras(){
       const claves=new Set(listaCruda.map(a=>a.id||JSON.stringify(a)));
       await actualizarStorageJsonConEtag(AVISOS_USUARIO_KEY,{},fresh=>{
         if(!fresh||typeof fresh!=='object'||Array.isArray(fresh)) fresh={};
-        const l=Array.isArray(fresh['VIGUERAS'])?fresh['VIGUERAS']:[];
-        fresh['VIGUERAS']=l.filter(a=>!claves.has(a.id||JSON.stringify(a)));
+        const l=Array.isArray(fresh[currentUser])?fresh[currentUser]:[];
+        fresh[currentUser]=l.filter(a=>!claves.has(a.id||JSON.stringify(a)));
         return fresh;
       });
     }
-    actualizarBadgeNotificacionesVigueras();
+    actualizarBadgeNotificacionesAdmin();
   });
 }
-async function actualizarBadgeNotificacionesVigueras(){
+async function actualizarBadgeNotificacionesAdmin(){
+  if(currentUserRole!=='ADMIN'||!currentUser)return;
   try{
     const r = await window.storage.get(AVISOS_USUARIO_KEY);
     const cloud = r ? JSON.parse(r.value) : {};
-    const n = (cloud['VIGUERAS']||[]).length;
-    const badge = document.getElementById('notificaciones-vigueras-badge');
-    if(badge) badge.innerHTML = n>0 ? `<span style="background:#ffeb3b;color:#7a5000;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:2px;font-weight:800">${n}</span>` : '';
+    const n = (cloud[currentUser]||[]).length;
+    const badges=['notificaciones-admin-badge','avisos-admin-badge'].map(id=>document.getElementById(id));
+    badges.forEach(badge=>{if(badge) badge.innerHTML = n>0 ? `<span style="background:#ffeb3b;color:#7a5000;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:2px;font-weight:800">${n}</span>` : '';});
   }catch(e){}
 }
 // Accesos de Avisos del técnico: se reutilizan las cuatro funciones existentes.
@@ -1389,9 +1375,34 @@ async function alternarPushDesdeModuloAvisos(){
   await actualizarEstadoPushModuloAvisos();
 }
 function mostrarModuloAvisos(){
-  if(currentUserRole!=='TECNICO') return;
+  if(currentUserRole!=='TECNICO'&&currentUserRole!=='ADMIN')return;
+  const esAdmin=currentUserRole==='ADMIN';
+  const esVigueras=esAdmin&&currentUser==='VIGUERAS';
+  const accionesHTML=esAdmin ? (esVigueras ? `
+          <section class="avisos-modulo-seccion" aria-label="Gestión de riego">
+            <div class="avisos-modulo-titulo">Gestión de riego</div>
+            <button type="button" class="avisos-modulo-boton" onclick="showPropuestasRiegoModule()">
+              <i class="ti ti-mail" aria-hidden="true"></i>
+              <span>Propuestas de riego <span id="propuestas-riego-badge"></span></span>
+            </button>
+            <button type="button" class="avisos-modulo-boton" onclick="avisarHojasCorregidas()">
+              <i class="ti ti-check" aria-hidden="true"></i>
+              <span>Hojas corregidas</span>
+            </button>
+          </section>` : '') : `
+          <section class="avisos-modulo-seccion" aria-label="Hojas marcadas">
+            <div class="avisos-modulo-titulo">Comunicar hojas marcadas</div>
+            <button type="button" class="avisos-modulo-boton" onclick="marcarHojasMarcadas('Sala 1')">
+              <i class="ti ti-check" aria-hidden="true"></i>
+              <span>Hojas marcadas Sala 1</span>
+            </button>
+            <button type="button" class="avisos-modulo-boton" onclick="marcarHojasMarcadas('Sala 2')">
+              <i class="ti ti-check" aria-hidden="true"></i>
+              <span>Hojas marcadas Sala 2</span>
+            </button>
+          </section>`;
   const overlay=getOrCreateOverlay('avisos-modulo-overlay');
-  // Las ventanas actuales de consulta/evaluación (z-index 2000) deben quedar encima.
+  // Los diálogos de consulta y evaluación deben quedar por encima del módulo.
   overlay.style.zIndex='1900';
   overlay.style.padding='0';
   overlay.innerHTML=`
@@ -1411,27 +1422,21 @@ function mostrarModuloAvisos(){
               <i class="ti ti-bell-ringing" aria-hidden="true"></i>
               <span id="avisos-modulo-push-label">Activar avisos</span>
             </button>
-            <button type="button" class="avisos-modulo-boton" onclick="mostrarAvisosTecnico()">
+            <button type="button" class="avisos-modulo-boton" onclick="${esAdmin?'mostrarNotificacionesAdmin()':'mostrarAvisosTecnico()'}">
               <i class="ti ti-inbox" aria-hidden="true"></i>
-              <span>Consultar avisos</span>
+              <span>Consultar avisos ${esAdmin?'<span id="notificaciones-admin-badge"></span>':''}</span>
             </button>
           </section>
-          <section class="avisos-modulo-seccion" aria-label="Hojas marcadas">
-            <div class="avisos-modulo-titulo">Comunicar hojas marcadas</div>
-            <button type="button" class="avisos-modulo-boton" onclick="marcarHojasMarcadas('Sala 1')">
-              <i class="ti ti-check" aria-hidden="true"></i>
-              <span>Hojas marcadas Sala 1</span>
-            </button>
-            <button type="button" class="avisos-modulo-boton" onclick="marcarHojasMarcadas('Sala 2')">
-              <i class="ti ti-check" aria-hidden="true"></i>
-              <span>Hojas marcadas Sala 2</span>
-            </button>
-          </section>
+          ${accionesHTML}
         </div>
       </main>
     </div>`;
   overlay.style.display='flex';
   actualizarEstadoPushModuloAvisos();
+  if(esAdmin){
+    actualizarBadgeNotificacionesAdmin();
+    if(esVigueras)actualizarBadgePropuestasRiego();
+  }
 }
 // ── PANTALLA "AVISOS" DEL TÉCNICO ────────────────────────────────────────
 // A petición de Paula: junto a "Hojas marcadas" hay un botón "Avisos" (solo
