@@ -4,8 +4,10 @@
 (function(){
   const SESSION='lasala-firebase-auth-v1';
   const API_KEY='AIzaSyDdDdMg6M1jVIssvGYKsdRA-mRug31Yt_g';
-  const AREA={users:'Usuarios y permisos',infrastructure:'Salas / Invernaderos',riego_options:'Opciones de riego'};
-  const ACTION={create:'Crear',edit:'Editar',changeRole:'Cambiar rol',resetPassword:'Restablecer contraseña',deactivate:'Desactivar',activate:'Reactivar'};
+  const AREA={users:'Usuarios y permisos',infrastructure:'Salas / Invernaderos',riego_options:'Opciones de riego',
+    riego:'Riego',control:'Control de calidad',operations:'Otras operaciones'};
+  const ACTION={create:'Crear',edit:'Editar',changeRole:'Cambiar rol',resetPassword:'Restablecer contraseña',
+    deactivate:'Desactivar',activate:'Reactivar',operation:'Operación'};
   const PAGE=100,el=id=>document.getElementById(id);
   let events=[],filtered=[],shown=0,loading=false;
   function node(tag,text,cls){
@@ -39,6 +41,16 @@
     const d=new Date(value);
     return Number.isNaN(d.getTime())?'—':d.toLocaleString('es-ES',{dateStyle:'short',timeStyle:'medium'});
   }
+  function actorValue(row){return (row.actor||'—')+(row.role?' ('+row.role+')':'');}
+  function localDay(at){
+    const d=new Date(at);
+    if(Number.isNaN(d.getTime()))return '';
+    const parts=new Intl.DateTimeFormat('en-GB',{
+      timeZone:'Europe/Madrid',year:'numeric',month:'2-digit',day:'2-digit'
+    }).formatToParts(d);
+    const part=k=>parts.find(p=>p.type===k)?.value||'';
+    return part('year')+'-'+part('month')+'-'+part('day');
+  }
   function blank(message){
     const tr=node('tr'),td=node('td',message,'empty-cell');td.colSpan=6;tr.append(td);
     el('audit-body').replaceChildren(tr);
@@ -51,7 +63,7 @@
     for(const row of group){
       const tr=node('tr');
       tr.append(node('td',dateValue(row.at),'audit-time'));
-      tr.append(node('td',row.actor||'—'));
+      tr.append(node('td',actorValue(row)));
       tr.append(node('td',AREA[row.area]||row.area));
       tr.append(node('td',ACTION[row.action]||row.action,'audit-action'));
       tr.append(node('td',row.target||'—'));
@@ -69,10 +81,10 @@
     filtered=events.filter(row=>{
       if(area&&row.area!==area)return false;
       if(action&&row.action!==action)return false;
-      const day=String(row.at||'').slice(0,10);
+      const day=localDay(row.at);
       if(from&&day<from)return false;
       if(to&&day>to)return false;
-      if(search&&![row.actor,row.target,row.detail,AREA[row.area],ACTION[row.action]]
+      if(search&&![row.actor,row.role,row.target,row.detail,AREA[row.area],ACTION[row.action]]
         .map(s=>String(s||'')).join(' ').toLocaleLowerCase('es').includes(search))return false;
       return true;
     });
@@ -80,7 +92,7 @@
     el('audit-loaded').textContent=String(events.length);
     el('audit-count').textContent=String(filtered.length);
     el('audit-actors').textContent=String(new Set(filtered.map(x=>x.actor).filter(Boolean)).size);
-    el('audit-description').textContent='Hasta 300 eventos recientes. Conservación: un año (limpieza diaria)';
+    el('audit-description').textContent='Histórico unificado TEST · Operativa: últimas 1.000 entradas disponibles · Periodo visible: último año';
     el('audit-export').disabled=!filtered.length;
     if(!filtered.length){blank(events.length?'No hay movimientos con estos filtros.':'Todavía no hay movimientos registrados desde la activación.');return;}
     nextPage();
@@ -116,8 +128,8 @@
       return '"'+text.replace(/"/g,'""')+'"';
     };
     const records=[
-      ['Fecha y hora','Administrador','Módulo','Acción','Elemento','Detalle'],
-      ...filtered.map(row=>[dateValue(row.at),row.actor,AREA[row.area]||row.area,
+      ['Fecha y hora','Usuario','Módulo','Acción','Elemento','Detalle'],
+      ...filtered.map(row=>[dateValue(row.at),actorValue(row),AREA[row.area]||row.area,
         ACTION[row.action]||row.action,row.target,row.detail])
     ];
     const csv='\ufeff'+records.map(fields=>fields.map(safe).join(';')).join('\r\n');

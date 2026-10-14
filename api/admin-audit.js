@@ -10,6 +10,54 @@ const AREAS=new Set(['users','infrastructure','riego_options']);
 const ACTIONS=new Set(['create','edit','changeRole','resetPassword','deactivate','activate']);
 const MAX_EVENTS=300;
 const clean=(s,max)=>typeof s==='string'?s.slice(0,max):'';
+
+const LEGACY_HISTORY_KEY='lasala-historial-v1';
+const MAX_LEGACY_EVENTS=1000;
+function operationalDate(fecha,hora){
+  const f=/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(fecha||'');
+  const h=/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(hora||'');
+  if(!f||!h)return null;
+  const [day,month,year]=[+f[1],+f[2],+f[3]];
+  const [hour,minute,second]=[+h[1],+h[2],+(h[3]||0)];
+  const d=new Date(Date.UTC(year,month-1,day,hour,minute,second));
+  if(d.getUTCFullYear()!==year||d.getUTCMonth()+1!==month||
+     d.getUTCDate()!==day||d.getUTCHours()!==hour||
+     d.getUTCMinutes()!==minute||d.getUTCSeconds()!==second)return null;
+  // El registro antiguo guarda hora local peninsular, no UTC.
+  const zone=new Intl.DateTimeFormat('en-GB',{
+    timeZone:'Europe/Madrid',timeZoneName:'shortOffset'
+  }).formatToParts(d).find(x=>x.type==='timeZoneName')?.value||'';
+  const offset=/^GMT([+-])(\d{1,2})(?::(\d{2}))?$/.exec(zone);
+  if(!offset)throw new Error('Zona horaria operativa no reconocida');
+  const z=offset[1]+offset[2].padStart(2,'0')+':'+(offset[3]||'00');
+  const pad=x=>String(x).padStart(2,'0');
+  return year+'-'+pad(month)+'-'+pad(day)+'T'+pad(hour)+':'+pad(minute)+':'+pad(second)+z;
+}
+function operationalArea(action){
+  if(/riego|hojas marcadas|hojas corregidas/i.test(action))return 'riego';
+  if(/\bcheck\b|calidad|partida/i.test(action))return 'control';
+  return 'operations';
+}
+function normalizeLegacyEvents(raw,cutoff){
+  if(raw==null)return [];
+  const parsed=typeof raw==='string'?JSON.parse(raw):raw;
+  if(!Array.isArray(parsed))throw new Error('Formato histórico operativo inválido');
+  return parsed.slice(-MAX_LEGACY_EVENTS).map((item,i)=>{
+    if(!item||typeof item!=='object'||Array.isArray(item))return null;
+    const at=operationalDate(item.fecha,item.hora);
+    const detail=clean(item.accion,240);
+    if(!at||!detail||Date.parse(at)<cutoff)return null;
+    const inv=/\bINV\.?\s*([A-Z0-9-]+)/i.exec(detail);
+    const part=/\bpartida\s+([A-Z0-9-]+)/i.exec(detail);
+    return {
+      id:'operational-'+i,at,actor:clean(item.usuario,80),role:clean(item.rol,60),
+      area:operationalArea(detail),action:'operation',
+      target:inv?'INV '+inv[1]:part?'Partida '+part[1]:'',
+      detail
+    };
+  }).filter(Boolean);
+}
+
 async function writeAudit(token,{actor,area,action,target,detail}){
   if(!AREAS.has(area)||!ACTIONS.has(action)||!actor||!target)
     throw new Error('Auditoría: evento inválido');
@@ -53,22 +101,34 @@ module.exports=async function handler(req,res){
     if(roles[actor]!=='ADMIN'||!validHash(accounts[actor]))
       throw httpError(403,'FORBIDDEN');
     const q=new URLSearchParams({orderBy:'"$key"',limitToLast:String(MAX_EVENTS)});
-    const r=await fetch(DB+'/'+KEY+'.json?'+q,{
-      headers:{Authorization:'Bearer '+token},
-      signal:AbortSignal.timeout(10000),cache:'no-store'
-    });
-    if(!r.ok)throw new Error('Lectura de auditoría fallida: '+r.status);
-    const raw=await r.json();
+    const [r,legacyResponse]=await Promise.all([
+      fetch(DB+'/'+KEY+'.json?'+q,{
+        headers:{Authorization:'Bearer '+token},
+        signal:AbortSignal.timeout(10000),cache:'no-store'
+      }),
+      fetch(DB+'/'+LEGACY_HISTORY_KEY+'.json',{
+        headers:{Authorization:'Bearer '+token},
+        signal:AbortSignal.timeout(10000),cache:'no-store'
+      })
+    ]);
+    if(!r.ok||!legacyResponse.ok)
+      throw new Error('Lectura histórico fallida: '+r.status+'/'+legacyResponse.status);
+    const [raw,legacyRaw]=await Promise.all([r.json(),legacyResponse.json()]);
     if(raw!=null&&(!raw||typeof raw!=='object'||Array.isArray(raw)))
       throw new Error('Formato de auditoría inválido');
-    const events=Object.entries(raw||{}).filter(([id,x])=>
+    const administrativeEvents=Object.entries(raw||{}).filter(([id,x])=>
       id && x && typeof x==='object'&&!Array.isArray(x)&&
       typeof x.at==='string'&&AREAS.has(x.area)&&ACTIONS.has(x.action)
     ).map(([id,x])=>({
       id,at:clean(x.at,40),actor:clean(x.actor,80),area:x.area,
       action:x.action,target:clean(x.target,130),detail:clean(x.detail,160)
-    })).sort((a,b)=>b.at.localeCompare(a.at)||b.id.localeCompare(a.id));
-    return res.status(200).json({events,currentUser:actor,limit:MAX_EVENTS});
+    }));
+    const cutoff=cutoffOneYear();
+    const events=[
+      ...administrativeEvents.filter(e=>Date.parse(e.at)>=cutoff),
+      ...normalizeLegacyEvents(legacyRaw,cutoff)
+    ].sort((a,b)=>Date.parse(b.at)-Date.parse(a.at)||b.id.localeCompare(a.id));
+    return res.status(200).json({events,currentUser:actor,limit:MAX_EVENTS+MAX_LEGACY_EVENTS});
   }catch(err){
     const status=err.httpStatus||503;
     if(status===503)console.error('ADMIN_AUDIT_TEST_READ_FAILED',err.message);

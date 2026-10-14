@@ -58,17 +58,18 @@
       <main class="content catalog-content">
   <div class="page-head">
     <div>
-      <p class="eyebrow">AUDITORÍA ADMINISTRATIVA</p>
+      <p class="eyebrow">AUDITORÍA UNIFICADA</p>
       <h1>Histórico de cambios</h1>
-      <p class="description">Movimientos administrativos registrados por el servidor en Firebase TEST.</p>
+      <p class="description">Actividad de ViguerAPP y movimientos administrativos en un único histórico de Firebase TEST.</p>
     </div>
     <button class="button ghost" type="button" id="audit-refresh">Actualizar</button>
   </div>
   <div class="catalog-notice">
-    <strong>Registro desde la activación de esta función.</strong>
-    Se muestran hasta los 300 movimientos más recientes de Usuarios, Salas/Invernaderos y Opciones de riego.
-    Los registros se conservan durante un año; una limpieza automática diaria elimina los más antiguos.
-    Los cambios anteriores a la activación no pueden reconstruirse. Esta vista es de solo lectura.
+    <strong>Histórico único de TEST.</strong>
+    Incluye hasta 300 eventos administrativos y las últimas 1.000 entradas operativas disponibles (Riego, Control y otras operaciones).
+    Solo se muestran movimientos del último año. La limpieza diaria elimina los eventos administrativos caducados;
+    el registro operativo heredado tiene un límite de 1.000 entradas y puede no abarcar todo el año.
+    Consulta de solo lectura para ADMIN.
   </div>
   <div id="audit-feedback" class="operation-feedback" role="status" aria-live="polite" hidden></div>
   <div class="audit-filters">
@@ -77,14 +78,18 @@
       <option value="users">Usuarios y permisos</option>
       <option value="infrastructure">Salas e invernaderos</option>
       <option value="riego_options">Opciones de riego</option>
+      <option value="riego">Riego</option>
+      <option value="control">Control de calidad</option>
+      <option value="operations">Otras operaciones</option>
     </select></div>
     <div><label for="audit-action">Acción</label><select id="audit-action">
       <option value="">Todas las acciones</option>
       <option value="create">Crear</option><option value="edit">Editar</option>
       <option value="changeRole">Cambiar rol</option><option value="resetPassword">Restablecer contraseña</option>
       <option value="deactivate">Desactivar</option><option value="activate">Reactivar</option>
+      <option value="operation">Operación</option>
     </select></div>
-    <div><label for="audit-text">Buscar administrador o elemento</label><input type="search" id="audit-text" placeholder="Usuario, sala, invernadero..."></div>
+    <div><label for="audit-text">Buscar usuario o movimiento</label><input type="search" id="audit-text" placeholder="Usuario, sala, invernadero..."></div>
     <div><label for="audit-from">Desde</label><input id="audit-from" type="date"></div>
     <div><label for="audit-to">Hasta</label><input id="audit-to" type="date"></div>
     <button class="button ghost" id="audit-clear" type="button">Limpiar filtros</button>
@@ -92,7 +97,7 @@
   <section class="stats audit-stats">
     <div class="stat"><span>Movimientos cargados</span><strong id="audit-loaded">—</strong></div>
     <div class="stat"><span>Movimientos filtrados</span><strong id="audit-count">—</strong></div>
-    <div class="stat"><span>Administradores distintos</span><strong id="audit-actors">—</strong></div>
+    <div class="stat"><span>Usuarios distintos</span><strong id="audit-actors">—</strong></div>
   </section>
   <section class="table-card">
     <div class="table-toolbar">
@@ -100,7 +105,7 @@
       <button id="audit-export" class="button ghost" type="button" disabled>Exportar CSV</button>
     </div>
     <div class="table-scroll"><table class="audit-results">
-      <thead><tr><th>Fecha y hora</th><th>Administrador</th><th>Módulo</th><th>Acción</th><th>Elemento</th><th>Detalle</th></tr></thead>
+      <thead><tr><th>Fecha y hora</th><th>Usuario</th><th>Módulo</th><th>Acción</th><th>Elemento</th><th>Detalle</th></tr></thead>
       <tbody id="audit-body"><tr><td colspan="6" class="empty-cell">Sin datos todavía.</td></tr></tbody>
     </table></div>
     <div class="table-footer"><span id="audit-visible">—</span><button id="audit-more" class="button ghost" type="button" hidden>Mostrar más</button></div>
