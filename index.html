@@ -11023,6 +11023,7 @@ function cerrarRiegoModule(){
   riegoInvSel = null;
   const o = document.getElementById('riego-overlay');
   if(o) o.style.display='none';
+  if(riegoVieneDeBackoffice) volverAlListadoRiegoBackoffice();
 }
 function riegoEstaEditandoAhora(invId){
   const manual = document.getElementById('riego-manual-overlay');
@@ -15120,7 +15121,7 @@ function showRiegoManualForm(){
     <div style="background:#fff;border-radius:0;width:100vw;height:100vh;max-width:100vw;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.3)">
       <div style="background:var(--grad-blue);color:#fff;padding:1rem 1.5rem;display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
         <div style="font-size:15px;font-weight:800">&#128167; Añadir riego${inv?' — INV '+inv:''}</div>
-        <button onclick="document.getElementById('riego-manual-overlay').style.display='none'" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer">✕</button>
+        <button onclick="cerrarRiegoManualConRetorno()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer">✕</button>
       </div>
       <div style="flex:1;overflow-y:auto;padding:1.25rem;display:flex;flex-direction:column;gap:12px;max-width:560px;width:100%;margin:0 auto">
         <!-- Quién marcó este riego (solo al editar uno ya existente, por doble clic) -->
@@ -15305,7 +15306,7 @@ function showRiegoManualForm(){
           <i class="ti ti-trash" style="font-size:14px"></i> Borrar
         </button>
         <div style="display:flex;gap:8px">
-          <button onclick="document.getElementById('riego-manual-overlay').style.display='none'"
+          <button onclick="cerrarRiegoManualConRetorno()"
             style="padding:9px 18px;font-size:13px;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:8px;cursor:pointer">Cancelar</button>
           <button id="rm-guardar-btn" onclick="saveRiegoManual()"
             style="padding:9px 20px;font-size:13px;font-weight:700;background:#1558a0;color:#fff;border:none;border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:6px">
@@ -15749,14 +15750,17 @@ async function aplicarTextoRiegoManual(invId, dia, tramos, texto, callesExtraALi
     // (el guardado normal no sabe "borrar", así que si se hicieran en dos
     // pasos sueltos una fusión tardía podría resucitar lo que la limpieza
     // acababa de borrar).
-    if(sobrantes.length) await guardarRiegoConLimpieza(invId, dia, sobrantes);
-    else await saveRiegoData();
+    const saved = sobrantes.length
+      ? await guardarRiegoConLimpieza(invId, dia, sobrantes)
+      : await saveRiegoData();
+    if(!saved) return false;
   } else {
     // Borrar: el guardado normal fusiona con la nube y no sabe "borrar" (la
     // celda ya vacía en local heredaría de la nube el valor antiguo que
     // borramos) — aquí se lee la nube fresca y se borra directamente, igual
     // que en Retroceder.
-    await guardarBorradoRiego(invId, dia, [...callesAfectadas, ...sobrantes]);
+    const borrado=await guardarBorradoRiego(invId, dia, [...callesAfectadas, ...sobrantes]);
+    if(!borrado)return false;
   }
   renderRiegoGrid(invId);
   const tramosLabel = tramos.map(({desde,hasta})=>{const s=Math.min(desde,hasta),e=Math.max(desde,hasta); return s===e?`${s}`:`${s}-${e}`;}).join(', ');
@@ -15774,7 +15778,7 @@ async function guardarRiegoConLimpieza(invId, dia, callesALimpiar){
   return true;
 }
 async function guardarBorradoRiego(invId, dia, calles){
-  await guardarBorradoRiegoMultiInv([{invId, dia, calles}]);
+  return guardarBorradoRiegoMultiInv([{invId, dia, calles}]);
 }
 async function guardarBorradoRiegoMultiInv(entradas){
   try{
@@ -15834,12 +15838,21 @@ async function saveRiegoManual(){
       // cambiado el día, el riego se mueve: se aplica al día nuevo Y se
       // borra del día original en el MISMO guardado. Si el día no ha
       // cambiado, o es un alta nueva, se aplica como siempre.
+      let applied;
       if(contextoOriginal && contextoOriginal.invId===invId && contextoOriginal.dia!==dia){
-        await aplicarTextoRiegoManualMoviendoDia(invId, contextoOriginal.dia, contextoOriginal.calles, dia, tramos, textoCompleto);
+        applied=await aplicarTextoRiegoManualMoviendoDia(invId, contextoOriginal.dia, contextoOriginal.calles, dia, tramos, textoCompleto);
       } else {
         const callesOriginalesMismoDia = (contextoOriginal && contextoOriginal.invId===invId && contextoOriginal.dia===dia) ? contextoOriginal.calles : null;
-        await aplicarTextoRiegoManual(invId, dia, tramos, textoCompleto, callesOriginalesMismoDia);
+        applied=await aplicarTextoRiegoManual(invId, dia, tramos, textoCompleto, callesOriginalesMismoDia);
       }
+      if(!applied)return;
+    }
+    if(riegoVieneDeBackoffice){
+      // Un true con cola offline no significa que Firebase haya confirmado el guardado.
+      const pending=leerRiegoOffline().some(x=>invIds.includes(String(x.invId))) ||
+        Array.from(riegoDirtyCells.values()).some(x=>invIds.includes(String(x.invId)));
+      if(!pending && navigator.onLine!==false) volverAlListadoRiegoBackoffice();
+      else showToast('⚠ Guardado pendiente en Firebase TEST; permaneces en Riego hasta confirmar la sincronización.');
     }
   } finally {
     guardandoRiegoManual = false;
@@ -16199,6 +16212,19 @@ function editarRiegoManualDesdeCelda(invId, dia, calles){
   if(infoEl) infoEl.innerHTML = construirInfoMarcadorRiego(raw);
   precargarFormularioRiegoDesdeTexto(getRiego(invId, dia, calles[0]) || '');
 }
+// Contexto de navegación creado únicamente desde el Backoffice de TEST.
+let riegoVieneDeBackoffice=false;
+function volverAlListadoRiegoBackoffice(){
+  if(!riegoVieneDeBackoffice)return;
+  riegoVieneDeBackoffice=false;
+  cerrarRiegoSync();
+  location.assign('admin/registros.html');
+}
+function cerrarRiegoManualConRetorno(){
+  const overlay=document.getElementById('riego-manual-overlay');
+  if(overlay)overlay.style.display='none';
+  if(riegoVieneDeBackoffice)volverAlListadoRiegoBackoffice();
+}
 // Puente exclusivo ADMIN TEST: el Backoffice nunca escribe los registros directamente.
 async function abrirRegistroRiegoDesdeBackoffice(){
   const key='lasala-backoffice-riego-v1';
@@ -16221,7 +16247,9 @@ async function abrirRegistroRiegoDesdeBackoffice(){
     if(request.action==='edit'){
       if(!getRiego(inv,dia,calle)){showToast('El registro ya no existe.');return;}
       editarRiegoManualDesdeCelda(inv,dia,[Number(calle)]);
+      riegoVieneDeBackoffice=true;
     }else{
+      riegoVieneDeBackoffice=true;
       showImprimirResumenSelector('riego');
       const preset=document.getElementById('rr-dia-preset');
       if(preset)preset.value='manual';

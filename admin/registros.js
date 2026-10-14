@@ -5,6 +5,7 @@
   const KEY='AIzaSyDdDdMg6M1jVIssvGYKsdRA-mRug31Yt_g';
   const TEST='https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app';
   const HANDOFF='lasala-backoffice-riego-v1';
+  const BACKOFFICE_FILTERS='lasala-backoffice-riego-lista-v1';
   const ANCHOR=Date.UTC(2026,5,15);
   const el=id=>document.getElementById(id);
   let houses=[],items=[],result=[],selectedInv='',busy=false,shown=0;
@@ -78,6 +79,10 @@
   }
   function handoff(action,row){
     if(!selectedInv||!row||busy)return;
+    sessionStorage.setItem(BACKOFFICE_FILTERS,JSON.stringify({
+      room:el('reg-room').value,inv:el('reg-inv').value,
+      from:el('reg-start').value,to:el('reg-end').value,term:el('reg-search').value
+    }));
     sessionStorage.setItem(HANDOFF,JSON.stringify({
       action,invId:selectedInv,dia:row.dia,calle:row.calle,ts:Date.now()
     }));
@@ -180,6 +185,23 @@
       el('session-user').textContent=data.currentUser||'Administrador';
       data.rooms.forEach(room=>el('reg-room').append(new Option(room.label+(room.active?'':' · inactiva'),room.id)));
       roomChanged();el('access-gate').hidden=true;el('workspace').hidden=false;
+      // Restaurar los filtros y volver a consultar Firebase al regresar.
+      let previous=null;
+      try{
+        const value=sessionStorage.getItem(BACKOFFICE_FILTERS);
+        if(value)previous=JSON.parse(value);
+      }catch(e){}finally{sessionStorage.removeItem(BACKOFFICE_FILTERS);}
+      if(previous && typeof previous==='object'){
+        if([...el('reg-room').options].some(o=>o.value===previous.room)){
+          el('reg-room').value=previous.room;roomChanged();
+        }
+        if([...el('reg-inv').options].some(o=>o.value===previous.inv))
+          el('reg-inv').value=previous.inv;
+        if(typeof previous.from==='string')el('reg-start').value=previous.from;
+        if(typeof previous.to==='string')el('reg-end').value=previous.to;
+        if(typeof previous.term==='string')el('reg-search').value=previous.term;
+        if(el('reg-inv').value)await query();
+      }
     }catch(e){gate('Acceso restringido',e.message==='LOGIN_REQUIRED'?'Inicia sesión en ViguerAPP como ADMIN.':
       e.message==='NO_PERMISSION'?'Necesitas una cuenta ADMIN activa.':'No se pudo confirmar el acceso a Firebase TEST.');}
   }
