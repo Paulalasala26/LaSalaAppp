@@ -131,6 +131,11 @@
   }
   function openQuantitativePrototype(rec){
     if(busy||!rec||!['tunel','carga'].includes(rec.tipo))return;
+    // Conserva los filtros del listado para el regreso desde la ficha.
+    sessionStorage.setItem(RETURN_FILTERS,JSON.stringify({
+      type:el('qc-type').value,from:el('qc-from').value,to:el('qc-to').value,
+      state:el('qc-state').value,search:el('qc-search').value
+    }));
     // Enlace de SOLO lectura: selector efímero, sin exponer IDs en la URL.
     sessionStorage.setItem('lasala-qc-prototipo-ref-v1',JSON.stringify({
       tipo:rec.tipo,dia:rec.dia,id:rec.id,ts:Date.now()
