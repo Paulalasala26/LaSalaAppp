@@ -1,8 +1,12 @@
 'use strict';
-/* QC unificado: prototipo de evaluación cuantitativa, exclusivamente lectura TEST y validación local. */
+/* QC unificado: mediciones cuantitativas ADITIVAS, sin alterar checks históricos. */
 (function(){
   const AUTH_KEY='lasala-firebase-auth-v1';
   const TRANSFER_KEY='lasala-qc-prototipo-ref-v1';
+  const RETURN_KEY='lasala-backoffice-control-filtros-v1';
+  const LEGACY_HANDOFF='lasala-backoffice-control-v1';
+  const API_URL='/api/admin-qc-mediciones';
+  let currentRef=null,currentPartida='',version=0,saving=false;
   const API_KEY='AIzaSyDdDdMg6M1jVIssvGYKsdRA-mRug31Yt_g';
   const TEST_DB='https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app';
   const CATS=[
@@ -201,23 +205,98 @@
       }
       entries.push({categoria:cat.key,opciones:values});
     }
+    if(total!==null&&total>10000000)errors.push('El máximo técnico es 10.000.000 de bandejas.');
     return {ok:errors.length===0,errors,total,entries};
   }
-  function submit(e){
-    e.preventDefault();
-    const res=validate();
-    const msg=el('qcu-validation');msg.hidden=false;
-    if(res.ok){
-      msg.className='qcu-alert ok';
-      const total=res.entries.reduce((n,g)=>n+g.opciones.length,0);
-      msg.textContent='✓ Formulario válido: '+res.total+' bandejas inspeccionadas y '+total+
-        ' opciones cuantificadas. Validación LOCAL: no se ha guardado nada. No se calcula aún porcentaje QC porque faltan reglas y control de solapes.';
-    }else{
-      msg.className='qcu-alert error';
-      msg.textContent='No se puede finalizar: '+res.errors.slice(0,8).join(' · ')+
-        (res.errors.length>8?' · Y '+(res.errors.length-8)+' errores más.':'')+
-        ' Ningún dato se ha guardado.';
+  function inform(message,error){
+    const box=el('qcu-validation');box.hidden=false;
+    box.className='qcu-alert '+(error?'error':'ok');
+    box.textContent=message;
+  }
+  async function savedMeasurements(jwt,ref){
+    const query=new URLSearchParams({id:ref.id,tipo:ref.tipo,dia:String(ref.dia)});
+    const response=await fetch(API_URL+'?'+query.toString(),{
+      method:'GET',headers:{Authorization:'Bearer '+jwt},cache:'no-store'
+    });
+    if(!response.ok)throw new Error(response.status===409?'SOURCE_CHANGED':'MEASUREMENTS_READ_ERROR');
+    const result=await response.json();
+    if(!result.ok)throw new Error('MEASUREMENTS_READ_ERROR');
+    return result.record;
+  }
+  function loadSaved(saved){
+    version=saved?.version||0;
+    el('qcu-inspected').value=saved?String(saved.bandejasInspeccionadas):'';
+    for(const cat of CATS){
+      const group=el('qcu-groups').querySelector('[data-cat="'+cat.key+'"].qcu-group');
+      for(const [key] of cat.options){
+        const checkbox=Array.from(group.querySelectorAll('input[type="checkbox"]'))
+          .find(x=>x.dataset.option===key);
+        const qty=Array.from(group.querySelectorAll('input[type="number"]'))
+          .find(x=>x.dataset.option===key);
+        const n=saved?.mediciones?.[cat.key]?.[key];
+        checkbox.checked=Number.isInteger(n)&&n>0;
+        qty.disabled=!checkbox.checked;
+        qty.required=checkbox.checked;
+        qty.value=checkbox.checked?String(n):'';
+      }
     }
+    if(saved)inform('Mediciones recuperadas de TEST · versión '+saved.version+
+      ' · última actualización '+(saved.updatedAt||'—')+
+      '. Puedes modificarlas y guardar una nueva versión. No se calcula todavía el porcentaje QC.',false);
+    else inform('Aún no hay mediciones cuantitativas guardadas para este registro. Los checks históricos permanecen intactos.',false);
+  }
+  function goToLegacy(action){
+    if(saving||!currentRef||!['edit','checks'].includes(action))return;
+    sessionStorage.setItem(LEGACY_HANDOFF,JSON.stringify({
+      action,tipo:currentRef.tipo,dia:currentRef.dia,id:currentRef.id,ts:Date.now()
+    }));
+    location.assign('../');
+  }
+  async function submit(e){
+    e.preventDefault();
+    if(saving||!currentRef)return;
+    const result=validate();
+    if(!result.ok){
+      inform('No se puede guardar: '+result.errors.slice(0,8).join(' · ')+
+        (result.errors.length>8?' · Y '+(result.errors.length-8)+' errores más.':'')+
+        ' Ningún dato ha cambiado.',true);
+      return;
+    }
+    saving=true;el('qcu-save').disabled=true;
+    inform('Guardando las mediciones en TEST, sin modificar los checks existentes…',false);
+    try{
+      const mediciones={};
+      for(const cat of result.entries){
+        const choices={};
+        for(const opt of cat.opciones)choices[opt.opcion]=opt.bandejasAfectadas;
+        mediciones[cat.categoria]=choices;
+      }
+      const response=await fetch(API_URL,{
+        method:'POST',
+        headers:{Authorization:'Bearer '+await getToken(),'Content-Type':'application/json'},
+        body:JSON.stringify({
+          ...currentRef,partida:currentPartida,version,
+          bandejasInspeccionadas:result.total,mediciones
+        }),cache:'no-store'
+      });
+      const output=await response.json().catch(()=>({}));
+      if(!response.ok){
+        if(response.status===409)throw new Error('CONCURRENT_MODIFICATION');
+        if(response.status===400)throw new Error('INVALID_MEASUREMENTS');
+        throw new Error('SAVE_FAILED');
+      }
+      if(!output.ok||!Number.isInteger(output.version))throw new Error('SAVE_FAILED');
+      version=output.version;
+      inform('✓ Guardado confirmado en Firebase TEST · versión '+version+
+        ' · '+result.total+' bandejas inspeccionadas. Los checks históricos no se han modificado. La puntuación QC está pendiente de definir.',false);
+    }catch(err){
+      const msg=err.message==='CONCURRENT_MODIFICATION'
+        ?'Otro usuario ha cambiado este registro o la partida de origen. No se ha sobrescrito nada. Copia los datos necesarios y vuelve a abrir la ficha para revisar la versión actual.'
+        :err.message==='INVALID_MEASUREMENTS'
+        ?'El servidor ha rechazado las cantidades. Revisa las cifras; no se han guardado.'
+        :'No se ha podido confirmar el guardado. No asumas que los datos están guardados; vuelve a consultar antes de reintentar.';
+      inform(msg,true);
+    }finally{saving=false;el('qcu-save').disabled=false;}
   }
   async function start(){
     el('qcu-form').addEventListener('submit',submit);
@@ -228,6 +307,11 @@
       const username=await verifyAdmin(jwt);
       const rec=await getRecord(jwt,selected);
       renderIdentity(rec);renderLegacy(rec);renderGroups();
+      currentRef=selected;
+      currentPartida=rec.partida||'';
+      loadSaved(await savedMeasurements(jwt,selected));
+      el('qcu-edit-legacy').addEventListener('click',()=>goToLegacy('edit'));
+      el('qcu-evaluate-legacy').addEventListener('click',()=>goToLegacy('checks'));
       el('session-user').textContent=username;
       el('workspace').hidden=false;
       el('access-gate').hidden=true;
@@ -236,6 +320,7 @@
         e?.message==='LOGIN_REQUIRED'?'Inicia sesión en ViguerAPP para continuar.':
         e?.message==='NO_PERMISSION'?'Se necesita el rol ADMIN activo.':
         e?.message==='NOT_FOUND'?'El registro ha cambiado o no se encuentra en los segmentos QC de TEST.':
+        e?.message==='SOURCE_CHANGED'?'El registro original ha cambiado o no es compatible con la medición existente.':
         'No se ha podido cargar la ficha QC en TEST.';
       console.warn('QC prototipo no disponible:',e?.message);
       gate(msg);
