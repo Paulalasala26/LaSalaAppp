@@ -80,7 +80,7 @@
     el('audit-loaded').textContent=String(events.length);
     el('audit-count').textContent=String(filtered.length);
     el('audit-actors').textContent=String(new Set(filtered.map(x=>x.actor).filter(Boolean)).size);
-    el('audit-description').textContent='Hasta 300 eventos más recientes desde que se activó la auditoría';
+    el('audit-description').textContent='Hasta 300 eventos recientes. Conservación: un año (limpieza diaria)';
     el('audit-export').disabled=!filtered.length;
     if(!filtered.length){blank(events.length?'No hay movimientos con estos filtros.':'Todavía no hay movimientos registrados desde la activación.');return;}
     nextPage();

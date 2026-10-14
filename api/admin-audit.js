@@ -76,3 +76,60 @@ module.exports=async function handler(req,res){
   }
 };
 module.exports.safeRecordAdminAudit=safeRecordAdminAudit;
+module.exports.pruneExpiredAudit=pruneExpiredAudit;
+
+// Retención de un año natural (UTC). Sólo opera sobre las entradas de este nodo.
+// Se ejecuta mediante Cron TEST diariamente; en caso de error no toca otros datos.
+function cutoffOneYear(now=new Date()){
+  const cutoff=new Date(now.getTime());
+  cutoff.setUTCFullYear(cutoff.getUTCFullYear()-1);
+  return cutoff.getTime();
+}
+async function pruneExpiredAudit(accessToken,now=new Date()){
+  const rootUrl=DB+'/'+KEY+'.json';
+  const result=await fetch(rootUrl,{
+    headers:{Authorization:'Bearer '+accessToken},
+    cache:'no-store',signal:AbortSignal.timeout(12000)
+  });
+  if(!result.ok)throw new Error('No se pudo leer el histórico: HTTP '+result.status);
+  const raw=await result.json();
+  if(raw==null)return {deleted:0,candidates:0,remaining:0};
+  if(typeof raw!=='object'||Array.isArray(raw))
+    throw new Error('Estructura de auditoría inválida; no se elimina nada');
+  const cutoff=cutoffOneYear(now);
+  const validTime=at=>typeof at==='string'&&
+    /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,3})?Z$/.test(at)&&
+    Number.isFinite(Date.parse(at));
+  const old=Object.entries(raw).filter(([id,item])=>
+    /^[-A-Za-z0-9_]{5,120}$/.test(id)&&item&&typeof item==='object'&&
+    !Array.isArray(item)&&validTime(item.at)&&Date.parse(item.at)<cutoff
+  );
+  // Trabajo acotado: cualquier acumulación se drena gradualmente, sin
+  // saturar RTDB ni agotar la duración máxima de la función.
+  const batch=old.slice(0,100);
+  let deleted=0;
+  for(let i=0;i<batch.length;i+=4){
+    const results=await Promise.all(batch.slice(i,i+4).map(async ([id])=>{
+      const url=DB+'/'+KEY+'/'+encodeURIComponent(id)+'.json';
+      // ETag protege frente a escrituras concurrentes o cambios entre lecturas.
+      const r=await fetch(url,{
+        headers:{Authorization:'Bearer '+accessToken,'X-Firebase-ETag':'true'},
+        cache:'no-store',signal:AbortSignal.timeout(10000)
+      });
+      if(!r.ok)throw new Error('Lectura ETag fallida: HTTP '+r.status);
+      const etag=r.headers.get('etag');
+      if(!etag)throw new Error('Firebase no devolvió ETag');
+      const entry=await r.json();
+      if(!entry||!validTime(entry.at)||Date.parse(entry.at)>=cutoff)return false;
+      const del=await fetch(url,{
+        method:'DELETE',headers:{Authorization:'Bearer '+accessToken,'if-match':etag},
+        signal:AbortSignal.timeout(10000)
+      });
+      if(del.status===412)return false; // otro proceso modificó el registro
+      if(!del.ok)throw new Error('Borrado fallido: HTTP '+del.status);
+      return true;
+    }));
+    deleted+=results.filter(Boolean).length;
+  }
+  return {deleted,candidates:old.length,remaining:Math.max(0,old.length-deleted)};
+}
