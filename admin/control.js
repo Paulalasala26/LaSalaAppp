@@ -129,6 +129,14 @@
     }));
     location.assign('../');
   }
+  function openQuantitativePrototype(rec){
+    if(busy||!rec||!['tunel','carga'].includes(rec.tipo))return;
+    // Enlace de SOLO lectura: selector efímero, sin exponer IDs en la URL.
+    sessionStorage.setItem('lasala-qc-prototipo-ref-v1',JSON.stringify({
+      tipo:rec.tipo,dia:rec.dia,id:rec.id,ts:Date.now()
+    }));
+    location.assign('./qc-ficha.html');
+  }
   function showMore(){
     if(!cursor)el('qc-body').replaceChildren();
     const next=filtered.slice(cursor,cursor+PAGE);
@@ -148,6 +156,9 @@
       edit.addEventListener('click',()=>openNativeEditor('edit',rec));actions.append(edit);
       const checks=node('button','Evaluar','action-button');checks.type='button';
       checks.addEventListener('click',()=>openNativeEditor('checks',rec));actions.append(checks);
+      const quantitative=node('button','Ficha QC · Prueba','action-button');quantitative.type='button';
+      quantitative.title='Probar el formulario unificado, sin guardar datos';
+      quantitative.addEventListener('click',()=>openQuantitativePrototype(rec));actions.append(quantitative);
       row.append(actions);
       el('qc-body').append(row);
     }
