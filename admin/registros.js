@@ -133,7 +133,7 @@
       feedback('Selecciona fechas válidas (hasta 91 días por consulta).',true);return;
     }
     busy=true;el('reg-query').disabled=true;el('reg-reload').disabled=true;
-    reset('Consultando Firebase TEST…');feedback('',false);
+    reset('Consultando registros de riego…');feedback('',false);
     try{
       const jwt=await token();
       await adminData(jwt); // Permisos ADMIN verificados por servidor en cada consulta.
@@ -161,7 +161,7 @@
       const msg=e.message==='LOGIN_REQUIRED'?'La sesión ha caducado. Inicia sesión como ADMIN.':
         e.message==='NO_PERMISSION'?'Necesitas una cuenta ADMIN activa.':
         e.message==='MISSING_SHARD'?'El índice v2 referencia un invernadero sin datos.':
-        'No se ha podido consultar Firebase TEST. No se han modificado registros.';
+        'No se han podido consultar los registros. No se han modificado datos.';
       feedback(msg,true);
       if(['LOGIN_REQUIRED','NO_PERMISSION'].includes(e.message))gate('Acceso restringido',msg);
     }finally{busy=false;el('reg-query').disabled=false;el('reg-reload').disabled=false;}
@@ -203,7 +203,7 @@
         if(el('reg-inv').value)await query();
       }
     }catch(e){gate('Acceso restringido',e.message==='LOGIN_REQUIRED'?'Inicia sesión en ViguerAPP como ADMIN.':
-      e.message==='NO_PERMISSION'?'Necesitas una cuenta ADMIN activa.':'No se pudo confirmar el acceso a Firebase TEST.');}
+      e.message==='NO_PERMISSION'?'Necesitas una cuenta ADMIN activa.':'No se pudo confirmar el acceso a los registros.');}
   }
   boot();
 })();

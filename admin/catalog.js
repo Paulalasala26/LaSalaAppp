@@ -8,7 +8,7 @@
   const ERRORS={
     LOGIN_REQUIRED:'La sesión ha caducado. Accede a ViguerAPP con tu usuario ADMIN.',
     NO_PERMISSION:'Solo un administrador activo puede configurar este catálogo.',
-    SERVICE_UNAVAILABLE:'No se ha podido consultar o guardar en Firebase TEST. Comprueba el estado antes de repetir.',
+    SERVICE_UNAVAILABLE:'No se ha podido consultar o guardar el catálogo. Comprueba el estado antes de repetir.',
     INVALID_BODY:'Los datos enviados no son válidos.',
     INVALID_KIND:'Tipo de catálogo no válido.',
     INVALID_ACTION:'Acción no permitida.',
@@ -284,7 +284,7 @@
       const key=error.message;
       if(key==='LOGIN_REQUIRED')gate('Inicia sesión','Accede primero a ViguerAPP con tu cuenta ADMIN.',true);
       else if(key==='NO_PERMISSION')gate('Acceso restringido','Solo los administradores activos pueden acceder al catálogo.',true);
-      else gate('No se ha podido cargar','Firebase TEST no ha podido consultarse. No se ha modificado ningún dato.',true);
+      else gate('No se ha podido cargar','No se ha podido consultar el catálogo. No se ha modificado ningún dato.',true);
     }
   }
   boot();

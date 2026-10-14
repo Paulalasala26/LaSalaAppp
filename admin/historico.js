@@ -92,7 +92,7 @@
     el('audit-loaded').textContent=String(events.length);
     el('audit-count').textContent=String(filtered.length);
     el('audit-actors').textContent=String(new Set(filtered.map(x=>x.actor).filter(Boolean)).size);
-    el('audit-description').textContent='Histórico unificado TEST · Operativa: últimas 1.000 entradas disponibles · Periodo visible: último año';
+    el('audit-description').textContent='Últimas 1.000 entradas operativas disponibles · Periodo visible: último año';
     el('audit-export').disabled=!filtered.length;
     if(!filtered.length){blank(events.length?'No hay movimientos con estos filtros.':'Todavía no hay movimientos registrados desde la activación.');return;}
     nextPage();
@@ -100,7 +100,7 @@
   async function refresh(){
     if(loading)return;
     loading=true;el('audit-refresh').disabled=true;
-    feedback('Consultando auditoría TEST…',false);
+    feedback('Consultando histórico…',false);
     try{
       const jwt=await token();
       const r=await fetch('/api/admin-audit',{headers:{Authorization:'Bearer '+jwt},cache:'no-store'});
@@ -115,7 +115,7 @@
     }catch(e){
       if(e.message==='LOGIN_REQUIRED'||e.message==='NO_PERMISSION')
         gate('Acceso restringido',e.message==='LOGIN_REQUIRED'?'Inicia sesión como ADMIN en ViguerAPP.':'Necesitas permisos ADMIN activos.');
-      else feedback('No se ha podido leer la auditoría de Firebase TEST. No se muestran datos incompletos.',true);
+      else feedback('No se ha podido consultar el histórico. No se muestran datos incompletos.',true);
       events=[];filtered=[];blank('Consulta no disponible.');
     }finally{loading=false;el('audit-refresh').disabled=false;}
   }
@@ -135,7 +135,7 @@
     const csv='\ufeff'+records.map(fields=>fields.map(safe).join(';')).join('\r\n');
     const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
     const a=document.createElement('a');
-    a.href=url;a.download='viguerapp-historico-test.csv';document.body.append(a);a.click();a.remove();
+    a.href=url;a.download='viguerapp-historico.csv';document.body.append(a);a.click();a.remove();
     setTimeout(()=>URL.revokeObjectURL(url),1000);
   }
   function boot(){

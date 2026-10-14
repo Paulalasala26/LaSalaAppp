@@ -144,7 +144,7 @@
       actions.appendChild(manage);tr.appendChild(actions);tbody.appendChild(tr);
     }
     setText('result-count',visible.length+' de '+users.length+' usuarios');
-    setText('table-subtitle','Administración segura de cuentas · Firebase TEST');
+    setText('table-subtitle','Administración de cuentas y permisos');
   }
   function showUserModal(u) {
     if (busy) return;
@@ -152,7 +152,7 @@
     const isNew=!u;
     setText('modal-title',isNew ? 'Nuevo usuario' : 'Gestionar '+u.user);
     setText('modal-desc',isNew ?
-      'Crea una cuenta nueva con acceso a APP R TEST.' :
+      'Crea una cuenta nueva con acceso a ViguerAPP.' :
       'Modifica el rol, restablece la contraseña o desactiva el acceso.');
     byId('form-user').value=u ? u.user : '';
     byId('form-user').readOnly=!isNew;
@@ -303,7 +303,7 @@
         showGate('Acceso restringido','Este panel solo está disponible para administradores activos.',true);
       } else {
         showGate('No se ha podido cargar',
-          'No se pudo consultar Firebase TEST. No se han modificado datos.',true);
+          'No se pudieron consultar las cuentas. No se han modificado datos.',true);
       }
     }
   }

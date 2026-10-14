@@ -21,7 +21,7 @@
     VALUE_IMMUTABLE:'El valor técnico no se puede modificar después del alta.',
     GROUP_IMMUTABLE:'Una opción no puede trasladarse a otro grupo.',
     CATALOG_LIMIT:'Se ha alcanzado el límite del catálogo.',
-    SERVICE_UNAVAILABLE:'No se ha podido confirmar la operación en Firebase TEST. Recarga antes de reintentar.'
+    SERVICE_UNAVAILABLE:'No se ha podido confirmar la operación. Recarga antes de reintentar.'
   };
   let data={groups:[],options:[]},group='',editing=null,busy=false;
   const el=id=>document.getElementById(id);
@@ -221,7 +221,7 @@
     }catch(e){
       if(e.message==='LOGIN_REQUIRED')gate('Inicia sesión','Accede primero a ViguerAPP con tu cuenta ADMIN.');
       else if(e.message==='NO_PERMISSION')gate('Acceso restringido','Esta gestión requiere un administrador activo.');
-      else gate('No se ha podido cargar','Firebase TEST no se ha podido consultar. No se han modificado datos.');
+      else gate('No se ha podido cargar','No se han podido consultar las opciones. No se han modificado datos.');
     }
   }
   boot();

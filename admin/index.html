@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow">
   <meta name="theme-color" content="#1a5c2e">
-  <title>La Sala · Administración de usuarios · TEST</title>
+  <title>La Sala · Administración de usuarios</title>
   <link rel="icon" href="../icon-192.png">
   <link rel="stylesheet" href="./styles.css">
   <script src="./app.js" defer></script>
@@ -39,7 +39,7 @@
         <a href="./control.html" class="nav-item"><span class="nav-symbol">◫</span> Control de calidad</a>
         <span class="nav-item muted"><span class="nav-symbol">▤</span> Otros módulos</span>
       </nav>
-      <div class="sidebar-footer"><a href="../">← Volver a la aplicación</a><span>Entorno TEST · v1</span></div>
+      <div class="sidebar-footer"><a href="../">← Volver a la aplicación</a></div>
     </aside>
 
     <div class="main-area">
@@ -54,7 +54,6 @@
           <button type="button" class="button primary" id="new-user">+ Nuevo usuario</button>
         </div>
 
-        <div class="notice"><span class="notice-dot"></span><div><strong>Gestión de cuentas de TEST.</strong> Las altas, los roles y las contraseñas se guardan desde el servidor y requieren autorización ADMIN. Las bajas son desactivaciones, sin borrar datos.</div></div>
         <div id="operation-feedback" class="operation-feedback" role="status" aria-live="polite" hidden></div>
 
         <section class="stats" aria-label="Resumen de cuentas">
@@ -80,7 +79,7 @@
               <tbody id="users-body"><tr><td colspan="4" class="empty-cell">Cargando usuarios…</td></tr></tbody>
             </table>
           </div>
-          <div class="table-footer"><span id="result-count">—</span><span>Datos de Firebase TEST</span></div>
+          <div class="table-footer"><span id="result-count">—</span><span>Usuarios y permisos</span></div>
         </section>
       </main>
     </div>
@@ -89,7 +88,7 @@
   <div id="modal" class="modal-backdrop" hidden>
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
       <div class="modal-heading"><div><p class="eyebrow">ADMINISTRACIÓN</p><h2 id="modal-title">Usuario</h2></div><button type="button" id="modal-close" class="close" aria-label="Cerrar">×</button></div>
-      <p id="modal-desc" class="modal-desc">Gestiona una cuenta desde Firebase TEST.</p>
+      <p id="modal-desc" class="modal-desc">Gestiona los datos y permisos de la cuenta.</p>
       <form id="user-form">
         <div class="field"><label for="form-user">Identificador de usuario</label><input id="form-user" autocomplete="off" maxlength="40" placeholder="Ej. USUARIO01"></div>
         <div class="field"><label for="form-role">Rol</label><select id="form-role"><option value="ADMIN">Administrador</option><option value="TECNICO">Técnico</option><option value="REGANTE">Regante</option><option value="PEON">Peón</option><option value="CARGADOR">Cargador</option></select></div>

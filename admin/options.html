@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="robots" content="noindex,nofollow">
   <meta name="theme-color" content="#1558a0">
-  <title>ViguerAPP · Opciones de riego · TEST</title>
+  <title>ViguerAPP · Opciones de riego</title>
   <link rel="icon" href="../icon-192.png">
   <link rel="stylesheet" href="./styles.css">
   <link rel="stylesheet" href="./catalog.css">
@@ -24,7 +24,7 @@
   <div id="workspace" class="shell" hidden>
     <aside class="sidebar" aria-label="Navegación del Backoffice">
       <div class="brand">
-        <div class="brand-mark">VA</div><div><strong>ViguerAPP</strong><span>Backoffice TEST</span></div>
+        <div class="brand-mark">VA</div><div><strong>ViguerAPP</strong><span>Backoffice</span></div>
       </div>
       <div class="sidebar-label">GENERAL</div>
       <nav class="sidebar-nav">
@@ -39,7 +39,7 @@
         <a href="./control.html" class="nav-item"><span class="nav-symbol">◫</span> Control de calidad</a>
         <span class="nav-item muted"><span class="nav-symbol">▤</span> Otros módulos</span>
       </nav>
-      <div class="sidebar-footer"><a href="../">← Volver a ViguerAPP</a><span>Entorno TEST · v1</span></div>
+      <div class="sidebar-footer"><a href="../">← Volver a ViguerAPP</a></div>
     </aside>
     <div class="main-area">
       <header class="topbar">
@@ -54,11 +54,6 @@
             <p class="description">Gestiona las opciones de los formularios sin borrar registros históricos.</p>
           </div>
           <button class="button primary" id="new-option" type="button">+ Nueva opción</button>
-        </div>
-        <div class="catalog-notice">
-          <strong>Configuración en TEST.</strong> Los valores técnicos originales se conservan y no pueden editarse.
-          Se permite cambiar la etiqueta, el orden, activar o desactivar.
-          Las opciones activas se utilizan en los formularios operativos de Riego de TEST. Los valores desactivados se conservan para los registros históricos.
         </div>
         <div class="operation-feedback" id="options-feedback" role="status" aria-live="polite" hidden></div>
         <div class="options-group-select">
@@ -93,7 +88,7 @@
               <tbody id="options-body"><tr><td colspan="5" class="empty-cell">Cargando opciones…</td></tr></tbody>
             </table>
           </div>
-          <div class="table-footer"><span id="result-count">—</span><span>Firebase TEST · Sin eliminaciones</span></div>
+          <div class="table-footer"><span id="result-count">—</span><span>Sin eliminaciones</span></div>
         </section>
       </main>
     </div>
@@ -116,7 +111,7 @@
           <input id="form-order" type="number" min="0" max="9999" step="1" required></div>
         <div id="option-status" class="catalog-modal-status" hidden></div>
         <p id="modal-feedback" class="modal-feedback" role="status" aria-live="polite"></p>
-        <div class="modal-info">No se permiten eliminaciones. Desactivar oculta la opción de los nuevos formularios de TEST, sin borrar datos anteriores.</div>
+        <div class="modal-info">No se permiten eliminaciones. Desactivar oculta la opción de los nuevos formularios, sin borrar datos anteriores.</div>
         <div class="modal-footer catalog-modal-footer">
           <button id="toggle-option" type="button" class="button catalog-state-button" hidden>Desactivar</button>
           <button id="modal-cancel" type="button" class="button ghost">Cancelar</button>

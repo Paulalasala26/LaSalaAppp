@@ -226,7 +226,7 @@
       feedback('Indica un rango válido de hasta 91 días, desde 15/06/2026.',true);return;
     }
     busy=true;el('qc-query').disabled=true;el('qc-reload').disabled=true;
-    empty('Cargando registros de Firebase TEST…');feedback('Consultando las quincenas de Control…');
+    empty('Cargando registros de calidad…');feedback('Consultando las quincenas de Control…');
     try{
       const jwt=await getToken();
       await verifyAdmin(jwt);
@@ -248,7 +248,7 @@
         error.message==='NO_PERMISSION'?'Solo usuarios ADMIN activos.':
         ['INVALID_INDEX','INVALID_SLICE','DUPLICATE_ID'].includes(error.message)?
         'El índice de Control v2 o sus datos son inconsistentes. No se muestran resultados incompletos.':
-        'No se ha podido consultar Firebase TEST. Ningún registro ha sido modificado.';
+        'No se han podido consultar los registros. Ningún registro ha sido modificado.';
       feedback(msg,true);
       if(['LOGIN_REQUIRED','NO_PERMISSION'].includes(error.message))gate('Acceso restringido',msg);
     }finally{busy=false;el('qc-query').disabled=false;el('qc-reload').disabled=false;}
@@ -296,7 +296,7 @@
     }catch(e){
       gate('Acceso restringido',e.message==='LOGIN_REQUIRED'?'Entra como ADMIN en ViguerAPP.':
         e.message==='NO_PERMISSION'?'No tienes permisos ADMIN activos.':
-        'No se ha podido comprobar el acceso a Firebase TEST.');
+        'No se ha podido comprobar el acceso a los datos.');
     }
   }
   boot();
