@@ -25,10 +25,11 @@ function inputOf(req){
   return b;
 }
 function validRef(source){
+  const day=typeof source?.dia==='string'&&/^\d+$/.test(source.dia)?Number(source.dia):source?.dia;
   if(!source||!RE_ID.test(source.id)||!TYPES.has(source.tipo)||
-    !Number.isInteger(source.dia)||source.dia<15||source.dia>4000)
+    !Number.isInteger(day)||day<15||day>4000)
     throw httpError(400,'INVALID_REFERENCE');
-  return {id:source.id,tipo:source.tipo,dia:source.dia};
+  return {id:source.id,tipo:source.tipo,dia:day};
 }
 function validQty(v){
   return Number.isSafeInteger(v)&&v>0&&v<=10000000;
