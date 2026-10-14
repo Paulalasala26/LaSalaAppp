@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#1558a0">
+<title>ViguerAPP · GS / Partidas · TEST</title>
+<link rel="icon" href="../icon-192.png">
+<link rel="stylesheet" href="./styles.css">
+<style>
+.gs-shell{max-width:1120px;margin:0 auto}.gs-panel{border:1px solid #cbdbea;border-radius:12px;background:#fff;padding:20px;margin-bottom:16px}
+.gs-panel h2{margin:0 0 8px;font-size:17px;color:#1558a0}.gs-panel p{font-size:13px;color:#50647e;line-height:1.55}
+.gs-upload{padding:11px;border:1px dashed #7ea1c9;border-radius:8px;background:#f3f8ff;width:100%;max-width:420px;box-sizing:border-box}
+.gs-status{margin-top:14px;font-size:13px;line-height:1.5}.gs-status.error{color:#ad2626}.gs-status.ok{color:#14683d}
+.gs-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:16px 0}
+.gs-metric{background:#f0f5fb;padding:12px;border:1px solid #d7e5f3;border-radius:9px}.gs-metric strong{display:block;font-size:24px;color:#1558a0}.gs-metric span{font-size:11px;color:#4a6480}
+.gs-party{border:1px solid #d1e0ed;border-radius:9px;background:#fff;margin:10px 0;overflow:hidden}
+.gs-party summary{padding:13px 15px;cursor:pointer;color:#174e87;font-weight:750;background:#f4f8fd}
+.gs-table-wrap{overflow:auto}.gs-table{border-collapse:collapse;width:100%;min-width:790px;font-size:12px}.gs-table th,.gs-table td{padding:9px 11px;border-bottom:1px solid #e3ebf4;text-align:left;white-space:nowrap}.gs-table th{color:#45627d;background:#f8fafc}
+.gs-footnote{font-size:12px;color:#5b6f85;line-height:1.5;margin:8px 0}.gs-warning{border-left:4px solid #c18521;padding:9px 12px;background:#fff8eb;border-radius:5px;color:#66491a;font-size:12px}
+@media(max-width:730px){.gs-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.gs-panel{padding:14px}}
+</style>
+<script src="./gs-reader.js" defer></script>
+<script src="./gs.js" defer></script>
+</head>
+<body>
+<div id="access-gate" class="access-gate" role="status" aria-live="polite">
+  <div class="access-panel"><div class="brand-mark">VA</div><h1 id="gate-title">Comprobando acceso</h1><p id="gate-description">Verificando sesión ADMIN…</p><a href="../" id="gate-link" class="primary-link" hidden>Volver a ViguerAPP</a></div>
+</div>
+<div id="workspace" class="shell" hidden>
+<aside class="sidebar" aria-label="Navegación Backoffice">
+  <div class="brand"><div class="brand-mark">VA</div><div><strong>ViguerAPP</strong><span>Backoffice</span></div></div>
+  <nav class="sidebar-nav">
+    <a href="./control.html" class="nav-item"><span class="nav-symbol">←</span> Volver a QC</a>
+    <a href="./" class="nav-item"><span class="nav-symbol">◉</span> Usuarios</a>
+    <a href="./historico.html" class="nav-item"><span class="nav-symbol">◷</span> Histórico</a>
+  </nav>
+  <div class="sidebar-footer"><a href="../">← Volver a ViguerAPP</a></div>
+</aside>
+<div class="main-area">
+<header class="topbar"><div class="breadcrumbs">Backoffice <span>/</span> QC <span>/</span> GS</div><div class="topbar-right"><span class="test-flag">TEST</span><span class="session-user" id="session-user">Administrador</span></div></header>
+<main class="content gs-shell">
+<div class="page-head"><h1>Partidas GS · Previsualización</h1><a href="./control.html" class="button ghost">← Registros QC</a></div>
+<section class="gs-panel">
+  <h2>Seleccionar PDF de GS</h2>
+  <p>Primera fase: lectura y comprobación de partidas y partes de actuación. <strong>No importa datos, no crea checks QC y no guarda archivos ni registros en Firebase.</strong></p>
+  <label for="gs-file" style="display:block;margin:14px 0 8px;color:#1558a0;font-weight:750;font-size:12px">Archivo GS · Listado Salidas Previstas de Prendimiento</label>
+  <input class="gs-upload" type="file" id="gs-file" accept=".pdf,application/pdf" aria-describedby="gs-status">
+  <div id="gs-status" class="gs-status" role="status" aria-live="polite">Selecciona un PDF de GS para ver su contenido.</div>
+</section>
+<section id="gs-results" class="gs-panel" hidden>
+  <h2>Vista previa del PDF</h2>
+  <div id="gs-metrics" class="gs-metrics"></div>
+  <p class="gs-warning"><strong>Cantidades por actuación:</strong> la suma de bandejas o plantas de los partes no representa necesariamente existencias físicas. Una misma partida puede tener varios partes.</p>
+  <p id="gs-source" class="gs-footnote"></p>
+  <div id="gs-errors" class="gs-status error" hidden></div>
+  <h2 style="margin-top:20px">Partidas encontradas</h2>
+  <div id="gs-parties"></div>
+</section>
+</main>
+</div>
+</div>
+</body>
+</html>
