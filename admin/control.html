@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="theme-color" content="#1558a0">
+  <title>ViguerAPP · Control de calidad · Backoffice TEST</title>
+  <link rel="icon" href="../icon-192.png">
+  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./catalog.css">
+  <link rel="stylesheet" href="./control.css">
+  <script src="./control.js" defer></script>
+</head>
+<body>
+  <div id="access-gate" class="access-gate" role="status" aria-live="polite">
+    <div class="access-panel">
+      <div class="brand-mark">VA</div>
+      <h1 id="gate-title">Comprobando acceso</h1>
+      <p id="gate-description">Verificando tu sesión de administrador…</p>
+      <a id="gate-link" href="../" class="primary-link" hidden>Volver a ViguerAPP</a>
+    </div>
+  </div>
+  <div id="workspace" class="shell" hidden>
+    <aside class="sidebar" aria-label="Navegación del Backoffice">
+      <div class="brand"><div class="brand-mark">VA</div><div><strong>ViguerAPP</strong><span>Backoffice TEST</span></div></div>
+      <div class="sidebar-label">GENERAL</div>
+      <nav class="sidebar-nav">
+        <a href="./" class="nav-item"><span class="nav-symbol">◉</span> Usuarios</a>
+        <div class="sidebar-label menu-label">RIEGO</div>
+        <a href="./catalog.html#salas" class="nav-item"><span class="nav-symbol">◧</span> Salas</a>
+        <a href="./catalog.html#invernaderos" class="nav-item"><span class="nav-symbol">▦</span> Invernaderos</a>
+        <a href="./options.html" class="nav-item"><span class="nav-symbol">≡</span> Opciones de riego</a>
+        <a href="./registros.html" class="nav-item"><span class="nav-symbol">▤</span> Registros de riego</a>
+        <div class="sidebar-label menu-label">MÓDULOS</div>
+        <a href="./control.html" class="nav-item selected" aria-current="page"><span class="nav-symbol">◫</span> Control de calidad</a>
+        <span class="nav-item muted"><span class="nav-symbol">▤</span> Otros módulos</span>
+      </nav>
+      <div class="sidebar-footer"><a href="../">← Volver a ViguerAPP</a><span>Entorno TEST · v1</span></div>
+    </aside>
+    <div class="main-area">
+      <header class="topbar">
+        <div class="breadcrumbs">Backoffice <span>/</span> Control <span>/</span> Calidad</div>
+        <div class="topbar-right"><span class="test-flag">TEST</span><span class="session-user" id="session-user">Administrador</span></div>
+      </header>
+      <main class="content catalog-content">
+        <div class="page-head">
+          <div>
+            <p class="eyebrow">CONTROL DE CALIDAD</p>
+            <h1>Registros de calidad</h1>
+            <p class="description">Consulta centralizada de Check Túnel y Check Carga, por partida y fechas.</p>
+          </div>
+          <button id="qc-reload" type="button" class="button ghost">Actualizar</button>
+        </div>
+        <div class="catalog-notice"><strong>Consulta administrativa de TEST.</strong>
+          Datos originales de Firebase Control v2, organizados por quincenas.
+          Esta primera pantalla es de solo lectura: no modifica ni elimina controles.
+        </div>
+        <div id="qc-feedback" class="operation-feedback" role="status" aria-live="polite" hidden></div>
+        <form id="qc-form" class="qc-filters">
+          <div><label for="qc-type">Tipo de control</label>
+            <select id="qc-type"><option value="todos">Túnel y Carga</option><option value="tunel">Check Túnel</option><option value="carga">Check Carga</option></select></div>
+          <div><label for="qc-from">Desde</label><input id="qc-from" type="date" min="2026-06-15" required></div>
+          <div><label for="qc-to">Hasta</label><input id="qc-to" type="date" min="2026-06-15" required></div>
+          <div><label for="qc-state">Estado</label>
+            <select id="qc-state"><option value="todos">Todos</option><option value="completados">Completados</option><option value="pendientes">Pendientes</option></select></div>
+          <div><label for="qc-search">Partida / cliente / variedad / invernadero</label>
+            <input id="qc-search" type="search" placeholder="Buscar entre los registros cargados"></div>
+          <button id="qc-query" type="submit" class="button primary">Consultar</button>
+        </form>
+        <section class="stats qc-stats" aria-label="Indicadores de la consulta">
+          <div class="stat"><span>Registros</span><strong id="qc-total">—</strong></div>
+          <div class="stat"><span>Completados</span><strong id="qc-complete">—</strong></div>
+          <div class="stat"><span>Pendientes</span><strong id="qc-pending">—</strong></div>
+          <div class="stat"><span>Partidas distintas</span><strong id="qc-partidas">—</strong></div>
+        </section>
+        <section class="table-card" aria-labelledby="qc-table-title">
+          <div class="table-toolbar">
+            <div class="table-title"><h2 id="qc-table-title">Controles</h2><p id="qc-table-description">Selecciona el periodo y pulsa Consultar.</p></div>
+          </div>
+          <div class="table-scroll">
+            <table class="catalog-table qc-table">
+              <thead><tr><th>Fecha / Tipo</th><th>Partida</th><th>Cliente / Variedad</th><th>Invernadero</th><th>Estado</th><th class="actions-col">Acciones</th></tr></thead>
+              <tbody id="qc-body"><tr><td colspan="6" class="empty-cell">Sin consulta todavía.</td></tr></tbody>
+            </table>
+          </div>
+          <div class="table-footer"><span id="qc-count">—</span><button id="qc-more" type="button" class="button ghost" hidden>Mostrar más</button></div>
+        </section>
+      </main>
+    </div>
+  </div>
+  <div id="qc-modal" class="modal-backdrop" hidden>
+    <div class="modal qc-modal" role="dialog" aria-modal="true" aria-labelledby="qc-modal-title">
+      <div class="modal-heading">
+        <div><p class="eyebrow">DETALLE DE CONTROL</p><h2 id="qc-modal-title">Partida</h2></div>
+        <button type="button" id="qc-modal-close" class="close" aria-label="Cerrar">×</button>
+      </div>
+      <div id="qc-modal-body" class="qc-modal-body"></div>
+      <div class="qc-modal-footer"><button id="qc-modal-ok" type="button" class="button primary">Cerrar</button></div>
+    </div>
+  </div>
+</body>
+</html>

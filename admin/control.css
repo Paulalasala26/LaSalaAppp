@@ -1,0 +1,24 @@
+.qc-filters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;align-items:end;padding:15px;border:1px solid #cbdbea;border-radius:10px;background:#fff;margin-bottom:18px}
+.qc-filters label{display:block;font-size:12px;font-weight:750;color:#1558a0;margin-bottom:6px}
+.qc-filters input,.qc-filters select{box-sizing:border-box;width:100%;min-height:40px;border:1px solid #bad0e6;border-radius:7px;padding:8px 10px;font-size:13px;background:#fff;color:#213b58}
+.qc-filters .button{min-height:40px}
+.qc-stats{grid-template-columns:repeat(4,minmax(0,1fr))}
+.qc-table{min-width:840px}
+.qc-table .qc-main{font-weight:750;color:#183d6d}
+.qc-table .qc-secondary{display:block;font-size:11px;color:#6d7d91;margin-top:4px}
+.qc-status{display:inline-block;font-size:11px;font-weight:800;padding:5px 9px;border-radius:999px;white-space:nowrap}
+.qc-status.ok{color:#1f714a;background:#eaf5ee}
+.qc-status.pending{color:#88642a;background:#fbf2df}
+.qc-table .action-button{color:#1558a0;border-color:#b9cce4}
+.qc-modal{width:min(100%,670px)}
+.qc-modal-body{padding:8px 27px 22px;max-height:65vh;overflow-y:auto}
+.qc-detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:18px}
+.qc-detail-field{min-width:0;border:1px solid #e0e8f1;background:#f8fafc;padding:10px;border-radius:7px}
+.qc-detail-field span{display:block;font-size:10px;font-weight:800;color:#647c98;text-transform:uppercase;letter-spacing:.03em;margin-bottom:4px}
+.qc-detail-field strong{font-size:13px;font-weight:650;color:#183d6d;white-space:pre-wrap;overflow-wrap:anywhere}
+.qc-checks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.qc-checks .qc-detail-field{background:#fff}
+.qc-detail-heading{font-size:14px;font-weight:800;color:#1558a0;margin:16px 0 10px}
+.qc-modal-footer{display:flex;justify-content:flex-end;padding:12px 27px 22px}
+@media(max-width:1000px){.qc-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.qc-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:570px){.qc-filters,.qc-stats,.qc-detail-grid,.qc-checks{grid-template-columns:1fr}.qc-modal-body{padding:8px 16px 12px}.qc-modal-footer{padding:12px 16px}}
