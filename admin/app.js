@@ -207,13 +207,13 @@
     setBusy(true);
     setText('modal-feedback','Guardando…');
     try {
-      await callAdmin(method,payload);
+      const outcome=await callAdmin(method,payload);
       byId('modal').hidden=true;
       byId('form-password').value='';
       byId('form-confirm').value='';
       currentEditUser=null;
       await loadUsers();
-      feedback(success,false);
+      feedback(outcome.auditLogged===false ? success+' ATENCIÓN: no se pudo registrar este cambio en Histórico.' : success,outcome.auditLogged===false);
     } catch (e) {
       const msg=ERRORS[e.message] || e.message || ERRORS.SERVICE_ERROR;
       setText('modal-feedback',msg);

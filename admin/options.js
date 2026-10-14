@@ -172,10 +172,10 @@
     if(busy)return;
     setBusy(true);message('');set('modal-feedback','');
     try{
-      await request(method,payload);
+      const outcome=await request(method,payload);
       await refresh();
       el('options-modal').hidden=true;editing=null;
-      message(success);
+      message(outcome.auditLogged===false ? success+' ATENCIÓN: no se pudo registrar este cambio en Histórico.' : success,outcome.auditLogged===false);
     }catch(e){
       message('No se ha confirmado el cambio. '+errorText(e),true);
       set('modal-feedback',errorText(e));

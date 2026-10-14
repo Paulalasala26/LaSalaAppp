@@ -171,7 +171,13 @@ module.exports=async function handler(req,res){
     let result;
     await updateKey(KEY,accessToken,map=>{result=write(map,input,actor);});
     console.info('ADMIN_RIEGO_OPTIONS_TEST',actor,result.action,result.id);
-    return res.status(200).json({ok:true,...result});
+    const {safeRecordAdminAudit}=require('./admin-audit');
+    const auditLogged=await safeRecordAdminAudit(accessToken,{
+      actor,area:'riego_options',action:result.action,
+      target:String(input.group)+' / '+result.id,
+      detail:input.group
+    });
+    return res.status(200).json({ok:true,...result,auditLogged});
   }catch(e){
     const status=e.httpStatus||503;
     if(status===503)console.error('admin-riego-options TEST:',e.message);

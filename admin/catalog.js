@@ -217,10 +217,10 @@
     if(busy)return;
     setBusy(true);text('catalog-modal-feedback','');feedback('');
     try{
-      await request(method,payload);
+      const outcome=await request(method,payload);
       await refresh();
       el('catalog-modal').hidden=true;editing=null;
-      feedback(success,false);
+      feedback(outcome.auditLogged===false ? success+' ATENCIÓN: no se pudo registrar este cambio en Histórico.' : success,outcome.auditLogged===false);
     }catch(error){
       text('catalog-modal-feedback',errorText(error));
       feedback('No se ha confirmado ningún cambio. '+errorText(error),true);

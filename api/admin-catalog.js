@@ -158,7 +158,13 @@ module.exports=async function handler(req,res){
       outcome=actionWrite(map,input,actor);
     });
     console.info('ADMIN_CATALOG_TEST',actor,outcome.kind,outcome.action,outcome.id);
-    return res.status(200).json({ok:true,...outcome});
+    const {safeRecordAdminAudit}=require('./admin-audit');
+    const auditLogged=await safeRecordAdminAudit(accessToken,{
+      actor,area:'infrastructure',action:outcome.action,
+      target:(outcome.kind==='rooms'?'Sala ':'Invernadero ')+outcome.id,
+      detail:outcome.kind==='rooms'?'Salas':'Invernaderos'
+    });
+    return res.status(200).json({ok:true,...outcome,auditLogged});
   }catch(err){
     const status=err.httpStatus||503;
     if(status===503)console.error('admin-catalog TEST:',err.message);

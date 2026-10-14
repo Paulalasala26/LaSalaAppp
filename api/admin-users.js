@@ -275,7 +275,14 @@ module.exports=async function handler(req,res) {
       return res.status(200).json({users:sanitizeUsers(accounts,roles),currentUser:actor});
     const body=bodyOf(req);
     const outcome=await performWrite(req.method,body,actor,accessToken,accounts,roles);
-    return res.status(200).json({ok:true,...outcome});
+    // Auditar tras confirmar la escritura. Nunca almacenar password/hash.
+    const {safeRecordAdminAudit}=require('./admin-audit');
+    const auditLogged=await safeRecordAdminAudit(accessToken,{
+      actor,area:'users',action:req.method==='POST'?'create':body.action,
+      target:outcome.user,
+      detail:(req.method==='POST'||body.action==='changeRole')?'Rol: '+body.role:''
+    });
+    return res.status(200).json({ok:true,...outcome,auditLogged});
   } catch (err) {
     const status=err.httpStatus || 503;
     if (status===503) console.error('admin-users TEST:',err.message);
