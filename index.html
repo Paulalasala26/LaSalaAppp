@@ -4746,7 +4746,10 @@ async function aplicarSanidadEnfermedad(id, key, valor){
   const qid = encolarAccionOffline('aplicarSanidadEnfermedad', [id, key, valor]);
   marcarControlCheckSucio(id);
   const ok = await persistControlChecksData();
-  if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
+  if(ok){
+    desencolarAccion(qid);
+    await registrarCambioControlBackoffice(id, 'Cambió sanidad: '+String(key).slice(0,45)+' = '+(valor?'Sí':'No'));
+  } else avisarGuardadoLocalPendiente(leerColaOffline().length);
 }
 // Ficha ampliada de una foto de Control — a petición de Paula (2026-08-01,
 // "debe poder abrirse en la pantalla") en vez de window.open (bloqueado por
@@ -7533,7 +7536,10 @@ async function aplicarEditarControlCargaCheck(id, dia, cliente, partida, varieda
   const qid = encolarAccionOffline('aplicarEditarControlCargaCheck', [id, dia, cliente, partida, variedad, numBandejas, invernadero, diaCambio]);
   marcarControlCheckSucio(id);
   const ok = await persistControlChecksData();
-  if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
+  if(ok){
+    desencolarAccion(qid);
+    await registrarCambioControlBackoffice(id, 'Editó datos');
+  } else avisarGuardadoLocalPendiente(leerColaOffline().length);
   return ok;
 }
 // A petición de Paula (2026-07-31): la foto debe quedar SIEMPRE asociada a
@@ -7581,7 +7587,10 @@ async function aplicarFotoControl(id, fotoB64){
   // insistir en persistirlo aquí también.
   const [okFoto, okCheck] = await Promise.all([persistControlFotosData(id), persistControlChecksData([id])]);
   const ok = okFoto && okCheck;
-  if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
+  if(ok){
+    desencolarAccion(qid);
+    await registrarCambioControlBackoffice(id, 'Actualizó fotografía');
+  } else avisarGuardadoLocalPendiente(leerColaOffline().length);
   return ok;
 }
 // A petición de Paula (2026-08-03): "al subir una foto me aparece error".
@@ -7987,7 +7996,10 @@ async function aplicarEditarControlCheck(id, dia, clienteVariedad, partida, numB
   const qid = encolarAccionOffline('aplicarEditarControlCheck', [id, dia, clienteVariedad, partida, numBandejas, diaCambio]);
   marcarControlCheckSucio(id);
   const ok = await persistControlChecksData();
-  if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
+  if(ok){
+    desencolarAccion(qid);
+    await registrarCambioControlBackoffice(id, 'Editó datos');
+  } else avisarGuardadoLocalPendiente(leerColaOffline().length);
   return ok;
 }
 async function toggleControlCheckOpcion(id, categoriaKey, opcionKey){
@@ -8013,7 +8025,10 @@ async function aplicarControlCheckOpcion(id, categoriaKey, opcionKey, valor){
   const qid = encolarAccionOffline('aplicarControlCheckOpcion', [id, categoriaKey, opcionKey, valor]);
   marcarControlCheckSucio(id);
   const ok = await persistControlChecksData();
-  if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
+  if(ok){
+    desencolarAccion(qid);
+    await registrarCambioControlBackoffice(id, 'Evaluó '+String(categoriaKey).slice(0,30)+' / '+String(opcionKey).slice(0,40)+' = '+(valor?'Sí':'No'));
+  } else avisarGuardadoLocalPendiente(leerColaOffline().length);
 }
 async function guardarControlObservaciones(id, valor){
   const c = controlChecksData.find(x=>x.id===id);
@@ -8022,7 +8037,10 @@ async function guardarControlObservaciones(id, valor){
   const qid = encolarAccionOffline('guardarControlObservaciones', [id, valor]);
   marcarControlCheckSucio(id);
   const ok = await persistControlChecksData();
-  if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
+  if(ok){
+    desencolarAccion(qid);
+    await registrarCambioControlBackoffice(id, 'Actualizó observaciones');
+  } else avisarGuardadoLocalPendiente(leerColaOffline().length);
 }
 function mostrarFormNuevoControlCheck(tipo){
   const wrap = document.getElementById('nuevo-control-form-wrap');
@@ -16223,6 +16241,18 @@ function cerrarRiegoManualConRetorno(){
 }
 // Contexto de navegación desde Backoffice TEST. Sin nuevas rutas de escritura.
 let controlDesdeBackoffice=null;
+// Registrar solo cambios del recorrido administrativo de Control, una vez
+// confirmado Firebase. No se duplican los eventos del resto de usuarios
+// ni se guardan valores libres de observaciones en el histórico.
+async function registrarCambioControlBackoffice(id, detalle){
+  if(!controlDesdeBackoffice || controlDesdeBackoffice.id!==id || currentUserRole!=='ADMIN')return;
+  const c=controlChecksData.find(x=>x.id===id);
+  if(!c)return;
+  const tipo=c.tipo==='carga'?'Carga':'Túnel';
+  const partida=String(c.partida||'sin número').trim().slice(0,70);
+  await logHistorial('Backoffice · '+detalle+' · Check '+tipo+' · partida '+partida);
+}
+
 function hayControlPendienteDeGuardarBackoffice(){
   if(navigator.onLine===false||controlChecksDirtyIds.size>0)return true;
   const cola=leerColaOffline();
