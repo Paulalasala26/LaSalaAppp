@@ -10961,7 +10961,8 @@ function nombreRiegoUsuario(raw){
 function rolRiegoUsuario(raw){
   return (raw && typeof raw==='object' && raw.rol) ? String(raw.rol) : '';
 }
-function mostrarConflictoRiego(invId,dia,calle,remoto,local){
+function mostrarConflictoRiego(invId,dia,calle,remoto,local,otrosConflictos){
+  const adicionales = Math.max(0, Number(otrosConflictos)||0);
   return new Promise(resolve=>{
     const o = getOrCreateOverlay('riego-conflicto-overlay');
     o.style.zIndex = '100000';
@@ -10970,16 +10971,17 @@ function mostrarConflictoRiego(invId,dia,calle,remoto,local){
         <div style="background:#b42318;color:#fff;padding:12px 16px;font-size:15px;font-weight:900">⚠ Conflicto de riego detectado</div>
         <div style="padding:16px;font-size:13px;line-height:1.45">
           <div style="font-weight:800;margin-bottom:10px">INV <span id="rc-inv"></span> · <span id="rc-dia"></span> · calle <span id="rc-calle"></span></div>
-          <div style="margin-bottom:12px">Otro usuario ha modificado esta misma celda desde que la abriste.</div>
+          <div style="margin-bottom:12px">Este valor ya no coincide con el que tenías cargado. Puede haber cambiado en otra sesión.</div>
+          ${adicionales ? `<div style="margin-bottom:12px;font-weight:800;color:#9d2a12">También hay conflicto en ${adicionales} calle${adicionales===1?'':'s'} más. Esta decisión se aplicará a todas las calles seleccionadas.</div>` : ''}
           <div style="background:#fff4e5;border:1px solid #f0c36d;border-radius:8px;padding:10px;margin-bottom:8px">
             <b>Modificado por:</b> <span id="rc-usuario"></span><span id="rc-rol-wrap"> · <span id="rc-rol"></span></span>
           </div>
           <div style="background:#f6f7f8;border-radius:8px;padding:10px;margin-bottom:8px"><b>Valor actual:</b> <span id="rc-remoto"></span></div>
           <div style="background:#eef5ff;border-radius:8px;padding:10px"><b>Tu cambio:</b> <span id="rc-local"></span></div>
-          <div style="font-size:11px;color:#666;margin-top:10px">Si necesitas aclararlo antes de continuar, contacta con el usuario indicado.</div>
+          <div style="font-size:11px;color:#666;margin-top:10px">Si mantienes el valor actual, se descartarán los cambios pendientes de este invernadero. Si necesitas aclararlo, contacta con el usuario indicado.</div>
           <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap">
             <button id="rc-cancelar" style="padding:8px 14px;border:1px solid #2e7d32;background:#fff;color:#1b5e20;border-radius:7px;font-weight:800;cursor:pointer">Mantener el valor actual</button>
-            <button id="rc-sobrescribir" style="padding:8px 14px;border:none;background:#b42318;color:#fff;border-radius:7px;font-weight:800;cursor:pointer">Sobrescribir con mi cambio</button>
+            <button id="rc-sobrescribir" style="padding:8px 14px;border:none;background:#b42318;color:#fff;border-radius:7px;font-weight:800;cursor:pointer">Sobrescribir con mi cambio${adicionales?' en todas las calles':''}</button>
           </div>
         </div>
       </div>`;
@@ -11740,6 +11742,21 @@ async function loadRiegoData(forzar){
   [2,3,4,5].forEach(c=>{ if(!riegoData['17'][25][c]) riegoData['17'][25][c]='30+30SAL PREVICUR ENERGY'; });
   return true;
 }
+function descartarRiegoIntentoConflicto(invId, cloud, dirty, clavesOffline){
+  // "Mantener valor actual" debe eliminar la intención local que provocó
+  // el conflicto, no dejarla sucia para volver a mostrar el mismo diálogo.
+  invId=String(invId);
+  riegoData[invId]=clonarRiegoSnapshot(cloud)||{};
+  riegoBaseInv[invId]=clonarRiegoSnapshot(cloud)||{};
+  riegoInvCargadaEn[invId]=Date.now();
+  riegoDataCargadaEn=0;
+  dirty.forEach(({dia,calle})=>riegoDirtyCells.delete(riegoDirtyCellKey(invId,dia,calle)));
+  if(!Array.from(riegoDirtyCells.values()).some(x=>x.invId===invId))
+    riegoDirtyInvs.delete(invId);
+  quitarRiegoOfflineClaves(clavesOffline);
+  if(String(riegoInvSel)===invId)renderRiegoGrid(invId);
+  actualizarEstadoBotonGuardarRiego();
+}
 async function saveRiegoInvPatch(invId, extraDeletes, incluirDirty){
   invId = String(invId);
   extraDeletes = extraDeletes || [];
@@ -11842,12 +11859,12 @@ async function saveRiegoInvPatch(invId, extraDeletes, incluirDirty){
         });
       });
 
+      const diferencias=[];
       for(const it of intenciones.values()){
         const baseTexto = it.baseTexto==null ? valorTextoRiego(it.base) : it.baseTexto;
         const remoto = cloud[it.dia]?.[it.calle] ?? null;
-        // Si el supervisor validó esta calle DESPUÉS de que el técnico la
-        // empezara a editar, también cuenta como "riego validado modificado"
-        // aunque el texto validado sea idéntico al que el técnico vio al abrir.
+        // Registrar comprobaciones posteriores de Vigueras sin modificar
+        // la lógica que protege los riegos ya validados.
         const metaCambio = cambiosEvento.get(it.dia+'|'+it.calle);
         if(metaCambio && currentUser!==RIEGO_SUPERVISOR_USER &&
            remoto && typeof remoto==='object' && remoto.revisadoPorVigueras){
@@ -11857,16 +11874,22 @@ async function saveRiegoInvPatch(invId, extraDeletes, incluirDirty){
         const localTexto = valorTextoRiego(it.local);
         if(remotoTexto!==baseTexto && localTexto!==remotoTexto){
           const firma = it.dia+'|'+it.calle+'|'+remotoTexto;
-          if(!conflictosAceptados.has(firma)){
-            const aceptar = await mostrarConflictoRiego(invId,it.dia,it.calle,remoto,it.local);
-            if(!aceptar){
-              quitarRiegoOfflineClaves(clavesOffline);
-              showToast('⚠ Guardado cancelado por conflicto');
-              return false;
-            }
-            conflictosAceptados.add(firma);
-          }
+          if(!conflictosAceptados.has(firma))
+            diferencias.push({it,remoto,firma});
         }
+      }
+      if(diferencias.length){
+        // Un riego de 30 calles no debe provocar 30 diálogos seguidos.
+        const first=diferencias[0];
+        const aceptar=await mostrarConflictoRiego(invId,first.it.dia,first.it.calle,
+          first.remoto,first.it.local,diferencias.length-1);
+        if(!aceptar){
+          descartarRiegoIntentoConflicto(invId,cloud,dirty,clavesOffline);
+          showToast('Cambio descartado: se conserva el riego actual de Firebase.');
+          if(riegoVieneDeBackoffice)volverAlListadoRiegoBackoffice();
+          return false;
+        }
+        diferencias.forEach(c=>conflictosAceptados.add(c.firma));
       }
 
       dirty.forEach(({dia,calle})=>{
@@ -12790,14 +12813,19 @@ async function selectRiegoInv(invId){
   // Baseline antes y después de cargar: si alguien guarda justo durante la
   // apertura, repetimos una sola vez la lectura v2 y no se pierde ese cambio.
   const syncAntes = await leerRiegoSyncActual(invId);
-  let ok = await loadRiegoInvData(invId, false);
+  // Al entrar al invernadero, leer la nube fresca en vez de reutilizar una
+  // caché de 30s: si había un "-" o cualquier otro cambio anterior, debe
+  // formar parte de la base que ve el usuario y NO parecer una colisión.
+  // Excepción: conservar ediciones locales no guardadas, nunca pisarlas.
+  const dirtyPendiente=Array.from(riegoDirtyCells.values()).some(x=>x.invId===String(invId));
+  let ok = dirtyPendiente ? !!riegoData[String(invId)] : await loadRiegoInvData(invId, true);
   if(!ok){
     riegoInvSel = null;
     actualizarVistaRiegoSeleccion(null);
     return false;
   }
   const syncDespues = await leerRiegoSyncActual(invId);
-  if((syncDespues?.id || null)!==(syncAntes?.id || null)){
+  if(!dirtyPendiente && (syncDespues?.id || null)!==(syncAntes?.id || null)){
     ok = await loadRiegoInvData(invId, true);
     if(!ok){
       riegoInvSel = null;
@@ -15755,6 +15783,10 @@ async function aplicarTextoRiegoManual(invId, dia, tramos, texto, callesExtraALi
   const previos = {};
   callesAfectadas.forEach(c=>{ previos[c] = getRiegoCellRaw(invId, dia, c); });
   callesAfectadas.forEach(c=>{
+    // No generar un cambio sobre calles que ya muestran el mismo riego.
+    // En la selección masiva, esto evitaba falsos conflictos por baselines
+    // antiguos en celdas a las que en realidad no se había cambiado el texto.
+    if(valorTextoRiego(previos[c])===String(texto||'').trim()) return;
     setRiego(invId,dia,c,texto);
     if(texto) capturarAnteriorRiego(previos[c], getRiegoCellRaw(invId, dia, c), motivo);
   });
