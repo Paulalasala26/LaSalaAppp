@@ -4,6 +4,8 @@
   const STORE='lasala-firebase-auth-v1';
   const API_KEY='AIzaSyDdDdMg6M1jVIssvGYKsdRA-mRug31Yt_g';
   const TEST_DB='https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app';
+  const HANDOFF='lasala-backoffice-control-v1';
+  const RETURN_FILTERS='lasala-backoffice-control-filtros-v1';
   const START=Date.UTC(2026,5,15),PAGE=100;
   const CATS=[
     ['color','Color',{verde:'Verde',amarillo:'Amarillo',verdeClaro:'Verde claro',ok:'OK'}],
@@ -115,6 +117,18 @@
     }
     showMore();
   }
+  function openNativeEditor(action,rec){
+    if(busy||!rec||!['edit','checks'].includes(action))return;
+    // Recordar filtros sólo en la sesión de esta pestaña, nunca en la URL.
+    sessionStorage.setItem(RETURN_FILTERS,JSON.stringify({
+      type:el('qc-type').value,from:el('qc-from').value,to:el('qc-to').value,
+      state:el('qc-state').value,search:el('qc-search').value
+    }));
+    sessionStorage.setItem(HANDOFF,JSON.stringify({
+      action,tipo:rec.tipo,dia:rec.dia,id:rec.id,ts:Date.now()
+    }));
+    location.assign('../');
+  }
   function showMore(){
     if(!cursor)el('qc-body').replaceChildren();
     const next=filtered.slice(cursor,cursor+PAGE);
@@ -129,7 +143,12 @@
       row.append(status);
       const actions=node('td');actions.className='actions-col';
       const button=node('button','Ver detalle','action-button');button.type='button';
-      button.addEventListener('click',()=>detail(rec));actions.append(button);row.append(actions);
+      button.addEventListener('click',()=>detail(rec));actions.append(button);
+      const edit=node('button','Editar datos','action-button');edit.type='button';
+      edit.addEventListener('click',()=>openNativeEditor('edit',rec));actions.append(edit);
+      const checks=node('button','Evaluar','action-button');checks.type='button';
+      checks.addEventListener('click',()=>openNativeEditor('checks',rec));actions.append(checks);
+      row.append(actions);
       el('qc-body').append(row);
     }
     cursor+=next.length;el('qc-count').textContent=cursor+' de '+filtered.length+' registros';
@@ -256,6 +275,24 @@
     try{
       el('session-user').textContent=await verifyAdmin(await getToken());
       el('workspace').hidden=false;el('access-gate').hidden=true;
+      // Al volver desde Control, restaurar filtros y consultar de nuevo Firebase TEST.
+      let previous=null;
+      try{
+        const saved=sessionStorage.getItem(RETURN_FILTERS);
+        if(saved)previous=JSON.parse(saved);
+      }catch(e){}finally{sessionStorage.removeItem(RETURN_FILTERS);}
+      if(previous && typeof previous==='object'){
+        for(const [id,value] of [
+          ['qc-type',previous.type],['qc-from',previous.from],
+          ['qc-to',previous.to],['qc-state',previous.state],['qc-search',previous.search]
+        ]){
+          const input=el(id);
+          if(typeof value==='string' && input && (input.tagName!=='SELECT' || Array.from(input.options).some(o=>o.value===value))){
+            input.value=value;
+          }
+        }
+        await query();
+      }
     }catch(e){
       gate('Acceso restringido',e.message==='LOGIN_REQUIRED'?'Entra como ADMIN en ViguerAPP.':
         e.message==='NO_PERMISSION'?'No tienes permisos ADMIN activos.':

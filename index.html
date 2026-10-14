@@ -676,7 +676,10 @@ async function entrarApp(user, roleHint){
   const name=user[0]+user.slice(1).toLowerCase();
 
   applyRoleHomeUI();
-  if(currentUserRole==='ADMIN') void abrirRegistroRiegoDesdeBackoffice();
+  if(currentUserRole==='ADMIN'){
+    void abrirRegistroRiegoDesdeBackoffice();
+    void abrirControlDesdeBackoffice();
+  }
   const welcomeEl = document.getElementById('welcome-name');
   if(welcomeEl) welcomeEl.textContent=name;
 }
@@ -5861,6 +5864,10 @@ async function seleccionarSeccionControl(sec){
 // dentro de una sección, pero volver arriba al cambiar de apartado.
 let controlUltimaSeccionRenderizada = undefined;
 function cerrarControlModule(){
+  if(controlDesdeBackoffice){
+    volverAlListadoControlBackoffice();
+    return;
+  }
   const overlay=document.getElementById('control-overlay');
   if(overlay) overlay.style.display='none';
   controlUltimaSeccionRenderizada=undefined;
@@ -5896,6 +5903,9 @@ function renderControlContent(overlay){
           <span>Control de calidad</span>
         </button>
         <div class="control-ui-header-right">
+          ${controlDesdeBackoffice ? `<button type="button" onclick="volverAlListadoControlBackoffice()"
+            style="background:#1558a0;border:1px solid #a8c4e8;color:#fff;border-radius:7px;font-size:12px;font-weight:800;padding:7px 11px;cursor:pointer;white-space:nowrap"
+            title="Volver al listado de Control del Backoffice">← Backoffice</button>` : ''}
           <span class="control-ui-section-label" aria-live="polite">${controlSeccion ? (CONTROL_SECCIONES.find(s=>s.key===controlSeccion)?.label || '') : 'Resumen'}</span>
           <button type="button" class="control-ui-close" onclick="cerrarControlModule()"
             title="Cerrar Control de Calidad" aria-label="Cerrar Control de Calidad">&times;</button>
@@ -5915,6 +5925,10 @@ function renderControlContent(overlay){
       const activo=navNuevo.querySelector('.control-ui-tab.is-active');
       if(activo) navNuevo.scrollLeft=Math.max(0,activo.offsetLeft-(navNuevo.clientWidth-activo.offsetWidth)/2);
     }
+  }
+  // Backoffice: consultar y editar, pero nunca ofrecer la acción Eliminar.
+  if(controlDesdeBackoffice){
+    overlay.querySelectorAll('[onclick^="eliminarControlCheck"]').forEach(btn=>btn.remove());
   }
 }
 function renderControlResumenHTML(){
@@ -7540,7 +7554,7 @@ function mostrarEditarControlCargaCheck(id){
         </select>
       </div>
       <div style="display:flex;justify-content:flex-end;gap:8px">
-        <button onclick="this.closest('.modal-overlay-dyn').style.display='none'" style="padding:9px 16px;font-size:12px;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:7px;cursor:pointer">Cancelar</button>
+        <button onclick="cerrarEdicionControlBackoffice(this)" style="padding:9px 16px;font-size:12px;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:7px;cursor:pointer">Cancelar</button>
         <button onclick="guardarEditarControlCargaCheck('${id}')" style="padding:9px 18px;font-size:12px;font-weight:800;background:#2e7d32;color:#fff;border:none;border-radius:7px;cursor:pointer">Guardar</button>
       </div>
     </div>`;
@@ -7557,7 +7571,8 @@ async function guardarEditarControlCargaCheck(id){
   const variedad = document.getElementById('ecc-variedad')?.value?.trim() || '';
   const numBandejas = document.getElementById('ecc-bandejas')?.value?.trim() || '';
   const invernadero = document.getElementById('ecc-inv')?.value || '';
-  aplicarEditarControlCargaCheck(id, dia, cliente, partida, variedad, numBandejas, invernadero, diaCambio);
+  const saved=await aplicarEditarControlCargaCheck(id, dia, cliente, partida, variedad, numBandejas, invernadero, diaCambio);
+  if(saved) volverTrasGuardarDatosControlBackoffice(id);
 }
 async function aplicarEditarControlCargaCheck(id, dia, cliente, partida, variedad, numBandejas, invernadero, diaCambio){
   const c = controlChecksData.find(x=>x.id===id);
@@ -7996,7 +8011,7 @@ function mostrarEditarControlCheck(id){
         </div>
       </div>
       <div style="display:flex;justify-content:flex-end;gap:8px">
-        <button onclick="this.closest('.modal-overlay-dyn').style.display='none'" style="padding:9px 16px;font-size:12px;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:7px;cursor:pointer">Cancelar</button>
+        <button onclick="cerrarEdicionControlBackoffice(this)" style="padding:9px 16px;font-size:12px;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:7px;cursor:pointer">Cancelar</button>
         <button onclick="guardarEditarControlCheck('${id}')" style="padding:9px 18px;font-size:12px;font-weight:800;background:#2e7d32;color:#fff;border:none;border-radius:7px;cursor:pointer">Guardar</button>
       </div>
     </div>`;
@@ -8011,7 +8026,8 @@ async function guardarEditarControlCheck(id){
   const clienteVariedad = document.getElementById('ec-cliente-variedad')?.value?.trim() || '';
   const partida = document.getElementById('ec-partida')?.value?.trim() || '';
   const numBandejas = document.getElementById('ec-bandejas')?.value?.trim() || '';
-  aplicarEditarControlCheck(id, dia, clienteVariedad, partida, numBandejas, diaCambio);
+  const saved=await aplicarEditarControlCheck(id, dia, clienteVariedad, partida, numBandejas, diaCambio);
+  if(saved) volverTrasGuardarDatosControlBackoffice(id);
 }
 async function aplicarEditarControlCheck(id, dia, clienteVariedad, partida, numBandejas, diaCambio){
   const c = controlChecksData.find(x=>x.id===id);
@@ -16224,6 +16240,81 @@ function cerrarRiegoManualConRetorno(){
   const overlay=document.getElementById('riego-manual-overlay');
   if(overlay)overlay.style.display='none';
   if(riegoVieneDeBackoffice)volverAlListadoRiegoBackoffice();
+}
+// Contexto de navegación desde Backoffice TEST. Sin nuevas rutas de escritura.
+let controlDesdeBackoffice=null;
+function hayControlPendienteDeGuardarBackoffice(){
+  if(navigator.onLine===false||controlChecksDirtyIds.size>0)return true;
+  const cola=leerColaOffline();
+  return Array.isArray(cola) && cola.length>0;
+}
+function volverAlListadoControlBackoffice(){
+  if(!controlDesdeBackoffice)return;
+  if(hayControlPendienteDeGuardarBackoffice()){
+    showToast('⚠ Hay cambios pendientes de sincronizar; termina la sincronización antes de volver al Backoffice.');
+    return;
+  }
+  controlDesdeBackoffice=null;
+  location.assign('admin/control.html');
+}
+function volverTrasGuardarDatosControlBackoffice(id){
+  if(controlDesdeBackoffice &&
+     controlDesdeBackoffice.action==='edit' && controlDesdeBackoffice.id===id){
+    volverAlListadoControlBackoffice();
+  }
+}
+function cerrarEdicionControlBackoffice(button){
+  const overlay=button && button.closest ? button.closest('.modal-overlay-dyn') : null;
+  if(overlay)overlay.style.display='none';
+  if(controlDesdeBackoffice && controlDesdeBackoffice.action==='edit')
+    volverAlListadoControlBackoffice();
+}
+async function abrirControlDesdeBackoffice(){
+  const key='lasala-backoffice-control-v1';
+  let raw=null;
+  try{raw=sessionStorage.getItem(key);sessionStorage.removeItem(key);}catch(e){return;}
+  if(!raw||currentUserRole!=='ADMIN')return;
+  let request=null;
+  try{request=JSON.parse(raw);}catch(e){return;}
+  if(!request||!['edit','checks'].includes(request.action)||
+     !['tunel','carga'].includes(request.tipo)||
+     typeof request.id!=='string'||!/^[-a-zA-Z0-9_]{1,128}$/.test(request.id)||
+     !Number.isInteger(request.dia)||request.dia<15||request.dia>4000||
+     !Number.isFinite(request.ts)||Math.abs(Date.now()-request.ts)>120000)return;
+  try{
+    await showControlModule();
+    const q=controlV2QDeDia(request.dia);
+    const ok=await loadControlChecksSlice(request.tipo,q,true);
+    if(!ok){showToast('No ha sido posible cargar el control de Firebase TEST.');return;}
+    const record=controlChecksData.find(x=>x.id===request.id &&
+      x.tipo===request.tipo && x.dia===request.dia);
+    if(!record){
+      showToast('El registro ha cambiado o ya no existe en esa fecha. Regresa al Backoffice para actualizar la consulta.');
+      return;
+    }
+    controlDesdeBackoffice={id:record.id,action:request.action};
+    controlSeccion=record.tipo;
+    controlQuincenaOffset=q;
+    controlDiaSel=record.dia;
+    controlFiltroEstado='todos';
+    controlTunelInvFiltro='';
+    controlCargaInvFiltro='';
+    if(record.partida)controlGuionActivo[record.tipo+'|'+record.partida]=record.id;
+    renderControlContent(document.getElementById('control-overlay'));
+    if(request.action==='edit'){
+      if(record.tipo==='carga')mostrarEditarControlCargaCheck(record.id);
+      else mostrarEditarControlCheck(record.id);
+    }else{
+      const card=document.getElementById('control-card-'+record.id);
+      if(card){
+        card.style.outline='3px solid #1558a0';
+        card.scrollIntoView({block:'center',behavior:'auto'});
+      }
+    }
+  }catch(e){
+    console.warn('Error al abrir Control desde Backoffice',e);
+    showToast('No se pudo abrir ese control. Reintenta desde Backoffice.');
+  }
 }
 // Puente exclusivo ADMIN TEST: el Backoffice nunca escribe los registros directamente.
 async function abrirRegistroRiegoDesdeBackoffice(){
