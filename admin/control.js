@@ -155,15 +155,9 @@
       status.append(node('span',rec.done?'Completado':'Pendiente','qc-status '+(rec.done?'ok':'pending')));
       row.append(status);
       const actions=node('td');actions.className='actions-col';
-      const button=node('button','Ver detalle','action-button');button.type='button';
-      button.addEventListener('click',()=>detail(rec));actions.append(button);
-      const edit=node('button','Editar datos','action-button');edit.type='button';
-      edit.addEventListener('click',()=>openNativeEditor('edit',rec));actions.append(edit);
-      const checks=node('button','Evaluar','action-button');checks.type='button';
-      checks.addEventListener('click',()=>openNativeEditor('checks',rec));actions.append(checks);
-      const quantitative=node('button','Ficha QC · Prueba','action-button');quantitative.type='button';
-      quantitative.title='Probar el formulario unificado, sin guardar datos';
-      quantitative.addEventListener('click',()=>openQuantitativePrototype(rec));actions.append(quantitative);
+      const open=node('button','Abrir QC','action-button');open.type='button';
+      open.title='Ficha QC: detalle, edición tradicional y mediciones por cantidad';
+      open.addEventListener('click',()=>openQuantitativePrototype(rec));actions.append(open);
       row.append(actions);
       el('qc-body').append(row);
     }
