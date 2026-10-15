@@ -176,7 +176,8 @@
     for(const cat of CATS){
       const wrap=node('fieldset',null,'qcu-group');wrap.dataset.cat=cat.key;
       const legend=node('legend',cat.name);
-      wrap.append(legend);
+      const balance=node('span',null,'qcu-balance');balance.hidden=true;
+      legend.append(balance);wrap.append(legend);
       const list=node('div',null,'qcu-opts');
       const original=new Set(checked(legacy?.[cat.key]));
       for(const [key,name] of cat.options){
@@ -195,6 +196,7 @@
         quantity.addEventListener('input',()=>{
           el('qcu-validation').hidden=true;
           quantity.removeAttribute('aria-invalid');
+          renderBalances();
           renderIndicators();
         });
         opt.append(label,quantity);list.append(opt);
@@ -206,6 +208,41 @@
     const s=asString(value).trim();
     if(!/^\d+$/.test(s))return null;
     const n=Number(s);return Number.isSafeInteger(n)&&n>0?n:null;
+  }
+  function renderBalances(){
+    const total=validInt(el('qcu-inspected').value);
+    for(const cat of CATS){
+      const group=el('qcu-groups').querySelector('.qcu-group[data-cat="'+cat.key+'"]');
+      if(!group)continue;
+      const balance=group.querySelector('.qcu-balance');
+      const entered=Array.from(group.querySelectorAll('input[type="number"]'))
+        .filter(x=>x.value.trim()!=='');
+      let message='',invalid=false;
+      if(entered.length){
+        if(total===null||total>10000000){message='Indica el total';invalid=true;}
+        else{
+          const amounts={};
+          for(const input of entered){
+            const quantity=validInt(input.value);
+            if(quantity===null||quantity>total){invalid=true;break;}
+            amounts[input.dataset.option]=quantity;
+          }
+          if(invalid)message='Cantidad inválida';
+          else{
+            const issue=categoryIssue(cat.key,amounts,total);
+            invalid=!!issue;
+            if(cat.key==='raices')message=issue||'✓ Cuadra';
+            else{
+              const sum=Object.values(amounts).reduce((a,b)=>a+b,0);
+              message=sum.toLocaleString('es-ES')+' / '+total.toLocaleString('es-ES')+
+                (issue?' · '+issue.replace(' bandejas.',''):' ✓');
+            }
+          }
+        }
+      }
+      balance.hidden=!message;balance.textContent=message;
+      balance.classList.toggle('is-warning',invalid);
+    }
   }
   function validate(){
     const errors=[],entries=[];
@@ -265,6 +302,7 @@
       }
     }
     inform('',false);
+    renderBalances();
     renderIndicators();
   }
   async function fetchCriteria(jwt,stage){
@@ -420,7 +458,7 @@
   async function start(){
     el('qcu-form').addEventListener('submit',submit);
     el('qcu-inspected').addEventListener('input',()=>{
-      el('qcu-validation').hidden=true;renderIndicators();
+      el('qcu-validation').hidden=true;renderBalances();renderIndicators();
     });
     try{
       const selected=getSelection();
