@@ -7211,11 +7211,11 @@ function botonCuantificacionControlHTML(c){
   const allowed=currentUserRole==='ADMIN'||currentUserRole==='TECNICO'||
     (currentUserRole==='CARGADOR'&&c.tipo==='carga');
   if(!allowed||!/^[A-Za-z0-9_-]{1,180}$/.test(String(c.id||'')))return '';
-  return '<div style="margin:11px 0 6px;display:flex;gap:9px;align-items:center;flex-wrap:wrap">'+
-    '<button type="button" onclick="abrirMedicionesControl(\\''+c.id+'\\')" '+
-    'style="background:#1558a0;color:#fff;border:0;border-radius:8px;padding:10px 14px;font-size:12px;font-weight:800;cursor:pointer">'+
-    'Medir bandejas QC</button>'+
-    '<span style="font-size:11px;color:#567189">Registra el nº de bandejas de cada característica</span></div>';
+  return `<div style="margin:11px 0 6px;display:flex;gap:9px;align-items:center;flex-wrap:wrap">
+    <button type="button" onclick="abrirMedicionesControl('${c.id}')"
+      style="background:#1558a0;color:#fff;border:0;border-radius:8px;padding:10px 14px;font-size:12px;font-weight:800;cursor:pointer">
+      Medir bandejas QC</button>
+    <span style="font-size:11px;color:#567189">Registra el nº de bandejas de cada característica</span></div>`;
 }
 function abrirMedicionesControl(id){
   const c=controlChecksData.find(item=>item.id===id);
