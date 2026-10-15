@@ -13,7 +13,7 @@ const CATEGORIES=[
 ];
 const BEHAVIORS=[
   ['pendiente','Pendiente de definir'],['informativo','Informativo'],
-  ['incidencia','Incidencia'],['critico','Crítico / Invalidante']
+  ['incidencia','Incidencia'],['critico','Crítico (alerta prioritaria)']
 ];
 const byId=id=>document.getElementById(id);
 let stage='tunel',rules=null,busy=false,loaded=false,baseline='';
