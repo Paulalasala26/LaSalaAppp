@@ -17,6 +17,14 @@
     {key:'flores',name:'Flores',options:[['si','Sí'],['no','No']]},
     {key:'raices',name:'Raíces',options:[['pocaRaiz','Poca raíz'],['raizVariedad','Raíz en variedad'],['ok','OK']]}
   ];
+  CATS.forEach(cat=>cat.options.push(['noEvaluada','No evaluada']));
+  function categoryIssue(values,total){
+    const keys=Object.keys(values);
+    if(keys.includes('noEvaluada')&&keys.length!==1)return 'No evaluada debe ser la única opción.';
+    const sum=Object.values(values).reduce((a,b)=>a+b,0);
+    if(sum!==total)return sum<total?'Faltan '+(total-sum)+' bandejas.':'Sobran '+(sum-total)+' bandejas.';
+    return '';
+  }
   const ILLNESSES={
     hojasManchadas:'Hojas manchadas',hojasAmarillas:'Hojas amarillas',
     tuta:'Tuta',minador:'Minador',pulgon:'Pulgón',oidio:'Oídio',
@@ -201,6 +209,10 @@
         input.setAttribute('aria-invalid',valid?'false':'true');
         if(!valid)errors.push(cat.name+' / '+name+': indica entre 1 y '+(total||'el total inspeccionado')+' bandejas.');
         else values.push({opcion:cb.dataset.option,bandejasAfectadas:count});
+      }
+      if(total!==null&&values.length===chosen.length){
+        const issue=categoryIssue(Object.fromEntries(values.map(v=>[v.opcion,v.bandejasAfectadas])),total);
+        if(issue)errors.push(cat.name+': '+issue);
       }
       entries.push({categoria:cat.key,opciones:values});
     }

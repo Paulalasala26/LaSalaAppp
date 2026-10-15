@@ -15,7 +15,14 @@ const OPTIONS=Object.freeze({
   flores:['si','no'],
   raices:['pocaRaiz','raizVariedad','ok']
 });
-const TYPES=new Set(['tunel','carga']);
+function categoryIssue(values,total){
+    const keys=Object.keys(values);
+    if(keys.includes('noEvaluada')&&keys.length!==1)return 'No evaluada debe ser la única opción.';
+    const sum=Object.values(values).reduce((a,b)=>a+b,0);
+    if(sum!==total)return sum<total?'Faltan '+(total-sum)+' bandejas.':'Sobran '+(sum-total)+' bandejas.';
+    return '';
+  }
+  const TYPES=new Set(['tunel','carga']);
 const RE_ID=/^[A-Za-z0-9_-]{1,180}$/;
 const PART_RE=/^[A-Za-z0-9._-]{1,100}$/;
 function inputOf(req){
@@ -46,13 +53,14 @@ function validateMeasurements(input){
     if(!source||typeof source!=='object'||Array.isArray(source)||Object.keys(source).length===0)
       throw httpError(400,'MISSING_CATEGORY');
     const entries=Object.entries(source);
-    const choices=new Set(allowed);
+    const choices=new Set([...allowed,'noEvaluada']);
     clean[cat]={};
     for(const [key,qty] of entries){
       if(!choices.has(key)||!validQty(qty)||qty>input.bandejasInspeccionadas)
         throw httpError(400,'INVALID_QUANTITY');
       clean[cat][key]=qty;
     }
+    if(categoryIssue(clean[cat],input.bandejasInspeccionadas))throw httpError(400,'CATEGORY_TOTAL_MISMATCH');
   }
   return clean;
 }

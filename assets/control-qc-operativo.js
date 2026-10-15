@@ -11,6 +11,14 @@
     ['flores','Flores',[['si','Sí'],['no','No']]],
     ['raices','Raíces',[['pocaRaiz','Poca raíz'],['raizVariedad','Raíz en variedad'],['ok','OK']]]
   ];
+  CATS.forEach(cat=>cat[2].push(['noEvaluada','No evaluada']));
+  function categoryIssue(values,total){
+    const keys=Object.keys(values);
+    if(keys.includes('noEvaluada')&&keys.length!==1)return 'No evaluada debe ser la única opción.';
+    const sum=Object.values(values).reduce((a,b)=>a+b,0);
+    if(sum!==total)return sum<total?'Faltan '+(total-sum)+' bandejas.':'Sobran '+(sum-total)+' bandejas.';
+    return '';
+  }
   let active=null,sequence=0,writing=false,version=0,record=null,original='';
   let savedMeasurement=null,currentRules=null;
   const node=(tag,txt,cls)=>{
@@ -146,6 +154,9 @@
         if(qty===null||total!==null&&qty>total)
           errors.push(name+' / '+key+': indica una cantidad positiva que no supere las inspeccionadas.');
         else clean[cat][key]=qty;
+      }
+      if(total!==null&&Object.keys(clean[cat]).length===Object.keys(opts).length){
+        const issue=categoryIssue(clean[cat],total);if(issue)errors.push(name+': '+issue);
       }
     }
     return {errors,total,mediciones:clean};

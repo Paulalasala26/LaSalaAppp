@@ -10,6 +10,7 @@
     ['flores','Flores',{si:'Sí',no:'No'}],
     ['raices','Raíces',{pocaRaiz:'Poca raíz',raizVariedad:'Raíz en variedad',ok:'OK'}]
   ];
+  CATS.forEach(cat=>{cat[2].noEvaluada='No evaluada'});
   const STATUS=Object.freeze({
     pendiente:'Pendiente de definir',informativo:'Informativo',
     incidencia:'Incidencia',critico:'Crítico'
@@ -30,8 +31,8 @@
         const count=source[key];
         if(!Number.isSafeInteger(count)||count<1||count>inspected)continue;
         const pct=count/inspected*100;
-        const r=configured?rules.criterios?.[cat]?.[key]:null;
-        const treatment=r&&Object.hasOwn(STATUS,r.tratamiento)?r.tratamiento:'pendiente';
+        const r=configured&&key!=='noEvaluada'?rules.criterios?.[cat]?.[key]:null;
+        const treatment=key==='noEvaluada'?'informativo':r&&Object.hasOwn(STATUS,r.tratamiento)?r.tratamiento:'pendiente';
         const limit=typeof r?.toleranciaPct==='number'&&Number.isFinite(r.toleranciaPct)&&
           r.toleranciaPct>=0&&r.toleranciaPct<=100?r.toleranciaPct:null;
         const hasAlert=(treatment==='incidencia'||treatment==='critico')&&
