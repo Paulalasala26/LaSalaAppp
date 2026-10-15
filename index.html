@@ -6031,6 +6031,7 @@ function renderControlWizardFilaHTML(c, guionInfo){
         </div>
         <div style="flex-shrink:0;font-size:32px">${completada?'✅':'⬜'}</div>
       </div>
+      ${botonCuantificacionControlHTML(c)}
       <button onclick="event.stopPropagation();mostrarAsignarCalleControl('${c.id}')" style="width:100%;padding:14px;font-size:14px;font-weight:700;background:#e8f2fd;color:#1558a0;border:none;border-top:2px solid #d5e6f7;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px">
         <i class="ti ti-map-pin" style="font-size:16px"></i> Asignar calle real
       </button>
@@ -6060,6 +6061,7 @@ function renderControlWizardFinalHTML(c){
           <input type="file" accept="image/*" capture="environment" style="display:none" onchange="handleControlFotoInput(this,'${c.id}')">
         </label>
       </div>
+      ${botonCuantificacionControlHTML(c)}
       <button onclick="guardarControlWizardYVolver()" style="width:100%;padding:24px;border-radius:16px;font-size:19px;font-weight:800;background:#2e7d32;color:#fff;border:none;cursor:pointer">✓ Guardar check</button>
       ${botonAtrasWizardHTML()}
     </div>`;
@@ -7211,11 +7213,12 @@ function botonCuantificacionControlHTML(c){
   const allowed=currentUserRole==='ADMIN'||currentUserRole==='TECNICO'||
     (currentUserRole==='CARGADOR'&&c.tipo==='carga');
   if(!allowed||!/^[A-Za-z0-9_-]{1,180}$/.test(String(c.id||'')))return '';
-  return `<div style="margin:11px 0 6px;display:flex;gap:9px;align-items:center;flex-wrap:wrap">
+  return `<div style="margin:8px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
     <button type="button" onclick="abrirMedicionesControl('${c.id}')"
-      style="background:#1558a0;color:#fff;border:0;border-radius:8px;padding:10px 14px;font-size:12px;font-weight:800;cursor:pointer">
-      Medir bandejas QC</button>
-    <span style="font-size:11px;color:#567189">Registra el nº de bandejas de cada característica</span></div>`;
+      title="Introducir cantidades de bandejas por característica"
+      style="display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:42px;background:#1558a0;color:#fff;border:0;border-radius:8px;padding:11px 17px;font-size:13px;font-weight:800;cursor:pointer;box-shadow:0 2px 8px rgba(21,88,160,.17)">
+      <i class="ti ti-clipboard-check" aria-hidden="true"></i> Medir bandejas QC</button>
+    <span style="font-size:11px;color:#567189">Indica las cantidades inspeccionadas</span></div>`;
 }
 function abrirMedicionesControl(id){
   const c=controlChecksData.find(item=>item.id===id);
@@ -7296,8 +7299,8 @@ function renderControlCardHTML(c, seccion){
           <button onclick="eliminarControlCheck('${c.id}')" title="Eliminar" style="padding:5px 9px;font-size:11px;font-weight:700;background:#fdecea;color:#c62828;border:1px solid #f0b0b0;border-radius:6px;cursor:pointer;white-space:nowrap">🗑️</button>
         </div>
       </div>
+      ${botonCuantificacionControlHTML(c)}
       <div style="margin-top:12px">${categoriasHTML}</div>
-       ${botonCuantificacionControlHTML(c)}
       <div style="margin-top:6px;display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">
         <div style="flex:1;min-width:180px">
           <div style="font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Observaciones</div>
@@ -7379,8 +7382,8 @@ function renderControlCargaCardHTML(c, seccion){
           <button onclick="eliminarControlCheck('${c.id}')" title="Eliminar" style="padding:5px 9px;font-size:11px;font-weight:700;background:#fdecea;color:#c62828;border:1px solid #f0b0b0;border-radius:6px;cursor:pointer;white-space:nowrap">🗑️</button>
         </div>
       </div>
+      ${botonCuantificacionControlHTML(c)}
       <div style="margin-top:12px">${categoriasHTML}</div>
-       ${botonCuantificacionControlHTML(c)}
       <div style="margin-top:6px;display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">
         <div style="flex:1;min-width:180px">
           <div style="font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Observaciones</div>
