@@ -7,6 +7,7 @@
   const LEGACY_HANDOFF='lasala-backoffice-control-v1';
   const API_URL='/api/admin-qc-mediciones';
   let currentRef=null,currentPartida='',version=0,saving=false;
+  let savedSnapshot=null,currentRules=null,ruleLoadFailed=false;
   const API_KEY='AIzaSyDdDdMg6M1jVIssvGYKsdRA-mRug31Yt_g';
   const TEST_DB='https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app';
   const CATS=[
@@ -224,6 +225,7 @@
     return result.record;
   }
   function loadSaved(saved){
+    savedSnapshot=saved;
     version=saved?.version||0;
     el('qcu-inspected').value=saved?String(saved.bandejasInspeccionadas):'';
     for(const cat of CATS){
@@ -242,8 +244,72 @@
     }
     if(saved)inform('Mediciones recuperadas · versión '+saved.version+
       ' · última actualización '+(saved.updatedAt||'—')+
-      '. Puedes modificarlas y guardar una nueva versión. No se calcula todavía el porcentaje QC.',false);
+      '. Puedes modificarlas y guardar una nueva versión. Los indicadores se muestran más abajo.',false);
     else inform('Aún no hay mediciones cuantitativas guardadas para este registro. Los checks históricos permanecen intactos.',false);
+    renderIndicators();
+  }
+  async function fetchCriteria(jwt,stage){
+    const response=await fetch('/api/admin-qc-reglas?stage='+encodeURIComponent(stage),{
+      method:'GET',headers:{Authorization:'Bearer '+jwt},cache:'no-store'
+    });
+    if(!response.ok)throw new Error('CRITERIA_UNAVAILABLE');
+    const body=await response.json();
+    if(!body.ok||body.stage!==stage||!body.rules||
+      !body.rules.criterios||!Number.isSafeInteger(body.rules.version))
+      throw new Error('CRITERIA_UNAVAILABLE');
+    return body.rules;
+  }
+  function metric(parent,label,value){
+    const wrap=node('div',null,'qci-metric');
+    wrap.append(node('b',value),node('span',label));
+    parent.append(wrap);
+  }
+  function percentText(value){
+    return Number(value).toLocaleString('es-ES',{maximumFractionDigits:2})+' %';
+  }
+  function renderIndicators(){
+    const status=el('qci-status'),section=el('qci-results');
+    section.hidden=true;
+    if(!savedSnapshot){
+      status.textContent='No hay mediciones guardadas. Completa la evaluación y guarda para ver los indicadores.';
+      return;
+    }
+    if(!window.QCIndicators){
+      status.textContent='No se ha podido cargar el cálculo de indicadores.';
+      return;
+    }
+    const result=window.QCIndicators.evaluate(savedSnapshot,currentRules);
+    if(!result.available){
+      status.textContent='Los datos guardados no contienen cantidades válidas para calcular los indicadores.';
+      return;
+    }
+    status.textContent=ruleLoadFailed
+      ?'No se han podido consultar los criterios. Se muestran porcentajes, sin alertas de tolerancia.'
+      :result.configuredCount===0
+        ?'Porcentajes calculados. Pendiente de configurar cómo se valoran los criterios.'
+        :'Porcentajes e indicadores calculados con los criterios del estadio.';
+    const stats=el('qci-metrics');stats.replaceChildren();
+    metric(stats,'Bandejas inspeccionadas',result.inspected.toLocaleString('es-ES'));
+    metric(stats,'Opciones cuantificadas',String(result.evaluatedCount));
+    metric(stats,'Advertencias',result.configuredCount?String(result.warningCount):'—');
+    metric(stats,'Alertas prioritarias',result.configuredCount?String(result.criticalCount):'—');
+    el('qci-objective').textContent=result.objective===null
+      ?'Objetivo global de calidad: sin definir. No se calcula una puntuación global.'
+      :'Objetivo global de calidad: '+percentText(result.objective)+' (solo referencia; no se calcula puntuación global).';
+    const body=el('qci-rows');body.replaceChildren();
+    for(const row of result.rows){
+      const tr=node('tr');
+      for(const value of [
+        row.categoryLabel+' · '+row.optionLabel,
+        row.count.toLocaleString('es-ES')+' / '+result.inspected.toLocaleString('es-ES'),
+        percentText(row.percentDisplay),
+        row.treatmentLabel,
+        row.tolerance===null?'—':percentText(row.tolerance)
+      ])tr.append(node('td',value));
+      const state=node('td');state.append(node('span',row.description,'qci-state '+row.level));
+      tr.append(state);body.append(tr);
+    }
+    section.hidden=false;
   }
   function goToLegacy(action){
     if(saving||!currentRef||!['edit','checks'].includes(action))return;
@@ -287,6 +353,13 @@
       }
       if(!output.ok||!Number.isInteger(output.version))throw new Error('SAVE_FAILED');
       version=output.version;
+      savedSnapshot={version,bandejasInspeccionadas:result.total,mediciones};
+      currentRules=null;ruleLoadFailed=false;
+      renderIndicators();
+      try{
+        currentRules=await fetchCriteria(await getToken(),currentRef.tipo);
+      }catch(e){ruleLoadFailed=true}
+      renderIndicators();
       inform('✓ Mediciones guardadas · versión '+version+
         ' · '+result.total+' bandejas inspeccionadas. Los controles anteriores se conservan. El porcentaje de calidad se configurará en Backoffice.',false);
     }catch(err){
@@ -310,6 +383,12 @@
       currentRef=selected;
       currentPartida=rec.partida||'';
       loadSaved(await savedMeasurements(jwt,selected));
+      try{
+        currentRules=await fetchCriteria(jwt,selected.tipo);
+      }catch(e){
+        currentRules=null;ruleLoadFailed=true;
+      }
+      renderIndicators();
       el('qcu-edit-legacy').addEventListener('click',()=>goToLegacy('edit'));
       el('qcu-evaluate-legacy').addEventListener('click',()=>goToLegacy('checks'));
       el('session-user').textContent=username;
