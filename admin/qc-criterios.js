@@ -167,9 +167,9 @@ async function save(e){
   if(busy||!rules||!loaded)return;
   let values;
   try{values=collect()}catch(error){status(error.message,'error');return}
-  if(JSON.stringify(values)===baseline){status('No hay cambios pendientes.','');return}
+  if(JSON.stringify(values)===baseline){status('','');return}
   busy=true;byId('qcr-save').disabled=true;byId('qcr-stage').disabled=true;
-  status('Guardando criterios…','');
+  status('Guardando…','');
   try{
     const jwt=await token();
     const response=await fetch(ENDPOINT,{
@@ -183,11 +183,14 @@ async function save(e){
       updatedAt:result.updatedAt,updatedBy:result.updatedBy};
     baseline=JSON.stringify(values);
     byId('qcr-version').textContent='Versión '+rules.version+' · actualizado por '+rules.updatedBy;
-    status('Configuración guardada. No se aplica todavía a la calificación de partidas.','success');
+    status('✓ Guardado','success');
+    setTimeout(()=>{
+      if(byId('qcr-feedback').textContent==='✓ Guardado')status('','');
+    },2500);
   }catch(err){
     status(err.message==='CONFLICT'?
-      'Otro administrador ha modificado estos criterios. No se han sobrescrito sus cambios. Vuelve a cargar la página para revisarlos.':
-      'No se ha podido confirmar el guardado. Comprueba la versión actual antes de volver a intentarlo.','error');
+      'Conflicto de edición. Recarga antes de guardar.':
+      'Guardado sin confirmar. Revisa la versión antes de reintentar.','error');
   }finally{busy=false;byId('qcr-save').disabled=false;byId('qcr-stage').disabled=false}
 }
 async function start(){
