@@ -15,13 +15,24 @@ const OPTIONS=Object.freeze({
   flores:['si','no'],
   raices:['pocaRaiz','raizVariedad','ok']
 });
-function categoryIssue(values,total){
-    const keys=Object.keys(values);
-    if(keys.includes('noEvaluada')&&keys.length!==1)return 'No evaluada debe ser la única opción.';
+function categoryIssue(category,values,total){
+  const notEvaluated=values.noEvaluada||0;
+  if(category!=='raices'){
     const sum=Object.values(values).reduce((a,b)=>a+b,0);
     if(sum!==total)return sum<total?'Faltan '+(total-sum)+' bandejas.':'Sobran '+(sum-total)+' bandejas.';
     return '';
   }
+  // Los dos defectos de raíces pueden coexistir en una bandeja.
+  // OK y No evaluada no se solapan con bandejas defectuosas.
+  const evaluated=total-notEvaluated,ok=values.ok||0;
+  if(ok>evaluated)return 'OK supera las evaluadas en '+(ok-evaluated)+' bandejas.';
+  const affected=evaluated-ok;
+  const low=values.pocaRaiz||0,inVariety=values.raizVariedad||0;
+  const minimum=Math.max(low,inVariety),maximum=low+inVariety;
+  if(affected<minimum)return 'Sobran '+(minimum-affected)+' bandejas con defectos respecto a las evaluadas.';
+  if(affected>maximum)return 'Faltan '+(affected-maximum)+' bandejas por clasificar.';
+  return '';
+}
   const TYPES=new Set(['tunel','carga']);
 const RE_ID=/^[A-Za-z0-9_-]{1,180}$/;
 const PART_RE=/^[A-Za-z0-9._-]{1,100}$/;
@@ -60,7 +71,7 @@ function validateMeasurements(input){
         throw httpError(400,'INVALID_QUANTITY');
       clean[cat][key]=qty;
     }
-    if(categoryIssue(clean[cat],input.bandejasInspeccionadas))throw httpError(400,'CATEGORY_TOTAL_MISMATCH');
+    if(categoryIssue(cat,clean[cat],input.bandejasInspeccionadas))throw httpError(400,'CATEGORY_TOTAL_MISMATCH');
   }
   return clean;
 }
