@@ -7257,7 +7257,10 @@ function renderControlCardHTML(c, seccion){
   // 2026-07-31) — la opción activa se pinta con el degradado de la
   // categoría, la inactiva con un tinte claro del mismo color (no blanco
   // plano), para que se note de un vistazo qué está marcado.
-  const categoriasHTML = CONTROL_CHECK_CATEGORIAS.map(cat=>{
+  // En la vista operativa moderna no se vuelven a ofrecer los selectores
+  // heredados: la partida abre la medición por cantidades. Se mantienen
+  // sus datos y sus funciones para consulta histórica y compatibilidad.
+  const categoriasHTML = puedeCuantificarControl(c) ? '' : CONTROL_CHECK_CATEGORIAS.map(cat=>{
     const opcionesHTML = cat.opciones.map(o=>{
       const activo = !!(c[cat.key] && c[cat.key][o.key]);
       return `<button onclick="toggleControlCheckOpcion('${c.id}','${cat.key}','${o.key}')" style="padding:6px 12px;border-radius:999px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid transparent;background:${activo?cat.gradiente:cat.tinte};color:${activo?'#fff':'var(--text)'}">${activo?'✓ ':''}${o.label}</button>`;
@@ -7318,7 +7321,7 @@ function renderControlCardHTML(c, seccion){
         </div>
       </div>
       ${anclaCuantificacionControlHTML(c)}
-      <div style="margin-top:12px">${categoriasHTML}</div>
+      ${categoriasHTML ? `<div style="margin-top:12px">${categoriasHTML}</div>` : ''}
       <div style="margin-top:6px;display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">
         <div style="flex:1;min-width:180px">
           <div style="font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Observaciones</div>
@@ -7343,7 +7346,10 @@ function renderControlCardHTML(c, seccion){
 // para no arriesgar el render de Túnel con ninguna refactorización.
 function renderControlCargaCardHTML(c, seccion){
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const categoriasHTML = CONTROL_CHECK_CATEGORIAS.map(cat=>{
+  // En la vista operativa moderna no se vuelven a ofrecer los selectores
+  // heredados: la partida abre la medición por cantidades. Se mantienen
+  // sus datos y sus funciones para consulta histórica y compatibilidad.
+  const categoriasHTML = puedeCuantificarControl(c) ? '' : CONTROL_CHECK_CATEGORIAS.map(cat=>{
     const opcionesHTML = cat.opciones.map(o=>{
       const activo = !!(c[cat.key] && c[cat.key][o.key]);
       return `<button onclick="toggleControlCheckOpcion('${c.id}','${cat.key}','${o.key}')" style="padding:6px 12px;border-radius:999px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid transparent;background:${activo?cat.gradiente:cat.tinte};color:${activo?'#fff':'var(--text)'}">${activo?'✓ ':''}${o.label}</button>`;
@@ -7401,7 +7407,7 @@ function renderControlCargaCardHTML(c, seccion){
         </div>
       </div>
       ${anclaCuantificacionControlHTML(c)}
-      <div style="margin-top:12px">${categoriasHTML}</div>
+      ${categoriasHTML ? `<div style="margin-top:12px">${categoriasHTML}</div>` : ''}
       <div style="margin-top:6px;display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">
         <div style="flex:1;min-width:180px">
           <div style="font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Observaciones</div>
