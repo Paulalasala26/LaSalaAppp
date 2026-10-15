@@ -61,7 +61,7 @@ function validateRules(source,stage){
   }
   return {umbralAptitudPct:source.umbralAptitudPct,criterios};
 }
-async function access(req){
+async function access(req,stage){
   const header=req.headers.authorization||'';
   if(!header.startsWith('Bearer '))throw httpError(401,'UNAUTHORIZED');
   const actor=await verifyFirebaseIdToken(header.slice(7).trim());
@@ -69,7 +69,11 @@ async function access(req){
   const [roles,users]=await Promise.all([
     readKey('lasala-roles-v1',token),readKey('lasala-users-v1',token)
   ]);
-  if(roles[actor]!=='ADMIN'||!validHash(users[actor]))throw httpError(403,'FORBIDDEN');
+  const role=roles[actor];
+  const allowed=role==='ADMIN'||
+    (req.method==='GET'&&
+      (role==='TECNICO'||(role==='CARGADOR'&&stage==='carga')));
+  if(!allowed||!validHash(users[actor]))throw httpError(403,'FORBIDDEN');
   return {actor,token};
 }
 async function read(url,token,withETag){
@@ -101,9 +105,9 @@ module.exports=async function handler(req,res){
     return res.status(405).json({error:'METHOD_NOT_ALLOWED'});
   }
   try{
-    const {actor,token}=await access(req);
     const input=req.method==='GET'?req.query:parseBody(req);
     const stage=stageOf(input.stage);
+    const {actor,token}=await access(req,stage);
     const url=BASE+'/'+stage+'.json';
     if(req.method==='GET'){
       const {value}=await read(url,token,false);
