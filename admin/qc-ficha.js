@@ -162,33 +162,32 @@
       if(unknown.length)root.append(legacyBlock('Valores adicionales de '+k,unknown.join(' · ')));
     }
   }
-  function renderGroups(){
+  function renderGroups(legacy){
     const root=el('qcu-groups');root.replaceChildren();
     for(const cat of CATS){
       const wrap=node('fieldset',null,'qcu-group');wrap.dataset.cat=cat.key;
       const legend=node('legend',cat.name);
-      legend.style.cssText='font-weight:800;font-size:14px;color:#1558a0;padding:0 5px';
       wrap.append(legend);
       const list=node('div',null,'qcu-opts');
+      const original=new Set(checked(legacy?.[cat.key]));
       for(const [key,name] of cat.options){
-        const opt=node('div',null,'qcu-option');
-        const label=node('label');
-        const checkbox=node('input');checkbox.type='checkbox';checkbox.dataset.cat=cat.key;checkbox.dataset.option=key;
-        checkbox.setAttribute('aria-label',cat.name+': '+name);
-        label.append(checkbox,node('span',name));
+        const opt=node('div',null,'qcu-option');opt.dataset.option=key;
+        const id='qcu-qty-'+cat.key+'-'+key;
+        const label=node('label',name,'qcu-option-label');label.htmlFor=id;
+        if(key!=='noEvaluada'&&original.has(key))
+          label.append(node('span','✓ Check original','qcu-historical-badge'));
+        const indicator=node('span',null,'qcu-inline-indicator');
+        indicator.hidden=true;label.append(indicator);
         const quantity=node('input');quantity.type='number';quantity.inputMode='numeric';
-        quantity.step='1';quantity.min='1';quantity.disabled=true;
-        quantity.dataset.cat=cat.key;quantity.dataset.option=key;
-        quantity.placeholder='Nº bandejas';
+        quantity.step='1';quantity.min='1';quantity.max='10000000';
+        quantity.id=id;quantity.dataset.cat=cat.key;quantity.dataset.option=key;
+        quantity.placeholder='—';
         quantity.setAttribute('aria-label','Bandejas '+name+' en '+cat.name);
-        checkbox.addEventListener('change',()=>{
-          quantity.disabled=!checkbox.checked;
-          quantity.required=checkbox.checked;
-          if(!checkbox.checked)quantity.value='';
+        quantity.addEventListener('input',()=>{
           el('qcu-validation').hidden=true;
-          if(checkbox.checked)quantity.focus();
+          quantity.removeAttribute('aria-invalid');
+          renderIndicators();
         });
-        quantity.addEventListener('input',()=>{el('qcu-validation').hidden=true;quantity.removeAttribute('aria-invalid')});
         opt.append(label,quantity);list.append(opt);
       }
       wrap.append(list);root.append(wrap);
@@ -207,19 +206,17 @@
     if(total===null)errors.push('Introduce un número entero mayor que cero de bandejas inspeccionadas.');
     for(const cat of CATS){
       const group=el('qcu-groups').querySelector('[data-cat="'+cat.key+'"].qcu-group');
-      const checkboxes=Array.from(group.querySelectorAll('input[type="checkbox"]'));
-      const chosen=checkboxes.filter(x=>x.checked);
-      if(!chosen.length)errors.push(cat.name+': selecciona al menos una opción.');
+      const chosen=Array.from(group.querySelectorAll('input[type="number"]'))
+        .filter(x=>x.value.trim()!=='');
+      if(!chosen.length)errors.push(cat.name+': introduce al menos una cantidad.');
       const values=[];
-      for(const cb of chosen){
-        const input=Array.from(group.querySelectorAll('input[type="number"]'))
-          .find(x=>x.dataset.option===cb.dataset.option);
+      for(const input of chosen){
         const count=validInt(input.value);
-        const name=cat.options.find(x=>x[0]===cb.dataset.option)?.[1]||cb.dataset.option;
+        const name=cat.options.find(x=>x[0]===input.dataset.option)?.[1]||input.dataset.option;
         const valid=count!==null&&(total===null||count<=total);
         input.setAttribute('aria-invalid',valid?'false':'true');
         if(!valid)errors.push(cat.name+' / '+name+': indica entre 1 y '+(total||'el total inspeccionado')+' bandejas.');
-        else values.push({opcion:cb.dataset.option,bandejasAfectadas:count});
+        else values.push({opcion:input.dataset.option,bandejasAfectadas:count});
       }
       if(total!==null&&values.length===chosen.length){
         const issue=categoryIssue(cat.key,Object.fromEntries(values.map(v=>[v.opcion,v.bandejasAfectadas])),total);
@@ -252,15 +249,10 @@
     for(const cat of CATS){
       const group=el('qcu-groups').querySelector('[data-cat="'+cat.key+'"].qcu-group');
       for(const [key] of cat.options){
-        const checkbox=Array.from(group.querySelectorAll('input[type="checkbox"]'))
-          .find(x=>x.dataset.option===key);
         const qty=Array.from(group.querySelectorAll('input[type="number"]'))
           .find(x=>x.dataset.option===key);
         const n=saved?.mediciones?.[cat.key]?.[key];
-        checkbox.checked=Number.isInteger(n)&&n>0;
-        qty.disabled=!checkbox.checked;
-        qty.required=checkbox.checked;
-        qty.value=checkbox.checked?String(n):'';
+        qty.value=Number.isInteger(n)&&n>0?String(n):'';
       }
     }
     inform('',false);
@@ -285,10 +277,28 @@
   function percentText(value){
     return Number(value).toLocaleString('es-ES',{maximumFractionDigits:2})+' %';
   }
+  function measurementsUnchanged(){
+    if(!savedSnapshot||validInt(el('qcu-inspected').value)!==savedSnapshot.bandejasInspeccionadas)
+      return false;
+    for(const cat of CATS){
+      const group=el('qcu-groups').querySelector('[data-cat="'+cat.key+'"].qcu-group');
+      for(const input of group.querySelectorAll('input[type="number"]')){
+        const original=savedSnapshot.mediciones?.[cat.key]?.[input.dataset.option];
+        const text=input.value.trim();
+        if(text===''? original!==undefined : validInt(text)!==original)return false;
+      }
+    }
+    return true;
+  }
   function renderIndicators(){
     const status=el('qci-status'),section=el('qci-results');
+    el('qcu-groups').querySelectorAll('.qcu-inline-indicator').forEach(x=>{x.hidden=true;x.textContent='';});
     status.hidden=false;
     section.hidden=true;
+    if(savedSnapshot&&!measurementsUnchanged()){
+      status.hidden=true;
+      return;
+    }
     if(!savedSnapshot){
       status.textContent='Sin mediciones.';
       return;
@@ -314,6 +324,15 @@
       ?'':'Objetivo de calidad: '+percentText(result.objective);
     const body=el('qci-rows');body.replaceChildren();
     for(const row of result.rows){
+      const option=el('qcu-groups').querySelector(
+        '.qcu-group[data-cat="'+row.category+'"] .qcu-option[data-option="'+row.option+'"] .qcu-inline-indicator');
+      if(option){
+        option.textContent=percentText(row.percentDisplay)+
+          (row.level==='critical'?' · Alerta':row.level==='warning'?' · Aviso':'');
+        option.className='qcu-inline-indicator '+row.level;
+        option.title=row.description;
+        option.hidden=false;
+      }
       const tr=node('tr');
       for(const value of [
         row.categoryLabel+' · '+row.optionLabel,
@@ -391,13 +410,15 @@
   }
   async function start(){
     el('qcu-form').addEventListener('submit',submit);
-    el('qcu-inspected').addEventListener('input',()=>{el('qcu-validation').hidden=true});
+    el('qcu-inspected').addEventListener('input',()=>{
+      el('qcu-validation').hidden=true;renderIndicators();
+    });
     try{
       const selected=getSelection();
       const jwt=await getToken();
       const username=await verifyAdmin(jwt);
       const rec=await getRecord(jwt,selected);
-      renderIdentity(rec);renderLegacy(rec);renderGroups();
+      renderIdentity(rec);renderLegacy(rec);renderGroups(rec);
       currentRef=selected;
       currentPartida=rec.partida||'';
       loadSaved(await savedMeasurements(jwt,selected));
