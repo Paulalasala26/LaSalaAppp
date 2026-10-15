@@ -36,9 +36,23 @@
 .qcu-alert.error{background:#fff0f0;color:#a02929}.qcu-alert.ok{background:#e8f7ed;color:#216440}
 .qcu-legacy{border-left:3px solid #bdd2e7;padding:8px 10px;margin:7px 0;background:#f7f9fc}
 .qcu-legacy b{font-size:12px;color:#184a7f}.qcu-legacy p{font-size:12px;margin:3px 0;color:#455a71}
+.qci-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:12px 0 15px}
+.qci-metric{padding:13px;background:#f0f5fb;border:1px solid #d6e4f1;border-radius:9px}
+.qci-metric b{display:block;font-size:22px;color:#1558a0;margin-bottom:3px}
+.qci-metric span{display:block;font-size:11px;color:#5a7187}
+.qci-scroll{overflow:auto}
+.qci-table{border-collapse:collapse;min-width:720px;width:100%;font-size:12px}
+.qci-table th,.qci-table td{padding:10px 9px;text-align:left;border-bottom:1px solid #e6edf5}
+.qci-table th{font-weight:750;color:#486580;background:#f7fafe}
+.qci-state{font-size:11px;font-weight:700;color:#47647d;white-space:nowrap}
+.qci-state.warning{color:#9b6410}
+.qci-state.critical{color:#a32929}
+.qci-note{color:#52687d;font-size:12px;line-height:1.5}
+@media(max-width:800px){.qci-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:800px){.qcu-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.qcu-groups{grid-template-columns:1fr}}
 @media(max-width:520px){.qcu-fields{grid-template-columns:1fr}.qcu-panel{padding:13px}.qcu-option{grid-template-columns:minmax(0,1fr) 102px}}
 </style>
+<script src="./qc-indicadores.js" defer></script>
 <script src="./qc-ficha.js" defer></script>
 </head>
 <body>
@@ -82,6 +96,23 @@
 <div class="qcu-actions"><button id="qcu-save" type="submit" class="qcu-action">Guardar mediciones</button><a href="./control.html" class="button ghost">Volver a registros QC</a></div>
 <div id="qcu-validation" role="status" aria-live="polite" hidden></div>
 </form>
+</section>
+<section class="qcu-panel" aria-labelledby="qci-title">
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+  <h2 id="qci-title">Indicadores de calidad</h2>
+  <a href="./qc-criterios.html" class="button ghost">Configurar criterios</a>
+</div>
+<p class="qci-note">Porcentajes calculados a partir de las <strong>mediciones guardadas</strong> y de los criterios definidos para el estadio.</p>
+<div id="qci-status" class="qci-note" role="status" aria-live="polite">Cargando indicadores…</div>
+<div id="qci-results" hidden>
+  <div id="qci-metrics" class="qci-stats"></div>
+  <div id="qci-objective" class="qci-note"></div>
+  <div class="qci-scroll"><table class="qci-table">
+    <thead><tr><th>Evaluación</th><th>Bandejas</th><th>% inspeccionado</th><th>Tratamiento</th><th>Tolerancia</th><th>Indicador</th></tr></thead>
+    <tbody id="qci-rows"></tbody>
+  </table></div>
+  <p class="qci-note" style="margin-top:12px">Cada porcentaje se calcula por separado. Una bandeja puede aparecer en varios criterios; <strong>no se suman los porcentajes ni se calcula una nota global</strong>. Ningún indicador bloquea o rechaza partidas.</p>
+</div>
 </section>
 </main>
 </div>
