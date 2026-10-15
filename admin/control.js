@@ -138,7 +138,7 @@
     }));
     // Enlace de SOLO lectura: selector efímero, sin exponer IDs en la URL.
     sessionStorage.setItem('lasala-qc-prototipo-ref-v1',JSON.stringify({
-      tipo:rec.tipo,dia:rec.dia,id:rec.id,ts:Date.now()
+      tipo:rec.tipo,dia:rec.dia,id:rec.id,ts:Date.now(),from:'list'
     }));
     location.assign('./qc-ficha.html');
   }
@@ -264,7 +264,7 @@
     }finally{busy=false;el('qc-query').disabled=false;el('qc-reload').disabled=false;}
   }
   function defaultDates(){
-    const now=new Date(),prev=new Date(now);prev.setDate(now.getDate()-13);
+    const now=new Date(),prev=new Date(now);prev.setDate(now.getDate()-29);
     const iso=d=>[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');
     el('qc-to').value=iso(now);el('qc-from').value=iso(prev)<'2026-06-15'?'2026-06-15':iso(prev);
   }
@@ -301,8 +301,9 @@
             input.value=value;
           }
         }
-        await query();
       }
+      // Siempre consultar al entrar: anteriormente solo cargaba tras recuperar filtros.
+      await query();
     }catch(e){
       gate('Acceso restringido',e.message==='LOGIN_REQUIRED'?'Entra como ADMIN en ViguerAPP.':
         e.message==='NO_PERMISSION'?'No tienes permisos ADMIN activos.':
