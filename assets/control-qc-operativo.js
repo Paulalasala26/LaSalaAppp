@@ -36,10 +36,10 @@
     const root=document.getElementById('control-overlay');
     if(!root||!record)return null;
     const expected="abrirMedicionesControl('"+record.id+"')";
-    const button=Array.from(root.querySelectorAll('button[onclick]'))
-      .find(b=>b.getAttribute('onclick')===expected);
-    return button||Array.from(root.querySelectorAll('[data-qco-anchor]'))
-      .find(a=>a.dataset.qcoAnchor===record.id)||null;
+    const anchor=Array.from(root.querySelectorAll('[data-qco-anchor]'))
+      .find(a=>a.dataset.qcoAnchor===record.id);
+    return anchor||Array.from(root.querySelectorAll('button[onclick]'))
+      .find(b=>b.getAttribute('onclick')===expected)||null;
   }
   // Mantener una sola presentación de las opciones en las tarjetas clásicas.
   // Los inputs visibles son un reflejo de la medición, no modifican los checks
