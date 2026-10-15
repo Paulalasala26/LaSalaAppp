@@ -88,7 +88,7 @@ function validateStored(entry,ref,partida){
     throw httpError(409,'SAVED_CONFLICT');
   return entry;
 }
-async function checkAdmin(req){
+async function checkQCActor(req,ref){
   const raw=req.headers.authorization||'';
   if(!raw.startsWith('Bearer '))throw httpError(401,'UNAUTHORIZED');
   const actor=await verifyFirebaseIdToken(raw.slice(7).trim());
@@ -96,7 +96,10 @@ async function checkAdmin(req){
   const [roles,accounts]=await Promise.all([
     readKey('lasala-roles-v1',token),readKey('lasala-users-v1',token)
   ]);
-  if(roles[actor]!=='ADMIN'||!validHash(accounts[actor]))throw httpError(403,'FORBIDDEN');
+  const role=roles[actor];
+  const authorized=role==='ADMIN'||role==='TECNICO'||
+    (role==='CARGADOR'&&ref.tipo==='carga');
+  if(!authorized||!validHash(accounts[actor]))throw httpError(403,'FORBIDDEN');
   return {actor,token};
 }
 module.exports=async function handler(req,res){
@@ -107,9 +110,9 @@ module.exports=async function handler(req,res){
     return res.status(405).json({error:'METHOD_NOT_ALLOWED'});
   }
   try{
-    const {actor,token}=await checkAdmin(req);
     const request=req.method==='GET'?req.query:inputOf(req);
     const ref=validRef(request);
+    const {actor,token}=await checkQCActor(req,ref);
     const source=await legacyRecord(ref,token);
     if(req.method==='GET'){
       const {value}=await getJson(pathFor(ref.id),token,false);
