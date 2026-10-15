@@ -12,6 +12,7 @@
     ['raices','Raíces',[['pocaRaiz','Poca raíz'],['raizVariedad','Raíz en variedad'],['ok','OK']]]
   ];
   let active=null,sequence=0,writing=false,version=0,record=null,original='';
+  let savedMeasurement=null,currentRules=null;
   const node=(tag,txt,cls)=>{
     const n=document.createElement(tag);
     if(txt!==null&&txt!==undefined)n.textContent=String(txt);
@@ -48,6 +49,7 @@
     if(writing)return;
     if(active&&changed()&&!confirm('Hay mediciones sin guardar. ¿Salir sin guardar?'))return;
     const previous=active;sequence++;active=null;record=null;original='';
+    savedMeasurement=null;currentRules=null;
     if(previous)previous.remove();
   }
   async function token(){
@@ -79,7 +81,59 @@
       }
     }
     original=JSON.stringify(snapshot());
+    savedMeasurement=saved;
+    updateIndicatorVisibility();
     report('','');
+  }
+  async function fetchRules(jwt,stage){
+    const response=await fetch('/api/admin-qc-reglas?stage='+encodeURIComponent(stage),{
+      method:'GET',headers:{Authorization:'Bearer '+jwt},cache:'no-store'
+    });
+    if(!response.ok)throw Error('RULES_UNAVAILABLE');
+    const data=await response.json();
+    if(!data.ok||data.stage!==stage||!data.rules?.criterios)throw Error('RULES_UNAVAILABLE');
+    return data.rules;
+  }
+  function updateIndicatorVisibility(){
+    const details=active?.querySelector('.qco-indicators');
+    if(details)details.hidden=!savedMeasurement||changed();
+  }
+  function renderIndicators(expand){
+    const details=active?.querySelector('.qco-indicators');
+    if(!details)return;
+    details.hidden=true;
+    if(!savedMeasurement||!window.QCIndicators)return;
+    const v=window.QCIndicators.evaluate(savedMeasurement,currentRules);
+    if(!v.available)return;
+    const summary=details.querySelector('summary'),list=details.querySelector('.qco-indicator-list');
+    summary.textContent='Indicadores guardados';
+    if(v.configuredCount){
+      const flags=[];
+      if(v.warningCount)flags.push(v.warningCount+' aviso'+(v.warningCount===1?'':'s'));
+      if(v.criticalCount)flags.push(v.criticalCount+' alerta'+(v.criticalCount===1?'':'s'));
+      if(flags.length)summary.textContent+=' · '+flags.join(' · ');
+    }
+    list.replaceChildren();
+    const header=node('div',null,'qco-indicator-row qco-indicator-head');
+    header.append(node('span','Característica'),node('span','Bandejas'),node('span','% / Alerta'));
+    list.append(header);
+    for(const entry of v.rows){
+      const line=node('div',null,'qco-indicator-row');
+      const value=Number(entry.percentDisplay).toLocaleString('es-ES',{maximumFractionDigits:2})+' %';
+      const alertText=entry.level==='critical'?' · Prioritaria':
+        entry.level==='warning'?' · Aviso':'';
+      line.append(
+        node('span',entry.categoryLabel+' · '+entry.optionLabel),
+        node('span',entry.count.toLocaleString('es-ES')+' / '+v.inspected.toLocaleString('es-ES')),
+        node('span',value+alertText,'qco-indicator-value '+entry.level)
+      );
+      if(entry.tolerance!==null&&(entry.treatment==='incidencia'||entry.treatment==='critico'))
+        line.title='Tolerancia '+entry.tolerance.toLocaleString('es-ES',{maximumFractionDigits:2})+' %';
+      list.append(line);
+    }
+    details.hidden=false;
+    if(expand)details.open=true;
+    updateIndicatorVisibility();
   }
   function validate(){
     const v=snapshot(),total=strCount(v.bandejasInspeccionadas),errors=[],clean={};
@@ -122,6 +176,8 @@
       const data=await r.json();
       if(!data.ok||!Number.isInteger(data.version))throw Error('SAVE_FAILED');
       version=data.version;original=JSON.stringify(snapshot());
+      savedMeasurement={version,bandejasInspeccionadas:checked.total,mediciones:checked.mediciones};
+      renderIndicators(true);
       report('✓ Guardado','success');
       const completedModal=active;
       setTimeout(()=>{
@@ -154,6 +210,8 @@
     body.append(meta);
  
     const form=node('form');form.noValidate=true;form.addEventListener('submit',save);
+    form.addEventListener('input',updateIndicatorVisibility);
+    form.addEventListener('change',updateIndicatorVisibility);
     const total=node('label',null,'qco-total');
     const totalTitle=node('span','Nº bandejas inspeccionadas *');
     const qtyInput=node('input');qtyInput.type='number';qtyInput.inputMode='numeric';
@@ -182,6 +240,10 @@
     const feedback=node('div',null,'qco-feedback');feedback.hidden=true;
     feedback.setAttribute('role','status');feedback.setAttribute('aria-live','polite');
     form.append(feedback);
+    const indicators=node('details',null,'qco-indicators');indicators.hidden=true;
+    const indicatorTitle=node('summary','Indicadores');
+    indicators.append(indicatorTitle,node('div',null,'qco-indicator-list'));
+    form.append(indicators);
     const foot=node('div',null,'qco-footer');
     const cancel=node('button','Cerrar','qco-secondary');cancel.type='button';
     cancel.addEventListener('click',close);
@@ -202,6 +264,7 @@
     if(active)return;
     const thisSequence=++sequence;
     record={id:rec.id,tipo:rec.tipo,dia:rec.dia,partida:rec.partida};
+    savedMeasurement=null;currentRules=null;
     active=build(rec);document.body.append(active);
     original=JSON.stringify(snapshot());
     const modal=active;
@@ -219,6 +282,9 @@
       if(!data.ok||data.sourcePartida!==rec.partida)throw Error('CONFLICT');
       if(sequence!==thisSequence||active!==modal)return;
       populate(data.record);
+      try{currentRules=await fetchRules(jwt,rec.tipo)}catch(e){currentRules=null}
+      if(sequence!==thisSequence||active!==modal)return;
+      renderIndicators(false);
       modal.querySelector('.qco-save').disabled=false;
     }catch(err){
       if(sequence!==thisSequence||active!==modal)return;
