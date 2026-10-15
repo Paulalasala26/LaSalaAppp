@@ -160,7 +160,7 @@ function buildDashboard(raw,rawRules,filters,legacyRecords=[]){
     if(!validMeasurement(value,id)){invalidCount++;continue}
     measurementById.set(id,value);
   }
-  const ids=new Set();
+  const ids=new Set(),matchedQuantified=new Set();
   for(const rec of legacyRecords){
     if(!plainObject(rec)||!REF_RE.test(rec.id)||!TYPES.has(rec.tipo)||
        !Number.isInteger(rec.dia)||rec.dia<filters.from||rec.dia>filters.to||
@@ -187,6 +187,7 @@ function buildDashboard(raw,rawRules,filters,legacyRecords=[]){
     week.records++;week[type]++;if(done)week.completed++;
     let warnings=0,critical=0,pending=0,observed=0;
     if(quant){
+      matchedQuantified.add(rec.id);
       measured++;part.measured++;week.measured++;
       const inspected=quant.bandejasInspeccionadas;
       inspectedAcrossRecords+=inspected;part.bandejas+=inspected;
@@ -225,7 +226,7 @@ function buildDashboard(raw,rawRules,filters,legacyRecords=[]){
     if(measurement.legacy.dia>=filters.from&&measurement.legacy.dia<=filters.to&&
        (filters.stage==='todos'||filters.stage===measurement.legacy.tipo)&&
        (!filters.part||measurement.legacy.partida.toLocaleUpperCase('es').includes(filters.part))&&
-       !rows.some(x=>x.id===id&&x.quantified))unmatchedCount++;
+       !matchedQuantified.has(id))unmatchedCount++;
   }
   rows.sort((a,b)=>b.dia-a.dia||
     b.criticalCount-a.criticalCount||b.warningCount-a.warningCount||
