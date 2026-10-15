@@ -65,7 +65,7 @@
       active.classList.remove('qco-merged');
       return;
     }
-    card.querySelectorAll('.qco-live-control').forEach(x=>x.remove());
+    card.querySelectorAll('.qco-live-control, .qco-live-slot').forEach(x=>x.remove());
     const containers=new Map();
     const addInput=(container,category,option,name,label)=>{
       const original=active.querySelector('[data-qco-cat="'+category+'"] .qco-option[data-option="'+option+'"] input[type="number"]');
@@ -76,7 +76,8 @@
       proxy.type='number';proxy.min='1';proxy.step='1';proxy.max='10000000';
       proxy.inputMode='numeric';proxy.placeholder='—';
       proxy.value=original.value;proxy.disabled=loading||writing;
-      proxy.setAttribute('aria-label',name+' · '+(label||option)+' · bandejas');
+      const text=label||CATS.find(x=>x[0]===category)?.[2].find(x=>x[0]===option)?.[1]||option;
+      proxy.setAttribute('aria-label',name+' · '+text+' · bandejas');
       proxy.addEventListener('input',()=>{
         original.value=proxy.value;
         updateIndicatorVisibility();
@@ -118,7 +119,7 @@
     const root=document.getElementById('control-overlay');
     if(!root)return;
     observer=new MutationObserver(()=>{
-      if(active&&!active.isConnected)mount();
+      if(active&&(!active.isConnected||(active.classList.contains('qco-floating')&&controlButton())))mount();
     });
     observer.observe(root,{childList:true,subtree:true});
   }
