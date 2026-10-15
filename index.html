@@ -6032,7 +6032,7 @@ function renderControlWizardFilaHTML(c, guionInfo){
         </div>
         <div style="flex-shrink:0;font-size:32px">${completada?'✅':'⬜'}</div>
       </div>
-      ${botonCuantificacionControlHTML(c)}
+      ${anclaCuantificacionControlHTML(c)}
       <button onclick="event.stopPropagation();mostrarAsignarCalleControl('${c.id}')" style="width:100%;padding:14px;font-size:14px;font-weight:700;background:#e8f2fd;color:#1558a0;border:none;border-top:2px solid #d5e6f7;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px">
         <i class="ti ti-map-pin" style="font-size:16px"></i> Asignar calle real
       </button>
@@ -7210,10 +7210,27 @@ function mostrarComprobarExtensiones(){
 }
 // Entrada cuantitativa opcional durante la transición: no cambia los checks legacy.
 // Se comprueban los permisos de nuevo en el servidor (no basta con ocultar el botón).
+function puedeCuantificarControl(c){
+  return !!c&&(currentUserRole==='ADMIN'||currentUserRole==='TECNICO'||
+    (currentUserRole==='CARGADOR'&&c.tipo==='carga'))&&
+    /^[A-Za-z0-9_-]{1,180}$/.test(String(c.id||''));
+}
+function enlacePartidaCuantificadaHTML(c){
+  const label=String(c.partida||'— Sin partida —')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  if(!puedeCuantificarControl(c))
+    return `<div class="qco-partida-title">${label}</div>`;
+  return `<button type="button" class="qco-partida-title qco-partida-link"
+    onclick="abrirMedicionesControl('${c.id}')" title="Abrir cantidades QC"
+    aria-label="Abrir QC de partida ${label}">${label}</button>`;
+}
+function anclaCuantificacionControlHTML(c){
+  return puedeCuantificarControl(c)?
+    `<span hidden data-qco-anchor="${c.id}"></span>`:'';
+}
 function botonCuantificacionControlHTML(c){
-  const allowed=currentUserRole==='ADMIN'||currentUserRole==='TECNICO'||
-    (currentUserRole==='CARGADOR'&&c.tipo==='carga');
-  if(!allowed||!/^[A-Za-z0-9_-]{1,180}$/.test(String(c.id||'')))return '';
+  if(!puedeCuantificarControl(c))return '';
   return `<div style="margin:8px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
     <button type="button" onclick="abrirMedicionesControl('${c.id}')"
       title="Introducir cantidades de bandejas por característica"
@@ -7283,7 +7300,7 @@ function renderControlCardHTML(c, seccion){
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
         <div>
           <div style="font-size:14px;font-weight:800;color:var(--text)">${escapar(c.clienteVariedad)||'<span style="font-style:italic;color:var(--muted)">Sin cliente/variedad</span>'}</div>
-          <div style="font-size:19px;font-weight:900;color:#1558a0;margin-top:3px;letter-spacing:.02em">${escapar(c.partida)||'— Sin partida —'}</div>
+          ${enlacePartidaCuantificadaHTML(c)}
           <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">
             <span style="font-size:11px;font-weight:700;background:#f0f4f8;color:#1558a0;border-radius:999px;padding:3px 10px">Nº bandejas: ${escapar(c.numBandejas)||'—'}</span>
             <span style="font-size:11px;font-weight:700;background:#f0f4f8;color:#1558a0;border-radius:999px;padding:3px 10px">Calle real: ${calleRealLabel}</span>
@@ -7300,7 +7317,7 @@ function renderControlCardHTML(c, seccion){
           <button onclick="eliminarControlCheck('${c.id}')" title="Eliminar" style="padding:5px 9px;font-size:11px;font-weight:700;background:#fdecea;color:#c62828;border:1px solid #f0b0b0;border-radius:6px;cursor:pointer;white-space:nowrap">🗑️</button>
         </div>
       </div>
-      ${botonCuantificacionControlHTML(c)}
+      ${anclaCuantificacionControlHTML(c)}
       <div style="margin-top:12px">${categoriasHTML}</div>
       <div style="margin-top:6px;display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">
         <div style="flex:1;min-width:180px">
@@ -7367,7 +7384,7 @@ function renderControlCargaCardHTML(c, seccion){
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
         <div>
           <div style="font-size:14px;font-weight:800;color:var(--text)">${escapar(c.cliente)||'<span style="font-style:italic;color:var(--muted)">Sin cliente</span>'}</div>
-          <div style="font-size:19px;font-weight:900;color:#1558a0;margin-top:3px;letter-spacing:.02em">${escapar(c.partida)||'— Sin partida —'}</div>
+          ${enlacePartidaCuantificadaHTML(c)}
           <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">
             <span style="font-size:11px;font-weight:700;background:#f0f4f8;color:#1558a0;border-radius:999px;padding:3px 10px">Variedad: ${escapar(c.variedad)||'—'}</span>
             <span style="font-size:11px;font-weight:700;background:#f0f4f8;color:#1558a0;border-radius:999px;padding:3px 10px">Nº bandejas: ${escapar(c.numBandejas)||'—'}</span>
@@ -7383,7 +7400,7 @@ function renderControlCargaCardHTML(c, seccion){
           <button onclick="eliminarControlCheck('${c.id}')" title="Eliminar" style="padding:5px 9px;font-size:11px;font-weight:700;background:#fdecea;color:#c62828;border:1px solid #f0b0b0;border-radius:6px;cursor:pointer;white-space:nowrap">🗑️</button>
         </div>
       </div>
-      ${botonCuantificacionControlHTML(c)}
+      ${anclaCuantificacionControlHTML(c)}
       <div style="margin-top:12px">${categoriasHTML}</div>
       <div style="margin-top:6px;display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">
         <div style="flex:1;min-width:180px">

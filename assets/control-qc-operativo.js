@@ -36,8 +36,10 @@
     const root=document.getElementById('control-overlay');
     if(!root||!record)return null;
     const expected="abrirMedicionesControl('"+record.id+"')";
-    return Array.from(root.querySelectorAll('button[onclick]'))
-      .find(b=>b.getAttribute('onclick')===expected)||null;
+    const button=Array.from(root.querySelectorAll('button[onclick]'))
+      .find(b=>b.getAttribute('onclick')===expected);
+    return button||Array.from(root.querySelectorAll('[data-qco-anchor]'))
+      .find(a=>a.dataset.qcoAnchor===record.id)||null;
   }
   // Mantener una sola presentación de las opciones en las tarjetas clásicas.
   // Los inputs visibles son un reflejo de la medición, no modifican los checks
@@ -114,8 +116,9 @@
     const button=controlButton();
     if(button){
       active.classList.remove('qco-floating');
-      button.parentElement.insertAdjacentElement('afterend',active);
-      button.setAttribute('aria-expanded','true');
+      if(button.hasAttribute('data-qco-anchor'))button.insertAdjacentElement('afterend',active);
+      else button.parentElement.insertAdjacentElement('afterend',active);
+      if(button.tagName==='BUTTON')button.setAttribute('aria-expanded','true');
       embedAmounts();
     }else if(loading||writing||changed()){
       active.classList.remove('qco-merged');

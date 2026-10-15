@@ -75,3 +75,11 @@
 .qco-balance,.qco-live-balance{margin-left:9px;font-size:11px;font-weight:750;color:#1558a0;font-variant-numeric:tabular-nums}
 .qco-balance.is-warning,.qco-live-balance.is-warning{color:#a45d00}
 .qco-balance[hidden],.qco-live-balance[hidden]{display:none}
+
+/* Entrada única por partida al editor cuantitativo, sin botón duplicado. */
+.qco-partida-title{font-size:19px;font-weight:900;color:#1558a0;margin-top:3px;letter-spacing:.02em}
+.qco-partida-link{display:block;max-width:100%;text-align:left;font:inherit;font-size:19px;font-weight:900;
+  line-height:1.22;letter-spacing:.02em;background:none;border:0;padding:0;cursor:pointer;
+  color:#1558a0;text-decoration:underline;text-decoration-color:#aac8e7;text-underline-offset:3px;
+  overflow-wrap:anywhere}
+.qco-partida-link:hover,.qco-partida-link:focus-visible{color:#0e3c71;text-decoration-color:currentColor}
