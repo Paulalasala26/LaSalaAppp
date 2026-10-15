@@ -5801,38 +5801,49 @@ async function showControlModule(){
   });
 }
 async function seleccionarSeccionControl(sec){
-  controlSeccion = sec;
-  if(sec){
-    controlQuincenaOffset = riegoQuincenaOffsetActual();
-    controlDiaSel = riegoDiaDeHoy();
-  }
-  if(sec==='tunel'){
-    // Estado del wizard de pruebas (ver CONTROL_TUNEL_WIZARD_USUARIOS) —
-    // se resetea cada vez que se entra a Túnel, para no dejar a Ginés a
-    // mitad de una evaluación de una visita anterior.
-    controlWizardNivel = 'dias';
-    controlWizardQuincenaOffset = null;
-    controlWizardDiaSel = null;
-    controlWizardPartidaId = null;
-    controlWizardPaso = 0;
-    controlWizardEnfermedades = false;
-    controlWizardVista = 'partidas';
-  }
-  if(sec==='tunel' || sec==='carga'){
-    const ok=await loadControlSeccionSlice(sec,controlQuincenaOffset,false);
-    if(!ok){ avisarFalloCarga(); return; }
-  }
-  if(sec === 'conteo_tuta'){
-    conteoTutaQuincenaOffset = riegoQuincenaOffsetActual();
-    conteoTutaDiaSel = riegoDiaDeHoy();
-    conteoTutaVista = 'datos';
-  }
-  renderControlContent(document.getElementById('control-overlay'));
+  if(sec===controlSeccion)return;
+  return navegarControlQC(async()=>{
+    const offset=riegoQuincenaOffsetActual();
+    if(sec==='tunel'||sec==='carga'){
+      const ok=await loadControlSeccionSlice(sec,offset,false);
+      if(!ok){ avisarFalloCarga(); return; }
+    }
+    controlSeccion=sec;
+    if(sec){
+      controlQuincenaOffset=offset;
+      controlDiaSel=riegoDiaDeHoy();
+    }
+    if(sec==='tunel'){
+      // Solo reiniciar el wizard tras confirmar que podemos abandonar QC.
+      controlWizardNivel='dias';
+      controlWizardQuincenaOffset=null;
+      controlWizardDiaSel=null;
+      controlWizardPartidaId=null;
+      controlWizardPaso=0;
+      controlWizardEnfermedades=false;
+      controlWizardVista='partidas';
+    }
+    if(sec==='conteo_tuta'){
+      conteoTutaQuincenaOffset=offset;
+      conteoTutaDiaSel=riegoDiaDeHoy();
+      conteoTutaVista='datos';
+    }
+    renderControlContent(document.getElementById('control-overlay'));
+  });
 }
 // La última sección renderizada se usa exclusivamente para restaurar scroll
 // dentro de una sección, pero volver arriba al cambiar de apartado.
 let controlUltimaSeccionRenderizada = undefined;
 let controlQCConfirmandoSalida=false;
+let controlQCNavegacionPendiente=false;
+async function navegarControlQC(action){
+  if(controlQCNavegacionPendiente)return;
+  controlQCNavegacionPendiente=true;
+  try{
+    if(!(await confirmarSalidaQC()))return;
+    return await action();
+  }finally{controlQCNavegacionPendiente=false;}
+}
 async function confirmarSalidaQC(){
   if(controlQCConfirmandoSalida)return false;
   controlQCConfirmandoSalida=true;
@@ -5968,22 +5979,30 @@ function renderControlSeccionHTML(seccion){
 // guardarControlObservaciones, mostrarAsignarCalleControl) para que lo que
 // marque Ginés aquí se vea exactamente igual en la vista de ADMIN.
 async function cambiarControlWizardQuincena(delta){
-  controlWizardQuincenaOffset = Math.max(0, (controlWizardQuincenaOffset||0) + delta);
-  controlWizardDiaSel = null;
-  controlWizardNivel = 'dias';
-  const ok=await loadControlChecksSlice('tunel',controlWizardQuincenaOffset,false);
-  if(!ok){ avisarFalloCarga(); return; }
-  renderControlContent(document.getElementById('control-overlay'));
+  const siguiente=Math.max(0,(controlWizardQuincenaOffset||0)+delta);
+  if(siguiente===controlWizardQuincenaOffset)return;
+  return navegarControlQC(async()=>{
+    const ok=await loadControlChecksSlice('tunel',siguiente,false);
+    if(!ok){avisarFalloCarga();return;}
+    controlWizardQuincenaOffset=siguiente;
+    controlWizardDiaSel=null;
+    controlWizardNivel='dias';
+    renderControlContent(document.getElementById('control-overlay'));
+  });
 }
 function cambiarControlWizardVista(v){
   controlWizardVista = v;
   renderControlContent(document.getElementById('control-overlay'));
 }
-function seleccionarControlWizardDia(dia){
-  controlWizardDiaSel = parseInt(dia,10);
-  controlWizardNivel = 'partidas';
-  controlWizardPartidaId = null;
-  renderControlContent(document.getElementById('control-overlay'));
+async function seleccionarControlWizardDia(dia){
+  const siguiente=parseInt(dia,10);
+  if(siguiente===controlWizardDiaSel&&controlWizardNivel==='partidas')return;
+  return navegarControlQC(()=>{
+    controlWizardDiaSel=siguiente;
+    controlWizardNivel='partidas';
+    controlWizardPartidaId=null;
+    renderControlContent(document.getElementById('control-overlay'));
+  });
 }
 function abrirControlWizardPartida(id){
   controlWizardPartidaId = id;
@@ -6193,17 +6212,25 @@ function renderControlTunelWizardHTML(){
     </div>`;
 }
 async function cambiarControlQuincena(delta){
-  controlQuincenaOffset = Math.max(0, controlQuincenaOffset + delta);
-  controlDiaSel = null;
-  if(controlSeccion==='tunel' || controlSeccion==='carga'){
-    const ok=await loadControlSeccionSlice(controlSeccion,controlQuincenaOffset,false);
-    if(!ok){ avisarFalloCarga(); return; }
-  }
-  renderControlContent(document.getElementById('control-overlay'));
+  const siguiente=Math.max(0,controlQuincenaOffset+delta);
+  if(siguiente===controlQuincenaOffset)return;
+  return navegarControlQC(async()=>{
+    if(controlSeccion==='tunel'||controlSeccion==='carga'){
+      const ok=await loadControlSeccionSlice(controlSeccion,siguiente,false);
+      if(!ok){avisarFalloCarga();return;}
+    }
+    controlQuincenaOffset=siguiente;
+    controlDiaSel=null;
+    renderControlContent(document.getElementById('control-overlay'));
+  });
 }
-function cambiarControlDia(dia){
-  controlDiaSel = parseInt(dia,10);
-  renderControlContent(document.getElementById('control-overlay'));
+async function cambiarControlDia(dia){
+  const siguiente=parseInt(dia,10);
+  if(siguiente===controlDiaSel)return;
+  return navegarControlQC(()=>{
+    controlDiaSel=siguiente;
+    renderControlContent(document.getElementById('control-overlay'));
+  });
 }
 // Una línea se considera "completada" cuando TODAS las categorías de check
 // (Color/Tamaño/Sanidad/Flores/Raíces) tienen al menos una opción marcada —
