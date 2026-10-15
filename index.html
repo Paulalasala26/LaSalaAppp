@@ -6023,7 +6023,7 @@ function renderControlWizardFilaHTML(c, guionInfo){
   const completada = controlLineaCompletada(c);
   return `
     <div style="border:2.5px solid ${completada?'#3fa864':'var(--border)'};border-radius:16px;background:#fff;overflow:hidden">
-      <div onclick="abrirControlWizardPartida('${c.id}')" style="padding:18px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:12px">
+      <div onclick="abrirMedicionesControl('${c.id}')" style="padding:18px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:12px">
         <div style="min-width:0">
           <div style="font-size:13px;font-weight:700;color:var(--muted)">${escapar(c.clienteVariedad)||'Sin cliente/variedad'}${guionInfo?` · Guión ${guionInfo.n} de ${guionInfo.total}`:''}</div>
           <div style="font-size:23px;font-weight:900;color:#1558a0;margin-top:2px">${escapar(c.partida)||'— Sin partida —'}</div>
