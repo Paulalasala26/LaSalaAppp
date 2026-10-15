@@ -134,7 +134,7 @@
     // Conserva los filtros del listado para el regreso desde la ficha.
     sessionStorage.setItem(RETURN_FILTERS,JSON.stringify({
       type:el('qc-type').value,from:el('qc-from').value,to:el('qc-to').value,
-      state:el('qc-state').value,search:el('qc-search').value
+      state:el('qc-state').value,search:el('qc-search').value,selected:rec.id
     }));
     // Enlace de SOLO lectura: selector efímero, sin exponer IDs en la URL.
     sessionStorage.setItem('lasala-qc-prototipo-ref-v1',JSON.stringify({
@@ -147,6 +147,7 @@
     const next=filtered.slice(cursor,cursor+PAGE);
     for(const rec of next){
       const row=node('tr'),when=node('td');
+      row.dataset.qcId=rec.id;
       when.append(node('span',localDate(rec.iso),'qc-main'));
       when.append(node('span',rec.tipo==='tunel'?'Check Túnel':'Check Carga','qc-secondary'));
       row.append(when,node('td',rec.partida||'—','qc-main'),node('td',clientVariety(rec)||'—'),
@@ -304,6 +305,19 @@
       }
       // Siempre consultar al entrar: anteriormente solo cargaba tras recuperar filtros.
       await query();
+      // Tras volver de una ficha, mantener visible la línea de la que se salió.
+      if(previous&&typeof previous.selected==='string'&&loaded){
+        const pos=filtered.findIndex(x=>x.id===previous.selected);
+        if(pos>=0){
+          while(cursor<=pos&&cursor<filtered.length)showMore();
+          const row=Array.from(el('qc-body').querySelectorAll('tr[data-qc-id]'))
+            .find(x=>x.dataset.qcId===previous.selected);
+          if(row){
+            row.classList.add('qc-return-selected');
+            row.scrollIntoView({block:'center',behavior:'auto'});
+          }
+        }
+      }
     }catch(e){
       gate('Acceso restringido',e.message==='LOGIN_REQUIRED'?'Entra como ADMIN en ViguerAPP.':
         e.message==='NO_PERMISSION'?'No tienes permisos ADMIN activos.':
