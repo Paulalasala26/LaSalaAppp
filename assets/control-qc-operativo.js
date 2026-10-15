@@ -31,7 +31,7 @@
     return '';
   }
   let active=null,sequence=0,writing=false,version=0,record=null,original='';
-  let savedMeasurement=null,currentRules=null,observer=null,loading=false,legacyApi=null,notesPending=null;
+  let savedMeasurement=null,currentRules=null,observer=null,loading=false,legacyApi=null,notesPending=null,switchingRecord=false;
   function controlButton(){
     const root=document.getElementById('control-overlay');
     if(!root||!record)return null;
@@ -228,11 +228,16 @@
   function changed(){return original!==JSON.stringify(snapshot())}
   function close(force=false){
     if(writing)return false;
+    const quantitiesAtRequest=JSON.stringify(snapshot());
     if(!force&&active&&changed()&&!confirm('Hay cantidades sin guardar. ¿Salir sin guardar?'))return false;
     if(notesPending||notesChanged()){
       const editor=active;
       report('Guardando observaciones…','');
-      void settleNotes().then(ok=>{if(ok&&active===editor)close(true);});
+      void settleNotes().then(ok=>{
+        if(ok&&active===editor){
+          close(JSON.stringify(snapshot())===quantitiesAtRequest);
+        }
+      });
       return false;
     }
     const previous=active,button=controlButton();
@@ -591,7 +596,15 @@
       alert('Este control no tiene todos los identificadores necesarios para cuantificarlo.');
       return;
     }
-    if(active){const same=record?.id===rec.id;close();if(active||same)return;}
+    if(switchingRecord)return;
+    if(active){
+      if(record?.id===rec.id){close();return;}
+      switchingRecord=true;
+      try{
+        const navigation=await prepareRecordSwitch(record?.id);
+        if(!navigation.allowed||active)return;
+      }finally{switchingRecord=false;}
+    }
     const thisSequence=++sequence;
     record={id:rec.id,tipo:rec.tipo,dia:rec.dia,partida:rec.partida};
     legacyApi=context||null;
