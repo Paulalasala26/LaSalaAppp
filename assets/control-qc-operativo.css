@@ -66,3 +66,7 @@
   .qco-live-control input{width:56px;padding:6px 4px;font-size:12px}
   .qco-inline.qco-merged .qco-body{padding:9px 12px}
 }
+
+.qco-live-indicator{font-size:10px;font-weight:700;color:#58718b;font-variant-numeric:tabular-nums}
+.qco-live-indicator.warning{color:#995c00}
+.qco-live-indicator.critical{color:#af2525}
