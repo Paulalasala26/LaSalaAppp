@@ -76,23 +76,18 @@
 <div class="page-head"><h1>QC · Ficha unificada</h1><a href="./control.html" class="button ghost">← Registros QC</a></div>
 
 <section class="qcu-panel" aria-labelledby="qcu-title">
-<h2 id="qcu-title">Identificación y procedencia</h2>
+<h2 id="qcu-title">Partida</h2>
 <div id="qcu-fields" class="qcu-fields"></div>
-<p class="qcu-note">El total de bandejas mostrado procede del registro QC.</p>
 </section>
 <section class="qcu-panel" aria-labelledby="qcu-legacy-title">
-<h2 id="qcu-legacy-title">Evaluación existente · Solo lectura</h2>
-<p class="qcu-note">Los checks antiguos conservan su significado. No se les atribuyen cantidades ni porcentajes.</p>
+<h2 id="qcu-legacy-title">Check original</h2>
 <div id="qcu-legacy"></div>
 <div class="qcu-actions"><button id="qcu-edit-legacy" type="button" class="button ghost">Editar datos de origen</button><button id="qcu-evaluate-legacy" type="button" class="button ghost">Evaluar check original</button></div>
-<p class="qcu-note">Estas acciones abren los formularios originales de Túnel y Carga.</p>
 </section>
 <section class="qcu-panel" aria-labelledby="qcu-quant-title">
-<h2 id="qcu-quant-title">Nueva medición cuantitativa por estadio</h2>
-<p class="qcu-note">Indica cuántas bandejas has inspeccionado y, para cada opción que marques, cuántas bandejas presentan esa característica. <strong>Las cantidades son obligatorias y deben ser mayores que cero.</strong></p>
+<h2 id="qcu-quant-title">Bandejas por característica</h2>
 <form id="qcu-form" novalidate>
 <div class="qcu-total"><label for="qcu-inspected">Nº de bandejas inspeccionadas *</label><input type="number" id="qcu-inspected" inputmode="numeric" min="1" step="1" placeholder="Ej.: 65" required></div>
-<p class="qcu-note">Introduce únicamente las bandejas realmente inspeccionadas.</p>
 <div id="qcu-groups" class="qcu-groups"></div>
 <div class="qcu-actions"><button id="qcu-save" type="submit" class="qcu-action">Guardar mediciones</button><a href="./control.html" class="button ghost">Volver a registros QC</a></div>
 <div id="qcu-validation" role="status" aria-live="polite" hidden></div>
@@ -100,10 +95,9 @@
 </section>
 <section class="qcu-panel" aria-labelledby="qci-title">
 <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
-  <h2 id="qci-title">Indicadores de calidad</h2>
+  <h2 id="qci-title">Indicadores</h2>
   <a href="./qc-criterios.html" class="button ghost">Configurar criterios</a>
 </div>
-<p class="qci-note">Porcentajes calculados a partir de las <strong>mediciones guardadas</strong> y de los criterios definidos para el estadio.</p>
 <div id="qci-status" class="qci-note" role="status" aria-live="polite">Cargando indicadores…</div>
 <div id="qci-results" hidden>
   <div id="qci-metrics" class="qci-stats"></div>
@@ -112,8 +106,7 @@
     <thead><tr><th>Evaluación</th><th>Bandejas</th><th>% inspeccionado</th><th>Tratamiento</th><th>Tolerancia</th><th>Indicador</th></tr></thead>
     <tbody id="qci-rows"></tbody>
   </table></div>
-  <p class="qci-note" style="margin-top:12px">Cada porcentaje se calcula por separado. Una bandeja puede aparecer en varios criterios; <strong>no se suman los porcentajes ni se calcula una nota global</strong>. Ningún indicador bloquea o rechaza partidas.</p>
-</div>
+  </div>
 </section>
 </main>
 </div>
