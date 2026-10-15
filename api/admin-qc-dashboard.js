@@ -106,7 +106,8 @@ function buildDashboard(raw,rawRules,filters){
         if(rule){
           options[type][cat][key].treatment=rule.treatment;
           options[type][cat][key].tolerance=rule.tolerance;
-          if(rule.treatment!=='pendiente')hasConfiguredRules=true;
+          if((filters.stage==='todos'||filters.stage===type)&&rule.treatment!=='pendiente')
+            hasConfiguredRules=true;
         }
       }
     }
