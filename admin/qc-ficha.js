@@ -240,7 +240,7 @@
         qty.value=checkbox.checked?String(n):'';
       }
     }
-    if(saved)inform('Mediciones recuperadas de TEST · versión '+saved.version+
+    if(saved)inform('Mediciones recuperadas · versión '+saved.version+
       ' · última actualización '+(saved.updatedAt||'—')+
       '. Puedes modificarlas y guardar una nueva versión. No se calcula todavía el porcentaje QC.',false);
     else inform('Aún no hay mediciones cuantitativas guardadas para este registro. Los checks históricos permanecen intactos.',false);
@@ -263,7 +263,7 @@
       return;
     }
     saving=true;el('qcu-save').disabled=true;
-    inform('Guardando las mediciones en TEST, sin modificar los checks existentes…',false);
+    inform('Guardando mediciones…',false);
     try{
       const mediciones={};
       for(const cat of result.entries){
@@ -287,8 +287,8 @@
       }
       if(!output.ok||!Number.isInteger(output.version))throw new Error('SAVE_FAILED');
       version=output.version;
-      inform('✓ Guardado confirmado en Firebase TEST · versión '+version+
-        ' · '+result.total+' bandejas inspeccionadas. Los checks históricos no se han modificado. La puntuación QC está pendiente de definir.',false);
+      inform('✓ Mediciones guardadas · versión '+version+
+        ' · '+result.total+' bandejas inspeccionadas. Los controles anteriores se conservan. El porcentaje de calidad se configurará en Backoffice.',false);
     }catch(err){
       const msg=err.message==='CONCURRENT_MODIFICATION'
         ?'Otro usuario ha cambiado este registro o la partida de origen. No se ha sobrescrito nada. Copia los datos necesarios y vuelve a abrir la ficha para revisar la versión actual.'
@@ -319,9 +319,9 @@
       const msg=e?.message==='NO_SELECTION'?'Selecciona primero un registro desde Backoffice → QC.':
         e?.message==='LOGIN_REQUIRED'?'Inicia sesión en ViguerAPP para continuar.':
         e?.message==='NO_PERMISSION'?'Se necesita el rol ADMIN activo.':
-        e?.message==='NOT_FOUND'?'El registro ha cambiado o no se encuentra en los segmentos QC de TEST.':
+        e?.message==='NOT_FOUND'?'El registro ha cambiado o no se encuentra disponible.':
         e?.message==='SOURCE_CHANGED'?'El registro original ha cambiado o no es compatible con la medición existente.':
-        'No se ha podido cargar la ficha QC en TEST.';
+        'No se ha podido cargar la ficha QC.';
       console.warn('QC prototipo no disponible:',e?.message);
       gate(msg);
     }
