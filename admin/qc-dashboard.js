@@ -85,27 +85,23 @@
     td.style.textAlign='left';tr.append(td);root.append(tr);
   }
   function renderStats(data){
-    const s=data.stats,root=el('qcd-stats');
+    const v=data.stats,root=el('qcd-stats');
     root.replaceChildren();
-    metric(root,formatInt(s.records),'Controles cuantificados');
-    metric(root,formatInt(s.partidas),'Partidas distintas');
-    metric(root,formatInt(s.inspectedAcrossRecords),'Bandejas inspeccionadas en controles*');
-    metric(root,formatInt(s.flaggedCount),'Controles con alguna alerta');
-    metric(root,s.hasConfiguredRules?formatInt(s.warningCount):'—','Advertencias');
-    metric(root,s.hasConfiguredRules?formatInt(s.criticalCount):'—','Alertas prioritarias');
-    const note=el('qcd-results').querySelector('.qcd-desc');
-    if(data.stats.pendingRecordCount&&note){
-      const p=node('p',formatInt(data.stats.pendingRecordCount)+
-        ' controles tienen al menos una opción marcada sin tratamiento definido.',
-        'qcd-desc');
+    metric(root,formatInt(v.records),'Controles registrados');
+    metric(root,formatInt(v.completed),'Checks completados');
+    metric(root,formatInt(v.pending),'Checks pendientes');
+    metric(root,formatInt(v.partidas),'Partidas distintas');
+    metric(root,formatInt(v.measured),'Controles con mediciones');
+    metric(root,formatInt(v.inspectedAcrossRecords),'Bandejas inspeccionadas en mediciones*');
+    metric(root,formatInt(v.flaggedCount),'Controles medidos con alerta');
+    metric(root,v.measured&&v.hasConfiguredRules?formatInt(v.warningCount):'—','Advertencias en mediciones');
+    metric(root,v.measured&&v.hasConfiguredRules?formatInt(v.criticalCount):'—','Alertas prioritarias en mediciones');
+    root.parentElement.querySelectorAll('.qcd-pending-info').forEach(x=>x.remove());
+    if(v.pendingRecordCount){
+      const p=node('p',formatInt(v.pendingRecordCount)+
+        ' controles cuantificados tienen alguna opción sin tratamiento definido.',
+        'qcd-desc qcd-pending-info');
       root.after(p);
-      // Avoid accumulating notes on repeat queries.
-      if(root.parentElement){
-        root.parentElement.querySelectorAll('.qcd-pending-info').forEach(x=>x.remove());
-      }
-      p.classList.add('qcd-pending-info');
-    }else if(root.parentElement){
-      root.parentElement.querySelectorAll('.qcd-pending-info').forEach(x=>x.remove());
     }
   }
   function renderStages(data){
@@ -116,29 +112,33 @@
       const v=data.partitions?.[type];
       if(!v)continue;
       const row=node('tr');
-      for(const val of [stageName(type),formatInt(v.records),formatInt(v.bandejas),
-        data.stats.hasConfiguredRules?formatInt(v.warnings):'—',
-        data.stats.hasConfiguredRules?formatInt(v.critical):'—'])cell(row,val);
+      for(const val of [
+        stageName(type),formatInt(v.records),formatInt(v.completed),
+        formatInt(v.measured),v.measured?formatInt(v.bandejas):'—',
+        v.measured&&data.stats.hasConfiguredRules?formatInt(v.warnings):'—',
+        v.measured&&data.stats.hasConfiguredRules?formatInt(v.critical):'—'
+      ])cell(row,val);
       root.append(row);shown++;
     }
-    if(!shown)emptyRow(root,5,'Sin estadios para mostrar.');
+    if(!shown)emptyRow(root,7,'Sin estadios para mostrar.');
   }
   function renderTrend(data){
     const root=el('qcd-trend');root.replaceChildren();
     if(!data.trend.length){
-      root.append(node('p','No hay controles cuantificados en este periodo.','qcd-desc'));
+      root.append(node('p','No hay controles registrados en este periodo.','qcd-desc'));
       return;
     }
     for(const w of data.trend){
       const wrap=node('div',null,'qcd-barline');
       const label=node('span',readableDate(w.weekStart));
-      const track=node('div',null,'qcd-track'),bar=node('div',null,'qcd-fill flagged');
-      const share=w.records?Math.min(100,100*w.flagged/w.records):0;
+      const track=node('div',null,'qcd-track'),bar=node('div',null,'qcd-fill');
+      const share=w.records?Math.min(100,100*w.measured/w.records):0;
       bar.style.width=share+'%';
-      bar.title=w.flagged+' de '+w.records+' controles con alguna alerta';
+      bar.title=w.measured+' de '+w.records+' controles con mediciones cuantitativas';
       track.append(bar);
-      const caption=node('span',w.flagged+' / '+w.records+
-        ' · '+(w.records?Math.round(100*w.flagged/w.records):0)+' %');
+      const caption=node('span',w.measured+' / '+w.records+
+        ' · '+(w.records?Math.round(100*w.measured/w.records):0)+' %');
+      caption.title=w.measured?w.flagged+' de '+w.measured+' controles cuantificados con alguna alerta':'Sin mediciones cuantitativas';
       wrap.append(label,track,caption);root.append(wrap);
     }
   }
@@ -174,14 +174,18 @@
   function renderRecords(data){
     const root=el('qcd-records');root.replaceChildren();
     el('qcd-count').textContent=formatInt(data.totalRows)+
-      ' inspecciones cuantificadas en el filtro · mostrando '+formatInt(data.shownRows)+
+      ' controles en el filtro · mostrando '+formatInt(data.shownRows)+
       ' (máximo 150 por consulta). El mismo nº de partida puede aparecer varias veces.';
-    if(!data.records.length){emptyRow(root,7,'No hay inspecciones cuantificadas en este periodo.');return;}
+    if(!data.records.length){emptyRow(root,9,'No hay controles de Túnel/Carga en el periodo seleccionado.');return;}
     for(const row of data.records){
       const tr=node('tr');
       for(const value of [
         readableDate(row.date),stageName(row.tipo),row.partida,
-        formatInt(row.bandejasInspeccionadas),String(row.warningCount),String(row.criticalCount)
+        row.done?'Completado':'Pendiente',
+        row.quantified?'Cuantificado':'Sin medición',
+        row.quantified?formatInt(row.bandejasInspeccionadas):'—',
+        row.quantified?formatInt(row.warningCount):'—',
+        row.quantified?formatInt(row.criticalCount):'—'
       ])cell(tr,value);
       const td=node('td');
       const button=node('button','Abrir QC','qcd-rowbutton');button.type='button';
@@ -190,17 +194,24 @@
     }
   }
   function render(data){
-    if(!data.ok||data.scope!=='quantified-only'||!data.stats||
+    if(!data.ok||data.scope!=='legacy-and-quantified'||!data.stats||
       !Array.isArray(data.trend)||!Array.isArray(data.options)||!Array.isArray(data.records))
       throw new Error('INVALID_RESPONSE');
     renderStats(data);renderStages(data);renderTrend(data);
     renderOptions(data);renderRecords(data);
     el('qcd-results').hidden=false;
-    if(data.invalidExcluded>0)message('Se han omitido '+formatInt(data.invalidExcluded)+
-      ' documentos con estructura no válida; no se han incluido en ningún total.',true);
-    else if(data.stats.records===0)message('No hay inspecciones con cantidades guardadas para estos filtros.',false);
-    else if(!data.stats.hasConfiguredRules)message('Hay mediciones cuantificadas, pero las reglas no tienen tratamientos configurados. Se muestran los porcentajes sin alertas.',false);
-    else message('',false);
+    if(data.invalidExcluded>0||data.unmatchedMeasurements>0){
+      message('Se han excluido '+formatInt(data.invalidExcluded)+
+        ' mediciones inválidas y '+formatInt(data.unmatchedMeasurements)+
+        ' sin correspondencia válida con el registro original. No se han contado en los indicadores.',true);
+    }else if(data.stats.records===0){
+      message('No hay controles de Túnel o Carga en las fechas seleccionadas.',false);
+    }else if(data.stats.measured===0){
+      message('Se muestran '+formatInt(data.stats.records)+
+        ' controles históricos. Todavía no hay mediciones cuantitativas vinculadas en este periodo: por eso los porcentajes y alertas aparecen vacíos.',false);
+    }else if(!data.stats.hasConfiguredRules){
+      message('Los controles y las mediciones ya están disponibles. Los criterios aún no tienen tratamientos configurados; no se generan alertas.',false);
+    }else message('',false);
   }
   async function query(e){
     if(e)e.preventDefault();
