@@ -81,26 +81,26 @@
       <section class="qcd-panel" aria-label="Resumen de calidad">
         <h2>Resumen del periodo</h2>
         <div id="qcd-stats" class="qcd-metrics"></div>
-        <p class="qcd-desc">Solo se contabilizan registros que tienen cantidades de bandejas inspeccionadas y mediciones guardadas. Las bandejas pueden repetirse entre inspecciones y estadios: <strong>no representan existencias únicas</strong>.</p>
+        <p class="qcd-desc">Los controles incluyen Túnel y Carga, aunque todavía no tengan cantidades medidas. Los porcentajes y alertas se calculan <strong>solo para los registros cuantificados</strong>. Las bandejas pueden repetirse entre inspecciones: no son existencias únicas.</p>
       </section>
       <div class="qcd-grid">
         <section class="qcd-panel">
           <h2>Comparativa por estadio</h2>
           <div class="qcd-scroll"><table class="qcd-table">
-            <thead><tr><th>Estadio</th><th>Registros</th><th>Bandejas inspeccionadas*</th><th>Advertencias</th><th>Alertas</th></tr></thead>
+            <thead><tr><th>Estadio</th><th>Controles</th><th>Completados</th><th>Con medición</th><th>Bandejas inspeccionadas*</th><th>Advertencias</th><th>Alertas</th></tr></thead>
             <tbody id="qcd-stages"></tbody>
           </table></div>
           <p class="qcd-desc">* Suma de bandejas de cada inspección, sin deduplicarlas entre controles.</p>
         </section>
         <section class="qcd-panel">
           <h2>Evolución semanal</h2>
-          <p class="qcd-desc">Controles cuantificados con alguna alerta respecto al total semanal, según los criterios configurados actualmente.</p>
+          <p class="qcd-desc">Evolución de controles registrados y cobertura de mediciones cuantitativas por semana. Las alertas se muestran solo sobre controles cuantificados.</p>
           <div id="qcd-trend"></div>
         </section>
       </div>
       <section class="qcd-panel">
         <h2>Indicadores por característica</h2>
-        <p class="qcd-desc">Porcentaje observado = bandejas con esa característica / bandejas inspeccionadas en los registros cuantificados del mismo estadio. Las características pueden solaparse; los porcentajes <strong>no deben sumarse</strong>.</p>
+        <p class="qcd-desc">Porcentaje observado = bandejas afectadas / bandejas inspeccionadas, únicamente en registros con mediciones guardadas del mismo estadio. Las características pueden solaparse; los porcentajes <strong>no deben sumarse</strong>.</p>
         <div class="qcd-scroll"><table class="qcd-table">
           <thead><tr><th>Estadio</th><th>Criterio</th><th>Bandejas afectadas</th><th>% observado</th><th>Tratamiento</th><th>Tolerancia</th><th>Alertas</th></tr></thead>
           <tbody id="qcd-options"></tbody>
@@ -108,10 +108,10 @@
         <p class="qcd-desc">Las alertas se recalculan con los criterios vigentes, incluso para controles anteriores. «Sin definir» no equivale a una evaluación favorable. No se bloquean ni rechazan partidas.</p>
       </section>
       <section class="qcd-panel">
-        <h2>Partidas e inspecciones</h2>
+        <h2>Partidas y controles registrados</h2>
         <p id="qcd-count" class="qcd-desc"></p>
         <div class="qcd-scroll"><table class="qcd-table">
-          <thead><tr><th>Fecha</th><th>Estadio</th><th>Partida</th><th>Bandejas inspeccionadas</th><th>Advertencias</th><th>Alertas</th><th></th></tr></thead>
+          <thead><tr><th>Fecha</th><th>Estadio</th><th>Partida</th><th>Estado</th><th>Medición</th><th>Bandejas inspeccionadas</th><th>Advertencias</th><th>Alertas</th><th></th></tr></thead>
           <tbody id="qcd-records"></tbody>
         </table></div>
       </section>
