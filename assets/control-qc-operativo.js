@@ -398,8 +398,8 @@
       const data=await response.json();
       if(!data.ok||data.sourcePartida!==rec.partida)throw Error('CONFLICT');
       if(sequence!==thisSequence||active!==modal)return;
-      populate(data.record);
       loading=false;
+      populate(data.record);
       modal.querySelector('.qco-save').disabled=false;
       renderIndicators(false);
       // Criterios opcionales: su consulta nunca debe retrasar ni impedir guardar.
