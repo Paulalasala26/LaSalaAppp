@@ -5753,7 +5753,7 @@ function cambiarGuionControl(groupKey, delta){
   renderControlContent(document.getElementById('control-overlay'));
   // Si la medición estaba abierta, continuar en la del registro seleccionado;
   // los datos son independientes aunque compartan nº de partida.
-  if(navigation?.reopen)window.QCOperativo.open(target);
+  if(navigation?.reopen)abrirMedicionesControl(target.id);
 }
 function renderControlCardConGuionesHTML(grupo, seccion){
   const groupKey = seccion.key+'|'+grupo[0].partida;
@@ -6056,7 +6056,7 @@ function renderControlWizardFinalHTML(c){
       ${wizardCabeceraPartidaHTML(c)}
       <div style="text-align:center;font-size:44px;margin-bottom:4px">✅</div>
       <div style="text-align:center;font-size:17px;font-weight:800;color:#2e7d32;margin-bottom:24px">Evaluación completa</div>
-      <div style="margin-bottom:16px">
+      <div data-qc-legacy-extras="${c.id}" style="margin-bottom:16px">
         <div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:7px">Observaciones (opcional)</div>
         <input type="text" value="${escapar(c.observaciones)}" placeholder="Escribe aquí si hace falta..."
           onchange="guardarControlObservaciones('${c.id}', this.value)"
@@ -7249,7 +7249,14 @@ function abrirMedicionesControl(id){
   const c=controlChecksData.find(item=>item.id===id);
   if(!c){showToast('No se ha encontrado el control. Actualiza la lista.');return;}
   if(!window.QCOperativo){showToast('El formulario de mediciones no está disponible.');return;}
-  window.QCOperativo.open(c);
+  cargarFotoControlSiFalta(c.id);
+  window.QCOperativo.open(c,{
+    getObservations:()=>c.observaciones||'',
+    saveObservations:value=>guardarControlObservaciones(c.id,value),
+    photoPreview:()=>controlFotosData[c.id]?fotoSrcMiniatura(controlFotosData[c.id]):'',
+    openPhoto:()=>mostrarFotoControlAmpliada(c.id),
+    uploadPhoto:input=>handleControlFotoInput(input,c.id)
+  });
 }
 function renderControlCardHTML(c, seccion){
   // Carga tiene una ficha distinta (Cliente/Partida/Variedad/Nº bandejas/
@@ -7329,7 +7336,7 @@ function renderControlCardHTML(c, seccion){
       </div>
       ${anclaCuantificacionControlHTML(c)}
       ${categoriasHTML ? `<div style="margin-top:12px">${categoriasHTML}</div>` : ''}
-      <div style="margin-top:6px;display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">
+      <div data-qc-legacy-extras="${c.id}" style="margin-top:6px;display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">
         <div style="flex:1;min-width:180px">
           <div style="font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Observaciones</div>
           <input type="text" value="${escapar(c.observaciones)}" placeholder="Sin observaciones"
@@ -7415,7 +7422,7 @@ function renderControlCargaCardHTML(c, seccion){
       </div>
       ${anclaCuantificacionControlHTML(c)}
       ${categoriasHTML ? `<div style="margin-top:12px">${categoriasHTML}</div>` : ''}
-      <div style="margin-top:6px;display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">
+      <div data-qc-legacy-extras="${c.id}" style="margin-top:6px;display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">
         <div style="flex:1;min-width:180px">
           <div style="font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Observaciones</div>
           <input type="text" value="${escapar(c.observaciones)}" placeholder="Sin observaciones"

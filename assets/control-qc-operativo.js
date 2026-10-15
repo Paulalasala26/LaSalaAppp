@@ -31,7 +31,7 @@
     return '';
   }
   let active=null,sequence=0,writing=false,version=0,record=null,original='';
-  let savedMeasurement=null,currentRules=null,observer=null,loading=false;
+  let savedMeasurement=null,currentRules=null,observer=null,loading=false,legacyApi=null;
   function controlButton(){
     const root=document.getElementById('control-overlay');
     if(!root||!record)return null;
@@ -111,6 +111,28 @@
     syncInlineIndicators();
     renderBalances();
   }
+  function showCardExtras(show){
+    if(!record)return;
+    const root=document.getElementById('control-overlay');
+    root?.querySelectorAll('[data-qc-legacy-extras]').forEach(el=>{
+      if(el.dataset.qcLegacyExtras===record.id)
+        el.classList.toggle('qco-original-hidden',!show);
+    });
+    if(show){
+      const input=root?.querySelector('[data-qc-legacy-extras="'+record.id+'"] input[onchange^="guardarControlObservaciones"]');
+      if(input&&legacyApi?.getObservations)input.value=String(legacyApi.getObservations()??'');
+    }
+  }
+  function refreshPhoto(){
+    if(!active||!record)return;
+    const area=active.querySelector('.qco-photo-area');
+    if(!area)return;
+    const image=area.querySelector('img'),label=area.querySelector('.qco-photo-action-text');
+    const source=legacyApi?.photoPreview?.()||'';
+    image.hidden=!source;
+    if(source)image.src=source;else image.removeAttribute('src');
+    label.textContent=source?'Cambiar foto':'Añadir foto';
+  }
   function mount(){
     if(!active)return;
     const button=controlButton();
@@ -119,6 +141,8 @@
       if(button.hasAttribute('data-qco-anchor'))button.insertAdjacentElement('afterend',active);
       else button.parentElement.insertAdjacentElement('afterend',active);
       if(button.tagName==='BUTTON')button.setAttribute('aria-expanded','true');
+      showCardExtras(false);
+      refreshPhoto();
       embedAmounts();
     }else if(loading||writing||changed()){
       active.classList.remove('qco-merged');
@@ -172,8 +196,9 @@
     if(writing)return false;
     if(!force&&active&&changed()&&!confirm('Hay cantidades sin guardar. ¿Salir sin guardar?'))return false;
     const previous=active,button=controlButton();
+    showCardExtras(true);
     sequence++;active=null;record=null;original='';loading=false;
-    savedMeasurement=null;currentRules=null;
+    savedMeasurement=null;currentRules=null;legacyApi=null;
     if(observer){observer.disconnect();observer=null;}
     if(button)button.setAttribute('aria-expanded','false');
     document.querySelectorAll('#control-overlay .qco-live-control, #control-overlay .qco-live-slot').forEach(x=>x.remove());
@@ -462,6 +487,48 @@
       }
       wrap.append(choices);form.append(wrap);
     }
+    if(legacyApi){
+      // Las observaciones/fotos se editan usando su registro histórico original.
+      const section=node('section',null,'qco-legacy-extras');
+      section.append(node('div','Observaciones y foto','qco-extras-heading'));
+      const content=node('div',null,'qco-extras-content');
+      const notesField=node('label',null,'qco-notes');
+      notesField.append(node('span','Observaciones'));
+      const notes=node('input');notes.type='text';notes.maxLength=5000;
+      notes.placeholder='Sin observaciones';
+      notes.value=String(legacyApi.getObservations?.()??rec.observaciones??'');
+      notes.setAttribute('aria-label','Observaciones de esta partida');
+      notes.addEventListener('change',()=>{
+        const value=notes.value;
+        if(!legacyApi||value===String(legacyApi.getObservations?.()??''))return;
+        // Guardado histórico (con su cola offline), nunca QC mediciones.
+        Promise.resolve(legacyApi.saveObservations(value)).catch(()=>{
+          report('No se han podido confirmar las observaciones. Revisa la sincronización.','error');
+        });
+      });
+      notesField.append(notes);content.append(notesField);
+      const media=node('div',null,'qco-photo-area');
+      const preview=node('img');preview.alt='Fotografía del control';
+      preview.hidden=true;preview.tabIndex=0;preview.setAttribute('role','button');
+      preview.setAttribute('aria-label','Ver fotografía');
+      preview.addEventListener('click',()=>legacyApi?.openPhoto?.());
+      preview.addEventListener('keydown',event=>{
+        if(event.key==='Enter'||event.key===' '){event.preventDefault();legacyApi?.openPhoto?.();}
+      });
+      media.append(preview);
+      const pick=node('label',null,'qco-photo-action');
+      pick.append(node('span','Añadir foto','qco-photo-action-text'));
+      const upload=node('input');upload.type='file';upload.accept='image/*';
+      upload.setAttribute('capture','environment');
+      upload.addEventListener('change',async()=>{
+        if(!upload.files?.length)return;
+        try{await legacyApi?.uploadPhoto?.(upload);}
+        catch(e){report('No se ha podido completar la carga de la foto.','error');}
+        finally{if(active)refreshPhoto();upload.value='';}
+      });
+      pick.append(upload);media.append(pick);content.append(media);
+      section.append(content);form.append(section);
+    }
     const feedback=node('div',null,'qco-feedback');feedback.hidden=true;
     feedback.setAttribute('role','status');feedback.setAttribute('aria-live','polite');
     form.append(feedback);
@@ -477,7 +544,7 @@
     body.append(form);dialog.append(body);overlay.append(dialog);
     return overlay;
   }
-  async function open(rec){
+  async function open(rec,context){
     if(!rec||!['tunel','carga'].includes(rec.tipo)||typeof rec.id!=='string'||
       !/^[A-Za-z0-9_-]{1,180}$/.test(rec.id)||!
       Number.isInteger(rec.dia)||rec.dia<15||rec.dia>4000||
@@ -488,6 +555,7 @@
     if(active){const same=record?.id===rec.id;close();if(active||same)return;}
     const thisSequence=++sequence;
     record={id:rec.id,tipo:rec.tipo,dia:rec.dia,partida:rec.partida};
+    legacyApi=context||null;
     savedMeasurement=null;currentRules=null;loading=true;
     active=build(rec);
     mount();observeControl();
