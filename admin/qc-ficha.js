@@ -150,8 +150,6 @@
       const legend=node('legend',cat.name);
       legend.style.cssText='font-weight:800;font-size:14px;color:#1558a0;padding:0 5px';
       wrap.append(legend);
-      const hint=node('p','Marca una o varias opciones e indica la cantidad de bandejas para cada una.','qcu-note');
-      wrap.append(hint);
       const list=node('div',null,'qcu-opts');
       for(const [key,name] of cat.options){
         const opt=node('div',null,'qcu-option');
@@ -210,7 +208,7 @@
     return {ok:errors.length===0,errors,total,entries};
   }
   function inform(message,error){
-    const box=el('qcu-validation');box.hidden=false;
+    const box=el('qcu-validation');box.hidden=!message;
     box.className='qcu-alert '+(error?'error':'ok');
     box.textContent=message;
   }
@@ -242,10 +240,7 @@
         qty.value=checkbox.checked?String(n):'';
       }
     }
-    if(saved)inform('Mediciones recuperadas · versión '+saved.version+
-      ' · última actualización '+(saved.updatedAt||'—')+
-      '. Puedes modificarlas y guardar una nueva versión. Los indicadores se muestran más abajo.',false);
-    else inform('Aún no hay mediciones cuantitativas guardadas para este registro. Los checks históricos permanecen intactos.',false);
+    inform('',false);
     renderIndicators();
   }
   async function fetchCriteria(jwt,stage){
@@ -269,33 +264,31 @@
   }
   function renderIndicators(){
     const status=el('qci-status'),section=el('qci-results');
+    status.hidden=false;
     section.hidden=true;
     if(!savedSnapshot){
-      status.textContent='No hay mediciones guardadas. Completa la evaluación y guarda para ver los indicadores.';
+      status.textContent='Sin mediciones.';
       return;
     }
     if(!window.QCIndicators){
-      status.textContent='No se ha podido cargar el cálculo de indicadores.';
+      status.textContent='Indicadores no disponibles.';
       return;
     }
     const result=window.QCIndicators.evaluate(savedSnapshot,currentRules);
     if(!result.available){
-      status.textContent='Los datos guardados no contienen cantidades válidas para calcular los indicadores.';
+      status.textContent='Mediciones no válidas.';
       return;
     }
-    status.textContent=ruleLoadFailed
-      ?'No se han podido consultar los criterios. Se muestran porcentajes, sin alertas de tolerancia.'
-      :result.configuredCount===0
-        ?'Porcentajes calculados. Pendiente de configurar cómo se valoran los criterios.'
-        :'Porcentajes e indicadores calculados con los criterios del estadio.';
+    status.textContent=ruleLoadFailed?'Criterios no disponibles.':
+      result.configuredCount===0?'Sin criterios configurados.':'';
+    status.hidden=!status.textContent;
     const stats=el('qci-metrics');stats.replaceChildren();
     metric(stats,'Bandejas inspeccionadas',result.inspected.toLocaleString('es-ES'));
     metric(stats,'Opciones cuantificadas',String(result.evaluatedCount));
     metric(stats,'Advertencias',result.configuredCount?String(result.warningCount):'—');
     metric(stats,'Alertas prioritarias',result.configuredCount?String(result.criticalCount):'—');
     el('qci-objective').textContent=result.objective===null
-      ?'Objetivo global de calidad: sin definir. No se calcula una puntuación global.'
-      :'Objetivo global de calidad: '+percentText(result.objective)+' (solo referencia; no se calcula puntuación global).';
+      ?'':'Objetivo de calidad: '+percentText(result.objective);
     const body=el('qci-rows');body.replaceChildren();
     for(const row of result.rows){
       const tr=node('tr');
@@ -329,7 +322,7 @@
       return;
     }
     saving=true;el('qcu-save').disabled=true;
-    inform('Guardando mediciones…',false);
+    inform('Guardando…',false);
     try{
       const mediciones={};
       for(const cat of result.entries){
@@ -360,8 +353,10 @@
         currentRules=await fetchCriteria(await getToken(),currentRef.tipo);
       }catch(e){ruleLoadFailed=true}
       renderIndicators();
-      inform('✓ Mediciones guardadas · versión '+version+
-        ' · '+result.total+' bandejas inspeccionadas. Los controles anteriores se conservan. El porcentaje de calidad se configurará en Backoffice.',false);
+      inform('✓ Guardado',false);
+      setTimeout(()=>{
+        if(el('qcu-validation').textContent==='✓ Guardado')inform('',false);
+      },2500);
     }catch(err){
       const msg=err.message==='CONCURRENT_MODIFICATION'
         ?'Otro usuario ha cambiado este registro o la partida de origen. No se ha sobrescrito nada. Copia los datos necesarios y vuelve a abrir la ficha para revisar la versión actual.'
