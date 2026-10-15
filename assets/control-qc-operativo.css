@@ -1,0 +1,26 @@
+/* Captura QC cuantitativa en frontend; sin alterar las tarjetas ni los checks originales. */
+.qco-overlay{position:fixed;inset:0;z-index:2147483640;background:rgba(17,34,58,.65);display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:clamp(10px,3vw,25px)}
+.qco-dialog{background:#fff;color:#24445f;border-radius:14px;width:min(100%,740px);max-height:none;box-shadow:0 15px 55px rgba(0,0,0,.3);margin:auto;overflow:hidden}
+.qco-header{position:sticky;top:0;z-index:2;background:#edf5ff;border-bottom:1px solid #cbddec;padding:14px 17px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.qco-title{font-size:18px;font-weight:800;color:#1558a0}
+.qco-close{border:1px solid #bed2e8;background:white;color:#1558a0;font-size:20px;font-weight:bold;border-radius:8px;width:37px;height:37px;cursor:pointer;flex:none}
+.qco-body{padding:18px}.qco-meta{display:flex;gap:8px;flex-wrap:wrap;font-size:12px;color:#4e6780;margin:8px 0 12px}
+.qco-chip{background:#edf5ff;border-radius:7px;padding:6px 8px}
+.qco-info{font-size:12px;line-height:1.55;color:#52677a;margin:8px 0 16px}
+.qco-legacy{background:#f7f9fc;border-left:3px solid #bacfe5;padding:10px;margin:10px 0;font-size:12px;color:#48647e;line-height:1.5}
+.qco-legacy strong{color:#1b578d}
+.qco-total{display:flex;flex-wrap:wrap;align-items:center;gap:10px;font-size:13px;font-weight:800;color:#1558a0;padding:12px 0}
+.qco-total input{width:145px;max-width:100%;border:1.5px solid #9fbedf;border-radius:7px;font-size:16px;padding:9px}
+.qco-cat{border:1px solid #d7e4f1;border-radius:10px;padding:12px;margin:10px 0;min-width:0}
+.qco-cat legend{padding:0 5px;font-size:14px;font-weight:800;color:#1558a0}
+.qco-option{display:grid;grid-template-columns:minmax(0,1fr) minmax(90px,128px);gap:9px;align-items:center;padding:7px;background:#f7faff;border-radius:7px;margin:5px 0}
+.qco-option label{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:650;cursor:pointer;color:#294968}
+.qco-option input[type=checkbox]{width:17px;height:17px;accent-color:#1558a0;flex:none}
+.qco-option input[type=number]{width:100%;min-width:0;border:1px solid #b9cde2;border-radius:7px;padding:8px;font-size:14px;color:#164d7d}
+.qco-option input[disabled]{background:#e9eef4;color:#77899d}
+.qco-feedback{border-radius:8px;background:#eff6ff;color:#204d78;font-size:12px;line-height:1.5;padding:11px 13px;margin:12px 0}
+.qco-feedback.error{background:#fff0f0;color:#9b2929}.qco-feedback.success{background:#e6f7eb;color:#22663f}
+.qco-footer{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;padding-top:13px}
+.qco-save{background:#1558a0;color:white;font-weight:800;border:0;border-radius:8px;padding:11px 17px;cursor:pointer}
+.qco-secondary{background:#f4f7fb;color:#325879;border:1px solid #cbdcec;border-radius:8px;padding:11px 17px;cursor:pointer;font-weight:700}
+@media(max-width:560px){.qco-overlay{padding:0}.qco-dialog{border-radius:0;min-height:100dvh;width:100%}.qco-body{padding:12px}.qco-header{padding:10px 12px}.qco-option{grid-template-columns:minmax(0,1fr) 105px;gap:6px}}
