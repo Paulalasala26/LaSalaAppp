@@ -157,7 +157,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 <script src="assets/firebase-diagnostics.js"></script>
 </head>
 <body>
-<div id="lasala-test-banner" title="Entorno de pruebas" style="position:fixed;top:6px;right:8px;left:auto;transform:none;z-index:2147483647;background:#b00020;color:#fff;border:1px solid rgba(255,255,255,.75);border-radius:4px;padding:2px 5px;font:700 9px Arial,sans-serif;line-height:1;box-shadow:0 1px 4px rgba(0,0,0,.25);pointer-events:none;opacity:.9">TEST</div>
 
 <!-- LOGIN -->
 <div id="login-screen" style="position:fixed;inset:0;background:linear-gradient(120deg,#2b6fae,#3c80c2 55%,#5b9bd5);display:flex;align-items:center;justify-content:center;z-index:9999;padding:1rem">
@@ -15874,7 +15873,7 @@ async function saveRiegoManual(){
       const pending=leerRiegoOffline().some(x=>invIds.includes(String(x.invId))) ||
         Array.from(riegoDirtyCells.values()).some(x=>invIds.includes(String(x.invId)));
       if(!pending && navigator.onLine!==false) volverAlListadoRiegoBackoffice();
-      else showToast('⚠ Guardado pendiente en Firebase TEST; permaneces en Riego hasta confirmar la sincronización.');
+      else showToast('⚠ Guardado pendiente de sincronización. Permaneces en Riego hasta confirmar los cambios.');
     }
   } finally {
     guardandoRiegoManual = false;
@@ -16303,7 +16302,7 @@ async function abrirControlDesdeBackoffice(){
     await showControlModule();
     const q=controlV2QDeDia(request.dia);
     const ok=await loadControlChecksSlice(request.tipo,q,true);
-    if(!ok){showToast('No ha sido posible cargar el control de Firebase TEST.');return;}
+    if(!ok){showToast('No ha sido posible cargar el control.');return;}
     const record=controlChecksData.find(x=>x.id===request.id &&
       x.tipo===request.tipo && x.dia===request.dia);
     if(!record){
@@ -16352,7 +16351,7 @@ async function abrirRegistroRiegoDesdeBackoffice(){
     riegoQuincenaOffset=Math.floor((dia-15)/14);
     renderRiegoQuincenaBar();
     const loaded=await selectRiegoInv(inv);
-    if(!loaded){showToast('No se ha podido consultar Riego TEST.');return;}
+    if(!loaded){showToast('No se ha podido consultar Riego.');return;}
     if(request.action==='edit'){
       if(!getRiego(inv,dia,calle)){showToast('El registro ya no existe.');return;}
       editarRiegoManualDesdeCelda(inv,dia,[Number(calle)]);
