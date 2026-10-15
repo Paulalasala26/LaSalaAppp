@@ -1,6 +1,16 @@
 # APP R v3 — Fase FRONTEND QC pendiente (tras Backoffice)
 
-Estado: pendiente. Actualizado 15/10/2026. **No ejecutado; este documento no autoriza modificar PRD.**
+Estado: **fase iniciada en TEST** el 15/10/2026. **No autoriza modificar PRD.**
+
+### Primera entrega frontend
+
+- Botón **Medir bandejas QC** en cada tarjeta operativa de Check Túnel y Check Carga.
+- Formulario móvil con nº total de bandejas inspeccionadas y cantidades obligatorias por cada opción seleccionada.
+- Lectura y guardado de `lasala-qc-mediciones-v1` mediante API con control ETag/versionado. La escritura histórica de check Túnel/Carga permanece independiente e intacta.
+- Acceso autorizado en servidor: ADMIN y TECNICO ambos estadios; CARGADOR exclusivamente Carga. REGANTE y PEON no autorizados a este nuevo endpoint.
+- Sin cola offline artificial: cuando no se confirme la escritura, no se muestra éxito.
+- **Pendiente de validar con usuarios reales:** el formulario tradicional mantiene sus checks. Tras la batería funcional, unificar en una sola evaluación obligatoria con cantidades e indicadores para evitar la doble interfaz. No se ha realizado ese reemplazo.
+
 
 ## Alcance que no debemos olvidar
 
