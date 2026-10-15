@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#1558a0">
+<title>ViguerAPP · Panel de calidad</title>
+<link rel="icon" href="../icon-192.png">
+<link rel="stylesheet" href="./styles.css">
+<link rel="stylesheet" href="./catalog.css">
+<style>
+.qcd{max-width:1330px}.qcd-filters{display:grid;grid-template-columns:minmax(125px,1fr) minmax(135px,1fr) minmax(135px,1fr) minmax(170px,1.2fr) auto;gap:12px;align-items:end}
+.qcd-filter{display:flex;flex-direction:column;gap:7px;font-size:12px;color:#315774;font-weight:750;min-width:0}
+.qcd-filter input,.qcd-filter select{background:#fff;min-height:41px;min-width:0;padding:8px 10px;border:1px solid #bfd2e5;border-radius:8px;color:#1d476c}
+.qcd-panel{border:1px solid #d5e1ed;border-radius:12px;background:#fff;padding:18px;margin:14px 0}
+.qcd-panel h2{font-size:17px;color:#1558a0;margin:0 0 12px}.qcd-desc{font-size:12px;color:#536c82;line-height:1.6;margin:6px 0 11px}
+.qcd-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px}
+.qcd-metric{padding:14px;background:#f3f7fc;border:1px solid #d8e5f3;border-radius:10px}
+.qcd-metric b{display:block;color:#1558a0;font-size:25px;font-variant-numeric:tabular-nums}
+.qcd-metric span{font-size:12px;color:#496681;line-height:1.4}
+.qcd-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.qcd-scroll{overflow-x:auto}
+.qcd-table{border-collapse:collapse;width:100%;min-width:650px;font-size:12px}
+.qcd-table th,.qcd-table td{text-align:left;padding:10px;border-bottom:1px solid #e5edf4;white-space:nowrap}
+.qcd-table th{background:#f6f9fd;color:#486886;font-weight:800}
+.qcd-table td{color:#294c68;font-variant-numeric:tabular-nums}
+.qcd-table th:last-child,.qcd-table td:last-child{text-align:right}
+.qcd-mark{font-weight:750;color:#325979}
+.qcd-mark.warning{color:#996110}.qcd-mark.critical{color:#a32c2c}
+.qcd-feedback{font-size:13px;line-height:1.5;padding:11px 13px;border-radius:8px;background:#eaf3fd;color:#204b72;margin:12px 0}
+.qcd-feedback.error{background:#fff0f0;color:#a02828}
+.qcd-barline{display:grid;grid-template-columns:95px minmax(60px,1fr) 135px;align-items:center;gap:10px;margin:12px 0;font-size:12px;color:#3b607c}
+.qcd-track{height:12px;border-radius:9px;background:#e4edf6;overflow:hidden}
+.qcd-fill{height:100%;border-radius:9px;background:#1558a0}
+.qcd-fill.flagged{background:#d08b2b}
+.qcd-secondary{font-size:11px;color:#72859a}
+.qcd-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.qcd-rowbutton{color:#1558a0;background:#eaf2fc;border:1px solid #c7d9eb;border-radius:7px;font-weight:750;font-size:12px;padding:7px 10px;cursor:pointer}
+.qcd-muted{color:#6b8096}
+@media(max-width:1050px){.qcd-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.qcd-grid{grid-template-columns:1fr}}
+@media(max-width:650px){.qcd-panel{padding:13px}.qcd-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.qcd-filters{grid-template-columns:1fr}.qcd-barline{grid-template-columns:85px minmax(60px,1fr) 78px;gap:7px}.qcd-metric b{font-size:21px}}
+</style>
+<script src="./qc-dashboard.js" defer></script>
+</head>
+<body>
+<div id="access-gate" class="access-gate" role="status" aria-live="polite">
+  <div class="access-panel"><div class="brand-mark">VA</div><h1 id="gate-title">Comprobando acceso</h1><p id="gate-description">Verificando la sesión…</p><a id="gate-link" href="./control.html" class="primary-link" hidden>Volver a QC</a></div>
+</div>
+<div id="workspace" class="shell" hidden>
+<aside class="sidebar" aria-label="Navegación Backoffice">
+  <div class="brand"><div class="brand-mark">VA</div><div><strong>ViguerAPP</strong><span>Backoffice</span></div></div>
+  <nav class="sidebar-nav">
+    <a class="nav-item selected" aria-current="page" href="./qc-dashboard.html"><span class="nav-symbol">▥</span> Panel QC</a>
+    <a class="nav-item" href="./control.html"><span class="nav-symbol">◫</span> Registros QC</a>
+    <a class="nav-item" href="./qc-criterios.html"><span class="nav-symbol">≡</span> Criterios QC</a>
+    <a class="nav-item" href="./gs.html"><span class="nav-symbol">▣</span> Partidas GS</a>
+    <a class="nav-item" href="./"><span class="nav-symbol">◉</span> Usuarios</a>
+  </nav>
+  <div class="sidebar-footer"><a href="../">← Volver a ViguerAPP</a></div>
+</aside>
+<div class="main-area">
+  <header class="topbar"><div class="breadcrumbs">Backoffice <span>/</span> QC <span>/</span> Indicadores</div><div class="topbar-right"><span class="session-user" id="session-user">Administrador</span></div></header>
+  <main class="content qcd">
+    <div class="page-head"><h1>Panel de calidad</h1><div class="qcd-actions"><a href="./control.html" class="button ghost">Registros QC</a><a href="./qc-criterios.html" class="button ghost">Criterios QC</a></div></div>
+    <form id="qcd-form" class="qcd-panel qcd-filters">
+      <label class="qcd-filter" for="qcd-type">Estadio
+        <select id="qcd-type"><option value="todos">Túnel y Carga</option><option value="tunel">Túnel</option><option value="carga">Carga</option></select>
+      </label>
+      <label class="qcd-filter" for="qcd-from">Desde
+        <input type="date" id="qcd-from" min="2026-06-15" required>
+      </label>
+      <label class="qcd-filter" for="qcd-to">Hasta
+        <input type="date" id="qcd-to" min="2026-06-15" required>
+      </label>
+      <label class="qcd-filter" for="qcd-partida">Partida
+        <input type="search" id="qcd-partida" maxlength="40" placeholder="Todas las partidas" autocomplete="off">
+      </label>
+      <button type="submit" id="qcd-query" class="button primary">Consultar</button>
+    </form>
+    <div id="qcd-feedback" class="qcd-feedback" role="status" aria-live="polite" hidden></div>
+    <div id="qcd-results" hidden>
+      <section class="qcd-panel" aria-label="Resumen de calidad">
+        <h2>Resumen del periodo</h2>
+        <div id="qcd-stats" class="qcd-metrics"></div>
+        <p class="qcd-desc">Solo se contabilizan registros que tienen cantidades de bandejas inspeccionadas y mediciones guardadas. Las bandejas pueden repetirse entre inspecciones y estadios: <strong>no representan existencias únicas</strong>.</p>
+      </section>
+      <div class="qcd-grid">
+        <section class="qcd-panel">
+          <h2>Comparativa por estadio</h2>
+          <div class="qcd-scroll"><table class="qcd-table">
+            <thead><tr><th>Estadio</th><th>Registros</th><th>Bandejas inspeccionadas*</th><th>Advertencias</th><th>Alertas</th></tr></thead>
+            <tbody id="qcd-stages"></tbody>
+          </table></div>
+          <p class="qcd-desc">* Suma de bandejas de cada inspección, sin deduplicarlas entre controles.</p>
+        </section>
+        <section class="qcd-panel">
+          <h2>Evolución semanal</h2>
+          <p class="qcd-desc">Controles cuantificados con alguna alerta respecto al total semanal.</p>
+          <div id="qcd-trend"></div>
+        </section>
+      </div>
+      <section class="qcd-panel">
+        <h2>Indicadores por característica</h2>
+        <p class="qcd-desc">Porcentaje observado = bandejas con esa característica / bandejas inspeccionadas en los registros cuantificados del mismo estadio. Las características pueden solaparse; los porcentajes <strong>no deben sumarse</strong>.</p>
+        <div class="qcd-scroll"><table class="qcd-table">
+          <thead><tr><th>Estadio</th><th>Criterio</th><th>Bandejas afectadas</th><th>% observado</th><th>Tratamiento</th><th>Tolerancia</th><th>Alertas</th></tr></thead>
+          <tbody id="qcd-options"></tbody>
+        </table></div>
+        <p class="qcd-desc">La tolerancia activa únicamente indicadores informativos. «Sin definir» no equivale a una evaluación favorable. No se bloquean ni rechazan partidas.</p>
+      </section>
+      <section class="qcd-panel">
+        <h2>Partidas e inspecciones</h2>
+        <p id="qcd-count" class="qcd-desc"></p>
+        <div class="qcd-scroll"><table class="qcd-table">
+          <thead><tr><th>Fecha</th><th>Estadio</th><th>Partida</th><th>Bandejas inspeccionadas</th><th>Advertencias</th><th>Alertas</th><th></th></tr></thead>
+          <tbody id="qcd-records"></tbody>
+        </table></div>
+      </section>
+    </div>
+  </main>
+</div>
+</div>
+</body>
+</html>
