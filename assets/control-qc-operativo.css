@@ -53,3 +53,16 @@
   .qco-inline.qco-floating{padding:0}
   .qco-inline.qco-floating .qco-dialog{min-height:100dvh;border-radius:0}
 }
+
+/* Cantidades y checks en una sola fila, sin categorías duplicadas. */
+.qco-inline.qco-merged .qco-cat{display:none}
+.qco-live-slot{display:inline-flex;align-items:center;margin-right:5px}
+.qco-live-control{display:inline-flex;align-items:center;gap:5px;color:#1558a0;font-size:11px;font-weight:650;white-space:nowrap}
+.qco-live-control input{width:66px;min-width:0;padding:6px 5px;border:1.5px solid #9fbedf;border-radius:6px;color:#164d7d;font-size:13px;font-weight:700;background:#fff;font-variant-numeric:tabular-nums}
+.qco-live-control input:disabled{background:#e9eef4;color:#77899d}
+.qco-live-control:has(span){padding:4px 7px;background:#edf5ff;border-radius:7px}
+@media(max-width:560px){
+  .qco-live-slot{margin-right:3px}
+  .qco-live-control input{width:56px;padding:6px 4px;font-size:12px}
+  .qco-inline.qco-merged .qco-body{padding:9px 12px}
+}
