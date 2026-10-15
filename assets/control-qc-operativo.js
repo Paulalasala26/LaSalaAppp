@@ -208,6 +208,10 @@
     }
     original=JSON.stringify(snapshot());
     savedMeasurement=saved;
+    // Nunca permitir la captura antes de terminar de recuperar los datos.
+    active.querySelectorAll('.qco-total input, .qco-cat input[type="number"]')
+      .forEach(input=>{input.disabled=false;});
+    loading=false;
     embedAmounts();
     updateIndicatorVisibility();
     report('','');
@@ -345,6 +349,9 @@
       report('Sin conexión. No guardado.','error');return;
     }
     writing=true;
+    // Los campos quedan congelados hasta confirmar la escritura.
+    active.querySelectorAll('.qco-total input, .qco-cat input[type="number"]')
+      .forEach(input=>{input.disabled=true;});
     active.querySelectorAll('.qco-live-control input').forEach(x=>x.disabled=true);
     document.querySelectorAll('#control-overlay .qco-live-control input').forEach(x=>x.disabled=true);
     const btn=active.querySelector('.qco-save');btn.disabled=true;
@@ -377,7 +384,13 @@
         err.message==='FORBIDDEN'?'Sin permiso para este estadio.':
         'Guardado sin confirmar. Reabre para comprobar antes de repetir.','error');
     }finally{
-      writing=false;if(active){btn.disabled=false;embedAmounts();}
+      writing=false;
+      if(active){
+        btn.disabled=false;
+        active.querySelectorAll('.qco-total input, .qco-cat input[type="number"]')
+          .forEach(input=>{input.disabled=false;});
+        embedAmounts();
+      }
     }
   }
   function build(rec){
@@ -398,31 +411,43 @@
     body.append(meta);
  
     const form=node('form');form.noValidate=true;form.addEventListener('submit',save);
+    // El Enter del teclado numérico avanza, nunca guarda por accidente.
+    form.addEventListener('keydown',event=>{
+      if(event.key!=='Enter'||event.target?.tagName!=='INPUT'||event.target.type!=='number')return;
+      event.preventDefault();
+      const inputs=Array.from(form.querySelectorAll('input[type="number"]:not(:disabled)'));
+      const pos=inputs.indexOf(event.target);
+      const next=pos>=0?inputs[pos+1]:null;
+      if(next)next.focus();else event.target.blur();
+    });
     form.addEventListener('input',updateIndicatorVisibility);
     form.addEventListener('change',updateIndicatorVisibility);
     const total=node('label',null,'qco-total');
     const totalTitle=node('span','Nº bandejas inspeccionadas *');
     const qtyInput=node('input');qtyInput.type='number';qtyInput.inputMode='numeric';
     qtyInput.min='1';qtyInput.max='10000000';qtyInput.step='1';qtyInput.placeholder='Ej.: 80';qtyInput.required=true;
+    qtyInput.disabled=true;qtyInput.enterKeyHint='next';
     total.append(totalTitle,qtyInput);form.append(total);
     for(const [category,name,opts] of CATS){
       const wrap=node('fieldset',null,'qco-cat');wrap.dataset.qcoCat=category;
       const legend=node('legend',name);
       const balance=node('span',null,'qco-balance');balance.hidden=true;
       legend.append(balance);wrap.append(legend);
+      const choices=node('div',null,'qco-choices');
       for(const [option,label] of opts){
         const row=node('div',null,'qco-option');row.dataset.option=option;
         const optionLabel=node('label',label);
         const input=node('input');input.type='number';input.step='1';input.min='1';
         input.max='10000000';input.inputMode='numeric';input.placeholder='—';
+        input.disabled=true;input.enterKeyHint='next';
         input.setAttribute('aria-label',name+' · '+label+' · número de bandejas');
         optionLabel.htmlFor='qco-'+category+'-'+option;
         input.id='qco-'+category+'-'+option;
         // Los checks existentes siguen en la ficha: aquí solo cantidades.
         if(option!=='noEvaluada'&&rec[category]?.[option])row.classList.add('qco-legacy-active');
-        row.append(optionLabel,input);wrap.append(row);
+        row.append(optionLabel,input);choices.append(row);
       }
-      form.append(wrap);
+      wrap.append(choices);form.append(wrap);
     }
     const feedback=node('div',null,'qco-feedback');feedback.hidden=true;
     feedback.setAttribute('role','status');feedback.setAttribute('aria-live','polite');
@@ -455,7 +480,7 @@
     mount();observeControl();
     original=JSON.stringify(snapshot());
     const modal=active;
-    modal.querySelector('.qco-total input').focus();
+    // No desplegar el teclado móvil antes de recibir los datos.
     try{
       const jwt=await token();
       const q=new URLSearchParams({id:rec.id,tipo:rec.tipo,dia:String(rec.dia)});
@@ -468,9 +493,10 @@
       const data=await response.json();
       if(!data.ok||data.sourcePartida!==rec.partida)throw Error('CONFLICT');
       if(sequence!==thisSequence||active!==modal)return;
-      loading=false;
       populate(data.record);
       modal.querySelector('.qco-save').disabled=false;
+      if(window.matchMedia?.('(min-width: 561px)').matches)
+        modal.querySelector('.qco-total input').focus({preventScroll:true});
       renderIndicators(false);
       // Criterios opcionales: su consulta nunca debe retrasar ni impedir guardar.
       fetchRules(jwt,rec.tipo).then(rules=>{
