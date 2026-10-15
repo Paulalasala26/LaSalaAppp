@@ -31,7 +31,7 @@
     return '';
   }
   let active=null,sequence=0,writing=false,version=0,record=null,original='';
-  let savedMeasurement=null,currentRules=null,observer=null,loading=false,legacyApi=null;
+  let savedMeasurement=null,currentRules=null,observer=null,loading=false,legacyApi=null,notesPending=null;
   function controlButton(){
     const root=document.getElementById('control-overlay');
     if(!root||!record)return null;
@@ -133,6 +133,40 @@
     if(source)image.src=source;else image.removeAttribute('src');
     label.textContent=source?'Cambiar foto':'Añadir foto';
   }
+  function notesChanged(){
+    const field=active?.querySelector('.qco-notes input');
+    return !!(field&&legacyApi&&
+      field.value!==String(legacyApi.getObservations?.()??''));
+  }
+  function persistNotes(){
+    if(notesPending)return notesPending;
+    const editor=active,context=legacyApi;
+    const field=editor?.querySelector('.qco-notes input');
+    if(!field||!context||!notesChanged())return Promise.resolve(true);
+    const value=field.value;
+    field.disabled=true;
+    const promise=Promise.resolve().then(()=>context.saveObservations(value))
+      .then(synced=>{
+        if(editor===active&&synced===false)
+          report('Observaciones pendientes de sincronizar.','');
+        return true; // La cola histórica conserva el cambio si no hay conexión.
+      })
+      .catch(()=>{
+        if(editor===active)
+          report('No se han podido confirmar las observaciones. Inténtalo de nuevo.','error');
+        return false;
+      })
+      .finally(()=>{
+        if(editor===active)field.disabled=false;
+        if(notesPending===promise)notesPending=null;
+      });
+    notesPending=promise;
+    return promise;
+  }
+  async function settleNotes(){
+    if(notesPending&&!(await notesPending))return false;
+    return notesChanged()?persistNotes():true;
+  }
   function mount(){
     if(!active)return;
     const button=controlButton();
@@ -144,7 +178,7 @@
       showCardExtras(false);
       refreshPhoto();
       embedAmounts();
-    }else if(loading||writing||changed()){
+    }else if(loading||writing||changed()||notesPending||notesChanged()){
       active.classList.remove('qco-merged');
       active.classList.add('qco-floating');
       document.body.append(active);
@@ -195,6 +229,12 @@
   function close(force=false){
     if(writing)return false;
     if(!force&&active&&changed()&&!confirm('Hay cantidades sin guardar. ¿Salir sin guardar?'))return false;
+    if(notesPending||notesChanged()){
+      const editor=active;
+      report('Guardando observaciones…','');
+      void settleNotes().then(ok=>{if(ok&&active===editor)close(true);});
+      return false;
+    }
     const previous=active,button=controlButton();
     showCardExtras(true);
     sequence++;active=null;record=null;original='';loading=false;
@@ -205,10 +245,11 @@
     if(previous)previous.remove();
     return true;
   }
-  function prepareRecordSwitch(fromId){
+  async function prepareRecordSwitch(fromId){
     if(!active)return {allowed:true,reopen:false};
-    // Si está guardando no cambiar de guión hasta conocer el resultado.
     if(writing)return {allowed:false,reopen:false};
+    const editor=active;
+    if(!(await settleNotes())||active!==editor)return {allowed:false,reopen:false};
     const reopen=record?.id===fromId;
     return {allowed:close(),reopen};
   }
@@ -392,6 +433,7 @@
     const btn=active.querySelector('.qco-save');btn.disabled=true;
     report('Guardando…','');
     try{
+      if(!(await settleNotes()))throw Error('NOTES_FAILED');
       const jwt=await token();
       const r=await fetch(API,{
         method:'POST',headers:{Authorization:'Bearer '+jwt,'Content-Type':'application/json'},
@@ -409,7 +451,9 @@
       savedMeasurement={version,bandejasInspeccionadas:checked.total,mediciones:checked.mediciones};
       confirmed=true;
     }catch(err){
-      report(err.message==='CONFLICT'?
+      report(err.message==='NOTES_FAILED'?
+        'No se han podido guardar las observaciones. Revisa antes de continuar.':
+        err.message==='CONFLICT'?
         'Conflicto: datos modificados. Cierra y vuelve a abrir.':
         err.message==='FORBIDDEN'?'Sin permiso para este estadio.':
         'Guardado sin confirmar. Reabre para comprobar antes de repetir.','error');
@@ -498,14 +542,9 @@
       notes.placeholder='Sin observaciones';
       notes.value=String(legacyApi.getObservations?.()??rec.observaciones??'');
       notes.setAttribute('aria-label','Observaciones de esta partida');
-      notes.addEventListener('change',()=>{
-        const value=notes.value;
-        if(!legacyApi||value===String(legacyApi.getObservations?.()??''))return;
-        // Guardado histórico (con su cola offline), nunca QC mediciones.
-        Promise.resolve(legacyApi.saveObservations(value)).catch(()=>{
-          report('No se han podido confirmar las observaciones. Revisa la sincronización.','error');
-        });
-      });
+      // Al salir del campo, guardar observaciones en el sistema histórico.
+      // Si siguen pendientes, no permitir cerrar ni mezclar registros.
+      notes.addEventListener('change',()=>{void persistNotes();});
       notesField.append(notes);content.append(notesField);
       const media=node('div',null,'qco-photo-area');
       const preview=node('img');preview.alt='Fotografía del control';

@@ -5736,7 +5736,11 @@ let controlDiaSel = null;
 // sigue siendo su propio documento en controlChecksData (con su propio
 // check/foto/observaciones) — esto es solo una agrupación visual.
 let controlGuionActivo = {};
-function cambiarGuionControl(groupKey, delta){
+let controlGuionCambioPendiente=false;
+async function cambiarGuionControl(groupKey, delta){
+  if(controlGuionCambioPendiente)return;
+  controlGuionCambioPendiente=true;
+  try{
   const idxBarra = groupKey.indexOf('|');
   const tipo = groupKey.slice(0, idxBarra), partida = groupKey.slice(idxBarra+1);
   const grupo = controlChecksData.filter(x=>x.tipo===tipo && x.partida===partida).sort((a,b)=>a.dia-b.dia);
@@ -5747,13 +5751,13 @@ function cambiarGuionControl(groupKey, delta){
   const from=grupo[idx];
   const target=grupo[(idx+delta+grupo.length)%grupo.length];
   if(from.id===target.id)return;
-  const navigation=window.QCOperativo?.prepareRecordSwitch?.(from.id);
-  if(navigation?.allowed===false)return; // Edición pendiente o guardado en curso.
+  const navigation=await window.QCOperativo?.prepareRecordSwitch?.(from.id);
+  if(navigation?.allowed===false)return; // No abandonar una edición pendiente.
   controlGuionActivo[groupKey] = target.id;
   renderControlContent(document.getElementById('control-overlay'));
-  // Si la medición estaba abierta, continuar en la del registro seleccionado;
-  // los datos son independientes aunque compartan nº de partida.
+  // Cada guión tiene su propia medición y observaciones.
   if(navigation?.reopen)abrirMedicionesControl(target.id);
+  }finally{controlGuionCambioPendiente=false;}
 }
 function renderControlCardConGuionesHTML(grupo, seccion){
   const groupKey = seccion.key+'|'+grupo[0].partida;
@@ -8108,6 +8112,7 @@ async function guardarControlObservaciones(id, valor){
     desencolarAccion(qid);
     await registrarCambioControlBackoffice(id, 'Actualizó observaciones');
   } else avisarGuardadoLocalPendiente(leerColaOffline().length);
+  return ok; // Permite a QC distinguir guardado remoto de cola pendiente.
 }
 function mostrarFormNuevoControlCheck(tipo){
   const wrap = document.getElementById('nuevo-control-form-wrap');
