@@ -439,7 +439,8 @@
         const optionLabel=node('label',label);
         const input=node('input');input.type='number';input.step='1';input.min='1';
         input.max='10000000';input.inputMode='numeric';input.placeholder='—';
-        input.disabled=true;input.enterKeyHint='next';
+        input.disabled=true;input.enterKeyHint=
+          category==='raices'&&option==='noEvaluada'?'done':'next';
         input.setAttribute('aria-label',name+' · '+label+' · número de bandejas');
         optionLabel.htmlFor='qco-'+category+'-'+option;
         input.id='qco-'+category+'-'+option;
@@ -495,7 +496,10 @@
       if(sequence!==thisSequence||active!==modal)return;
       populate(data.record);
       modal.querySelector('.qco-save').disabled=false;
-      if(window.matchMedia?.('(min-width: 561px)').matches)
+      // Mostrar el comienzo de la medición en móvil sin abrir el teclado.
+      if(window.matchMedia?.('(max-width: 560px)').matches)
+        modal.scrollIntoView({block:'start',behavior:'auto'});
+      else if(window.matchMedia?.('(min-width: 561px)').matches)
         modal.querySelector('.qco-total input').focus({preventScroll:true});
       renderIndicators(false);
       // Criterios opcionales: su consulta nunca debe retrasar ni impedir guardar.
