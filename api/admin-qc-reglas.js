@@ -39,7 +39,7 @@ function exactKeys(obj,keys){
     Object.keys(obj).sort().join('|')===keys.slice().sort().join('|');
 }
 function percent(value){
-  return value===null||(typeof value==='number'&&Number.isFinite(value)&&value>=0&&value<=100&&Math.round(value*100)===value*100);
+  return value===null||(typeof value==='number'&&Number.isFinite(value)&&value>=0&&value<=100&&Math.abs(Math.round(value*100)-value*100)<1e-7);
 }
 function validateRules(source,stage){
   if(!source||typeof source!=='object'||Array.isArray(source)||
