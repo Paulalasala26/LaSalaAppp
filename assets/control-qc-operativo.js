@@ -31,7 +31,35 @@
     return '';
   }
   let active=null,sequence=0,writing=false,version=0,record=null,original='';
-  let savedMeasurement=null,currentRules=null;
+  let savedMeasurement=null,currentRules=null,observer=null,loading=false;
+  function controlButton(){
+    const root=document.getElementById('control-overlay');
+    if(!root||!record)return null;
+    const expected="abrirMedicionesControl('"+record.id+"')";
+    return Array.from(root.querySelectorAll('button[onclick]'))
+      .find(b=>b.getAttribute('onclick')===expected)||null;
+  }
+  function mount(){
+    if(!active)return;
+    const button=controlButton();
+    if(button){
+      active.classList.remove('qco-floating');
+      button.parentElement.insertAdjacentElement('afterend',active);
+      button.setAttribute('aria-expanded','true');
+    }else if(loading||writing||changed()){
+      active.classList.add('qco-floating');
+      document.body.append(active);
+    }else close(true);
+  }
+  function observeControl(){
+    if(observer)observer.disconnect();
+    const root=document.getElementById('control-overlay');
+    if(!root)return;
+    observer=new MutationObserver(()=>{
+      if(active&&!active.isConnected)mount();
+    });
+    observer.observe(root,{childList:true,subtree:true});
+  }
   const node=(tag,txt,cls)=>{
     const n=document.createElement(tag);
     if(txt!==null&&txt!==undefined)n.textContent=String(txt);
@@ -58,17 +86,21 @@
       const wrap=active.querySelector('[data-qco-cat="'+category+'"]');
       for(const [opt] of options){
         const row=Array.from(wrap.querySelectorAll('.qco-option')).find(x=>x.dataset.option===opt);
-        if(row.querySelector('input[type="checkbox"]').checked)out.mediciones[category][opt]=row.querySelector('input[type="number"]').value;
+        const value=row.querySelector('input[type="number"]').value.trim();
+        if(value!=='')out.mediciones[category][opt]=value;
       }
     }
     return out;
   }
   function changed(){return original!==JSON.stringify(snapshot())}
-  function close(){
+  function close(force=false){
     if(writing)return;
-    if(active&&changed()&&!confirm('Hay mediciones sin guardar. ¿Salir sin guardar?'))return;
-    const previous=active;sequence++;active=null;record=null;original='';
+    if(!force&&active&&changed()&&!confirm('Hay mediciones sin guardar. ¿Salir sin guardar?'))return;
+    const previous=active,button=controlButton();
+    sequence++;active=null;record=null;original='';loading=false;
     savedMeasurement=null;currentRules=null;
+    if(observer){observer.disconnect();observer=null;}
+    if(button)button.setAttribute('aria-expanded','false');
     if(previous)previous.remove();
   }
   async function token(){
@@ -94,9 +126,8 @@
       for(const [opt] of options){
         const row=Array.from(wrap.querySelectorAll('.qco-option')).find(x=>x.dataset.option===opt);
         const n=saved?.mediciones?.[category]?.[opt];
-        const cb=row.querySelector('input[type="checkbox"]'),quantity=row.querySelector('input[type="number"]');
-        cb.checked=Number.isInteger(n)&&n>0;quantity.disabled=!cb.checked;
-        quantity.required=cb.checked;quantity.value=cb.checked?String(n):'';
+        const quantity=row.querySelector('input[type="number"]');
+        quantity.value=Number.isInteger(n)&&n>0?String(n):'';
       }
     }
     original=JSON.stringify(snapshot());
@@ -215,12 +246,12 @@
     }
   }
   function build(rec){
-    const overlay=node('div',null,'qco-overlay');overlay.id='qco-overlay';
+    const overlay=node('section',null,'qco-inline');overlay.id='qco-inline';
     const dialog=node('div',null,'qco-dialog');
-    dialog.setAttribute('role','dialog');dialog.setAttribute('aria-modal','true');
-    dialog.setAttribute('aria-label','Medición de calidad por bandejas');
+    dialog.setAttribute('role','region');
+    dialog.setAttribute('aria-label','Cantidades e indicadores de calidad');
     const head=node('div',null,'qco-header');
-    const heading=node('div','Medir calidad por bandejas','qco-title');
+    const heading=node('div','Cantidades por bandeja','qco-title');
     const exit=node('button','×','qco-close');exit.type='button';exit.title='Cerrar';
     exit.setAttribute('aria-label','Cerrar');exit.addEventListener('click',close);
     head.append(heading,exit);dialog.append(head);
@@ -244,18 +275,15 @@
       wrap.append(node('legend',name));
       for(const [option,label] of opts){
         const row=node('div',null,'qco-option');row.dataset.option=option;
-        const checkLabel=node('label'),cb=node('input');
-        cb.type='checkbox';checkLabel.append(cb,node('span',label));
+        const optionLabel=node('label',label);
         const input=node('input');input.type='number';input.step='1';input.min='1';
-        input.max='10000000';input.inputMode='numeric';input.placeholder='Bandejas';
+        input.max='10000000';input.inputMode='numeric';input.placeholder='—';
         input.setAttribute('aria-label',name+' · '+label+' · número de bandejas');
-        input.disabled=true;
-        cb.addEventListener('change',()=>{
-          input.disabled=!cb.checked;input.required=cb.checked;
-          if(!cb.checked)input.value='';if(cb.checked)input.focus();
-          report('','');
-        });
-        row.append(checkLabel,input);wrap.append(row);
+        optionLabel.htmlFor='qco-'+category+'-'+option;
+        input.id='qco-'+category+'-'+option;
+        // Los checks existentes siguen en la ficha: aquí solo cantidades.
+        if(option!=='noEvaluada'&&rec[category]?.[option])row.classList.add('qco-legacy-active');
+        row.append(optionLabel,input);wrap.append(row);
       }
       form.append(wrap);
     }
@@ -282,15 +310,15 @@
       alert('Este control no tiene todos los identificadores necesarios para cuantificarlo.');
       return;
     }
-    if(active)close();
-    if(active)return;
+    if(active){close();if(active)return;}
     const thisSequence=++sequence;
     record={id:rec.id,tipo:rec.tipo,dia:rec.dia,partida:rec.partida};
-    savedMeasurement=null;currentRules=null;
-    active=build(rec);document.body.append(active);
+    savedMeasurement=null;currentRules=null;loading=true;
+    active=build(rec);
+    mount();observeControl();
     original=JSON.stringify(snapshot());
     const modal=active;
-    modal.querySelector('.qco-close').focus();
+    modal.querySelector('.qco-total input').focus();
     try{
       const jwt=await token();
       const q=new URLSearchParams({id:rec.id,tipo:rec.tipo,dia:String(rec.dia)});
@@ -304,6 +332,7 @@
       if(!data.ok||data.sourcePartida!==rec.partida)throw Error('CONFLICT');
       if(sequence!==thisSequence||active!==modal)return;
       populate(data.record);
+      loading=false;
       modal.querySelector('.qco-save').disabled=false;
       renderIndicators(false);
       // Criterios opcionales: su consulta nunca debe retrasar ni impedir guardar.
@@ -316,6 +345,7 @@
       });
     }catch(err){
       if(sequence!==thisSequence||active!==modal)return;
+      loading=false;
       report(err.message==='FORBIDDEN'?'No tienes permiso para cuantificar este control.':
         err.message==='CONFLICT'?'La partida ha cambiado: vuelve a cargar el control.':
         'No se han podido recuperar las cantidades. El guardado está desactivado para evitar sobrescribir información.','error');
