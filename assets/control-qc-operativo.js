@@ -253,7 +253,7 @@
     const head=node('div',null,'qco-header');
     const heading=node('div','Cantidades por bandeja','qco-title');
     const exit=node('button','×','qco-close');exit.type='button';exit.title='Cerrar';
-    exit.setAttribute('aria-label','Cerrar');exit.addEventListener('click',close);
+    exit.setAttribute('aria-label','Cerrar');exit.addEventListener('click',()=>close());
     head.append(heading,exit);dialog.append(head);
     const body=node('div',null,'qco-body');
     const meta=node('div',null,'qco-meta');
@@ -296,7 +296,7 @@
     form.append(indicators);
     const foot=node('div',null,'qco-footer');
     const cancel=node('button','Cerrar','qco-secondary');cancel.type='button';
-    cancel.addEventListener('click',close);
+    cancel.addEventListener('click',()=>close());
     const submit=node('button','Guardar cantidades','qco-save');submit.type='submit';submit.disabled=true;
     foot.append(cancel,submit);form.append(foot);
     body.append(form);dialog.append(body);overlay.append(dialog);
@@ -310,7 +310,7 @@
       alert('Este control no tiene todos los identificadores necesarios para cuantificarlo.');
       return;
     }
-    if(active){close();if(active)return;}
+    if(active){const same=record?.id===rec.id;close();if(active||same)return;}
     const thisSequence=++sequence;
     record={id:rec.id,tipo:rec.tipo,dia:rec.dia,partida:rec.partida};
     savedMeasurement=null;currentRules=null;loading=true;
