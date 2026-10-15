@@ -59,21 +59,21 @@
 </div>
 <form id="qcr-form" novalidate>
 <section class="qcr-panel">
-<h2>Umbral de aceptación</h2>
-<label class="qcr-field" for="qcr-threshold">Porcentaje mínimo de aptitud (%) 
+<h2>Objetivo de calidad</h2>
+<label class="qcr-field" for="qcr-threshold">Porcentaje objetivo de calidad (%) 
 <input type="number" min="0" max="100" step="0.01" id="qcr-threshold" inputmode="decimal" placeholder="Sin definir" />
 </label>
-<p class="qcr-note">Déjalo vacío mientras no se haya acordado el porcentaje mínimo. Su configuración no libera ni rechaza ninguna partida automáticamente.</p>
+<p class="qcr-note">Déjalo vacío mientras no se haya acordado el objetivo. Solo servirá como referencia para los indicadores; no bloquea ni rechaza partidas.</p>
 </section>
 <section class="qcr-panel">
 <h2>Criterios por categoría</h2>
-<p class="qcr-note">Configura cada opción de evaluación. «Pendiente» significa que todavía no se ha decidido cómo debe tratarse; no equivale a que la planta esté apta. La tolerancia es el máximo porcentaje de bandejas afectadas permitido para esa opción, si se acuerda utilizarlo.</p>
+<p class="qcr-note">Configura cómo se interpreta cada opción. «Pendiente» significa que aún no se ha decidido su tratamiento. «Informativo» solo registra el dato, «Incidencia» muestra una advertencia y «Crítico» una alerta prioritaria. La tolerancia es el porcentaje de referencia para comparar bandejas afectadas. Ningún estado rechaza automáticamente una partida.</p>
 <div id="qcr-groups" class="qcr-grid"></div>
 <div class="qcr-actions">
 <button id="qcr-save" class="button primary" type="submit">Guardar configuración</button>
 <a href="./control.html" class="button ghost">Volver</a>
 </div>
-<p class="qcr-note qcr-hint">Estas reglas se guardan con control de versiones, pero <strong>todavía no intervienen en el cálculo de puntuaciones ni invalidaciones.</strong> La fórmula global requiere definir cómo evitar el doble recuento de bandejas con varios defectos.</p>
+<p class="qcr-note qcr-hint">Las reglas se guardan con control de versiones. <strong>Los indicadores todavía no se calculan automáticamente.</strong> Para la valoración global tendremos que definir cómo evitar el doble recuento de bandejas con varios defectos.</p>
 </section>
 </form>
 </main>
