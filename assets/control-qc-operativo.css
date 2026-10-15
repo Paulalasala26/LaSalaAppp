@@ -83,3 +83,33 @@
   color:#1558a0;text-decoration:underline;text-decoration-color:#aac8e7;text-underline-offset:3px;
   overflow-wrap:anywhere}
 .qco-partida-link:hover,.qco-partida-link:focus-visible{color:#0e3c71;text-decoration-color:currentColor}
+
+/* Captura compacta para uso en móvil, sin ocultar datos ni cambiar validaciones. */
+.qco-choices{display:grid;gap:5px}
+.qco-inline .qco-total input:disabled,.qco-inline .qco-option input:disabled{background:#eef2f6;color:#77899d}
+@media(max-width:560px){
+  .qco-inline{margin:8px 0;border-radius:9px}
+  .qco-inline .qco-header{padding:8px 11px}
+  .qco-inline .qco-body{padding:9px}
+  .qco-inline .qco-total{padding:5px 0 9px;gap:6px}
+  .qco-inline .qco-total input{width:100%;max-width:140px;min-height:43px;font-size:16px}
+  .qco-inline .qco-cat{padding:7px 8px;margin:8px 0}
+  .qco-inline .qco-cat legend{font-size:13px;line-height:1.4}
+  .qco-inline .qco-choices{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+  .qco-inline .qco-option{display:flex;flex-direction:column;align-items:stretch;
+    justify-content:space-between;gap:5px;margin:0;padding:7px 8px;min-width:0}
+  .qco-inline .qco-option label{font-size:12px;line-height:1.2;min-height:28px;align-items:center}
+  .qco-inline .qco-option input[type=number]{box-sizing:border-box;width:100%;
+    min-height:42px;padding:8px;font-size:16px;line-height:1.2}
+  .qco-inline .qco-option[data-option=noEvaluada]{grid-column:1/-1;
+    display:grid;grid-template-columns:minmax(0,1fr) minmax(90px,42%);align-items:center}
+  .qco-inline .qco-option[data-option=noEvaluada] label{min-height:0}
+  .qco-inline .qco-footer{position:sticky;bottom:0;z-index:1;justify-content:stretch;
+    flex-wrap:nowrap;gap:8px;padding:9px 0 calc(9px + env(safe-area-inset-bottom));
+    background:#fff;border-top:1px solid #dbe7f2}
+  .qco-inline .qco-save,.qco-inline .qco-secondary{min-height:45px;padding:8px 10px}
+  .qco-inline .qco-save{flex:1}
+  .qco-inline .qco-feedback{margin:8px 0;padding:9px 11px}
+  .qco-inline .qco-indicator-row{grid-template-columns:minmax(100px,1.3fr) minmax(62px,.8fr) minmax(85px,1fr);
+    gap:6px;padding:7px 8px}
+}
