@@ -67,7 +67,7 @@
       active.classList.remove('qco-merged');
       return;
     }
-    card.querySelectorAll('.qco-live-control, .qco-live-slot').forEach(x=>x.remove());
+    card.querySelectorAll('.qco-live-control, .qco-live-slot, .qco-live-balance').forEach(x=>x.remove());
     const containers=new Map();
     const addInput=(container,category,option,name,label)=>{
       const original=active.querySelector('[data-qco-cat="'+category+'"] .qco-option[data-option="'+option+'"] input[type="number"]');
@@ -178,11 +178,13 @@
       showCardExtras(false);
       refreshPhoto();
       embedAmounts();
-    }else if(loading||writing||changed()||notesPending||notesChanged()){
+    }else{
+      // Un repintado automático puede retirar temporalmente la ficha.
+      // No cerrar el editor ni descartar su contexto por ese motivo.
       active.classList.remove('qco-merged');
       active.classList.add('qco-floating');
-      document.body.append(active);
-    }else close(true);
+      if(active.parentElement!==document.body)document.body.append(active);
+    }
   }
   function observeControl(){
     if(observer)observer.disconnect();
@@ -246,7 +248,7 @@
     savedMeasurement=null;currentRules=null;legacyApi=null;
     if(observer){observer.disconnect();observer=null;}
     if(button)button.setAttribute('aria-expanded','false');
-    document.querySelectorAll('#control-overlay .qco-live-control, #control-overlay .qco-live-slot').forEach(x=>x.remove());
+    document.querySelectorAll('#control-overlay .qco-live-control, #control-overlay .qco-live-slot, #control-overlay .qco-live-balance').forEach(x=>x.remove());
     if(previous)previous.remove();
     return true;
   }
