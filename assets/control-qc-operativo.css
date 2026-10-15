@@ -17,6 +17,16 @@
 .qco-option input[disabled]{background:#e9eef4;color:#77899d}
 .qco-feedback{border-radius:8px;background:#eff6ff;color:#204d78;font-size:12px;line-height:1.5;padding:11px 13px;margin:12px 0}
 .qco-feedback.error{background:#fff0f0;color:#9b2929}.qco-feedback.success{background:#e6f7eb;color:#22663f}
+.qco-indicators{border:1px solid #d7e4f0;border-radius:9px;margin:12px 0;background:#fff}
+.qco-indicators>summary{cursor:pointer;padding:11px 12px;color:#1558a0;font-size:13px;font-weight:800;list-style-position:inside}
+.qco-indicators[open]>summary{border-bottom:1px solid #e3edf6}
+.qco-indicator-list{max-height:280px;overflow:auto}
+.qco-indicator-row{display:grid;grid-template-columns:minmax(115px,1.5fr) minmax(75px,1fr) minmax(105px,1fr);gap:9px;align-items:center;padding:9px 12px;font-size:12px;color:#294e6f;border-bottom:1px solid #edf1f6}
+.qco-indicator-row:last-child{border-bottom:none}
+.qco-indicator-row>span:nth-child(2),.qco-indicator-row>span:nth-child(3){font-variant-numeric:tabular-nums}
+.qco-indicator-head{font-weight:750;color:#5b7084;background:#f7fafd}
+.qco-indicator-value.warning{color:#995c00;font-weight:800}
+.qco-indicator-value.critical{color:#af2525;font-weight:800}
 .qco-footer{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;padding-top:13px}
 .qco-save{background:#1558a0;color:white;font-weight:800;border:0;border-radius:8px;padding:11px 17px;cursor:pointer}
 .qco-secondary{background:#f4f7fb;color:#325879;border:1px solid #cbdcec;border-radius:8px;padding:11px 17px;cursor:pointer;font-weight:700}
