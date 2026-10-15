@@ -98,10 +98,16 @@
     }
     for(const [category,name] of CATS){
       const parent=containers.get(category);
-      if(parent)addInput(parent,category,'noEvaluada',name,'No evaluada');
+      if(parent){
+        addInput(parent,category,'noEvaluada',name,'No evaluada');
+        const badge=node('span',null,'qco-live-balance');
+        badge.dataset.qcoBalance=category;badge.hidden=true;
+        parent.append(badge);
+      }
     }
     active.classList.add('qco-merged');
     syncInlineIndicators();
+    renderBalances();
   }
   function mount(){
     if(!active)return;
@@ -212,7 +218,44 @@
     if(!data.ok||data.stage!==stage||!data.rules?.criterios)throw Error('RULES_UNAVAILABLE');
     return data.rules;
   }
+  function renderBalances(){
+    if(!active)return;
+    const raw=snapshot(),total=strCount(raw.bandejasInspeccionadas);
+    for(const [category] of CATS){
+      const targets=Array.from(active.querySelectorAll('[data-qco-cat="'+category+'"] .qco-balance'))
+        .concat(Array.from(document.querySelectorAll('#control-overlay [data-qco-balance="'+category+'"]')));
+      const values=raw.mediciones[category];
+      let label='',invalid=false;
+      if(Object.keys(values).length){
+        if(total===null){label='Indica el total';invalid=true;}
+        else{
+          const parsed={};
+          for(const [key,value] of Object.entries(values)){
+            const n=strCount(value);
+            if(n===null||n>total){invalid=true;break;}
+            parsed[key]=n;
+          }
+          if(invalid)label='Cantidad inválida';
+          else{
+            const issue=categoryIssue(category,parsed,total);
+            invalid=!!issue;
+            if(category==='raices')label=issue||'✓ Cuadra';
+            else{
+              const sum=Object.values(parsed).reduce((a,b)=>a+b,0);
+              label=sum.toLocaleString('es-ES')+' / '+total.toLocaleString('es-ES')+
+                (issue?' · '+issue.replace(' bandejas.',''):' ✓');
+            }
+          }
+        }
+      }
+      for(const target of targets){
+        target.hidden=!label;target.textContent=label;
+        target.classList.toggle('is-warning',invalid);
+      }
+    }
+  }
   function updateIndicatorVisibility(){
+    renderBalances();
     const isSaved=!!savedMeasurement&&!changed();
     const details=active?.querySelector('.qco-indicators');
     if(details)details.hidden=!isSaved;
@@ -361,7 +404,9 @@
     total.append(totalTitle,qtyInput);form.append(total);
     for(const [category,name,opts] of CATS){
       const wrap=node('fieldset',null,'qco-cat');wrap.dataset.qcoCat=category;
-      wrap.append(node('legend',name));
+      const legend=node('legend',name);
+      const balance=node('span',null,'qco-balance');balance.hidden=true;
+      legend.append(balance);wrap.append(legend);
       for(const [option,label] of opts){
         const row=node('div',null,'qco-option');row.dataset.option=option;
         const optionLabel=node('label',label);
