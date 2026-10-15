@@ -23,8 +23,16 @@
 .qcu-group h3{font-size:14px;color:#1558a0;margin:0 0 5px}
 .qcu-opts{display:grid;gap:7px;margin-top:9px}
 .qcu-option{display:grid;grid-template-columns:minmax(0,1fr) 118px;align-items:center;gap:9px;padding:7px;background:#f6f9fc;border-radius:7px}
-.qcu-option label{display:flex;gap:8px;align-items:center;cursor:pointer;font-size:12px;font-weight:600;color:#264361}
-.qcu-option input[type="checkbox"]{width:17px;height:17px;accent-color:#1558a0;flex:0 0 auto}
+.qcu-option label{display:flex;gap:6px;align-items:center;flex-wrap:wrap;cursor:pointer;font-size:12px;font-weight:600;color:#264361}
+.qcu-historical-badge{font-size:10px;font-weight:700;border-radius:5px;background:#e5f1ff;color:#1558a0;padding:3px 5px}
+.qcu-inline-indicator{font-size:11px;color:#546f89;font-variant-numeric:tabular-nums}
+.qcu-inline-indicator.warning{color:#995c00;font-weight:800}
+.qcu-inline-indicator.critical{color:#af2525;font-weight:800}
+.qcu-original-panel{padding:13px 18px}
+.qcu-original-details summary,.qcu-indicators-details summary{cursor:pointer;color:#1558a0;font-size:14px;font-weight:750;padding:4px 0}
+.qcu-original-details[open] summary,.qcu-indicators-details[open] summary{margin-bottom:12px}
+.qcu-option input[aria-invalid="true"]{border-color:#af2525}
+.qcu-panel h2{font-weight:800}
 .qcu-option input[type="number"]{width:100%;padding:8px;border:1.5px solid #c5d6e7;border-radius:7px;font-size:13px;color:#1558a0;box-sizing:border-box}
 .qcu-option input[disabled]{color:#96a4b4;background:#e9eef4}
 .qcu-total{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
@@ -79,25 +87,26 @@
 <h2 id="qcu-title">Partida</h2>
 <div id="qcu-fields" class="qcu-fields"></div>
 </section>
-<section class="qcu-panel" aria-labelledby="qcu-legacy-title">
-<h2 id="qcu-legacy-title">Check original</h2>
+<section class="qcu-panel qcu-original-panel" aria-labelledby="qcu-legacy-title">
+<details class="qcu-original-details">
+<summary id="qcu-legacy-title">Check original · consulta</summary>
 <div id="qcu-legacy"></div>
 <div class="qcu-actions"><button id="qcu-edit-legacy" type="button" class="button ghost">Editar datos de origen</button><button id="qcu-evaluate-legacy" type="button" class="button ghost">Evaluar check original</button></div>
+</details>
 </section>
 <section class="qcu-panel" aria-labelledby="qcu-quant-title">
-<h2 id="qcu-quant-title">Bandejas por característica</h2>
+<h2 id="qcu-quant-title">Cantidades por bandeja</h2>
 <form id="qcu-form" novalidate>
 <div class="qcu-total"><label for="qcu-inspected">Nº de bandejas inspeccionadas *</label><input type="number" id="qcu-inspected" inputmode="numeric" min="1" step="1" placeholder="Ej.: 65" required></div>
 <div id="qcu-groups" class="qcu-groups"></div>
-<div class="qcu-actions"><button id="qcu-save" type="submit" class="qcu-action">Guardar mediciones</button><a href="./control.html" class="button ghost">Volver a registros QC</a></div>
+<div class="qcu-actions"><button id="qcu-save" type="submit" class="qcu-action">Guardar cantidades</button></div>
 <div id="qcu-validation" role="status" aria-live="polite" hidden></div>
 </form>
 </section>
-<section class="qcu-panel" aria-labelledby="qci-title">
-<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
-  <h2 id="qci-title">Indicadores</h2>
-  <a href="./qc-criterios.html" class="button ghost">Configurar criterios</a>
-</div>
+<section class="qcu-panel qcu-original-panel" aria-labelledby="qci-title">
+<details class="qcu-indicators-details">
+<summary id="qci-title">Detalle de indicadores</summary>
+<a href="./qc-criterios.html" class="button ghost">Configurar criterios</a>
 <div id="qci-status" class="qci-note" role="status" aria-live="polite">Cargando indicadores…</div>
 <div id="qci-results" hidden>
   <div id="qci-metrics" class="qci-stats"></div>
@@ -106,7 +115,8 @@
     <thead><tr><th>Evaluación</th><th>Bandejas</th><th>% inspeccionado</th><th>Tratamiento</th><th>Tolerancia</th><th>Indicador</th></tr></thead>
     <tbody id="qci-rows"></tbody>
   </table></div>
-  </div>
+</div>
+</details>
 </section>
 </main>
 </div>
