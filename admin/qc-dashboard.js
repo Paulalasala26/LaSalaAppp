@@ -201,16 +201,11 @@
     renderOptions(data);renderRecords(data);
     el('qcd-results').hidden=false;
     if(data.invalidExcluded>0||data.unmatchedMeasurements>0){
-      message('Se han excluido '+formatInt(data.invalidExcluded)+
-        ' mediciones inválidas y '+formatInt(data.unmatchedMeasurements)+
-        ' sin correspondencia válida con el registro original. No se han contado en los indicadores.',true);
+      message('Mediciones excluidas: '+formatInt(data.invalidExcluded+data.unmatchedMeasurements)+'.',true);
     }else if(data.stats.records===0){
-      message('No hay controles de Túnel o Carga en las fechas seleccionadas.',false);
-    }else if(data.stats.measured===0){
-      message('Se muestran '+formatInt(data.stats.records)+
-        ' controles históricos. Todavía no hay mediciones cuantitativas vinculadas en este periodo: por eso los porcentajes y alertas aparecen vacíos.',false);
-    }else if(!data.stats.hasConfiguredRules){
-      message('Los controles y las mediciones ya están disponibles. Los criterios aún no tienen tratamientos configurados; no se generan alertas.',false);
+      message('Sin controles en estas fechas.',false);
+    }else if(data.stats.measured===0||!data.stats.hasConfiguredRules){
+      message('',false);
     }else message('',false);
   }
   async function query(e){
@@ -220,7 +215,7 @@
     try{opts=selectedFilters()}catch(error){message(error.message,true);return;}
     busy=true;el('qcd-query').disabled=true;
     el('qcd-results').hidden=true;
-    message('Consultando indicadores de calidad…',false);
+    message('Consultando…',false);
     try{
       const jwt=await getToken();
       const q=new URLSearchParams(opts);
@@ -238,7 +233,7 @@
       }else{
         message(error.message==='INVALID_FILTER'?'Comprueba las fechas y filtros de la consulta.':
           error.message==='INVALID_RESPONSE'?'El servidor ha devuelto un resumen incompleto.':
-          'No ha sido posible consultar los indicadores. No se han modificado datos.',true);
+          'Error al consultar indicadores.',true);
       }
     }finally{busy=false;el('qcd-query').disabled=false;}
   }
