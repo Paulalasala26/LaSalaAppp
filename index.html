@@ -5732,7 +5732,7 @@ let controlDiaSel = null;
 // 26X00664 con 40/5/53 bandejas en los días 61/61/60). Antes cada guión
 // generaba su propia línea repetida en el checklist; ahora se muestran
 // unidas en UNA sola tarjeta con flechas ‹ › para pasar de un guión a otro,
-// indicando "Guión X de N" y el día/Nº de bandejas de cada uno. Cada guión
+// indicando "Registro X de N" y fecha/bandejas de cada uno. Cada guión
 // sigue siendo su propio documento en controlChecksData (con su propio
 // check/foto/observaciones) — esto es solo una agrupación visual.
 let controlGuionActivo = {};
@@ -5756,9 +5756,9 @@ function renderControlCardConGuionesHTML(grupo, seccion){
   const idx = grupo.indexOf(activo);
   const pagerHTML = `
     <div style="display:flex;align-items:center;justify-content:center;gap:10px;padding:6px 10px;background:#fff3dc;border:1.5px solid #e0c080;border-bottom:none;border-radius:12px 12px 0 0;font-size:11px;font-weight:800;color:#7a5000">
-      <button onclick="cambiarGuionControl('${groupKey}',-1)" title="Guión anterior" style="background:none;border:none;font-size:18px;font-weight:900;color:#7a5000;cursor:pointer;padding:0 6px;line-height:1">&#8249;</button>
-      <span>Guión ${idx+1} de ${grupo.length} · ${riegoDiaLabelCorto(activo.dia)} · Nº bandejas: ${activo.numBandejas||'—'}</span>
-      <button onclick="cambiarGuionControl('${groupKey}',1)" title="Guión siguiente" style="background:none;border:none;font-size:18px;font-weight:900;color:#7a5000;cursor:pointer;padding:0 6px;line-height:1">&#8250;</button>
+      <button onclick="cambiarGuionControl('${groupKey}',-1)" title="Registro anterior" style="background:none;border:none;font-size:18px;font-weight:900;color:#7a5000;cursor:pointer;padding:0 6px;line-height:1">&#8249;</button>
+      <span>Registro ${idx+1} de ${grupo.length} · ${riegoDiaToDate(activo.dia).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit'})} · ${activo.numBandejas||'—'} bandejas</span>
+      <button onclick="cambiarGuionControl('${groupKey}',1)" title="Registro siguiente" style="background:none;border:none;font-size:18px;font-weight:900;color:#7a5000;cursor:pointer;padding:0 6px;line-height:1">&#8250;</button>
     </div>`;
   const cardHTML = (seccion.key==='carga' ? renderControlCargaCardHTML(activo, seccion) : renderControlCardHTML(activo, seccion))
     .replace('border-radius:12px;', 'border-radius:0 0 12px 12px;');
