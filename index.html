@@ -6062,7 +6062,7 @@ function renderControlWizardFinalHTML(c){
           onchange="guardarControlObservaciones('${c.id}', this.value)"
           style="width:100%;padding:16px;border:2px solid var(--border);border-radius:12px;font-size:15px">
       </div>
-      <div style="margin-bottom:24px;text-align:center">
+      <div data-qc-legacy-extras="${c.id}" style="margin-bottom:24px;text-align:center">
         ${fotoHTML}
         <label style="display:inline-flex;align-items:center;gap:8px;padding:15px 24px;background:#eaf5ea;border:2px solid #a5d6a7;border-radius:12px;cursor:pointer;font-size:14px;font-weight:700;color:#2e7d32">
           <i class="ti ti-camera" style="font-size:18px"></i> ${controlFotosData[c.id]?'Cambiar foto':'Añadir foto'}
