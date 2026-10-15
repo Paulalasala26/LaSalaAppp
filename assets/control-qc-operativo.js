@@ -79,8 +79,7 @@
       }
     }
     original=JSON.stringify(snapshot());
-    report(saved?'Mediciones recuperadas (versión '+version+'). Puedes actualizarlas.':
-      'Esta línea aún no tiene cantidades cuantificadas. Marca cada característica observada y escribe sus bandejas.','');
+    report('','');
   }
   function validate(){
     const v=snapshot(),total=strCount(v.bandejasInspeccionadas),errors=[],clean={};
@@ -103,11 +102,11 @@
     const checked=validate();
     if(checked.errors.length){report('No se puede guardar: '+checked.errors.slice(0,7).join(' · '),'error');return;}
     if(navigator.onLine===false){
-      report('Sin conexión. Las cantidades no se han guardado; vuelve a intentarlo al recuperar la conexión.','error');return;
+      report('Sin conexión. No guardado.','error');return;
     }
     writing=true;
     const btn=active.querySelector('.qco-save');btn.disabled=true;
-    report('Guardando cantidades…','');
+    report('Guardando…','');
     try{
       const jwt=await token();
       const r=await fetch(API,{
@@ -123,12 +122,16 @@
       const data=await r.json();
       if(!data.ok||!Number.isInteger(data.version))throw Error('SAVE_FAILED');
       version=data.version;original=JSON.stringify(snapshot());
-      report('✓ Cantidades guardadas y confirmadas (versión '+version+'). Los checks anteriores no se han modificado.','success');
+      report('✓ Guardado','success');
+      const completedModal=active;
+      setTimeout(()=>{
+        if(active===completedModal&&active?.querySelector('.qco-feedback')?.classList.contains('success'))report('','');
+      },2500);
     }catch(err){
       report(err.message==='CONFLICT'?
-        'Otro usuario ha modificado esta medición o la partida. No se han sobrescrito sus datos. Cierra y vuelve a abrir para consultar la versión actual.':
-        err.message==='FORBIDDEN'?'Tu perfil no tiene permiso para medir este estadio.':
-        'No se ha podido confirmar el guardado. No vuelvas a enviar sin revisar primero los datos.','error');
+        'Conflicto: datos modificados. Cierra y vuelve a abrir.':
+        err.message==='FORBIDDEN'?'Sin permiso para este estadio.':
+        'Guardado sin confirmar. Reabre para comprobar antes de repetir.','error');
     }finally{
       writing=false;if(active)btn.disabled=false;
     }
@@ -149,16 +152,7 @@
       'Partida: '+(rec.partida||'—'),'Bandejas informadas: '+(rec.numBandejas||'—')])
       meta.append(node('span',val,'qco-chip'));
     body.append(meta);
-    body.append(node('p','Registra cuántas bandejas presentan cada característica. Las cantidades no se deducen de los checks históricos y no se suman entre categorías.','qco-info'));
-    const legacy=node('div',null,'qco-legacy');
-    legacy.append(node('strong','Checks anteriores (solo referencia): '));
-    const descriptions=[];
-    for(const [key,name,opts] of CATS){
-      const marks=opts.filter(([o])=>rec[key]?.[o]===true).map(([,title])=>title);
-      if(marks.length)descriptions.push(name+': '+marks.join(', '));
-    }
-    legacy.append(node('span',descriptions.join(' · ')||'Sin respuestas marcadas'));
-    body.append(legacy);
+ 
     const form=node('form');form.noValidate=true;form.addEventListener('submit',save);
     const total=node('label',null,'qco-total');
     const totalTitle=node('span','Nº bandejas inspeccionadas *');
@@ -185,7 +179,7 @@
       }
       form.append(wrap);
     }
-    const feedback=node('div','Cargando las cantidades…','qco-feedback');
+    const feedback=node('div',null,'qco-feedback');feedback.hidden=true;
     feedback.setAttribute('role','status');feedback.setAttribute('aria-live','polite');
     form.append(feedback);
     const foot=node('div',null,'qco-footer');
