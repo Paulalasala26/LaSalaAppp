@@ -169,8 +169,8 @@
   }
   function changed(){return original!==JSON.stringify(snapshot())}
   function close(force=false){
-    if(writing)return;
-    if(!force&&active&&changed()&&!confirm('Hay mediciones sin guardar. ¿Salir sin guardar?'))return;
+    if(writing)return false;
+    if(!force&&active&&changed()&&!confirm('Hay cantidades sin guardar. ¿Salir sin guardar?'))return false;
     const previous=active,button=controlButton();
     sequence++;active=null;record=null;original='';loading=false;
     savedMeasurement=null;currentRules=null;
@@ -178,6 +178,14 @@
     if(button)button.setAttribute('aria-expanded','false');
     document.querySelectorAll('#control-overlay .qco-live-control, #control-overlay .qco-live-slot').forEach(x=>x.remove());
     if(previous)previous.remove();
+    return true;
+  }
+  function prepareRecordSwitch(fromId){
+    if(!active)return {allowed:true,reopen:false};
+    // Si está guardando no cambiar de guión hasta conocer el resultado.
+    if(writing)return {allowed:false,reopen:false};
+    const reopen=record?.id===fromId;
+    return {allowed:close(),reopen};
   }
   async function token(){
     let saved=null;
@@ -348,6 +356,8 @@
     if(navigator.onLine===false){
       report('Sin conexión. No guardado.','error');return;
     }
+    const editor=active;
+    let confirmed=false;
     writing=true;
     // Los campos quedan congelados hasta confirmar la escritura.
     active.querySelectorAll('.qco-total input, .qco-cat input[type="number"]')
@@ -372,12 +382,7 @@
       if(!data.ok||!Number.isInteger(data.version))throw Error('SAVE_FAILED');
       version=data.version;original=JSON.stringify(snapshot());
       savedMeasurement={version,bandejasInspeccionadas:checked.total,mediciones:checked.mediciones};
-      renderIndicators(true);
-      report('✓ Guardado','success');
-      const completedModal=active;
-      setTimeout(()=>{
-        if(active===completedModal&&active?.querySelector('.qco-feedback')?.classList.contains('success'))report('','');
-      },2500);
+      confirmed=true;
     }catch(err){
       report(err.message==='CONFLICT'?
         'Conflicto: datos modificados. Cierra y vuelve a abrir.':
@@ -385,11 +390,18 @@
         'Guardado sin confirmar. Reabre para comprobar antes de repetir.','error');
     }finally{
       writing=false;
-      if(active){
-        btn.disabled=false;
-        active.querySelectorAll('.qco-total input, .qco-cat input[type="number"]')
-          .forEach(input=>{input.disabled=false;});
-        embedAmounts();
+      if(active===editor){
+        if(confirmed){
+          // El editor se cierra; siguen seleccionados el registro, día y filtros.
+          close(true);
+          if(typeof window.showToast==='function')
+            window.showToast('✓ Cantidades QC guardadas');
+        }else{
+          btn.disabled=false;
+          active.querySelectorAll('.qco-total input, .qco-cat input[type="number"]')
+            .forEach(input=>{input.disabled=false;});
+          embedAmounts();
+        }
       }
     }
   }
@@ -518,5 +530,5 @@
         'No se han podido recuperar las cantidades. El guardado está desactivado para evitar sobrescribir información.','error');
     }
   }
-  window.QCOperativo=Object.freeze({open});
+  window.QCOperativo=Object.freeze({open,prepareRecordSwitch});
 })();
