@@ -282,10 +282,16 @@
       if(!data.ok||data.sourcePartida!==rec.partida)throw Error('CONFLICT');
       if(sequence!==thisSequence||active!==modal)return;
       populate(data.record);
-      try{currentRules=await fetchRules(jwt,rec.tipo)}catch(e){currentRules=null}
-      if(sequence!==thisSequence||active!==modal)return;
-      renderIndicators(false);
       modal.querySelector('.qco-save').disabled=false;
+      renderIndicators(false);
+      // Criterios opcionales: su consulta nunca debe retrasar ni impedir guardar.
+      fetchRules(jwt,rec.tipo).then(rules=>{
+        if(sequence!==thisSequence||active!==modal)return;
+        currentRules=rules;renderIndicators(false);
+      }).catch(()=>{
+        if(sequence!==thisSequence||active!==modal)return;
+        currentRules=null;renderIndicators(false);
+      });
     }catch(err){
       if(sequence!==thisSequence||active!==modal)return;
       report(err.message==='FORBIDDEN'?'No tienes permiso para cuantificar este control.':
