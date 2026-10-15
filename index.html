@@ -5990,9 +5990,12 @@ async function cambiarControlWizardQuincena(delta){
     renderControlContent(document.getElementById('control-overlay'));
   });
 }
-function cambiarControlWizardVista(v){
-  controlWizardVista = v;
-  renderControlContent(document.getElementById('control-overlay'));
+async function cambiarControlWizardVista(v){
+  if(v===controlWizardVista)return;
+  return navegarControlQC(()=>{
+    controlWizardVista=v;
+    renderControlContent(document.getElementById('control-overlay'));
+  });
 }
 async function seleccionarControlWizardDia(dia){
   const siguiente=parseInt(dia,10);
@@ -6241,9 +6244,12 @@ function controlLineaCompletada(c){
   return CONTROL_CHECK_CATEGORIAS.every(cat => c[cat.key] && Object.values(c[cat.key]).some(v=>v));
 }
 let controlFiltroEstado = 'todos'; // 'todos' | 'completados' | 'pendientes'
-function cambiarControlFiltroEstado(v){
-  controlFiltroEstado = v;
-  renderControlContent(document.getElementById('control-overlay'));
+async function cambiarControlFiltroEstado(v){
+  if(v===controlFiltroEstado)return;
+  return navegarControlQC(()=>{
+    controlFiltroEstado=v;
+    renderControlContent(document.getElementById('control-overlay'));
+  });
 }
 // Filtro por invernadero, solo en Check Carga (a petición de Paula,
 // 2026-08-10): muestra únicamente las partidas que se van de ese
@@ -6252,22 +6258,43 @@ function cambiarControlFiltroEstado(v){
 // código (ver [[lasala_control_tunel_intocable]]).
 let controlCargaInvFiltro = '';
 let controlTunelInvFiltro = '';
-function cambiarControlCargaInvFiltro(v){
-  controlCargaInvFiltro = v;
-  renderControlContent(document.getElementById('control-overlay'));
+async function cambiarControlCargaInvFiltro(v){
+  if(v===controlCargaInvFiltro)return;
+  let applied=false;
+  await navegarControlQC(()=>{
+    controlCargaInvFiltro=v;
+    applied=true;
+    renderControlContent(document.getElementById('control-overlay'));
+  });
+  if(!applied){
+    const field=document.querySelector('#control-overlay select[onchange^="cambiarControlCargaInvFiltro"]');
+    if(field)field.value=controlCargaInvFiltro;
+  }
 }
-function cambiarControlTunelInvFiltro(v){
-  controlTunelInvFiltro = v;
-  renderControlContent(document.getElementById('control-overlay'));
+async function cambiarControlTunelInvFiltro(v){
+  if(v===controlTunelInvFiltro)return;
+  let applied=false;
+  await navegarControlQC(()=>{
+    controlTunelInvFiltro=v;
+    applied=true;
+    renderControlContent(document.getElementById('control-overlay'));
+  });
+  if(!applied){
+    const field=document.querySelector('#control-overlay select[onchange^="cambiarControlTunelInvFiltro"]');
+    if(field)field.value=controlTunelInvFiltro;
+  }
 }
 // Dashboard propio POR DÍA (a petición de Paula, 2026-08-01) — comparte
 // vista entre Túnel y Carga (misma renderControlChecklistHTML), pero
 // siempre analiza solo el día actualmente seleccionado (controlDiaSel), no
 // la quincena entera ni otros días.
 let controlVistaChecklist = 'lineas'; // 'lineas' | 'dashboard'
-function cambiarControlVistaChecklist(v){
-  controlVistaChecklist = v;
-  renderControlContent(document.getElementById('control-overlay'));
+async function cambiarControlVistaChecklist(v){
+  if(v===controlVistaChecklist)return;
+  return navegarControlQC(()=>{
+    controlVistaChecklist=v;
+    renderControlContent(document.getElementById('control-overlay'));
+  });
 }
 // Listado genérico imprimible de partidas (a petición de Paula, 2026-08-12):
 // reutilizado por "Comprobar extensiones" y por las estadísticas pinchables
