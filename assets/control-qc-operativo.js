@@ -71,6 +71,8 @@
       const original=active.querySelector('[data-qco-cat="'+category+'"] .qco-option[data-option="'+option+'"] input[type="number"]');
       if(!original)return;
       const shell=node('label',null,'qco-live-control');
+      shell.dataset.qcCategory=category;
+      shell.dataset.qcOption=option;
       if(label)shell.append(node('span',label));
       const proxy=node('input');
       proxy.type='number';proxy.min='1';proxy.step='1';proxy.max='10000000';
@@ -99,6 +101,7 @@
       if(parent)addInput(parent,category,'noEvaluada',name,'No evaluada');
     }
     active.classList.add('qco-merged');
+    syncInlineIndicators();
   }
   function mount(){
     if(!active)return;
@@ -210,8 +213,26 @@
     return data.rules;
   }
   function updateIndicatorVisibility(){
+    const isSaved=!!savedMeasurement&&!changed();
     const details=active?.querySelector('.qco-indicators');
-    if(details)details.hidden=!savedMeasurement||changed();
+    if(details)details.hidden=!isSaved;
+    document.querySelectorAll('#control-overlay .qco-live-indicator').forEach(el=>el.hidden=!isSaved);
+  }
+  function syncInlineIndicators(){
+    const controls=Array.from(document.querySelectorAll('#control-overlay .qco-live-control'));
+    controls.forEach(el=>el.querySelector('.qco-live-indicator')?.remove());
+    if(!active?.classList.contains('qco-merged')||!savedMeasurement||changed()||!window.QCIndicators)return;
+    const result=window.QCIndicators.evaluate(savedMeasurement,currentRules);
+    if(!result.available)return;
+    for(const entry of result.rows){
+      const shell=controls.find(x=>x.dataset.qcCategory===entry.category&&x.dataset.qcOption===entry.option);
+      if(!shell)continue;
+      const suffix=entry.level==='critical'?' !':entry.level==='warning'?' *':'';
+      const badge=node('span',Number(entry.percentDisplay).toLocaleString('es-ES',{maximumFractionDigits:2})+' %'+suffix,
+        'qco-live-indicator '+entry.level);
+      badge.title=entry.description;
+      shell.append(badge);
+    }
   }
   function renderIndicators(expand){
     const details=active?.querySelector('.qco-indicators');
@@ -248,6 +269,7 @@
     }
     details.hidden=false;
     if(expand)details.open=true;
+    syncInlineIndicators();
     updateIndicatorVisibility();
   }
   function validate(){
