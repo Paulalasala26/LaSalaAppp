@@ -31,3 +31,25 @@
 .qco-save{background:#1558a0;color:white;font-weight:800;border:0;border-radius:8px;padding:11px 17px;cursor:pointer}
 .qco-secondary{background:#f4f7fb;color:#325879;border:1px solid #cbdcec;border-radius:8px;padding:11px 17px;cursor:pointer;font-weight:700}
 @media(max-width:560px){.qco-overlay{padding:0}.qco-dialog{border-radius:0;min-height:100dvh;width:100%}.qco-body{padding:12px}.qco-header{padding:10px 12px}.qco-option{grid-template-columns:minmax(0,1fr) 105px;gap:6px}}
+
+/* Editor cuantitativo integrado en la propia ficha de Túnel y Carga. */
+.qco-inline{width:100%;min-width:0;margin:10px 0;border:1px solid #a8c4e8;border-radius:11px;background:#fff;box-shadow:0 2px 10px rgba(21,88,160,.09)}
+.qco-inline .qco-dialog{width:100%;max-height:none;margin:0;border-radius:11px;box-shadow:none}
+.qco-inline .qco-header{position:relative;padding:10px 12px}
+.qco-inline .qco-title{font-size:14px}
+.qco-inline .qco-body{padding:10px 12px}
+.qco-inline .qco-meta{display:none}
+.qco-inline .qco-cat{padding:8px 10px;margin:7px 0}
+.qco-inline .qco-option{grid-template-columns:minmax(0,1fr) minmax(85px,120px);padding:5px 8px}
+.qco-inline .qco-option label{font-size:12px;font-weight:650;color:#294968}
+.qco-inline .qco-option.qco-legacy-active{background:#e8f2ff}
+.qco-inline .qco-footer{position:relative}
+.qco-inline.qco-floating{position:fixed;inset:0;z-index:2147483640;overflow-y:auto;background:rgba(17,34,58,.65);display:flex;justify-content:center;align-items:flex-start;padding:16px;margin:0;border:0;border-radius:0;box-shadow:none}
+.qco-inline.qco-floating .qco-dialog{width:min(100%,740px);margin:auto;border-radius:12px;box-shadow:0 15px 55px rgba(0,0,0,.3)}
+@media(max-width:560px){
+  .qco-inline .qco-dialog{min-height:0;border-radius:10px}
+  .qco-inline .qco-body{padding:9px}
+  .qco-inline .qco-option{grid-template-columns:minmax(0,1fr) minmax(80px,105px)}
+  .qco-inline.qco-floating{padding:0}
+  .qco-inline.qco-floating .qco-dialog{min-height:100dvh;border-radius:0}
+}
