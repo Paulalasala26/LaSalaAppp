@@ -494,7 +494,7 @@
       const content=node('div',null,'qco-extras-content');
       const notesField=node('label',null,'qco-notes');
       notesField.append(node('span','Observaciones'));
-      const notes=node('input');notes.type='text';notes.maxLength=5000;
+      const notes=node('input');notes.type='text';
       notes.placeholder='Sin observaciones';
       notes.value=String(legacyApi.getObservations?.()??rec.observaciones??'');
       notes.setAttribute('aria-label','Observaciones de esta partida');
