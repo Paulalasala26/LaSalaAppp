@@ -39,6 +39,66 @@
     return Array.from(root.querySelectorAll('button[onclick]'))
       .find(b=>b.getAttribute('onclick')===expected)||null;
   }
+  // Mantener una sola presentación de las opciones en las tarjetas clásicas.
+  // Los inputs visibles son un reflejo de la medición, no modifican los checks
+  // históricos ni generan operaciones de escritura independientes.
+  function embedAmounts(){
+    if(!active||!record)return;
+    const card=controlButton()?.closest('[id^="control-card-"]');
+    if(!card||card.id!=='control-card-'+record.id){
+      active.classList.remove('qco-merged');
+      return; // Ginés mantiene el formulario cuantitativo en su paso final.
+    }
+    const originalButtons=Array.from(card.querySelectorAll('button[onclick]'));
+    const matches=[];
+    for(const button of originalButtons){
+      const call=button.getAttribute('onclick')||'';
+      const parts=/^toggleControlCheckOpcion\('([A-Za-z0-9_-]+)','(color|tamano|sanidad|flores|raices)','([A-Za-z0-9]+)'\)$/.exec(call);
+      if(!parts||parts[1]!==record.id)continue;
+      const group=CATS.find(x=>x[0]===parts[2]);
+      if(!group||!group[2].some(x=>x[0]===parts[3]))continue;
+      matches.push({button,category:parts[2],option:parts[3],name:group[1]});
+    }
+    // Solo fusionar si el check estándar expone todas sus opciones.
+    const expected=CATS.reduce((n,x)=>n+x[2].length-1,0);
+    if(matches.length!==expected){
+      active.classList.remove('qco-merged');
+      return;
+    }
+    card.querySelectorAll('.qco-live-control').forEach(x=>x.remove());
+    const containers=new Map();
+    const addInput=(container,category,option,name,label)=>{
+      const original=active.querySelector('[data-qco-cat="'+category+'"] .qco-option[data-option="'+option+'"] input[type="number"]');
+      if(!original)return;
+      const shell=node('label',null,'qco-live-control');
+      if(label)shell.append(node('span',label));
+      const proxy=node('input');
+      proxy.type='number';proxy.min='1';proxy.step='1';proxy.max='10000000';
+      proxy.inputMode='numeric';proxy.placeholder='—';
+      proxy.value=original.value;proxy.disabled=loading||writing;
+      proxy.setAttribute('aria-label',name+' · '+(label||option)+' · bandejas');
+      proxy.addEventListener('input',()=>{
+        original.value=proxy.value;
+        updateIndicatorVisibility();
+        report('','');
+      });
+      shell.append(proxy);
+      container.append(shell);
+    };
+    for(const entry of matches){
+      const {button,category,option,name}=entry;
+      const parent=button.parentElement;
+      if(!containers.has(category))containers.set(category,parent);
+      const slot=node('span',null,'qco-live-slot');
+      button.insertAdjacentElement('afterend',slot);
+      addInput(slot,category,option,name,'');
+    }
+    for(const [category,name] of CATS){
+      const parent=containers.get(category);
+      if(parent)addInput(parent,category,'noEvaluada',name,'No evaluada');
+    }
+    active.classList.add('qco-merged');
+  }
   function mount(){
     if(!active)return;
     const button=controlButton();
@@ -46,7 +106,9 @@
       active.classList.remove('qco-floating');
       button.parentElement.insertAdjacentElement('afterend',active);
       button.setAttribute('aria-expanded','true');
+      embedAmounts();
     }else if(loading||writing||changed()){
+      active.classList.remove('qco-merged');
       active.classList.add('qco-floating');
       document.body.append(active);
     }else close(true);
@@ -101,6 +163,7 @@
     savedMeasurement=null;currentRules=null;
     if(observer){observer.disconnect();observer=null;}
     if(button)button.setAttribute('aria-expanded','false');
+    document.querySelectorAll('#control-overlay .qco-live-control, #control-overlay .qco-live-slot').forEach(x=>x.remove());
     if(previous)previous.remove();
   }
   async function token(){
@@ -132,6 +195,7 @@
     }
     original=JSON.stringify(snapshot());
     savedMeasurement=saved;
+    embedAmounts();
     updateIndicatorVisibility();
     report('','');
   }
@@ -212,6 +276,8 @@
       report('Sin conexión. No guardado.','error');return;
     }
     writing=true;
+    active.querySelectorAll('.qco-live-control input').forEach(x=>x.disabled=true);
+    document.querySelectorAll('#control-overlay .qco-live-control input').forEach(x=>x.disabled=true);
     const btn=active.querySelector('.qco-save');btn.disabled=true;
     report('Guardando…','');
     try{
@@ -242,7 +308,7 @@
         err.message==='FORBIDDEN'?'Sin permiso para este estadio.':
         'Guardado sin confirmar. Reabre para comprobar antes de repetir.','error');
     }finally{
-      writing=false;if(active)btn.disabled=false;
+      writing=false;if(active){btn.disabled=false;embedAmounts();}
     }
   }
   function build(rec){
