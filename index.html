@@ -5744,9 +5744,16 @@ function cambiarGuionControl(groupKey, delta){
   let idx = grupo.findIndex(x=>x.id===controlGuionActivo[groupKey]);
   if(idx<0) idx = grupo.findIndex(x=>x.dia===controlDiaSel);
   if(idx<0) idx = 0;
-  idx = (idx+delta+grupo.length)%grupo.length;
-  controlGuionActivo[groupKey] = grupo[idx].id;
+  const from=grupo[idx];
+  const target=grupo[(idx+delta+grupo.length)%grupo.length];
+  if(from.id===target.id)return;
+  const navigation=window.QCOperativo?.prepareRecordSwitch?.(from.id);
+  if(navigation?.allowed===false)return; // Edición pendiente o guardado en curso.
+  controlGuionActivo[groupKey] = target.id;
   renderControlContent(document.getElementById('control-overlay'));
+  // Si la medición estaba abierta, continuar en la del registro seleccionado;
+  // los datos son independientes aunque compartan nº de partida.
+  if(navigation?.reopen)window.QCOperativo.open(target);
 }
 function renderControlCardConGuionesHTML(grupo, seccion){
   const groupKey = seccion.key+'|'+grupo[0].partida;
