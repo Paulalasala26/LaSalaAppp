@@ -98,6 +98,15 @@
     }
     return selected;
   }
+  function restoreReturnLink(selected){
+    const fromDashboard=selected?.from==='dashboard';
+    const href=fromDashboard?'./qc-dashboard.html':'./control.html';
+    const label=fromDashboard?'← Panel QC':'← Registros QC';
+    for(const id of ['qcu-back','gate-link']){
+      const anchor=el(id);if(!anchor)continue;
+      anchor.href=href;anchor.textContent=label;
+    }
+  }
   async function getRecord(jwt,selected){
     const q=Math.max(0,Math.floor((selected.dia-15)/14));
     const shard='lasala-control-items-v2-'+selected.tipo+'-q'+q;
@@ -415,6 +424,7 @@
     });
     try{
       const selected=getSelection();
+      restoreReturnLink(selected);
       const jwt=await getToken();
       const username=await verifyAdmin(jwt);
       const rec=await getRecord(jwt,selected);
