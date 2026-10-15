@@ -5832,11 +5832,21 @@ async function seleccionarSeccionControl(sec){
 // La última sección renderizada se usa exclusivamente para restaurar scroll
 // dentro de una sección, pero volver arriba al cambiar de apartado.
 let controlUltimaSeccionRenderizada = undefined;
-function cerrarControlModule(){
+let controlQCConfirmandoSalida=false;
+async function confirmarSalidaQC(){
+  if(controlQCConfirmandoSalida)return false;
+  controlQCConfirmandoSalida=true;
+  try{
+    const navigation=await window.QCOperativo?.prepareRecordSwitch?.();
+    return navigation?.allowed!==false;
+  }finally{controlQCConfirmandoSalida=false;}
+}
+async function cerrarControlModule(){
   if(controlDesdeBackoffice){
-    volverAlListadoControlBackoffice();
+    await volverAlListadoControlBackoffice();
     return;
   }
+  if(!(await confirmarSalidaQC()))return;
   const overlay=document.getElementById('control-overlay');
   if(overlay) overlay.style.display='none';
   controlUltimaSeccionRenderizada=undefined;
@@ -16333,12 +16343,13 @@ function hayControlPendienteDeGuardarBackoffice(){
   const cola=leerColaOffline();
   return Array.isArray(cola) && cola.length>0;
 }
-function volverAlListadoControlBackoffice(){
+async function volverAlListadoControlBackoffice(){
   if(!controlDesdeBackoffice)return;
   if(hayControlPendienteDeGuardarBackoffice()){
     showToast('⚠ Hay cambios pendientes de sincronizar; termina la sincronización antes de volver al Backoffice.');
     return;
   }
+  if(!(await confirmarSalidaQC()))return;
   controlDesdeBackoffice=null;
   location.assign('admin/control.html');
 }
