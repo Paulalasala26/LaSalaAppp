@@ -4,6 +4,7 @@
   const AUTH_STORE='lasala-firebase-auth-v1';
   const API_KEY='AIzaSyDdDdMg6M1jVIssvGYKsdRA-mRug31Yt_g';
   const FICHA_CONTEXT='lasala-qc-prototipo-ref-v1';
+  const RETURN_FILTERS='lasala-backoffice-qc-dashboard-filtros-v1';
   const ENDPOINT='/api/admin-qc-dashboard';
   const START='2026-06-15';
   const TREATMENTS={
@@ -166,8 +167,9 @@
     if(!row||!['tunel','carga'].includes(row.tipo)||!
       Number.isInteger(row.dia)||typeof row.id!=='string'||!
       /^[A-Za-z0-9_-]{1,180}$/.test(row.id))return;
+    sessionStorage.setItem(RETURN_FILTERS,JSON.stringify(selectedFilters()));
     sessionStorage.setItem(FICHA_CONTEXT,JSON.stringify({
-      tipo:row.tipo,dia:row.dia,id:row.id,ts:Date.now()
+      tipo:row.tipo,dia:row.dia,id:row.id,ts:Date.now(),from:'dashboard'
     }));
     location.assign('./qc-ficha.html');
   }
@@ -204,8 +206,11 @@
       message('Mediciones excluidas: '+formatInt(data.invalidExcluded+data.unmatchedMeasurements)+'.',true);
     }else if(data.stats.records===0){
       message('Sin controles en estas fechas.',false);
-    }else if(data.stats.measured===0||!data.stats.hasConfiguredRules){
-      message('',false);
+    }else if(data.stats.measured===0){
+      message('Hay '+formatInt(data.stats.records)+
+        ' controles históricos, pero ninguno tiene todavía mediciones cuantitativas en este período.',false);
+    }else if(!data.stats.hasConfiguredRules){
+      message('Las mediciones existen; todavía no hay criterios configurados para generar alertas.',false);
     }else message('',false);
   }
   async function query(e){
@@ -239,6 +244,21 @@
   }
   async function start(){
     defaultDates();
+    // Volver desde una ficha conserva los filtros y la partida del contexto.
+    let previous=null;
+    try{previous=JSON.parse(sessionStorage.getItem(RETURN_FILTERS)||'null')}catch(e){}
+    sessionStorage.removeItem(RETURN_FILTERS);
+    if(previous&&typeof previous==='object'){
+      for(const [id,value] of [
+        ['qcd-from',previous.from],['qcd-to',previous.to],
+        ['qcd-type',previous.tipo],['qcd-partida',previous.partida]
+      ]){
+        const field=el(id);
+        if(typeof value==='string'&&field&&
+          (field.tagName!=='SELECT'||Array.from(field.options).some(o=>o.value===value)))
+          field.value=value;
+      }
+    }
     el('qcd-form').addEventListener('submit',query);
     try{
       const jwt=await getToken();
