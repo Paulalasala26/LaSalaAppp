@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#1558a0">
+<title>ViguerAPP · Criterios QC</title>
+<link rel="icon" href="../icon-192.png">
+<link rel="stylesheet" href="./styles.css">
+<link rel="stylesheet" href="./catalog.css">
+<style>
+.qcr-main{max-width:1150px}.qcr-toolbar{display:flex;align-items:end;gap:16px;flex-wrap:wrap;margin:14px 0 18px}
+.qcr-field{display:flex;flex-direction:column;gap:7px;min-width:210px;font-size:12px;font-weight:750;color:#285078}
+.qcr-field select,.qcr-field input{min-height:43px;min-width:0;border:1px solid #b8cde5;border-radius:8px;padding:9px 11px;background:white;color:#173d6b}
+.qcr-panel{background:white;border:1px solid #d6e2ee;border-radius:12px;padding:17px;margin-bottom:14px}
+.qcr-panel h2{font-size:17px;margin:0 0 10px;color:#1558a0}.qcr-note{color:#526579;font-size:12px;line-height:1.65;margin:6px 0 12px}
+.qcr-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.qcr-category{border:1px solid #d5e2f0;border-radius:11px;overflow:hidden}
+.qcr-category h3{font-size:15px;color:#17508a;padding:11px 15px;background:#f4f8fd;margin:0}
+.qcr-row{display:grid;grid-template-columns:minmax(90px,1fr) minmax(118px,1.3fr) 105px;gap:9px;align-items:center;padding:10px 12px;border-top:1px solid #e9eef5;font-size:12px}
+.qcr-row>span{overflow-wrap:anywhere;font-weight:650;color:#294c6d}
+.qcr-row select,.qcr-row input{width:100%;min-width:0;border:1px solid #bdcfe3;border-radius:7px;padding:8px;font-size:12px;color:#244969;background:white}
+.qcr-head{background:#f8fafc;color:#596d82;font-weight:750}
+.qcr-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:14px}
+.qcr-feedback{padding:11px 13px;border-radius:8px;background:#eef6ff;color:#22527e;font-size:12px;margin:12px 0}
+.qcr-feedback.error{background:#fff0f0;color:#9f2c2c}.qcr-feedback.success{background:#e8f7ed;color:#216440}
+.qcr-meta{font-size:11px;color:#667e92}.qcr-hint{border-top:1px solid #e3ebf4;padding-top:12px}
+@media(max-width:850px){.qcr-grid{grid-template-columns:1fr}}
+@media(max-width:520px){.qcr-panel{padding:12px}.qcr-row{grid-template-columns:minmax(75px,1fr) minmax(100px,1.2fr) 86px;gap:5px;padding:9px 7px}.qcr-row select,.qcr-row input{font-size:11px;padding:7px 4px}.qcr-toolbar .qcr-field{width:100%}}
+</style>
+<script src="./qc-criterios.js" defer></script>
+</head>
+<body>
+<div id="access-gate" class="access-gate" role="status" aria-live="polite">
+  <div class="access-panel"><div class="brand-mark">VA</div><h1 id="gate-title">Comprobando acceso</h1><p id="gate-description">Verificando credenciales…</p><a href="./control.html" id="gate-link" class="primary-link" hidden>Volver a QC</a></div>
+</div>
+<div id="workspace" class="shell" hidden>
+<aside class="sidebar" aria-label="Navegación Backoffice">
+  <div class="brand"><div class="brand-mark">VA</div><div><strong>ViguerAPP</strong><span>Backoffice</span></div></div>
+  <nav class="sidebar-nav">
+    <a href="./control.html" class="nav-item"><span class="nav-symbol">◫</span> Registros QC</a>
+    <a href="./qc-criterios.html" class="nav-item selected" aria-current="page"><span class="nav-symbol">≡</span> Criterios QC</a>
+    <a href="./gs.html" class="nav-item"><span class="nav-symbol">▣</span> Partidas GS</a>
+    <a href="./" class="nav-item"><span class="nav-symbol">◉</span> Usuarios</a>
+  </nav>
+  <div class="sidebar-footer"><a href="../">← Volver a ViguerAPP</a></div>
+</aside>
+<div class="main-area">
+<header class="topbar"><div class="breadcrumbs">Backoffice <span>/</span> QC <span>/</span> Criterios</div><div class="topbar-right"><span class="session-user" id="session-user">Administrador</span></div></header>
+<main class="content qcr-main">
+<div class="page-head"><h1>Criterios de calidad</h1><a class="button ghost" href="./control.html">← Registros QC</a></div>
+<div id="qcr-feedback" class="qcr-feedback" role="status" aria-live="polite" hidden></div>
+<div class="qcr-toolbar">
+  <label class="qcr-field" for="qcr-stage">Estadio
+    <select id="qcr-stage"><option value="tunel">Túnel</option><option value="carga">Carga</option></select>
+  </label>
+  <span class="qcr-meta" id="qcr-version">—</span>
+</div>
+<form id="qcr-form" novalidate>
+<section class="qcr-panel">
+<h2>Umbral de aceptación</h2>
+<label class="qcr-field" for="qcr-threshold">Porcentaje mínimo de aptitud (%) 
+<input type="number" min="0" max="100" step="0.01" id="qcr-threshold" inputmode="decimal" placeholder="Sin definir" />
+</label>
+<p class="qcr-note">Déjalo vacío mientras no se haya acordado el porcentaje mínimo. Su configuración no libera ni rechaza ninguna partida automáticamente.</p>
+</section>
+<section class="qcr-panel">
+<h2>Criterios por categoría</h2>
+<p class="qcr-note">Configura cada opción de evaluación. «Pendiente» significa que todavía no se ha decidido cómo debe tratarse; no equivale a que la planta esté apta. La tolerancia es el máximo porcentaje de bandejas afectadas permitido para esa opción, si se acuerda utilizarlo.</p>
+<div id="qcr-groups" class="qcr-grid"></div>
+<div class="qcr-actions">
+<button id="qcr-save" class="button primary" type="submit">Guardar configuración</button>
+<a href="./control.html" class="button ghost">Volver</a>
+</div>
+<p class="qcr-note qcr-hint">Estas reglas se guardan con control de versiones, pero <strong>todavía no intervienen en el cálculo de puntuaciones ni invalidaciones.</strong> La fórmula global requiere definir cómo evitar el doble recuento de bandejas con varios defectos.</p>
+</section>
+</form>
+</main>
+</div>
+</div>
+</body>
+</html>
