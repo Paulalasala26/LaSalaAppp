@@ -209,6 +209,7 @@
     const thisSequence=++sequence;
     record={id:rec.id,tipo:rec.tipo,dia:rec.dia,partida:rec.partida};
     active=build(rec);document.body.append(active);
+    original=JSON.stringify(snapshot());
     const modal=active;
     modal.querySelector('.qco-close').focus();
     try{
