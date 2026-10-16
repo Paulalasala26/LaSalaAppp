@@ -122,14 +122,24 @@ module.exports=async function handler(req,res){
   }
   try{
     const actor=await authorize(req);
-    if(req.method==='GET')return res.status(200).json({
-      ok:true,
-      target:FOLDER_NAME,
-      configured:!!active(),
-      probeEnabled:writeEnabled(),
-      missing:ENV.filter(k=>!process.env[k]),
-      note:'Esto no demuestra todavía que Graph tenga acceso a la carpeta.'
-    });
+    if(req.method==='GET'){
+      // Diagnóstico TEST de solo lectura: sin crear archivos ni cambiar permisos.
+      if(req.query?.verify==='1'){
+        if(!active())throw httpError(503,'GRAPH_NOT_CONFIGURED');
+        await checkFolder(await graphToken());
+        return res.status(200).json({
+          ok:true,target:FOLDER_NAME,graphAccess:'READ_CONFIRMED',writeVerified:false
+        });
+      }
+      return res.status(200).json({
+        ok:true,
+        target:FOLDER_NAME,
+        configured:!!active(),
+        probeEnabled:writeEnabled(),
+        missing:ENV.filter(k=>!process.env[k]),
+        note:'Esto no demuestra todavía que Graph tenga acceso a la carpeta.'
+      });
+    }
     if(!writeEnabled())throw httpError(423,'GRAPH_PROBE_DISABLED');
     if(!active())throw httpError(503,'GRAPH_NOT_CONFIGURED');
     const input=req.body&&typeof req.body==='object'?req.body:{};
