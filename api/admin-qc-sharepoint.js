@@ -8,10 +8,10 @@ const {
 }=require('./admin-users')._adminCatalogHelpers;
 
 // Destino TEST inmutable; nunca aceptar rutas, IDs ni URLs suministrados por el cliente.
-// SharePoint: Tecnologia / Proyectos / 10 - Vigentes / 70 - APP riego / 50 - QC / Fotos QC - TEST
+// SharePoint: Tecnologia / Documentos compartidos / Recursos / 10 - ViguerAPP / 10 - Fotos QC
 const DRIVE_ID='b!ltDlxMPStUSPKosa8hjEBT4XEdc922lLvESLlmS3tQy9OIm9vYUbQaLFfZMlWFvb';
-const FOLDER_ID='01WYFOB24KFIXYAHKXVVDIPH6H3KGLVMMN';
-const FOLDER_NAME='Fotos QC - TEST';
+const FOLDER_ID='01WYFOB25JXMOQMUYILFEJSYJZCV3AIV2N';
+const FOLDER_NAME='10 - Fotos QC';
 const GRAPH='https://graph.microsoft.com/v1.0';
 const ENV=['GRAPH_QC_TENANT_ID','GRAPH_QC_CLIENT_ID','GRAPH_QC_CLIENT_SECRET'];
 const active=()=>ENV.every(key=>typeof process.env[key]==='string'&&process.env[key].trim());
