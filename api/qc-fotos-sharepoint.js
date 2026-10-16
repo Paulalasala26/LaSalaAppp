@@ -18,7 +18,7 @@ const RE_PARTIDA=/^[A-Za-z0-9._-]{1,100}$/;
 
 function reference(input){
   const id=input?.id,tipo=input?.tipo;
-  const dia=typeof input?.dia==='string'&&/^\\d+$/.test(input.dia)?
+  const dia=typeof input?.dia==='string'&&/^\d+$/.test(input.dia)?
     Number(input.dia):input?.dia;
   if(!RE_ID.test(id)||!Object.hasOwn(TYPES,tipo)||
      !Number.isInteger(dia)||dia<15||dia>4000)
