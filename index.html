@@ -157,6 +157,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 <script src="assets/firebase-diagnostics.js"></script>
 <link rel="stylesheet" href="assets/control-qc-operativo.css">
 <link rel="stylesheet" href="assets/control-ui-empty.css">
+<link rel="stylesheet" href="assets/control-ui-list.css">
 <script src="admin/qc-indicadores.js" defer></script>
 <script src="assets/control-qc-operativo.js" defer></script>
 <script src="assets/control-ui-empty.js" defer></script>
@@ -6533,23 +6534,15 @@ function renderControlChecklistHTML(seccion){
     });
   }
 
-  const diaBotones = diasQ.map(d=>`
-    <button onclick="cambiarControlDia(${d})" style="flex-shrink:0;padding:8px 12px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid ${d===controlDiaSel?'transparent':'var(--border)'};background:${d===controlDiaSel?seccion.color:'#fff'};color:${d===controlDiaSel?'#fff':'var(--text)'}">
-      ${riegoDiaLabelCorto(d)}<br><span style="font-weight:600;opacity:.85">${riegoDiaSemana(d)}</span>
-    </button>`).join('');
-
-  const filtroBtn = (v,label,n) => `<button onclick="cambiarControlFiltroEstado('${v}')" style="padding:7px 14px;border-radius:999px;font-size:11px;font-weight:800;cursor:pointer;border:1.5px solid ${controlFiltroEstado===v?'transparent':'var(--border)'};background:${controlFiltroEstado===v?seccion.color:'#fff'};color:${controlFiltroEstado===v?'#fff':'var(--text)'}">${label} (${n})</button>`;
-  const filtrosHTML = `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:1rem">
-    ${filtroBtn('todos','Todos',listaDia.length)}
-    ${filtroBtn('completados','✓ Completados',numCompletados)}
-    ${filtroBtn('pendientes','○ Pendientes',numPendientes)}
-  </div>`;
-
-  // Filtro de invernadero por sala (Túnel y Carga): al elegir uno, solo
-  // salen las líneas de ESE invernadero, ordenadas por calle de menor a mayor.
+  const diaOpciones = diasQ.map(d=>'<option value="'+d+'"'+(d===controlDiaSel?' selected':'')+'>'+escapar(riegoDiaLabelCorto(d)+' · '+riegoDiaSemana(d))+'</option>').join('');
+  const filtrosHTML = '<label class="qc-list-state"><span>Estado</span><select class="qc-list-select" onchange="cambiarControlFiltroEstado(this.value)" aria-label="Filtrar por estado">'+[
+    {value:'todos',label:'Todos ('+listaDia.length+')'},
+    {value:'pendientes',label:'Pendientes ('+numPendientes+')'},
+    {value:'completados',label:'Completados ('+numCompletados+')'}
+  ].map(o=>'<option value="'+o.value+'"'+(controlFiltroEstado===o.value?' selected':'')+'>'+o.label+'</option>').join('')+'</select></label>';
   const filtroInvHTML = (seccion.key==='carga' || seccion.key==='tunel') ? `
-    <div style="margin-bottom:1rem">
-      <select onchange="${seccion.key==='carga'?'cambiarControlCargaInvFiltro':'cambiarControlTunelInvFiltro'}(this.value)" style="padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:12px;background:#fff;cursor:pointer">
+    <div class="qc-list-inv">
+      <select onchange="${seccion.key==='carga'?'cambiarControlCargaInvFiltro':'cambiarControlTunelInvFiltro'}(this.value)" class="qc-list-select" aria-label="Filtrar invernadero">
         <option value="">Todos los invernaderos</option>
         <optgroup label="Sala 1">${ALL_INV_IDS_SALA1.map(id=>`<option value="${id}"${(seccion.key==='carga'?controlCargaInvFiltro:controlTunelInvFiltro)===id?' selected':''}>INV ${id}</option>`).join('')}</optgroup>
         <optgroup label="Sala 2">${ALL_INV_IDS.map(id=>`<option value="${id}"${(seccion.key==='carga'?controlCargaInvFiltro:controlTunelInvFiltro)===id?' selected':''}>INV ${id}</option>`).join('')}</optgroup>
@@ -6607,72 +6600,61 @@ function renderControlChecklistHTML(seccion){
   // para forzar un reintento como para comprobar de un vistazo que no queda
   // nada pendiente sin tener que fiarse solo del aviso naranja automático.
   const pendientesGlobal = leerColaOffline().length;
-  const syncBtnHTML = `
-    <button onclick="sincronizarControlManual()" title="Forzar sincronización con la nube" style="padding:9px 14px;font-size:12px;font-weight:700;background:${pendientesGlobal>0?'#c47f00':'#fff'};color:${pendientesGlobal>0?'#fff':'#1558a0'};border:1.5px solid ${pendientesGlobal>0?'transparent':'#9ab8d8'};border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;gap:6px">
-      <i class="ti ti-refresh" style="font-size:14px"></i> Sincronizar${pendientesGlobal>0?` (${pendientesGlobal})`:''}
-    </button>`;
+  const addAction = seccion.key==='carga' ? 'mostrarFormNuevoControlCargaCheck()' : "mostrarFormNuevoControlCheck('tunel')";
+  const pdfInfoHTML = pdf ? `<div class="qc-list-pdf-existing"><i class="ti ti-file-check" aria-hidden="true"></i> ${escapar(pdf.nombre)} · <a href="${pdf.pdfB64}" target="_blank" rel="noopener noreferrer">Ver PDF</a></div>` : '';
+  const syncHTML = pendientesGlobal>0 ? `<button type="button" class="qc-list-sync" onclick="sincronizarControlManual()"><i class="ti ti-refresh"></i> ${pendientesGlobal} pendiente${pendientesGlobal===1?'':'s'} · Sincronizar</button>` : '';
+  const extraTunelHTML = seccion.key==='tunel' ? `
+    <label class="qc-list-option"><i class="ti ti-file-upload"></i> Añadir extensiones<input type="file" accept="application/pdf" onchange="handleExtensionesPdfInput(this)"></label>
+    <button type="button" class="qc-list-option" onclick="mostrarComprobarExtensiones()"><i class="ti ti-list-check"></i> Comprobar extensiones</button>
+    <button type="button" class="qc-list-option" onclick="exportarControlCSV('tunel',controlDiaSel)"><i class="ti ti-file-spreadsheet"></i> Exportar CSV del día</button>` : '';
+  const viewActionHTML = controlVistaChecklist==='dashboard'
+    ? '<button type="button" class="qc-list-back" onclick="cambiarControlVistaChecklist(\'lineas\')">← Volver a partidas</button>'
+    : '<button type="button" class="qc-list-option" onclick="cambiarControlVistaChecklist(\'dashboard\')"><i class="ti ti-chart-bar"></i> Dashboard del día</button>';
+  const cardsHTML = listaMostrada.length===0
+    ? `<div class="qc-list-none">${(seccion.key==='carga'?controlCargaInvFiltro:controlTunelInvFiltro)?'No hay partidas para ese invernadero y día.':'No hay líneas con el estado seleccionado.'}</div>`
+    : `<div class="qc-list-cards">${filas}</div>`;
   return `
-    <div style="margin-bottom:1.1rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
-      <h2 style="font-size:22px;font-weight:800;color:var(--text)">${seccion.label}</h2>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        ${syncBtnHTML}
-        <div style="display:flex">
-          <input id="control-buscar-partida" type="text" placeholder="Buscar Nº partida..." onkeydown="if(event.key==='Enter') buscarControlPartida('${seccion.key}')"
-            style="padding:9px 12px;border:1.5px solid var(--border);border-right:none;border-radius:8px 0 0 8px;font-size:12px;width:160px">
-          <button onclick="buscarControlPartida('${seccion.key}')" title="Buscar" style="padding:9px 12px;background:#1558a0;color:#fff;border:none;border-radius:0 8px 8px 0;cursor:pointer">
-            <i class="ti ti-search" style="font-size:14px"></i>
-          </button>
+    <section class="qc-list-screen" aria-label="${seccion.label}">
+      <div class="qc-list-head">
+        <h2>${seccion.label}</h2>
+        <button type="button" class="qc-list-add" onclick="${addAction}"><i class="ti ti-plus" aria-hidden="true"></i> Añadir línea</button>
+      </div>
+      <div class="qc-list-date">
+        <div class="qc-list-period">Quincena ${controlQuincenaOffset+1} · ${riegoQuincenaLabel(controlQuincenaOffset)}</div>
+        <div class="qc-list-choose">
+          <button type="button" onclick="cambiarControlQuincena(-1)" aria-label="Quincena anterior" ${controlQuincenaOffset<=0?'disabled':''}>&lsaquo;</button>
+          <label for="qc-list-dia">Día</label>
+          <select id="qc-list-dia" class="qc-list-select" onchange="cambiarControlDia(parseInt(this.value,10))">${diaOpciones}</select>
+          <button type="button" onclick="cambiarControlQuincena(1)" aria-label="Quincena siguiente">&rsaquo;</button>
         </div>
-        <button onclick="${seccion.key==='carga'?'mostrarFormNuevoControlCargaCheck()':`mostrarFormNuevoControlCheck('${seccion.key}')`}" class="btn-elevado" style="padding:9px 16px;font-size:12px;font-weight:700;background:#2e7d32;color:#fff;border:none;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;gap:6px">
-          <i class="ti ti-plus" style="font-size:14px"></i> Añadir línea
-        </button>
-        ${seccion.key==='tunel' ? `
-        <label style="padding:9px 16px;font-size:12px;font-weight:700;background:#5c8df0;color:#fff;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;gap:6px">
-          <i class="ti ti-file-upload" style="font-size:14px"></i> Añadir extensiones
-          <input type="file" accept="application/pdf" style="display:none" onchange="handleExtensionesPdfInput(this)">
-        </label>
-        <button onclick="mostrarComprobarExtensiones()" style="padding:9px 16px;font-size:12px;font-weight:700;background:#3fa864;color:#fff;border:none;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;gap:6px">
-          <i class="ti ti-list-check" style="font-size:14px"></i> Comprobar extensiones
-        </button>` : ''}
       </div>
-    </div>
-
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-      <button onclick="cambiarControlQuincena(-1)" ${controlQuincenaOffset<=0?'disabled style="opacity:.35;cursor:default"':'style="cursor:pointer"'} style="background:#fff;border:1.5px solid var(--border);border-radius:6px;width:26px;height:26px">&#8249;</button>
-      <span style="font-size:11px;font-weight:700;color:var(--muted)">Quincena ${controlQuincenaOffset+1} · ${riegoQuincenaLabel(controlQuincenaOffset)}</span>
-      <button onclick="cambiarControlQuincena(1)" style="background:#fff;border:1.5px solid var(--border);border-radius:6px;width:26px;height:26px;cursor:pointer">&#8250;</button>
-    </div>
-    <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:1rem">${diaBotones}</div>
-
-    <div style="display:flex;gap:4px;margin-bottom:1rem;align-items:center">
-      <button onclick="cambiarControlVistaChecklist('lineas')" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:800;border:none;cursor:pointer;background:${controlVistaChecklist==='lineas'?seccion.color:'#e8e2dc'};color:${controlVistaChecklist==='lineas'?'#fff':'var(--muted)'}">📋 Líneas</button>
-      <button onclick="cambiarControlVistaChecklist('dashboard')" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:800;border:none;cursor:pointer;background:${controlVistaChecklist==='dashboard'?seccion.color:'#e8e2dc'};color:${controlVistaChecklist==='dashboard'?'#fff':'var(--muted)'}">📊 Dashboard del día</button>
-      ${seccion.key==='tunel' ? `<button onclick="exportarControlCSV('tunel', controlDiaSel)" style="margin-left:auto;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:800;border:1.5px solid #2e7d32;cursor:pointer;background:#fff;color:#2e7d32;display:flex;align-items:center;gap:6px"><i class="ti ti-file-spreadsheet" style="font-size:14px"></i> Exportar CSV del día</button>` : ''}
-    </div>
-
-    ${controlVistaChecklist==='dashboard' ? renderControlDashboardDiaHTML(seccion, listaDia) : `
-    <div style="padding:1rem;background:#f0f4f8;border:1.5px dashed #9ab8d8;border-radius:10px;margin-bottom:1.25rem">
-      <div style="font-size:12px;font-weight:800;color:#1558a0;margin-bottom:6px;display:flex;align-items:center;gap:6px">
-        <i class="ti ti-file-type-pdf" style="font-size:16px"></i> PDF de ${riegoDiaLabelCorto(controlDiaSel)}
+      <div id="nuevo-control-form-wrap"></div>
+      <div class="qc-list-tools">
+        <div class="qc-list-search">
+          <input id="control-buscar-partida" type="search" placeholder="Buscar Nº partida" aria-label="Buscar número de partida"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();buscarControlPartida('${seccion.key}')}" />
+          <button type="button" onclick="buscarControlPartida('${seccion.key}')" aria-label="Buscar"><i class="ti ti-search"></i></button>
+        </div>
+        ${filtrosHTML}
+        ${filtroInvHTML}
       </div>
-      ${pdf ? `<div style="font-size:12px;color:var(--text);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          <i class="ti ti-file-check" style="color:#2e7d32"></i> ${escapar(pdf.nombre)}
-          <a href="${pdf.pdfB64}" target="_blank" style="color:#1558a0;font-weight:700;text-decoration:none">Ver</a>
-          <span style="color:var(--muted);font-size:11px">(${escapar(pdf.subidoPor)}, ${escapar(pdf.subidoEn)})</span>
-        </div>` : ''}
-      <label style="display:inline-flex;align-items:center;gap:7px;padding:8px 14px;background:#dce8f5;border:1.5px solid #9ab8d8;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;color:#1558a0;margin-top:8px">
-        <i class="ti ti-upload" style="font-size:16px"></i> ${pdf?'Sustituir PDF':'Insertar PDF'}
-        <input type="file" accept="application/pdf" style="display:none" onchange="handleControlPdfInput(this,'${seccion.key}',${controlDiaSel})">
-      </label>
-      <div style="font-size:10px;color:var(--muted);margin-top:6px">La lectura automática de las columnas del PDF está pendiente — de momento se guarda como referencia y las líneas se añaden a mano.</div>
-    </div>
+      ${syncHTML}
+      ${controlVistaChecklist==='dashboard'?viewActionHTML:''}
+      <details class="qc-list-more" ${controlVistaChecklist==='dashboard'?'open':''}>
+        <summary>Más opciones</summary>
+        <div class="qc-list-more-actions">
+          ${controlVistaChecklist==='dashboard'?'':viewActionHTML}
+          <label class="qc-list-option"><i class="ti ti-file-type-pdf"></i> ${pdf?'Sustituir PDF':'Insertar PDF'}
+            <input type="file" accept="application/pdf" onchange="handleControlPdfInput(this,'${seccion.key}',${controlDiaSel})">
+          </label>
+          ${extraTunelHTML}
+          ${pendientesGlobal===0?'<button type="button" class="qc-list-option" onclick="sincronizarControlManual()"><i class="ti ti-refresh"></i> Sincronizar</button>':''}
+        </div>
+        ${pdfInfoHTML}
+      </details>
+      ${controlVistaChecklist==='dashboard' ? renderControlDashboardDiaHTML(seccion,listaDia) : cardsHTML}
+    </section>`;
 
-    <div id="nuevo-control-form-wrap"></div>
-    ${filtrosHTML}
-    ${filtroInvHTML}
-    ${listaDia.length===0 ? `<div style="text-align:center;padding:2rem;color:var(--muted);font-style:italic;font-size:13px">Sin líneas para este día todavía.</div>`
-      : listaMostrada.length===0 ? `<div style="text-align:center;padding:2rem;color:var(--muted);font-style:italic;font-size:13px">${controlCargaInvFiltro?'No hay partidas saliendo de INV '+escapar(controlCargaInvFiltro)+' este día.':'No hay líneas '+(controlFiltroEstado==='completados'?'completadas':'pendientes')+' en este día.'}</div>`
-      : `<div style="display:flex;flex-direction:column;gap:12px">${filas}</div>`}`}`;
 }
 function handleControlPdfInput(input, tipo, dia){
   if(!input.files || !input.files[0]) return;

@@ -1,0 +1,45 @@
+/* Cabecera operativa compacta QC cuando existen partidas: solo TEST. */
+.qc-list-screen{display:flex;flex-direction:column;gap:13px;max-width:980px;margin:0 auto;color:#173d6b}
+.qc-list-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.qc-list-head h2{font-size:20px;font-weight:800;color:#1558a0}
+.qc-list-add{display:inline-flex;align-items:center;gap:7px;padding:10px 15px;min-height:44px;background:#1558a0;color:#fff;border:0;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer}
+.qc-list-date{background:#fff;border:1px solid #d5e2ee;border-radius:10px;padding:10px 12px}
+.qc-list-period{font-size:12px;font-weight:700;color:#456582;margin-bottom:8px}
+.qc-list-choose{display:flex;align-items:center;gap:9px}
+.qc-list-choose label,.qc-list-state span{font-size:12px;font-weight:700;color:#365c82}
+.qc-list-choose button{min-height:43px;min-width:43px;border:1px solid #b7cce2;border-radius:9px;background:#fff;color:#1558a0;font-size:21px;cursor:pointer}
+.qc-list-choose button:disabled{opacity:.35;cursor:default}
+.qc-list-select{min-height:43px;padding:8px 10px;border:1px solid #b7cce2;border-radius:9px;background:#fff;color:#173d6b;font-size:13px;min-width:0}
+.qc-list-choose .qc-list-select{flex:1}
+.qc-list-tools{display:grid;grid-template-columns:minmax(160px,1.35fr) minmax(150px,1fr) minmax(170px,1fr);gap:9px;align-items:end}
+.qc-list-search{display:flex;min-width:0}
+.qc-list-search input{min-width:0;flex:1;min-height:43px;border:1px solid #b7cce2;border-right:0;border-radius:9px 0 0 9px;padding:9px 11px;font-size:13px;background:#fff}
+.qc-list-search button{min-width:43px;border:0;background:#1558a0;color:#fff;border-radius:0 9px 9px 0;cursor:pointer;font-size:16px}
+.qc-list-state{display:flex;flex-direction:column;gap:4px;min-width:0}
+.qc-list-state .qc-list-select,.qc-list-inv .qc-list-select{width:100%}
+.qc-list-inv{min-width:0}
+.qc-list-more{background:#fff;border:1px solid #d0dfec;border-radius:9px;overflow:hidden}
+.qc-list-more summary{font-size:13px;font-weight:750;color:#1558a0;padding:11px 13px;cursor:pointer}
+.qc-list-more[open] summary{border-bottom:1px solid #d8e4f0}
+.qc-list-more-actions{display:flex;flex-wrap:wrap;gap:9px;padding:12px}
+.qc-list-option,.qc-list-back,.qc-list-sync{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:9px 13px;font-size:13px;font-weight:700;border:1px solid #b2cce5;background:#f4f9ff;color:#1558a0;border-radius:8px;cursor:pointer}
+.qc-list-option input[type=file]{display:none}
+.qc-list-back{align-self:flex-start;background:#1558a0;color:#fff}
+.qc-list-sync{align-self:flex-start;border-color:#d1a55e;background:#fff8e5;color:#805400}
+.qc-list-pdf-existing{padding:0 13px 12px;font-size:12px;color:#486078;overflow-wrap:anywhere}
+.qc-list-pdf-existing a{color:#1558a0;font-weight:700}
+.qc-list-cards{display:flex;flex-direction:column;gap:12px}
+.qc-list-none{text-align:center;padding:20px;background:#fff;border-radius:9px;color:#587189;font-size:13px}
+@media(max-width:640px){
+ .qc-list-tools{grid-template-columns:1fr 1fr}
+ .qc-list-search{grid-column:1/-1}
+ .qc-list-date{padding:9px}
+ .qc-list-more-actions{flex-direction:column}
+ .qc-list-option{width:100%}
+}
+@media(max-width:390px){
+ .qc-list-tools{grid-template-columns:1fr}
+ .qc-list-search{grid-column:auto}
+ .qc-list-choose{gap:6px}
+ .qc-list-choose button{min-width:38px}
+}
