@@ -142,6 +142,129 @@
     }));
     location.assign('./qc-ficha.html');
   }
+
+  // Piloto de foto desde una partida QC del Backoffice, solo ADMIN.
+  // No altera la captura heredada de los operarios ni su cola offline.
+  let photoPilotRecord=null,photoPilotPending=null,photoPilotBusy=false;
+  function photoPilotMessage(message,error){
+    const output=el('qc-photo-connection-status');
+    output.hidden=false;
+    output.className='operation-feedback '+(error?'error':'ok');
+    output.textContent=message;
+  }
+  function openPhotoPilot(rec){
+    if(photoPilotBusy)return;
+    if(photoPilotPending){
+      if(photoPilotPending.id===rec.id){
+        void sendPhotoPilot();
+      }else{
+        photoPilotMessage('Hay una foto pendiente de la partida '+photoPilotPending.partida+
+          '. Vuelve a su fila para reintentar la subida. No se ha descartado.',true);
+      }
+      return;
+    }
+    if(navigator.onLine===false){
+      photoPilotMessage('Sin conexión: no se ha hecho ninguna subida. Prueba cuando recuperes señal.',true);
+      return;
+    }
+    photoPilotRecord={id:rec.id,tipo:rec.tipo,dia:rec.dia,partida:rec.partida};
+    const input=el('qc-photo-test-file');
+    input.value='';
+    input.click();
+  }
+  async function encodePilotPhoto(file){
+    if(!file||!/^image\/(jpeg|png|webp|heic|heif)$/.test(file.type))
+      throw new Error('PHOTO_FORMAT');
+    // Decodificar a menor resolución si el navegador lo permite para evitar
+    // cargar en memoria imágenes móviles de decenas de megapíxeles.
+    if(typeof createImageBitmap==='function'){
+      let bitmap=null;
+      try{
+        bitmap=await createImageBitmap(file,{resizeWidth:1280,resizeQuality:'medium'});
+        const scale=Math.min(1,1280/Math.max(bitmap.width,bitmap.height));
+        const canvas=document.createElement('canvas');
+        canvas.width=Math.max(1,Math.round(bitmap.width*scale));
+        canvas.height=Math.max(1,Math.round(bitmap.height*scale));
+        canvas.getContext('2d').drawImage(bitmap,0,0,canvas.width,canvas.height);
+        const encoded=canvas.toDataURL('image/jpeg',0.75);
+        canvas.width=0;canvas.height=0;
+        if(encoded.length<=3500000&&encoded.length>200)return encoded;
+        throw new Error('PHOTO_SIZE');
+      }catch(err){
+        if(err.message==='PHOTO_SIZE')throw err;
+        // HEIC puede no ser decodificable en algunos navegadores.
+      }finally{if(bitmap)bitmap.close();}
+    }
+    if(file.size>2450000)throw new Error('PHOTO_SIZE');
+    const encoded=await new Promise((resolve,reject)=>{
+      const reader=new FileReader();
+      reader.onload=()=>resolve(reader.result);
+      reader.onerror=()=>reject(new Error('PHOTO_READ'));
+      reader.readAsDataURL(file);
+    });
+    if(typeof encoded!=='string'||encoded.length>3500000)throw new Error('PHOTO_SIZE');
+    return encoded;
+  }
+  async function sendPhotoPilot(){
+    const item=photoPilotPending;
+    if(photoPilotBusy||!item)return;
+    photoPilotBusy=true;
+    photoPilotMessage('Guardando fotografía en SharePoint…');
+    try{
+      const jwt=await getToken();
+      const response=await fetch('/api/qc-fotos-sharepoint',{
+        method:'POST',headers:{
+          Authorization:'Bearer '+jwt,'Content-Type':'application/json'
+        },
+        body:JSON.stringify({
+          id:item.id,tipo:item.tipo,dia:item.dia,photoId:item.photoId,
+          capturedAt:item.capturedAt,imageData:item.imageData
+        }),cache:'no-store',signal:AbortSignal.timeout(45000)
+      });
+      let result={};try{result=await response.json();}catch(e){}
+      if(!response.ok||result.ok!==true){
+        const errors={
+          SHAREPOINT_UPLOAD_NOT_ENABLED:'La subida sigue desactivada en Vercel TEST.',
+          PILOT_ADMIN_ONLY:'Solo ADMIN puede realizar esta prueba.',
+          PHOTO_INDEX_CONFLICT:'Existe un conflicto al registrar esta foto.',
+          GRAPH_SELECTED_PERMISSION_DENIED:'Graph no autoriza la escritura en Fotos QC.',
+          GRAPH_UPLOAD_FAILED:'SharePoint no ha confirmado la subida.',
+          PHOTO_TOO_LARGE:'La foto supera el tamaño permitido.',
+          CONTROL_RECORD_CHANGED:'La ficha de Control ha cambiado. No se ha subido.',
+          PHOTO_INDEX_WRITE_FAILED:'SharePoint pudo recibir la foto, pero Firebase no confirmó el índice.'
+        };
+        throw new Error(errors[result.error]||
+          'Subida no confirmada (HTTP '+response.status+', '+(result.error||'error desconocido')+').');
+      }
+      if(result.photoId!==item.photoId||!result.record?.sharepoint?.itemId)
+        throw new Error('No se ha podido verificar el vínculo de la fotografía.');
+      photoPilotPending=null;
+      const msg='✓ Foto QC vinculada a '+item.partida+' y guardada en SharePoint: '+
+        result.record.sharepoint.name;
+      photoPilotMessage(msg);
+    }catch(error){
+      photoPilotMessage('✗ '+error.message+
+        ' La foto sigue pendiente en esta pestaña: pulsa otra vez la cámara de la misma partida para reintentar.',true);
+    }finally{photoPilotBusy=false;}
+  }
+  async function capturePhotoPilot(){
+    const input=el('qc-photo-test-file'),file=input.files?.[0],rec=photoPilotRecord;
+    photoPilotRecord=null;
+    if(!file||!rec||photoPilotBusy)return;
+    photoPilotBusy=true;
+    photoPilotMessage('Preparando fotografía…');
+    try{
+      const imageData=await encodePilotPhoto(file);
+      if(typeof crypto?.randomUUID!=='function')throw new Error('El navegador no admite identificadores únicos.');
+      photoPilotPending={...rec,photoId:crypto.randomUUID(),
+        capturedAt:new Date().toISOString(),imageData};
+    }catch(error){
+      photoPilotMessage(error.message==='PHOTO_SIZE'?
+        'No se puede preparar esta foto por su tamaño. No se ha enviado a SharePoint.':
+        'No se ha podido leer la foto. No se ha enviado a SharePoint.',true);
+    }finally{photoPilotBusy=false;input.value='';}
+    if(photoPilotPending)await sendPhotoPilot();
+  }
   function showMore(){
     if(!cursor)el('qc-body').replaceChildren();
     const next=filtered.slice(cursor,cursor+PAGE);
@@ -159,6 +282,10 @@
       const open=node('button','Abrir QC','action-button');open.type='button';
       open.title='Ficha QC: detalle, edición tradicional y mediciones por cantidad';
       open.addEventListener('click',()=>openQuantitativePrototype(rec));actions.append(open);
+      const camera=node('button','📷','action-button');camera.type='button';
+      camera.title='Piloto TEST: hacer foto QC y guardarla en SharePoint (solo ADMIN)';
+      camera.setAttribute('aria-label','Foto QC · '+(rec.partida||'partida'));
+      camera.addEventListener('click',()=>openPhotoPilot(rec));actions.append(camera);
       row.append(actions);
       el('qc-body').append(row);
     }
@@ -324,6 +451,7 @@
     defaultDates();
     el('qc-form').addEventListener('submit',e=>{e.preventDefault();query();});
     el('qc-reload').addEventListener('click',query);
+    el('qc-photo-test-file').addEventListener('change',capturePhotoPilot);
     el('qc-photo-connection').addEventListener('click',checkQCPhotoConnection);
     el('qc-more').addEventListener('click',showMore);
     el('qc-state').addEventListener('change',filterRows);
