@@ -32,6 +32,8 @@
   }
   let active=null,sequence=0,writing=false,version=0,record=null,original='';
   let savedMeasurement=null,currentRules=null,observer=null,loading=false,legacyApi=null,notesPending=null,switchingRecord=false;
+  // Guardado confirmado mientras continúa abierta la ficha.
+  let savedForList=null;
   function controlButton(){
     const root=document.getElementById('control-overlay');
     if(!root||!record)return null;
@@ -242,14 +244,17 @@
       });
       return false;
     }
-    const previous=active,button=controlButton();
+    const previous=active,button=controlButton(),refreshRef=savedForList;
     showCardExtras(true);
     sequence++;active=null;record=null;original='';loading=false;
-    savedMeasurement=null;currentRules=null;legacyApi=null;
+    savedMeasurement=null;currentRules=null;legacyApi=null;savedForList=null;
     if(observer){observer.disconnect();observer=null;}
     if(button)button.setAttribute('aria-expanded','false');
     document.querySelectorAll('#control-overlay .qco-live-control, #control-overlay .qco-live-slot, #control-overlay .qco-live-balance').forEach(x=>x.remove());
     if(previous)previous.remove();
+    // Actualizar el estado del listado una vez retirada la ficha.
+    if(refreshRef&&typeof window.marcarControlQCMedido==='function')
+      window.marcarControlQCMedido(refreshRef);
     return true;
   }
   async function prepareRecordSwitch(fromId){
@@ -345,6 +350,12 @@
   function updateIndicatorVisibility(){
     renderBalances();
     const isSaved=!!savedMeasurement&&!changed();
+    // No permitir guardar de nuevo sin modificar cantidades.
+    const submit=active?.querySelector('.qco-save');
+    if(submit)submit.disabled=loading||writing||!changed();
+    // Un cambio posterior ya no está guardado: retirar la confirmación anterior.
+    if(!isSaved&&active?.querySelector('.qco-feedback')?.textContent==='✓ Cantidades guardadas')
+      report('','');
     const details=active?.querySelector('.qco-indicators');
     if(details)details.hidden=!isSaved;
     document.querySelectorAll('#control-overlay .qco-live-indicator').forEach(el=>el.hidden=!isSaved);
@@ -537,13 +548,17 @@
       writing=false;
       if(active===editor){
         if(confirmed){
-          // Cerrar el formulario y actualizar el estado de la partida solo
-          // tras confirmación del servidor, sin duplicar ninguna escritura.
-          if(close(true)){
-            if(typeof window.marcarControlQCMedido==='function')
-              window.marcarControlQCMedido(refAtSave);
-            mostrarConfirmacionQC();
-          }
+          // Permanecer en la inspección con los datos y versión confirmados.
+          savedForList=refAtSave;
+          active.querySelectorAll('.qco-total input, .qco-cat input[type="number"]')
+            .forEach(input=>{input.disabled=false;});
+          embedAmounts();
+          renderIndicators(false);
+          updateIndicatorVisibility();
+          report('✓ Cantidades guardadas','');
+          if(typeof window.marcarControlQCMedido==='function')
+            window.marcarControlQCMedido(refAtSave);
+          mostrarConfirmacionQC();
         }else{
           btn.disabled=false;
           active.querySelectorAll('.qco-total input, .qco-cat input[type="number"]')
@@ -682,7 +697,7 @@
     const thisSequence=++sequence;
     record={id:rec.id,tipo:rec.tipo,dia:rec.dia,partida:rec.partida};
     legacyApi=context||null;
-    savedMeasurement=null;currentRules=null;loading=true;
+    savedMeasurement=null;currentRules=null;loading=true;savedForList=null;
     active=build(rec);
     mount();observeControl();
     original=JSON.stringify(snapshot());
@@ -701,7 +716,7 @@
       if(!data.ok||data.sourcePartida!==rec.partida)throw Error('CONFLICT');
       if(sequence!==thisSequence||active!==modal)return;
       populate(data.record);
-      modal.querySelector('.qco-save').disabled=false;
+      // Guardar se activa exclusivamente cuando se modifican las cantidades.
       // Mostrar el comienzo de la medición en móvil sin abrir el teclado.
       if(window.matchMedia?.('(max-width: 560px)').matches)
         modal.scrollIntoView({block:'start',behavior:'auto'});
