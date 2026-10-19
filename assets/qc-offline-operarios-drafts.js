@@ -108,6 +108,14 @@
     labelField.append(n);grid.append(labelField);
    }field.append(grid);form.append(field);
   }
+  // Como en QC online, Enter avanza por cantidades; nunca confirma por accidente.
+  form.addEventListener('keydown',event=>{
+   if(event.key!=='Enter'||event.target?.tagName!=='INPUT'||event.target.type!=='number')return;
+   event.preventDefault();
+   const inputs=Array.from(form.querySelectorAll('input[type="number"]:not(:disabled)'));
+   const next=inputs[inputs.indexOf(event.target)+1];
+   if(next)next.focus();else event.target.blur();
+  });
   const info=el('p');info.setAttribute('role','alert');info.style.color='#9b1631';
   const actions=el('div');actions.style.cssText='display:flex;gap:10px;flex-wrap:wrap;margin-top:16px';
   const cancel=el('button','Volver');cancel.type='button';
