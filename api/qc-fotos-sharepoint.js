@@ -139,7 +139,7 @@ async function leerTunelParaPartida(ref,record,token){
         r&&r.tipo==='tunel'&&r.partida===record.partida&&
         Number.isInteger(r.dia)&&r.dia<=ref.dia&&
         typeof r.id==='string'&&RE_ID.test(r.id)&&
-        value(r.invId)&&nTramos(r).length);
+        value(r.invId));
     }));
     found.push(...batch.flat());
   }
@@ -152,7 +152,7 @@ function resolverUbicacion(ref,record,tuneles){
   if(ref.tipo!=='carga'||(own.invernadero&&own.tramos.length))
     return base;
   const pool=(tuneles||[]).map(r=>({record:r,loc:ubicacionDirecta(r)}))
-    .filter(x=>x.loc.invernadero&&x.loc.tramos.length&&
+    .filter(x=>x.loc.invernadero&&
       compatInv(own.invernadero,x.loc.invernadero));
   if(!pool.length)return {...base,estado:'sin_coincidencia_tunel'};
   const amount=String(record.numBandejas??'').trim();
@@ -160,22 +160,29 @@ function resolverUbicacion(ref,record,tuneles){
   // Coincidencia de número de bandejas es más fuerte que solo partida.
   // Pero dos ubicaciones incompatibles con las mismas bandejas son ambiguas.
   const options=byQty.length?byQty:pool;
-  const keys=new Set(options.map(x=>x.loc.invernadero+'|'+
-    JSON.stringify(x.loc.tramos)));
-  if(keys.size!==1){
-    // Se puede mantener un invernadero directo, pero no heredar una calle
-    // elegida arbitrariamente entre distintas líneas de Túnel.
+  const invs=new Set(options.map(x=>x.loc.invernadero));
+  if(invs.size!==1){
+    // No escoger arbitrariamente un invernadero si la partida está repartida.
     return {...base,estado:'tunel_ambiguo'};
   }
-  const winner=options.slice().sort((a,b)=>b.record.dia-a.record.dia||
-    a.record.id.localeCompare(b.record.id))[0];
+  const withStreet=options.filter(x=>x.loc.tramos.length);
+  const streets=new Set(withStreet.map(x=>JSON.stringify(x.loc.tramos)));
+  if(streets.size>1){
+    // Invernadero inequívoco, calles distintas: conservar el primero
+    // y dejar la calle en blanco hasta conocer a qué línea corresponde.
+    return {...base,invernadero:own.invernadero||options[0].loc.invernadero,
+      origen:'tunel',estado:'tunel_calle_ambigua'};
+  }
+  const winner=(withStreet.length?withStreet:options).slice()
+    .sort((a,b)=>b.record.dia-a.record.dia||a.record.id.localeCompare(b.record.id))[0];
   return {invernadero:own.invernadero||winner.loc.invernadero,
     tramos:own.tramos.length?own.tramos:winner.loc.tramos,
     calleDesde:own.tramos.length?own.calleDesde:winner.loc.calleDesde,
     calleHasta:own.tramos.length?own.calleHasta:winner.loc.calleHasta,
     sala:value(record.sala)||value(winner.record.sala),
     origen:'tunel',registroTunelOrigen:winner.record.id,
-    estado:byQty.length?'partida_y_bandejas':'partida_ubicacion_unica'};
+    estado:!winner.loc.tramos.length?'tunel_sin_calle':
+      (byQty.length?'partida_y_bandejas':'partida_ubicacion_unica')};
 }
 async function metadata(ref,record,actor,token){
   // Solo datos confirmados en Firebase; jamás confiar en la ubicación
