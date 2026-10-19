@@ -446,6 +446,34 @@
       return same?{state:'confirmed',value:saved}:{state:'different'};
     }catch(_){return {state:'unknown'};}
   }
+  // Comprobación de ETag de Firebase: solo lectura, sin ejecutar PUT.
+  async function probeStorage(){
+    if(!active||!record||writing)return;
+    const previousRecord={...record};
+    const btn=active.querySelector('.qco-probe');if(btn)btn.disabled=true;
+    try{
+      report('Comprobando almacenamiento (sin guardar)…','');
+      const jwt=await token();
+      const q=new URLSearchParams({id:record.id,tipo:record.tipo,dia:String(record.dia),probe:'etag'});
+      const response=await fetch(API+'?'+q.toString(),{
+        method:'GET',headers:{Authorization:'Bearer '+jwt},cache:'no-store'
+      });
+      const data=await response.json().catch(()=>null);
+      if(active&&record?.id===previousRecord.id){
+        if(response.ok&&data?.ok&&data.sourcePartida===record.partida&&data.diagnostic){
+          report(data.diagnostic.etagAvailable?
+            'Lectura y ETag correctos. El fallo HTTP 503 está en otra fase del guardado.':
+            'Fallo confirmado: Firebase no entrega ETag. No guardes cantidades.','error');
+        }else{
+          const code=data?.diagnostic||data?.error||('HTTP '+response.status);
+          report('Diagnóstico de servidor: '+String(code).slice(0,70)+'. No guardes.','error');
+        }
+      }
+    }catch(_){
+      if(active&&record?.id===previousRecord.id)
+        report('No se ha podido completar el diagnóstico de conexión.','error');
+    }finally{if(btn)btn.disabled=false;}
+  }
   async function save(e){
     e.preventDefault();
     if(!active||!record||writing)return;
@@ -478,7 +506,9 @@
       });
       if(!r.ok){
         const errorPayload=await r.json().catch(()=>null);
-        const code=typeof errorPayload?.error==='string'&&/^[A-Z0-9_]{1,45}$/.test(errorPayload.error)
+        const code=typeof errorPayload?.diagnostic==='string'&&/^QC_[A-Z0-9_]{1,65}$/.test(errorPayload.diagnostic)
+          ?' '+errorPayload.diagnostic:
+          typeof errorPayload?.error==='string'&&/^[A-Z0-9_]{1,45}$/.test(errorPayload.error)
           ?' '+errorPayload.error:'';
         if(r.status===403)throw Error('FORBIDDEN');
         if(r.status===409)throw Error('CONFLICT');
@@ -635,6 +665,10 @@
     indicators.append(indicatorTitle,node('div',null,'qco-indicator-list'));
     form.append(indicators);
     const foot=node('div',null,'qco-footer');
+    const test=node('button','Diagnóstico (sin guardar)','qco-secondary qco-probe');
+    test.type='button';test.addEventListener('click',probeStorage);
+    test.style.fontSize='11px';test.style.fontWeight='650';
+    form.append(test);
     const cancel=node('button','Cerrar','qco-secondary');cancel.type='button';
     cancel.addEventListener('click',()=>close());
     const submit=node('button','Guardar cantidades','qco-save');submit.type='submit';submit.disabled=true;

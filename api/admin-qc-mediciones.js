@@ -134,13 +134,15 @@ module.exports=async function handler(req,res){
     const {actor,token}=await checkQCActor(req,ref);
     const source=await legacyRecord(ref,token);
     if(req.method==='GET'){
-      const {value}=await getJson(pathFor(ref.id),token,false);
+      const probe=request.probe==='etag';
+      const {value,etag}=await getJson(pathFor(ref.id),token,probe);
       const stored=validateStored(value,ref,source.partida);
       return res.status(200).json({ok:true,record:value?{
         version:stored.version,updatedAt:stored.updatedAt,
         updatedBy:stored.updatedBy,bandejasInspeccionadas:stored.bandejasInspeccionadas,
         mediciones:stored.mediciones
-      }:null,sourcePartida:source.partida});
+      }:null,sourcePartida:source.partida,
+      ...(probe?{diagnostic:{etagAvailable:!!etag}}:{})});
     }
     if(request.partida!==source.partida)throw httpError(409,'SOURCE_CHANGED');
     if(!Number.isSafeInteger(request.version)||request.version<0)
@@ -176,7 +178,19 @@ module.exports=async function handler(req,res){
     return res.status(200).json({ok:true,version:next.version,updatedAt:now,updatedBy:actor});
   }catch(e){
     const status=e.httpStatus||503;
-    if(status===503)console.error('QC_MEASUREMENTS_TEST_ERROR',e.message);
-    return res.status(status).json({error:status===503?'SERVICE_UNAVAILABLE':e.code});
+    if(status===503){
+      console.error('QC_MEASUREMENTS_TEST_ERROR',e.message);
+      // Diagnóstico de lista cerrada, sin datos personales, URLs ni credenciales.
+      const msg=String(e.message||'');
+      const failedRead=/^Firebase read failed: (\d{3})$/.exec(msg);
+      const failedWrite=/^Firebase write failed: (\d{3})$/.exec(msg);
+      const diagnostic=failedWrite?'QC_WRITE_HTTP_'+failedWrite[1]:
+        failedRead?'QC_READ_HTTP_'+failedRead[1]:
+        msg==='Firebase ETag unavailable'?'QC_ETAG_MISSING':
+        e.name==='TimeoutError'||e.name==='AbortError'?'QC_TIMEOUT':
+        'QC_SERVICE_ERROR';
+      return res.status(503).json({error:'SERVICE_UNAVAILABLE',diagnostic});
+    }
+    return res.status(status).json({error:e.code});
   }
 };
