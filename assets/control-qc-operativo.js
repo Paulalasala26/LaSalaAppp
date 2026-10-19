@@ -537,8 +537,13 @@
       writing=false;
       if(active===editor){
         if(confirmed){
-          // Cerrar el formulario y confirmar visiblemente sobre el listado.
-          if(close(true)) mostrarConfirmacionQC();
+          // Cerrar el formulario y actualizar el estado de la partida solo
+          // tras confirmación del servidor, sin duplicar ninguna escritura.
+          if(close(true)){
+            if(typeof window.marcarControlQCMedido==='function')
+              window.marcarControlQCMedido(refAtSave);
+            mostrarConfirmacionQC();
+          }
         }else{
           btn.disabled=false;
           active.querySelectorAll('.qco-total input, .qco-cat input[type="number"]')

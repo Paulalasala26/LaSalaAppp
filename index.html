@@ -159,6 +159,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 <link rel="stylesheet" href="assets/control-ui-empty.css">
 <link rel="stylesheet" href="assets/control-ui-list.css">
 <link rel="stylesheet" href="assets/control-ui-cards.css">
+<style>.qc-card-medido{display:inline-block;font-size:11px;font-weight:800;color:#1558a0;margin-top:4px}</style>
 <script src="admin/qc-indicadores.js" defer></script>
 <script src="assets/control-qc-operativo.js" defer></script>
 <script src="assets/control-ui-empty.js" defer></script>
@@ -6247,6 +6248,79 @@ async function cambiarControlDia(dia){
     renderControlContent(document.getElementById('control-overlay'));
   });
 }
+// Estado QC cuantitativo por documento. Lectura agrupada limitada al día (sin escrituras).
+const controlQCEstados=new Map();
+const controlQCEstadosCargando=new Set();
+const controlQCEstadosUltimoError=new Map();
+function claveEstadosQC(tipo,dia){return tipo+'|'+dia;}
+function qcEstadoCuantificado(c){
+  const entry=controlQCEstados.get(claveEstadosQC(c.tipo,c.dia));
+  return entry?.partidas?.[c.id]===c.partida && entry?.estados?.[c.id]===true;
+}
+function controlLineaFinalizadaQC(c){return controlLineaCompletada(c)||qcEstadoCuantificado(c);}
+function marcarControlQCMedido(ref){
+  if(!ref||!['tunel','carga'].includes(ref.tipo))return;
+  const key=claveEstadosQC(ref.tipo,ref.dia);
+  const entry=controlQCEstados.get(key);
+  if(entry){
+    entry.estados[ref.id]=true;
+    entry.partidas[ref.id]=ref.partida;
+    entry.at=Date.now();
+  }
+  // Actualizar estado sin regenerar ni cerrar el formulario todavía activo.
+  const overlay=document.getElementById('control-overlay');
+  if(overlay && controlSeccion===ref.tipo && controlDiaSel===ref.dia &&
+     !document.querySelector('#qco-inline'))
+    renderControlContent(overlay);
+}
+async function cargarEstadosQCDia(tipo,dia,registros){
+  if(!registros.length||!(currentUserRole==='ADMIN'||currentUserRole==='TECNICO'||
+      (currentUserRole==='CARGADOR'&&tipo==='carga')))return;
+  const key=claveEstadosQC(tipo,dia);
+  if(controlQCEstadosCargando.has(key))return;
+  const vistos=new Set();
+  const firmados=registros.filter(c=>{
+    if(!/^[A-Za-z0-9_-]{1,180}$/.test(String(c.id))||
+       !/^[A-Za-z0-9._-]{1,100}$/.test(String(c.partida||''))||vistos.has(c.id))return false;
+    vistos.add(c.id);return true;
+  });
+  if(!firmados.length)return;
+  const signature=firmados.map(c=>c.id+':'+c.partida).sort().join('|');
+  const previous=controlQCEstados.get(key);
+  if(previous?.signature===signature && Date.now()-previous.at<120000)return;
+  if(Date.now()-(controlQCEstadosUltimoError.get(key)||0)<30000)return;
+  controlQCEstadosCargando.add(key);
+  const user=currentUser;
+  try{
+    if(!(await ensureFirebaseIdTokenFresh())||!firebaseIdToken)throw Error('LOGIN_REQUIRED');
+    const resultados=Object.create(null);
+    for(let i=0;i<firmados.length;i+=60){
+      const response=await fetch('/api/admin-qc-estado',{
+        method:'POST',headers:{Authorization:'Bearer '+firebaseIdToken,'Content-Type':'application/json'},
+        body:JSON.stringify({tipo,dia,registros:firmados.slice(i,i+60).map(c=>({id:c.id,partida:c.partida}))}),
+        cache:'no-store'
+      });
+      if(!response.ok)throw Error('QC_STATUS_UNAVAILABLE');
+      const data=await response.json();
+      if(!data.ok||data.tipo!==tipo||data.dia!==dia||!data.estados)throw Error('QC_STATUS_INVALID');
+      Object.entries(data.estados).forEach(([id,value])=>{resultados[id]=value===true;});
+    }
+    if(user!==currentUser)return;
+    const partidas=Object.create(null);
+    firmados.forEach(c=>{partidas[c.id]=c.partida});
+    controlQCEstados.set(key,{signature,estados:resultados,partidas,at:Date.now()});
+    controlQCEstadosUltimoError.delete(key);
+    const overlay=document.getElementById('control-overlay');
+    if(overlay && overlay.style.display==='flex' && controlSeccion===tipo && controlDiaSel===dia &&
+        !document.querySelector('#qco-inline'))
+      renderControlContent(overlay);
+  }catch(_){
+    // Ante un fallo, conservar lo conocido, con espera entre reintentos.
+    controlQCEstadosUltimoError.set(key,Date.now());
+  }finally{
+    controlQCEstadosCargando.delete(key);
+  }
+}
 // Una línea se considera "completada" cuando TODAS las categorías de check
 // (Color/Tamaño/Sanidad/Flores/Raíces) tienen al menos una opción marcada —
 // a petición de Paula (2026-08-01), para poder separar Completados/
@@ -6444,7 +6518,7 @@ function renderControlDashboardDiaHTML(seccion, listaDia){
     return `<div style="text-align:center;padding:2rem;color:var(--muted);font-style:italic;font-size:13px">Sin líneas para este día todavía.</div>`;
   }
   const total = listaDia.length;
-  const completados = listaDia.filter(controlLineaCompletada).length;
+  const completados = listaDia.filter(controlLineaFinalizadaQC).length;
   const pendientes = total - completados;
   const pctCompletado = Math.round((completados/total)*100);
   const totalBandejas = listaDia.reduce((sum,c)=> sum + (parseFloat(c.numBandejas)||0), 0);
@@ -6512,10 +6586,12 @@ function renderControlChecklistHTML(seccion){
   if(controlDiaSel==null || !diasQ.includes(controlDiaSel)) controlDiaSel = diasQ[0];
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const listaDia = controlChecksData.filter(c=>c.tipo===seccion.key && c.dia===controlDiaSel);
-  const numCompletados = listaDia.filter(controlLineaCompletada).length;
+  // No confundir las casillas clásicas con el nuevo QC por cantidades.
+  void cargarEstadosQCDia(seccion.key,controlDiaSel,listaDia);
+  const numCompletados = listaDia.filter(controlLineaFinalizadaQC).length;
   const numPendientes = listaDia.length - numCompletados;
-  const lista = controlFiltroEstado==='completados' ? listaDia.filter(controlLineaCompletada)
-    : controlFiltroEstado==='pendientes' ? listaDia.filter(c=>!controlLineaCompletada(c))
+  const lista = controlFiltroEstado==='completados' ? listaDia.filter(controlLineaFinalizadaQC)
+    : controlFiltroEstado==='pendientes' ? listaDia.filter(c=>!controlLineaFinalizadaQC(c))
     : listaDia;
   const pdf = controlPdfsData[seccion.key+'|'+controlDiaSel];
   // Carga bajo demanda (no bloquea este pintado): si el índice dice que hay
@@ -7350,6 +7426,7 @@ function renderControlCardCompactHTML(c,seccion){
       <div class="qc-card-main">
         <div class="qc-card-ident">
           <strong class="qc-card-partida">${titulo}</strong>
+          ${qcEstadoCuantificado(c)?'<span class="qc-card-medido">✓ Inspeccionado</span>':''}
           <div class="qc-card-cliente">${esc(cliente)||'Sin cliente/variedad'}</div>
           ${!tunel&&c.variedad?`<div class="qc-card-variedad">${esc(c.variedad)}</div>`:''}
         </div>
