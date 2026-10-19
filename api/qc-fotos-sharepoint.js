@@ -296,17 +296,33 @@ async function verifyNewLibrary(){
     check('/drives/'+encodeURIComponent(QC_LIBRARY_DRIVE)+'/root?$select=id,name,folder,webUrl')
   ]);
   const response={estado:'PENDIENTE',columnas:0,esperadas:QC_REQUIRED_COLUMNS.length,
-    faltantes:[],lecturaColumnas:list.status,lecturaArchivos:drive.status,
-    destinoActivo:false};
+    faltantes:[],tiposIncorrectos:[],lecturaColumnas:list.status,lecturaArchivos:drive.status,
+    destinoActivo:NEW_LIBRARY_ENABLED()};
   if(list.ok&&Array.isArray(list.json?.value)){
-    const names=new Set(list.json.value.map(x=>x?.name).filter(Boolean));
-    response.columnas=QC_REQUIRED_COLUMNS.filter(x=>names.has(x)).length;
-    response.faltantes=QC_REQUIRED_COLUMNS.filter(x=>!names.has(x));
+    const entries=new Map(list.json.value.map(x=>[x?.name,x]).filter(x=>x[0]));
+    response.columnas=QC_REQUIRED_COLUMNS.filter(x=>entries.has(x)).length;
+    response.faltantes=QC_REQUIRED_COLUMNS.filter(x=>!entries.has(x));
+    const numbers=new Set(['QCCalleDesde','QCCalleHasta','QCBandejas']);
+    const dates=new Set(['QCFechaControl','QCCapturadaUTC','QCSubidaUTC']);
+    const bad=QC_REQUIRED_COLUMNS.filter(name=>{
+      const col=entries.get(name);if(!col)return false;
+      if(numbers.has(name))return !col.number;
+      if(dates.has(name)){
+        if(!col.dateTime)return true;
+        if(name==='QCFechaControl')return col.dateTime.format!=='dateOnly';
+        return col.dateTime.format!=='dateTime';
+      }
+      if(!col.text)return true;
+      if(name==='QCTramos')return col.text.allowMultipleLines!==true;
+      return col.text.allowMultipleLines===true;
+    });
+    response.tiposIncorrectos=bad;
   }
   if(!list.ok)response.estado=list.status===403?'SIN_PERMISO_COLUMNAS':'ERROR_COLUMNAS';
   else if(!drive.ok)response.estado=drive.status===403?'SIN_PERMISO_ARCHIVOS':'ERROR_ARCHIVOS';
   else if(drive.json?.id==='01WYFOB256Y2GOVW7725BZO354PWSELRRZ'&&drive.json?.folder&&
-       response.columnas===QC_REQUIRED_COLUMNS.length)
+       response.columnas===QC_REQUIRED_COLUMNS.length&&
+       response.tiposIncorrectos.length===0)
     response.estado='LECTURA_CONFIRMADA';
   else response.estado='REVISAR_COLUMNAS_O_BIBLIOTECA';
   return response;
