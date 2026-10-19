@@ -128,13 +128,17 @@ module.exports=async function handler(req,res){
     res.setHeader('Allow','GET, POST');
     return res.status(405).json({error:'METHOD_NOT_ALLOWED'});
   }
+  let phase='REQUEST';
   try{
     const request=req.method==='GET'?req.query:inputOf(req);
     const ref=validRef(request);
+    phase='AUTH';
     const {actor,token}=await checkQCActor(req,ref);
+    phase='SOURCE';
     const source=await legacyRecord(ref,token);
     if(req.method==='GET'){
       const probe=request.probe==='etag';
+      phase='MEASUREMENT_READ';
       const {value,etag}=await getJson(pathFor(ref.id),token,probe);
       const stored=validateStored(value,ref,source.partida);
       return res.status(200).json({ok:true,record:value?{
@@ -144,12 +148,15 @@ module.exports=async function handler(req,res){
       }:null,sourcePartida:source.partida,
       ...(probe?{diagnostic:{etagAvailable:!!etag}}:{})});
     }
+    phase='VALIDATION';
     if(request.partida!==source.partida)throw httpError(409,'SOURCE_CHANGED');
     if(!Number.isSafeInteger(request.version)||request.version<0)
       throw httpError(400,'INVALID_VERSION');
     const mediciones=validateMeasurements(request);
+    phase='ETAG_READ';
     const stored=await getJson(pathFor(ref.id),token,true);
     if(!stored.etag)throw new Error('Firebase ETag unavailable');
+    phase='ETAG_COMPARE';
     const before=validateStored(stored.value,ref,source.partida);
     if(before.version!==request.version)throw httpError(409,'CONCURRENT_MODIFICATION');
     const now=new Date().toISOString();
@@ -162,6 +169,7 @@ module.exports=async function handler(req,res){
       updatedAt:now,updatedBy:actor,
       resultadoQC:null
     };
+    phase='WRITE';
     const write=await fetch(pathFor(ref.id)+'?print=silent',{
       method:'PUT',
       headers:{
@@ -185,10 +193,10 @@ module.exports=async function handler(req,res){
       const failedRead=/^Firebase read failed: (\d{3})$/.exec(msg);
       const failedWrite=/^Firebase write failed: (\d{3})$/.exec(msg);
       const diagnostic=failedWrite?'QC_WRITE_HTTP_'+failedWrite[1]:
-        failedRead?'QC_READ_HTTP_'+failedRead[1]:
+        failedRead?'QC_'+phase+'_HTTP_'+failedRead[1]:
         msg==='Firebase ETag unavailable'?'QC_ETAG_MISSING':
-        e.name==='TimeoutError'||e.name==='AbortError'?'QC_TIMEOUT':
-        'QC_SERVICE_ERROR';
+        e.name==='TimeoutError'||e.name==='AbortError'?'QC_'+phase+'_TIMEOUT':
+        'QC_'+phase+'_SERVICE_ERROR';
       return res.status(503).json({error:'SERVICE_UNAVAILABLE',diagnostic});
     }
     return res.status(status).json({error:e.code});
