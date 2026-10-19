@@ -6529,7 +6529,7 @@ function renderControlChecklistHTML(seccion){
       periodo:'Quincena '+(controlQuincenaOffset+1)+' · '+riegoQuincenaLabel(controlQuincenaOffset),
       prevDisabled:controlQuincenaOffset<=0,
       pending:leerColaOffline().length,
-      pdfNombre:pdf?.nombre||''
+      pdfNombre:pdf?.nombre||'',pdfUrl:pdf?.pdfB64||''
     });
   }
 
