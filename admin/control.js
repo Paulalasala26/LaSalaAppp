@@ -425,6 +425,42 @@
           status.textContent='✓ Acceso a SharePoint confirmado · Fotos QC. Subida de fotos desactivada.';
           status.className='operation-feedback ok';
         }
+        // Si hay una partida concreta filtrada, verificar sus datos de
+        // ubicación con la API (lectura directa de Carga y Túnel en Firebase).
+        // No se crea ninguna foto, carpeta ni registro.
+        const searched=(el('qc-search')?.value||'').trim().toUpperCase();
+        const selected=loaded&&searched?
+          filtered.filter(r=>r.tipo==='carga'&&
+            String(r.partida||'').trim().toUpperCase()===searched):[];
+        if(selected.length>0&&selected.length<=5){
+          for(const record of selected){
+            const url='/api/qc-fotos-sharepoint?'+new URLSearchParams({
+              id:record.id,tipo:record.tipo,dia:String(record.dia)
+            });
+            const check=await fetch(url,{method:'GET',
+              headers:{Authorization:'Bearer '+jwt},cache:'no-store',
+              signal:AbortSignal.timeout(30000)});
+            let body={};try{body=await check.json();}catch(e){}
+            const line=node('div',null);
+            line.style.marginTop='7px';
+            if(check.ok&&body.ok===true&&body.metadata){
+              const m=body.metadata;
+              const inv=m.invernadero?'INV '+m.invernadero:'Invernadero no determinado';
+              const calle=Array.isArray(m.tramos)&&m.tramos.length?
+                m.tramos.map(t=>t.desde===t.hasta?String(t.desde):t.desde+'–'+t.hasta).join(', '):
+                'Calle no determinada';
+              const origin=m.ubicacionOrigen==='tunel'?
+                'Túnel ('+(m.registroTunelOrigen||m.ubicacionEstado)+')':
+                'Carga ('+(m.ubicacionEstado||'directa')+')';
+              line.textContent='Partida '+record.partida+': '+inv+' · Calle '+calle+
+                ' · Origen '+origin;
+            }else{
+              line.textContent='Partida '+record.partida+
+                ': no se ha podido verificar la ubicación (HTTP '+check.status+').';
+            }
+            status.append(line);
+          }
+        }
       }else{
         const errors={
           GRAPH_NOT_CONFIGURED:'Faltan credenciales de Microsoft Graph en Vercel TEST.',
