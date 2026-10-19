@@ -158,6 +158,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 <link rel="stylesheet" href="assets/control-qc-operativo.css">
 <link rel="stylesheet" href="assets/control-ui-empty.css">
 <link rel="stylesheet" href="assets/control-ui-list.css">
+<link rel="stylesheet" href="assets/control-ui-cards.css">
 <script src="admin/qc-indicadores.js" defer></script>
 <script src="assets/control-qc-operativo.js" defer></script>
 <script src="assets/control-ui-empty.js" defer></script>
@@ -5776,7 +5777,7 @@ function renderControlCardConGuionesHTML(grupo, seccion){
     </div>`;
   const cardHTML = (seccion.key==='carga' ? renderControlCargaCardHTML(activo, seccion) : renderControlCardHTML(activo, seccion))
     .replace('border-radius:12px;', 'border-radius:0 0 12px 12px;');
-  return `<div>${pagerHTML}${cardHTML}</div>`;
+  return `<div class="qc-card-guion-group">${pagerHTML}${cardHTML}</div>`;
 }
 async function showControlModule(){
   // Entrada ligera: el resumen solo necesita el índice v2 (~1 KB). Túnel y
@@ -7330,6 +7331,60 @@ function abrirMedicionesControl(id){
     uploadPhoto:input=>handleControlFotoInput(input,c.id)
   });
 }
+// Tarjeta compacta solo para acceso QC cuantitativo; legacy y Ginés permanecen intactos.
+function renderControlCardCompactHTML(c,seccion){
+  const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  const tunel=c.tipo==='tunel', cliente=tunel?c.clienteVariedad:c.cliente;
+  const titulo=esc(c.partida)||'Sin partida';
+  const ubicacion=tunel
+    ? (c.invId?'INV '+esc(c.invId)+' · '+esc(formatTramosLabel(c.invId,(c.tramos&&c.tramos.length)?c.tramos:[{desde:c.calleDesde,hasta:c.calleHasta}])):'Calle sin asignar')
+    : ('Invernadero: '+(esc(c.invernadero)||'—')+' · Calle: '+(()=>{const t=calleTramoDeCarga(c);return t?esc(t.label):'—';})());
+  cargarFotoControlSiFalta(c.id);
+  const imagen=controlFotosData[c.id], pdf=controlPdfsData[seccion.key+'|'+c.dia];
+  cargarControlPdfDia(seccion.key,c.dia);
+  const pdfHTML=pdf?`<div class="qc-card-pdf"><i class="ti ti-file-type-pdf"></i> ${esc(pdf.nombre)} · <a href="${pdf.pdfB64}" target="_blank" rel="noopener noreferrer">Ver PDF</a></div>`:'';
+  const fotoHTML=imagen?`<img src="${fotoSrcMiniatura(imagen)}" onclick="mostrarFotoControlAmpliada('${c.id}')" title="Ver foto" alt="Foto de inspección" class="qc-card-photo" />`:'';
+  const editAction=tunel?'mostrarEditarControlCheck':'mostrarEditarControlCargaCheck';
+  return `
+    <article id="control-card-${c.id}" class="qc-card-compact">
+      <div class="qc-card-main">
+        <div class="qc-card-ident">
+          <strong class="qc-card-partida">${titulo}</strong>
+          <div class="qc-card-cliente">${esc(cliente)||'Sin cliente/variedad'}</div>
+          ${!tunel&&c.variedad?`<div class="qc-card-variedad">${esc(c.variedad)}</div>`:''}
+        </div>
+        <div class="qc-card-facts">
+          <span><i class="ti ti-box" aria-hidden="true"></i> Bandejas declaradas: <strong>${esc(c.numBandejas)||'—'}</strong></span>
+          <span><i class="ti ti-map-pin" aria-hidden="true"></i> ${ubicacion}</span>
+        </div>
+        <button type="button" class="qc-card-inspect" onclick="abrirMedicionesControl('${c.id}')"><i class="ti ti-clipboard-check" aria-hidden="true"></i> Abrir inspección</button>
+        ${anclaCuantificacionControlHTML(c)}
+      </div>
+      <details class="qc-card-more">
+        <summary>Detalles y acciones</summary>
+        <div class="qc-card-details">
+          <div class="qc-card-actionbar">
+            ${tunel?`<button type="button" onclick="mostrarAsignarCalleControl('${c.id}')"><i class="ti ti-map-pin"></i> Asignar calle</button>`:''}
+            <button type="button" onclick="${editAction}('${c.id}')"><i class="ti ti-pencil"></i> Editar línea</button>
+            <button type="button" class="qc-card-danger" onclick="eliminarControlCheck('${c.id}')"><i class="ti ti-trash"></i> Eliminar línea</button>
+          </div>
+          ${pdfHTML}
+          <div data-qc-legacy-extras="${c.id}" class="qc-card-evidence">
+            <label class="qc-card-observaciones">Observaciones
+              <input type="text" value="${esc(c.observaciones)}" placeholder="Sin observaciones"
+                onchange="guardarControlObservaciones('${c.id}',this.value)" />
+            </label>
+            <div class="qc-card-photo-actions">
+              ${fotoHTML}
+              <label class="qc-card-photo-upload"><i class="ti ti-camera"></i> ${imagen?'Cambiar foto':'Añadir foto'}
+                <input type="file" accept="image/*" capture="environment" onchange="handleControlFotoInput(this,'${c.id}')">
+              </label>
+            </div>
+          </div>
+        </div>
+      </details>
+    </article>`;
+}
 function renderControlCardHTML(c, seccion){
   // Carga tiene una ficha distinta (Cliente/Partida/Variedad/Nº bandejas/
   // Invernadero como campos separados, sin calle) — se despacha a su propia
@@ -7337,6 +7392,7 @@ function renderControlCardHTML(c, seccion){
   // render de Túnel, que Paula pidió expresamente no tocar (2026-07-31,
   // "el check de túneles está perfecto, no modifiques nada de ahí").
   if(c.tipo === 'carga') return renderControlCargaCardHTML(c, seccion);
+  if(puedeCuantificarControl(c)) return renderControlCardCompactHTML(c,seccion);
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const calleRealLabel = c.invId ? `INV ${escapar(c.invId)} — ${escapar(formatTramosLabel(c.invId, (c.tramos && c.tramos.length) ? c.tramos : [{desde:c.calleDesde, hasta:c.calleHasta}]))}` : '<span style="font-style:italic">Sin asignar</span>';
   // Cada categoría con su propio color/icono (a petición de Paula,
@@ -7431,6 +7487,7 @@ function renderControlCardHTML(c, seccion){
 // de categorías/foto de renderControlCardHTML (en vez de compartir código)
 // para no arriesgar el render de Túnel con ninguna refactorización.
 function renderControlCargaCardHTML(c, seccion){
+  if(puedeCuantificarControl(c)) return renderControlCardCompactHTML(c,seccion);
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   // En la vista operativa moderna no se vuelven a ofrecer los selectores
   // heredados: la partida abre la medición por cantidades. Se mantienen

@@ -1,0 +1,29 @@
+/* Vista compacta de tarjetas QC con permisos de medición; conserva operaciones originales. */
+.qc-card-compact{border:1px solid #d0dfec;border-radius:12px;background:#fff;box-shadow:0 2px 10px rgba(16,57,94,.07);min-width:0;overflow:hidden;transition:outline .2s}
+.qc-card-main{padding:13px 14px;display:flex;flex-direction:column;gap:10px}
+.qc-card-partida{display:block;color:#1558a0;font-size:19px;line-height:1.2;font-weight:900;overflow-wrap:anywhere}
+.qc-card-cliente{font-size:13px;font-weight:750;color:#1f3955;overflow-wrap:anywhere}
+.qc-card-variedad{font-size:12px;color:#58718a;overflow-wrap:anywhere}
+.qc-card-facts{display:flex;gap:7px 20px;flex-wrap:wrap;font-size:12px;color:#486078;line-height:1.4}
+.qc-card-facts span{display:inline-flex;align-items:flex-start;gap:5px}
+.qc-card-facts i{font-size:15px;color:#1558a0;flex:none}
+.qc-card-inspect{display:inline-flex;align-items:center;justify-content:center;align-self:flex-start;gap:8px;min-height:43px;padding:10px 16px;background:#1558a0;border:0;border-radius:8px;color:#fff;font-size:13px;font-weight:800;cursor:pointer}
+.qc-card-inspect i{font-size:17px}
+.qc-card-more{border-top:1px solid #e0eaf3}
+.qc-card-more summary{cursor:pointer;padding:10px 14px;font-size:12px;font-weight:750;color:#1558a0}
+.qc-card-more[open] summary{background:#f4f9fd;border-bottom:1px solid #e0eaf3}
+.qc-card-details{padding:12px 14px;display:flex;flex-direction:column;gap:12px}
+.qc-card-actionbar{display:flex;gap:8px;flex-wrap:wrap}
+.qc-card-actionbar button{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:40px;padding:9px 11px;background:#f4f9ff;border:1px solid #b2cce5;color:#1558a0;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer}
+.qc-card-actionbar button.qc-card-danger{color:#9b3030;background:#fff8f8;border-color:#e8b0b0}
+.qc-card-pdf{font-size:12px;color:#486078;overflow-wrap:anywhere}
+.qc-card-pdf a{color:#1558a0;font-weight:750}
+.qc-card-evidence{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px}
+.qc-card-observaciones{display:flex;flex-direction:column;gap:5px;flex:1 1 210px;min-width:0;color:#486078;font-size:12px;font-weight:700}
+.qc-card-observaciones input{width:100%;min-height:41px;padding:8px 10px;border:1px solid #b7cce2;border-radius:8px;font-size:13px}
+.qc-card-photo-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.qc-card-photo{max-height:64px;max-width:120px;object-fit:cover;border-radius:7px;cursor:pointer}
+.qc-card-photo-upload{min-height:40px;display:inline-flex;align-items:center;gap:5px;padding:9px 11px;border:1px solid #b2cce5;border-radius:8px;color:#1558a0;background:#f4f9ff;font-size:12px;font-weight:700;cursor:pointer}
+.qc-card-photo-upload input{display:none}
+.qc-card-guion-group .qc-card-compact{border-radius:0 0 12px 12px}
+@media(max-width:560px){.qc-card-main{padding:11px 12px}.qc-card-facts{flex-direction:column;gap:6px}.qc-card-inspect{align-self:stretch;width:100%}.qc-card-actionbar{flex-direction:column}.qc-card-actionbar button{width:100%}}
