@@ -264,6 +264,52 @@ async function verifyFolder(){
   return true;
 }
 
+const QC_LIBRARY_ID='bac69068-31e2-4df6-8734-8c42049600d7';
+const QC_LIBRARY_DRIVE='b!ltDlxMPStUSPKosa8hjEBT4XEdc922lLvESLlmS3tQxokMa64jH2TYc0jEIElgDX';
+const QC_SITE='viveroslasala.sharepoint.com,c4e5d096-d2c3-44b5-8f2a-8b1af218c405,d711173e-db3d-4b69-bc44-8b9664b7b50c';
+const QC_REQUIRED_COLUMNS=Object.freeze([
+  'QCRegistroId','QCFotoId','QCPartida','QCTipo','QCFechaControl',
+  'QCCliente','QCVariedad','QCClienteVariedad','QCSala','QCInvernadero',
+  'QCCalleDesde','QCCalleHasta','QCTramos','QCBandejas','QCUsuario',
+  'QCCapturadaUTC','QCSubidaUTC','QCUbicacionOrigen',
+  'QCUbicacionEstado','QCRegistroTunelOrigen'
+]);
+// Diagnóstico sin escritura. No afecta a la carpeta antigua ni al circuito
+// de captura; valida los permisos app-only sobre la biblioteca independiente.
+async function verifyNewLibrary(){
+  let token;
+  try{token=await graphToken();}
+  catch(e){return {estado:'ERROR_TOKEN',codigo:e.code||'GRAPH_TOKEN_FAILED'};}
+  const check=async path=>{
+    try{
+      const r=await fetch(GRAPH+path,{
+        headers:{Authorization:'Bearer '+token},cache:'no-store',
+        signal:AbortSignal.timeout(15000)
+      });
+      if(!r.ok)return {ok:false,status:r.status};
+      return {ok:true,status:r.status,json:await r.json()};
+    }catch(e){return {ok:false,status:0};}
+  };
+  const [list,drive]=await Promise.all([
+    check('/sites/'+encodeURIComponent(QC_SITE)+'/lists/'+encodeURIComponent(QC_LIBRARY_ID)+'/columns?$top=200'),
+    check('/drives/'+encodeURIComponent(QC_LIBRARY_DRIVE)+'/root?$select=id,name,folder,webUrl')
+  ]);
+  const response={estado:'PENDIENTE',columnas:0,esperadas:QC_REQUIRED_COLUMNS.length,
+    faltantes:[],lecturaColumnas:list.status,lecturaArchivos:drive.status,
+    destinoActivo:false};
+  if(list.ok&&Array.isArray(list.json?.value)){
+    const names=new Set(list.json.value.map(x=>x?.name).filter(Boolean));
+    response.columnas=QC_REQUIRED_COLUMNS.filter(x=>names.has(x)).length;
+    response.faltantes=QC_REQUIRED_COLUMNS.filter(x=>!names.has(x));
+  }
+  if(!list.ok)response.estado=list.status===403?'SIN_PERMISO_COLUMNAS':'ERROR_COLUMNAS';
+  else if(!drive.ok)response.estado=drive.status===403?'SIN_PERMISO_ARCHIVOS':'ERROR_ARCHIVOS';
+  else if(drive.json?.id==='01WYFOB256Y2GOVW7725BZO354PWSELRRZ'&&drive.json?.folder&&
+       response.columnas===QC_REQUIRED_COLUMNS.length)
+    response.estado='LECTURA_CONFIRMADA';
+  else response.estado='REVISAR_COLUMNAS_O_BIBLIOTECA';
+  return response;
+}
 function bodyOf(req){
   let b=req.body;
   if(typeof b==='string'){try{b=JSON.parse(b);}catch(_){throw httpError(400,'INVALID_BODY');}}
@@ -500,8 +546,10 @@ module.exports=async function handler(req,res){
       await leerTunelParaPartida(ref,source,session.firebaseToken):null;
     const attrs=ref?await metadata(ref,source,session.actor,session.firebaseToken,matches):null;
     await verifyFolder();
+    const bibliotecaNueva=diagnostic?await verifyNewLibrary():undefined;
     return res.status(200).json({
       ok:true,graphRead:'CONFIRMED',
+      ...(diagnostic?{bibliotecaNueva}:{}),
       uploadEnabled:UPLOAD_ENABLED(),
       ...(ref?{metadata:attrs,carpetaTipo:TYPES[ref.tipo]}:{}),
       ...(candidatesRequested&&ref?.tipo==='carga'?
