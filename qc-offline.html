@@ -20,11 +20,12 @@ footer{margin-top:20px;font-size:13px}
 a{color:#1558a0;font-weight:700}
 </style>
 <script src="assets/qc-offline-operarios-store.js" defer></script>
+<script src="assets/qc-offline-operarios-drafts.js" defer></script>
 <script src="assets/qc-offline-operarios-screen.js" defer></script>
 </head>
-<body><header><h1>Control QC · sin conexión</h1><small>Consulta local de partidas · solo lectura</small></header>
+<body><header><h1>Control QC · sin conexión</h1><small>Consulta de partidas y borradores locales QC</small></header>
 <main><div id="status" role="status">Cargando consulta local…</div>
-<aside>Datos consultados previamente con conexión. No se pueden modificar controles ni guardar cantidades sin Internet.</aside>
+<aside>Se pueden anotar cantidades en un borrador guardado exclusivamente en este dispositivo. No se sincroniza con el servidor ni admite fotografías sin conexión por ahora.</aside>
 <div id="area" hidden>
 <div class="controls">
 <select id="tipo" aria-label="Tipo de control"><option value="">Túnel y Carga</option><option value="tunel">Túnel</option><option value="carga">Carga</option></select>
