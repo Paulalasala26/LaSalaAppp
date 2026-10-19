@@ -264,6 +264,57 @@
       if(['LOGIN_REQUIRED','NO_PERMISSION'].includes(error.message))gate('Acceso restringido',msg);
     }finally{busy=false;el('qc-query').disabled=false;el('qc-reload').disabled=false;}
   }
+  // Diagnóstico a petición del administrador: solo consulta la carpeta QC.
+  // No crea archivos, no escribe fotos ni modifica permisos.
+  async function checkQCPhotoConnection(){
+    const button=el('qc-photo-connection'),status=el('qc-photo-connection-status');
+    if(button.disabled)return;
+    button.disabled=true;
+    const previous=button.textContent;
+    button.textContent='Comprobando conexión…';
+    status.hidden=false;
+    status.className='operation-feedback';
+    status.textContent='Comprobando acceso de ViguerAPP a SharePoint…';
+    try{
+      const jwt=await getToken();
+      const response=await fetch('/api/qc-fotos-sharepoint?action=check',{
+        method:'GET',headers:{Authorization:'Bearer '+jwt},cache:'no-store',
+        signal:AbortSignal.timeout(30000)
+      });
+      let result={};
+      try{result=await response.json();}catch(e){}
+      if(response.ok&&result.ok===true&&result.graphRead==='CONFIRMED'){
+        if(result.uploadEnabled===true){
+          status.textContent='Acceso a SharePoint confirmado. Aviso: la subida de fotos figura habilitada.';
+          status.className='operation-feedback error';
+        }else{
+          status.textContent='✓ Acceso a SharePoint confirmado · Fotos QC. Subida de fotos desactivada.';
+          status.className='operation-feedback ok';
+        }
+      }else{
+        const errors={
+          GRAPH_NOT_CONFIGURED:'Faltan credenciales de Microsoft Graph en Vercel TEST.',
+          GRAPH_TOKEN_FAILED:'Microsoft Entra ha rechazado la autenticación de ViguerAPP. Revisa el secreto.',
+          GRAPH_ID_MISMATCH:'El identificador de la aplicación no coincide con ViguerAPP QC.',
+          GRAPH_FOLDER_PERMISSION_DENIED:'ViguerAPP no tiene permiso de lectura sobre la carpeta Fotos QC.',
+          GRAPH_FOLDER_READ_FAILED:'Microsoft Graph no ha podido leer la carpeta Fotos QC.',
+          GRAPH_FOLDER_MISMATCH:'La carpeta configurada no coincide con Fotos QC.',
+          FORBIDDEN:'La cuenta no tiene permisos para esta operación.',
+          UNAUTHORIZED:'Tu sesión ha caducado. Vuelve a iniciar sesión.'
+        };
+        status.textContent=errors[result.error]||'No se ha podido verificar SharePoint (HTTP '+response.status+').';
+        status.className='operation-feedback error';
+      }
+    }catch(e){
+      status.textContent=e.message==='LOGIN_REQUIRED'?
+        'Tu sesión ha caducado. Vuelve a iniciar sesión.':
+        'Sin respuesta de SharePoint. Comprueba la conexión e inténtalo de nuevo.';
+      status.className='operation-feedback error';
+    }finally{
+      button.disabled=false;
+      button.textContent=previous;
+    }
+  }
   function defaultDates(){
     const now=new Date(),prev=new Date(now);prev.setDate(now.getDate()-29);
     const iso=d=>[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');
@@ -273,6 +324,7 @@
     defaultDates();
     el('qc-form').addEventListener('submit',e=>{e.preventDefault();query();});
     el('qc-reload').addEventListener('click',query);
+    el('qc-photo-connection').addEventListener('click',checkQCPhotoConnection);
     el('qc-more').addEventListener('click',showMore);
     el('qc-state').addEventListener('change',filterRows);
     el('qc-search').addEventListener('input',filterRows);
