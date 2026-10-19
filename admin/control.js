@@ -147,6 +147,35 @@
   // heredada. No hay subida sin haber confirmado antes escritura IndexedDB.
   let photoPilotRecord=null,photoPilotBusy=false;
   const queue=window.QCPhotoQueue;
+  let offlineSWReady=false,offlineRecordsReady=false;
+  function offlineStatus(){
+    const label=el('qc-offline-ready');
+    label.hidden=!(offlineSWReady&&offlineRecordsReady);
+    label.textContent=label.hidden?'':'Captura QC offline preparada (24 h).';
+  }
+  async function registerQCOffline(){
+    if(!('serviceWorker' in navigator))return;
+    try{
+      const reg=await navigator.serviceWorker.register('./qc-offline-sw.js',{scope:'./'});
+      if(reg.active){offlineSWReady=true;offlineStatus();return}
+      const worker=reg.installing||reg.waiting;
+      if(worker){
+        worker.addEventListener('statechange',()=>{
+          if(worker.state==='activated'){offlineSWReady=true;offlineStatus()}
+        });
+      }
+    }catch(_){
+      offlineSWReady=false;offlineStatus();
+    }
+  }
+  async function cacheQCOffline(found){
+    if(!window.QCOfflineSnapshot){offlineRecordsReady=false;offlineStatus();return}
+    try{
+      const count=await window.QCOfflineSnapshot.save(photoOwner(),found);
+      offlineRecordsReady=count>0;
+    }catch(_){offlineRecordsReady=false}
+    offlineStatus();
+  }
   function photoPilotMessage(message,error){
     const output=el('qc-photo-connection-status');
     output.hidden=false;
@@ -434,6 +463,9 @@
       found.sort((a,b)=>b.dia-a.dia||a.tipo.localeCompare(b.tipo)||
         String(a.partida||'').localeCompare(String(b.partida||''),'es',{numeric:true}));
       all=found;loaded=true;filterRows();feedback('');
+      // Solo registros QC mínimos que un ADMIN acaba de consultar/verificar.
+      // No bloquear la consulta ni la foto online si falla el almacenamiento.
+      void cacheQCOffline(found);
     }catch(error){
       empty('Consulta no disponible.');
       const msg=error.message==='LOGIN_REQUIRED'?'La sesión ha caducado. Entra como ADMIN.':
@@ -584,6 +616,8 @@
   }
   async function boot(){
     defaultDates();
+    // Registrar caché exclusivamente de captura QC, no alterar SW de avisos.
+    void registerQCOffline();
     el('qc-form').addEventListener('submit',e=>{e.preventDefault();query();});
     el('qc-reload').addEventListener('click',query);
     el('qc-photo-test-file').addEventListener('change',capturePhotoPilot);
