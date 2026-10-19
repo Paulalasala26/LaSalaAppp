@@ -446,33 +446,20 @@
       return same?{state:'confirmed',value:saved}:{state:'different'};
     }catch(_){return {state:'unknown'};}
   }
-  // Comprobación de ETag de Firebase: solo lectura, sin ejecutar PUT.
-  async function probeStorage(){
-    if(!active||!record||writing)return;
-    const previousRecord={...record};
-    const btn=active.querySelector('.qco-probe');if(btn)btn.disabled=true;
-    try{
-      report('Comprobando almacenamiento (sin guardar)…','');
-      const jwt=await token();
-      const q=new URLSearchParams({id:record.id,tipo:record.tipo,dia:String(record.dia),probe:'etag'});
-      const response=await fetch(API+'?'+q.toString(),{
-        method:'GET',headers:{Authorization:'Bearer '+jwt},cache:'no-store'
-      });
-      const data=await response.json().catch(()=>null);
-      if(active&&record?.id===previousRecord.id){
-        if(response.ok&&data?.ok&&data.sourcePartida===record.partida&&data.diagnostic){
-          report(data.diagnostic.etagAvailable?
-            'Lectura y ETag correctos. El fallo HTTP 503 está en otra fase del guardado.':
-            'Fallo confirmado: Firebase no entrega ETag. No guardes cantidades.','error');
-        }else{
-          const code=data?.diagnostic||data?.error||('HTTP '+response.status);
-          report('Diagnóstico de servidor: '+String(code).slice(0,70)+'. No guardes.','error');
-        }
-      }
-    }catch(_){
-      if(active&&record?.id===previousRecord.id)
-        report('No se ha podido completar el diagnóstico de conexión.','error');
-    }finally{if(btn)btn.disabled=false;}
+  // Solo tras confirmación del servidor o lectura posterior equivalente.
+  function mostrarConfirmacionQC(){
+    let aviso=document.getElementById('qco-guardado-ok');
+    if(!aviso){
+      aviso=document.createElement('div');
+      aviso.id='qco-guardado-ok';
+      aviso.setAttribute('role','status');
+      aviso.setAttribute('aria-live','polite');
+      aviso.style.cssText='position:fixed;top:calc(12px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);z-index:100002;max-width:calc(100vw - 24px);min-width:min(300px,calc(100vw - 24px));background:#1558a0;color:#fff;border:1px solid #9ec1e5;border-radius:9px;padding:13px 16px;box-shadow:0 6px 24px rgba(0,0,0,.22);font-size:14px;font-weight:800;text-align:center;pointer-events:none';
+      document.body.appendChild(aviso);
+    }
+    aviso.textContent='✓ Cantidades QC guardadas';
+    clearTimeout(aviso._qcoTimeout);
+    aviso._qcoTimeout=setTimeout(()=>aviso.remove(),4500);
   }
   async function save(e){
     e.preventDefault();
@@ -550,10 +537,8 @@
       writing=false;
       if(active===editor){
         if(confirmed){
-          // El editor se cierra; siguen seleccionados el registro, día y filtros.
-          close(true);
-          if(typeof window.showToast==='function')
-            window.showToast('✓ Cantidades QC guardadas');
+          // Cerrar el formulario y confirmar visiblemente sobre el listado.
+          if(close(true)) mostrarConfirmacionQC();
         }else{
           btn.disabled=false;
           active.querySelectorAll('.qco-total input, .qco-cat input[type="number"]')
@@ -665,10 +650,6 @@
     indicators.append(indicatorTitle,node('div',null,'qco-indicator-list'));
     form.append(indicators);
     const foot=node('div',null,'qco-footer');
-    const test=node('button','Diagnóstico (sin guardar)','qco-secondary qco-probe');
-    test.type='button';test.addEventListener('click',probeStorage);
-    test.style.fontSize='11px';test.style.fontWeight='650';
-    form.append(test);
     const cancel=node('button','Cerrar','qco-secondary');cancel.type='button';
     cancel.addEventListener('click',()=>close());
     const submit=node('button','Guardar cantidades','qco-save');submit.type='submit';submit.disabled=true;
