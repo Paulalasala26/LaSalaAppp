@@ -435,7 +435,7 @@
         if(selected.length>0&&selected.length<=5){
           for(const record of selected){
             const url='/api/qc-fotos-sharepoint?'+new URLSearchParams({
-              id:record.id,tipo:record.tipo,dia:String(record.dia)
+              id:record.id,tipo:record.tipo,dia:String(record.dia),details:'1'
             });
             const check=await fetch(url,{method:'GET',
               headers:{Authorization:'Bearer '+jwt},cache:'no-store',
@@ -454,6 +454,30 @@
                 'Carga ('+(m.ubicacionEstado||'directa')+')';
               line.textContent='Partida '+record.partida+': '+inv+' · Calle '+calle+
                 ' · Origen '+origin;
+              if(m.ubicacionEstado==='tunel_ambiguo'||
+                 m.ubicacionEstado==='tunel_calle_ambigua'){
+                const diag=body.diagnosticoTunel;
+                if(diag&&Array.isArray(diag.candidatos)){
+                  const intro=node('div','Túnel: '+diag.totalCoincidencias+
+                    ' coincidencias; '+diag.coincidenciasMismasBandejas+
+                    ' con las mismas bandejas.','qc-secondary');
+                  intro.style.marginTop='5px';line.append(intro);
+                  for(const c of diag.candidatos.filter(x=>x.considerado).slice(0,8)){
+                    const fecha=isoFromDay(c.dia);
+                    const calleTunel=Array.isArray(c.tramos)&&c.tramos.length?
+                      c.tramos.map(t=>t.desde===t.hasta?String(t.desde):t.desde+'–'+t.hasta).join(', '):
+                      'sin calle';
+                    const detail=node('div','• '+fecha+' · INV '+c.invernadero+
+                      ' · Calle '+calleTunel+' · '+(c.numBandejas??'—')+
+                      ' bandejas · '+c.id,'qc-secondary');
+                    line.append(detail);
+                  }
+                  if(diag.consideradas>8){
+                    line.append(node('div','… y '+(diag.consideradas-8)+
+                      ' registros más.','qc-secondary'));
+                  }
+                }
+              }
             }else{
               line.textContent='Partida '+record.partida+
                 ': no se ha podido verificar la ubicación (HTTP '+check.status+').';
