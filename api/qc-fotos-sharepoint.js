@@ -65,22 +65,134 @@ async function sourceFor(ref,token){
 function value(v,max=160){
   return typeof v==='string'&&v.trim()?v.trim().slice(0,max):null;
 }
-function metadata(ref,record,actor){
-  // No confiar en metadatos enviados por el cliente: solo la ficha de Firebase.
-  const tramos=Array.isArray(record.tramos)?
-    record.tramos.filter(x=>x&&Number.isFinite(Number(x.desde))&&
-      Number.isFinite(Number(x.hasta))).map(x=>({
-        desde:Number(x.desde),hasta:Number(x.hasta)
-      })).slice(0,30):[];
-  const inv=value(record.invId)||value(record.invernadero);
+// Datos espaciales normalizados del registro. No inferir A/B, sala ni calle
+// cuando la fuente solo indica un número de invernadero.
+function nCalle(v){
+  if(v===null||v===undefined||v==='')return null;
+  const n=Number(v);
+  return Number.isSafeInteger(n)&&n>=0&&n<=1000?n:null;
+}
+function nTramos(registro){
+  const list=Array.isArray(registro.tramos)&&registro.tramos.length?
+    registro.tramos:[{desde:registro.calleDesde,hasta:registro.calleHasta}];
+  return list.map(t=>{
+    const a=nCalle(t?.desde),b=nCalle(t?.hasta??t?.desde);
+    return a!==null&&b!==null?{desde:Math.min(a,b),hasta:Math.max(a,b)}:null;
+  }).filter(Boolean).slice(0,30).sort((a,b)=>a.desde-b.desde||a.hasta-b.hasta);
+}
+function ubicacionDirecta(registro){
+  const invRaw=value(registro.invId,50)||value(registro.invernadero,50);
+  const parsed=/^(\d{1,2})-(\d{1,3})-(\d{1,3})$/.exec(invRaw||'');
+  if(parsed){
+    const a=nCalle(parsed[2]),b=nCalle(parsed[3]);
+    if(a!==null&&b!==null){
+      const t={desde:Math.min(a,b),hasta:Math.max(a,b)};
+      return {invernadero:String(Number(parsed[1])),tramos:[t],
+        calleDesde:t.desde,calleHasta:t.hasta};
+    }
+  }
+  const tramos=nTramos(registro);
+  return {invernadero:invRaw,tramos,
+    calleDesde:tramos.length?Math.min(...tramos.map(x=>x.desde)):null,
+    calleHasta:tramos.length?Math.max(...tramos.map(x=>x.hasta)):null};
+}
+function compatInv(directo,tunel){
+  if(!directo)return true;
+  if(directo===tunel)return true;
+  // Carga puede tener INV 11 sin especificar lado; 11A/11B no son
+  // intercambiables entre sí.
+  const short=/^\d+$/.test(directo),n=tunel?.match(/^(\d+)[A-Za-z]$/);
+  return !!(short&&n&&Number(directo)===Number(n[1]));
+}
+async function leerTunelParaPartida(ref,record,token){
+  // Solo buscar si la propia ficha de Carga no trae una ubicación completa.
+  if(ref.tipo!=='carga')return [];
+  const q=Math.floor((ref.dia-15)/14);
+  const idx=await fetch(DB+'/lasala-control-items-v2-index.json',{
+    headers:{Authorization:'Bearer '+token},cache:'no-store',
+    signal:AbortSignal.timeout(12000)
+  });
+  if(!idx.ok)throw httpError(503,'TUNEL_INDEX_READ_FAILED');
+  const catalog=await idx.json();
+  if(!catalog||typeof catalog!=='object'||!catalog.shards)
+    throw httpError(503,'TUNEL_INDEX_MISSING');
+  // Ventana de seguridad de 16 quincenas anteriores (hasta 224 días).
+  // El caso piloto de octubre de 2026 incluye toda la historia desde junio.
+  // No se busca en registros posteriores a la ficha de Carga.
+  const candidates=Object.values(catalog.shards).filter(x=>
+    x&&x.tipo==='tunel'&&Number.isInteger(Number(x.q))&&
+    Number(x.q)<=q&&Number(x.q)>=Math.max(0,q-15)&&
+    x.key==='lasala-control-items-v2-tunel-q'+Number(x.q)
+  ).sort((a,b)=>Number(b.q)-Number(a.q));
+  const found=[];
+  for(let i=0;i<candidates.length;i+=5){
+    const batch=await Promise.all(candidates.slice(i,i+5).map(async meta=>{
+      const response=await fetch(DB+'/'+encodeURIComponent(meta.key)+'.json',{
+        headers:{Authorization:'Bearer '+token},cache:'no-store',
+        signal:AbortSignal.timeout(12000)
+      });
+      if(!response.ok)throw httpError(503,'TUNEL_SHARD_READ_FAILED');
+      const obj=await response.json();
+      if(obj!==null&&(!obj||typeof obj!=='object'||Array.isArray(obj)))
+        throw httpError(503,'TUNEL_SHARD_INVALID');
+      return Object.values(obj||{}).filter(r=>
+        r&&r.tipo==='tunel'&&r.partida===record.partida&&
+        Number.isInteger(r.dia)&&r.dia<=ref.dia&&
+        typeof r.id==='string'&&RE_ID.test(r.id)&&
+        value(r.invId)&&nTramos(r).length);
+    }));
+    found.push(...batch.flat());
+  }
+  return found;
+}
+function resolverUbicacion(ref,record,tuneles){
+  const own=ubicacionDirecta(record);
+  const base={...own,sala:value(record.sala),origen:'registro',
+    registroTunelOrigen:null,estado:'directa'};
+  if(ref.tipo!=='carga'||(own.invernadero&&own.tramos.length))
+    return base;
+  const pool=(tuneles||[]).map(r=>({record:r,loc:ubicacionDirecta(r)}))
+    .filter(x=>x.loc.invernadero&&x.loc.tramos.length&&
+      compatInv(own.invernadero,x.loc.invernadero));
+  if(!pool.length)return {...base,estado:'sin_coincidencia_tunel'};
+  const amount=String(record.numBandejas??'').trim();
+  const byQty=amount?pool.filter(x=>String(x.record.numBandejas??'').trim()===amount):[];
+  // Coincidencia de número de bandejas es más fuerte que solo partida.
+  // Pero dos ubicaciones incompatibles con las mismas bandejas son ambiguas.
+  const options=byQty.length?byQty:pool;
+  const keys=new Set(options.map(x=>x.loc.invernadero+'|'+
+    JSON.stringify(x.loc.tramos)));
+  if(keys.size!==1){
+    // Se puede mantener un invernadero directo, pero no heredar una calle
+    // elegida arbitrariamente entre distintas líneas de Túnel.
+    return {...base,estado:'tunel_ambiguo'};
+  }
+  const winner=options.slice().sort((a,b)=>b.record.dia-a.record.dia||
+    a.record.id.localeCompare(b.record.id))[0];
+  return {invernadero:own.invernadero||winner.loc.invernadero,
+    tramos:own.tramos.length?own.tramos:winner.loc.tramos,
+    calleDesde:own.tramos.length?own.calleDesde:winner.loc.calleDesde,
+    calleHasta:own.tramos.length?own.calleHasta:winner.loc.calleHasta,
+    sala:value(record.sala)||value(winner.record.sala),
+    origen:'tunel',registroTunelOrigen:winner.record.id,
+    estado:byQty.length?'partida_y_bandejas':'partida_ubicacion_unica'};
+}
+async function metadata(ref,record,actor,token){
+  // Solo datos confirmados en Firebase; jamás confiar en la ubicación
+  // recibida del dispositivo. Los registros guardados son instantáneas.
+  const own=ubicacionDirecta(record);
+  const loc=ref.tipo==='carga'&&(!own.invernadero||!own.tramos.length)?
+    resolverUbicacion(ref,record,await leerTunelParaPartida(ref,record,token)):
+    resolverUbicacion(ref,record,[]);
   return {
     registroId:ref.id,partida:record.partida,tipo:ref.tipo,
     diaInterno:ref.dia,cliente:value(record.cliente),
     variedad:value(record.variedad),clienteVariedad:value(record.clienteVariedad),
-    sala:value(record.sala),invernadero:inv,
-    calleDesde:record.calleDesde??null,calleHasta:record.calleHasta??null,
-    tramos,numBandejas:record.numBandejas??null,
-    usuario:actor
+    sala:loc.sala,invernadero:loc.invernadero,
+    calleDesde:loc.calleDesde,calleHasta:loc.calleHasta,tramos:loc.tramos,
+    numBandejas:record.numBandejas??null,usuario:actor,
+    ubicacionOrigen:loc.origen,ubicacionEstado:loc.estado,
+    registroTunelOrigen:loc.registroTunelOrigen
   };
 }
 async function graphToken(){
@@ -283,7 +395,7 @@ async function storePhoto(session,photo,source){
   if(!found.etag)throw httpError(503,'PHOTO_INDEX_ETAG_MISSING');
   const token=await graphToken();
   const folder=await photoFolder(token,photo.ref,photo.capturedAt);
-  const attrs=metadata(photo.ref,source,session.actor);
+  const attrs=await metadata(photo.ref,source,session.actor,session.firebaseToken);
   const stem=safePart(source.partida,'SINPARTIDA')+'_'+photo.ref.tipo.toUpperCase()+
     '_'+folder.local.label+'_INV'+safePart(attrs.invernadero,'NA')+
     '_'+photo.photoId+'_'+photo.sha256.slice(0,10);
@@ -348,7 +460,7 @@ module.exports=async function handler(req,res){
     return res.status(200).json({
       ok:true,graphRead:'CONFIRMED',
       uploadEnabled:UPLOAD_ENABLED(),
-      ...(ref?{metadata:metadata(ref,source,session.actor),
+      ...(ref?{metadata:await metadata(ref,source,session.actor,session.firebaseToken),
         carpetaTipo:TYPES[ref.tipo]}:{})
     });
   }catch(e){
