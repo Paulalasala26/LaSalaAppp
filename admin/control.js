@@ -242,6 +242,13 @@
       const msg='✓ Foto QC vinculada a '+item.partida+' y guardada en SharePoint: '+
         result.record.sharepoint.name;
       photoPilotMessage(msg);
+      const url=result.record.sharepoint.webUrl;
+      if(typeof url==='string'&&url.startsWith('https://viveroslasala.sharepoint.com/')){
+        const link=node('a','Ver foto en SharePoint');
+        link.href=url;link.target='_blank';link.rel='noopener noreferrer';
+        link.style.marginLeft='8px';
+        el('qc-photo-connection-status').append(link);
+      }
     }catch(error){
       photoPilotMessage('✗ '+error.message+
         ' La foto sigue pendiente en esta pestaña: pulsa otra vez la cámara de la misma partida para reintentar.',true);
@@ -412,8 +419,8 @@
       try{result=await response.json();}catch(e){}
       if(response.ok&&result.ok===true&&result.graphRead==='CONFIRMED'){
         if(result.uploadEnabled===true){
-          status.textContent='Acceso a SharePoint confirmado. Aviso: la subida de fotos figura habilitada.';
-          status.className='operation-feedback error';
+          status.textContent='✓ SharePoint conectado · Piloto de fotos habilitado solo para ADMIN en TEST.';
+          status.className='operation-feedback ok';
         }else{
           status.textContent='✓ Acceso a SharePoint confirmado · Fotos QC. Subida de fotos desactivada.';
           status.className='operation-feedback ok';
