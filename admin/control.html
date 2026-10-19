@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="./catalog.css">
   <link rel="stylesheet" href="./control.css">
   <script src="./qc-photo-queue.js" defer></script>
+  <script src="./qc-offline-snapshot.js" defer></script>
   <script src="./control.js" defer></script>
 </head>
 <body>
@@ -57,6 +58,7 @@
         <div id="qc-photo-connection-status" class="operation-feedback" role="status" aria-live="polite" hidden></div>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
           <span id="qc-photo-queue-status" role="status" aria-live="polite" hidden></span>
+          <span id="qc-offline-ready" role="status" aria-live="polite" hidden></span>
           <button id="qc-photo-queue-retry" type="button" class="button ghost" hidden>Reintentar</button>
         </div>
         <input id="qc-photo-test-file" type="file" accept="image/*" capture="environment" hidden aria-label="Fotografía QC de prueba">
