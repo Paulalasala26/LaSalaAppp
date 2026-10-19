@@ -241,6 +241,18 @@ async function existingFile(token,folderId,name){
   return item;
 }
 async function putImmutable(token,folderId,name,content,mime,verifyBytes){
+  // Antes de subir, recuperar cualquier foto de un intento anterior.
+  // Nunca sobrescribir el archivo de otra captura, aunque Graph no aplique
+  // un encabezado condicional en una petición PUT de contenido.
+  const prior=await existingFile(token,folderId,name);
+  if(prior){
+    if(prior.size!==content.length)throw httpError(409,'PHOTO_FILENAME_CONFLICT');
+    const back=await graphCall(token,'GET',graphItem(prior.id)+'/content');
+    if(!back.ok)throw httpError(502,'GRAPH_READBACK_FAILED');
+    const actual=Buffer.from(await back.arrayBuffer());
+    if(!actual.equals(content))throw httpError(409,'PHOTO_FILENAME_CONFLICT');
+    return prior;
+  }
   const path=graphItem(folderId)+':/'+encodeURIComponent(name)+':/content';
   const response=await fetch(GRAPH+path,{
     method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':mime,
@@ -320,6 +332,8 @@ module.exports=async function handler(req,res){
     const photo=req.method==='POST'?photoInput(body):null;
     const ref=diagnostic?null:(photo?.ref||reference(req.query));
     const session=await authorize(req,ref?.tipo||null);
+    // Piloto: solo ADMIN puede subir fotos; técnicos siguen en flujo legado.
+    if(photo&&session.role!=='ADMIN')throw httpError(403,'PILOT_ADMIN_ONLY');
     if(diagnostic&&session.role!=='ADMIN')throw httpError(403,'FORBIDDEN');
     const source=ref?await sourceFor(ref,session.firebaseToken):null;
     if(photo){
