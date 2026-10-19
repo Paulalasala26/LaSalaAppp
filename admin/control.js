@@ -231,7 +231,12 @@
           GRAPH_UPLOAD_FAILED:'SharePoint no ha confirmado la subida.',
           PHOTO_TOO_LARGE:'La foto supera el tamaño permitido.',
           CONTROL_RECORD_CHANGED:'La ficha de Control ha cambiado. No se ha subido.',
-          PHOTO_INDEX_WRITE_FAILED:'SharePoint pudo recibir la foto, pero Firebase no confirmó el índice.'
+          PHOTO_INDEX_WRITE_FAILED:'SharePoint pudo recibir la foto, pero Firebase no confirmó el índice.',
+          QC_NEW_LIBRARY_NOT_READY:'La biblioteca nueva no tiene las 20 columnas válidas. No se ha iniciado la subida.',
+          QC_NEW_PERMISSION_DENIED:'La biblioteca nueva ha rechazado el permiso de subida.',
+          QC_NEW_METADATA_WRITE_FAILED:'Foto recibida en la biblioteca nueva, pero las columnas de metadatos no se han podido guardar. Reintenta la misma captura.',
+          QC_NEW_METADATA_VERIFY_FAILED:'No se ha podido confirmar el guardado de las columnas. Reintenta la misma captura.',
+          QC_NEW_UPLOAD_FAILED:'SharePoint no ha confirmado la subida a la biblioteca nueva.'
         };
         throw new Error(errors[result.error]||
           'Subida no confirmada (HTTP '+response.status+', '+(result.error||'error desconocido')+').');
@@ -432,7 +437,9 @@
           details.style.marginTop='7px';
           if(v.estado==='LECTURA_CONFIRMADA'){
             details.textContent='✓ Biblioteca nueva: '+v.columnas+'/'+v.esperadas+
-              ' columnas · lectura Graph autorizada · cambio de destino pendiente.';
+              ' columnas · lectura Graph autorizada · '+(v.destinoActivo?
+                'destino de fotos ACTIVADO en TEST (sin JSON).':
+                'cambio de destino pendiente.');
           }else{
             details.textContent='Biblioteca nueva: '+v.columnas+'/'+v.esperadas+
               ' columnas · estado '+v.estado+
