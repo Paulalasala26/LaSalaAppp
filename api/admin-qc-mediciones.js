@@ -170,7 +170,7 @@ module.exports=async function handler(req,res){
       resultadoQC:null
     };
     phase='WRITE';
-    const write=await fetch(pathFor(ref.id)+'?print=silent',{
+    const write=await fetch(pathFor(ref.id),{
       method:'PUT',
       headers:{
         Authorization:'Bearer '+token,
