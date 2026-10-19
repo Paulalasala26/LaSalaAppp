@@ -130,6 +130,96 @@
     if(!obj||typeof obj!=='object'||Array.isArray(obj))return [];
     return Object.keys(obj).filter(k=>obj[k]===true);
   }
+  // Galería de fotos NUEVAS QC almacenadas en SharePoint.
+  // El circuito de fotografías histórico se mantiene separado y sin cambios.
+  let galleryPhotos=[],galleryOffset=0,galleryJwt=null,galleryRef=null;
+  const galleryUrls=[];
+  function galleryTime(iso){
+    if(!iso||!Number.isFinite(Date.parse(iso)))return 'Fecha no disponible';
+    return new Date(iso).toLocaleString('es-ES',{
+      timeZone:'Europe/Madrid',day:'2-digit',month:'2-digit',year:'numeric',
+      hour:'2-digit',minute:'2-digit'
+    });
+  }
+  async function photoThumbnail(photo,link,placeholder){
+    try{
+      const query=new URLSearchParams({
+        id:galleryRef.id,tipo:galleryRef.tipo,dia:String(galleryRef.dia),
+        image:photo.photoId
+      });
+      const response=await fetch('/api/qc-fotos-galeria?'+query.toString(),{
+        method:'GET',headers:{Authorization:'Bearer '+galleryJwt},
+        cache:'no-store',signal:AbortSignal.timeout(30000)
+      });
+      if(!response.ok)throw new Error('PREVIEW_UNAVAILABLE');
+      const type=response.headers.get('content-type')||'';
+      if(!/^image\/(jpeg|png|webp|heic)\b/.test(type))throw new Error('INVALID_IMAGE');
+      const data=await response.blob();
+      if(data.size>2700000)throw new Error('PHOTO_TOO_LARGE');
+      const url=URL.createObjectURL(data);
+      galleryUrls.push(url);
+      if(!placeholder.isConnected){URL.revokeObjectURL(url);return;}
+      const img=node('img',null,'qcu-photo-preview');
+      img.src=url;img.alt='Fotografía QC de '+(photo.partida||'partida');
+      img.loading='lazy';
+      link.replaceChildren(img);
+    }catch(e){
+      placeholder.textContent='Vista previa no disponible · Abrir foto';
+    }
+  }
+  function renderGalleryBatch(){
+    const grid=el('qcu-photo-grid'),batch=galleryPhotos.slice(galleryOffset,galleryOffset+6);
+    for(const photo of batch){
+      const card=node('article',null,'qcu-photo-card');
+      const link=node('a',null);
+      link.href=photo.webUrl;
+      link.target='_blank';link.rel='noopener noreferrer';
+      link.title='Abrir fotografía en SharePoint';
+      const placeholder=node('div','Cargando imagen…','qcu-photo-preview qcu-photo-loading');
+      link.append(placeholder);
+      card.append(link);
+      card.append(node('div',galleryTime(photo.capturedAt),'qcu-photo-meta'));
+      const meta=[photo.usuario,photo.invernadero?'INV '+photo.invernadero:null]
+        .filter(Boolean).join(' · ');
+      if(meta)card.append(node('div',meta,'qcu-photo-meta'));
+      card.append(node('a','Ver en SharePoint'));
+      const open=card.lastElementChild;
+      open.href=photo.webUrl;open.target='_blank';open.rel='noopener noreferrer';
+      grid.append(card);
+      void photoThumbnail(photo,link,placeholder);
+    }
+    galleryOffset+=batch.length;
+    el('qcu-photo-more').hidden=galleryOffset>=galleryPhotos.length;
+  }
+  async function loadGallery(jwt,selected){
+    const status=el('qcu-photo-status'),grid=el('qcu-photo-grid');
+    grid.replaceChildren();galleryPhotos=[];galleryOffset=0;
+    galleryJwt=jwt;galleryRef={id:selected.id,tipo:selected.tipo,dia:selected.dia};
+    status.hidden=false;status.textContent='Consultando fotos…';
+    el('qcu-photo-more').hidden=true;
+    el('qcu-photo-count').textContent='';
+    try{
+      const q=new URLSearchParams({id:selected.id,tipo:selected.tipo,dia:String(selected.dia)});
+      const r=await fetch('/api/qc-fotos-galeria?'+q.toString(),{
+        headers:{Authorization:'Bearer '+jwt},cache:'no-store',
+        signal:AbortSignal.timeout(20000)
+      });
+      const result=await r.json().catch(()=>({}));
+      if(!r.ok||result.ok!==true||!Array.isArray(result.fotos))
+        throw new Error('GALLERY_UNAVAILABLE');
+      galleryPhotos=result.fotos;
+      const count=galleryPhotos.length;
+      el('qcu-photo-count').textContent=count?'('+count+')':'';
+      if(!count){
+        status.textContent='Sin fotografías nuevas en SharePoint. Las anteriores siguen disponibles en Control.';
+        return;
+      }
+      status.hidden=true;
+      renderGalleryBatch();
+    }catch(e){
+      status.textContent='No se han podido consultar las fotografías de SharePoint.';
+    }
+  }
   function renderIdentity(r){
     const root=el('qcu-fields');root.replaceChildren();
     const tipo=r.tipo==='tunel'?'Túnel':'Carga';
@@ -457,6 +547,7 @@
   }
   async function start(){
     el('qcu-form').addEventListener('submit',submit);
+    el('qcu-photo-more').addEventListener('click',renderGalleryBatch);
     el('qcu-inspected').addEventListener('input',()=>{
       el('qcu-validation').hidden=true;renderBalances();renderIndicators();
     });
@@ -481,6 +572,8 @@
       el('session-user').textContent=username;
       el('workspace').hidden=false;
       el('access-gate').hidden=true;
+      // La galería carga aparte: un fallo de imagen nunca bloquea la ficha QC.
+      void loadGallery(jwt,selected);
     }catch(e){
       const msg=e?.message==='NO_SELECTION'?'Selecciona primero un registro desde Backoffice → QC.':
         e?.message==='LOGIN_REQUIRED'?'Inicia sesión en ViguerAPP para continuar.':
@@ -492,5 +585,6 @@
       gate(msg);
     }
   }
+  window.addEventListener('pagehide',()=>{for(const url of galleryUrls)URL.revokeObjectURL(url);});
   start();
 })();
