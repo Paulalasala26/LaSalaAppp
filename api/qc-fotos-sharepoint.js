@@ -20,6 +20,7 @@ const TYPE_IDS=Object.freeze({
 });
 const PHOTO_INDEX='lasala-qc-fotos-sharepoint-v1';
 const UPLOAD_ENABLED=()=>process.env.GRAPH_QC_UPLOAD_ENABLED==='true';
+const NEW_LIBRARY_ENABLED=()=>process.env.GRAPH_QC_NEW_LIBRARY_ENABLED==='true';
 const PHOTO_RE=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MONTHS=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const RE_ID=/^[A-Za-z0-9_-]{1,180}$/;
@@ -468,6 +469,191 @@ async function putImmutable(token,folderId,name,content,mime,verifyBytes){
   if(!actual.equals(content))throw httpError(409,'PHOTO_FILENAME_CONFLICT');
   return existing;
 }
+
+// NUEVO ALMACENAMIENTO V2: biblioteca independiente con columnas en SharePoint.
+// Aislado del circuito histórico, desactivado si falta flag o una columna.
+// Se almacenan imagen + referencia Firebase; JAMÁS un JSON sidecar.
+const qcGraphItem=id=>'/drives/'+encodeURIComponent(QC_LIBRARY_DRIVE)+'/items/'+encodeURIComponent(id);
+async function qcNewFolder(token,parentId,name){
+  const endpoint=qcGraphItem(parentId)+':/'+encodeURIComponent(name);
+  let r=await graphCall(token,'GET',endpoint);
+  if(r.status===404){
+    r=await graphCall(token,'POST',qcGraphItem(parentId)+'/children',
+      JSON.stringify({name,folder:{},'@microsoft.graph.conflictBehavior':'fail'}));
+    if(r.status===409)r=await graphCall(token,'GET',endpoint);
+  }
+  if(!r.ok)throw httpError(502,'QC_NEW_FOLDER_ERROR');
+  const folder=await r.json();
+  if(folder.name!==name||!folder.folder||
+    (folder.parentReference?.id&&folder.parentReference.id!==parentId))
+    throw httpError(409,'QC_NEW_FOLDER_MISMATCH');
+  return folder.id;
+}
+async function qcNewPhotoFolder(token,ref,capturedAt){
+  const root=await graphCall(token,'GET','/drives/'+encodeURIComponent(QC_LIBRARY_DRIVE)+
+    '/root?$select=id,name,folder');
+  if(!root.ok)throw httpError(502,'QC_NEW_ROOT_UNAVAILABLE');
+  const base=await root.json();
+  if(base.id!=='01WYFOB256Y2GOVW7725BZO354PWSELRRZ'||!base.folder)
+    throw httpError(409,'QC_NEW_ROOT_MISMATCH');
+  const typ=await qcNewFolder(token,base.id,TYPES[ref.tipo]);
+  const date=localParts(capturedAt);
+  const year=await qcNewFolder(token,typ,date.year);
+  const month=date.month+' - '+MONTHS[Number(date.month)-1];
+  return {id:await qcNewFolder(token,year,month),
+    path:TYPES[ref.tipo]+'/'+date.year+'/'+month,local:date};
+}
+async function qcExistingFile(token,folderId,name){
+  const r=await graphCall(token,'GET',qcGraphItem(folderId)+':/'+encodeURIComponent(name));
+  if(r.status===404)return null;
+  if(!r.ok)throw httpError(502,'QC_NEW_PHOTO_LOOKUP_FAILED');
+  const file=await r.json();
+  if(file.name!==name||!file.file||file.parentReference?.id!==folderId)
+    throw httpError(409,'QC_NEW_PHOTO_FILE_MISMATCH');
+  return file;
+}
+async function qcPutPhotoImmutable(token,folderId,name,bytes,mime){
+  const prior=await qcExistingFile(token,folderId,name);
+  if(prior){
+    if(prior.size!==bytes.length)throw httpError(409,'QC_NEW_FILENAME_CONFLICT');
+    const read=await graphCall(token,'GET',qcGraphItem(prior.id)+'/content');
+    if(!read.ok)throw httpError(502,'QC_NEW_PHOTO_READBACK_FAILED');
+    const actual=Buffer.from(await read.arrayBuffer());
+    if(!actual.equals(bytes))throw httpError(409,'QC_NEW_FILENAME_CONFLICT');
+    return prior;
+  }
+  const r=await fetch(GRAPH+qcGraphItem(folderId)+':/'+encodeURIComponent(name)+':/content',{
+    method:'PUT',
+    headers:{Authorization:'Bearer '+token,'Content-Type':mime,'If-None-Match':'*'},
+    body:bytes,cache:'no-store',signal:AbortSignal.timeout(25000)
+  });
+  if(r.status===401||r.status===403)throw httpError(403,'QC_NEW_PERMISSION_DENIED');
+  if(r.ok){
+    const uploaded=await r.json();
+    if(!uploaded.id||uploaded.name!==name||!uploaded.file)
+      throw httpError(502,'QC_NEW_UPLOAD_NOT_CONFIRMED');
+    return uploaded;
+  }
+  if(r.status!==409&&r.status!==412)throw httpError(502,'QC_NEW_UPLOAD_FAILED');
+  const existing=await qcExistingFile(token,folderId,name);
+  if(!existing||existing.size!==bytes.length)
+    throw httpError(409,'QC_NEW_FILENAME_CONFLICT');
+  const read=await graphCall(token,'GET',qcGraphItem(existing.id)+'/content');
+  if(!read.ok)throw httpError(502,'QC_NEW_PHOTO_READBACK_FAILED');
+  if(!Buffer.from(await read.arrayBuffer()).equals(bytes))
+    throw httpError(409,'QC_NEW_FILENAME_CONFLICT');
+  return existing;
+}
+function qcDateOfDia(dia){
+  // La numeración QC parte del 15/06/2026, con diaInterno=15.
+  return new Date(Date.UTC(2026,5,15)+(dia-15)*86400000).toISOString().slice(0,10);
+}
+function qcNumber(v){
+  if(v===undefined||v===null||v==='')return null;
+  const n=Number(v);
+  return Number.isSafeInteger(n)&&n>=0?n:null;
+}
+function qcPhotoFields(photo,source,attrs,uploadedAt){
+  const fields={
+    QCRegistroId:photo.ref.id,
+    QCFotoId:photo.photoId,
+    QCPartida:source.partida,
+    QCTipo:photo.ref.tipo,
+    QCFechaControl:qcDateOfDia(photo.ref.dia)+'T00:00:00Z',
+    QCCapturadaUTC:photo.capturedAt,
+    QCSubidaUTC:uploadedAt
+  };
+  const simple={
+    QCCliente:attrs.cliente,QCVariedad:attrs.variedad,
+    QCClienteVariedad:attrs.clienteVariedad,QCSala:attrs.sala,
+    QCInvernadero:attrs.invernadero,QCUsuario:attrs.usuario,
+    QCUbicacionOrigen:attrs.ubicacionOrigen,
+    QCUbicacionEstado:attrs.ubicacionEstado,
+    QCRegistroTunelOrigen:attrs.registroTunelOrigen
+  };
+  for(const [key,val] of Object.entries(simple)){
+    if(typeof val==='string'&&val.trim())fields[key]=val.slice(0,255);
+  }
+  for(const [key,val] of Object.entries({
+    QCCalleDesde:attrs.calleDesde,QCCalleHasta:attrs.calleHasta,
+    QCBandejas:attrs.numBandejas
+  })){
+    const num=qcNumber(val);
+    if(num!==null)fields[key]=num;
+  }
+  if(Array.isArray(attrs.tramos)&&attrs.tramos.length)
+    fields.QCTramos=JSON.stringify(attrs.tramos);
+  return fields;
+}
+async function qcAssignFields(token,image,fields){
+  let listItemId=image.sharepointIds?.listItemId;
+  if(!/^[1-9]\d{0,19}$/.test(String(listItemId||''))){
+    const lookup=await graphCall(token,'GET',qcGraphItem(image.id)+
+      '?$select=id,sharepointIds,parentReference');
+    if(!lookup.ok)throw httpError(502,'QC_NEW_ITEM_IDENTIFIERS_FAILED');
+    const fresh=await lookup.json();
+    if(fresh.id!==image.id||fresh.parentReference?.driveId!==QC_LIBRARY_DRIVE)
+      throw httpError(409,'QC_NEW_ITEM_DRIVE_MISMATCH');
+    listItemId=fresh.sharepointIds?.listItemId;
+  }
+  if(!/^[1-9]\d{0,19}$/.test(String(listItemId||'')))
+    throw httpError(502,'QC_NEW_LIST_ITEM_ID_MISSING');
+  const url='/sites/'+encodeURIComponent(QC_SITE)+'/lists/'+
+    encodeURIComponent(QC_LIBRARY_ID)+'/items/'+encodeURIComponent(String(listItemId))+'/fields';
+  const update=await graphCall(token,'PATCH',url,JSON.stringify(fields));
+  if(!update.ok){
+    // La foto puede existir en SP tras este fallo. Un reintento recupera
+    // exactamente sus mismos bytes antes de volver a escribir metadatos.
+    throw httpError(update.status===403?403:502,'QC_NEW_METADATA_WRITE_FAILED');
+  }
+  const check=await graphCall(token,'GET',url);
+  if(!check.ok)throw httpError(502,'QC_NEW_METADATA_VERIFY_FAILED');
+  const current=await check.json();
+  for(const key of ['QCRegistroId','QCFotoId','QCPartida','QCTipo']){
+    if(current[key]!==fields[key])throw httpError(502,'QC_NEW_METADATA_INCOMPLETE');
+  }
+  return {listItemId:String(listItemId)};
+}
+async function qcStoreNewPhoto(session,photo,source,attrs,found,token,uri){
+  const check=await verifyNewLibrary();
+  if(check.estado!=='LECTURA_CONFIRMADA'||check.columnas!==QC_REQUIRED_COLUMNS.length)
+    throw httpError(423,'QC_NEW_LIBRARY_NOT_READY');
+  const folder=await qcNewPhotoFolder(token,photo.ref,photo.capturedAt);
+  // Filename independiente de la ubicación y la partida, que pueden cambiar
+  // entre una captura y su reintento. La partida es columna de SharePoint.
+  const filename='QC_'+photo.ref.tipo.toUpperCase()+'_'+folder.local.label+
+    '_'+photo.photoId+'_'+photo.sha256.slice(0,10)+'.'+photo.extension;
+  const image=await qcPutPhotoImmutable(token,folder.id,filename,photo.bytes,photo.mime);
+  const uploadedAt=image.createdDateTime;
+  if(typeof uploadedAt!=='string'||!Number.isFinite(Date.parse(uploadedAt)))
+    throw httpError(502,'QC_NEW_CREATED_AT_MISSING');
+  const fields=qcPhotoFields(photo,source,attrs,uploadedAt);
+  const {listItemId}=await qcAssignFields(token,image,fields);
+  if(typeof image.webUrl!=='string'||
+     !image.webUrl.startsWith('https://viveroslasala.sharepoint.com/sites/Tecnologia/ViguerAPP%20Fotos%20QC/'))
+    throw httpError(502,'QC_NEW_FILE_URL_UNAVAILABLE');
+  const record={
+    schemaVersion:1,photoId:photo.photoId,
+    registroId:photo.ref.id,tipo:photo.ref.tipo,dia:photo.ref.dia,
+    capturedAt:photo.capturedAt,uploadedAt,sha256:photo.sha256,
+    metadata:attrs,
+    sharepoint:{driveId:QC_LIBRARY_DRIVE,itemId:image.id,
+      listId:QC_LIBRARY_ID,listItemId,
+      webUrl:image.webUrl,name:filename,folder:folder.path}
+  };
+  const update=await fetch(uri,{
+    method:'PUT',headers:{Authorization:'Bearer '+session.firebaseToken,
+      'Content-Type':'application/json','if-match':found.etag},
+    body:JSON.stringify(record),signal:AbortSignal.timeout(12000)
+  });
+  if(update.status===412){
+    const fresh=await firebaseGet(uri,session.firebaseToken,false);
+    return {created:false,record:verifyPrior(fresh.value,photo)};
+  }
+  if(!update.ok)throw httpError(503,'PHOTO_INDEX_WRITE_FAILED');
+  return {created:true,record};
+}
+
 async function storePhoto(session,photo,source){
   const uri=photoUrl(photo.ref,photo.photoId);
   const found=await firebaseGet(uri,session.firebaseToken,true);
@@ -475,8 +661,10 @@ async function storePhoto(session,photo,source){
   if(previous)return {created:false,record:previous};
   if(!found.etag)throw httpError(503,'PHOTO_INDEX_ETAG_MISSING');
   const token=await graphToken();
-  const folder=await photoFolder(token,photo.ref,photo.capturedAt);
   const attrs=await metadata(photo.ref,source,session.actor,session.firebaseToken);
+  if(NEW_LIBRARY_ENABLED())
+    return qcStoreNewPhoto(session,photo,source,attrs,found,token,uri);
+  const folder=await photoFolder(token,photo.ref,photo.capturedAt);
   const stem=safePart(source.partida,'SINPARTIDA')+'_'+photo.ref.tipo.toUpperCase()+
     '_'+folder.local.label+'_INV'+safePart(attrs.invernadero,'NA')+
     '_'+photo.photoId+'_'+photo.sha256.slice(0,10);
@@ -551,6 +739,7 @@ module.exports=async function handler(req,res){
       ok:true,graphRead:'CONFIRMED',
       ...(diagnostic?{bibliotecaNueva}:{}),
       uploadEnabled:UPLOAD_ENABLED(),
+      nuevoDestinoHabilitado:NEW_LIBRARY_ENABLED(),
       ...(ref?{metadata:attrs,carpetaTipo:TYPES[ref.tipo]}:{}),
       ...(candidatesRequested&&ref?.tipo==='carga'?
         {diagnosticoTunel:needTunnel?diagnosticoCandidatosTunel(source,matches):
