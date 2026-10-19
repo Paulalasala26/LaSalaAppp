@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#1558a0">
+<title>ViguerAPP · Captura QC sin conexión</title>
+<style>
+:root{color-scheme:light;font:16px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;color:#17324f;background:#f3f7fb}
+*{box-sizing:border-box}body{margin:0}header{background:#1558a0;color:#fff;padding:16px 20px}
+header strong{font-size:1.1rem}main{max-width:860px;margin:20px auto;padding:0 14px}
+section{padding:18px;background:#fff;border:1px solid #dae3ef;border-radius:10px;margin-bottom:14px}
+h1{font-size:1.25rem;margin:0 0 8px}p{margin:6px 0;color:#53677e}
+button,.button{border:1px solid #1558a0;background:#1558a0;color:white;border-radius:7px;padding:9px 13px;font:inherit;cursor:pointer;text-decoration:none;display:inline-block}
+button:disabled{background:#aab8c8;border-color:#aab8c8}
+input[type=search]{padding:11px;width:100%;border:1px solid #aab8c8;border-radius:7px;margin:10px 0}
+.item{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid #e1e8f1}
+.item div{flex:1;min-width:0}.item strong{display:block}.item span{font-size:13px;color:#53677e}
+.status{padding:10px 12px;border:1px solid #b8c7d9;background:#f5f8fd;border-radius:7px;white-space:pre-wrap;overflow-wrap:anywhere}
+.warn{background:#fff6eb;color:#7a4900;border-color:#efd4a9}
+.small{font-size:13px}
+</style>
+<script src="./qc-photo-queue.js" defer></script>
+<script src="./qc-offline-snapshot.js" defer></script>
+<script src="./qc-sin-conexion.js" defer></script>
+</head>
+<body>
+<header><strong>ViguerAPP · QC</strong> <span style="float:right">SIN CONEXIÓN · TEST</span></header>
+<main>
+<section>
+<h1>Captura QC sin conexión</h1>
+<p>Solo fotografías de controles consultados previamente como administrador. No permite editar ni actualizar controles.</p>
+<p id="qc-offline-state" class="status" role="status">Comprobando los datos disponibles…</p>
+<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px">
+<span id="qc-offline-pending" class="small"></span>
+<a class="button" href="./control.html">Volver a QC al recuperar conexión</a>
+</div>
+</section>
+<section id="qc-offline-capture" hidden>
+<h1>Controles disponibles</h1>
+<input id="qc-offline-search" type="search" placeholder="Buscar por partida" aria-label="Buscar partida">
+<div id="qc-offline-items"></div>
+<p class="small" id="qc-offline-count"></p>
+</section>
+<input id="qc-offline-image" type="file" accept="image/*" capture="environment" hidden aria-label="Fotografía QC offline">
+</main>
+</body>
+</html>
