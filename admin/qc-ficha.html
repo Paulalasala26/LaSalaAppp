@@ -63,6 +63,13 @@
 @media(max-width:800px){.qci-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:800px){.qcu-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.qcu-groups{grid-template-columns:1fr}}
 @media(max-width:520px){.qcu-fields{grid-template-columns:1fr}.qcu-panel{padding:13px}.qcu-option{grid-template-columns:minmax(0,1fr) 102px}}
+.qcu-photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-top:10px}
+.qcu-photo-card{border:1px solid #dbe5ee;border-radius:9px;padding:8px;min-width:0}
+.qcu-photo-card a{color:#1558a0;text-decoration:none;font-weight:750;font-size:12px}
+.qcu-photo-card a:hover{text-decoration:underline}
+.qcu-photo-preview{height:130px;width:100%;object-fit:cover;border-radius:6px;background:#f0f4f9;display:block;margin-bottom:7px}
+.qcu-photo-loading{display:flex;align-items:center;justify-content:center;text-align:center;font-size:12px;color:#586a7c;background:#f0f4f9}
+.qcu-photo-meta{font-size:11px;color:#576c81;line-height:1.5;margin:5px 0}
 </style>
 <script src="./qc-indicadores.js" defer></script>
 <script src="./qc-ficha.js" defer></script>
@@ -90,6 +97,12 @@
 <section class="qcu-panel" aria-labelledby="qcu-title">
 <h2 id="qcu-title">Partida</h2>
 <div id="qcu-fields" class="qcu-fields"></div>
+</section>
+<section class="qcu-panel" aria-labelledby="qcu-photo-title">
+<h2 id="qcu-photo-title">Fotografías QC <span id="qcu-photo-count"></span></h2>
+<div id="qcu-photo-status" class="qcu-note" role="status" aria-live="polite">Cargando fotografías…</div>
+<div id="qcu-photo-grid" class="qcu-photo-grid"></div>
+<div class="qcu-actions"><button id="qcu-photo-more" type="button" class="button ghost" hidden>Mostrar más</button></div>
 </section>
 <section class="qcu-panel qcu-original-panel" aria-labelledby="qcu-legacy-title">
 <details class="qcu-original-details">
