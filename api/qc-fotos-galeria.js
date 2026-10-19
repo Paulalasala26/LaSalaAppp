@@ -7,6 +7,7 @@ const {
 }=require('./admin-users')._adminCatalogHelpers;
 const DB='https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app';
 const DRIVE_ID='b!ltDlxMPStUSPKosa8hjEBT4XEdc922lLvESLlmS3tQy9OIm9vYUbQaLFfZMlWFvb';
+const NEW_DRIVE='b!ltDlxMPStUSPKosa8hjEBT4XEdc922lLvESLlmS3tQxokMa64jH2TYc0jEIElgDX';
 const PREFIX='lasala-qc-fotos-sharepoint-v1';
 const APP_ID='30160dc5-85af-4134-b865-86d1ff8fadbd';
 const PHOTO_ID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -53,8 +54,9 @@ function sharepointUrl(text){
     const url=new URL(text);
     if(url.protocol!=='https:'||url.hostname!=='viveroslasala.sharepoint.com')return null;
     const path=decodeURIComponent(url.pathname);
-    if(!path.startsWith('/sites/Tecnologia/Documentos compartidos/Recursos/10 - ViguerAPP/10 - Fotos QC/'))
-      return null;
+    const old='/sites/Tecnologia/Documentos compartidos/Recursos/10 - ViguerAPP/10 - Fotos QC/';
+    const current='/sites/Tecnologia/ViguerAPP Fotos QC/';
+    if(!path.startsWith(old)&&!path.startsWith(current))return null;
     if(url.username||url.password||url.search||url.hash)return null;
     return url.toString();
   }catch(e){return null}
@@ -64,10 +66,17 @@ function checkedRecord(entry,key,ref){
      entry.schemaVersion!==1||entry.photoId!==key||!PHOTO_ID.test(key)||
      entry.registroId!==ref.id||entry.tipo!==ref.tipo||entry.dia!==ref.dia||
      !SHA.test(entry.sha256)||!GRAPH_ITEM.test(entry.sharepoint?.itemId)||
-     entry.sharepoint.driveId!==DRIVE_ID)
+     ![DRIVE_ID,NEW_DRIVE].includes(entry.sharepoint.driveId))
     throw httpError(503,'PHOTO_INDEX_INVALID');
   const url=sharepointUrl(entry.sharepoint.webUrl);
   if(!url)throw httpError(503,'PHOTO_LINK_INVALID');
+  const pathname=decodeURIComponent(new URL(url).pathname);
+  if(entry.sharepoint.driveId===DRIVE_ID&&
+     !pathname.startsWith('/sites/Tecnologia/Documentos compartidos/Recursos/10 - ViguerAPP/10 - Fotos QC/'))
+    throw httpError(503,'PHOTO_DRIVE_URL_MISMATCH');
+  if(entry.sharepoint.driveId===NEW_DRIVE&&
+     !pathname.startsWith('/sites/Tecnologia/ViguerAPP Fotos QC/'))
+    throw httpError(503,'PHOTO_DRIVE_URL_MISMATCH');
   if(typeof entry.capturedAt!=='string'||!Number.isFinite(Date.parse(entry.capturedAt)))
     throw httpError(503,'PHOTO_DATE_INVALID');
   return {
@@ -77,7 +86,8 @@ function checkedRecord(entry,key,ref){
     invernadero:entry.metadata?.invernadero||null,
     ubicacionEstado:entry.metadata?.ubicacionEstado||null,
     usuario:entry.metadata?.usuario||null,
-    sha256:entry.sha256,itemId:entry.sharepoint.itemId
+    sha256:entry.sha256,itemId:entry.sharepoint.itemId,
+    driveId:entry.sharepoint.driveId
   };
 }
 async function gallery(ref,token){
@@ -112,7 +122,7 @@ async function photoBytes(item){
   const token=await graphToken();
   // El ID procede exclusivamente del índice del registro autenticado.
   const url='https://graph.microsoft.com/v1.0/drives/'+
-    encodeURIComponent(DRIVE_ID)+'/items/'+encodeURIComponent(item.itemId)+'/content';
+    encodeURIComponent(item.driveId)+'/items/'+encodeURIComponent(item.itemId)+'/content';
   const r=await fetch(url,{
     headers:{Authorization:'Bearer '+token},cache:'no-store',
     signal:AbortSignal.timeout(20000)
@@ -158,7 +168,7 @@ module.exports=async function handler(req,res){
     }
     return res.status(200).json({
       ok:true,registroId:ref.id,tipo:ref.tipo,total:all.length,
-      fotos:all.map(({itemId,sha256,...safe})=>safe)
+      fotos:all.map(({itemId,driveId,sha256,...safe})=>safe)
     });
   }catch(e){
     const status=e.httpStatus||503;
