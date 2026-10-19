@@ -54,6 +54,7 @@
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><a href="./qc-dashboard.html" class="button ghost">Panel QC</a><a href="./qc-criterios.html" class="button ghost">Criterios QC</a><a href="./gs.html" class="button ghost" title="Previsualizar PDF de partidas GS, sin importar datos">Partidas GS</a><button id="qc-photo-connection" type="button" class="button ghost" title="Verificar acceso de ViguerAPP a la carpeta Fotos QC de SharePoint">Conexión fotos QC</button><button id="qc-reload" type="button" class="button ghost">Actualizar</button></div>
         </div>
         <div id="qc-photo-connection-status" class="operation-feedback" role="status" aria-live="polite" hidden></div>
+        <input id="qc-photo-test-file" type="file" accept="image/*" capture="environment" hidden aria-label="Fotografía QC de prueba">
         <div id="qc-feedback" class="operation-feedback" role="status" aria-live="polite" hidden></div>
         <form id="qc-form" class="qc-filters">
           <div><label for="qc-type">Tipo de control</label>
