@@ -421,6 +421,31 @@
     }
     return {errors,total,mediciones:clean};
   }
+  // Tras una respuesta de guardado incierta, solo LEER la misma medición.
+  // Nunca reintentar la escritura automáticamente (evita duplicados/conflictos).
+  async function verificarGuardadoIncierto(jwt,ref,expected,previousVersion){
+    if(!jwt)return {state:'unknown'};
+    try{
+      const q=new URLSearchParams({id:ref.id,tipo:ref.tipo,dia:String(ref.dia)});
+      const response=await fetch(API+'?'+q.toString(),{
+        method:'GET',headers:{Authorization:'Bearer '+jwt},cache:'no-store'
+      });
+      if(!response.ok)return {state:'unknown'};
+      const data=await response.json();
+      if(!data.ok||data.sourcePartida!==ref.partida)return {state:'unknown'};
+      const saved=data.record;
+      if(!saved)return {state:'absent'};
+      if(!Number.isInteger(saved.version)||saved.version<=previousVersion)
+        return {state:'different'};
+      const same=saved.bandejasInspeccionadas===expected.total &&
+        Object.keys(expected.mediciones).every(cat=>{
+          const a=expected.mediciones[cat],b=saved.mediciones?.[cat];
+          return !!b && Object.keys(a).length===Object.keys(b).length &&
+            Object.keys(a).every(key=>a[key]===b[key]);
+        });
+      return same?{state:'confirmed',value:saved}:{state:'different'};
+    }catch(_){return {state:'unknown'};}
+  }
   async function save(e){
     e.preventDefault();
     if(!active||!record||writing)return;
@@ -430,7 +455,8 @@
       report('Sin conexión. No guardado.','error');return;
     }
     const editor=active;
-    let confirmed=false;
+    let confirmed=false,jwt=null,requestSent=false;
+    const refAtSave={...record},versionAtSave=version;
     writing=true;
     // Los campos quedan congelados hasta confirmar la escritura.
     active.querySelectorAll('.qco-total input, .qco-cat input[type="number"]')
@@ -441,7 +467,8 @@
     report('Guardando…','');
     try{
       if(!(await settleNotes()))throw Error('NOTES_FAILED');
-      const jwt=await token();
+      jwt=await token();
+      requestSent=true;
       const r=await fetch(API,{
         method:'POST',headers:{Authorization:'Bearer '+jwt,'Content-Type':'application/json'},
         body:JSON.stringify({
@@ -449,21 +476,46 @@
           version,bandejasInspeccionadas:checked.total,mediciones:checked.mediciones
         }),cache:'no-store'
       });
-      if(r.status===403)throw Error('FORBIDDEN');
-      if(r.status===409)throw Error('CONFLICT');
-      if(!r.ok)throw Error('SAVE_FAILED');
+      if(!r.ok){
+        const errorPayload=await r.json().catch(()=>null);
+        const code=typeof errorPayload?.error==='string'&&/^[A-Z0-9_]{1,45}$/.test(errorPayload.error)
+          ?' '+errorPayload.error:'';
+        if(r.status===403)throw Error('FORBIDDEN');
+        if(r.status===409)throw Error('CONFLICT');
+        throw Error('HTTP '+r.status+code);
+      }
       const data=await r.json();
-      if(!data.ok||!Number.isInteger(data.version))throw Error('SAVE_FAILED');
+      if(!data.ok||!Number.isInteger(data.version))throw Error('INVALID_RESPONSE');
       version=data.version;original=JSON.stringify(snapshot());
       savedMeasurement={version,bandejasInspeccionadas:checked.total,mediciones:checked.mediciones};
       confirmed=true;
     }catch(err){
-      report(err.message==='NOTES_FAILED'?
-        'No se han podido guardar las observaciones. Revisa antes de continuar.':
-        err.message==='CONFLICT'?
-        'Conflicto: datos modificados. Cierra y vuelve a abrir.':
-        err.message==='FORBIDDEN'?'Sin permiso para este estadio.':
-        'Guardado sin confirmar. Reabre para comprobar antes de repetir.','error');
+      const reason=String(err?.message||'').slice(0,80);
+      if(reason==='NOTES_FAILED')
+        report('No se han podido guardar las observaciones. Revisa antes de continuar.','error');
+      else if(reason==='CONFLICT')
+        report('Conflicto: datos modificados. Cierra y vuelve a abrir.','error');
+      else if(reason==='FORBIDDEN')
+        report('Sin permiso para este estadio.','error');
+      else if(reason==='LOGIN_REQUIRED')
+        report('No se ha podido autenticar la sesión. Vuelve a identificarte.','error');
+      else{
+        const state=requestSent?
+          await verificarGuardadoIncierto(jwt,refAtSave,checked,versionAtSave):{state:'unknown'};
+        if(state.state==='confirmed'){
+          version=state.value.version;
+          original=JSON.stringify(snapshot());
+          savedMeasurement=state.value;
+          confirmed=true;
+        }else if(state.state==='absent'){
+          report('No constan cantidades guardadas en el servidor. '+reason+
+            '. Conserva los valores y no repitas hasta revisar el fallo.','error');
+        }else if(state.state==='different'){
+          report('El servidor tiene datos distintos. Cierra y reabre para evitar sobrescrituras. '+reason,'error');
+        }else{
+          report('Guardado sin confirmar ('+(reason||'red')+'). Reabre antes de repetir.','error');
+        }
+      }
     }finally{
       writing=false;
       if(active===editor){
