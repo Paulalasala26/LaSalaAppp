@@ -169,7 +169,7 @@ function verifyPrior(old,photo){
   if(!old)return null;
   if(old.schemaVersion!==1||old.photoId!==photo.photoId||
      old.registroId!==photo.ref.id||old.tipo!==photo.ref.tipo||
-     old.dia!==photo.ref.dia||old.sha256!==photo.sha256)
+     old.dia!==photo.ref.dia||old.sha256!==photo.sha256||old.capturedAt!==photo.capturedAt)
     throw httpError(409,'PHOTO_ID_CONFLICT');
   return old;
 }
@@ -277,7 +277,10 @@ async function storePhoto(session,photo,source){
     '_'+photo.photoId+'_'+photo.sha256.slice(0,10);
   const filename=stem+'.'+photo.extension;
   const image=await putImmutable(token,folder.id,filename,photo.bytes,photo.mime);
-  const uploadedAt=new Date().toISOString();
+  // Usar la fecha persistente de Graph: un reintento no cambia el sidecar.
+  const uploadedAt=image.createdDateTime;
+  if(typeof uploadedAt!=='string'||!Number.isFinite(Date.parse(uploadedAt)))
+    throw httpError(502,'GRAPH_CREATED_AT_MISSING');
   const record={
     schemaVersion:1,photoId:photo.photoId,
     registroId:photo.ref.id,tipo:photo.ref.tipo,dia:photo.ref.dia,
