@@ -27,8 +27,10 @@
     const pending=Number(opts.pending)||0;
     const sync=pending>0?
       '<button type="button" class="qc-empty-secondary" onclick="sincronizarControlManual()"><i class="ti ti-refresh"></i> Sincronizar ('+pending+')</button>':'';
+    const pdfUrl=typeof opts.pdfUrl==='string'&&/^data:application\/pdf;base64,/i.test(opts.pdfUrl)?opts.pdfUrl:'';
     const pdf=opts.pdfNombre?
-      '<div class="qc-empty-file">PDF del día: '+esc(opts.pdfNombre)+'</div>':'';
+      '<div class="qc-empty-file">PDF del día: '+esc(opts.pdfNombre)+
+      (pdfUrl?' · <a href="'+esc(pdfUrl)+'" target="_blank" rel="noopener noreferrer">Ver PDF</a>':'')+'</div>':'';
     return '<div class="qc-empty-screen">'+
       '<h2 class="qc-empty-title">'+esc(opts.titulo)+'</h2>'+
       '<div class="qc-empty-date">'+
