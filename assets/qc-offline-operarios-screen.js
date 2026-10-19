@@ -32,6 +32,7 @@
         (r.inv?' · INV '+r.inv:'')+
         (r.calle!==null?' · Calle '+r.calle:'');
       left.append(text('span',info),text('span','Inspección '+r.id));
+      if(window.QCOfflineDraftEditor)window.QCOfflineDraftEditor.decorate(left,r);
       item.append(left,right);fragment.append(item);
     }
     list.append(fragment);
@@ -46,8 +47,11 @@
          !['ADMIN','TECNICO','CARGADOR'].includes(role))throw Error('LOGIN_REQUIRED');
       if(!window.QCOfflineOperarios)throw Error('OFFLINE_NOT_SUPPORTED');
       slices=await window.QCOfflineOperarios.list(auth.user,role);
+      const localDraftCount=window.QCOfflineDraftEditor?
+        await window.QCOfflineDraftEditor.init(auth.user,role).catch(()=>0):0;
       if(!slices.length){
-        $('status').textContent='No hay partidas preparadas o la copia ha caducado (24 h). Conéctate y abre Check Túnel o Check Carga.';
+        $('status').textContent='No hay partidas preparadas o la copia ha caducado (24 h). Conéctate y abre Check Túnel o Check Carga.'+
+          (localDraftCount?' Hay '+localDraftCount+' borradores locales conservados, sin sincronizar.':'');
         return;
       }
       const last=Math.max(...slices.map(s=>s.at));
