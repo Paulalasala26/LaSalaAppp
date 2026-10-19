@@ -121,6 +121,42 @@ async function checkQCActor(req,ref){
   if(!authorized||!validHash(accounts[actor]))throw httpError(403,'FORBIDDEN');
   return {actor,token};
 }
+// Consulta agrupada de estados cuantitativos: comparte despliegue con QC.
+// Solo lectura, validación por ID/tipo/día/partida; nunca escribe Firebase.
+function validarConsultaEstados(req){
+  if(req.modo!=='estados'||!TYPES.has(req.tipo)||
+     !Number.isInteger(req.dia)||req.dia<15||req.dia>4000||
+     !Array.isArray(req.registros)||req.registros.length<1||req.registros.length>60)
+    throw httpError(400,'INVALID_STATUS_QUERY');
+  const vistos=new Set();
+  for(const x of req.registros){
+    if(!x||typeof x!=='object'||!RE_ID.test(x.id)||
+       typeof x.partida!=='string'||!PART_RE.test(x.partida)||vistos.has(x.id))
+      throw httpError(400,'INVALID_STATUS_REFERENCE');
+    vistos.add(x.id);
+  }
+  return req;
+}
+async function consultarEstadosQC(req,res,data){
+  const q=validarConsultaEstados(data);
+  const {token}=await checkQCActor(req,{tipo:q.tipo});
+  const estados=Object.create(null);
+  for(let i=0;i<q.registros.length;i+=8){
+    const refs=q.registros.slice(i,i+8);
+    const loaded=await Promise.all(refs.map(async ref=>{
+      const {value}=await getJson(pathFor(ref.id),token,false);
+      if(value===null)return false;
+      try{
+        const stored=validateStored(value,{id:ref.id,tipo:q.tipo,dia:q.dia},ref.partida);
+        if(stored.version<1)return false;
+        validateMeasurements(stored);
+        return true;
+      }catch(_){return false;}
+    }));
+    refs.forEach((r,index)=>{estados[r.id]=loaded[index]});
+  }
+  return res.status(200).json({ok:true,tipo:q.tipo,dia:q.dia,estados});
+}
 module.exports=async function handler(req,res){
   res.setHeader('Cache-Control','no-store');
   res.setHeader('X-Content-Type-Options','nosniff');
@@ -131,6 +167,10 @@ module.exports=async function handler(req,res){
   let phase='REQUEST';
   try{
     const request=req.method==='GET'?req.query:inputOf(req);
+    if(req.method==='POST' && request?.modo==='estados'){
+      phase='STATUS_READ';
+      return await consultarEstadosQC(req,res,request);
+    }
     const ref=validRef(request);
     phase='AUTH';
     const {actor,token}=await checkQCActor(req,ref);

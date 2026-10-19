@@ -6295,9 +6295,9 @@ async function cargarEstadosQCDia(tipo,dia,registros){
     if(!(await ensureFirebaseIdTokenFresh())||!firebaseIdToken)throw Error('LOGIN_REQUIRED');
     const resultados=Object.create(null);
     for(let i=0;i<firmados.length;i+=60){
-      const response=await fetch('/api/admin-qc-estado',{
+      const response=await fetch('/api/admin-qc-mediciones',{
         method:'POST',headers:{Authorization:'Bearer '+firebaseIdToken,'Content-Type':'application/json'},
-        body:JSON.stringify({tipo,dia,registros:firmados.slice(i,i+60).map(c=>({id:c.id,partida:c.partida}))}),
+        body:JSON.stringify({modo:'estados',tipo,dia,registros:firmados.slice(i,i+60).map(c=>({id:c.id,partida:c.partida}))}),
         cache:'no-store'
       });
       if(!response.ok)throw Error('QC_STATUS_UNAVAILABLE');
