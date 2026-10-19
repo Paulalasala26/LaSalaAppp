@@ -163,6 +163,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 <script src="admin/qc-indicadores.js" defer></script>
 <script src="assets/control-qc-operativo.js" defer></script>
 <script src="assets/control-ui-empty.js" defer></script>
+<script src="assets/qc-offline-operarios-store.js" defer></script>
 </head>
 <body>
 
@@ -667,11 +668,21 @@ function guardarSesion(user){
 }
 function borrarSesion(){
   try{ localStorage.removeItem(SESION_KEY); }catch(e){}
+  try{ localStorage.removeItem('viguerapp-qc-offline-role-test-v1'); }catch(e){}
 }
 async function entrarApp(user, roleHint){
   currentUser=user;
   const rolesOk=await loadRolesFromCloud();
   currentUserRole = (rolesOk ? USER_ROLES[user] : null) || roleHint || USER_ROLES[user] || null;
+  try{
+    const roleKey='viguerapp-qc-offline-role-test-v1';
+    if(['ADMIN','TECNICO','CARGADOR'].includes(currentUserRole))
+      localStorage.setItem(roleKey,currentUserRole);
+    else localStorage.removeItem(roleKey);
+  }catch(_){}
+  // Preparar únicamente pantalla offline del frontend; mismo SW de push.
+  if('serviceWorker' in navigator)
+    void navigator.serviceWorker.register('sw.js').catch(()=>{});
   document.getElementById('admin-settings-link').style.display = currentUserRole==='ADMIN' ? 'grid' : 'none';
   console.log('📍 LOGIN:', {user, currentUserRole});
   document.getElementById('login-screen').style.display='none';
@@ -5116,6 +5127,7 @@ async function loadControlChecksSlice(tipo,q,forzar){
      (Date.now()-controlV2ShardCargadoEn[shardKey])<CONTROL_CHECKS_CACHE_TTL_MS) return true;
   try{
     const r=await fetchConReintentos(`${CLOUD_DB_URL}/${encodeURIComponent(shardKey)}.json`);
+    if(!r.ok)throw Error('HTTP '+r.status); // No sobrescribir caché con una respuesta de error.
     const obj=await r.json();
     const cloud=(obj && typeof obj==='object') ? obj : {};
 
@@ -5133,6 +5145,16 @@ async function loadControlChecksSlice(tipo,q,forzar){
     });
     controlChecksData=Array.from(map.values());
     controlV2ShardCargadoEn[shardKey]=Date.now();
+    // La copia local incluye SOLO referencias del shard recibidas del servidor.
+    // No copiar ediciones dirty, ni clientes, fotos, observaciones o contraseñas.
+    if(currentUser&&window.QCOfflineOperarios&&navigator.onLine!==false&&
+      (currentUserRole==='ADMIN'||currentUserRole==='TECNICO'||
+       (currentUserRole==='CARGADOR'&&tipo==='carga'))){
+      const source=Object.values(cloud).filter(t=>t&&t.tipo===tipo&&
+        Number.isInteger(t.dia)&&controlV2QDeDia(t.dia)===q);
+      void window.QCOfflineOperarios.save(currentUser,currentUserRole,tipo,q,source)
+        .catch(()=>{}); // Nunca bloquear la operación normal por almacenamiento local.
+    }
     return true;
   }catch(e){ return false; }
 }

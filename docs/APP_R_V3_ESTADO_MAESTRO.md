@@ -38,7 +38,7 @@
 
 ## 3. TRABAJO REALMENTE ABIERTO / NO VALIDADO EN TODA SU EXTENSIÓN
 
-1. **QC offline en frontend de operarios (PRÓXIMO BLOQUE).** Definir y probar qué partidas se consultan sin red, qué acciones son realmente posibles sin conexión y cómo se recupera la sesión. El prototipo offline del Backoffice **no habilita por sí solo** el frontend. No fingir guardado cuantitativo offline ni permitir éxito sin confirmación.
+1. **QC offline en frontend de operarios (EN PRUEBAS).** Implementada en TEST una **primera consulta de partidas, solo lectura**, con cacheo de los shards Túnel/Carga cargados desde el frontend y pantalla offline al reabrir la aplicación sin red. **PENDIENTE DE VALIDACIÓN REAL EN MÓVIL** (especialmente servicio worker, cuenta/rol, quincenas y caducidad de 24 h). No se ha habilitado guardado de cantidades ni fotos sin conexión. El piloto offline del Backoffice sigue siendo independiente.
 2. **Fotos QC offline y sincronización desde frontend operativo.** El piloto de cola persistente en IndexedDB, subida SharePoint, verificación y eliminación tras éxito existe en `admin/control.js`, `admin/qc-photo-queue.js` y `api/qc-fotos-sharepoint.js`. **Falta asegurar un flujo equivalente adaptado al operario**, sin acceso a Backoffice ni introducir formularios manuales: el operario captura la foto y los datos provienen de la inspección. Probar desconexión → captura → reconexión → vínculo único a inspección, sin duplicados.
 3. **Cierre visual/operativo de Control.** Solo las simplificaciones específicas que el usuario señale, respetando Túnel, Carga, PDF, guiones, calles, observaciones, fotos, Ginés y datos históricos. La ficha cuantitativa convive con legado: decidir si procede retirar duplicidades **después de la aceptación**, no presumir que falta todo el frontend.
 4. **Criterios/tolerancias QC.** Pantalla y motor existen; confirmar con negocio el contenido definitivo por estadio cuando se decida. No inventar límites; no rechazo automático.
@@ -73,12 +73,24 @@
 
 **Plantilla de anotación:** `AAAA-MM-DD | módulo | acción | evidencia (commit, prueba) | estado validado/implementado/pendiente | siguiente paso`.
 
+## 5.1. QC sin conexión — entrega incremental
+
+**Estado:** IMPLEMENTADO EN TEST, **NO VALIDADO POR USUARIO**. Preparado el 19/10/2026.
+
+- `assets/qc-offline-operarios-store.js`: almacenamiento local IndexedDB por usuario, rol, estadio y quincena; guarda únicamente ID, partida, fecha, nº bandejas comunicado y ubicación mínima. Sin cliente, fotos, credenciales ni copia de mediciones.
+- `qc-offline.html` + `assets/qc-offline-operarios-screen.js`: consulta móvil de snapshots de menos de 24 horas, búsqueda por partida y filtros estadio/quincena, sin acciones de edición.
+- `sw.js` (ya usado para push): solo cachea esos tres archivos estáticos y, si falla la navegación a la raíz, sirve la pantalla offline; no cachea `index.html` completo, APIs, Firebase ni tokens. Se registra al iniciar una sesión online.
+- `index.html`: al leer con éxito un shard QC se prepara su copia local; la sesión/rol deben coincidir al abrir la consulta. No crea nuevas API ni modifica la escritura de QC.
+
+**Prueba pendiente:** iniciar sesión online con TÉCNICO/CARGADOR, abrir una quincena con partidas, esperar la instalación del service worker, poner modo avión y navegar otra vez a la URL TEST. Debe aparecer la consulta previa sin permitir editar. Comprobar que al reconectar la app normal sigue funcionando. **No proclamar validado hasta que el usuario lo confirme.**
+
 ## 6. Registro de hitos recientes (resumen; no transcribir conversaciones)
 
 - **14/10**: Riego y su concurrencia corregidos; Registros de Riego e Histórico unificado, auditoría, filtros y CSV implementados/validados en el recorrido del usuario; reorganización de Avisos.
 - **15/10**: modelo QC, API y formularios de cuantificación; descartadas interpretaciones antiguas que no cuadraban cantidades; arquitectura de fotos SharePoint con piloto administrativo.
 - **19/10**: guardado real QC, ETag, protección cambios, validación cuadre por categorías, estados Inspeccionado/Completados, indicadores, fotos asociadas, ADMIN restringido y frontend operarios autorizados: **validaciones del usuario**. Túnel y Carga permanecen en ficha tras guardar (`60347e61`). **No reaperturar Riego ni Histórico:** el usuario corrige expresamente que ya están hechos.
 - **19/10, continuidad**: se detecta deriva de 30 chats/3 ChatGPT Projects con handovers sucesivos. Se instaura este único registro maestro para evitar pérdidas de contexto.
+- **19/10, offline operarios**: primera consulta local solo lectura implementada en TEST. Pendiente prueba móvil real; fotos y mediciones offline NO implementadas.
 
 **Ruta fija:** `docs/APP_R_V3_ESTADO_MAESTRO.md` en `test/v1.0`.
 

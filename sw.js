@@ -33,3 +33,42 @@ self.addEventListener('notificationclick', (event) => {
     })
   );
 });
+
+
+// QC operarios TEST: copia estática para abrir SOLO la consulta de partidas
+// previamente leídas. No almacenar API, Firebase, datos QC ni credenciales en CacheStorage.
+// Se integra en el SW existente para NO interferir en las suscripciones PUSH.
+const QC_SHELL_CACHE='viguerapp-qc-operarios-shell-test-v1';
+const QC_SHELL_PREFIX='viguerapp-qc-operarios-shell-test-';
+const QC_BASE=new URL('./',self.location.href).pathname;
+const QC_FILES=['qc-offline.html','assets/qc-offline-operarios-store.js',
+  'assets/qc-offline-operarios-screen.js'].map(p=>QC_BASE+p);
+self.addEventListener('install',event=>{
+  event.waitUntil(caches.open(QC_SHELL_CACHE).then(cache=>cache.addAll(QC_FILES)));
+});
+self.addEventListener('activate',event=>{
+  event.waitUntil(caches.keys().then(keys=>Promise.all(
+    keys.filter(k=>k.startsWith(QC_SHELL_PREFIX)&&k!==QC_SHELL_CACHE)
+      .map(k=>caches.delete(k))
+  )));
+});
+self.addEventListener('fetch',event=>{
+  const req=event.request;
+  if(req.method!=='GET')return;
+  const url=new URL(req.url);
+  if(url.origin!==self.location.origin)return;
+  if(req.mode==='navigate'&&(url.pathname===QC_BASE||url.pathname===QC_BASE+'index.html')){
+    event.respondWith((async()=>{
+      try{return await fetch(req)}
+      catch(_){return await caches.match(QC_FILES[0])||Response.error()}
+    })());
+    return;
+  }
+  if(QC_FILES.includes(url.pathname)){
+    event.respondWith((async()=>{
+      const cached=await caches.match(url.pathname);
+      if(cached)return cached;
+      try{return await fetch(req)}catch(_){return Response.error()}
+    })());
+  }
+});
