@@ -452,8 +452,8 @@
               const origin=m.ubicacionOrigen==='tunel'?
                 'Túnel ('+(m.registroTunelOrigen||m.ubicacionEstado)+')':
                 'Carga ('+(m.ubicacionEstado||'directa')+')';
-              line.textContent='Partida '+record.partida+': '+inv+' · Calle '+calle+
-                ' · Origen '+origin;
+              line.textContent='Partida '+record.partida+' · '+(record.numBandejas??'—')+
+                ' bandejas: '+inv+' · Calle '+calle+' · Origen '+origin;
               if(m.ubicacionEstado==='tunel_ambiguo'||
                  m.ubicacionEstado==='tunel_calle_ambigua'){
                 const diag=body.diagnosticoTunel;
