@@ -143,30 +143,46 @@
     location.assign('./qc-ficha.html');
   }
 
-  // Piloto de foto desde una partida QC del Backoffice, solo ADMIN.
-  // No altera la captura heredada de los operarios ni su cola offline.
-  let photoPilotRecord=null,photoPilotPending=null,photoPilotBusy=false;
+  // Piloto ADMIN: capturas QC con cola persistente separada de la app
+  // heredada. No hay subida sin haber confirmado antes escritura IndexedDB.
+  let photoPilotRecord=null,photoPilotBusy=false;
+  const queue=window.QCPhotoQueue;
   function photoPilotMessage(message,error){
     const output=el('qc-photo-connection-status');
     output.hidden=false;
     output.className='operation-feedback '+(error?'error':'ok');
     output.textContent=message;
   }
+  function photoOwner(){
+    let auth;
+    try{auth=JSON.parse(localStorage.getItem(STORE)||'null');}catch(_){}
+    if(typeof auth?.user!=='string'||!auth.user.trim()||!auth.refreshToken)
+      throw new Error('LOGIN_REQUIRED');
+    return auth.user;
+  }
+  async function photoQueueStatus(){
+    const label=el('qc-photo-queue-status'),button=el('qc-photo-queue-retry');
+    try{
+      if(!queue)throw new Error('OFFLINE_STORAGE_UNAVAILABLE');
+      const list=await queue.list(photoOwner());
+      label.hidden=!list.length;
+      label.textContent=list.length?
+        'Fotos pendientes: '+list.length+' · Guardadas en este navegador.':'';
+      button.hidden=!list.length;
+      button.disabled=photoPilotBusy||navigator.onLine===false;
+    }catch(error){
+      label.hidden=false;button.hidden=true;
+      label.textContent='No se puede comprobar el almacenamiento local de fotos.';
+    }
+  }
   function openPhotoPilot(rec){
     if(photoPilotBusy)return;
-    if(photoPilotPending){
-      if(photoPilotPending.id===rec.id){
-        void sendPhotoPilot();
-      }else{
-        photoPilotMessage('Hay una foto pendiente de la partida '+photoPilotPending.partida+
-          '. Vuelve a su fila para reintentar la subida. No se ha descartado.',true);
-      }
+    if(!queue){
+      photoPilotMessage('No está disponible la cola local. No se puede capturar la foto.',true);
       return;
     }
-    if(navigator.onLine===false){
-      photoPilotMessage('Sin conexión: no se ha hecho ninguna subida. Prueba cuando recuperes señal.',true);
-      return;
-    }
+    // Permite capturar sin cobertura; el envío lo realiza la cola al volver
+    // a abrir el Backoffice o al recuperarse la conexión.
     photoPilotRecord={id:rec.id,tipo:rec.tipo,dia:rec.dia,partida:rec.partida};
     const input=el('qc-photo-test-file');
     input.value='';
@@ -175,8 +191,6 @@
   async function encodePilotPhoto(file){
     if(!file||!/^image\/(jpeg|png|webp|heic|heif)$/.test(file.type))
       throw new Error('PHOTO_FORMAT');
-    // Decodificar a menor resolución si el navegador lo permite para evitar
-    // cargar en memoria imágenes móviles de decenas de megapíxeles.
     if(typeof createImageBitmap==='function'){
       let bitmap=null;
       try{
@@ -192,7 +206,7 @@
         throw new Error('PHOTO_SIZE');
       }catch(err){
         if(err.message==='PHOTO_SIZE')throw err;
-        // HEIC puede no ser decodificable en algunos navegadores.
+        // Algunos HEIC no se pueden decodificar con createImageBitmap.
       }finally{if(bitmap)bitmap.close();}
     }
     if(file.size>2450000)throw new Error('PHOTO_SIZE');
@@ -206,58 +220,73 @@
     return encoded;
   }
   async function sendPhotoPilot(){
-    const item=photoPilotPending;
-    if(photoPilotBusy||!item)return;
+    if(photoPilotBusy||!queue)return;
     photoPilotBusy=true;
-    photoPilotMessage('Guardando fotografía en SharePoint…');
     try{
-      const jwt=await getToken();
-      const response=await fetch('/api/qc-fotos-sharepoint',{
-        method:'POST',headers:{
-          Authorization:'Bearer '+jwt,'Content-Type':'application/json'
-        },
-        body:JSON.stringify({
-          id:item.id,tipo:item.tipo,dia:item.dia,photoId:item.photoId,
-          capturedAt:item.capturedAt,imageData:item.imageData
-        }),cache:'no-store',signal:AbortSignal.timeout(45000)
-      });
-      let result={};try{result=await response.json();}catch(e){}
-      if(!response.ok||result.ok!==true){
-        const errors={
-          SHAREPOINT_UPLOAD_NOT_ENABLED:'La subida sigue desactivada en Vercel TEST.',
-          PILOT_ADMIN_ONLY:'Solo ADMIN puede realizar esta prueba.',
-          PHOTO_INDEX_CONFLICT:'Existe un conflicto al registrar esta foto.',
-          GRAPH_SELECTED_PERMISSION_DENIED:'Graph no autoriza la escritura en Fotos QC.',
-          GRAPH_UPLOAD_FAILED:'SharePoint no ha confirmado la subida.',
-          PHOTO_TOO_LARGE:'La foto supera el tamaño permitido.',
-          CONTROL_RECORD_CHANGED:'La ficha de Control ha cambiado. No se ha subido.',
-          PHOTO_INDEX_WRITE_FAILED:'SharePoint pudo recibir la foto, pero Firebase no confirmó el índice.',
-          QC_NEW_LIBRARY_NOT_READY:'La biblioteca nueva no tiene las 20 columnas válidas. No se ha iniciado la subida.',
-          QC_NEW_PERMISSION_DENIED:'La biblioteca nueva ha rechazado el permiso de subida.',
-          QC_NEW_METADATA_WRITE_FAILED:'Foto recibida en la biblioteca nueva, pero las columnas de metadatos no se han podido guardar. Reintenta la misma captura.',
-          QC_NEW_METADATA_VERIFY_FAILED:'No se ha podido confirmar el guardado de las columnas. Reintenta la misma captura.',
-          QC_NEW_UPLOAD_FAILED:'SharePoint no ha confirmado la subida a la biblioteca nueva.'
-        };
-        throw new Error(errors[result.error]||
-          'Subida no confirmada (HTTP '+response.status+', '+(result.error||'error desconocido')+').');
+      const owner=photoOwner();
+      const pending=await queue.list(owner);
+      if(!pending.length)return;
+      if(navigator.onLine===false){
+        photoPilotMessage('Fotos guardadas localmente; se enviarán al recuperar conexión.');
+        return;
       }
-      if(result.photoId!==item.photoId||!result.record?.sharepoint?.itemId)
-        throw new Error('No se ha podido verificar el vínculo de la fotografía.');
-      photoPilotPending=null;
-      const msg='✓ Foto QC vinculada a '+item.partida+' y guardada en SharePoint: '+
-        result.record.sharepoint.name;
-      photoPilotMessage(msg);
-      const url=result.record.sharepoint.webUrl;
-      if(typeof url==='string'&&url.startsWith('https://viveroslasala.sharepoint.com/')){
-        const link=node('a','Ver foto en SharePoint');
-        link.href=url;link.target='_blank';link.rel='noopener noreferrer';
-        link.style.marginLeft='8px';
-        el('qc-photo-connection-status').append(link);
+      for(const item of pending){
+        if(photoOwner()!==owner)throw new Error('La sesión ha cambiado. Vuelve a entrar con el usuario que capturó las fotos.');
+        photoPilotMessage('Enviando foto pendiente de '+item.partida+'…');
+        const jwt=await getToken();
+        if(photoOwner()!==owner)throw new Error('La sesión ha cambiado durante el envío.');
+        const response=await fetch('/api/qc-fotos-sharepoint',{
+          method:'POST',headers:{
+            Authorization:'Bearer '+jwt,'Content-Type':'application/json'
+          },
+          body:JSON.stringify({
+            id:item.id,tipo:item.tipo,dia:item.dia,photoId:item.photoId,
+            capturedAt:item.capturedAt,imageData:item.imageData
+          }),cache:'no-store',signal:AbortSignal.timeout(45000)
+        });
+        let result={};try{result=await response.json();}catch(_){}
+        if(!response.ok||result.ok!==true){
+          const errors={
+            SHAREPOINT_UPLOAD_NOT_ENABLED:'La subida está desactivada en Vercel TEST.',
+            PILOT_ADMIN_ONLY:'Solo ADMIN puede realizar este piloto.',
+            PHOTO_ID_CONFLICT:'El identificador de la foto está en conflicto.',
+            PHOTO_INDEX_CONFLICT:'Existe un conflicto en el registro de la foto.',
+            GRAPH_SELECTED_PERMISSION_DENIED:'SharePoint no autoriza la subida.',
+            GRAPH_UPLOAD_FAILED:'SharePoint no ha confirmado la subida.',
+            PHOTO_TOO_LARGE:'La imagen supera el tamaño permitido.',
+            CONTROL_RECORD_CHANGED:'El control ha cambiado desde la captura.',
+            PHOTO_INDEX_WRITE_FAILED:'No se ha confirmado el índice en Firebase.',
+            QC_NEW_LIBRARY_NOT_READY:'La biblioteca nueva no está preparada.',
+            QC_NEW_PERMISSION_DENIED:'SharePoint ha rechazado la subida.',
+            QC_NEW_METADATA_WRITE_FAILED:'SharePoint recibió la foto, pero falló la escritura de columnas.',
+            QC_NEW_METADATA_VERIFY_FAILED:'No se ha podido verificar la escritura de columnas.',
+            QC_NEW_UPLOAD_FAILED:'SharePoint no ha confirmado la foto nueva.'
+          };
+          throw new Error(errors[result.error]||
+            'No se ha confirmado la subida (HTTP '+response.status+', '+(result.error||'error')+').');
+        }
+        if(result.photoId!==item.photoId||!result.record?.sharepoint?.itemId||
+           result.record.registroId!==item.id||result.record.tipo!==item.tipo)
+          throw new Error('No se ha confirmado el vínculo exacto de la foto.');
+        // Borrar sólo DESPUÉS de confirmar escritura en SharePoint y Firebase.
+        await queue.removeConfirmed(owner,item.photoId);
+        photoPilotMessage('✓ Foto QC vinculada a '+item.partida+
+          ' y guardada en SharePoint: '+result.record.sharepoint.name);
+        const url=result.record.sharepoint.webUrl;
+        if(typeof url==='string'&&url.startsWith('https://viveroslasala.sharepoint.com/')){
+          const link=node('a','Ver foto en SharePoint');
+          link.href=url;link.target='_blank';link.rel='noopener noreferrer';
+          link.style.marginLeft='8px';
+          el('qc-photo-connection-status').append(link);
+        }
       }
     }catch(error){
       photoPilotMessage('✗ '+error.message+
-        ' La foto sigue pendiente en esta pestaña: pulsa otra vez la cámara de la misma partida para reintentar.',true);
-    }finally{photoPilotBusy=false;}
+        ' · La foto permanece guardada en este navegador. Pulsa Reintentar cuando proceda.',true);
+    }finally{
+      photoPilotBusy=false;
+      await photoQueueStatus();
+    }
   }
   async function capturePhotoPilot(){
     const input=el('qc-photo-test-file'),file=input.files?.[0],rec=photoPilotRecord;
@@ -265,17 +294,30 @@
     if(!file||!rec||photoPilotBusy)return;
     photoPilotBusy=true;
     photoPilotMessage('Preparando fotografía…');
+    let saved=false;
     try{
+      if(navigator.storage?.persist){
+        try{await navigator.storage.persist();}catch(_){}
+      }
       const imageData=await encodePilotPhoto(file);
-      if(typeof crypto?.randomUUID!=='function')throw new Error('El navegador no admite identificadores únicos.');
-      photoPilotPending={...rec,photoId:crypto.randomUUID(),
-        capturedAt:new Date().toISOString(),imageData};
+      if(typeof crypto?.randomUUID!=='function')
+        throw new Error('El navegador no admite identificadores únicos.');
+      await queue.add({...rec,owner:photoOwner(),
+        photoId:crypto.randomUUID(),capturedAt:new Date().toISOString(),imageData});
+      saved=true;
+      photoPilotMessage('Foto guardada en este dispositivo. Pendiente de envío a SharePoint.');
     }catch(error){
-      photoPilotMessage(error.message==='PHOTO_SIZE'?
-        'No se puede preparar esta foto por su tamaño. No se ha enviado a SharePoint.':
-        'No se ha podido leer la foto. No se ha enviado a SharePoint.',true);
-    }finally{photoPilotBusy=false;input.value='';}
-    if(photoPilotPending)await sendPhotoPilot();
+      const messages={
+        PHOTO_SIZE:'Foto demasiado grande; no se ha guardado.',
+        OFFLINE_QUEUE_FULL:'Cola llena (30 fotos). Sin guardar; envía las pendientes primero.',
+        OFFLINE_STORAGE_UNAVAILABLE:'El navegador no permite guardar fotos sin conexión.',
+        OFFLINE_STORAGE_FAILED:'No queda espacio local o falló el guardado de la foto.',
+        LOGIN_REQUIRED:'No hay sesión válida. No se ha guardado la foto.'
+      };
+      photoPilotMessage(messages[error.message]||
+        'No se ha podido guardar la foto localmente. No se ha enviado.',true);
+    }finally{photoPilotBusy=false;input.value='';await photoQueueStatus();}
+    if(saved&&navigator.onLine!==false)await sendPhotoPilot();
   }
   function showMore(){
     if(!cursor)el('qc-body').replaceChildren();
@@ -546,6 +588,11 @@
     el('qc-reload').addEventListener('click',query);
     el('qc-photo-test-file').addEventListener('change',capturePhotoPilot);
     el('qc-photo-connection').addEventListener('click',checkQCPhotoConnection);
+    el('qc-photo-queue-retry').addEventListener('click',()=>void sendPhotoPilot());
+    window.addEventListener('online',()=>void sendPhotoPilot());
+    document.addEventListener('visibilitychange',()=>{
+      if(!document.hidden&&navigator.onLine!==false)void sendPhotoPilot();
+    });
     el('qc-more').addEventListener('click',showMore);
     el('qc-state').addEventListener('change',filterRows);
     el('qc-search').addEventListener('input',filterRows);
@@ -578,6 +625,8 @@
       }
       // Siempre consultar al entrar: anteriormente solo cargaba tras recuperar filtros.
       await query();
+      await photoQueueStatus();
+      if(navigator.onLine!==false)void sendPhotoPilot();
       // Tras volver de una ficha, mantener visible la línea de la que se salió.
       if(previous&&typeof previous.selected==='string'&&loaded){
         const pos=filtered.findIndex(x=>x.id===previous.selected);
