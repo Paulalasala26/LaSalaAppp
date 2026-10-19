@@ -184,13 +184,14 @@ function resolverUbicacion(ref,record,tuneles){
     estado:!winner.loc.tramos.length?'tunel_sin_calle':
       (byQty.length?'partida_y_bandejas':'partida_ubicacion_unica')};
 }
-async function metadata(ref,record,actor,token){
+async function metadata(ref,record,actor,token,tunelesOverride){
   // Solo datos confirmados en Firebase; jamás confiar en la ubicación
   // recibida del dispositivo. Los registros guardados son instantáneas.
   const own=ubicacionDirecta(record);
-  const loc=ref.tipo==='carga'&&(!own.invernadero||!own.tramos.length)?
-    resolverUbicacion(ref,record,await leerTunelParaPartida(ref,record,token)):
-    resolverUbicacion(ref,record,[]);
+  const needTunnel=ref.tipo==='carga'&&(!own.invernadero||!own.tramos.length);
+  const matches=needTunnel?
+    (tunelesOverride||await leerTunelParaPartida(ref,record,token)):[];
+  const loc=resolverUbicacion(ref,record,matches);
   return {
     registroId:ref.id,partida:record.partida,tipo:ref.tipo,
     diaInterno:ref.dia,cliente:value(record.cliente),
@@ -200,6 +201,33 @@ async function metadata(ref,record,actor,token){
     numBandejas:record.numBandejas??null,usuario:actor,
     ubicacionOrigen:loc.origen,ubicacionEstado:loc.estado,
     registroTunelOrigen:loc.registroTunelOrigen
+  };
+}
+// Diagnóstico explícito y solo lectura para ADMIN. No se adjunta a fotos ni
+// se persiste: permite entender una coincidencia ambigua antes de decidir.
+function diagnosticoCandidatosTunel(record,tuneles){
+  const direct=ubicacionDirecta(record);
+  const valid=(tuneles||[]).map(r=>({source:r,loc:ubicacionDirecta(r)}))
+    .filter(x=>x.loc.invernadero&&compatInv(direct.invernadero,x.loc.invernadero));
+  const qty=String(record.numBandejas??'').trim();
+  const matched=qty?valid.filter(x=>String(x.source.numBandejas??'').trim()===qty):[];
+  const used=matched.length?matched:valid;
+  const considered=new Set(used.map(x=>x.source.id));
+  const ordered=valid.slice().sort((a,b)=>
+    Number(considered.has(b.source.id))-Number(considered.has(a.source.id))||
+    b.source.dia-a.source.dia||a.source.id.localeCompare(b.source.id));
+  return {
+    totalCoincidencias:valid.length,
+    coincidenciasMismasBandejas:matched.length,
+    consideradas:used.length,
+    criterio:matched.length?'partida_y_bandejas':'solo_partida',
+    candidatos:ordered.slice(0,16).map(x=>({
+      id:x.source.id,dia:x.source.dia,
+      invernadero:x.loc.invernadero,tramos:x.loc.tramos,
+      numBandejas:x.source.numBandejas??null,
+      mismasBandejas:qty!==''&&String(x.source.numBandejas??'').trim()===qty,
+      considerado:considered.has(x.source.id)
+    }))
   };
 }
 async function graphToken(){
@@ -448,12 +476,14 @@ module.exports=async function handler(req,res){
   try{
     const body=req.method==='POST'?bodyOf(req):null;
     const diagnostic=req.method==='GET'&&req.query?.action==='check';
+    const candidatesRequested=req.method==='GET'&&req.query?.details==='1';
     const photo=req.method==='POST'?photoInput(body):null;
     const ref=diagnostic?null:(photo?.ref||reference(req.query));
     const session=await authorize(req,ref?.tipo||null);
     // Piloto: solo ADMIN puede subir fotos; técnicos siguen en flujo legado.
     if(photo&&session.role!=='ADMIN')throw httpError(403,'PILOT_ADMIN_ONLY');
     if(diagnostic&&session.role!=='ADMIN')throw httpError(403,'FORBIDDEN');
+    if(candidatesRequested&&session.role!=='ADMIN')throw httpError(403,'FORBIDDEN');
     const source=ref?await sourceFor(ref,session.firebaseToken):null;
     if(photo){
       const outcome=await storePhoto(session,photo,source);
@@ -463,12 +493,21 @@ module.exports=async function handler(req,res){
         record:outcome.record
       });
     }
+    // Solo cargar Túnel una vez y exclusivamente cuando falten datos en Carga.
+    const own=source?ubicacionDirecta(source):null;
+    const needTunnel=ref?.tipo==='carga'&&(!own.invernadero||!own.tramos.length);
+    const matches=(needTunnel&&candidatesRequested)?
+      await leerTunelParaPartida(ref,source,session.firebaseToken):null;
+    const attrs=ref?await metadata(ref,source,session.actor,session.firebaseToken,matches):null;
     await verifyFolder();
     return res.status(200).json({
       ok:true,graphRead:'CONFIRMED',
       uploadEnabled:UPLOAD_ENABLED(),
-      ...(ref?{metadata:await metadata(ref,source,session.actor,session.firebaseToken),
-        carpetaTipo:TYPES[ref.tipo]}:{})
+      ...(ref?{metadata:attrs,carpetaTipo:TYPES[ref.tipo]}:{}),
+      ...(candidatesRequested&&ref?.tipo==='carga'?
+        {diagnosticoTunel:needTunnel?diagnosticoCandidatosTunel(source,matches):
+          {totalCoincidencias:0,coincidenciasMismasBandejas:0,consideradas:0,
+            criterio:'ubicacion_carga_directa',candidatos:[]}}:{})
     });
   }catch(e){
     const status=e.httpStatus||503;
