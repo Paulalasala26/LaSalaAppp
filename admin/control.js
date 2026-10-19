@@ -425,6 +425,25 @@
           status.textContent='✓ Acceso a SharePoint confirmado · Fotos QC. Subida de fotos desactivada.';
           status.className='operation-feedback ok';
         }
+        // Estado de la biblioteca nueva: comprobación administrativa de solo lectura.
+        if(result.bibliotecaNueva){
+          const v=result.bibliotecaNueva;
+          const details=node('div',null);
+          details.style.marginTop='7px';
+          if(v.estado==='LECTURA_CONFIRMADA'){
+            details.textContent='✓ Biblioteca nueva: '+v.columnas+'/'+v.esperadas+
+              ' columnas · lectura Graph autorizada · cambio de destino pendiente.';
+          }else{
+            details.textContent='Biblioteca nueva: '+v.columnas+'/'+v.esperadas+
+              ' columnas · estado '+v.estado+
+              ' · permisos columnas HTTP '+v.lecturaColumnas+
+              ', archivos HTTP '+v.lecturaArchivos+
+              (Array.isArray(v.faltantes)&&v.faltantes.length?
+                ' · faltan: '+v.faltantes.join(', '):'');
+            status.className='operation-feedback error';
+          }
+          status.append(details);
+        }
         // Si hay una partida concreta filtrada, verificar sus datos de
         // ubicación con la API (lectura directa de Carga y Túnel en Firebase).
         // No se crea ninguna foto, carpeta ni registro.
