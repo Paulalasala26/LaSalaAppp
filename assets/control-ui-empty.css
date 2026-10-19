@@ -1,0 +1,24 @@
+/* Vista compacta únicamente para jornadas QC sin partidas (TEST). */
+.qc-empty-screen{max-width:700px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+.qc-empty-title{font-size:20px;font-weight:800;color:#1558a0;margin:0}
+.qc-empty-date{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.qc-empty-period{font-size:12px;font-weight:700;color:#456582;flex:1;min-width:130px}
+.qc-empty-date select{flex:1 1 140px;min-height:44px;min-width:130px;border:1px solid #b7cce2;border-radius:9px;padding:9px;background:white;color:#173d6b;font-size:14px}
+.qc-empty-daylabel{font-size:12px;font-weight:750;color:#365c82}
+.qc-empty-date button{min-width:42px;min-height:44px;border:1px solid #b7cce2;border-radius:9px;background:white;color:#1558a0;font-size:21px;cursor:pointer}
+.qc-empty-date button:disabled{opacity:.35;cursor:default}
+.qc-empty-panel{border:1px solid #d9e5f1;background:#fff;border-radius:13px;padding:24px 16px;display:flex;flex-direction:column;gap:11px;align-items:center;text-align:center}
+.qc-empty-panel i{font-size:27px;color:#799aba}
+.qc-empty-panel strong{font-size:16px;color:#183e66}
+.qc-empty-panel p{font-size:13px;color:#587189;margin:0}
+.qc-empty-primary{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:46px;border-radius:9px;background:#1558a0;color:#fff;border:none;padding:11px 18px;font-size:14px;font-weight:800;cursor:pointer}
+.qc-empty-actions{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:10px}
+.qc-empty-more{border:1px solid #ceddec;background:#fff;border-radius:9px;overflow:hidden}
+.qc-empty-more>summary{padding:12px 14px;font-size:13px;color:#1558a0;cursor:pointer;font-weight:700}
+.qc-empty-more[open]>summary{border-bottom:1px solid #d8e4f0}
+.qc-empty-options{display:flex;flex-wrap:wrap;gap:10px;padding:12px}
+.qc-empty-secondary{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid #b2cce5;border-radius:8px;background:#f4f9ff;color:#1558a0;font-size:13px;font-weight:700;min-height:43px;padding:9px 14px;cursor:pointer}
+.qc-empty-secondary input[type=file]{display:none}
+.qc-empty-file{font-size:12px;color:#4c6277;padding:8px 13px;overflow-wrap:anywhere}
+.qc-empty-pending{font-size:12px;font-weight:700;color:#875200;text-align:center}
+@media(max-width:480px){.qc-empty-screen{gap:13px}.qc-empty-panel{padding:24px 12px}.qc-empty-period{flex-basis:100%}.qc-empty-date select{flex:1}.qc-empty-options{flex-direction:column}.qc-empty-secondary{width:100%}}
