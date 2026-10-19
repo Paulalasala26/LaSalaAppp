@@ -35,10 +35,11 @@
 | **QC INDICADORES** | **VALIDADO USUARIO 19/10** | Cantidades y porcentajes visibles en «Indicadores guardados»; no hay rechazo automático. **Que se vean porcentajes NO significa que las tolerancias de negocio estén definitivamente acordadas**. |
 | **FOTOGRAFÍAS QC** | **VALIDADO USUARIO EN RECORRIDO PROBADO** | Fotos correctamente asociadas a inspección; en cuenta/navegador probado no figuraban pendientes locales; SharePoint operativo en flujo administrativo. **No equivale** a validar de extremo a extremo las fotos offline del frontend de operarios. |
 | **BACKOFFICE CATALOGOS** | **IMPLEMENTADO** | Gestión de salas/invernaderos/opciones/usuarios en TEST; crear, editar, desactivar y reactivar, nunca eliminar. No llamar «pendiente de construir» a módulos que existen. Cualquier ajuste nuevo debe tener incidencia concreta. |
+| **QC OFFLINE — consulta móvil** | **VALIDADO USUARIO 19/10** | Usuario confirma lectura previa de partidas, consulta con modo avión y regreso con conexión a Check Túnel/Carga. No equivale a validar captura cuantitativa ni sincronización offline. |
 
 ## 3. TRABAJO REALMENTE ABIERTO / NO VALIDADO EN TODA SU EXTENSIÓN
 
-1. **QC offline en frontend de operarios (EN PRUEBAS).** Implementada en TEST una **primera consulta de partidas, solo lectura**, con cacheo de los shards Túnel/Carga cargados desde el frontend y pantalla offline al reabrir la aplicación sin red. **PENDIENTE DE VALIDACIÓN REAL EN MÓVIL** (especialmente servicio worker, cuenta/rol, quincenas y caducidad de 24 h). No se ha habilitado guardado de cantidades ni fotos sin conexión. El piloto offline del Backoffice sigue siendo independiente.
+1. **QC offline en frontend de operarios (CONSULTA VALIDADA; BORRADORES EN PRUEBAS).** La consulta de partidas en móvil con modo avión y posterior reconexión fue **VALIDADA POR USUARIO el 19/10**. Primera captura de cantidades en **borradores locales IndexedDB** implementada en TEST, pendiente de validación; aún **no hay sincronización** ni fotos offline. La caducidad de 24 horas no se ha probado envejeciendo una copia. Piloto Backoffice independiente.
 2. **Fotos QC offline y sincronización desde frontend operativo.** El piloto de cola persistente en IndexedDB, subida SharePoint, verificación y eliminación tras éxito existe en `admin/control.js`, `admin/qc-photo-queue.js` y `api/qc-fotos-sharepoint.js`. **Falta asegurar un flujo equivalente adaptado al operario**, sin acceso a Backoffice ni introducir formularios manuales: el operario captura la foto y los datos provienen de la inspección. Probar desconexión → captura → reconexión → vínculo único a inspección, sin duplicados.
 3. **Cierre visual/operativo de Control.** Solo las simplificaciones específicas que el usuario señale, respetando Túnel, Carga, PDF, guiones, calles, observaciones, fotos, Ginés y datos históricos. La ficha cuantitativa convive con legado: decidir si procede retirar duplicidades **después de la aceptación**, no presumir que falta todo el frontend.
 4. **Criterios/tolerancias QC.** Pantalla y motor existen; confirmar con negocio el contenido definitivo por estadio cuando se decida. No inventar límites; no rechazo automático.
@@ -75,14 +76,17 @@
 
 ## 5.1. QC sin conexión — entrega incremental
 
-**Estado:** IMPLEMENTADO EN TEST, **NO VALIDADO POR USUARIO**. Preparado el 19/10/2026.
+**Estado:** consulta offline VALIDADA por usuario. Borrador cuantitativo offline IMPLEMENTADO EN TEST y NO VALIDADO; NO sincroniza.
 
 - `assets/qc-offline-operarios-store.js`: almacenamiento local IndexedDB por usuario, rol, estadio y quincena; guarda únicamente ID, partida, fecha, nº bandejas comunicado y ubicación mínima. Sin cliente, fotos, credenciales ni copia de mediciones.
-- `qc-offline.html` + `assets/qc-offline-operarios-screen.js`: consulta móvil de snapshots de menos de 24 horas, búsqueda por partida y filtros estadio/quincena, sin acciones de edición.
-- `sw.js` (ya usado para push): solo cachea esos tres archivos estáticos y, si falla la navegación a la raíz, sirve la pantalla offline; no cachea `index.html` completo, APIs, Firebase ni tokens. Se registra al iniciar una sesión online.
+- `qc-offline.html` + `assets/qc-offline-operarios-screen.js`: consulta móvil de snapshots de menos de 24 horas, búsqueda por partida y filtros estadio/quincena; permite abrir un borrador local de cantidades.
+- `assets/qc-offline-operarios-drafts.js`: borradores cuantitativos en IndexedDB, separados por usuario/rol/tipo/ID, con cuadre de las cinco categorías y solape de raíces; se conservan hasta sincronización posterior, pero **no envían nada**. Sin clientes, fotografías, credenciales ni datos ficticios. NO se guarda todavía versión remota ni hay sincronización: antes de una futura escritura debe verificarse el estado del servidor por ID y tratar conflictos.
+- `sw.js` (ya usado para push): cachea pantalla offline y sus tres scripts; si falla la navegación a la raíz, sirve la pantalla local. No cachea `index.html` completo, APIs, Firebase ni tokens. Se registra al iniciar sesión online.
 - `index.html`: al leer con éxito un shard QC se prepara su copia local; la sesión/rol deben coincidir al abrir la consulta. No crea nuevas API ni modifica la escritura de QC.
 
-**Prueba pendiente:** iniciar sesión online con TÉCNICO/CARGADOR, abrir una quincena con partidas, esperar la instalación del service worker, poner modo avión y navegar otra vez a la URL TEST. Debe aparecer la consulta previa sin permitir editar. Comprobar que al reconectar la app normal sigue funcionando. **No proclamar validado hasta que el usuario lo confirme.**
+**Prueba de lectura COMPLETADA 19/10:** usuario confirma tres hitos: partidas online, consulta offline en modo avión y apertura normal al reconectar. **Prueba siguiente, NO VALIDADA:** abrir una partida en modo avión, anotar cantidades cuadradas, pulsar «Guardar en dispositivo» y reabrir su borrador. No se escribe en el servidor.
+
+**Sincronización (NO IMPLEMENTADA):** debe requerir sesión online, GET del estado actual y versión por ID/tipo/día, revisión de conflictos, POST único con control de versión/ETag, verificación explícita y eliminación del borrador solo tras éxito comprobado. Jamás repetir a ciegas un guardado incierto. Fotos offline en fase posterior.
 
 ## 6. Registro de hitos recientes (resumen; no transcribir conversaciones)
 
@@ -90,7 +94,7 @@
 - **15/10**: modelo QC, API y formularios de cuantificación; descartadas interpretaciones antiguas que no cuadraban cantidades; arquitectura de fotos SharePoint con piloto administrativo.
 - **19/10**: guardado real QC, ETag, protección cambios, validación cuadre por categorías, estados Inspeccionado/Completados, indicadores, fotos asociadas, ADMIN restringido y frontend operarios autorizados: **validaciones del usuario**. Túnel y Carga permanecen en ficha tras guardar (`60347e61`). **No reaperturar Riego ni Histórico:** el usuario corrige expresamente que ya están hechos.
 - **19/10, continuidad**: se detecta deriva de 30 chats/3 ChatGPT Projects con handovers sucesivos. Se instaura este único registro maestro para evitar pérdidas de contexto.
-- **19/10, offline operarios**: primera consulta local solo lectura implementada en TEST. Pendiente prueba móvil real; fotos y mediciones offline NO implementadas.
+- **19/10, offline operarios**: lectura sin conexión y recuperación online VALIDADAS por usuario. Nuevo borrador cuantitativo solo local implementado en TEST, pendiente de prueba; aún no se sincroniza y no hay fotos offline.
 
 **Ruta fija:** `docs/APP_R_V3_ESTADO_MAESTRO.md` en `test/v1.0`.
 
