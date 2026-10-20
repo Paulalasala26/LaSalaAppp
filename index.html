@@ -5889,6 +5889,12 @@ async function cerrarControlModule(){
   if(overlay) overlay.style.display='none';
   controlUltimaSeccionRenderizada=undefined;
 }
+// Navegar a QC local desde la MISMA sesión, incluido el contexto de la PWA.
+async function abrirQCOfflineDesdeControl(){
+  if(!['ADMIN','TECNICO','CARGADOR'].includes(currentUserRole)||!currentUser)return;
+  if(!(await confirmarSalidaQC()))return;
+  window.location.assign('qc-offline.html');
+}
 function renderControlContent(overlay){
   // Protección para actualizaciones desde otras pantallas (p. ej. Partidas).
   if(!overlay) return;
@@ -5920,6 +5926,9 @@ function renderControlContent(overlay){
           <span>Control de calidad</span>
         </button>
         <div class="control-ui-header-right">
+          ${!controlDesdeBackoffice && ['ADMIN','TECNICO','CARGADOR'].includes(currentUserRole) ? `<button type="button" onclick="abrirQCOfflineDesdeControl()"
+            style="background:#1558a0;border:1px solid #a8c4e8;color:#fff;border-radius:7px;font-size:12px;font-weight:800;padding:7px 9px;cursor:pointer;white-space:nowrap"
+            title="Consulta local de partidas y borradores QC">Sin conexión</button>` : ''}
           ${controlDesdeBackoffice ? `<button type="button" onclick="volverAlListadoControlBackoffice()"
             style="background:#1558a0;border:1px solid #a8c4e8;color:#fff;border-radius:7px;font-size:12px;font-weight:800;padding:7px 11px;cursor:pointer;white-space:nowrap"
             title="Volver al listado de Control del Backoffice">← Backoffice</button>` : ''}
