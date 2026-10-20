@@ -415,6 +415,39 @@
   wrapper.dataset.qcCheck='1';wrapper.append(btn,status);
   return wrapper;
  }
+ // Recuperación independiente de la copia temporal de partidas (24 h).
+ // Los borradores locales no caducan con el snapshot; un servidor real
+ // vuelve a validar la inspección, partida, rol y versión antes del POST.
+ function renderSaved(parent,visibleRefs=[]){
+  if(!parent)return 0;
+  parent.replaceChildren();
+  const visible=new Set((Array.isArray(visibleRefs)?visibleRefs:[])
+   .filter(refValid).map(r=>key(r)));
+  const pending=[...drafts.values()]
+   .filter(d=>d&&d.key===key(d.ref)&&refValid(d.ref)&&!visible.has(d.key))
+   .sort((a,b)=>b.at-a.at);
+  if(!pending.length){parent.hidden=true;return 0;}
+  const title=el('h2','Borradores de cantidades guardados');
+  title.style.cssText='font-size:17px;margin:12px 0;color:#17324e';
+  const note=el('p','La copia de estas inspecciones no está disponible. '+
+   'Tus cantidades siguen guardadas aquí. Para enviarlas hay que tener Internet; '+
+   'se comprobarán la partida y las cantidades del servidor antes de guardar.');
+  note.style.cssText='font-size:13px;color:#33516b;margin:4px 0 12px';
+  parent.append(title,note);
+  for(const d of pending){
+   const card=el('div');card.className='item';
+   const area=el('div');
+   area.append(el('strong',d.ref.partida),
+    el('span',(d.ref.tipo==='tunel'?'QC Túnel':'QC Carga')+
+     ' · Inspección '+d.ref.id),
+    el('span',d.bandejasInspeccionadas+' bandejas inspeccionadas'));
+   decorate(area,d.ref);
+   card.append(area);
+   parent.append(card);
+  }
+  parent.hidden=false;
+  return pending.length;
+ }
  function decorate(item,ref){
   if(!refValid(ref))return;
   const saved=drafts.has(key(ref));
@@ -431,5 +464,5 @@
   if(saved){footer.append(makeCheckButton(ref));footer.append(makeSyncButton(ref,label));}
   item.append(footer);
  }
- window.QCOfflineDraftEditor=Object.freeze({init,decorate});
+ window.QCOfflineDraftEditor=Object.freeze({init,decorate,renderSaved});
 })();
