@@ -103,7 +103,11 @@
   total.style.cssText='display:block;font-weight:700;margin:15px 0';
   const totalInput=el('input');totalInput.type='number';totalInput.name='total';
   totalInput.min='1';totalInput.max='10000000';totalInput.step='1';totalInput.inputMode='numeric';
-  totalInput.value=draft?.bandejasInspeccionadas||'';
+  const sourceTotal=quantity(Number(ref.bandejas))&&/^\\d+$/.test(String(ref.bandejas||'').trim())?
+    Number(ref.bandejas):null;
+  const initialTotal=draft?.bandejasInspeccionadas||sourceTotal;
+  let previousTotal=initialTotal||null;
+  totalInput.value=initialTotal||'';
   totalInput.style.cssText='display:block;width:100%;padding:10px;border:1px solid #aac1d7;border-radius:8px';
   total.append(totalInput);form.append(total);
   for(const [cat,name,opts] of CATS){
@@ -114,11 +118,61 @@
    for(const [opt,desc] of opts){
     const labelField=el('label',desc);labelField.style.cssText='font-size:13px;display:block';
     const n=el('input');n.type='number';n.step='1';n.min='1';n.max='10000000';n.inputMode='numeric';
-    n.name=cat+'_'+opt;n.value=draft?.mediciones?.[cat]?.[opt]||'';
+    n.name=cat+'_'+opt;
+    n.value=draft?(draft.mediciones?.[cat]?.[opt]||''):
+      sourceTotal&&opt==='ok'?sourceTotal:'';
     n.style.cssText='display:block;width:100%;min-width:0;padding:10px;border:1px solid #aac1d7;border-radius:6px;margin-top:4px';
     labelField.append(n);grid.append(labelField);
    }field.append(grid);form.append(field);
   }
+  // En un cambio de total reajustar solo OK que cuadraba antes.
+  // Los defectos y las cantidades incompletas se mantienen sin inventar bandejas.
+  function categoryBalanced(cat,values,total){
+   if(cat!=='raices')return Object.values(values).reduce((sum,n)=>sum+n,0)===total;
+   const evaluated=total-(values.noEvaluada||0);
+   const affected=evaluated-(values.ok||0);
+   return affected>=Math.max(values.pocaRaiz||0,values.raizVariedad||0)&&
+    affected<=(values.pocaRaiz||0)+(values.raizVariedad||0);
+  }
+  function syncMax(){
+   const total=Number(totalInput.value);
+   const maximum=quantity(total)?String(total):'10000000';
+   for(const element of form.querySelectorAll('input[type="number"]')){
+    if(element!==totalInput)element.max=maximum;
+   }
+  }
+  for(const element of form.querySelectorAll('input[type="number"]')){
+   if(element===totalInput)continue;
+   element.addEventListener('change',()=>{
+    const max=Number(totalInput.value),n=Number(element.value);
+    if(element.value!==''&&quantity(max)&&quantity(n)&&n>max){
+     element.value=String(max);
+     info.textContent='Máximo '+max+' bandejas por opción. Valor ajustado.';
+    }
+   });
+  }
+  totalInput.addEventListener('change',()=>{
+   const total=Number(totalInput.value);
+   if(!quantity(total)){syncMax();return;}
+   if(previousTotal!==null&&total!==previousTotal){
+    for(const [cat,,opts] of CATS){
+     const values={};let valid=true;
+     for(const [opt] of opts){
+      const field=form.elements.namedItem(cat+'_'+opt);
+      if(field.value==='')continue;
+      const n=Number(field.value);
+      if(!quantity(n)){valid=false;break;}
+      values[opt]=n;
+     }
+     if(!valid||!values.ok||!categoryBalanced(cat,values,previousTotal))continue;
+     const adjusted=values.ok+total-previousTotal;
+     if(adjusted>=0&&adjusted<=total)
+      form.elements.namedItem(cat+'_ok').value=adjusted||'';
+    }
+   }
+   previousTotal=total;syncMax();
+  });
+  syncMax();
   // Como en QC online, Enter avanza por cantidades; nunca confirma por accidente.
   form.addEventListener('keydown',event=>{
    if(event.key!=='Enter'||event.target?.tagName!=='INPUT'||event.target.type!=='number')return;
