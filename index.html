@@ -5895,6 +5895,12 @@ async function abrirQCOfflineDesdeControl(){
   if(!(await confirmarSalidaQC()))return;
   window.location.assign('qc-offline.html');
 }
+// Diagnóstico administrativo puntual, exclusivamente de lectura en TEST.
+async function abrirQCRevisionTEST(){
+  if(currentUserRole!=='ADMIN'||!currentUser)return;
+  if(!(await confirmarSalidaQC()))return;
+  window.location.assign('qc-revision-test.html');
+}
 function renderControlContent(overlay){
   // Protección para actualizaciones desde otras pantallas (p. ej. Partidas).
   if(!overlay) return;
@@ -5959,6 +5965,7 @@ function renderControlContent(overlay){
 }
 function renderControlResumenHTML(){
   return `
+    ${currentUserRole==='ADMIN' ? `<div style="margin:0 0 12px"><button type="button" onclick="abrirQCRevisionTEST()" style="padding:9px 12px;border:1px solid #a8c4e8;background:#eef5ff;color:#1558a0;border-radius:8px;font-weight:700;cursor:pointer">Localizar inspección de prueba · 20/10</button></div>` : ''}
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
       ${CONTROL_SECCIONES.map(s=>{
         const totalV2 = s.conCheck ? controlV2TotalTipo(s.key) : null;
