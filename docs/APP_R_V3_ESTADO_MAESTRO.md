@@ -132,6 +132,8 @@
 
 **20/10 — JULIO / QC CARGA CONFIRMADO POR USUARIO:** tras desplegar el acceso desde la Home, el usuario responde «sí» a que JULIO (CARGADOR) entra correctamente en QC Carga. **VALIDADA** esa navegación en TEST. El usuario establece expresamente: «Los roles ya le daremos un repaso más adelante». **Aplazar revisión transversal de roles; no proponer ahora matrices exhaustivas ni reabrir permisos.** Siguiente foco funcional: verificar circuito de fotos en QC Carga desde el frontend, sin ampliar privilegios ni tocar PRD.
 
+**20/10 — JULIO, QC CARGA OFFLINE CON REGISTROS VALIDADO:** la primera captura de usuario mostraba «Copia local de 20/10/2026 15:06:54» y quincena 19/10–01/11 con «0 controles disponibles»; en el selector no figuraba 21/09–04/10 porque JULIO no había consultado esa quincena en línea. Tras abrir QC Carga online para 21/09–04/10, el usuario confirmó inspecciones existentes y después confirmó («aaaaro») que ahora sí aparecen en QC sin conexión. **VALIDADOS** acceso JULIO/CARGADOR, precarga de quincena histórica y consulta de inspecciones de Carga offline. **Siguiente paso:** capturar fotografía local en una de esas inspecciones con JULIO y comprobar «1 pendiente · local» antes de probar envío real SharePoint. No crear registros ni cambiar roles.
+
 ## 6. Registro de hitos recientes (resumen; no transcribir conversaciones)
 
 - **14/10**: Riego y su concurrencia corregidos; Registros de Riego e Histórico unificado, auditoría, filtros y CSV implementados/validados en el recorrido del usuario; reorganización de Avisos.
