@@ -98,7 +98,29 @@ a,button{font:inherit;color:#1558a0}button{background:#1558a0;color:white;border
      }
      // No habilitar de nuevo ante resultado incierto; la consulta debe refrescarse.
     });
-    box.append(remove,report);
+    const inspect=t('button','Diagnosticar bloqueo (solo lectura)');
+    inspect.type='button';
+    inspect.style.marginTop='8px';
+    const details=t('span','');
+    details.setAttribute('role','status');
+    inspect.addEventListener('click',async()=>{
+     inspect.disabled=true;
+     details.textContent='Consultando el estado actual…';
+     try{
+      const r=await fetch('/api/admin-qc-mediciones?modo=diagnosticar-medicion-ficticia-20oct',{
+       method:'GET',headers:{Authorization:'Bearer '+token.id_token},cache:'no-store'
+      });
+      if(!r.ok)throw Error('HTTP '+r.status);
+      const result=await r.json();
+      details.textContent=result.exists===false?'La medición ya no existe.':
+       'Campos que no coinciden: '+(result.diferencias||[]).join(', ')+
+       ' · Versión: '+result.versionActual+
+       ' · ResultadoQC: '+result.resultadoQCEstado+
+       ' · Actualizado: '+result.updatedAtActual;
+     }catch(e){details.textContent='Consulta fallida: '+e.message;}
+     finally{inspect.disabled=false;}
+    });
+    box.append(remove,report,inspect,details);
    }
    list.append(box);
    lines.push([rec.partida,rec.tipo,rec.id,rec.updatedAt,rec.updatedBy,rec.bandejasInspeccionadas,rec.patronCinco?'PATRÓN 5':''].join(' | '));
