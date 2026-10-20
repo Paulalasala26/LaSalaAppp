@@ -1,5 +1,5 @@
 'use strict';
-// ViguerAPP TEST. Borradores QC únicamente locales. NO llama a APIs ni escribe Firebase.
+// ViguerAPP TEST. Borradores QC locales; envío manual protegido por versión+ETag en API existente.
 (function(){
  const DB='viguerapp-qc-local-drafts-test-v1',STORE='items',LIMIT=300;
  const CATS=[
@@ -9,7 +9,7 @@
   ['flores','Flores',[['si','Sí'],['no','No'],['noEvaluada','No evaluada']]],
   ['raices','Raíces',[['pocaRaiz','Poca raíz'],['raizVariedad','Raíz en variedad'],['ok','OK'],['noEvaluada','No evaluada']]]
  ];
- let owner='',role='',drafts=new Map(),editor=null,active=null,startValue='';
+ let owner='',role='',drafts=new Map(),editor=null,active=null,startValue='',syncing=false;
  const el=(tag,value)=>{const node=document.createElement(tag);if(value!==undefined)node.textContent=String(value);return node};
  const key=r=>JSON.stringify([owner,role,r.tipo,r.id]);
  const allowed=tipo=>(role==='ADMIN'||role==='TECNICO'||role==='CARGADOR'&&tipo==='carga')&&
@@ -77,7 +77,7 @@
   editor.remove();editor=null;active=null;
  }
  async function open(ref,button,label){
-  if(editor||!refValid(ref))return;
+  if(editor||syncing||!refValid(ref))return;
   active=ref;
   const draft=drafts.get(key(ref));
   editor=el('section');
@@ -138,6 +138,8 @@
     button.textContent='Editar borrador';
     if(button.parentElement&&!button.parentElement.querySelector('[data-qc-check]'))
      button.parentElement.append(makeCheckButton(ref));
+    if(button.parentElement&&!button.parentElement.querySelector('[data-qc-sync]'))
+     button.parentElement.append(makeSyncButton(ref,label));
     if(!label.textContent)label.textContent='Borrador guardado en dispositivo · pendiente de sincronizar';
     const status=document.getElementById('status');
     if(status)status.textContent='Borrador LOCAL guardado. No se ha enviado al servidor.';
@@ -202,13 +204,99 @@
    if(result.record!==null){
     if(!Number.isInteger(result.record.version)||result.record.version<1)
      throw Error('La medición remota no tiene una versión válida.');
-    return 'CONFLICT';
+    return {state:'CONFLICT',token,record:result.record};
    }
-   return 'EMPTY';
+   return {state:'EMPTY',token,record:null};
   }catch(e){
    if(e instanceof TypeError)throw Error('Sin conexión con el servidor. Se conserva el borrador.');
    throw e;
   }
+ }
+ // Solo iniciar tras un clic de usuario y confirmación explícita. Una única escritura.
+ const canonical=value=>JSON.stringify(value);
+ const matches=(stored,draft)=>!!stored&&stored.bandejasInspeccionadas===draft.bandejasInspeccionadas&&
+  CATS.every(([cat])=>{
+   const actual=stored.mediciones?.[cat],expected=draft.mediciones[cat];
+   if(!actual||Object.keys(actual).length!==Object.keys(expected).length)return false;
+   return Object.keys(expected).every(k=>actual[k]===expected[k]);
+  });
+ async function readWritten(ref,token){
+  const q=new URLSearchParams({id:ref.id,tipo:ref.tipo,dia:String(ref.dia)});
+  const response=await fetch('/api/admin-qc-mediciones?'+q,{
+   method:'GET',headers:{Authorization:'Bearer '+token},cache:'no-store'
+  });
+  if(!response.ok)throw Error('No se ha podido verificar el guardado (HTTP '+response.status+').');
+  const payload=await response.json();
+  if(payload.ok!==true||payload.sourcePartida!==ref.partida)
+   throw Error('No se puede verificar la inspección de origen.');
+  return payload.record;
+ }
+ async function syncDraft(ref,label,button,status){
+  if(syncing||editor)return;
+  if(!refValid(ref)||!drafts.has(key(ref)))return;
+  const d=drafts.get(key(ref));
+  if(!confirm('¿Enviar las cantidades del borrador de la partida '+ref.partida+
+    ' al servidor TEST? Se comprobará de nuevo que la inspección no tenga cantidades.'))return;
+  syncing=true;button.disabled=true;
+  status.textContent='Comprobando inspección y versión antes del envío…';
+  let postAttempted=false,confirmed=false;
+  try{
+   // Nunca basarse en el resultado de un chequeo anterior: volver a consultar.
+   const before=await checkServer(ref);
+   if(before.state!=='EMPTY')throw Error('Bloqueado: el servidor ya tiene cantidades. El borrador se conserva.');
+   if(drafts.get(key(ref))!==d)
+    throw Error('El borrador cambió durante la comprobación. No se ha enviado.');
+   validate(d);
+   if(!navigator.onLine)throw Error('No hay conexión. Borrador conservado.');
+   const payload={id:ref.id,tipo:ref.tipo,dia:ref.dia,partida:ref.partida,
+    version:0,bandejasInspeccionadas:d.bandejasInspeccionadas,mediciones:d.mediciones};
+   postAttempted=true;
+   status.textContent='Enviando una única vez…';
+   // La API vuelve a comprobar la partida, la versión y ETag antes de escribir.
+   const response=await fetch('/api/admin-qc-mediciones',{
+    method:'POST',headers:{Authorization:'Bearer '+before.token,'Content-Type':'application/json'},
+    body:JSON.stringify(payload),cache:'no-store'
+   });
+   if(response.status===409)throw Error('Conflicto: la inspección fue modificada. No sobrescribir.');
+   if(response.status===401||response.status===403)throw Error('No autorizado para guardar esta inspección.');
+   if(!response.ok)throw Error('Guardado sin confirmar (HTTP '+response.status+').');
+   const result=await response.json();
+   if(result.ok!==true||result.version!==1)throw Error('Guardado sin confirmación válida.');
+   status.textContent='Verificando cantidades guardadas en servidor…';
+   const remote=await readWritten(ref,before.token);
+   if(remote?.version!==1||!matches(remote,d))throw Error('La verificación no coincide. Mantener borrador local.');
+   confirmed=true;
+   // Si otra edición local sustituyó el borrador, no eliminar los nuevos datos.
+   const current=await operation('readonly',s=>s.get(d.key));
+   if(current?.at!==d.at||canonical(current?.mediciones)!==canonical(d.mediciones))
+    throw Error('Guardado confirmado, pero el borrador local ha cambiado. Se conserva.');
+   await operation('readwrite',s=>s.delete(d.key));
+   drafts.delete(key(ref));
+   label.textContent='✓ Cantidades sincronizadas y verificadas en servidor';
+   button.textContent='Sincronizado';button.disabled=true;
+   const edit=button.parentElement?.parentElement?.querySelector('button');
+   if(edit&&edit.textContent==='Editar borrador')edit.textContent='Anotar cantidades';
+   status.textContent='✓ Guardado confirmado por lectura posterior. Borrador local retirado.';
+   const top=document.getElementById('status');
+   if(top)top.textContent='✓ Sincronización QC confirmada; cantidades verificadas en servidor.';
+  }catch(e){
+   // Un resultado incierto NO autoriza repetir POST ni eliminar el borrador.
+   const prefix=confirmed?'Envío confirmado; revisión del borrador local pendiente.':
+    postAttempted?'Envío no confirmado. No repitas el envío sin revisar servidor.':'No se ha enviado.';
+   status.textContent=(e?.message||'Error de sincronización')+' '+prefix+' Se conserva el borrador.';
+  }finally{syncing=false; if(!confirmed)button.disabled=false;}
+ }
+ function makeSyncButton(ref,label){
+  const button=el('button','Enviar a TEST');
+  button.type='button';
+  button.style.cssText='background:#1558a0;border:0;border-radius:7px;color:#fff;padding:8px 10px;font-weight:700';
+  const status=el('span');status.setAttribute('role','status');
+  status.style.cssText='font-size:12px;color:#33516b';
+  button.addEventListener('click',()=>{void syncDraft(ref,label,button,status)});
+  const box=el('div');box.dataset.qcSync='1';
+  box.style.cssText='display:flex;flex-direction:column;gap:4px;align-items:flex-start';
+  box.append(button,status);
+  return box;
  }
  function makeCheckButton(ref){
   const btn=el('button','Comprobar servidor');
@@ -220,7 +308,7 @@
    btn.disabled=true;status.textContent='Consultando estado en servidor…';
    try{
     const state=await checkServer(ref);
-    status.textContent=state==='EMPTY'?
+    status.textContent=state.state==='EMPTY'?
      'No hay cantidades en servidor. El borrador sigue local; NO se ha enviado.':
      'La inspección YA tiene cantidades en servidor. Revisión necesaria: no sobrescribir. El borrador sigue local.';
    }catch(e){status.textContent=(e?.message||'Consulta fallida')+' No se ha enviado el borrador.';}
@@ -240,7 +328,7 @@
   button.type='button';button.style.cssText='background:#1558a0;border:0;border-radius:7px;color:white;padding:8px 10px;font-weight:700';
   button.addEventListener('click',()=>{void open(ref,button,label)});
   footer.append(label,button);
-  if(saved)footer.append(makeCheckButton(ref));
+  if(saved){footer.append(makeCheckButton(ref));footer.append(makeSyncButton(ref,label));}
   item.append(footer);
  }
  window.QCOfflineDraftEditor=Object.freeze({init,decorate});
