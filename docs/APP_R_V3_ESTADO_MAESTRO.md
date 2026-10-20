@@ -92,6 +92,8 @@
 
 **20/10 — validación de navegación interna:** el usuario confirma «aparecen» al acceder mediante Control de Calidad → «Sin conexión» desde el mismo contexto de ViguerAPP. **VALIDADO el reconocimiento de sesión y la visualización de partidas a través del acceso interno**. NO implica aún validación del nuevo formulario de cantidades, persistencia de borrador ni sincronización. Siguiente prueba: activar modo avión en la pantalla de partidas, pulsar «Anotar cantidades» y comprobar que aparece el formulario con las cinco categorías sin guardar todavía.
 
+**20/10 — QC borradores locales:** usuario confirma en móvil con modo avión que el formulario de cantidades offline se abre con Color, Tamaño, Sanidad, Flores y Raíces, y que «Guardar en dispositivo» confirma el guardado local. **VALIDADO USUARIO: apertura de formulario y guardado local.** Pendiente de validar que todas las cantidades persisten al cerrar y reabrir el borrador de la misma inspección. NO hay escritura Firebase ni sincronización automática, tampoco fotos offline. Próxima prueba: «Editar borrador», verificar las cifras exactas manteniendo modo avión.
+
 ## 6. Registro de hitos recientes (resumen; no transcribir conversaciones)
 
 - **14/10**: Riego y su concurrencia corregidos; Registros de Riego e Histórico unificado, auditoría, filtros y CSV implementados/validados en el recorrido del usuario; reorganización de Avisos.
