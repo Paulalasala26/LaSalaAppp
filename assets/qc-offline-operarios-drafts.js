@@ -10,6 +10,10 @@
   ['raices','Raíces',[['pocaRaiz','Poca raíz'],['raizVariedad','Raíz en variedad'],['ok','OK'],['noEvaluada','No evaluada']]]
  ];
  let owner='',role='',drafts=new Map(),editor=null,active=null,startValue='',syncing=false;
+ function requireSession(){
+  if(window.QCOfflineSessionGuard&&!window.QCOfflineSessionGuard.active())
+   throw Error('La sesión ha cambiado. Borrador conservado; vuelve a iniciar sesión.');
+ }
  const el=(tag,value)=>{const node=document.createElement(tag);if(value!==undefined)node.textContent=String(value);return node};
  const key=r=>JSON.stringify([owner,role,r.tipo,r.id]);
  const allowed=tipo=>(role==='ADMIN'||role==='TECNICO'||role==='CARGADOR'&&tipo==='carga')&&
@@ -77,6 +81,7 @@
   editor.remove();editor=null;active=null;
  }
  async function open(ref,button,label){
+  requireSession();
   if(editor||syncing||!refValid(ref))return;
   active=ref;
   const draft=drafts.get(key(ref));
@@ -133,6 +138,7 @@
    event.preventDefault();if(!active)return;
    save.disabled=true;
    try{
+    requireSession();
     const data=validate(input(form));
     const isNew=!drafts.has(key(ref));
     if(isNew&&drafts.size>=LIMIT)throw Error('Hay demasiados borradores. Conéctate para revisarlos.');
@@ -169,6 +175,7 @@
  // Primera fase de sincronización: comprobación REMOTA de SOLO LECTURA.
  // No hace POST de inspecciones y no borra ningún borrador local.
  async function checkServer(ref){
+  requireSession();
   if(!navigator.onLine)throw Error('Sin conexión. El borrador sigue guardado localmente.');
   if(!refValid(ref)||!drafts.has(key(ref)))throw Error('No hay un borrador autorizado para comprobar.');
   let auth,session;
@@ -190,6 +197,7 @@
    const data=await refresh.json();
    if(!data.id_token||!data.refresh_token)throw Error('LOGIN_REQUIRED');
    token=data.id_token;
+   requireSession();
    // Mismo esquema de sesión utilizado por el frontend QC online.
    localStorage.setItem('lasala-firebase-auth-v1',
     JSON.stringify({user:owner,refreshToken:data.refresh_token}));
@@ -205,6 +213,7 @@
    if(response.status===409)throw Error('La inspección ha cambiado o ya no existe en origen.');
    if(!response.ok)throw Error('No se pudo consultar el servidor (HTTP '+response.status+').');
    const result=await response.json();
+   requireSession();
    if(result.ok!==true||result.sourcePartida!==ref.partida||
      !Object.prototype.hasOwnProperty.call(result,'record'))
     throw Error('La respuesta del servidor no coincide con la inspección.');
@@ -307,6 +316,7 @@
   if(top)top.textContent='✓ Sincronización QC confirmada; cantidades verificadas en servidor.';
  }
  async function syncDraft(ref,label,button,status){
+  requireSession();
   if(syncing||editor)return;
   if(!refValid(ref)||!drafts.has(key(ref)))return;
   const d=drafts.get(key(ref));
@@ -323,6 +333,7 @@
    // Siempre GET fresco. Ni errores 409 ni estados ambiguos justifican
    // escribir sobre datos de terceros; version:0 + ETag protege en la API.
    const before=await checkServer(ref);
+   requireSession();
    if(drafts.get(key(ref))!==d)
     throw Error('El borrador cambió durante la comprobación. No se ha enviado.');
    if(before.state!=='EMPTY'){
@@ -330,6 +341,7 @@
      throw Error('Conflicto: la inspección ya tiene cantidades distintas o '+
       'no se puede atribuir el guardado a este borrador. No sobrescribir.');
     const remote=await readWritten(ref,before.token);
+    requireSession();
     if(!ownedRemote(remote,d))
      throw Error('La inspección ha cambiado durante la verificación. No sobrescribir.');
     await finishVerified(ref,d,label,button,status,
@@ -348,6 +360,7 @@
    // Persistir el hecho del intento antes del POST; resiste recarga o cierre.
    const attempted=await markAttempt(d);
    postAttempted=true;
+   requireSession();
    label.textContent='Envío anterior por revisar · borrador conservado';
    button.textContent='Revisar envío';
    status.textContent='Enviando una única vez…';
@@ -365,6 +378,7 @@
    if(result.ok!==true||result.version!==1)throw Error('Guardado sin confirmación válida.');
    status.textContent='Verificando cantidades guardadas en servidor…';
    const remote=await readWritten(ref,before.token);
+   requireSession();
    if(!ownedRemote(remote,attempted))throw Error(
     'La verificación del servidor no coincide con esta inspección. Mantener borrador local.');
    await finishVerified(ref,attempted,label,button,status,
