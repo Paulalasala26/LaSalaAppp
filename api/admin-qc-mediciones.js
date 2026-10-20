@@ -12,7 +12,7 @@ const OPTIONS=Object.freeze({
   color:['verde','amarillo','verdeClaro','ok'],
   tamano:['grande','pequeno','ok'],
   sanidad:['ok','enferma'],
-  flores:['si','no'],
+  flores:['si','no','ok'],
   raices:['pocaRaiz','raizVariedad','ok']
 });
 function categoryIssue(category,values,total){
