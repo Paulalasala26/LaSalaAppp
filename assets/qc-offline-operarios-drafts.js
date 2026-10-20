@@ -136,6 +136,8 @@
     drafts.set(key(ref),stored);
     active=null;close();
     button.textContent='Editar borrador';
+    if(button.parentElement&&!button.parentElement.querySelector('[data-qc-check]'))
+     button.parentElement.append(makeCheckButton(ref));
     if(!label.textContent)label.textContent='Borrador guardado en dispositivo · pendiente de sincronizar';
     const status=document.getElementById('status');
     if(status)status.textContent='Borrador LOCAL guardado. No se ha enviado al servidor.';
@@ -156,6 +158,78 @@
    .map(x=>[x.key,x]));
   return drafts.size;
  }
+ // Primera fase de sincronización: comprobación REMOTA de SOLO LECTURA.
+ // No hace POST de inspecciones y no borra ningún borrador local.
+ async function checkServer(ref){
+  if(!navigator.onLine)throw Error('Sin conexión. El borrador sigue guardado localmente.');
+  if(!refValid(ref)||!drafts.has(key(ref)))throw Error('No hay un borrador autorizado para comprobar.');
+  let auth,session;
+  try{
+   auth=JSON.parse(localStorage.getItem('lasala-firebase-auth-v1')||'null');
+   session=JSON.parse(localStorage.getItem('lasala-sesion-v1')||'null');
+  }catch(_){throw Error('No hay una sesión válida. Inicia sesión de nuevo.');}
+  const sessionRole=localStorage.getItem('viguerapp-qc-offline-role-test-v1');
+  if(!auth?.refreshToken||auth.user!==owner||session?.user!==owner||sessionRole!==role)
+   throw Error('La sesión ha cambiado. Conéctate y vuelve a iniciar sesión.');
+  let token;
+  try{
+   const refresh=await fetch('https://securetoken.googleapis.com/v1/token?key=AIzaSyDdDdMg6M1jVIssvGYKsdRA-mRug31Yt_g',{
+    method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body:new URLSearchParams({grant_type:'refresh_token',refresh_token:auth.refreshToken}).toString(),
+    cache:'no-store'
+   });
+   if(!refresh.ok)throw Error('LOGIN_REQUIRED');
+   const data=await refresh.json();
+   if(!data.id_token||!data.refresh_token)throw Error('LOGIN_REQUIRED');
+   token=data.id_token;
+   // Mismo esquema de sesión utilizado por el frontend QC online.
+   localStorage.setItem('lasala-firebase-auth-v1',
+    JSON.stringify({user:owner,refreshToken:data.refresh_token}));
+  }catch(_){throw Error('No se ha podido validar la sesión. El borrador sigue local.');}
+  try{
+   const q=new URLSearchParams({id:ref.id,tipo:ref.tipo,dia:String(ref.dia)});
+   const response=await fetch('/api/admin-qc-mediciones?'+q.toString(),{
+    method:'GET',headers:{Authorization:'Bearer '+token},cache:'no-store'
+   });
+   if(response.status===401||response.status===403)
+    throw Error('Acceso rechazado. Comprueba el usuario y sus permisos.');
+   if(response.status===409)throw Error('La inspección ha cambiado o ya no existe en origen.');
+   if(!response.ok)throw Error('No se pudo consultar el servidor (HTTP '+response.status+').');
+   const result=await response.json();
+   if(result.ok!==true||result.sourcePartida!==ref.partida||
+     !Object.prototype.hasOwnProperty.call(result,'record'))
+    throw Error('La respuesta del servidor no coincide con la inspección.');
+   if(result.record!==null){
+    if(!Number.isInteger(result.record.version)||result.record.version<1)
+     throw Error('La medición remota no tiene una versión válida.');
+    return 'CONFLICT';
+   }
+   return 'EMPTY';
+  }catch(e){
+   if(e instanceof TypeError)throw Error('Sin conexión con el servidor. Se conserva el borrador.');
+   throw e;
+  }
+ }
+ function makeCheckButton(ref){
+  const btn=el('button','Comprobar servidor');
+  btn.type='button';btn.style.cssText='background:#e5eef8;border:1px solid #9fb6d2;border-radius:7px;color:#1558a0;padding:8px 10px;font-weight:700';
+  const status=el('span');status.setAttribute('role','status');
+  status.style.cssText='font-size:12px;color:#33516b';
+  btn.addEventListener('click',async()=>{
+   if(btn.disabled)return;
+   btn.disabled=true;status.textContent='Consultando estado en servidor…';
+   try{
+    const state=await checkServer(ref);
+    status.textContent=state==='EMPTY'?
+     'No hay cantidades en servidor. El borrador sigue local; NO se ha enviado.':
+     'La inspección YA tiene cantidades en servidor. Revisión necesaria: no sobrescribir. El borrador sigue local.';
+   }catch(e){status.textContent=(e?.message||'Consulta fallida')+' No se ha enviado el borrador.';}
+   finally{btn.disabled=false;}
+  });
+  const wrapper=el('div');wrapper.style.cssText='display:flex;flex-direction:column;align-items:flex-start;gap:4px';
+  wrapper.dataset.qcCheck='1';wrapper.append(btn,status);
+  return wrapper;
+ }
  function decorate(item,ref){
   if(!refValid(ref))return;
   const saved=drafts.has(key(ref));
@@ -165,7 +239,9 @@
   const button=el('button',saved?'Editar borrador':'Anotar cantidades');
   button.type='button';button.style.cssText='background:#1558a0;border:0;border-radius:7px;color:white;padding:8px 10px;font-weight:700';
   button.addEventListener('click',()=>{void open(ref,button,label)});
-  footer.append(label,button);item.append(footer);
+  footer.append(label,button);
+  if(saved)footer.append(makeCheckButton(ref));
+  item.append(footer);
  }
  window.QCOfflineDraftEditor=Object.freeze({init,decorate});
 })();
