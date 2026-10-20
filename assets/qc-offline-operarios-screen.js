@@ -46,6 +46,9 @@
     if(!sessionMatches()){lockScreen();return false;}
     return true;
   }
+  // Disponible para acciones asíncronas que deben comprobar la sesión de
+  // nuevo después de leer imágenes, verificar cantidades o esperar una red.
+  window.QCOfflineSessionGuard=Object.freeze({active:ensureSession});
   // Otra pestaña puede cerrar sesión mientras esta pantalla permanece abierta.
   // El acceso se bloquea en cuanto se detecta el cambio, incluso sin refrescar.
   window.addEventListener('storage',event=>{
