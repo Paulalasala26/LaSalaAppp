@@ -15,17 +15,19 @@ input,select{min-width:0;width:100%;padding:11px 9px;border:1px solid #aac1d7;ba
 .item strong{display:block;color:#1558a0;font-size:16px}
 .item span{display:block;color:#516579;font-size:12px;margin-top:4px}
 .date{font-size:12px;white-space:nowrap;color:#5d7084}
-#status{font-size:14px;padding:11px 12px;background:#e1eafa;border-radius:8px;margin:12px 0}
+#status,#photo-pending{font-size:14px;padding:11px 12px;background:#e1eafa;border-radius:8px;margin:12px 0}
 footer{margin-top:20px;font-size:13px}
 a{color:#1558a0;font-weight:700}
 </style>
 <script src="assets/qc-offline-operarios-store.js" defer></script>
 <script src="assets/qc-offline-operarios-drafts.js" defer></script>
+<script src="assets/qc-offline-operarios-photos.js" defer></script>
 <script src="assets/qc-offline-operarios-screen.js" defer></script>
 </head>
 <body><header><h1>Control QC · sin conexión</h1><small>Consulta de partidas y borradores locales QC</small></header>
 <main><div id="status" role="status">Cargando consulta local…</div>
-<aside>Los borradores se guardan primero en el dispositivo. Su envío a TEST es exclusivamente manual, con comprobación previa y confirmación posterior. No hay sincronización automática ni fotos offline.</aside>
+<aside>Las cantidades y las fotos pueden guardarse sin conexión en este dispositivo. Solo las cantidades admiten envío manual a TEST; las fotos aún no se envían a SharePoint.</aside>
+<div id="photo-pending" role="status" hidden></div>
 <div id="area" hidden>
 <div class="controls">
 <select id="tipo" aria-label="Tipo de control"><option value="">Túnel y Carga</option><option value="tunel">Túnel</option><option value="carga">Carga</option></select>
