@@ -27,12 +27,13 @@
     for(const r of records.slice(0,120)){
       const item=text('div',undefined,'item'),left=text('div'),right=text('div',day(r.dia),'date');
       left.append(text('strong',r.partida));
-      const info=(r.tipo==='tunel'?'Túnel':'Carga')+
+      const info=(r.tipo==='tunel'?'QC Túnel':'QC Carga')+
         (r.bandejas?' · '+r.bandejas+' bandejas':'')+
         (r.inv?' · INV '+r.inv:'')+
         (r.calle!==null?' · Calle '+r.calle:'');
       left.append(text('span',info),text('span','Inspección '+r.id));
       if(window.QCOfflineDraftEditor)window.QCOfflineDraftEditor.decorate(left,r);
+      if(window.QCOfflinePhotos)window.QCOfflinePhotos.decorate(left,r);
       item.append(left,right);fragment.append(item);
     }
     list.append(fragment);
@@ -49,9 +50,12 @@
       slices=await window.QCOfflineOperarios.list(auth.user,role);
       const localDraftCount=window.QCOfflineDraftEditor?
         await window.QCOfflineDraftEditor.init(auth.user,role).catch(()=>0):0;
+      const localPhotoCount=window.QCOfflinePhotos?
+        await window.QCOfflinePhotos.init(auth.user,role):0;
       if(!slices.length){
-        $('status').textContent='No hay partidas preparadas o la copia ha caducado (24 h). Conéctate y abre Check Túnel o Check Carga.'+
-          (localDraftCount?' Hay '+localDraftCount+' borradores locales conservados, sin sincronizar.':'');
+        $('status').textContent='No hay partidas preparadas o la copia ha caducado (24 h). Conéctate y abre QC Túnel o QC Carga.'+
+          (localDraftCount?' Hay '+localDraftCount+' borradores de cantidades locales.':'')+
+          (localPhotoCount?' Hay '+localPhotoCount+' fotos locales pendientes; se conservarán al caducar esta consulta.':'');
         return;
       }
       const last=Math.max(...slices.map(s=>s.at));
