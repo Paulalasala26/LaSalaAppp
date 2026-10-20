@@ -114,6 +114,8 @@
 
 **20/10 — RETIRADA DE HERRAMIENTAS PUNTUALES TRAS CONFIRMACIÓN:** se retiraron de `api/admin-qc-mediciones.js` las rutas temporales de búsqueda forense y borrado (incluyendo el permiso puntual de eliminación), se eliminó `qc-revision-test.html` y se retiró el botón «Localizar inspección de prueba · 20/10» y su función de `index.html` en **`test/v1.0`**. Las APIs normales QC y la pantalla offline permanecen. Validar HEAD y despliegue READY de Vercel TEST antes de dar por cerrado este último paso. No volver a desplegar las herramientas de investigación de forma permanente.
 
+**20/10 — rotulación visible Control QC (IMPLEMENTADO en TEST):** tras solicitud expresa del usuario, en `index.html` exclusivamente: tarjeta Inicio «Control» → «Control de Calidad», cabecera Control mismo rótulo con mayúsculas, opciones de Control «Check Túnel» → «QC Túnel» y «Check Carga» → «QC Carga», además del título del wizard Túnel. Tarjeta Inicio admite salto de línea para móvil. **NO se cambian** claves `tunel`/`carga`, IDs, rutas, datos, endpoints ni funcionalidades; las restantes secciones mantienen sus propios nombres. Código `db10652aee534b4e1f648b9bd5d6273832ffa808` en `test/v1.0`, sintaxis de cinco scripts integrados verificada. **Pendiente aceptación visual por el usuario en móvil y comprobación Vercel READY del HEAD actual**. PRD y `main` intactos.
+
 ## 6. Registro de hitos recientes (resumen; no transcribir conversaciones)
 
 - **14/10**: Riego y su concurrencia corregidos; Registros de Riego e Histórico unificado, auditoría, filtros y CSV implementados/validados en el recorrido del usuario; reorganización de Avisos.
