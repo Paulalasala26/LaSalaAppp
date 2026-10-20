@@ -67,7 +67,7 @@
       render();
     }catch(e){
       $('status').textContent=e.message==='LOGIN_REQUIRED'?
-        'No hay una sesión autorizada en este dispositivo. Conéctate e inicia sesión en ViguerAPP.':
+        'Abre ViguerAPP TEST desde este mismo navegador o desde la aplicación instalada, inicia sesión y utiliza Control → Sin conexión. Los enlaces abiertos desde otra aplicación o navegador no comparten la sesión.':
         'No se puede leer la consulta local. Conéctate y abre Control.';
     }
   }
