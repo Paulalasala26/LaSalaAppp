@@ -121,6 +121,50 @@ async function checkQCActor(req,ref){
   if(!authorized||!validHash(accounts[actor]))throw httpError(403,'FORBIDDEN');
   return {actor,token};
 }
+// Búsqueda forense PUNTUAL, SOLO LECTURA, para identificar un dato ficticio en TEST.
+// Devuelve únicamente referencias, usuario, instante y patrón de cantidades.
+// ADMIN autenticado y activo; no permite consultar usuarios, ni escribir o borrar.
+async function buscarQCSeptiembreHoy(req,res){
+  const raw=req.headers.authorization||'';
+  if(!raw.startsWith('Bearer '))throw httpError(401,'UNAUTHORIZED');
+  const actor=await verifyFirebaseIdToken(raw.slice(7).trim());
+  const token=await serviceAccessToken(serviceAccount());
+  const [roles,accounts]=await Promise.all([
+    readKey('lasala-roles-v1',token),readKey('lasala-users-v1',token)
+  ]);
+  if(roles[actor]!=='ADMIN'||!validHash(accounts[actor]))
+    throw httpError(403,'FORBIDDEN');
+  const all=await readKey(PREFIX,token);
+  // 20/10/2026 en hora peninsular = desde el 19/10 22:00Z hasta el 20/10 22:00Z.
+  const first=Date.parse('2026-10-19T22:00:00.000Z');
+  const last=Date.parse('2026-10-20T22:00:00.000Z');
+  // Día QC 15 = 15/06/2026; septiembre corresponde a días 93 a 122.
+  const matches=[];
+  for(const [id,v] of Object.entries(all)){
+    if(!RE_ID.test(id)||!v||typeof v!=='object'||Array.isArray(v))continue;
+    const ref=v.legacy||{},changed=Date.parse(v.updatedAt);
+    if(ref.id!==id||!TYPES.has(ref.tipo)||!Number.isInteger(ref.dia)||
+      ref.dia<93||ref.dia>122||!PART_RE.test(ref.partida)||
+      !Number.isFinite(changed)||changed<first||changed>=last)continue;
+    const patternFive=v.bandejasInspeccionadas===5&&Object.keys(OPTIONS).every(cat=>{
+      const parts=v.mediciones?.[cat];
+      return parts&&typeof parts==='object'&&!Array.isArray(parts)&&
+        Object.values(parts).length===1&&Object.values(parts)[0]===5;
+    });
+    matches.push({
+      id,partida:ref.partida,tipo:ref.tipo,dia:ref.dia,
+      updatedAt:v.updatedAt,updatedBy:v.updatedBy||'',version:v.version,
+      bandejasInspeccionadas:v.bandejasInspeccionadas,patronCinco:!!patternFive
+    });
+  }
+  matches.sort((a,b)=>Number(b.patronCinco)-Number(a.patronCinco)||
+    b.updatedAt.localeCompare(a.updatedAt));
+  return res.status(200).json({
+    ok:true,scope:'TEST',actualizadoDia:'2026-10-20',
+    inspeccionesMes:'2026-09',total:matches.length,
+    resultados:matches.slice(0,100),truncado:matches.length>100
+  });
+}
 // Consulta agrupada de estados cuantitativos: comparte despliegue con QC.
 // Solo lectura, validación por ID/tipo/día/partida; nunca escribe Firebase.
 function validarConsultaEstados(req){
@@ -167,6 +211,10 @@ module.exports=async function handler(req,res){
   let phase='REQUEST';
   try{
     const request=req.method==='GET'?req.query:inputOf(req);
+    if(req.method==='GET'&&request?.modo==='buscar-qc-septiembre-hoy'){
+      phase='DIAGNOSTIC_READ';
+      return await buscarQCSeptiembreHoy(req,res);
+    }
     if(req.method==='POST' && request?.modo==='estados'){
       phase='STATUS_READ';
       return await consultarEstadosQC(req,res,request);
