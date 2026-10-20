@@ -120,6 +120,8 @@
 
 **20/10 — fotos QC offline, primera prueba de captura VALIDADA PARCIALMENTE:** el usuario informa «1 pendiente - local» después de tomar una fotografía en QC offline. **Validado por usuario:** la nueva foto se cuenta como pendiente local en la tarjeta; sin subida a SharePoint. **Aún no validado:** cerrar y reabrir la pantalla en modo avión, volver a encontrar la misma inspección, conservar «1 pendiente · local» y pulsar «Ver última» para comprobar lectura de Blob desde IndexedDB. **Siguiente paso único:** esa prueba de persistencia/vista previa; no implementar todavía sincronización.
 
+**20/10 — FOTOS QC OFFLINE, PERSISTENCIA Y VISTA PREVIA VALIDADAS POR USUARIO:** tras la primera prueba «1 pendiente · local», el usuario confirma «sí» a la comprobación de cerrar y reabrir QC sin conexión en modo avión, localizar la misma inspección, conservar el contador y pulsar «Ver última» para abrir correctamente la foto. **VALIDADO:** captura, guardado en IndexedDB, persistencia tras cerrar y reabrir y recuperación de foto offline. **NO validado todavía:** conservación tras reconectar, subir a SharePoint, vincular la foto en servidor, idempotencia/reintento. **Siguiente paso:** reconectar Internet y comprobar que la misma foto continúa pendiente y accesible, sin subir automáticamente. No tocar PRD.
+
 ## 6. Registro de hitos recientes (resumen; no transcribir conversaciones)
 
 - **14/10**: Riego y su concurrencia corregidos; Registros de Riego e Histórico unificado, auditoría, filtros y CSV implementados/validados en el recorrido del usuario; reorganización de Avisos.
