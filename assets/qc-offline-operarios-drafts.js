@@ -80,6 +80,12 @@
   if(editor||syncing||!refValid(ref))return;
   active=ref;
   const draft=drafts.get(key(ref));
+  if(draft?.status==='ENVIO_INCIERTO'&&!confirm(
+   'Este borrador tiene un envío anterior sin confirmar. Si lo editas, '+
+   'se conservarán las nuevas cantidades, pero tendrás que comprobar '+
+   'el servidor antes de enviarlas. ¿Continuar?')){
+    active=null;return;
+  }
   editor=el('section');
   editor.style.cssText='position:fixed;inset:0;overflow:auto;z-index:100100;background:#f0f4f8;color:#17324e;padding:18px 14px 45px';
   editor.setAttribute('role','dialog');editor.setAttribute('aria-label','Borrador local de cantidades');
@@ -156,7 +162,7 @@
   owner=user;role=userRole;
   const all=await operation('readonly',s=>s.getAll());
   drafts=new Map((all||[]).filter(x=>x.owner===owner&&x.role===role&&
-   x.status==='PENDIENTE_LOCAL'&&refValid(x.ref))
+   (x.status==='PENDIENTE_LOCAL'||x.status==='ENVIO_INCIERTO')&&refValid(x.ref))
    .map(x=>[x.key,x]));
   return drafts.size;
  }
@@ -212,7 +218,9 @@
    throw e;
   }
  }
- // Solo iniciar tras un clic de usuario y confirmación explícita. Una única escritura.
+ // Un corte puede producirse tras el PUT remoto y antes de su respuesta.
+ // Es obligatorio persistir el intento ANTES de enviar: nunca tratar una foto
+ // o un borrador con POST incierto como si nunca hubiera sido enviado.
  const canonical=value=>JSON.stringify(value);
  const matches=(stored,draft)=>!!stored&&stored.bandejasInspeccionadas===draft.bandejasInspeccionadas&&
   CATS.every(([cat])=>{
@@ -220,10 +228,65 @@
    if(!actual||Object.keys(actual).length!==Object.keys(expected).length)return false;
    return Object.keys(expected).every(k=>actual[k]===expected[k]);
   });
+ // El servidor no almacena ID de intento. Para dar por nuestro un envío
+ // anterior se exige además el mismo usuario, versión 1 y fecha posterior
+ // al intento guardado. Si falta alguna evidencia, conservar el borrador.
+ function ownedRemote(record,d){
+  const started=Date.parse(d.attemptedAt||'');
+  const written=Date.parse(record?.updatedAt||'');
+  return d.status==='ENVIO_INCIERTO'&&record?.version===1&&
+   record.updatedBy===owner&&Number.isFinite(started)&&
+   Number.isFinite(written)&&written>=started-2000&&matches(record,d);
+ }
+ async function markAttempt(d){
+  const connection=await db();
+  return new Promise((resolve,reject)=>{
+   const tx=connection.transaction(STORE,'readwrite');
+   const store=tx.objectStore(STORE),get=store.get(d.key);
+   let next=null;
+   get.onsuccess=()=>{
+    const current=get.result;
+    if(!current||current.owner!==owner||current.role!==role||
+       current.at!==d.at||canonical(current.mediciones)!==canonical(d.mediciones)||
+       current.bandejasInspeccionadas!==d.bandejasInspeccionadas||
+       !refValid(current.ref)||current.ref.id!==d.ref.id||
+       !['PENDIENTE_LOCAL','ENVIO_INCIERTO'].includes(current.status)){
+      tx.abort();return;
+    }
+    next={...current,status:'ENVIO_INCIERTO',attemptedAt:new Date().toISOString()};
+    store.put(next);
+   };
+   tx.oncomplete=()=>{connection.close();drafts.set(d.key,next);resolve(next);};
+   tx.onabort=()=>{connection.close();reject(Error(
+    'El borrador ha cambiado o no pudo marcarse para envío. No se ha enviado.'));};
+  });
+ }
+ async function removeVerified(d){
+  const connection=await db();
+  return new Promise((resolve,reject)=>{
+   const tx=connection.transaction(STORE,'readwrite');
+   const store=tx.objectStore(STORE),get=store.get(d.key);
+   get.onsuccess=()=>{
+    const current=get.result;
+    if(!current||current.owner!==owner||current.role!==role||
+       current.at!==d.at||canonical(current.mediciones)!==canonical(d.mediciones)||
+       current.bandejasInspeccionadas!==d.bandejasInspeccionadas||
+       !refValid(current.ref)||current.ref.id!==d.ref.id||
+       current.status!=='ENVIO_INCIERTO'){
+      tx.abort();return;
+    }
+    store.delete(d.key);
+   };
+   tx.oncomplete=()=>{connection.close();drafts.delete(d.key);resolve();};
+   tx.onabort=()=>{connection.close();reject(Error(
+    'El servidor tiene cantidades verificadas, pero cambió el borrador local. Se conserva.'));};
+  });
+ }
  async function readWritten(ref,token){
   const q=new URLSearchParams({id:ref.id,tipo:ref.tipo,dia:String(ref.dia)});
   const response=await fetch('/api/admin-qc-mediciones?'+q,{
-   method:'GET',headers:{Authorization:'Bearer '+token},cache:'no-store'
+   method:'GET',headers:{Authorization:'Bearer '+token},cache:'no-store',
+   signal:AbortSignal.timeout(18000)
   });
   if(!response.ok)throw Error('No se ha podido verificar el guardado (HTTP '+response.status+').');
   const payload=await response.json();
@@ -231,32 +294,68 @@
    throw Error('No se puede verificar la inspección de origen.');
   return payload.record;
  }
+ async function finishVerified(ref,d,label,button,status,message){
+  await removeVerified(d);
+  label.textContent='✓ Cantidades sincronizadas y verificadas en servidor';
+  button.textContent='Sincronizado';button.disabled=true;
+  const edit=button.parentElement?.parentElement?.querySelector('button');
+  if(edit&&edit.textContent==='Editar borrador')edit.textContent='Anotar cantidades';
+  status.textContent=message;
+  const top=document.getElementById('status');
+  if(top)top.textContent='✓ Sincronización QC confirmada; cantidades verificadas en servidor.';
+ }
  async function syncDraft(ref,label,button,status){
   if(syncing||editor)return;
   if(!refValid(ref)||!drafts.has(key(ref)))return;
   const d=drafts.get(key(ref));
-  if(!confirm('¿Enviar las cantidades del borrador de la partida '+ref.partida+
-    ' al servidor TEST? Se comprobará de nuevo que la inspección no tenga cantidades.'))return;
+  const review=d.status==='ENVIO_INCIERTO';
+  if(!confirm(review?
+   'Este borrador tiene un envío anterior sin confirmar. ¿Consultar primero '+
+   'el servidor? No se reenviará nada sin tu permiso.':
+   '¿Enviar las cantidades del borrador de la partida '+ref.partida+
+   ' al servidor TEST? Se comprobará de nuevo que la inspección no tenga cantidades.'))return;
   syncing=true;button.disabled=true;
-  status.textContent='Comprobando inspección y versión antes del envío…';
+  status.textContent='Consultando inspección y versión en servidor…';
   let postAttempted=false,confirmed=false;
   try{
-   // Nunca basarse en el resultado de un chequeo anterior: volver a consultar.
+   // Siempre GET fresco. Ni errores 409 ni estados ambiguos justifican
+   // escribir sobre datos de terceros; version:0 + ETag protege en la API.
    const before=await checkServer(ref);
-   if(before.state!=='EMPTY')throw Error('Bloqueado: el servidor ya tiene cantidades. El borrador se conserva.');
    if(drafts.get(key(ref))!==d)
     throw Error('El borrador cambió durante la comprobación. No se ha enviado.');
+   if(before.state!=='EMPTY'){
+    if(!ownedRemote(before.record,d))
+     throw Error('Conflicto: la inspección ya tiene cantidades distintas o '+
+      'no se puede atribuir el guardado a este borrador. No sobrescribir.');
+    const remote=await readWritten(ref,before.token);
+    if(!ownedRemote(remote,d))
+     throw Error('La inspección ha cambiado durante la verificación. No sobrescribir.');
+    await finishVerified(ref,d,label,button,status,
+     '✓ Envío anterior recuperado y verificado. Borrador local retirado; sin nuevo POST.');
+    confirmed=true;return;
+   }
    validate(d);
+   if(review&&!confirm(
+    'No hay cantidades registradas en servidor, pero hubo un envío anterior '+
+    'sin confirmar. ¿Reintentar UNA vez el mismo borrador con versión 0? '+
+    'El servidor impedirá sobrescribir una medición existente.'))
+    throw Error('Reenvío cancelado. Borrador local conservado para revisión.');
    if(!navigator.onLine)throw Error('No hay conexión. Borrador conservado.');
    const payload={id:ref.id,tipo:ref.tipo,dia:ref.dia,partida:ref.partida,
     version:0,bandejasInspeccionadas:d.bandejasInspeccionadas,mediciones:d.mediciones};
+   // Persistir el hecho del intento antes del POST; resiste recarga o cierre.
+   const attempted=await markAttempt(d);
    postAttempted=true;
+   label.textContent='Envío anterior por revisar · borrador conservado';
+   button.textContent='Revisar envío';
    status.textContent='Enviando una única vez…';
-   // La API vuelve a comprobar la partida, la versión y ETag antes de escribir.
-   const response=await fetch('/api/admin-qc-mediciones',{
-    method:'POST',headers:{Authorization:'Bearer '+before.token,'Content-Type':'application/json'},
-    body:JSON.stringify(payload),cache:'no-store'
-   });
+   let response;
+   try{
+    response=await fetch('/api/admin-qc-mediciones',{
+     method:'POST',headers:{Authorization:'Bearer '+before.token,'Content-Type':'application/json'},
+     body:JSON.stringify(payload),cache:'no-store',signal:AbortSignal.timeout(30000)
+    });
+   }catch(_){throw Error('Respuesta de envío no recibida. Debe comprobarse el servidor.');}
    if(response.status===409)throw Error('Conflicto: la inspección fue modificada. No sobrescribir.');
    if(response.status===401||response.status===403)throw Error('No autorizado para guardar esta inspección.');
    if(!response.ok)throw Error('Guardado sin confirmar (HTTP '+response.status+').');
@@ -264,30 +363,26 @@
    if(result.ok!==true||result.version!==1)throw Error('Guardado sin confirmación válida.');
    status.textContent='Verificando cantidades guardadas en servidor…';
    const remote=await readWritten(ref,before.token);
-   if(remote?.version!==1||!matches(remote,d))throw Error('La verificación no coincide. Mantener borrador local.');
+   if(!ownedRemote(remote,attempted))throw Error(
+    'La verificación del servidor no coincide con esta inspección. Mantener borrador local.');
+   await finishVerified(ref,attempted,label,button,status,
+    '✓ Guardado confirmado por lectura posterior. Borrador local retirado.');
    confirmed=true;
-   // Si otra edición local sustituyó el borrador, no eliminar los nuevos datos.
-   const current=await operation('readonly',s=>s.get(d.key));
-   if(current?.at!==d.at||canonical(current?.mediciones)!==canonical(d.mediciones))
-    throw Error('Guardado confirmado, pero el borrador local ha cambiado. Se conserva.');
-   await operation('readwrite',s=>s.delete(d.key));
-   drafts.delete(key(ref));
-   label.textContent='✓ Cantidades sincronizadas y verificadas en servidor';
-   button.textContent='Sincronizado';button.disabled=true;
-   const edit=button.parentElement?.parentElement?.querySelector('button');
-   if(edit&&edit.textContent==='Editar borrador')edit.textContent='Anotar cantidades';
-   status.textContent='✓ Guardado confirmado por lectura posterior. Borrador local retirado.';
-   const top=document.getElementById('status');
-   if(top)top.textContent='✓ Sincronización QC confirmada; cantidades verificadas en servidor.';
   }catch(e){
-   // Un resultado incierto NO autoriza repetir POST ni eliminar el borrador.
-   const prefix=confirmed?'Envío confirmado; revisión del borrador local pendiente.':
-    postAttempted?'Envío no confirmado. No repitas el envío sin revisar servidor.':'No se ha enviado.';
-   status.textContent=(e?.message||'Error de sincronización')+' '+prefix+' Se conserva el borrador.';
-  }finally{syncing=false; if(!confirmed)button.disabled=false;}
+   // No hay reintentos automáticos; el borrador se guarda ante cualquier error.
+   const uncertain=postAttempted||review;
+   if(uncertain){
+    label.textContent='Envío anterior por revisar · borrador conservado';
+    button.textContent='Revisar envío';
+   }
+   status.textContent=(e?.message||'Error de sincronización')+' '+
+    (uncertain?'Revisa el servidor antes de cualquier nuevo intento.':
+      'No se ha enviado.')+' Se conserva el borrador.';
+  }finally{syncing=false;if(!confirmed)button.disabled=false;}
  }
  function makeSyncButton(ref,label){
-  const button=el('button','Enviar a TEST');
+  const draft=drafts.get(key(ref));
+  const button=el('button',draft?.status==='ENVIO_INCIERTO'?'Revisar envío':'Enviar a TEST');
   button.type='button';
   button.style.cssText='background:#1558a0;border:0;border-radius:7px;color:#fff;padding:8px 10px;font-weight:700';
   const status=el('span');status.setAttribute('role','status');
@@ -322,7 +417,10 @@
   if(!refValid(ref))return;
   const saved=drafts.has(key(ref));
   const footer=el('div');footer.style.cssText='display:flex;flex-direction:column;align-items:flex-start;gap:5px;margin-top:8px';
-  const label=el('span',saved?'Borrador guardado en dispositivo · pendiente de sincronizar':'');
+  const d=drafts.get(key(ref));
+  const label=el('span',saved?(d.status==='ENVIO_INCIERTO'?
+   'Envío anterior por revisar · borrador conservado':
+   'Borrador guardado en dispositivo · pendiente de sincronizar'):'');
   label.style.cssText='font-size:12px;font-weight:700;color:#8c5400';
   const button=el('button',saved?'Editar borrador':'Anotar cantidades');
   button.type='button';button.style.cssText='background:#1558a0;border:0;border-radius:7px;color:white;padding:8px 10px;font-weight:700';
