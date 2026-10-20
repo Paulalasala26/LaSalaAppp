@@ -90,6 +90,8 @@
 
 **20/10 — diagnóstico acceso:** al abrir `qc-offline.html` externamente se obtiene «No hay una sesión autorizada»; claves de login y consulta local contrastadas en `index.html`, sin discrepancia. Posible navegación desde distinto contenedor de navegador/PWA, NO constatado aún. Se añade en Control frontend, para ADMIN/TÉCNICO/CARGADOR, botón «Sin conexión» que mantiene el mismo contexto de navegador y protege la salida si hay cambios; el mensaje de acceso ahora explica que las sesiones no se comparten entre aplicaciones/navegadores. **IMPLEMENTADO en TEST, pendiente de aceptación en móvil; sin cambio de backend ni PRD.** Si online se reproduce la falta de lectura de cantidades QC, diagnosticar esa incidencia por separado en su API, no atribuirla automáticamente a offline.
 
+**20/10 — validación de navegación interna:** el usuario confirma «aparecen» al acceder mediante Control de Calidad → «Sin conexión» desde el mismo contexto de ViguerAPP. **VALIDADO el reconocimiento de sesión y la visualización de partidas a través del acceso interno**. NO implica aún validación del nuevo formulario de cantidades, persistencia de borrador ni sincronización. Siguiente prueba: activar modo avión en la pantalla de partidas, pulsar «Anotar cantidades» y comprobar que aparece el formulario con las cinco categorías sin guardar todavía.
+
 ## 6. Registro de hitos recientes (resumen; no transcribir conversaciones)
 
 - **14/10**: Riego y su concurrencia corregidos; Registros de Riego e Histórico unificado, auditoría, filtros y CSV implementados/validados en el recorrido del usuario; reorganización de Avisos.
