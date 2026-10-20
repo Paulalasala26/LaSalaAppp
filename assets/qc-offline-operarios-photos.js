@@ -38,7 +38,7 @@
  }
  const owned=x=>x&&x.owner===owner&&x.role===role&&refValid(x.ref)&&
   typeof x.photoId==='string'&&typeof x.capturedAt==='string'&&
-  x.status==='PENDIENTE_LOCAL'&&x.blob instanceof Blob&&
+  (x.status==='PENDIENTE_LOCAL'||x.status==='ENVIO_INCIERTO')&&x.blob instanceof Blob&&
   x.blob.size>100&&x.blob.size<=MAX_BYTES;
  function listFor(ref){
   return items.filter(x=>x.ref.id===ref.id&&x.ref.tipo===ref.tipo&&x.ref.dia===ref.dia&&
@@ -48,7 +48,9 @@
   const node=document.getElementById('photo-pending');
   if(!node)return;
   node.hidden=items.length===0;
-  node.textContent=items.length+' foto(s) QC guardada(s) en este dispositivo, sin enviar.';
+  const revisar=items.filter(x=>x.status==='ENVIO_INCIERTO').length;
+  node.textContent=items.length+' foto(s) QC pendientes en este dispositivo.'+
+   (revisar?' '+revisar+' envío(s) por revisar.':'');
  }
  async function preview(photo){
   const r=await operation('readonly',s=>s.get(photo.photoId));
@@ -184,6 +186,37 @@
    tx.onabort=()=>{connection.close();reject(Error('Foto remota confirmada, pero el borrador local cambió. Se conserva.'));};
   });
  }
+ // Marcar antes del POST en IndexedDB. Si el navegador se cierra a
+ // mitad de envío, la foto conserva su UUID y pasa a revisión; nunca
+ // desaparece ni se confunde con una fotografía todavía no enviada.
+ async function markAttempt(photo){
+  const connection=await db();
+  return new Promise((resolve,reject)=>{
+   const tx=connection.transaction(STORE,'readwrite');
+   const store=tx.objectStore(STORE);
+   const r=store.get(photo.photoId);
+   r.onsuccess=()=>{
+    const current=r.result;
+    if(!owned(current)||current.capturedAt!==photo.capturedAt||
+       current.ref.id!==photo.ref.id||current.ref.partida!==photo.ref.partida||
+       current.blob.size!==photo.blob.size){
+      tx.abort();return;
+    }
+    if(current.status!=='ENVIO_INCIERTO')
+     store.put({...current,status:'ENVIO_INCIERTO'});
+   };
+   tx.oncomplete=()=>{
+    connection.close();
+    items=items.map(x=>x.photoId===photo.photoId?
+     {...x,status:'ENVIO_INCIERTO'}:x);
+    summary();resolve();
+   };
+   tx.onabort=()=>{
+    connection.close();
+    reject(Error('No se pudo proteger el envío en el dispositivo. No se ha subido la foto.'));
+   };
+  });
+ }
  async function sendOne(photo,token){
   if(!navigator.onLine)throw Error('Sin conexión. Ninguna fotografía enviada.');
   const original=await operation('readonly',st=>st.get(photo.photoId));
@@ -191,9 +224,19 @@
      original.ref.partida!==photo.ref.partida)throw Error('La foto local ha cambiado.');
   const digest=await checksum(original.blob);
   if(!(await remoteState(original,token,digest))){
-   // Sólo un POST por intento y exclusivamente tras comprobar que el UUID falta en servidor.
+   // Recuperar un intento anterior exige DOS decisiones: GET remoto por UUID
+   // y autorización explícita para reutilizar exactamente la misma foto.
+   // El servidor usa nombre inmutable UUID+hash y comprueba los bytes:
+   // si SharePoint la tenía aunque faltase índice Firebase, la recupera.
+   if(original.status==='ENVIO_INCIERTO'&&!confirm(
+    'No hay confirmación de esta foto en el índice. Puede existir ya en SharePoint. '+
+    '¿Reintentar la MISMA fotografía y el MISMO identificador? '+
+    'El servidor comprobará el archivo existente para evitar duplicados.'))
+    throw Error('Envío anterior aún sin confirmar. Foto local conservada, sin reenvío.');
+   // Sólo un POST por intento y siempre tras un GET remoto.
    const imageData=await asDataUrl(original.blob);
    if(!navigator.onLine)throw Error('Sin conexión. Foto conservada.');
+   await markAttempt(original); // Persistencia confirmada ANTES de cualquier POST.
    let response,body={};
    try{
     response=await fetch('/api/qc-fotos-sharepoint',{
@@ -217,7 +260,8 @@
   // Una segunda lectura remota verifica indexación en Firebase tras SharePoint.
   if(!(await remoteState(original,token,digest)))
    throw Error('SharePoint todavía no está verificado. Foto local conservada.');
-  await removeAfterConfirmed(original);
+  if(!(await removeAfterConfirmed(original)))
+   throw Error('La confirmación remota existe, pero no se pudo retirar la foto local.');
   items=items.filter(x=>x.photoId!==original.photoId);
   summary();
  }
@@ -226,7 +270,12 @@
   const chosen=listFor(ref).slice();
   if(!chosen.length)return;
   if(!navigator.onLine){status.textContent='No hay Internet. Fotos conservadas localmente.';return;}
-  if(!confirm('¿Enviar '+chosen.length+' foto(s) de la partida '+ref.partida+
+  const revisar=chosen.some(photo=>photo.status==='ENVIO_INCIERTO');
+  if(!confirm(revisar?
+   '¿Revisar '+chosen.length+' fotografía(s) de '+ref.partida+'? '+
+   'Se comprobará primero SharePoint. Si un envío anterior sigue sin confirmar, '+
+   'se pedirá permiso aparte antes de reintentarlo con el mismo identificador.':
+   '¿Enviar '+chosen.length+' foto(s) de la partida '+ref.partida+
    ' a SharePoint? La subida será REAL en la biblioteca QC. No se enviarán automáticamente.'))return;
   sending=true;button.disabled=true;
   let done=0;
@@ -272,9 +321,13 @@
   const picker=text('input');picker.type='file';picker.accept='image/*';
   picker.setAttribute('capture','environment');picker.hidden=true;
   function repaint(){
-   const photos=listFor(ref);indicator.textContent=photos.length?photos.length+' pendiente(s) · local':'';
+   const photos=listFor(ref);
+   const revisar=photos.filter(photo=>photo.status==='ENVIO_INCIERTO').length;
+   indicator.textContent=photos.length?photos.length+' pendiente(s) · local'+
+    (revisar?' · '+revisar+' por revisar':''):'';
    view.hidden=!photos.length;
-   sync.hidden=!photos.length;sync.textContent='Enviar '+photos.length+' foto(s)';
+   sync.hidden=!photos.length;
+   sync.textContent=(revisar?'Revisar ':'Enviar ')+photos.length+' foto(s)';
   }
   button.addEventListener('click',()=>{picker.value='';picker.click();});
   picker.addEventListener('change',async()=>{
