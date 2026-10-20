@@ -1,11 +1,11 @@
 'use strict';
 // ViguerAPP TEST: fotos QC de operarios guardadas solo en este dispositivo.
-// No llama a SharePoint, Firebase, ni a ninguna API; nunca sincroniza sola.
+// Captura local sin red; envío a SharePoint TEST únicamente manual, confirmado y verificado.
 (function(){
  const DB='viguerapp-qc-operarios-photos-test-v1',STORE='photos';
  const LIMIT=30,MAX_BYTES=2450000,RE_ID=/^[A-Za-z0-9_-]{1,180}$/,RE_PART=/^[A-Za-z0-9._-]{1,100}$/;
  const TYPES=['image/jpeg','image/png','image/webp','image/heic','image/heif'];
- let owner='',role='',items=[];
+ let owner='',role='',items=[],sending=false;
  const text=(tag,v)=>{const e=document.createElement(tag);if(v!==undefined)e.textContent=String(v);return e;};
  function refValid(r){
   return r&&RE_ID.test(r.id)&&RE_PART.test(r.partida)&&
@@ -100,6 +100,149 @@
   }catch(e){throw Error(e?.message||'No se ha podido comprimir la fotografía.');}
   finally{if(bitmap&&typeof bitmap.close==='function')bitmap.close();if(url)URL.revokeObjectURL(url);}
  }
+ // Usar el mismo contexto de sesión que los borradores offline QC.
+ // Renovación del JWT solo con conexión y a petición del operario.
+ async function userToken(){
+  if(!navigator.onLine)throw Error('Sin conexión. La fotografía permanece local.');
+  let auth,session;
+  try{
+   auth=JSON.parse(localStorage.getItem('lasala-firebase-auth-v1')||'null');
+   session=JSON.parse(localStorage.getItem('lasala-sesion-v1')||'null');
+  }catch(_){throw Error('No se ha podido leer la sesión. La fotografía sigue local.');}
+  if(!auth?.refreshToken||auth.user!==owner||session?.user!==owner||
+     localStorage.getItem('viguerapp-qc-offline-role-test-v1')!==role)
+   throw Error('La sesión ha cambiado. Abre ViguerAPP con el usuario original.');
+  let reply,data;
+  try{
+   reply=await fetch('https://securetoken.googleapis.com/v1/token?key=AIzaSyDdDdMg6M1jVIssvGYKsdRA-mRug31Yt_g',{
+    method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body:new URLSearchParams({grant_type:'refresh_token',refresh_token:auth.refreshToken}).toString(),
+    cache:'no-store',signal:AbortSignal.timeout(12000)
+   });
+   if(!reply.ok)throw Error('LOGIN_REQUIRED');
+   data=await reply.json();
+   if(!data.id_token||!data.refresh_token)throw Error('LOGIN_REQUIRED');
+  }catch(_){throw Error('No se ha podido validar la sesión. La foto sigue local.');}
+  if(auth.user!==owner||localStorage.getItem('viguerapp-qc-offline-role-test-v1')!==role)
+   throw Error('El usuario ha cambiado durante la comprobación.');
+  localStorage.setItem('lasala-firebase-auth-v1',
+   JSON.stringify({user:owner,refreshToken:data.refresh_token}));
+  return data.id_token;
+ }
+ async function checksum(blob){
+  if(!crypto?.subtle?.digest)throw Error('El navegador no admite la verificación segura de fotografías.');
+  const bytes=await blob.arrayBuffer();
+  const digest=await crypto.subtle.digest('SHA-256',bytes);
+  return [...new Uint8Array(digest)].map(b=>b.toString(16).padStart(2,'0')).join('');
+ }
+ async function asDataUrl(blob){
+  return new Promise((resolve,reject)=>{
+   const reader=new FileReader();
+   reader.onload=()=>typeof reader.result==='string'?resolve(reader.result):
+    reject(Error('No se pudo leer la fotografía.'));
+   reader.onerror=()=>reject(Error('No se pudo leer la fotografía.'));
+   reader.readAsDataURL(blob);
+  });
+ }
+ // Firebase TEST es la fuente del estado definitivo; GET remoto por UUID.
+ async function remoteState(photo,token,digest){
+  const query=new URLSearchParams({action:'photo-status',
+   id:photo.ref.id,tipo:photo.ref.tipo,dia:String(photo.ref.dia),photoId:photo.photoId});
+  let response,body;
+  try{
+   response=await fetch('/api/qc-fotos-sharepoint?'+query.toString(),{
+    method:'GET',headers:{Authorization:'Bearer '+token},cache:'no-store',
+    signal:AbortSignal.timeout(18000)
+   });
+   body=await response.json();
+  }catch(_){throw Error('No se pudo comprobar la foto en servidor. Mantener local.');}
+  if(!response.ok||body?.ok!==true)
+   throw Error('Consulta SharePoint no confirmada (HTTP '+response.status+'). Mantener local.');
+  if(!body.exists)return false;
+  if(body.photoId!==photo.photoId||body.sha256!==digest||
+     body.capturedAt!==new Date(photo.capturedAt).toISOString()||body.sharepointConfirmed!==true)
+   throw Error('Conflicto de identidad/imagen. Mantener foto local y no reenviar.');
+  return true;
+ }
+ // Borrar local solo si la misma fotografía, propietario y captura siguen presentes.
+ async function removeAfterConfirmed(photo){
+  const connection=await db();
+  return new Promise((resolve,reject)=>{
+   const tx=connection.transaction(STORE,'readwrite');
+   const store=tx.objectStore(STORE),r=store.get(photo.photoId);
+   let removed=false;
+   r.onsuccess=()=>{
+    const current=r.result;
+    if(!owned(current)||current.capturedAt!==photo.capturedAt||
+       current.ref.id!==photo.ref.id||current.ref.partida!==photo.ref.partida||
+       current.blob.size!==photo.blob.size){
+      tx.abort();return;
+    }
+    store.delete(photo.photoId);removed=true;
+   };
+   tx.oncomplete=()=>{connection.close();resolve(removed);};
+   tx.onabort=()=>{connection.close();reject(Error('Foto remota confirmada, pero el borrador local cambió. Se conserva.'));};
+  });
+ }
+ async function sendOne(photo,token){
+  if(!navigator.onLine)throw Error('Sin conexión. Ninguna fotografía enviada.');
+  const original=await operation('readonly',st=>st.get(photo.photoId));
+  if(!owned(original)||original.capturedAt!==photo.capturedAt||
+     original.ref.partida!==photo.ref.partida)throw Error('La foto local ha cambiado.');
+  const digest=await checksum(original.blob);
+  if(!(await remoteState(original,token,digest))){
+   // Sólo un POST por intento y exclusivamente tras comprobar que el UUID falta en servidor.
+   const imageData=await asDataUrl(original.blob);
+   if(!navigator.onLine)throw Error('Sin conexión. Foto conservada.');
+   let response,body={};
+   try{
+    response=await fetch('/api/qc-fotos-sharepoint',{
+     method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
+     body:JSON.stringify({id:original.ref.id,tipo:original.ref.tipo,dia:original.ref.dia,
+      photoId:original.photoId,capturedAt:original.capturedAt,imageData}),
+     cache:'no-store',signal:AbortSignal.timeout(45000)
+    });
+    body=await response.json();
+   }catch(_){throw Error('Envío sin confirmar. NO reintentar sin comprobar servidor. Foto local conservada.');}
+   if(!response.ok||body?.ok!==true){
+    const reason=body?.error==='SHAREPOINT_UPLOAD_NOT_ENABLED'?'La subida de fotos a SharePoint está desactivada en TEST.':
+      body?.error==='PHOTO_INDEX_CONFLICT'||body?.error==='PHOTO_ID_CONFLICT'?
+      'Conflicto de fotografía en servidor.':'Subida no confirmada (HTTP '+response.status+
+       (body?.error?' · '+body.error:'')+').';
+    throw Error(reason+' Fotografía conservada localmente.');
+   }
+   if(body.photoId!==original.photoId||body.record?.sha256!==digest)
+    throw Error('La respuesta del servidor no coincide. Foto local conservada.');
+  }
+  // Una segunda lectura remota verifica indexación en Firebase tras SharePoint.
+  if(!(await remoteState(original,token,digest)))
+   throw Error('SharePoint todavía no está verificado. Foto local conservada.');
+  await removeAfterConfirmed(original);
+  items=items.filter(x=>x.photoId!==original.photoId);
+  summary();
+ }
+ async function syncFor(ref,button,status,repaint){
+  if(sending||!refValid(ref))return;
+  const chosen=listFor(ref).slice();
+  if(!chosen.length)return;
+  if(!navigator.onLine){status.textContent='No hay Internet. Fotos conservadas localmente.';return;}
+  if(!confirm('¿Enviar '+chosen.length+' foto(s) de la partida '+ref.partida+
+   ' a SharePoint? La subida será REAL en la biblioteca QC. No se enviarán automáticamente.'))return;
+  sending=true;button.disabled=true;
+  let done=0;
+  try{
+   const token=await userToken();
+   for(const photo of chosen){
+    status.textContent='Verificando y enviando foto '+(done+1)+' de '+chosen.length+'…';
+    await sendOne(photo,token);
+    done++;repaint();
+   }
+   status.textContent='✓ '+done+' fotografía(s) verificada(s) en SharePoint. Copias pendientes retiradas.';
+  }catch(e){
+   status.textContent=(e?.message||'Error al sincronizar')+
+    ' · '+done+' confirmada(s); las demás continúan en este dispositivo.';
+  }finally{sending=false;button.disabled=false;repaint();}
+ }
  async function init(user,userRole){
   if(typeof user!=='string'||!user||!['ADMIN','TECNICO','CARGADOR'].includes(userRole))
    throw Error('Sesión de fotos no autorizada.');
@@ -121,11 +264,17 @@
   const indicator=text('span');indicator.style.cssText='font-size:12px;font-weight:700;color:#8c5400';
   const view=text('button','Ver última');view.type='button';
   view.style.cssText='padding:6px 8px;color:#1558a0;background:white;border:1px solid #aac1d7;border-radius:7px;font-size:12px;font-weight:700';
+  const sync=text('button','Enviar fotos');
+  sync.type='button';
+  sync.style.cssText='padding:8px 10px;background:#1558a0;color:white;border:0;border-radius:7px;font-weight:700';
+  const syncStatus=text('span');
+  syncStatus.setAttribute('role','status');syncStatus.style.cssText='font-size:12px;color:#33516b;width:100%';
   const picker=text('input');picker.type='file';picker.accept='image/*';
   picker.setAttribute('capture','environment');picker.hidden=true;
   function repaint(){
    const photos=listFor(ref);indicator.textContent=photos.length?photos.length+' pendiente(s) · local':'';
    view.hidden=!photos.length;
+   sync.hidden=!photos.length;sync.textContent='Enviar '+photos.length+' foto(s)';
   }
   button.addEventListener('click',()=>{picker.value='';picker.click();});
   picker.addEventListener('change',async()=>{
@@ -153,7 +302,8 @@
    try{await preview(photos[photos.length-1]);}
    catch(e){indicator.textContent=e.message||'No se puede abrir la foto.';}
   });
-  row.append(button,indicator,view,picker);parent.append(row);repaint();
+  sync.addEventListener('click',()=>{void syncFor(ref,sync,syncStatus,repaint);});
+  row.append(button,indicator,view,sync,syncStatus,picker);parent.append(row);repaint();
  }
  window.QCOfflinePhotos=Object.freeze({init,decorate,count:()=>items.length});
 })();
