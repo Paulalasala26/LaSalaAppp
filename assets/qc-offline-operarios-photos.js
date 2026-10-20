@@ -6,6 +6,10 @@
  const LIMIT=30,MAX_BYTES=2450000,RE_ID=/^[A-Za-z0-9_-]{1,180}$/,RE_PART=/^[A-Za-z0-9._-]{1,100}$/;
  const TYPES=['image/jpeg','image/png','image/webp','image/heic','image/heif'];
  let owner='',role='',items=[],sending=false,previewClose=null;
+ function requireSession(){
+  if(window.QCOfflineSessionGuard&&!window.QCOfflineSessionGuard.active())
+   throw Error('La sesión ha cambiado. Foto conservada; vuelve a iniciar sesión.');
+ }
  const text=(tag,v)=>{const e=document.createElement(tag);if(v!==undefined)e.textContent=String(v);return e;};
  function refValid(r){
   return r&&RE_ID.test(r.id)&&RE_PART.test(r.partida)&&
@@ -56,7 +60,9 @@
   if(previewClose){const close=previewClose;previewClose=null;close();}
  }
  async function preview(photo){
+  requireSession();
   const r=await operation('readonly',s=>s.get(photo.photoId));
+  requireSession();
   if(!owned(r))throw Error('No se ha podido recuperar esta fotografía.');
   const layer=text('section');
   layer.style.cssText='position:fixed;inset:0;z-index:100120;background:#122337f2;padding:15px;display:flex;flex-direction:column;gap:12px;align-items:center;justify-content:center';
@@ -223,12 +229,15 @@
   });
  }
  async function sendOne(photo,token){
+  requireSession();
   if(!navigator.onLine)throw Error('Sin conexión. Ninguna fotografía enviada.');
   const original=await operation('readonly',st=>st.get(photo.photoId));
   if(!owned(original)||original.capturedAt!==photo.capturedAt||
      original.ref.partida!==photo.ref.partida)throw Error('La foto local ha cambiado.');
   const digest=await checksum(original.blob);
+  requireSession();
   if(!(await remoteState(original,token,digest))){
+   requireSession();
    // Recuperar un intento anterior exige DOS decisiones: GET remoto por UUID
    // y autorización explícita para reutilizar exactamente la misma foto.
    // El servidor usa nombre inmutable UUID+hash y comprueba los bytes:
@@ -242,6 +251,7 @@
    const imageData=await asDataUrl(original.blob);
    if(!navigator.onLine)throw Error('Sin conexión. Foto conservada.');
    await markAttempt(original); // Persistencia confirmada ANTES de cualquier POST.
+   requireSession();
    let response,body={};
    try{
     response=await fetch('/api/qc-fotos-sharepoint',{
@@ -263,8 +273,10 @@
     throw Error('La respuesta del servidor no coincide. Foto local conservada.');
   }
   // Una segunda lectura remota verifica indexación en Firebase tras SharePoint.
+  requireSession();
   if(!(await remoteState(original,token,digest)))
    throw Error('SharePoint todavía no está verificado. Foto local conservada.');
+  requireSession();
   if(!(await removeAfterConfirmed(original)))
    throw Error('La confirmación remota existe, pero no se pudo retirar la foto local.');
   items=items.filter(x=>x.photoId!==original.photoId);
@@ -274,6 +286,7 @@
   if(sending||!refValid(ref))return;
   const chosen=listFor(ref).slice();
   if(!chosen.length)return;
+  requireSession();
   if(!navigator.onLine){status.textContent='No hay Internet. Fotos conservadas localmente.';return;}
   const revisar=chosen.some(photo=>photo.status==='ENVIO_INCIERTO');
   if(!confirm(revisar?
@@ -286,6 +299,7 @@
   let done=0;
   try{
    const token=await userToken();
+   requireSession();
    for(const photo of chosen){
     status.textContent='Verificando y enviando foto '+(done+1)+' de '+chosen.length+'…';
     await sendOne(photo,token);
@@ -334,7 +348,7 @@
    sync.hidden=!photos.length;
    sync.textContent=(revisar?'Revisar ':'Enviar ')+photos.length+' foto(s)';
   }
-  button.addEventListener('click',()=>{picker.value='';picker.click();});
+  button.addEventListener('click',()=>{try{requireSession();picker.value='';picker.click();}catch(e){indicator.textContent=e.message;}});
   picker.addEventListener('change',async()=>{
    const file=picker.files?.[0];if(!file)return;
    if(!owner||!refValid(ref)){indicator.textContent='Sesión no válida.';return;}
@@ -343,6 +357,7 @@
     if(items.length>=LIMIT)throw Error('Límite de 30 fotografías pendientes en este usuario.');
     if(typeof crypto?.randomUUID!=='function')throw Error('El dispositivo no admite identificadores seguros.');
     const blob=await compressed(file);
+    requireSession();
     const photo={
      photoId:crypto.randomUUID(),owner,role,
      ref:{id:ref.id,tipo:ref.tipo,dia:ref.dia,partida:ref.partida},
