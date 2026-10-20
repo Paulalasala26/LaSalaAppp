@@ -13,14 +13,14 @@ main{padding:14px;max-width:750px;margin:auto}h1{font-size:20px;margin:0}p{line-
 a,button{font:inherit;color:#1558a0}button{background:#1558a0;color:white;border:0;border-radius:8px;padding:12px;cursor:pointer;font-weight:700}
 #copy{display:none;margin:10px 0}small{display:block;line-height:1.4}
 </style></head><body>
-<header><h1>Localizar inspección QC · TEST</h1><small>Solo lectura · ADMIN</small></header>
+<header><h1>Localizar inspección QC · TEST</h1><small>Consulta y retirada puntual autorizada · ADMIN</small></header>
 <main>
 <p>Consulta únicamente las inspecciones de <strong>septiembre de 2026</strong> que tengan mediciones actualizadas el <strong>20 de octubre de 2026</strong>. Da prioridad al patrón de cinco bandejas en cada categoría.</p>
 <div id="status" role="status">Comprobando acceso…</div>
 <button id="copy" type="button">Copiar resultados</button>
 <div id="results"></div>
 <p><a href="./">Volver a ViguerAPP</a></p>
-<small>No modifica ni borra datos. La comprobación se hace exclusivamente en Firebase TEST, mediante la API autenticada.</small>
+<small>La consulta no modifica datos. Únicamente se ofrece la retirada de una medición ficticia identificada y autorizada, con validación de coincidencia exacta y ETag. Nunca elimina la partida ni el Check Túnel original.</small>
 </main>
 <script>
 'use strict';
@@ -61,6 +61,45 @@ a,button{font:inherit;color:#1558a0}button{background:#1558a0;color:white;border
    box.append(t('span','Actualizado: '+new Date(rec.updatedAt).toLocaleString('es-ES',{timeZone:'Europe/Madrid'})));
    box.append(t('span','Usuario: '+rec.updatedBy+' · Versión: '+rec.version+' · Bandejas inspeccionadas: '+rec.bandejasInspeccionadas));
    if(rec.patronCinco)box.append(t('span','Coincide con el patrón de prueba (5 por categoría)','candidate'));
+   // Botón limitado por ID, partida, tipo, timestamp, usuario y patrón esperados.
+   const target=rec.id==='control_1790060109011_1_7s2ztv'&&
+     rec.partida==='26X01254'&&rec.tipo==='tunel'&&
+     rec.updatedAt==='2026-10-20T08:19:08.922Z'&&
+     rec.updatedBy==='PILAR'&&rec.version===1&&rec.patronCinco===true;
+   if(target){
+    const remove=t('button','Retirar SOLO medición ficticia');
+    remove.type='button';
+    remove.style.marginTop='10px';
+    const report=t('span','La partida, fotografías y control original permanecerán intactos.');
+    report.setAttribute('role','status');
+    remove.addEventListener('click',async()=>{
+     if(remove.disabled)return;
+     if(!confirm('¿Retirar EXCLUSIVAMENTE la medición ficticia de 5 bandejas de 26X01254 en Firebase TEST? Se conserva el Check Túnel original.'))return;
+     remove.disabled=true;
+     report.textContent='Comprobando identificadores, versión y ETag…';
+     try{
+      const done=await fetch('/api/admin-qc-mediciones',{
+       method:'POST',cache:'no-store',
+       headers:{Authorization:'Bearer '+token.id_token,'Content-Type':'application/json'},
+       body:JSON.stringify({modo:'retirar-medicion-ficticia-20oct'})
+      });
+      const data=await done.json().catch(()=>({}));
+      if(!done.ok)throw Error('No confirmado (HTTP '+done.status+(data.error?' · '+data.error:'')+').');
+      if(data.ok!==true||(!data.deleted&&!data.alreadyAbsent))
+       throw Error('Respuesta de eliminación sin confirmar.');
+      report.textContent=data.deleted?
+       '✓ Medición ficticia eliminada y ausencia comprobada en Firebase TEST. Check original conservado.':
+       '✓ La medición ya no existe en Firebase TEST. No se ha eliminado nada más.';
+      remove.textContent='Medición retirada';
+      status.textContent='✓ Medición de prueba resuelta. Partida 26X01254 conservada.';
+     }catch(e){
+      report.textContent=(e?.message||'No se pudo verificar la retirada')+
+       ' No repitas esta operación sin volver a consultar Firebase.';
+     }
+     // No habilitar de nuevo ante resultado incierto; la consulta debe refrescarse.
+    });
+    box.append(remove,report);
+   }
    list.append(box);
    lines.push([rec.partida,rec.tipo,rec.id,rec.updatedAt,rec.updatedBy,rec.bandejasInspeccionadas,rec.patronCinco?'PATRÓN 5':''].join(' | '));
   }
