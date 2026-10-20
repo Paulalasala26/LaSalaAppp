@@ -165,6 +165,64 @@ async function buscarQCSeptiembreHoy(req,res){
     resultados:matches.slice(0,100),truncado:matches.length>100
   });
 }
+// ÚNICA retirada autorizada de una medición ficticia, sin tocar control legacy.
+// Bloqueada para cualquier ID o contenido distinto al identificado el 20/10.
+const QC_TEST_CLEANUP=Object.freeze({
+ id:'control_1790060109011_1_7s2ztv',
+ tipo:'tunel',partida:'26X01254',
+ updatedAt:'2026-10-20T08:19:08.922Z',updatedBy:'PILAR'
+});
+async function retirarSoloMedicionFicticiaQC(req,res){
+ const raw=req.headers.authorization||'';
+ if(!raw.startsWith('Bearer '))throw httpError(401,'UNAUTHORIZED');
+ const actor=await verifyFirebaseIdToken(raw.slice(7).trim());
+ const token=await serviceAccessToken(serviceAccount());
+ const [roles,accounts]=await Promise.all([
+  readKey('lasala-roles-v1',token),readKey('lasala-users-v1',token)
+ ]);
+ if(roles[actor]!=='ADMIN'||!validHash(accounts[actor]))
+  throw httpError(403,'FORBIDDEN');
+ const ref={id:QC_TEST_CLEANUP.id,tipo:'tunel',dia:0};
+ // Leer con ETag antes de cualquier cambio; nunca tomar el ID del cliente.
+ const prior=await getJson(pathFor(ref.id),token,true);
+ if(prior.value===null)return res.status(200).json({ok:true,alreadyAbsent:true});
+ const v=prior.value,meta=v?.legacy;
+ if(!prior.etag||!meta||meta.id!==QC_TEST_CLEANUP.id||
+    meta.tipo!==QC_TEST_CLEANUP.tipo||meta.partida!==QC_TEST_CLEANUP.partida||
+    !Number.isInteger(meta.dia)||meta.dia<93||meta.dia>122||
+    v.schemaVersion!==1||v.version!==1||
+    v.updatedAt!==QC_TEST_CLEANUP.updatedAt||
+    v.updatedBy!==QC_TEST_CLEANUP.updatedBy||
+    v.bandejasInspeccionadas!==5||v.resultadoQC!==null)
+  throw httpError(409,'TEST_MEASUREMENT_CHANGED');
+ const cats=Object.keys(OPTIONS);
+ if(!v.mediciones||typeof v.mediciones!=='object'||Array.isArray(v.mediciones)||
+    Object.keys(v.mediciones).length!==cats.length||
+    !cats.every(cat=>{
+      const qty=v.mediciones[cat],entries=qty&&typeof qty==='object'&&!Array.isArray(qty)?
+       Object.entries(qty):[];
+      return entries.length===1&&([...OPTIONS[cat],'noEvaluada'].includes(entries[0][0]))&&entries[0][1]===5;
+    }))
+  throw httpError(409,'TEST_MEASUREMENT_CONTENT_CHANGED');
+ ref.dia=meta.dia;
+ // Verificar que la inspección ORIGINAL todavía existe y coincide.
+ const source=await legacyRecord(ref,token);
+ if(source.partida!==QC_TEST_CLEANUP.partida)
+  throw httpError(409,'SOURCE_CHANGED');
+ const del=await fetch(pathFor(ref.id),{
+  method:'DELETE',
+  headers:{Authorization:'Bearer '+token,'if-match':prior.etag},
+  cache:'no-store',signal:AbortSignal.timeout(10000)
+ });
+ if(del.status===412)throw httpError(409,'CONCURRENT_MODIFICATION');
+ if(!del.ok)throw new Error('Firebase cleanup delete failed: '+del.status);
+ const after=await getJson(pathFor(ref.id),token,false);
+ if(after.value!==null)throw new Error('Firebase cleanup not verified');
+ console.info('QC_TEST_MEASUREMENT_REMOVED',actor,ref.tipo,ref.id);
+ return res.status(200).json({ok:true,deleted:true,
+  id:QC_TEST_CLEANUP.id,partida:QC_TEST_CLEANUP.partida,
+  originalControlPreserved:true});
+}
 // Consulta agrupada de estados cuantitativos: comparte despliegue con QC.
 // Solo lectura, validación por ID/tipo/día/partida; nunca escribe Firebase.
 function validarConsultaEstados(req){
@@ -214,6 +272,10 @@ module.exports=async function handler(req,res){
     if(req.method==='GET'&&request?.modo==='buscar-qc-septiembre-hoy'){
       phase='DIAGNOSTIC_READ';
       return await buscarQCSeptiembreHoy(req,res);
+    }
+    if(req.method==='POST' && request?.modo==='retirar-medicion-ficticia-20oct'){
+      phase='TEST_CLEANUP';
+      return await retirarSoloMedicionFicticiaQC(req,res);
     }
     if(req.method==='POST' && request?.modo==='estados'){
       phase='STATUS_READ';
