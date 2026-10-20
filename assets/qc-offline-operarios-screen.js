@@ -14,8 +14,59 @@
   const anchor=new Date(2026,5,15);
   const day=n=>{const d=new Date(anchor);d.setDate(d.getDate()+n-15);return d.toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric'})};
   const period=q=>day(15+q*14)+' — '+day(28+q*14);
-  let slices=[];
+  let slices=[],openedFor=null,sessionLocked=false;
+  function sessionMatches(){
+    if(!openedFor||sessionLocked)return false;
+    try{
+      const auth=JSON.parse(localStorage.getItem(authKey)||'null');
+      const session=JSON.parse(localStorage.getItem(sessionKey)||'null');
+      return auth?.user===openedFor.user&&!!auth.refreshToken&&
+        session?.user===openedFor.user&&
+        localStorage.getItem(roleKey)===openedFor.role;
+    }catch(_){return false;}
+  }
+  function lockScreen(){
+    if(sessionLocked)return;
+    sessionLocked=true;
+    window.QCOfflineDraftEditor?.lock?.();
+    window.QCOfflinePhotos?.lock?.();
+    slices=[];
+    for(const id of ['area','draft-rescue','photo-rescue','photo-pending']){
+      const node=$(id);
+      if(!node)continue;
+      node.hidden=true;
+      if(id!=='area')node.replaceChildren();
+    }
+    $('status').textContent='Sesión cerrada o cambiada. Consulta bloqueada. '+
+      'Los borradores y fotografías guardados siguen en este dispositivo. '+
+      'Vuelve a ViguerAPP e inicia sesión con el usuario original para recuperarlos.';
+  }
+  function ensureSession(){
+    if(sessionLocked||!openedFor)return false;
+    if(!sessionMatches()){lockScreen();return false;}
+    return true;
+  }
+  // Otra pestaña puede cerrar sesión mientras esta pantalla permanece abierta.
+  // El acceso se bloquea en cuanto se detecta el cambio, incluso sin refrescar.
+  window.addEventListener('storage',event=>{
+    if(event.key===null||[authKey,roleKey,sessionKey].includes(event.key))
+      ensureSession();
+  });
+  window.addEventListener('focus',ensureSession);
+  window.addEventListener('pageshow',ensureSession);
+  document.addEventListener('visibilitychange',()=>{
+    if(!document.hidden)ensureSession();
+  });
+  for(const eventType of ['click','change','submit']){
+    document.addEventListener(eventType,event=>{
+      if(ensureSession())return;
+      // Permitir volver a ViguerAPP (login); nunca ejecutar acciones QC.
+      if(event.target?.closest?.('a[href="./"]'))return;
+      event.preventDefault();event.stopImmediatePropagation();
+    },true);
+  }
   function render(){
+    if(!ensureSession())return;
     const tipo=$('tipo').value,q=$('quincena').value,term=$('search').value.trim().toUpperCase();
     const records=slices.filter(s=>(!tipo||s.tipo===tipo)&&(!q||String(s.q)===q))
       .flatMap(s=>s.records)
@@ -47,11 +98,15 @@
       if(!auth?.user||!auth.refreshToken||auth.user!==session?.user||
          !['ADMIN','TECNICO','CARGADOR'].includes(role))throw Error('LOGIN_REQUIRED');
       if(!window.QCOfflineOperarios)throw Error('OFFLINE_NOT_SUPPORTED');
+      openedFor={user:auth.user,role};
+      if(!ensureSession())return;
       slices=await window.QCOfflineOperarios.list(auth.user,role);
+      if(!ensureSession())return;
       const localDraftCount=window.QCOfflineDraftEditor?
         await window.QCOfflineDraftEditor.init(auth.user,role):0;
       const localPhotoCount=window.QCOfflinePhotos?
         await window.QCOfflinePhotos.init(auth.user,role):0;
+      if(!ensureSession())return;
       // La copia de partidas caduca a las 24 h, NO los borradores: si el
       // registro exacto ya no está en ninguna copia disponible, mostrar
       // recuperación local usando el ID original y los permisos del usuario.
@@ -80,6 +135,7 @@
       for(const id of ['tipo','quincena','search'])$(id).addEventListener(id==='search'?'input':'change',render);
       render();
     }catch(e){
+      if(sessionLocked)return;
       $('status').textContent=e.message==='LOGIN_REQUIRED'?
         'Abre ViguerAPP TEST desde este mismo navegador o desde la aplicación instalada, inicia sesión y utiliza Control → Sin conexión. Los enlaces abiertos desde otra aplicación o navegador no comparten la sesión.':
         'No se puede leer la consulta local. Conéctate y abre Control.';
