@@ -6,7 +6,7 @@
   ['color','Color',[['verde','Verde'],['amarillo','Amarillo'],['verdeClaro','Verde claro'],['ok','OK'],['noEvaluada','No evaluada']]],
   ['tamano','Tamaño',[['grande','Grande'],['pequeno','Pequeño'],['ok','OK'],['noEvaluada','No evaluada']]],
   ['sanidad','Sanidad',[['ok','OK'],['enferma','Enferma'],['noEvaluada','No evaluada']]],
-  ['flores','Flores',[['si','Sí'],['no','No'],['noEvaluada','No evaluada']]],
+  ['flores','Flores',[['si','Sí'],['no','No'],['ok','OK'],['noEvaluada','No evaluada']]],
   ['raices','Raíces',[['pocaRaiz','Poca raíz'],['raizVariedad','Raíz en variedad'],['ok','OK'],['noEvaluada','No evaluada']]]
  ];
  let owner='',role='',drafts=new Map(),editor=null,active=null,startValue='',syncing=false;
