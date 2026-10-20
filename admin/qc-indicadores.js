@@ -7,7 +7,7 @@
     ['color','Color',{verde:'Verde',amarillo:'Amarillo',verdeClaro:'Verde claro',ok:'OK'}],
     ['tamano','Tamaño',{grande:'Grande',pequeno:'Pequeño',ok:'OK'}],
     ['sanidad','Sanidad',{ok:'OK',enferma:'Enferma'}],
-    ['flores','Flores',{si:'Sí',no:'No'}],
+    ['flores','Flores',{si:'Sí',no:'No',ok:'OK'}],
     ['raices','Raíces',{pocaRaiz:'Poca raíz',raizVariedad:'Raíz en variedad',ok:'OK'}]
   ];
   CATS.forEach(cat=>{cat[2].noEvaluada='No evaluada'});
