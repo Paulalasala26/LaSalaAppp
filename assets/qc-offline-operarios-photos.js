@@ -255,7 +255,7 @@
   summary();
   return items.length;
  }
- function decorate(parent,ref){
+ function decorate(parent,ref,allowCapture=true){
   if(!refValid(ref))return;
   const row=text('div');row.style.cssText='display:flex;align-items:center;flex-wrap:wrap;gap:7px;margin-top:7px';
   const button=text('button','Foto');
@@ -303,7 +303,32 @@
    catch(e){indicator.textContent=e.message||'No se puede abrir la foto.';}
   });
   sync.addEventListener('click',()=>{void syncFor(ref,sync,syncStatus,repaint);});
-  row.append(button,indicator,view,sync,syncStatus,picker);parent.append(row);repaint();
+  if(allowCapture)row.append(button);
+  row.append(indicator,view,sync,syncStatus);
+  if(allowCapture)row.append(picker);
+  parent.append(row);repaint();
  }
- window.QCOfflinePhotos=Object.freeze({init,decorate,count:()=>items.length});
+ // Recuperación: fotos guardadas deben ser visibles incluso después de
+ // caducar el snapshot de partidas, sin obligar a recapturarlas.
+ function renderSaved(parent){
+  if(!parent||!items.length)return;
+  parent.replaceChildren();
+  const title=text('h2','Fotografías locales pendientes');
+  title.style.cssText='font-size:17px;margin:12px 0;color:#17324e';
+  parent.append(title);
+  const refs=new Map();
+  for(const photo of items){
+   const key=JSON.stringify([photo.ref.id,photo.ref.tipo,photo.ref.dia,photo.ref.partida]);
+   if(!refs.has(key))refs.set(key,photo.ref);
+  }
+  for(const ref of refs.values()){
+   const card=text('div');card.className='item';
+   const area=text('div');
+   area.append(text('strong',ref.partida),text('span',ref.tipo==='tunel'?'QC Túnel':'QC Carga'));
+   decorate(area,ref,false);
+   card.append(area);parent.append(card);
+  }
+  parent.hidden=false;
+ }
+ window.QCOfflinePhotos=Object.freeze({init,decorate,renderSaved,count:()=>items.length});
 })();
