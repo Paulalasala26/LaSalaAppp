@@ -10,7 +10,7 @@ const CATEGORIES=Object.freeze({
   color:['verde','amarillo','verdeClaro','ok'],
   tamano:['grande','pequeno','ok'],
   sanidad:['ok','enferma'],
-  flores:['si','no'],
+  flores:['si','no','ok'],
   raices:['pocaRaiz','raizVariedad','ok']
 });
 const STAGES=new Set(['tunel','carga']);
@@ -48,10 +48,15 @@ function validateRules(source,stage){
   const criterios={};
   for(const [category,options] of Object.entries(CATEGORIES)){
     const provided=source.criterios[category];
-    if(!exactKeys(provided,options))throw httpError(400,'INVALID_RULES');
+    // Compatibilidad: configuraciones anteriores de Flores solo tenían Sí/No.
+    // Ampliar el modelo NO debe invalidar ni modificar el histórico existente.
+    const legacyFlores=category==='flores'&&exactKeys(provided,['si','no']);
+    if(!exactKeys(provided,options)&&!legacyFlores)
+      throw httpError(400,'INVALID_RULES');
     criterios[category]={};
     for(const option of options){
-      const rule=provided[option];
+      const rule=legacyFlores&&option==='ok'?
+        {tratamiento:'pendiente',toleranciaPct:null}:provided[option];
       if(!exactKeys(rule,['tratamiento','toleranciaPct'])||
          !BEHAVIORS.has(rule.tratamiento)||!percent(rule.toleranciaPct)||
          (rule.tratamiento==='pendiente'&&rule.toleranciaPct!==null))
