@@ -172,6 +172,53 @@ const QC_TEST_CLEANUP=Object.freeze({
  tipo:'tunel',partida:'26X01254',
  updatedAt:'2026-10-20T08:19:08.922Z',updatedBy:'PILAR'
 });
+// Diagnóstico estricto SOLO LECTURA de la retirada autorizada.
+// No permite consultar otras partidas; no cambia ningún dato.
+async function diagnosticarRetiradaFicticiaQC(req,res){
+ const raw=req.headers.authorization||'';
+ if(!raw.startsWith('Bearer '))throw httpError(401,'UNAUTHORIZED');
+ const actor=await verifyFirebaseIdToken(raw.slice(7).trim());
+ const token=await serviceAccessToken(serviceAccount());
+ const [roles,accounts]=await Promise.all([
+  readKey('lasala-roles-v1',token),readKey('lasala-users-v1',token)
+ ]);
+ if(roles[actor]!=='ADMIN'||!validHash(accounts[actor]))
+  throw httpError(403,'FORBIDDEN');
+ const prior=await getJson(pathFor(QC_TEST_CLEANUP.id),token,true);
+ if(prior.value===null)return res.status(200).json({ok:true,exists:false,checks:{absent:true}});
+ const v=prior.value,meta=v?.legacy;
+ const cats=Object.keys(OPTIONS);
+ const checks={
+  etagPresent:!!prior.etag,
+  id:meta?.id===QC_TEST_CLEANUP.id,
+  tipo:meta?.tipo===QC_TEST_CLEANUP.tipo,
+  partida:meta?.partida===QC_TEST_CLEANUP.partida,
+  diaSeptiembre:Number.isInteger(meta?.dia)&&meta.dia>=93&&meta.dia<=122,
+  schemaVersion:v?.schemaVersion===1,
+  version:v?.version===1,
+  updatedAt:v?.updatedAt===QC_TEST_CLEANUP.updatedAt,
+  updatedBy:v?.updatedBy===QC_TEST_CLEANUP.updatedBy,
+  bandejas:v?.bandejasInspeccionadas===5,
+  resultadoQCNulo:v?.resultadoQC===null,
+  cincoCategorias:!!v?.mediciones&&typeof v.mediciones==='object'&&
+   !Array.isArray(v.mediciones)&&Object.keys(v.mediciones).length===cats.length&&
+   cats.every(cat=>{
+    const qty=v.mediciones[cat];
+    const entries=qty&&typeof qty==='object'&&!Array.isArray(qty)?Object.entries(qty):[];
+    return entries.length===1&&[...OPTIONS[cat],'noEvaluada'].includes(entries[0][0])&&entries[0][1]===5;
+   })
+ };
+ const differences=Object.keys(checks).filter(k=>!checks[k]);
+ return res.status(200).json({ok:true,exists:true,
+  id:QC_TEST_CLEANUP.id,partida:QC_TEST_CLEANUP.partida,
+  versionActual:Number.isInteger(v.version)?v.version:null,
+  updatedAtActual:typeof v.updatedAt==='string'?v.updatedAt:null,
+  updatedByActual:typeof v.updatedBy==='string'?v.updatedBy:null,
+  resultadoQCEstado:v.resultadoQC===null?'NULL':
+   Object.prototype.hasOwnProperty.call(v,'resultadoQC')?'NO_NULL':'NO_PRESENTE',
+  checks,diferencias:differences
+ });
+}
 async function retirarSoloMedicionFicticiaQC(req,res){
  const raw=req.headers.authorization||'';
  if(!raw.startsWith('Bearer '))throw httpError(401,'UNAUTHORIZED');
@@ -269,6 +316,10 @@ module.exports=async function handler(req,res){
   let phase='REQUEST';
   try{
     const request=req.method==='GET'?req.query:inputOf(req);
+    if(req.method==='GET'&&request?.modo==='diagnosticar-medicion-ficticia-20oct'){
+      phase='TEST_CLEANUP_DIAGNOSTIC';
+      return await diagnosticarRetiradaFicticiaQC(req,res);
+    }
     if(req.method==='GET'&&request?.modo==='buscar-qc-septiembre-hoy'){
       phase='DIAGNOSTIC_READ';
       return await buscarQCSeptiembreHoy(req,res);
