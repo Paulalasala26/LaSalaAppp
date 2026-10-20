@@ -730,11 +730,30 @@ module.exports=async function handler(req,res){
     const photo=req.method==='POST'?photoInput(body):null;
     const ref=diagnostic?null:(photo?.ref||reference(req.query));
     const session=await authorize(req,ref?.tipo||null);
-    // Piloto: solo ADMIN puede subir fotos; técnicos siguen en flujo legado.
-    if(photo&&session.role!=='ADMIN')throw httpError(403,'PILOT_ADMIN_ONLY');
+    // Túnel: ADMIN/TÉCNICO. Carga: ADMIN/TÉCNICO/CARGADOR.\n    // authorize() valida rol ACTIVO contra Firebase, además de ID token.\n    // Los diagnósticos de biblioteca y candidatos siguen solo ADMIN.
     if(diagnostic&&session.role!=='ADMIN')throw httpError(403,'FORBIDDEN');
     if(candidatesRequested&&session.role!=='ADMIN')throw httpError(403,'FORBIDDEN');
     const source=ref?await sourceFor(ref,session.firebaseToken):null;
+    // Consulta puntual por foto: sirve para resolver cortes/red sin reenviar
+    // bytes o duplicar escrituras en SharePoint. No devuelve datos sensibles.
+    if(req.method==='GET'&&req.query?.action==='photo-status'){
+      const photoId=req.query?.photoId;
+      if(typeof photoId!=='string'||!PHOTO_RE.test(photoId))
+        throw httpError(400,'INVALID_PHOTO_ID');
+      const read=await firebaseGet(photoUrl(ref,photoId),session.firebaseToken,false);
+      if(read.value===null)return res.status(200).json({ok:true,exists:false});
+      const record=read.value;
+      if(record.schemaVersion!==1||record.photoId!==photoId||
+         record.registroId!==ref.id||record.tipo!==ref.tipo||
+         record.dia!==ref.dia||typeof record.sha256!=='string'||
+         !/^[0-9a-f]{64}$/.test(record.sha256)||
+         typeof record.capturedAt!=='string'||
+         !record.sharepoint?.itemId||!record.sharepoint?.driveId)
+        throw httpError(409,'PHOTO_INDEX_CONFLICT');
+      return res.status(200).json({ok:true,exists:true,
+        photoId:record.photoId,sha256:record.sha256,capturedAt:record.capturedAt,
+        sharepointConfirmed:true});
+    }
     if(photo){
       const outcome=await storePhoto(session,photo,source);
       if(!outcome.record)throw httpError(409,'PHOTO_INDEX_CONFLICT');
