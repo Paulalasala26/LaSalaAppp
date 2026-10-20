@@ -199,7 +199,7 @@ async function diagnosticarRetiradaFicticiaQC(req,res){
   updatedAt:v?.updatedAt===QC_TEST_CLEANUP.updatedAt,
   updatedBy:v?.updatedBy===QC_TEST_CLEANUP.updatedBy,
   bandejas:v?.bandejasInspeccionadas===5,
-  resultadoQCNulo:v?.resultadoQC===null,
+  resultadoQCVacio:v?.resultadoQC==null,
   cincoCategorias:!!v?.mediciones&&typeof v.mediciones==='object'&&
    !Array.isArray(v.mediciones)&&Object.keys(v.mediciones).length===cats.length&&
    cats.every(cat=>{
@@ -240,7 +240,7 @@ async function retirarSoloMedicionFicticiaQC(req,res){
     v.schemaVersion!==1||v.version!==1||
     v.updatedAt!==QC_TEST_CLEANUP.updatedAt||
     v.updatedBy!==QC_TEST_CLEANUP.updatedBy||
-    v.bandejasInspeccionadas!==5||v.resultadoQC!==null)
+    v.bandejasInspeccionadas!==5||v.resultadoQC!=null)
   throw httpError(409,'TEST_MEASUREMENT_CHANGED');
  const cats=Object.keys(OPTIONS);
  if(!v.mediciones||typeof v.mediciones!=='object'||Array.isArray(v.mediciones)||
