@@ -464,5 +464,11 @@
   if(saved){footer.append(makeCheckButton(ref));footer.append(makeSyncButton(ref,label));}
   item.append(footer);
  }
- window.QCOfflineDraftEditor=Object.freeze({init,decorate,renderSaved});
+ // El bloqueo por cambio de sesión cierra un editor abierto, pero NO toca
+ // IndexedDB ni elimina ningún borrador previamente guardado.
+ function lock(){
+  if(editor){editor.remove();editor=null;}
+  active=null;
+ }
+ window.QCOfflineDraftEditor=Object.freeze({init,decorate,renderSaved,lock});
 })();
