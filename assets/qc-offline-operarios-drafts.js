@@ -103,7 +103,7 @@
   total.style.cssText='display:block;font-weight:700;margin:15px 0';
   const totalInput=el('input');totalInput.type='number';totalInput.name='total';
   totalInput.min='1';totalInput.max='10000000';totalInput.step='1';totalInput.inputMode='numeric';
-  const sourceTotal=quantity(Number(ref.bandejas))&&/^\\d+$/.test(String(ref.bandejas||'').trim())?
+  const sourceTotal=quantity(Number(ref.bandejas))&&/^\d+$/.test(String(ref.bandejas||'').trim())?
     Number(ref.bandejas):null;
   const initialTotal=draft?.bandejasInspeccionadas||sourceTotal;
   let previousTotal=initialTotal||null;
