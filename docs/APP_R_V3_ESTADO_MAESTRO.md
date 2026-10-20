@@ -88,6 +88,8 @@
 
 **Sincronización (NO IMPLEMENTADA):** debe requerir sesión online, GET del estado actual y versión por ID/tipo/día, revisión de conflictos, POST único con control de versión/ETag, verificación explícita y eliminación del borrador solo tras éxito comprobado. Jamás repetir a ciegas un guardado incierto. Fotos offline en fase posterior.
 
+**20/10 — diagnóstico acceso:** al abrir `qc-offline.html` externamente se obtiene «No hay una sesión autorizada»; claves de login y consulta local contrastadas en `index.html`, sin discrepancia. Posible navegación desde distinto contenedor de navegador/PWA, NO constatado aún. Se añade en Control frontend, para ADMIN/TÉCNICO/CARGADOR, botón «Sin conexión» que mantiene el mismo contexto de navegador y protege la salida si hay cambios; el mensaje de acceso ahora explica que las sesiones no se comparten entre aplicaciones/navegadores. **IMPLEMENTADO en TEST, pendiente de aceptación en móvil; sin cambio de backend ni PRD.** Si online se reproduce la falta de lectura de cantidades QC, diagnosticar esa incidencia por separado en su API, no atribuirla automáticamente a offline.
+
 ## 6. Registro de hitos recientes (resumen; no transcribir conversaciones)
 
 - **14/10**: Riego y su concurrencia corregidos; Registros de Riego e Histórico unificado, auditoría, filtros y CSV implementados/validados en el recorrido del usuario; reorganización de Avisos.
