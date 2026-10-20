@@ -53,6 +53,10 @@
       const localPhotoCount=window.QCOfflinePhotos?
         await window.QCOfflinePhotos.init(auth.user,role):0;
       if(!slices.length){
+        // Las fotos NO caducan con la copia de partidas: ofrecer lectura y
+        // envío manual usando el ID original validado por el servidor.
+        if(localPhotoCount&&window.QCOfflinePhotos)
+          window.QCOfflinePhotos.renderSaved($('photo-rescue'));
         $('status').textContent='No hay partidas preparadas o la copia ha caducado (24 h). Conéctate y abre QC Túnel o QC Carga.'+
           (localDraftCount?' Hay '+localDraftCount+' borradores de cantidades locales.':'')+
           (localPhotoCount?' Hay '+localPhotoCount+' fotos locales pendientes; se conservarán al caducar esta consulta.':'');
