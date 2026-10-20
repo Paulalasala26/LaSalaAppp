@@ -49,9 +49,15 @@
       if(!window.QCOfflineOperarios)throw Error('OFFLINE_NOT_SUPPORTED');
       slices=await window.QCOfflineOperarios.list(auth.user,role);
       const localDraftCount=window.QCOfflineDraftEditor?
-        await window.QCOfflineDraftEditor.init(auth.user,role).catch(()=>0):0;
+        await window.QCOfflineDraftEditor.init(auth.user,role):0;
       const localPhotoCount=window.QCOfflinePhotos?
         await window.QCOfflinePhotos.init(auth.user,role):0;
+      // La copia de partidas caduca a las 24 h, NO los borradores: si el
+      // registro exacto ya no está en ninguna copia disponible, mostrar
+      // recuperación local usando el ID original y los permisos del usuario.
+      if(localDraftCount&&window.QCOfflineDraftEditor)
+        window.QCOfflineDraftEditor.renderSaved($('draft-rescue'),
+          slices.flatMap(s=>s.records));
       if(!slices.length){
         // Las fotos NO caducan con la copia de partidas: ofrecer lectura y
         // envío manual usando el ID original validado por el servidor.
