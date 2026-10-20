@@ -930,11 +930,14 @@ function applyRoleHomeUI(){
       block.style.display='block';
       block.innerHTML = `
         <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.75rem;display:flex;align-items:center;gap:6px">
-          <i class="ti ti-truck" style="font-size:15px;color:#ff6b35"></i>Acceso de Julio (Cargas)
+          <i class="ti ti-truck" style="font-size:15px;color:#ff6b35"></i>Accesos de Carga
         </div>
         <div id="cargador-home-accesos" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px">
           <button class="home-shortcut-card" onclick="showAsignarCargasModule()" style="padding:14px 20px;font-size:14px;font-weight:700;background:#ff6b35;color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:8px">
             <i class="ti ti-truck" style="font-size:18px"></i><span>Cargas de camión</span>
+          </button>
+          <button class="home-shortcut-card" onclick="handleQuickAction('control')" style="padding:14px 20px;font-size:14px;font-weight:700;background:#1558a0;color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:8px">
+            <i class="ti ti-clipboard-check" style="font-size:18px"></i><span>Control de Calidad</span>
           </button>
         </div>`;
       aplicarTarjetasCuadradasHome(document.getElementById('cargador-home-accesos'));
@@ -5807,14 +5810,26 @@ async function showControlModule(){
   // Carga cargan después exclusivamente la quincena que el usuario abre.
   // Si el índice no estuviera disponible, se conserva el loader v1 como
   // fallback de seguridad; los módulos heredados siguen usándolo aparte.
+  const esCargador=currentUserRole==='CARGADOR';
   const [v2ok] = await Promise.all([
     loadControlV2Index(false),
-    loadConteoTutaData(),
-    loadControlInvernaderoData()
+    ...(esCargador?[]:[loadConteoTutaData(),loadControlInvernaderoData()])
   ]);
   if(!v2ok) await loadControlChecksData(false);
 
-  controlSeccion = null;
+  // CARGADOR puede trabajar en QC Carga, pero no debe entrar al resto
+  // de apartados. Su permiso se comprueba también en la API.
+  if(esCargador){
+    const offset=riegoQuincenaOffsetActual();
+    if(!(await loadControlSeccionSlice('carga',offset,false))){
+      avisarFalloCarga();return;
+    }
+    controlSeccion='carga';
+    controlQuincenaOffset=offset;
+    controlDiaSel=riegoDiaDeHoy();
+  }else{
+    controlSeccion=null;
+  }
   const overlay = getOrCreateOverlay('control-overlay');
   overlay.style.padding = '0';
   renderControlContent(overlay);
@@ -5828,6 +5843,7 @@ async function showControlModule(){
   });
 }
 async function seleccionarSeccionControl(sec){
+  if(currentUserRole==='CARGADOR' && sec!==null && sec!=='carga')return;
   if(sec===controlSeccion)return;
   return navegarControlQC(async()=>{
     const offset=riegoQuincenaOffsetActual();
@@ -5915,7 +5931,7 @@ function renderControlContent(overlay){
     </button>`;
   };
   const navHTML=controlSeccion===null ? '' : `<nav class="control-ui-nav" aria-label="Apartados de Control de Calidad">
-        ${CONTROL_SECCIONES.map(navBtn).join('')}
+        ${CONTROL_SECCIONES.filter(s=>currentUserRole!=='CARGADOR'||s.key==='carga').map(navBtn).join('')}
       </nav>`;
   overlay.innerHTML=`
     <div class="control-ui-shell">
@@ -5960,7 +5976,7 @@ function renderControlContent(overlay){
 function renderControlResumenHTML(){
   return `
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
-      ${CONTROL_SECCIONES.map(s=>{
+      ${CONTROL_SECCIONES.filter(s=>currentUserRole!=='CARGADOR'||s.key==='carga').map(s=>{
         const totalV2 = s.conCheck ? controlV2TotalTipo(s.key) : null;
         const n = s.conCheck ? (totalV2==null ? controlChecksData.filter(c=>c.tipo===s.key).length : totalV2) : null;
         const pendiente=controlSeccionEsProximamente(s);
