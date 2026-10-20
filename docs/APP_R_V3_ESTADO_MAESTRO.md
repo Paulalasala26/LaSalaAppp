@@ -96,6 +96,8 @@
 
 **20/10 — QC borradores locales:** usuario confirma en móvil con modo avión que el formulario de cantidades offline se abre con Color, Tamaño, Sanidad, Flores y Raíces, y que «Guardar en dispositivo» confirma el guardado local. **VALIDADO USUARIO: apertura de formulario y guardado local.** **VALIDADO USUARIO 20/10:** las cantidades se conservan exactamente al cerrar y reabrir «Editar borrador» de la misma inspección, en modo avión. NO hay escritura Firebase ni sincronización automática, tampoco fotos offline. **VALIDADO USUARIO 20/10:** tras reconectar Internet y acceder desde Control → Sin conexión, el borrador sigue marcado «Editar borrador» y conserva exactamente las cantidades. No hubo envío a Firebase.
 
+**20/10 — primera sincronización manual TEST, confirmada por el usuario:** el usuario pulsa «Enviar a TEST» y declara que aparece el mensaje «cantidades sincronizadas…». La interfaz de código únicamente presenta ese éxito tras POST 200, comprobación de versión y GET que coteja todas las cantidades antes de retirar el borrador local. **VALIDADO: flujo de sincronización y confirmación en interfaz**. **Pendiente de aceptación transversal:** entrar en Control de Calidad online, abrir la misma inspección y comprobar visualmente que Color, Tamaño, Sanidad, Flores y Raíces coinciden exactamente. No afirmar aún que esa verificación independiente está hecha. Producción intacta.
+
 ## 6. Registro de hitos recientes (resumen; no transcribir conversaciones)
 
 - **14/10**: Riego y su concurrencia corregidos; Registros de Riego e Histórico unificado, auditoría, filtros y CSV implementados/validados en el recorrido del usuario; reorganización de Avisos.
