@@ -184,7 +184,7 @@
    const refresh=await fetch('https://securetoken.googleapis.com/v1/token?key=AIzaSyDdDdMg6M1jVIssvGYKsdRA-mRug31Yt_g',{
     method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
     body:new URLSearchParams({grant_type:'refresh_token',refresh_token:auth.refreshToken}).toString(),
-    cache:'no-store'
+    cache:'no-store',signal:AbortSignal.timeout(12000)
    });
    if(!refresh.ok)throw Error('LOGIN_REQUIRED');
    const data=await refresh.json();
@@ -197,7 +197,8 @@
   try{
    const q=new URLSearchParams({id:ref.id,tipo:ref.tipo,dia:String(ref.dia)});
    const response=await fetch('/api/admin-qc-mediciones?'+q.toString(),{
-    method:'GET',headers:{Authorization:'Bearer '+token},cache:'no-store'
+    method:'GET',headers:{Authorization:'Bearer '+token},cache:'no-store',
+    signal:AbortSignal.timeout(18000)
    });
    if(response.status===401||response.status===403)
     throw Error('Acceso rechazado. Comprueba el usuario y sus permisos.');
@@ -214,7 +215,8 @@
    }
    return {state:'EMPTY',token,record:null};
   }catch(e){
-   if(e instanceof TypeError)throw Error('Sin conexión con el servidor. Se conserva el borrador.');
+   if(e instanceof TypeError||e?.name==='AbortError'||e?.name==='TimeoutError')
+    throw Error('Conexión interrumpida o tiempo agotado. Se conserva el borrador.');
    throw e;
   }
  }
