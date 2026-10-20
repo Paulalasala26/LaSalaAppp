@@ -5,7 +5,7 @@
  const DB='viguerapp-qc-operarios-photos-test-v1',STORE='photos';
  const LIMIT=30,MAX_BYTES=2450000,RE_ID=/^[A-Za-z0-9_-]{1,180}$/,RE_PART=/^[A-Za-z0-9._-]{1,100}$/;
  const TYPES=['image/jpeg','image/png','image/webp','image/heic','image/heif'];
- let owner='',role='',items=[],sending=false;
+ let owner='',role='',items=[],sending=false,previewClose=null;
  const text=(tag,v)=>{const e=document.createElement(tag);if(v!==undefined)e.textContent=String(v);return e;};
  function refValid(r){
   return r&&RE_ID.test(r.id)&&RE_PART.test(r.partida)&&
@@ -52,6 +52,9 @@
   node.textContent=items.length+' foto(s) QC pendientes en este dispositivo.'+
    (revisar?' '+revisar+' envío(s) por revisar.':'');
  }
+ function lock(){
+  if(previewClose){const close=previewClose;previewClose=null;close();}
+ }
  async function preview(photo){
   const r=await operation('readonly',s=>s.get(photo.photoId));
   if(!owned(r))throw Error('No se ha podido recuperar esta fotografía.');
@@ -64,7 +67,9 @@
   info.style.cssText='color:white;text-align:center';
   const back=text('button','Cerrar');back.type='button';
   back.style.cssText='padding:12px 24px;background:#fff;color:#1558a0;border:0;border-radius:8px;font-weight:700';
-  function close(){URL.revokeObjectURL(url);layer.remove();}
+  function close(){previewClose=null;URL.revokeObjectURL(url);layer.remove();}
+  lock(); // Cerrar vistas anteriores sin dejar enlaces Blob abiertos.
+  previewClose=close;
   back.addEventListener('click',close);
   layer.append(img,info,back);document.body.append(layer);
  }
@@ -383,5 +388,5 @@
   }
   parent.hidden=false;
  }
- window.QCOfflinePhotos=Object.freeze({init,decorate,renderSaved,count:()=>items.length});
+ window.QCOfflinePhotos=Object.freeze({init,decorate,renderSaved,lock,count:()=>items.length});
 })();
