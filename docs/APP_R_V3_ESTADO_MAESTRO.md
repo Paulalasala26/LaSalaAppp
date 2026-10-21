@@ -15,6 +15,16 @@
 
 **Origen y continuidad:** repo `Paulalasala26/LaSalaAppp`, rama exclusiva `test/v1.0`, TEST `https://la-sala-app-test.vercel.app`, Firebase TEST `la-sala-app-test`. Archivo canónico `docs/APP_R_V3_ESTADO_MAESTRO.md`; los handovers DOCX y las listas históricas NO prevalecen. No crear otro documento maestro. Al terminar cada intervención, actualizar este archivo y confirmar TEST READY con el SHA desplegado. Leer el inventario funcional (secciones 2–3) para conocer el resto de asuntos.
 
+### 0.1. Auditoría inicial de Plaguicidas — 21/10/2026 (SIN PROGRAMACIÓN)
+
+**21/10/2026 | Plaguicidas | inspección estática en GitHub, pendiente de aceptación del primer cambio.** Base contrastada: rama `test/v1.0` HEAD `476b7f921ba574ffcff8821a801ae193e344c57d` (el padre `cbe4bd6` incorpora el último ajuste de QC); Vercel TEST alias `la-sala-app-test.vercel.app` READY sobre exactamente ese HEAD. **No se ha modificado código ni datos.**
+
+- **Existente:** entrada Home `handleQuickAction('plaguicidas')`; módulo y formulario en `index.html` (`showFitoModule`, `renderFitoGrid`, `showFitoManualForm`, `saveFitoManual`); dashboard compartido, miniaturas, calendario/quincenas, calles/tramos, mezcla predeterminada, producto, dosis, horario, caldo, Pistola/Cañón, impresión, voz, edición/borrado, deshacer/rehacer y resumen de cinco días. Pistola llama a `autoAsignarTareaFumigacion` de Tareas; cruza calles/día con Específicos.
+- **Datos:** lectura compatibilidad `lasala-fito-v1`, índice `lasala-fito-v2-index`, shards `lasala-fito-v2-<inv>`; celda histórica como texto o objeto `{texto,caldoLitros,caldoLabel,tipoTrat,...}`. Guardado `saveFitoPatch` usa ETag en v1 y espejo v2; NO migrar, borrar ni alterar historial. No consta offline equivalente al de QC.
+- **Reutilizable:** layouts de invernaderos/calles, calendario, dashboard y rangos; de Riego, cabecera azul compacta, selector por sala/invernadero, navegación y protección de guardado; de QC, pautas visuales móvil y persistencia segura **solo si son compatibles con Fito**. Mantener reglas y campos específicos de fitosanitarios.
+- **Riesgos comprobados en código:** `aplicarPreloadFito17()` inyecta `Switch 1cc/l` en INV17/día25 cuando falta y lo marca como pendiente de guardado (se llama en lectura global y selectiva); debe dejarse de crear datos artificiales **sin borrar valores reales persistidos**. `saveFitoManual()` intenta asignar tareas Pistola **antes** de confirmar `saveFitoData()`, con posibilidad de tarea sin tratamiento si falla. Vista actual: cinco bandas de botones por sala y formulario a dos columnas con estilo rojo legado; distinto a Riego ya validado.
+- **Primer cambio propuesto, NO AUTORIZADO:** retirar únicamente la precarga artificial INV17/día25 y el aviso de pantalla derivado; conservar todos los datos históricos reales; no tocar aún guardado, Tareas, acceso ni diseño. Esperar autorización expresa; después abordar UI/navegación por pasos con pruebas en TEST.
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).
