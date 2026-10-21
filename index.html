@@ -14318,17 +14318,27 @@ function showFitoModule(){
             <button onclick="document.getElementById('fito-overlay').style.display='none'" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 11px;cursor:pointer;font-size:13px">✕</button>
           </div>
         </div>
-        ${fitoSalaSelectorHTML(1, INV_LAYOUT_SALA1)}
-        ${fitoSalaSelectorHTML(2, INV_LAYOUT_SALA2)}
-        ${fitoSalaSelectorHTML(3, INV_LAYOUT_SALA3)}
-        ${fitoSalaSelectorHTML(4, INV_LAYOUT_SALA4)}
-        ${fitoSalaSelectorHTML(5, INV_LAYOUT_SALA5)}
+        <!-- Paso 1: elección de invernadero. -->
+        <div id="fito-inv-selector-wrap" style="display:block;flex-shrink:0">
+          ${fitoSalaSelectorHTML(1, INV_LAYOUT_SALA1)}
+          ${fitoSalaSelectorHTML(2, INV_LAYOUT_SALA2)}
+          ${fitoSalaSelectorHTML(3, INV_LAYOUT_SALA3)}
+          ${fitoSalaSelectorHTML(4, INV_LAYOUT_SALA4)}
+          ${fitoSalaSelectorHTML(5, INV_LAYOUT_SALA5)}
+        </div>
+        <!-- Paso 2: cuadrícula ampliada, sin desplegables. -->
+        <div id="fito-selection-bar" style="display:none;padding:.65rem 1.25rem;background:#dce8f8;border-bottom:1px solid #b0c8e0;align-items:center;justify-content:space-between;gap:10px;flex-shrink:0">
+          <span id="fito-selection-label" style="font-size:13px;font-weight:800;color:#1558a0"></span>
+          <button onclick="retrocederFito()" title="Elegir otro invernadero"
+            style="padding:6px 12px;background:#1558a0;border:1px solid #1558a0;color:#fff;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">Cambiar</button>
+        </div>
         <div id="fito-grid-wrap" style="flex:1;overflow:auto;background:#fdf9f9">
           ${renderDashboardInvernaderos('fito')}
         </div>
       </div>`;
     overlay.style.display='flex';
     renderFitoQuincenaBar();
+    actualizarVistaFitoSeleccion(null);
   });
 }
 
@@ -14351,11 +14361,24 @@ function sincronizarSelectoresFito(invId){
     selector.value = invId && Array.from(selector.options).some(op=>op.value===String(invId)) ? String(invId) : '';
   });
 }
+function actualizarVistaFitoSeleccion(invId){
+  const selectorWrap=document.getElementById('fito-inv-selector-wrap');
+  const selection=document.getElementById('fito-selection-bar');
+  const label=document.getElementById('fito-selection-label');
+  const elegido=!!invId;
+  if(selectorWrap) selectorWrap.style.display=elegido?'none':'block';
+  if(selection) selection.style.display=elegido?'flex':'none';
+  if(label){
+    const sala=elegido?salaDeInv(String(invId)):null;
+    label.textContent=elegido ? (sala?'Sala '+sala.replace(/^sala/i,'')+' · ':'')+'INV. '+invId : '';
+  }
+}
 function selectFitoInv(invId){
   invId=String(invId);
   if(!INV_LAYOUT[invId]) return;
   fitoInvSel=invId;
   sincronizarSelectoresFito(invId);
+  actualizarVistaFitoSeleccion(invId);
   renderFitoGrid(invId);
   marcarPresenciaInvernadero('fito', invId);
 }
@@ -14584,6 +14607,7 @@ function retrocederFito(){
   if(fitoInvSel){
     fitoInvSel = null;
     sincronizarSelectoresFito(null);
+    actualizarVistaFitoSeleccion(null);
     const wrap = document.getElementById('fito-grid-wrap');
     if(wrap) wrap.innerHTML = renderDashboardInvernaderos('fito');
   } else {
