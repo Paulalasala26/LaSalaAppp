@@ -255,6 +255,16 @@
 
 **UAT INTEGRAL siguiente en TEST:** sin guardar, pulsar celda ocupada 23/10 del ensayo y verificar cabecera «Editar tratamiento», día fijo, selección precisa de calles 13-14, campos completos y ausencia del botón externo «Guardar». Para validar modificación real, pedir autorización y preservar antes el snapshot/valores de la prueba; usar solo los registros `TEST BLOQUE A - NO APLICAR` del INV 1A y verificar relectura tras recarga. **No borrar registros reales fuera de la prueba; evitar cualquier clic en borrar hasta plantear caso controlado.** Probar actualización de tareas Pistola y su cancelación solo cuando Bloque C esté implementado.
 
+### 0.30. Bloque B — UAT de edición y dos incidencias aplazadas (21/10/2026)
+
+**UAT en curso, NO cierre B todavía.** Al abrir la jornada vinculada de prueba del 23/10/2026, INV 1A, calles 13–14, el usuario observó el desplegable de método en «— Pistola / Cañón —», sin valor seleccionado. Tras elegir manualmente «Cañón», **confirma que el control permite seleccionarlo y mantiene el valor**. El día 23 se había registrado sin hora en la captura anterior. El código permite método opcional al registrar y lo carga desde el raw de la propia jornada; no afirmar diagnóstico definitivo de Firebase ni que Cañón se hubiese guardado inicialmente. Próxima prueba UAT AUTORIZADA en el tratamiento `TEST BLOQUE A - NO APLICAR`: con Cañón seleccionado, reducir únicamente el tramo del 23/10 INV 1A de calles 13–14 a 13–13; «Aplicar y guardar» una sola vez; recargar y cotejar que el 23 conserve solo calle 13, que el 22 no cambie y que el 21 de otro tratamiento permanezca intacto. Ante fallo no repetir guardado sin diagnóstico. Luego se probará ampliar de nuevo a la 14, al finalizar el circuito B.
+
+**DOS INCIDENCIAS FUNCIONALES/UX DETECTADAS POR EL USUARIO Y EXPRESAMENTE APLAZADAS HASTA EL FINAL DEL BLOQUE B; RECORDÁRSELAS EN ESE MOMENTO:**
+1. **Área de clic de la cuadrícula Plaguicidas demasiado reducida:** solo permite pulsar el texto del tratamiento y NO toda la celda; dificulta abrir/editar especialmente con móvil. Revisar evento y área accesible de la celda completa.
+2. **Desbordamiento horizontal del mensaje de confirmación dentro de Editar tratamiento:** sobresale por los laterales. Corregir contenedor/ancho, saltos de línea y adaptación móvil/PC, sin cambiar semántica ni validaciones.
+
+**Orden explícito del usuario:** no distraerse ahora ni saltar a retoques visuales; completar primero guardado, reducción, restauración, persistencia, ausencia de residuos y metadatos. Cuando se cierre B, recordar y abordar juntas las dos incidencias anteriores. No tocar main ni PRD. Este registro documental no cambia código ni Firebase.
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).
