@@ -132,21 +132,56 @@ window.editarResumenTratamiento=function(mod,idx){
 window.verHistorialFitoV3=function(id){
  const entries=seriesCells(id);
  if(!entries.length){showToast('No hay jornadas vinculadas');return;}
- const byDay=new Map();
+ const firstDateByZone=new Map();
+ entries.forEach(e=>{
+  const zone=e.inv+'|'+e.street,iso=e.raw.fechaJornadaISO||dayISO(e.day);
+  if(!firstDateByZone.has(zone)||iso<firstDateByZone.get(zone))firstDateByZone.set(zone,iso);
+ });
+ const byJournal=new Map();
  entries.forEach(e=>{
   const date=e.raw.fechaJornadaISO||dayISO(e.day),code=e.raw.jornadaId||date;
-  if(!byDay.has(code))byDay.set(code,{date,examples:e.raw.texto,inv:new Map(),first:0});
-  const j=byDay.get(code);if(!j.inv.has(e.inv))j.inv.set(e.inv,new Set());
-  j.inv.get(e.inv).add(e.street);if(e.raw.primerDia)j.first++;
+  if(!byJournal.has(code))byJournal.set(code,{date,examples:e.raw.texto,inv:new Map()});
+  const j=byJournal.get(code);
+  if(!j.inv.has(e.inv))j.inv.set(e.inv,new Set());
+  j.inv.get(e.inv).add(e.street);
  });
- const dates=[...byDay.values()].sort((a,b)=>a.date.localeCompare(b.date));
+ const rangeText=streets=>{
+  const list=[...streets].map(Number).sort((a,b)=>a-b),sections=[];
+  if(!list.length)return '—';
+  let from=list[0],to=list[0];
+  for(let i=1;i<=list.length;i++){
+   const n=list[i];
+   if(i<list.length&&n===to+1){to=n;continue;}
+   sections.push(from===to?String(from):from+'–'+to);
+   from=n;to=n;
+  }
+  return sections.join(', ');
+ };
+ const dates=[...byJournal.values()].sort((a,b)=>a.date.localeCompare(b.date));
  const modal=getOrCreateOverlay('fm-serie-historial-v3');modal.style.zIndex=2200;
+ const detail=dates.map(j=>{
+  let firstCount=0;
+  const invDetails=[...j.inv].sort(([a],[b])=>a.localeCompare(b,undefined,{numeric:true})).map(([inv,streets])=>{
+   const beginnings=[],continuations=[];
+   streets.forEach(street=>{
+    const isFirst=firstDateByZone.get(inv+'|'+street)===j.date;
+    if(isFirst)beginnings.push(street);else continuations.push(street);
+   });
+   firstCount+=beginnings.length;
+   return '<div style="font-size:12px;line-height:1.6;margin-top:5px">'
+    +'<b>INV '+esc(inv)+'</b> · '+streets.size+' calle(s)'
+    +(beginnings.length?'<div style="color:#6a1b9a">Primer día: '+esc(rangeText(beginnings))+'</div>':'')
+    +(continuations.length?'<div>Continúan: '+esc(rangeText(continuations))+'</div>':'')
+    +'</div>';
+  }).join('');
+  return '<div style="border:1px solid #c6d9ee;border-radius:8px;padding:10px;margin-bottom:8px">'
+   +'<strong>'+esc(j.date)+'</strong> · '+firstCount+' calle(s) que empiezan'
+   +'<div style="font-size:12px;margin:5px 0">'+esc(j.examples)+'</div>'+invDetails+'</div>';
+ }).join('');
  modal.innerHTML='<div style="background:#fff;border-radius:10px;width:min(600px,96vw);max-height:88vh;overflow:auto">'
  +'<div class="control-ui-header" style="padding:10px"><b>Tratamiento · inicio global '+esc(entries[0].raw.inicioSerieISO)+'</b><button class="control-ui-close" onclick="document.getElementById(\'fm-serie-historial-v3\').style.display=\'none\'">×</button></div>'
- +'<div style="padding:14px"><p style="font-size:12px">Jornadas registradas; no implica ejecución confirmada.</p>'
- +dates.map(j=>'<div style="border:1px solid #c6d9ee;border-radius:8px;padding:10px;margin-bottom:8px"><strong>'+esc(j.date)+'</strong> · '+j.first+' primera(s) calle(s)<div style="font-size:12px;margin:5px 0">'+esc(j.examples)+'</div>'
- +[...j.inv].map(([inv,c])=>'<div style="font-size:12px">INV '+esc(inv)+' · calles '+[...c].sort((a,b)=>a-b).join(', ')+'</div>').join('')+'</div>').join('')
- +'</div></div>';modal.style.display='flex';
+ +'<div style="padding:14px"><p style="font-size:12px">Jornadas registradas; no implica ejecución confirmada.</p>'+detail+'</div></div>';
+ modal.style.display='flex';
 };
 window.renderResumenQuincenaTratamientos=function(mod){
  const s=originalSummary.apply(this,arguments);if(mod!=='fito')return s;

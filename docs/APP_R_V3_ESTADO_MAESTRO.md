@@ -232,6 +232,14 @@
 
 **Estado de fuentes antes del presente documento:** test/v1.0 HEAD `7b4265edf265e9c503b0bd24893b7622dc1b045d`, Vercel TEST READY idéntico; JS de Bloque A `assets/fito-series-v3.js` blob `15254360a9fe48aa2a3948af58b140b34a762ef1`. No hay nuevos cambios funcionales ni escrituras Firebase por este registro. Registros TEST con producto `TEST BLOQUE A - NO APLICAR` se mantienen sin borrado hasta Bloque B. **PRD/main intocables**.
 
+### 0.28. Bloque A — captura de cuadrícula y cierre de trazabilidad por calle (21/10/2026)
+
+**VALIDACIÓN REAL POR CAPTURA DESPUÉS DE REINICIAR/RECARGAR TEST:** el usuario muestra cuadrícula del INV 1A con fecha 21/10 calle 13 ocupada por una mezcla anterior ajena a la serie de prueba (no sobrescrita), 22/10 calle 13 morada, 23/10 calle 13 con fondo de continuación y calle 14 morada. Concuerda con jornada del 22 (calle 13) y continuación del 23 (calles 13 y 14), inicio GLOBAL 22/10 y PRIMER DÍA por INV/calle. Se ha validado persistencia visible tras recarga e integridad visual en el cliente; todavía no existe lectura remota independiente de Firebase en esta sesión y **no se debe afirmar**.
+
+**CIERRE FUNCIONAL DE CONSULTA IMPLEMENTADO SOLO TEST (UAT PENDIENTE):** `assets/fito-series-v3.js`, `verHistorialFitoV3`, ahora calcula la fecha más temprana de cada par `INV + calle` a partir de las jornadas vinculadas y muestra por jornada, y POR INV, listas de calles concretas «Primer día: 13» / «Continúan: 13» (agrupando consecutivas con rangos). El contador queda explicado («n calle(s) que empiezan») y no se confunde con la aplicación ejecutada. Funciona con varios INV y jornadas en quincenas distintas; mantiene idSerie sin autoagrupar registros legacy. No modifica `saveFitoManual`, `saveFitoPatch`, tareas, Firebase ni los datos existentes.
+
+**Comprobación técnica aislada:** sintaxis de fichero extendido JavaScript válida y simulación de tres jornadas de serie S (22/10 INV 1A calle 13; 23/10 INV 1A calles 13 y 14; 25/10 INV 2B calle 5) con resultado correcto de «Primer día» y «Continúan» por zona. No hay escritura Firebase. UAT siguiente: refrescar TEST → Consulta → Tratamientos vinculados → abrir TEST BLOQUE A - NO APLICAR, observar el día 22 «Primer día: 13», el día 23 «Primer día: 14» y «Continúan: 13»; luego evitar más escrituras ficticias y pasar a B para edición segura y permisos.
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).
