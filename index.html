@@ -18520,11 +18520,7 @@ function showFitoManualForm(){
             <summary style="padding:13px 14px;font-size:14px;font-weight:800;color:#1558a0;cursor:pointer;background:#e8f0fb">4. Opciones por invernadero</summary>
             <div style="padding:12px;display:flex;flex-direction:column;gap:12px">
               <div id="fm-bulk-panels"></div>
-              <div style="display:flex;flex-wrap:wrap;gap:8px;border-top:1px solid #dce4ed;padding-top:10px">
-                <button type="button" onclick="imprimirHojaFitosanitario()" title="Imprimir hoja de aplicación fitosanitaria"
-                  style="padding:8px 12px;background:#fff;color:#1558a0;border:1px solid #a8c4e8;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer">
-                  <i class="ti ti-printer" aria-hidden="true"></i> Imprimir hoja
-                </button>
+              <div id="fm-acciones-edicion" style="display:none;flex-wrap:wrap;gap:8px;border-top:1px solid #dce4ed;padding-top:10px">
                 <button id="fm-btn-borrar" type="button" onclick="borrarFitoManual()" title="Borrar tratamiento existente en las calles seleccionadas"
                   style="display:none;padding:8px 12px;background:#fdecea;color:#c62828;border:1px solid #f3c2bd;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer">
                   <i class="ti ti-trash" aria-hidden="true"></i> Borrar tratamiento
@@ -18553,6 +18549,8 @@ function actualizarAccionesFitoManual(){
   const editar=!!fmEditContextoOriginal;
   const btn=document.getElementById('fm-btn-borrar');
   if(btn) btn.style.display=editar?'inline-flex':'none';
+  const acciones=document.getElementById('fm-acciones-edicion');
+  if(acciones) acciones.style.display=editar?'flex':'none';
   const titulo=document.getElementById('fm-titulo');
   if(titulo) titulo.innerHTML='<i class="ti ti-spray" aria-hidden="true"></i> '+(editar?'Editar tratamiento':'Añadir tratamiento');
 }

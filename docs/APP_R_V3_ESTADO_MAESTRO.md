@@ -137,6 +137,12 @@
 
 **Estado operativo al cerrar conversación:** repositorio Paulalasala26/LaSalaAppp, rama test/v1.0, HEAD de código 3e564756132880f18cd94eb638132cdeb17199f4, Vercel TEST READY mismo SHA comprobado. La nueva anotación documental no modifica index.html; distinguir commit documental posterior del último SHA de código. El documento único sigue siendo docs/APP_R_V3_ESTADO_MAESTRO.md. PRD y main prohibidos. Para nuevo chat basta pedir recuperar el maestro y retomar en 0.20–0.21; NO crear otro handover ni asumir validación del usuario inexistente.
 
+### 0.22. Plaguicidas — UAT de celdas y retirada de impresión del formulario (21/10/2026)
+
+**UAT del apartado 0.20: VALIDADA PARCIALMENTE POR USUARIO EN TEST.** El usuario confirma con captura que tocar una celda vacía de INV 1A precarga «Tramo de calles» Desde=13/Hasta=13 y resumen de una calle; aclara que la fecha está en la parte superior del formulario. Confirma también que al pulsar una celda ocupada se abre el formulario con la calle e invernadero correspondientes. No se confirma expresamente el cotejo de todos los metadatos (producto/dosis/caldo/método) ni guardado; ninguna de esas operaciones debe darse por aceptada por extrapolación.
+
+**Cambio UI único implementado en TEST; UAT pendiente:** eliminado «Imprimir hoja» de «4. Opciones por invernadero» dentro del formulario Plaguicidas, pues no corresponde imprimir durante el alta/edición aún no persistida. Se oculta el separador vacío en modo Añadir, manteniendo «Borrar tratamiento» al editar. Se conserva la función original de impresión y el acceso independiente «Imprimir hoja completa» desde los tratamientos registrados en Consulta (renderResumenQuincenaTratamientos/imprimirHojaResumen); no se modifica guardado, tareas, selección de calles, impresión oficial ni datos Firebase. Próxima prueba: abrir formulario de Añadir y Editar en TEST; comprobar ausencia del botón «Imprimir hoja» en ambos y persistencia del botón «Borrar tratamiento» en edición, sin pulsarlo ni guardar. Otros ajustes (texto de Primer día, etiquetas Desde/Hasta, resumen singular/plural y controles de guardado) siguen pendientes y deben tratarse por separado. PRD/main intocables.
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).
