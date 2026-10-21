@@ -13946,6 +13946,7 @@ function clonarFitoSnapshot(v){
   return JSON.parse(JSON.stringify(v));
 }
 let fitoInvSel = null;
+let fitoSeccionActual = 'menu'; // menu | registrar | consulta
 let fitoQuincenaOffset = 0;
 let fitoAudioActive = false;
 let fitoRecognition = null;
@@ -13960,8 +13961,8 @@ function changeFitoQuincena(delta){
   // El día filtrado corresponde a una quincena concreta.
   resumenQuincenaDiaFiltro.fito = null;
   renderFitoQuincenaBar();
-  if(fitoInvSel) renderFitoGrid(fitoInvSel);
-  else {
+  if(fitoSeccionActual==='registrar' && fitoInvSel) renderFitoGrid(fitoInvSel);
+  else if(fitoSeccionActual==='consulta'){
     const wrap=document.getElementById('fito-grid-wrap');
     if(wrap) wrap.innerHTML=renderFitoResumenSeleccionHTML();
     reubicarFiltrosFito();
@@ -14295,7 +14296,8 @@ function showFitoModule(){
     // quincena de referencia de 2026-06-15) en vez de la quincena actual, y
     // por eso no aparecía nada (bug reportado por Paula).
     fitoQuincenaOffset = riegoQuincenaOffsetActual();
-    fitoInvSel = null; // Al abrir se muestra el dashboard: selectores sin selección.
+    fitoInvSel = null;
+    fitoSeccionActual = 'menu';
     const overlay=getOrCreateOverlay('fito-overlay');
     overlay.style.padding = '0';
     overlay.innerHTML=`
@@ -14303,7 +14305,7 @@ function showFitoModule(){
         <div style="background:#a32020;color:#fff;padding:.85rem 1.25rem;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;gap:10px">
           <div>
             <div style="font-size:16px;font-weight:800">&#129516; Plaguicidas</div>
-            <div style="font-size:11px;opacity:.7;margin:1px 0 4px">Formato Excel &middot; Corchete = rango de calles</div>
+            <div id="fito-subtitulo" style="font-size:11px;opacity:.85;margin:1px 0 4px">Selecciona una operación</div>
             <div id="fito-quincena-bar" style="display:flex;align-items:center;gap:8px"></div>
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -14312,7 +14314,7 @@ function showFitoModule(){
               <i class="ti ti-microphone" style="font-size:17px;color:#fff"></i>
             </button>
             <span id="fito-audio-status" style="font-size:11px;opacity:.85;min-width:80px"></span>
-            <button class="hdr-btn" onclick="showFitoManualForm()" title="Añadir manualmente" style="padding:6px 14px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:5px">
+            <button id="fito-btn-anadir" class="hdr-btn" onclick="showFitoManualForm()" title="Añadir manualmente" style="padding:6px 14px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:5px">
               <i class="ti ti-plus" style="font-size:13px"></i><span class="hdr-btn-label"> Añadir manualmente</span>
             </button>
             <button id="fito-btn-deshacer" onclick="deshacerFito()" ${fitoHistorialDeshacer.length?'':'disabled style="opacity:.35;cursor:default"'} title="Deshacer el último cambio" style="padding:6px 12px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:7px;font-weight:700;cursor:pointer;white-space:nowrap;display:flex;align-items:center;justify-content:center;min-width:40px">←</button>
@@ -14321,22 +14323,37 @@ function showFitoModule(){
               style="padding:6px 14px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:5px">
               <i class="ti ti-arrow-back-up" style="font-size:13px"></i><span class="hdr-btn-label"> Retroceder</span>
             </button>
-            <button class="hdr-btn" onclick="saveFitoData()" title="Guardar" style="padding:6px 14px;background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">
+            <button id="fito-btn-guardar" class="hdr-btn" onclick="saveFitoData()" title="Guardar" style="padding:6px 14px;background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">
               <i class="ti ti-device-floppy" style="font-size:13px;vertical-align:-2px"></i><span class="hdr-btn-label"> Guardar</span>
             </button>
-            <button class="hdr-btn" onclick="showImprimirResumenSelector('fito')" title="Imprimir resumen de varios días" style="padding:6px 14px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:5px">
+            <button id="fito-btn-imprimir" class="hdr-btn" onclick="showImprimirResumenSelector('fito')" title="Imprimir resumen de varios días" style="padding:6px 14px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:5px">
               <i class="ti ti-printer" style="font-size:13px"></i><span class="hdr-btn-label"> Imprimir</span>
             </button>
             <button onclick="document.getElementById('fito-overlay').style.display='none'" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 11px;cursor:pointer;font-size:13px">✕</button>
           </div>
         </div>
-        <!-- Filtros de tratamientos, sobre los desplegables de selección. -->
+        <!-- Menú inicial: dos accesos independientes, largos y apilados. -->
+        <div id="fito-menu-wrap" style="flex:1;overflow:auto;padding:26px 16px;background:#f6f9fe">
+          <div style="max-width:560px;width:100%;margin:0 auto;display:flex;flex-direction:column;gap:14px">
+            <button type="button" onclick="abrirSeccionFito('registrar')"
+              style="width:100%;min-height:76px;padding:17px 22px;background:#1558a0;color:#fff;border:1px solid #1558a0;border-radius:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:17px;font-weight:800;text-align:left;cursor:pointer">
+              <span><i class="ti ti-spray" style="font-size:22px;vertical-align:-3px;margin-right:12px"></i>Registrar tratamientos</span>
+              <i class="ti ti-chevron-right" style="font-size:23px;flex-shrink:0"></i>
+            </button>
+            <button type="button" onclick="abrirSeccionFito('consulta')"
+              style="width:100%;min-height:76px;padding:17px 22px;background:#1558a0;color:#fff;border:1px solid #1558a0;border-radius:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:17px;font-weight:800;text-align:left;cursor:pointer">
+              <span><i class="ti ti-clipboard-list" style="font-size:22px;vertical-align:-3px;margin-right:12px"></i>Consultar tratamientos aplicados</span>
+              <i class="ti ti-chevron-right" style="font-size:23px;flex-shrink:0"></i>
+            </button>
+          </div>
+        </div>
+        <!-- Filtros exclusivos de la pantalla de consulta. -->
         <div id="fito-filtros-superiores" style="display:block;padding:9px 12px;background:#e8f0fb;border-bottom:1px solid #b0c8e0;flex-shrink:0">
           <div style="font-size:12px;font-weight:800;color:#1558a0;margin-bottom:5px">Filtrar tratamientos de la quincena</div>
           <div id="fito-filtros-feedback" role="status" aria-live="polite" style="font-size:12px;font-weight:700;color:#1558a0;margin-top:5px">Estos filtros solo afectan al resumen inferior.</div>
         </div>
         <!-- Paso 1: elección de invernadero. -->
-        <div id="fito-inv-selector-wrap" style="display:block;flex-shrink:0">
+        <div id="fito-inv-selector-wrap" style="display:none;flex:1;overflow:auto">
           ${fitoSalaSelectorHTML(1, INV_LAYOUT_SALA1)}
           ${fitoSalaSelectorHTML(2, INV_LAYOUT_SALA2)}
           ${fitoSalaSelectorHTML(3, INV_LAYOUT_SALA3)}
@@ -14349,13 +14366,10 @@ function showFitoModule(){
           <button onclick="retrocederFito()" title="Elegir otro invernadero"
             style="padding:6px 12px;background:#1558a0;border:1px solid #1558a0;color:#fff;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">Cambiar</button>
         </div>
-        <div id="fito-grid-wrap" style="flex:1;overflow:auto;background:#fdf9f9">
-          ${renderFitoResumenSeleccionHTML()}
-        </div>
+        <div id="fito-grid-wrap" style="display:none;flex:1;overflow:auto;background:#fdf9f9"></div>
       </div>`;
     overlay.style.display='flex';
     renderFitoQuincenaBar();
-    reubicarFiltrosFito();
     actualizarVistaFitoSeleccion(null);
   });
 }
@@ -14410,22 +14424,51 @@ function sincronizarSelectoresFito(invId){
   });
 }
 function actualizarVistaFitoSeleccion(invId){
+  const menu=document.getElementById('fito-menu-wrap');
   const selectorWrap=document.getElementById('fito-inv-selector-wrap');
   const selection=document.getElementById('fito-selection-bar');
   const label=document.getElementById('fito-selection-label');
-  const elegido=!!invId;
-  if(selectorWrap) selectorWrap.style.display=elegido?'none':'block';
   const filtros=document.getElementById('fito-filtros-superiores');
-  if(filtros) filtros.style.display=elegido?'none':'block';
+  const grid=document.getElementById('fito-grid-wrap');
+  const quincena=document.getElementById('fito-quincena-bar');
+  const subtitulo=document.getElementById('fito-subtitulo');
+  const esMenu=fitoSeccionActual==='menu';
+  const esRegistro=fitoSeccionActual==='registrar';
+  const esConsulta=fitoSeccionActual==='consulta';
+  const elegido=esRegistro && !!invId;
+  if(menu) menu.style.display=esMenu?'block':'none';
+  if(selectorWrap) selectorWrap.style.display=esRegistro&&!elegido?'block':'none';
   if(selection) selection.style.display=elegido?'flex':'none';
+  if(filtros) filtros.style.display=esConsulta?'block':'none';
+  if(grid) grid.style.display=(esConsulta||elegido)?'block':'none';
+  if(quincena) quincena.style.display=esMenu?'none':'flex';
+  if(subtitulo) subtitulo.textContent=esMenu?'Selecciona una operación':esConsulta?'Tratamientos aplicados · consulta por quincena':'Registrar tratamientos · selección de invernadero';
   if(label){
     const sala=elegido?salaDeInv(String(invId)):null;
     label.textContent=elegido ? (sala?'Sala '+sala.replace(/^sala/i,'')+' · ':'')+'INV. '+invId : '';
   }
+  // Ocultar acciones de grabación fuera de Registro; imprimir, en Consulta.
+  ['fito-audio-btn','fito-audio-status','fito-btn-anadir','fito-btn-deshacer','fito-btn-rehacer','fito-btn-guardar'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.style.display=esRegistro?'':'none';
+  });
+  const imprimir=document.getElementById('fito-btn-imprimir');
+  if(imprimir) imprimir.style.display=esMenu?'none':'';
+}
+function abrirSeccionFito(seccion){
+  if(seccion!=='registrar' && seccion!=='consulta') return;
+  fitoSeccionActual=seccion;
+  fitoInvSel=null;
+  sincronizarSelectoresFito(null);
+  const grid=document.getElementById('fito-grid-wrap');
+  if(grid) grid.innerHTML=seccion==='consulta'?renderFitoResumenSeleccionHTML():'';
+  if(seccion==='consulta') reubicarFiltrosFito();
+  actualizarVistaFitoSeleccion(null);
 }
 function selectFitoInv(invId){
   invId=String(invId);
   if(!INV_LAYOUT[invId]) return;
+  fitoSeccionActual='registrar';
   fitoInvSel=invId;
   sincronizarSelectoresFito(invId);
   actualizarVistaFitoSeleccion(invId);
@@ -14654,15 +14697,24 @@ async function rehacerFito(){
 // al dashboard de miniaturas si hay un invernadero elegido, o cierra el
 // módulo si ya está en el dashboard.
 function retrocederFito(){
-  if(fitoInvSel){
-    fitoInvSel = null;
+  if(fitoSeccionActual==='registrar' && fitoInvSel){
+    // De cuadrícula a selección de invernadero (botón Cambiar).
+    fitoInvSel=null;
+    sincronizarSelectoresFito(null);
+    const grid=document.getElementById('fito-grid-wrap');
+    if(grid) grid.innerHTML='';
+    actualizarVistaFitoSeleccion(null);
+  } else if(fitoSeccionActual!=='menu'){
+    // De Registrar/Consultar al menú de dos botones.
+    fitoInvSel=null;
+    fitoSeccionActual='menu';
+    const grid=document.getElementById('fito-grid-wrap');
+    if(grid) grid.innerHTML='';
     sincronizarSelectoresFito(null);
     actualizarVistaFitoSeleccion(null);
-    const wrap = document.getElementById('fito-grid-wrap');
-    if(wrap) wrap.innerHTML = renderFitoResumenSeleccionHTML();
-    reubicarFiltrosFito();
   } else {
-    document.getElementById('fito-overlay').style.display = 'none';
+    const overlay=document.getElementById('fito-overlay');
+    if(overlay) overlay.style.display='none';
   }
 }
 function actualizarBotonRetrocederFito(){}
