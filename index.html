@@ -18308,6 +18308,12 @@ function aplicarMezclaPredeterminada(valor){
   document.getElementById('fm-trat').value = valor;
   document.getElementById('fm-dosis').value = '';
 }
+// Una mezcla elegida solo puede permanecer marcada mientras sus valores
+// coincidan con lo que se aplicaría. Cualquier edición manual cambia a modo libre.
+function desmarcarMezclaFitoAlEditar(){
+  const sel=document.getElementById('fm-mezcla');
+  if(sel && sel.value) sel.value='';
+}
 function showFitoManualForm(){
   const inv = fitoInvSel;
   const expandirOpcionesAlAbrir=!!(fmPendingConfig||fmPendingBulkConfig);
@@ -18398,14 +18404,14 @@ function showFitoManualForm(){
         <!-- TRATAMIENTO -->
         <div>
           <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Tratamiento</label>
-          <input id="fm-trat" type="text" placeholder="ej. Switch, Previcur, Amistar..."
+          <input id="fm-trat" type="text" placeholder="ej. Switch, Previcur, Amistar..." oninput="desmarcarMezclaFitoAlEditar()"
             style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:#f2f4f0;outline:none;color:var(--text)">
         </div>
 
         <!-- DOSIS -->
         <div>
           <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Dosis</label>
-          <input id="fm-dosis" type="text" placeholder="ej. 1 cc/l, 2 g/l..."
+          <input id="fm-dosis" type="text" placeholder="ej. 1 cc/l, 2 g/l..." oninput="desmarcarMezclaFitoAlEditar()"
             style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:#f2f4f0;outline:none;color:var(--text)">
         </div>
 
