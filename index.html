@@ -13972,18 +13972,6 @@ function renderFitoQuincenaBar(){
 let fitoDataCargadaEn = 0;
 const fitoInvCargadaEn = {};
 const FITO_DATA_CACHE_TTL_MS = 30000;
-function aplicarPreloadFito17(){
-  // Pre-load histórico INV17 Switch treatment: día 25, all calles.
-  if(!fitoData['17']) fitoData['17']={};
-  if(!fitoData['17'][25]) fitoData['17'][25]={};
-  const inv17All=[...INV_LAYOUT['17'].row1,...INV_LAYOUT['17'].row2];
-  inv17All.forEach(c=>{
-    if(!fitoData['17'][25][c]){
-      fitoData['17'][25][c]='Switch 1cc/l';
-      marcarFitoDirtyCell('17',25,c);
-    }
-  });
-}
 async function loadFitoData(forzar){
   if(forzar===false && fitoDataCargadaEn && (Date.now()-fitoDataCargadaEn)<FITO_DATA_CACHE_TTL_MS) return true;
   const ids=await loadFitoV2Index(false);
@@ -13991,7 +13979,6 @@ async function loadFitoData(forzar){
   const ok=await loadFitoInvsData(ids,forzar);
   if(!ok) return false;
   fitoDataCargadaEn=Date.now();
-  aplicarPreloadFito17();
   return true;
 }
 async function loadFitoV2Index(modoGuardado){
@@ -14048,7 +14035,6 @@ async function loadFitoInvsData(invIds, forzar){
       fitoData[invId]=data;
       fitoInvCargadaEn[invId]=ts;
     });
-    if(pendientes.includes('17')) aplicarPreloadFito17();
     return true;
   }catch(e){
     avisarFalloCarga();
@@ -14489,17 +14475,12 @@ function renderFitoGrid(invId){
     </div>`;
   }
 
-  const preNote=invId==='17'?`<div style="background:#fdf0f0;border:1px solid #e8b0b0;border-radius:6px;padding:.65rem 1rem;margin-bottom:10px;font-size:11px;color:#a32020">
-    <i class="ti ti-info-circle" style="vertical-align:-2px"></i>
-    <b>Dato registrado:</b> D&#237;a 25 &mdash; INV 17 completo &mdash; Switch 1cc/l
-  </div>`:'';
 
   wrap.innerHTML=`<div style="padding:1rem 1.25rem">
     <div style="font-size:14px;font-weight:800;color:#1a1e18;margin-bottom:12px;display:flex;align-items:center;gap:8px">
       <i class="ti ti-spray" style="color:#a32020"></i>${layout.label}
       <span style="font-size:11px;font-weight:400;color:#888">— Quincena ${fitoQuincenaOffset+1}: ${riegoQuincenaLabel(fitoQuincenaOffset)}</span>
     </div>
-    ${preNote}
     ${buildFitoSection(layout.row1,'Fila 1 — Calles '+layout.row1[0]+' → '+layout.row1[layout.row1.length-1])}
     ${buildFitoSection(layout.row2,'Fila 2 — Calles '+layout.row2[0]+' → '+layout.row2[layout.row2.length-1])}
   </div>`;
