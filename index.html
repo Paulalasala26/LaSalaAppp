@@ -18334,7 +18334,7 @@ function showFitoManualForm(){
   const mo=getOrCreateOverlay('fito-manual-overlay');
   mo.style.padding='0';
   mo.innerHTML=`
-    <div style="background:#fff;width:100vw;height:100vh;max-width:100vw;overflow:hidden;display:flex;flex-direction:column">
+    <div style="background:#fff;width:100%;height:100%;max-width:100vw;min-width:0;overflow:hidden;display:flex;flex-direction:column;box-sizing:border-box">
       <header class="control-ui-header" style="min-height:42px;padding:5px 9px;flex-shrink:0">
         <div id="fm-titulo" style="font-size:14px;font-weight:800;display:flex;align-items:center;gap:7px">
           <i class="ti ti-spray" aria-hidden="true"></i> Añadir tratamiento
@@ -18345,7 +18345,7 @@ function showFitoManualForm(){
         </div>
       </header>
       <div style="flex:1;min-height:0;overflow-y:auto;background:#f6f9fe">
-        <div style="max-width:840px;margin:0 auto;padding:12px;display:flex;flex-direction:column;gap:10px">
+        <div style="max-width:840px;width:100%;box-sizing:border-box;min-width:0;margin:0 auto;padding:12px;display:flex;flex-direction:column;gap:10px">
           <details class="fm-accordion" open style="background:#fff;border:1px solid #c6d9ee;border-radius:9px;overflow:hidden">
             <summary style="padding:13px 14px;font-size:14px;font-weight:800;color:#1558a0;cursor:pointer;background:#e8f0fb">
               1. Dónde y cuándo <span id="fm-count-superior" style="font-size:11px;font-weight:600;margin-left:8px"></span>
@@ -18427,7 +18427,7 @@ function showFitoManualForm(){
         </div>
 
         <!-- CALDO INICIAL / TIPO DE TRATAMIENTO -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:10px;min-width:0">
           <div>
             <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Caldo inicial</label>
             <div style="position:relative">
@@ -18449,7 +18449,6 @@ function showFitoManualForm(){
               <i class="ti ti-chevron-down" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);pointer-events:none;color:#a32020;font-size:13px"></i>
             </div>
           </div>
-        </div>
         </div>
 
             </div>
