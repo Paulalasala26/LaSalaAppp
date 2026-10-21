@@ -42,7 +42,8 @@
 .qco-inline .qco-cat{padding:8px 10px;margin:7px 0}
 .qco-inline .qco-option{grid-template-columns:minmax(0,1fr) minmax(85px,120px);padding:5px 8px}
 .qco-inline .qco-option label{font-size:12px;font-weight:650;color:#294968}
-.qco-inline .qco-option.qco-legacy-active{background:#e8f2ff}
+/* Resaltar siempre la opción favorable OK, nunca checks históricos como Grande o No. */
+.qco-inline .qco-option[data-option="ok"]{background:#e8f2ff}
 .qco-inline .qco-footer{position:relative}
 .qco-inline.qco-floating{position:fixed;inset:0;z-index:2147483640;overflow-y:auto;background:rgba(17,34,58,.65);display:flex;justify-content:center;align-items:flex-start;padding:16px;margin:0;border:0;border-radius:0;box-shadow:none}
 .qco-inline.qco-floating .qco-dialog{width:min(100%,740px);margin:auto;border-radius:12px;box-shadow:0 15px 55px rgba(0,0,0,.3)}
