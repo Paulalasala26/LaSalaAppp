@@ -12767,14 +12767,14 @@ function renderResumenQuincenaTratamientos(modulo){
   // días de esta quincena que tengan algo aplicado, para no listar días vacíos.
   const diasConDatos = [...new Set(Object.values(grupos).map(g=>g.dia))].sort((a,b)=>a-b);
   const filtroDiaHTML = `
-    <select aria-label="Día del tratamiento" onchange="cambiarResumenQuincenaDiaFiltro('${modulo}',this.value)" style="padding:8px 10px;min-height:40px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;font-weight:700;max-width:100%">
+    <select aria-label="Día del tratamiento" onchange="cambiarResumenQuincenaDiaFiltro('${modulo}',this.value)" style="${modulo==='fito'?'padding:8px 10px;min-height:40px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;font-weight:700;max-width:100%':'padding:6px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:11px;font-weight:700'}">
       <option value=""${diaFiltro==null?' selected':''}>${modulo==='fito'?(diasConDatos.length?'Todos los días con tratamiento':'Sin tratamientos en esta quincena'):'Todos los días'}</option>
       ${diasConDatos.map(d=>`<option value="${d}"${diaFiltro===d?' selected':''}>${escapar(riegoDiaLabelCorto(d))} — ${escapar(riegoDiaSemana(d))}</option>`).join('')}
     </select>`;
   // Filtro de Sala (2026-09-15) — mismas 5 salas que el resto de la app.
   const SALAS_FILTRO = [['sala1','Sala 1'],['sala2','Sala 2'],['sala3','Sala 3'],['sala4','Sala 4'],['sala5','Sala 5']];
   const filtroSalaHTML = `
-    <select aria-label="Sala del tratamiento" onchange="cambiarResumenQuincenaSalaFiltro('${modulo}',this.value)" style="padding:8px 10px;min-height:40px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;font-weight:700;max-width:100%">
+    <select aria-label="Sala del tratamiento" onchange="cambiarResumenQuincenaSalaFiltro('${modulo}',this.value)" style="${modulo==='fito'?'padding:8px 10px;min-height:40px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;font-weight:700;max-width:100%':'padding:6px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:11px;font-weight:700'}">
       <option value="">Todas las salas</option>
       ${SALAS_FILTRO.map(([s,label])=>`<option value="${s}"${salaFiltro===s?' selected':''}>${label}</option>`).join('')}
     </select>`;
@@ -12782,7 +12782,7 @@ function renderResumenQuincenaTratamientos(modulo){
   // igual que el resto de selectores de invernadero de la app.
   const INV_POR_SALA_FILTRO = [['Sala 1',ALL_INV_IDS_SALA1],['Sala 2',ALL_INV_IDS],['Sala 3',ALL_INV_IDS_SALA3],['Sala 4',ALL_INV_IDS_SALA4],['Sala 5',ALL_INV_IDS_SALA5]];
   const filtroInvHTML = `
-    <select aria-label="Invernadero del tratamiento" onchange="cambiarResumenQuincenaInvFiltro('${modulo}',this.value)" style="padding:8px 10px;min-height:40px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;font-weight:700;max-width:100%">
+    <select aria-label="Invernadero del tratamiento" onchange="cambiarResumenQuincenaInvFiltro('${modulo}',this.value)" style="${modulo==='fito'?'padding:8px 10px;min-height:40px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;font-weight:700;max-width:100%':'padding:6px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:11px;font-weight:700'}">
       <option value="">Todos los invernaderos</option>
       ${INV_POR_SALA_FILTRO.map(([label,ids])=>`<optgroup label="${label}">${ids.map(id=>`<option value="${id}"${invFiltro===id?' selected':''}>${id}</option>`).join('')}</optgroup>`).join('')}
     </select>`;
