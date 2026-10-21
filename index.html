@@ -14413,8 +14413,8 @@ function showFitoModule(){
 }
 
 // Selector por sala de Plaguicidas: mismo patrón de desplegables azules que Riego.
-// data-fito-sala identifica SOLO los selects; data-finv sigue reservado a
-// las celdas de la cuadrícula (no deben reemplazarse por botones).
+// data-fito-sala identifica solo los selectores. Las celdas Fito son ahora
+// botones de acceso al formulario único, no inputs de edición libre.
 // Plaguicidas: los desplegables ya permiten elegir el INV. Las antiguas
 // miniaturas/semáforos no son necesarios en esta pantalla y se eliminan
 // de la vista Fito exclusivamente; Riego y Específicos conservan su dashboard.
@@ -14513,13 +14513,34 @@ function selectFitoInv(invId){
   marcarPresenciaInvernadero('fito', invId);
 }
 
-// Pulsar la etiqueta de un día en la cuadrícula de plaguicidas abre el alta
-// manual con ese día ya puesto.
-function abrirFitoManualDia(invId, dia){
-  fitoInvSel = invId;
+// El clic de una celda es SIEMPRE la entrada única al formulario. Las calles
+// se precargan antes de dibujarlo: nunca asumir "invernadero entero" desde
+// una celda vacía. Los grupos existentes conservan todas sus calles.
+function abrirFitoManualCelda(invId, dia, calles){
+  invId=String(invId);
+  const layout=INV_LAYOUT[invId];
+  if(!layout) return;
+  const disponibles=[...layout.row1,...layout.row2];
+  const seleccionadas=[...new Set((calles||[]).map(Number))].filter(c=>disponibles.includes(c));
+  if(!seleccionadas.length) return;
+  if(seleccionadas.some(c=>!!getFito(invId,dia,c))){
+    editarFitoManualDesdeCelda(invId,dia,seleccionadas);
+    return;
+  }
+  fitoInvSel=invId;
+  fmPendingConfig={modo:'tramo',tramos:[{
+    desde:Math.min(...seleccionadas),hasta:Math.max(...seleccionadas),obs:''
+  }]};
   showFitoManualForm();
-  const sel = document.getElementById('fm-dia');
-  if(sel) sel.value = dia;
+  const sel=document.getElementById('fm-dia');
+  if(sel) sel.value=String(dia);
+}
+// La etiqueta de día ya no dispara un alta a todo el invernadero.
+function abrirFitoManualDia(invId,dia){
+  fitoInvSel=String(invId);
+  showFitoManualForm();
+  const sel=document.getElementById('fm-dia');
+  if(sel) sel.value=String(dia);
 }
 
 function renderFitoGrid(invId){
@@ -14564,13 +14585,15 @@ function renderFitoGrid(invId){
             cells+=`<td colspan="${br.span}" style="height:${DH}px;border:1px solid #e8b0b0;padding:0;background:${bgTratamiento}">
               <div style="display:flex;align-items:center;height:100%;padding:0 2px">
                 <span style="font-size:9px;font-weight:900;color:#a32020;margin-right:1px;flex-shrink:0">[</span>
-                <input type="text" value="${br.text.replace(/"/g,'&quot;')}"
-                  data-finv="${invId}" data-fdia="${dia}" data-frc="${br.calles.join(',')}"
-                  onchange="updateFitoBracket('${invId}',${dia},[${br.calles.join(',')}],this.value)"
-                  ondblclick="editarFitoManualDesdeCelda('${invId}',${dia},[${br.calles.join(',')}])"
+                <button type="button"
+                  onclick="abrirFitoManualCelda('${invId}',${dia},[${br.calles.join(',')}])"
                   onmousedown="dragCalleStart('fito','${invId}',${dia},${br.calles[0]})"
                   onmouseenter="dragCalleOver('fito','${invId}',${dia},${br.calles[0]})"
-                  style="flex:1;border:none;background:transparent;font-size:9px;font-weight:700;color:#7a1a1a;outline:none;min-width:0;padding:0 1px;text-align:left">
+                  title="Editar tratamiento de ${br.calles.length} calle(s)"
+                  aria-label="Editar tratamiento de INV ${invId}, calles ${br.calles.join(', ')}, día ${riegoDiaLabelCorto(dia)}"
+                  style="flex:1;border:0;background:transparent;font-size:9px;font-weight:700;color:#7a1a1a;min-width:0;padding:0 1px;text-align:left;cursor:pointer;font-family:inherit">
+                  ${br.text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+                </button>
                 <span style="font-size:9px;font-weight:900;color:#a32020;margin-left:1px;flex-shrink:0">]</span>
               </div>
             </td>`;
@@ -14580,13 +14603,13 @@ function renderFitoGrid(invId){
             cells+=`<td colspan="${br.span}" style="border:1px solid #e8b0b0;padding:0;background:${bgTratamiento}">
               <div style="display:flex;align-items:flex-start;padding:1px 2px">
                 <span style="font-size:9px;font-weight:900;color:#a32020;margin-right:1px;flex-shrink:0;line-height:1.3">[</span>
-                <textarea rows="${esPantallaMovil()?3:2}"
-                  data-finv="${invId}" data-fdia="${dia}" data-frc="${br.calles.join(',')}"
-                  onchange="updateFitoBracket('${invId}',${dia},[${br.calles.join(',')}],this.value)"
-                  ondblclick="editarFitoManualDesdeCelda('${invId}',${dia},[${br.calles.join(',')}])"
+                <button type="button"
+                  onclick="abrirFitoManualCelda('${invId}',${dia},[${br.calles.join(',')}])"
                   onmousedown="dragCalleStart('fito','${invId}',${dia},${br.calles[0]})"
                   onmouseenter="dragCalleOver('fito','${invId}',${dia},${br.calles[0]})"
-                  style="flex:1;border:none;background:transparent;font-size:${fontSize}px;font-weight:700;color:#7a1a1a;outline:none;min-width:0;padding:0 1px;text-align:center;resize:none;line-height:1.15;white-space:normal;word-break:break-word;overflow-y:auto;font-family:inherit">${textEsc}</textarea>
+                  title="Editar tratamiento de ${br.calles.length} calle(s)"
+                  aria-label="Editar tratamiento de INV ${invId}, calles ${br.calles.join(', ')}, día ${riegoDiaLabelCorto(dia)}"
+                  style="flex:1;border:0;background:transparent;font-size:${fontSize}px;font-weight:700;color:#7a1a1a;min-width:0;padding:0 1px;text-align:center;line-height:1.15;white-space:normal;word-break:break-word;cursor:pointer;font-family:inherit">${textEsc}</button>
                 <span style="font-size:9px;font-weight:900;color:#a32020;margin-left:1px;flex-shrink:0;line-height:1.3">]</span>
               </div>
             </td>`;
@@ -14594,19 +14617,19 @@ function renderFitoGrid(invId){
           ci+=br.span;
         } else {
           cells+=`<td style="height:${DH}px;border:1px solid #e8c8c8;padding:0;background:${val?bgTratamiento:'#fff'}">
-            <input type="text" value="${val.replace(/"/g,'&quot;')}" placeholder=""
-              data-finv="${invId}" data-fdia="${dia}" data-frc="${calle}"
-              onchange="setFitoUndo('${invId}',${dia},${calle},this.value);renderFitoGrid('${invId}')"
+            <button type="button"
+              onclick="abrirFitoManualCelda('${invId}',${dia},[${calle}])"
               onmousedown="dragCalleStart('fito','${invId}',${dia},${calle})"
               onmouseenter="dragCalleOver('fito','${invId}',${dia},${calle})"
-              style="width:100%;height:100%;border:none;background:transparent;font-size:9px;font-weight:${val?700:400};color:${val?'#7a1a1a':'#888'};text-align:center;outline:none;padding:0 2px;font-family:inherit">
+              title="Añadir tratamiento · calle ${calle}" aria-label="Añadir tratamiento en INV ${invId}, calle ${calle}, día ${riegoDiaLabelCorto(dia)}"
+              style="width:100%;min-height:${DH}px;border:0;background:transparent;font-size:9px;color:#64748b;text-align:center;padding:0 2px;font-family:inherit;cursor:pointer"></button>
           </td>`;
           ci++;
         }
       }
       const semanaFontColor = semana==='Domingo' ? '#e53935' : '#1a1e18';
       return `<tr>
-        <td style="width:${DAY_W}px;min-width:${DAY_W}px;height:${DH}px;border:1px solid #e8b0b0;text-align:center;font-size:10px;font-weight:800;color:#a32020;background:#fdf0f0;position:sticky;left:0;z-index:5;padding:0;white-space:nowrap;cursor:pointer" onclick="abrirFitoManualDia('${invId}',${dia})" title="Pulsa para añadir tratamiento este día">${riegoDiaLabelCorto(dia)}</td>
+        <td style="width:${DAY_W}px;min-width:${DAY_W}px;height:${DH}px;border:1px solid #e8b0b0;text-align:center;font-size:10px;font-weight:800;color:#a32020;background:#fdf0f0;position:sticky;left:0;z-index:5;padding:0;white-space:nowrap" title="Fecha">${riegoDiaLabelCorto(dia)}</td>
         ${cells}
         <td style="width:${SEM_W}px;min-width:${SEM_W}px;height:${DH}px;border:1px solid #e8b0b0;text-align:center;font-size:10px;font-weight:700;color:${semanaFontColor};background:#fff">${semana}</td>
       </tr>`;
@@ -14630,12 +14653,27 @@ function renderFitoGrid(invId){
   </div>`;
 }
 
+// Dos calles con idéntico texto NO son un único tratamiento si conservan
+// datos operativos distintos (caldo, método, primer día, orden, espera, etc.).
+// Comparar metadatos sin texto evita abrir/editarlas juntas por accidente.
+function firmaFitoDatosCelda(invId,dia,calle){
+  const raw=getFitoCellRaw(invId,dia,calle);
+  if(!raw || typeof raw!=='object') return 'legacy';
+  return JSON.stringify(Object.keys(raw).filter(k=>k!=='texto').sort().map(k=>[k,raw[k]]));
+}
 function detectFitoBrackets(invId,dia,calles){
   const brackets=[];let ci=0;
   while(ci<calles.length){
     const val=getFito(invId,dia,calles[ci]);
-    if(val){let end=ci+1;while(end<calles.length&&getFito(invId,dia,calles[end])===val)end++;brackets.push({start:ci,span:end-ci,text:val,calles:calles.slice(ci,end)});ci=end;}
-    else ci++;
+    if(val){
+      const firma=firmaFitoDatosCelda(invId,dia,calles[ci]);
+      let end=ci+1;
+      while(end<calles.length &&
+        getFito(invId,dia,calles[end])===val &&
+        firmaFitoDatosCelda(invId,dia,calles[end])===firma) end++;
+      brackets.push({start:ci,span:end-ci,text:val,calles:calles.slice(ci,end)});
+      ci=end;
+    }else ci++;
   }
   return brackets;
 }
@@ -18347,7 +18385,7 @@ function showFitoManualForm(){
     fmBulkConfig = {};
     if(inv){
       fmBulkConfig[inv] = fmPendingConfig
-        ? {modo: fmPendingConfig.modo, excluir: fmPendingConfig.excluir || {desde:null,hasta:null}, tramos: fmPendingConfig.tramos || [], primerDia:false}
+        ? {modo: fmPendingConfig.modo, excluir: fmPendingConfig.excluir || {desde:null,hasta:null}, tramos: fmPendingConfig.tramos || [], primerDia:!!fmPendingConfig.primerDia, esperaCarga:!!fmPendingConfig.esperaCarga, orden:fmPendingConfig.orden??null}
         : {modo:'entero', excluir:{desde:null,hasta:null}, tramos:[], primerDia:false};
     }
   }
@@ -18830,7 +18868,10 @@ function editarFitoManualDesdeCelda(invId, dia, calles){
   const desde = Math.min(...calles), hasta = Math.max(...calles);
   const raw = getFitoCellRaw(invId, dia, calles[0]);
   const {trat, dosis, horario, obs} = parsearTextoFito(typeof raw==='string' ? raw : (raw?.texto||''));
-  fmPendingConfig = {modo:'tramo', tramos:[{desde, hasta, obs}]};
+  fmPendingConfig = {modo:'tramo', tramos:[{desde, hasta, obs}],
+    primerDia: !!(raw && typeof raw==='object' && raw.primerDia),
+    esperaCarga: !!(raw && typeof raw==='object' && raw.esperaCarga),
+    orden: (raw && typeof raw==='object') ? (raw.orden??null) : null};
   showFitoManualForm();
   document.getElementById('fm-dia').value = dia;
   document.getElementById('fm-trat').value = trat;
