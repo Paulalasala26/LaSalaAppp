@@ -14283,6 +14283,7 @@ function showFitoModule(){
     // quincena de referencia de 2026-06-15) en vez de la quincena actual, y
     // por eso no aparecía nada (bug reportado por Paula).
     fitoQuincenaOffset = riegoQuincenaOffsetActual();
+    fitoInvSel = null; // Al abrir se muestra el dashboard: selectores sin selección.
     const overlay=getOrCreateOverlay('fito-overlay');
     overlay.style.padding = '0';
     overlay.innerHTML=`
@@ -14317,26 +14318,11 @@ function showFitoModule(){
             <button onclick="document.getElementById('fito-overlay').style.display='none'" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 11px;cursor:pointer;font-size:13px">✕</button>
           </div>
         </div>
-        <div style="padding:.5rem 1.25rem;background:#fdf0f0;border-bottom:1px solid #e8b0b0;display:flex;gap:6px;flex-wrap:wrap;align-items:center;flex-shrink:0">
-          <span style="font-size:11px;font-weight:700;color:#a32020;min-width:56px">SALA 1:</span>
-          ${Object.keys(INV_LAYOUT_SALA1).map(id=>botonInvFitoHTML(id)).join('')}
-        </div>
-        <div style="padding:.5rem 1.25rem;background:#fdf0f0;border-bottom:1px solid #e8b0b0;display:flex;gap:6px;flex-wrap:wrap;align-items:center;flex-shrink:0">
-          <span style="font-size:11px;font-weight:700;color:#a32020;min-width:56px">SALA 2:</span>
-          ${Object.keys(INV_LAYOUT_SALA2).map(id=>botonInvFitoHTML(id)).join('')}
-        </div>
-        <div style="padding:.5rem 1.25rem;background:#fdf0f0;border-bottom:1px solid #e8b0b0;display:flex;gap:6px;flex-wrap:wrap;align-items:center;flex-shrink:0">
-          <span style="font-size:11px;font-weight:700;color:#a32020;min-width:56px">SALA 3:</span>
-          ${Object.keys(INV_LAYOUT_SALA3).map(id=>botonInvFitoHTML(id)).join('')}
-        </div>
-        <div style="padding:.5rem 1.25rem;background:#fdf0f0;border-bottom:1px solid #e8b0b0;display:flex;gap:6px;flex-wrap:wrap;align-items:center;flex-shrink:0">
-          <span style="font-size:11px;font-weight:700;color:#a32020;min-width:56px">SALA 4:</span>
-          ${Object.keys(INV_LAYOUT_SALA4).map(id=>botonInvFitoHTML(id)).join('')}
-        </div>
-        <div style="padding:.5rem 1.25rem;background:#fdf0f0;border-bottom:1px solid #e8b0b0;display:flex;gap:6px;flex-wrap:wrap;align-items:center;flex-shrink:0">
-          <span style="font-size:11px;font-weight:700;color:#a32020;min-width:56px">SALA 5:</span>
-          ${Object.keys(INV_LAYOUT_SALA5).map(id=>botonInvFitoHTML(id)).join('')}
-        </div>
+        ${fitoSalaSelectorHTML(1, INV_LAYOUT_SALA1)}
+        ${fitoSalaSelectorHTML(2, INV_LAYOUT_SALA2)}
+        ${fitoSalaSelectorHTML(3, INV_LAYOUT_SALA3)}
+        ${fitoSalaSelectorHTML(4, INV_LAYOUT_SALA4)}
+        ${fitoSalaSelectorHTML(5, INV_LAYOUT_SALA5)}
         <div id="fito-grid-wrap" style="flex:1;overflow:auto;background:#fdf9f9">
           ${renderDashboardInvernaderos('fito')}
         </div>
@@ -14346,25 +14332,30 @@ function showFitoModule(){
   });
 }
 
-// Botón de invernadero de la fila Sala 1/2 — a petición de Paula
-// (2026-08-19): fuente negra por defecto (antes roja). "Esperar a la
-// carga"/"Orden" se movieron a "Añadir manualmente" (2026-08-19, segunda
-// petición: "elimínalos de la cuadrícula, que se vean en la hoja impresa"),
-// ya no se marcan aquí.
-function botonInvFitoHTML(id){
-  const seleccionado = fitoInvSel===id;
+// Selector por sala de Plaguicidas: mismo patrón de desplegables azules que Riego.
+// data-fito-sala identifica SOLO los selects; data-finv sigue reservado a
+// las celdas de la cuadrícula (no deben reemplazarse por botones).
+function fitoSalaSelectorHTML(sala, layout){
   return `
-    <button onclick="selectFitoInv('${id}',this)" data-finv="${id}"
-      style="padding:4px 11px;font-size:11px;font-weight:${seleccionado?'800':'600'};border-radius:5px;cursor:pointer;border:1.5px solid ${seleccionado?'#000':'#ccc'};background:${seleccionado?'#000':'#fff'};color:${seleccionado?'#fff':'#000'};transition:all .12s">
-      ${id}
-    </button>`;
+    <div style="padding:.4rem .75rem;background:#e8f0fb;border-bottom:1px solid #b0c8e0;display:flex;gap:8px;align-items:center;flex-shrink:0">
+      <label for="fito-sala-${sala}" style="font-size:14px;font-weight:700;color:#1558a0;min-width:64px">Sala ${sala}</label>
+      <select id="fito-sala-${sala}" data-fito-sala="${sala}" onchange="if(this.value) selectFitoInv(this.value)"
+        style="flex:1;min-width:0;min-height:44px;padding:8px 10px;font-size:16px;border-radius:7px;border:1.5px solid #a8c4e8;background:#fff;color:#1558a0">
+        <option value="" disabled selected>Elegir invernadero…</option>
+        ${Object.keys(layout).sort((a,b)=>a.localeCompare(b,'es',{numeric:true})).map(id=>`<option value="${id}">${id}</option>`).join('')}
+      </select>
+    </div>`;
 }
-function selectFitoInv(invId,btn){
-  fitoInvSel=invId;
-  document.querySelectorAll('[data-finv]').forEach(b=>{
-    const id = b.getAttribute('data-finv');
-    b.outerHTML = botonInvFitoHTML(id);
+function sincronizarSelectoresFito(invId){
+  document.querySelectorAll('[data-fito-sala]').forEach(selector=>{
+    selector.value = invId && Array.from(selector.options).some(op=>op.value===String(invId)) ? String(invId) : '';
   });
+}
+function selectFitoInv(invId){
+  invId=String(invId);
+  if(!INV_LAYOUT[invId]) return;
+  fitoInvSel=invId;
+  sincronizarSelectoresFito(invId);
   renderFitoGrid(invId);
   marcarPresenciaInvernadero('fito', invId);
 }
@@ -14592,9 +14583,7 @@ async function rehacerFito(){
 function retrocederFito(){
   if(fitoInvSel){
     fitoInvSel = null;
-    document.querySelectorAll('[data-finv]').forEach(b=>{
-      b.style.background='#fff'; b.style.color='#a32020'; b.style.borderColor='#e8b0b0'; b.style.fontWeight='600';
-    });
+    sincronizarSelectoresFito(null);
     const wrap = document.getElementById('fito-grid-wrap');
     if(wrap) wrap.innerHTML = renderDashboardInvernaderos('fito');
   } else {
@@ -14630,7 +14619,7 @@ function parseFitoAudio(text){
   if(!fitoInvSel)return;
   let inv=fitoInvSel,dia=null,calles=[],valor='';
   const invM=text.match(/invernadero\s+(\w+)/i);
-  if(invM&&INV_LAYOUT[invM[1].toUpperCase()]){inv=invM[1].toUpperCase();const btn=document.querySelector(`[data-finv="${inv}"]`);selectFitoInv(inv,btn);}
+  if(invM&&INV_LAYOUT[invM[1].toUpperCase()]){inv=invM[1].toUpperCase();selectFitoInv(inv);}
   const diaM=text.match(/(?:d[ií]a\s+|el\s+)(\d{1,2})/i);if(diaM)dia=parseInt(diaM[1]);
   const rangeM=text.match(/calles?\s+(\d+)\s+(?:a|al|hasta)\s+(\d+)/i);
   const singleM=text.match(/calle\s+(\d+)/i);
