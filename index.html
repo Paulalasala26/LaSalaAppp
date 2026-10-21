@@ -14333,7 +14333,7 @@ function showFitoModule(){
             style="padding:6px 12px;background:#1558a0;border:1px solid #1558a0;color:#fff;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">Cambiar</button>
         </div>
         <div id="fito-grid-wrap" style="flex:1;overflow:auto;background:#fdf9f9">
-          ${renderDashboardInvernaderos('fito')}
+          ${renderFitoResumenSeleccionHTML()}
         </div>
       </div>`;
     overlay.style.display='flex';
@@ -14345,6 +14345,15 @@ function showFitoModule(){
 // Selector por sala de Plaguicidas: mismo patrón de desplegables azules que Riego.
 // data-fito-sala identifica SOLO los selects; data-finv sigue reservado a
 // las celdas de la cuadrícula (no deben reemplazarse por botones).
+// Plaguicidas: los desplegables ya permiten elegir el INV. Las antiguas
+// miniaturas/semáforos no son necesarios en esta pantalla y se eliminan
+// de la vista Fito exclusivamente; Riego y Específicos conservan su dashboard.
+// El resumen de tratamientos sigue visible, con sus filtros/editar/imprimir.
+function renderFitoResumenSeleccionHTML(){
+  return `<div style="padding:1rem 1.25rem;max-width:1100px;margin:0 auto">
+    ${renderResumenQuincenaTratamientos('fito')}
+  </div>`;
+}
 function fitoSalaSelectorHTML(sala, layout){
   return `
     <div style="padding:.4rem .75rem;background:#e8f0fb;border-bottom:1px solid #b0c8e0;display:flex;gap:8px;align-items:center;flex-shrink:0">
@@ -14609,7 +14618,7 @@ function retrocederFito(){
     sincronizarSelectoresFito(null);
     actualizarVistaFitoSeleccion(null);
     const wrap = document.getElementById('fito-grid-wrap');
-    if(wrap) wrap.innerHTML = renderDashboardInvernaderos('fito');
+    if(wrap) wrap.innerHTML = renderFitoResumenSeleccionHTML();
   } else {
     document.getElementById('fito-overlay').style.display = 'none';
   }
