@@ -13971,12 +13971,14 @@ function changeFitoQuincena(delta){
 function renderFitoQuincenaBar(){
   const bar = document.getElementById('fito-quincena-bar');
   if(!bar) return;
+  const deshabilitada = fitoQuincenaOffset<=0;
   bar.innerHTML = `
-    <button onclick="changeFitoQuincena(-1)" ${fitoQuincenaOffset<=0?'disabled style="opacity:.35;cursor:default"':''}
-      style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:5px;width:22px;height:22px;cursor:pointer;font-size:13px;line-height:1">&#8249;</button>
-    <span style="font-size:11px;font-weight:700">Quincena ${fitoQuincenaOffset+1} &middot; ${riegoQuincenaLabel(fitoQuincenaOffset)}</span>
-    <button onclick="changeFitoQuincena(1)"
-      style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:5px;width:22px;height:22px;cursor:pointer;font-size:13px;line-height:1">&#8250;</button>
+    <button onclick="changeFitoQuincena(-1)" ${deshabilitada?'disabled':''}
+      title="Quincena anterior" aria-label="Quincena anterior"
+      style="background:${deshabilitada?'#d6dbe1':'#1558a0'};border:1px solid ${deshabilitada?'#b8c0ca':'#1558a0'};color:${deshabilitada?'#68727d':'#fff'};border-radius:7px;width:36px;height:36px;cursor:${deshabilitada?'default':'pointer'};font-size:20px;font-weight:700;line-height:1">&#8249;</button>
+    <span style="min-width:0;font-size:clamp(12px,3.3vw,15px);font-weight:800;color:#1558a0;line-height:1.3;text-align:center;white-space:nowrap">${riegoQuincenaLabel(fitoQuincenaOffset)}</span>
+    <button onclick="changeFitoQuincena(1)" title="Quincena siguiente" aria-label="Quincena siguiente"
+      style="background:#1558a0;border:1px solid #1558a0;color:#fff;border-radius:7px;width:36px;height:36px;cursor:pointer;font-size:20px;font-weight:700;line-height:1">&#8250;</button>
   `;
 }
 
@@ -14302,48 +14304,61 @@ function showFitoModule(){
     overlay.style.padding = '0';
     overlay.innerHTML=`
       <div style="background:#fff;border-radius:0;width:100vw;height:100vh;max-width:100vw;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.3)">
-        <div style="background:#a32020;color:#fff;padding:.85rem 1.25rem;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;gap:10px">
-          <div>
-            <div style="font-size:16px;font-weight:800">&#129516; Plaguicidas</div>
-            <div id="fito-subtitulo" style="font-size:11px;opacity:.85;margin:1px 0 4px">Selecciona una operación</div>
-            <div id="fito-quincena-bar" style="display:flex;align-items:center;gap:8px"></div>
+        <!-- Cabecera coherente con Marcar riego / Control de Calidad. -->
+        <header class="control-ui-header" style="min-height:42px;padding:5px 9px">
+          <button id="fito-btn-retroceder" type="button" class="control-ui-home" onclick="retrocederFito()"
+            title="Volver a la pantalla anterior" aria-label="Volver a la pantalla anterior de Plaguicidas">
+            <i class="ti ti-bug" aria-hidden="true"></i><span>Plaguicidas</span>
+          </button>
+          <div class="control-ui-header-right">
+            <span id="fito-subtitulo" class="control-ui-section-label" aria-live="polite">Inicio</span>
+            <button id="fito-btn-imprimir" type="button" class="control-ui-close" onclick="showImprimirResumenSelector('fito')"
+              title="Imprimir resumen de tratamientos" aria-label="Imprimir resumen de tratamientos" style="font-size:16px">
+              <i class="ti ti-printer" aria-hidden="true"></i>
+            </button>
+            <button type="button" class="control-ui-close"
+              onclick="document.getElementById('fito-overlay').style.display='none'"
+              title="Cerrar Plaguicidas" aria-label="Cerrar Plaguicidas">&times;</button>
           </div>
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-            <button id="fito-audio-btn" onclick="toggleFitoAudio()" title="Dictado por voz"
-              style="width:40px;height:40px;border-radius:50%;background:#e53935;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(229,57,53,.4);flex-shrink:0">
-              <i class="ti ti-microphone" style="font-size:17px;color:#fff"></i>
-            </button>
-            <span id="fito-audio-status" style="font-size:11px;opacity:.85;min-width:80px"></span>
-            <button id="fito-btn-anadir" class="hdr-btn" onclick="showFitoManualForm()" title="Añadir manualmente" style="padding:6px 14px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:5px">
-              <i class="ti ti-plus" style="font-size:13px"></i><span class="hdr-btn-label"> Añadir manualmente</span>
-            </button>
-            <button id="fito-btn-deshacer" onclick="deshacerFito()" ${fitoHistorialDeshacer.length?'':'disabled style="opacity:.35;cursor:default"'} title="Deshacer el último cambio" style="padding:6px 12px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:7px;font-weight:700;cursor:pointer;white-space:nowrap;display:flex;align-items:center;justify-content:center;min-width:40px">←</button>
-            <button id="fito-btn-rehacer" onclick="rehacerFito()" ${fitoHistorialRehacer.length?'':'disabled style="opacity:.35;cursor:default"'} title="Rehacer el cambio deshecho" style="padding:6px 12px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:7px;font-weight:700;cursor:pointer;white-space:nowrap;display:flex;align-items:center;justify-content:center;min-width:40px">→</button>
-            <button id="fito-btn-retroceder" class="hdr-btn" onclick="retrocederFito()" title="Volver a la pantalla anterior"
-              style="padding:6px 14px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:5px">
-              <i class="ti ti-arrow-back-up" style="font-size:13px"></i><span class="hdr-btn-label"> Retroceder</span>
-            </button>
-            <button id="fito-btn-guardar" class="hdr-btn" onclick="saveFitoData()" title="Guardar" style="padding:6px 14px;background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">
-              <i class="ti ti-device-floppy" style="font-size:13px;vertical-align:-2px"></i><span class="hdr-btn-label"> Guardar</span>
-            </button>
-            <button id="fito-btn-imprimir" class="hdr-btn" onclick="showImprimirResumenSelector('fito')" title="Imprimir resumen de varios días" style="padding:6px 14px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:5px">
-              <i class="ti ti-printer" style="font-size:13px"></i><span class="hdr-btn-label"> Imprimir</span>
-            </button>
-            <button onclick="document.getElementById('fito-overlay').style.display='none'" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 11px;cursor:pointer;font-size:13px">✕</button>
-          </div>
+        </header>
+        <!-- Barra de quincenas independiente, como en Marcar riego. -->
+        <div id="fito-quincena-wrap" style="display:none;padding:.45rem .75rem;background:#e8f0fb;border-bottom:1px solid #b0c8e0;flex-shrink:0">
+          <div id="fito-quincena-bar" style="display:grid;grid-template-columns:36px minmax(0,1fr) 36px;align-items:center;gap:8px;width:100%"></div>
+        </div>
+        <!-- Herramientas de registro fuera de la cabecera, con la escala de Riego. -->
+        <div id="fito-actions-row" style="display:none;align-items:center;gap:6px;flex-shrink:0;overflow-x:auto;white-space:nowrap;padding:6px 9px;background:#fff;border-bottom:1px solid #dce4ed">
+          <button id="fito-audio-btn" type="button" onclick="toggleFitoAudio()" title="Dictado por voz" aria-label="Dictado por voz"
+            style="flex-shrink:0;width:32px;height:32px;padding:0;background:#1558a0;border:1px solid #1558a0;color:#fff;border-radius:7px;cursor:pointer;display:flex;align-items:center;justify-content:center">
+            <i class="ti ti-microphone" style="font-size:16px" aria-hidden="true"></i>
+          </button>
+          <span id="fito-audio-status" style="font-size:11px;font-weight:700;color:#1558a0;flex-shrink:0"></span>
+          <button id="fito-btn-anadir" type="button" onclick="showFitoManualForm()" title="Añadir tratamiento"
+            style="flex-shrink:0;min-height:32px;padding:6px 10px;background:#1558a0;border:1px solid #1558a0;color:#fff;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">
+            <i class="ti ti-plus" style="font-size:14px;vertical-align:-2px" aria-hidden="true"></i> Añadir
+          </button>
+          <button id="fito-btn-deshacer" type="button" onclick="deshacerFito()" ${fitoHistorialDeshacer.length?'':'disabled'}
+            title="Deshacer el último cambio" aria-label="Deshacer el último cambio"
+            style="flex-shrink:0;width:32px;height:32px;padding:0;background:${fitoHistorialDeshacer.length?'#1558a0':'#d6dbe1'};border:1px solid ${fitoHistorialDeshacer.length?'#1558a0':'#b8c0ca'};color:${fitoHistorialDeshacer.length?'#fff':'#68727d'};border-radius:7px;font-size:17px;cursor:${fitoHistorialDeshacer.length?'pointer':'default'}">←</button>
+          <button id="fito-btn-rehacer" type="button" onclick="rehacerFito()" ${fitoHistorialRehacer.length?'':'disabled'}
+            title="Rehacer el cambio deshecho" aria-label="Rehacer el cambio deshecho"
+            style="flex-shrink:0;width:32px;height:32px;padding:0;background:${fitoHistorialRehacer.length?'#1558a0':'#d6dbe1'};border:1px solid ${fitoHistorialRehacer.length?'#1558a0':'#b8c0ca'};color:${fitoHistorialRehacer.length?'#fff':'#68727d'};border-radius:7px;font-size:17px;cursor:${fitoHistorialRehacer.length?'pointer':'default'}">→</button>
+          <button id="fito-btn-guardar" type="button" onclick="saveFitoData()" title="Guardar tratamientos"
+            style="flex-shrink:0;min-height:32px;padding:6px 10px;background:#1558a0;border:1px solid #1558a0;color:#fff;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">
+            <i class="ti ti-device-floppy" style="font-size:14px;vertical-align:-2px" aria-hidden="true"></i> Guardar
+          </button>
         </div>
         <!-- Menú inicial: dos accesos independientes, largos y apilados. -->
         <div id="fito-menu-wrap" style="flex:1;overflow:auto;padding:26px 16px;background:#f6f9fe">
           <div style="max-width:560px;width:100%;margin:0 auto;display:flex;flex-direction:column;gap:14px">
             <button type="button" onclick="abrirSeccionFito('registrar')"
-              style="width:100%;min-height:76px;padding:17px 22px;background:linear-gradient(120deg,#2b6fae,#3c80c2 55%,#5b9bd5);color:#fff;border:1px solid #2b6fae;border-radius:12px;display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:clamp(12px,3.8vw,14px);font-weight:800;text-align:left;cursor:pointer">
+              style="width:100%;min-height:76px;padding:17px 22px;background:linear-gradient(120deg,#2b6fae,#3c80c2 55%,#5b9bd5);color:#fff;border:1px solid #2b6fae;border-radius:12px;display:flex;align-items:center;justify-content:flex-start;gap:12px;font-size:14px;font-weight:800;text-align:left;cursor:pointer">
               <span style="white-space:nowrap;min-width:0"><i class="ti ti-spray" style="font-size:18px;vertical-align:-2px;margin-right:8px"></i>Registrar tratamientos</span>
-              <i class="ti ti-chevron-right" style="font-size:18px;flex-shrink:0"></i>
+              
             </button>
             <button type="button" onclick="abrirSeccionFito('consulta')" aria-label="Consultar tratamientos aplicados" title="Consultar tratamientos aplicados"
-              style="width:100%;min-height:76px;padding:17px 22px;background:linear-gradient(120deg,#2b6fae,#3c80c2 55%,#5b9bd5);color:#fff;border:1px solid #2b6fae;border-radius:12px;display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:clamp(12px,3.8vw,14px);font-weight:800;text-align:left;cursor:pointer">
+              style="width:100%;min-height:76px;padding:17px 22px;background:linear-gradient(120deg,#2b6fae,#3c80c2 55%,#5b9bd5);color:#fff;border:1px solid #2b6fae;border-radius:12px;display:flex;align-items:center;justify-content:flex-start;gap:12px;font-size:14px;font-weight:800;text-align:left;cursor:pointer">
               <span style="white-space:nowrap;min-width:0"><i class="ti ti-clipboard-list" style="font-size:18px;vertical-align:-2px;margin-right:8px"></i>Consultar tratamientos</span>
-              <i class="ti ti-chevron-right" style="font-size:18px;flex-shrink:0"></i>
+              
             </button>
           </div>
         </div>
@@ -14430,8 +14445,9 @@ function actualizarVistaFitoSeleccion(invId){
   const label=document.getElementById('fito-selection-label');
   const filtros=document.getElementById('fito-filtros-superiores');
   const grid=document.getElementById('fito-grid-wrap');
-  const quincena=document.getElementById('fito-quincena-bar');
+  const quincena=document.getElementById('fito-quincena-wrap');
   const subtitulo=document.getElementById('fito-subtitulo');
+  const acciones=document.getElementById('fito-actions-row');
   const esMenu=fitoSeccionActual==='menu';
   const esRegistro=fitoSeccionActual==='registrar';
   const esConsulta=fitoSeccionActual==='consulta';
@@ -14442,18 +14458,16 @@ function actualizarVistaFitoSeleccion(invId){
   if(filtros) filtros.style.display=esConsulta?'block':'none';
   if(grid) grid.style.display=(esConsulta||elegido)?'block':'none';
   if(quincena) quincena.style.display=esMenu?'none':'flex';
-  if(subtitulo) subtitulo.textContent=esMenu?'Selecciona una operación':esConsulta?'Tratamientos aplicados · consulta por quincena':'Registrar tratamientos · selección de invernadero';
+  if(subtitulo) subtitulo.textContent=esMenu?'Inicio':esConsulta?'Consultar tratamientos':'Registrar tratamientos';
   if(label){
     const sala=elegido?salaDeInv(String(invId)):null;
     label.textContent=elegido ? (sala?'Sala '+sala.replace(/^sala/i,'')+' · ':'')+'INV. '+invId : '';
   }
-  // Ocultar acciones de grabación fuera de Registro; imprimir, en Consulta.
-  ['fito-audio-btn','fito-audio-status','fito-btn-anadir','fito-btn-deshacer','fito-btn-rehacer','fito-btn-guardar'].forEach(id=>{
-    const el=document.getElementById(id);
-    if(el) el.style.display=esRegistro?'':'none';
-  });
+  // La fila de acciones se muestra solo en Registro; los botones conservan
+  // su display original (flex/inline) y no se comprime la cabecera en móvil.
+  if(acciones) acciones.style.display=esRegistro?'flex':'none';
   const imprimir=document.getElementById('fito-btn-imprimir');
-  if(imprimir) imprimir.style.display=esMenu?'none':'';
+  if(imprimir) imprimir.style.display=esMenu?'none':'grid';
 }
 function abrirSeccionFito(seccion){
   if(seccion!=='registrar' && seccion!=='consulta') return;
