@@ -12690,7 +12690,7 @@ function renderResumenQuincenaTratamientos(modulo){
         // solo reflejaba el caldo del primero que se procesara, perdiendo el
         // del segundo invernadero.
         const firma = modulo==='fito'
-          ? [dia, parsed.trat, parsed.dosis, parsed.horario, grupoCuba, caldoLabel].join('|')
+          ? [dia, parsed.trat, parsed.dosis, parsed.horario, grupoCuba, caldoLabel, (typeof raw==='object'&&raw?.serieId)||'legacy', (typeof raw==='object'&&raw?.jornadaId)||''].join('|')
           : [dia, parsed.trat, parsed.dosis, parsed.horario, parsed.tipo, grupoCuba, caldoLabel].join('|');
         if(!grupos[firma]) grupos[firma] = { dia, texto, porInv: {}, porInvRaw: {}, raw: null };
         const obsKey = parsed.obs || '';
@@ -14172,7 +14172,7 @@ async function syncFitoV2InvsDesdeCloud(cloud, invIds){
 // intervalo GET→PUT: ante 412 se relee y se reaplican SOLO nuestras celdas.
 // De este modo dos técnicos que editan calles distintas no se pisan aunque
 // ambos partieran de una copia antigua de los 2,08 MB.
-async function saveFitoPatch(extraDeletes){
+async function saveFitoPatch(extraDeletes,expectedSnapshots){
   const dirtySnapshot=Array.from(fitoDirtyCells.values()).map(x=>{
     const local=clonarFitoSnapshot(fitoData[x.invId]?.[x.dia]?.[x.calle] ?? null);
     return {...x,local};
@@ -14203,6 +14203,17 @@ async function saveFitoPatch(extraDeletes){
       const val=await getRes.json();
       if(val==null || typeof val!=='string'){ avisarFalloGuardado(); return {ok:false}; }
       const cloud=JSON.parse(val);
+      // Compare current cloud against the state seen by the user before this edit.
+      // Applies only to the new transactional series editor; legacy callers omit snapshots.
+      if(Array.isArray(expectedSnapshots)){
+        for(const expected of expectedSnapshots){
+          const actual=cloud?.[expected.invId]?.[expected.dia]?.[expected.calle]??null;
+          if(JSON.stringify(actual)!==JSON.stringify(expected.raw??null)){
+            showToast('Otra persona modificó una de estas calles. Guardado cancelado; recarga los datos.');
+            return {ok:false,conflicto:true};
+          }
+        }
+      }
 
       intenciones.forEach(it=>{
         const inv=String(it.invId), dia=String(it.dia), calle=String(it.calle);
@@ -22172,6 +22183,7 @@ function conGuardiaReentrada(fn){
 });
 
 </script>
+<script src="assets/fito-series-v3.js"></script>
 </body>
 </html>
 <!-- VERCEL TEST v1.0 deployment trigger 2026-09-22 -->

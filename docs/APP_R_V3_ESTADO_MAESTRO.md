@@ -206,6 +206,18 @@
 **ÚNICA DECISIÓN PRIORITARIA abierta antes de cerrar la semántica de la marca:** «Primer día» debe señalar el primer día de toda la serie, o el primer día en cada invernadero/calle afectada (pueden diferir). No decidirlo por el color anterior. No implantar sin aclaración; después cerrar diseño completo del Bloque A, construir y probar en TEST como una entrega coherente (commits internos pequeños, no validaciones de microtextos). Nunca tocar main/PRD.
 
 
+### 0.26. Plaguicidas — Bloque A: implementación integral inicial en TEST (21/10/2026)
+
+**REGLA APROBADA:** registrar cada jornada individualmente y vincularla al tratamiento iniciado. Mantener dos inicios: GLOBAL del tratamiento y PRIMER DÍA POR ZONA (cada INV/calle). Ninguna jornada futura se crea automáticamente ni el registro equivale a ejecución.
+
+**IMPLEMENTADO EN CÓDIGO TEST / PENDIENTE UAT:** `assets/fito-series-v3.js` añade «Nuevo tratamiento» y «Continuar tratamiento» al formulario existente sin duplicarlo, con selector de serie ID explícita y precarga opcional de producto/dosis. Altas nuevas escriben `serieId`, `jornadaId`, `inicioSerieISO`, `fechaJornadaISO`, `estadoRegistro:'registrado'` junto a la estructura histórica por celda, compatible con v1/v2. El primer día se calcula con la fecha más antigua de esa serie para cada INV/calle, no desde un checkbox manual; los registros sin ID continúan sin vincular. Se conserva su checkbox histórico al editar legacy. Consulta Fito incorpora panel para ver jornadas registradas de series de otras quincenas. Grupos de Consulta incluyen IDs de serie/jornada en su firma para no mezclar tratamientos distintos idénticos en fecha/producto/cuba.
+
+**Guardado y protección incorporados en esa ruta:** confirmación de fecha/INV/calles/producto; calles deduplicadas; tramos solapados con observaciones conflictivas se bloquean; celda ocupada ajena se bloquea; se respeta incompatibilidad con Específicos de tarde; `saveFitoPatch(extraDeletes,expectedSnapshots)` contrasta cada destino con la nube actual ANTES de aplicar el ETag, abortando ante ediciones concurrentes. No cerrar el formulario ni crear Tarea Pistola hasta confirmación del guardado v1+v2. Se bloquea temporalmente editar jornadas Pistola con tareas, borrar jornadas vinculadas y agrupar Pistola multisala hasta resolver sincronización con Tareas en B/C; no crear impresión preguardado. Datos legacy siguen soportados; main y PRD sin cambios.
+
+**LÍMITES Y RIESGOS PENDIENTES:** la reversión de metadatos (undo/redo), la conciliación de tareas existentes, corrección de borrado/edición general legacy, la gestión de reintentos tras guardado incierto, y la confirmación efectiva de ejecución pertenecen a B/C; no asumir cierre funcional. No se ha probado navegación ni guardado reales en navegador; se ha comprobado sintaxis del fichero nuevo y alcance textual de integración, sin tocar Firebase ni introducir datos ficticios. Antes de autorizar UAT de persistencia, probar ejecución real de interfaz en TEST, móvil/PC, y usar datos TEST controlados. Un bloque completo debe validarse como circuito, no por tipografía.
+
+**UAT inicial NO destructiva:** TEST → Plaguicidas → Registrar → celda vacía; comprobar «Nuevo/Continuar» y apertura correcta de invernadero, calle y fecha; sin guardar. En Consulta, abrir panel de series vinculadas si las hay. Después, autorizar registro TEST de varias jornadas en zonas distintas, verificar color primer día por calle, vinculación en consulta, no sobrescritura y servidor v1/v2. No tocar producción.
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).
