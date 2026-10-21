@@ -143,6 +143,12 @@
 
 **Cambio UI único implementado en TEST; UAT pendiente:** eliminado «Imprimir hoja» de «4. Opciones por invernadero» dentro del formulario Plaguicidas, pues no corresponde imprimir durante el alta/edición aún no persistida. Se oculta el separador vacío en modo Añadir, manteniendo «Borrar tratamiento» al editar. Se conserva la función original de impresión y el acceso independiente «Imprimir hoja completa» desde los tratamientos registrados en Consulta (renderResumenQuincenaTratamientos/imprimirHojaResumen); no se modifica guardado, tareas, selección de calles, impresión oficial ni datos Firebase. Próxima prueba: abrir formulario de Añadir y Editar en TEST; comprobar ausencia del botón «Imprimir hoja» en ambos y persistencia del botón «Borrar tratamiento» en edición, sin pulsarlo ni guardar. Otros ajustes (texto de Primer día, etiquetas Desde/Hasta, resumen singular/plural y controles de guardado) siguen pendientes y deben tratarse por separado. PRD/main intocables.
 
+### 0.23. Plaguicidas — UAT impresión y etiqueta compacta (21/10/2026)
+
+**VALIDADO POR USUARIO EN TEST:** tras el despliegue de `9bf7f4b2`, el usuario confirma «correcto» sobre la ausencia del botón «Imprimir hoja» al abrir Plaguicidas → Añadir tratamiento (apartado 0.22). La conservación de «Borrar tratamiento» en edición no se ha probado expresamente.
+
+**UN SOLO CAMBIO VISUAL IMPLEMENTADO EN TEST; UAT PENDIENTE:** en `renderFmBulkPanels`, texto de la casilla «Primer día de tratamiento (marca la celda en morado)» acortado a «Primer día (morado)», con explicación completa en atributo `title`. Casilla, `fmBulkConfig[invId].primerDia`, comportamiento del marcado morado, guardado, impresión, tramos y Firebase intactos. Próxima validación: abrir «Opciones por invernadero» en móvil/PC y confirmar que la etiqueta queda en una línea, con la misma función; salir sin guardar. No realizar nuevos cambios hasta aceptación.
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).

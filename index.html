@@ -18711,7 +18711,7 @@ function renderFmBulkPanels(){
         </label>
       </div>
       <label style="display:flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:#6a1b9a;cursor:pointer;margin-bottom:6px">
-        <input type="checkbox" ${fmBulkConfig[invId].primerDia?'checked':''} onchange="fmBulkConfig['${invId}'].primerDia=this.checked"> Primer día de tratamiento (marca la celda en morado)
+        <input type="checkbox" ${fmBulkConfig[invId].primerDia?'checked':''} onchange="fmBulkConfig['${invId}'].primerDia=this.checked" title="Marca en morado las celdas del primer día de tratamiento"> Primer día (morado)
       </label>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;padding-top:6px;border-top:1px dashed #c6d9ee">
         <label style="display:flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:#e65100;cursor:pointer">
