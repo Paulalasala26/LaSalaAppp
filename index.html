@@ -14333,6 +14333,7 @@ function showFitoModule(){
         <!-- Filtros de tratamientos, sobre los desplegables de selección. -->
         <div id="fito-filtros-superiores" style="display:block;padding:9px 12px;background:#e8f0fb;border-bottom:1px solid #b0c8e0;flex-shrink:0">
           <div style="font-size:12px;font-weight:800;color:#1558a0;margin-bottom:5px">Filtrar tratamientos de la quincena</div>
+          <div id="fito-filtros-feedback" role="status" aria-live="polite" style="font-size:12px;font-weight:700;color:#1558a0;margin-top:5px">Estos filtros solo afectan al resumen inferior.</div>
         </div>
         <!-- Paso 1: elección de invernadero. -->
         <div id="fito-inv-selector-wrap" style="display:block;flex-shrink:0">
@@ -14366,13 +14367,25 @@ function showFitoModule(){
 // miniaturas/semáforos no son necesarios en esta pantalla y se eliminan
 // de la vista Fito exclusivamente; Riego y Específicos conservan su dashboard.
 // El resumen de tratamientos sigue visible, con sus filtros/editar/imprimir.
-// Coloca los filtros del resumen arriba sin duplicar la consulta de datos.
+// El resumen se recrea tras filtrar. Hay que tomar los controles NUEVOS
+// del resumen, no los antiguos que ya residen en la banda superior.
 function reubicarFiltrosFito(){
   const superior=document.getElementById('fito-filtros-superiores');
-  const filtros=document.getElementById('fito-filtros-resumen');
-  if(superior && filtros){
-    superior.querySelectorAll('#fito-filtros-resumen').forEach(el=>el.remove());
-    superior.appendChild(filtros);
+  const resumen=document.getElementById('resumen-quincena-fito');
+  if(!superior || !resumen) return;
+  const filtrosNuevos=resumen.querySelector('#fito-filtros-resumen');
+  if(!filtrosNuevos) return;
+  superior.querySelectorAll('#fito-filtros-resumen').forEach(el=>el.remove());
+  superior.appendChild(filtrosNuevos);
+  const feedback=document.getElementById('fito-filtros-feedback');
+  if(feedback){
+    const n=resumenQuincenaFilasCache.fito.length;
+    const filtros=[];
+    if(resumenQuincenaDiaFiltro.fito!=null) filtros.push('Día '+resumenQuincenaDiaFiltro.fito);
+    if(resumenQuincenaSalaFiltro.fito) filtros.push(resumenQuincenaSalaFiltro.fito.replace(/^sala/i,'Sala '));
+    if(resumenQuincenaInvFiltro.fito) filtros.push('INV '+resumenQuincenaInvFiltro.fito);
+    feedback.textContent=(n===0?'Ningún tratamiento coincide en esta quincena':n+' '+(n===1?'resultado':'resultados')+' en el resumen inferior')
+      +(filtros.length?' · Filtros: '+filtros.join(' / '):' · Sin filtros aplicados');
   }
 }
 function renderFitoResumenSeleccionHTML(){
