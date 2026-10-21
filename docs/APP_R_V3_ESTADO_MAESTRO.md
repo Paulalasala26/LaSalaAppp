@@ -220,6 +220,18 @@
 
 **UAT inicial NO destructiva:** TEST → Plaguicidas → Registrar → celda vacía; comprobar «Nuevo/Continuar» y apertura correcta de invernadero, calle y fecha; sin guardar. En Consulta, abrir panel de series vinculadas si las hay. Después, autorizar registro TEST de varias jornadas en zonas distintas, verificar color primer día por calle, vinculación en consulta, no sobrescritura y servidor v1/v2. No tocar producción.
 
+### 0.27. Plaguicidas — UAT de dos jornadas vinculadas, 22 y 23/10 (21/10/2026)
+
+**UAT confirmada parcialmente mediante DOS CAPTURAS REALES aportadas por el usuario.** El usuario precisa «usado el día 22 y 23», que son las fechas REALES del ensayo (no asumir 21 y 22 del ejemplo inicialmente sugerido). En la primera captura Consulta muestra «Tratamientos vinculados · 1 (todas las quincenas)» y `2026-10-22 · TEST BLOQUE A - NO APLICAR · 2 jornadas`. La segunda abre modal «Tratamiento · inicio global 2026-10-22» y dos tarjetas:
+- **2026-10-22:** «1 primera(s) calle(s)», texto `TEST BLOQUE A - NO APLICAR 1 cc/L 16:00`, `INV 1A · calles 13`.
+- **2026-10-23:** «1 primera(s) calle(s)», texto `TEST BLOQUE A - NO APLICAR 1 cc/L` (sin hora mostrada en captura), `INV 1A · calles 13, 14`.
+
+**Interpretación funcional:** hay una sola serie y dos jornadas; fecha de inicio global 22/10; 1 inicio por zona en cada día. El registro del 22 cubre calle 13; el del 23 cubre calles 13 y 14. Si el cálculo del primer día por calle se ejecutó conforme a implementación, el primer día del 23 corresponde a calle 14 (y la 13 empezó el 22); las tarjetas solo muestran el NÚMERO de calles nuevas y NO identifican cuál, de modo que no dar por comprobado visualmente el detalle de color sin revisar la cuadrícula. El texto del 23 carece de la hora del 22: NO deducir conservación de horario no seleccionado.
+
+**PENDIENTE PARA CERRAR BLOQUE A:** UAT tras recarga real del navegador (que el dato persista); comprobar cuadrícula 22/10 calle 13 morada y 23/10 calle 14 morada / calle 13 color ordinario, y verificar al pulsar registros ocupados que precargan correctamente sin guardar. Confirmar lectura persistente v1/v2 en contexto seguro si hay acceso, no afirmar verificación backend directa solo por captura. Si el comportamiento falla, corregir como incidencia funcional del A (no perseguir microestética). El modal actual «1 primera(s) calle(s)» necesita mostrar las calles concretas por jornada para que la fecha de primer tratamiento por zona sea consultable sin depender de color; tratar conjuntamente como parte del cierre funcional y no como retoque cosmético separado.
+
+**Estado de fuentes antes del presente documento:** test/v1.0 HEAD `7b4265edf265e9c503b0bd24893b7622dc1b045d`, Vercel TEST READY idéntico; JS de Bloque A `assets/fito-series-v3.js` blob `15254360a9fe48aa2a3948af58b140b34a762ef1`. No hay nuevos cambios funcionales ni escrituras Firebase por este registro. Registros TEST con producto `TEST BLOQUE A - NO APLICAR` se mantienen sin borrado hasta Bloque B. **PRD/main intocables**.
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).
