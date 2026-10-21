@@ -115,7 +115,10 @@
    field.style.cssText='border:1px solid #cad9e7;border-radius:8px;padding:10px;margin:10px 0;background:white';
    legend.style.fontWeight='700';field.append(legend);
    const grid=el('div');grid.style.cssText='display:grid;grid-template-columns:1fr 1fr;gap:10px';
-   for(const [opt,desc] of opts){
+   // Presentación únicamente: OK es la primera opción en cada categoría.
+   const displayOptions=[...opts.filter(([opt])=>opt==='ok'),
+    ...opts.filter(([opt])=>opt!=='ok')];
+   for(const [opt,desc] of displayOptions){
     const labelField=el('label',desc);labelField.style.cssText='font-size:13px;display:block';
     const n=el('input');n.type='number';n.step='1';n.min='1';n.max='10000000';n.inputMode='numeric';
     n.name=cat+'_'+opt;
