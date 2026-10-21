@@ -265,6 +265,14 @@
 
 **Orden explícito del usuario:** no distraerse ahora ni saltar a retoques visuales; completar primero guardado, reducción, restauración, persistencia, ausencia de residuos y metadatos. Cuando se cierre B, recordar y abordar juntas las dos incidencias anteriores. No tocar main ni PRD. Este registro documental no cambia código ni Firebase.
 
+### 0.31. Bloque B — UAT reducción de tramo 23/10 superada (21/10/2026)
+
+**VALIDADO POR USUARIO («correcto»):** siguiendo la prueba acordada del apartado 0.30, el usuario redujo y guardó el tratamiento ficticio `TEST BLOQUE A - NO APLICAR`, 23/10/2026, INV 1A, de calles 13–14 a **solo calle 13**, con método Cañón seleccionado. El «correcto» responde a la comprobación solicitada después del guardado y recarga: 23/10 solo calle 13; 22/10 calle 13 intacta; tratamiento previo del 21/10 intacto. Esta afirmación procede de la confirmación del usuario, no de una lectura independiente de Firebase. No repetir el guardado ni crear datos adicionales fuera de la prueba.
+
+**SIGUIENTE UAT de restauración (pendiente):** abrir en TEST 23/10 INV 1A calle 13, comprobar que Cañón está precargado y ampliar de 13–13 a 13–14; guardar una sola vez, recargar y verificar 23/10 calle 14 en morado («primer día»), calle 13 de continuación, y 22/10 como inicio global y calle 13 morada. Si falla, no repetir a ciegas: diagnosticar. Después continuar pruebas de borrado/deshacer seguras, siempre con registros TEST controlados y consentidos, antes de declarar cerrado B.
+
+**RECORDATORIO EXPRESO DEL USUARIO AL FINAL DE B:** ampliar área clicable a toda la celda (no solo el texto) y corregir desbordamiento lateral del mensaje de confirmación al editar. Se mantienen diferidas por orden del usuario: no distraerse ahora. No tocar main ni PRD.
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).
