@@ -691,7 +691,10 @@
       const balance=node('span',null,'qco-balance');balance.hidden=true;
       legend.append(balance);wrap.append(legend);
       const choices=node('div',null,'qco-choices');
-      for(const [option,label] of opts){
+      // Orden solo visual: OK primero; el esquema y los datos no cambian.
+      const displayOptions=[...opts.filter(([option])=>option==='ok'),
+        ...opts.filter(([option])=>option!=='ok')];
+      for(const [option,label] of displayOptions){
         const row=node('div',null,'qco-option');row.dataset.option=option;
         const optionLabel=node('label',label);
         const input=node('input');input.type='number';input.step='1';input.min='1';
