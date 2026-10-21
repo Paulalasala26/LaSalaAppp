@@ -12849,6 +12849,7 @@ function editarResumenTratamiento(modulo, idx){
     // antes de este cambio, que tampoco cubría varios invernaderos a la vez).
     fitoInvSel = primerInv;
     fmEditContextoOriginal = { invId: primerInv, dia: f.dia, calles: [...new Set(Object.values(f.porInv[primerInv]).flat())] };
+    actualizarAccionesFitoManual();
   } else {
     const parsed = parsearTextoEspecifico(f.texto);
     // Mismo arreglo que en Fito (ver comentario arriba): calles no
@@ -18309,6 +18310,8 @@ function aplicarMezclaPredeterminada(valor){
 }
 function showFitoManualForm(){
   const inv = fitoInvSel;
+  const expandirOpcionesAlAbrir=!!(fmPendingConfig||fmPendingBulkConfig);
+  const tiposFitoConMezclas=Object.keys(FITO_MEZCLAS_PREDETERMINADAS).filter(k=>(FITO_MEZCLAS_PREDETERMINADAS[k]||[]).length>0);
   fmEditContextoOriginal = null;
   if(fmPendingBulkConfig){
     // Editando desde el resumen de la quincena: TODOS los invernaderos del
@@ -18327,18 +18330,27 @@ function showFitoManualForm(){
   fmPendingConfig = null;
   const diasQ = riegoQuincenaDias(fitoQuincenaOffset);
 
-  const mo = getOrCreateOverlay('fito-manual-overlay');
-  mo.style.padding = '0';
-  mo.innerHTML = `
-    <div style="background:#fff;border-radius:0;width:100vw;height:100vh;max-width:100vw;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.3)">
-      <div style="background:#a32020;color:#fff;padding:1rem 1.5rem;display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
-        <div style="font-size:15px;font-weight:800">&#129516; Añadir tratamiento</div>
-        <button onclick="document.getElementById('fito-manual-overlay').style.display='none'" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer">✕</button>
-      </div>
-      <div style="flex:1;overflow-y:auto;padding:1.25rem;display:flex;flex-direction:row;gap:20px;max-width:none;width:100%;margin:0">
-        <div style="flex:0 0 auto;max-width:560px;display:flex;flex-direction:column;gap:12px">
-        <!-- INVERNADEROS (uno o varios a la vez) -->
-        ${fitoBulkInvSelectorHTML()}
+
+  const mo=getOrCreateOverlay('fito-manual-overlay');
+  mo.style.padding='0';
+  mo.innerHTML=`
+    <div style="background:#fff;width:100vw;height:100vh;max-width:100vw;overflow:hidden;display:flex;flex-direction:column">
+      <header class="control-ui-header" style="min-height:42px;padding:5px 9px;flex-shrink:0">
+        <div id="fm-titulo" style="font-size:14px;font-weight:800;display:flex;align-items:center;gap:7px">
+          <i class="ti ti-spray" aria-hidden="true"></i> Añadir tratamiento
+        </div>
+        <div class="control-ui-header-right">
+          <button type="button" class="control-ui-close" title="Cerrar formulario" aria-label="Cerrar formulario"
+            onclick="document.getElementById('fito-manual-overlay').style.display='none'">&times;</button>
+        </div>
+      </header>
+      <div style="flex:1;min-height:0;overflow-y:auto;background:#f6f9fe">
+        <div style="max-width:840px;margin:0 auto;padding:12px;display:flex;flex-direction:column;gap:10px">
+          <details class="fm-accordion" open style="background:#fff;border:1px solid #c6d9ee;border-radius:9px;overflow:hidden">
+            <summary style="padding:13px 14px;font-size:14px;font-weight:800;color:#1558a0;cursor:pointer;background:#e8f0fb">
+              1. Dónde y cuándo <span id="fm-count-superior" style="font-size:11px;font-weight:600;margin-left:8px"></span>
+            </summary>
+            <div style="padding:12px;display:grid;gap:12px">
         <!-- DÍA -->
         <div>
           <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Día (${riegoDiaLabelCorto(diasQ[0])} – ${riegoDiaLabelCorto(diasQ[diasQ.length-1])})</label>
@@ -18349,8 +18361,18 @@ function showFitoManualForm(){
             <i class="ti ti-chevron-down" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);pointer-events:none;color:#a32020;font-size:14px"></i>
           </div>
         </div>
+
+              <div>
+                <div style="font-size:12px;font-weight:700;color:#1558a0;margin-bottom:7px">Salas e invernaderos</div>
+                ${fitoBulkInvSelectorHTML()}
+              </div>
+            </div>
+          </details>
+          <details class="fm-accordion" open style="background:#fff;border:1px solid #c6d9ee;border-radius:9px;overflow:hidden">
+            <summary style="padding:13px 14px;font-size:14px;font-weight:800;color:#1558a0;cursor:pointer;background:#e8f0fb">2. Producto y mezcla</summary>
+            <div style="padding:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:12px">
         <!-- TIPO DE MEZCLA (Normal/Preinjerto/Postinjerto) -->
-        <div>
+        <div style="display:${tiposFitoConMezclas.length>1?'block':'none'}">
           <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Tipo de mezcla</label>
           <div style="position:relative">
             <select id="fm-mezcla-tipo" onchange="cambiarTipoMezclaPredeterminada(this.value)" style="width:100%;padding:9px 32px 9px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;font-weight:600;background:#f2f4f0;outline:none;cursor:pointer;-webkit-appearance:none">
@@ -18361,9 +18383,10 @@ function showFitoManualForm(){
             <i class="ti ti-chevron-down" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);pointer-events:none;color:#a32020;font-size:14px"></i>
           </div>
         </div>
+
         <!-- MEZCLAS PREDETERMINADAS -->
         <div>
-          <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Mezclas predeterminadas</label>
+          <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Mezcla habitual (opcional)</label>
           <div style="position:relative">
             <select id="fm-mezcla" onchange="aplicarMezclaPredeterminada(this.value)" style="width:100%;padding:9px 32px 9px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;font-weight:600;background:#f2f4f0;outline:none;cursor:pointer;-webkit-appearance:none">
               ${opcionesMezclasPredeterminadasHTML('postinjerto')}
@@ -18371,18 +18394,26 @@ function showFitoManualForm(){
             <i class="ti ti-chevron-down" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);pointer-events:none;color:#a32020;font-size:14px"></i>
           </div>
         </div>
+
         <!-- TRATAMIENTO -->
         <div>
-          <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Tratamiento (Producto)</label>
+          <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Producto o mezcla</label>
           <input id="fm-trat" type="text" placeholder="ej. Switch, Previcur, Amistar..."
             style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:#f2f4f0;outline:none;color:var(--text)">
         </div>
+
         <!-- DOSIS -->
         <div>
           <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Dosis</label>
           <input id="fm-dosis" type="text" placeholder="ej. 1 cc/l, 2 g/l..."
             style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:#f2f4f0;outline:none;color:var(--text)">
         </div>
+
+            </div>
+          </details>
+          <details class="fm-accordion" open style="background:#fff;border:1px solid #c6d9ee;border-radius:9px;overflow:hidden">
+            <summary style="padding:13px 14px;font-size:14px;font-weight:800;color:#1558a0;cursor:pointer;background:#e8f0fb">3. Aplicación</summary>
+            <div style="padding:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:12px">
         <!-- HORARIO -->
         <div>
           <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Horario</label>
@@ -18394,6 +18425,7 @@ function showFitoManualForm(){
             <i class="ti ti-chevron-down" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);pointer-events:none;color:#a32020;font-size:14px"></i>
           </div>
         </div>
+
         <!-- CALDO INICIAL / TIPO DE TRATAMIENTO -->
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div>
@@ -18419,34 +18451,75 @@ function showFitoManualForm(){
           </div>
         </div>
         </div>
-        <!-- PANEL RESUMEN (columna derecha) -->
-        <div style="flex:1;min-width:300px;border-left:1.5px solid #eee;padding-left:20px;overflow-y:auto">
-          <div style="font-size:12px;font-weight:800;color:#1558a0;margin-bottom:12px;text-transform:uppercase;letter-spacing:.04em">Últimos 5 días</div>
-          <div id="fito-resumen-ultimos5"></div>
+
+            </div>
+          </details>
+          <details id="fm-opciones-avanzadas" class="fm-accordion" ${expandirOpcionesAlAbrir?'open':''} style="background:#fff;border:1px solid #c6d9ee;border-radius:9px;overflow:hidden">
+            <summary style="padding:13px 14px;font-size:14px;font-weight:800;color:#1558a0;cursor:pointer;background:#e8f0fb">4. Opciones por invernadero</summary>
+            <div style="padding:12px;display:flex;flex-direction:column;gap:12px">
+              <div style="font-size:12px;color:#5b6875">Completo, excluir calles, tramos, primer día, esperar carga y orden.</div>
+              <div id="fm-bulk-panels"></div>
+              <details style="border-top:1px solid #dce4ed;padding-top:10px">
+                <summary style="font-size:12px;font-weight:700;color:#1558a0;cursor:pointer">Consultar últimos 5 días</summary>
+                <div id="fito-resumen-ultimos5" style="padding:8px 0"></div>
+              </details>
+              <div style="display:flex;flex-wrap:wrap;gap:8px;border-top:1px solid #dce4ed;padding-top:10px">
+                <button type="button" onclick="imprimirHojaFitosanitario()" title="Imprimir hoja de aplicación fitosanitaria"
+                  style="padding:8px 12px;background:#fff;color:#1558a0;border:1px solid #a8c4e8;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer">
+                  <i class="ti ti-printer" aria-hidden="true"></i> Imprimir hoja
+                </button>
+                <button id="fm-btn-borrar" type="button" onclick="borrarFitoManual()" title="Borrar tratamiento existente en las calles seleccionadas"
+                  style="display:none;padding:8px 12px;background:#fdecea;color:#c62828;border:1px solid #f3c2bd;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer">
+                  <i class="ti ti-trash" aria-hidden="true"></i> Borrar tratamiento
+                </button>
+              </div>
+            </div>
+          </details>
+          <div id="fm-resumen-aplicacion" role="status" style="font-size:12px;color:#1558a0;font-weight:700;padding:9px 12px;background:#e8f0fb;border-radius:7px"></div>
         </div>
       </div>
-      <!-- BUTTONS (fijos abajo, siempre visibles) -->
-      <div style="display:flex;gap:8px;justify-content:space-between;padding:1rem 1.25rem;border-top:1px solid #eee;flex-shrink:0;background:#fff">
-        <button onclick="borrarFitoManual()" title="Borrar el tratamiento de estos tramos"
-          style="padding:9px 14px;font-size:13px;font-weight:700;background:#fdecea;color:#c62828;border:1px solid #f3c2bd;border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:6px">
-          <i class="ti ti-trash" style="font-size:14px"></i> Borrar
+      <footer style="padding:10px 12px;background:#fff;border-top:1px solid #dce4ed;flex-shrink:0;display:flex;gap:8px;justify-content:flex-end;align-items:center">
+        <button type="button" onclick="document.getElementById('fito-manual-overlay').style.display='none'"
+          style="padding:9px 12px;border:1px solid #b8c0ca;border-radius:7px;background:#fff;color:#44576a;font-size:13px;font-weight:700;cursor:pointer">Cancelar</button>
+        <button type="button" onclick="saveFitoManual()"
+          style="padding:9px 14px;background:#1558a0;border:1px solid #1558a0;border-radius:7px;color:#fff;font-size:13px;font-weight:800;cursor:pointer">
+          <i class="ti ti-check" aria-hidden="true"></i> Aplicar y guardar
         </button>
-        <div style="display:flex;gap:8px">
-          <button onclick="imprimirHojaFitosanitario()" title="Imprimir hoja de aplicación fitosanitaria"
-            style="padding:9px 14px;font-size:13px;font-weight:700;background:#fdecea;color:#a32020;border:1px solid #f3c2bd;border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:6px">
-            <i class="ti ti-printer" style="font-size:14px"></i> Imprimir hoja
-          </button>
-          <button onclick="document.getElementById('fito-manual-overlay').style.display='none'"
-            style="padding:9px 18px;font-size:13px;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:8px;cursor:pointer">Cancelar</button>
-          <button onclick="saveFitoManual()"
-            style="padding:9px 20px;font-size:13px;font-weight:700;background:#a32020;color:#fff;border:none;border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:6px">
-            <i class="ti ti-check" style="font-size:14px"></i> Aplicar
-          </button>
-        </div>
-      </div>
+      </footer>
     </div>`;
-  mo.style.display = 'flex';
+  mo.style.display='flex';
   renderFmBulkPanels();
+  actualizarResumenFito();
+  actualizarAccionesFitoManual();
+}
+function actualizarAccionesFitoManual(){
+  const editar=!!fmEditContextoOriginal;
+  const btn=document.getElementById('fm-btn-borrar');
+  if(btn) btn.style.display=editar?'inline-flex':'none';
+  const titulo=document.getElementById('fm-titulo');
+  if(titulo) titulo.innerHTML='<i class="ti ti-spray" aria-hidden="true"></i> '+(editar?'Editar tratamiento':'Añadir tratamiento');
+}
+function actualizarResumenSeleccionFitoManual(){
+  const ids=leerInvernaderosBulkSeleccionados('fm');
+  const total=ids.length;
+  const texto=total===1?'1 invernadero':total+' invernaderos';
+  const label=document.getElementById('fm-count-superior');
+  if(label) label.textContent='· '+texto;
+  let calles=0;
+  ids.forEach(id=>{
+    try{calles+=calcularCallesFmBulk(id).calles.length;}catch(e){}
+  });
+  const resumen=document.getElementById('fm-resumen-aplicacion');
+  if(resumen) resumen.textContent=total ? texto+': '+ids.join(', ')+' · '+calles+' calles seleccionadas' : 'Selecciona al menos un invernadero';
+  [1,2,3,4,5].forEach(n=>{
+    const sala='sala'+n;
+    const chks=Array.from(document.querySelectorAll('.fm-inv-chk[data-sala="'+sala+'"]'));
+    const elegidos=chks.filter(e=>e.checked).length;
+    const estado=document.getElementById('fm-sala-resumen-'+sala);
+    if(estado) estado.textContent=elegidos?'· '+elegidos+' seleccionados':'';
+    const chkSala=document.querySelector('.fm-sala-chk[data-sala="'+sala+'"]');
+    if(chkSala) chkSala.checked=chks.length>0&&elegidos===chks.length;
+  });
 }
 function buildResumenUltimos5DiasPlaguicidas(invId){
   if(!invId) return '';
@@ -18514,55 +18587,63 @@ let fmPendingBulkConfig = null;
 // mueve/limpia nada.
 let fmEditContextoOriginal = null;
 function fitoBulkInvSelectorHTML(){
+  const salas=[
+    {id:'sala1',nombre:'Sala 1',invs:Object.keys(INV_LAYOUT_SALA1)},
+    {id:'sala2',nombre:'Sala 2',invs:Object.keys(INV_LAYOUT_SALA2)},
+    {id:'sala3',nombre:'Sala 3',invs:Object.keys(INV_LAYOUT_SALA3)},
+    {id:'sala4',nombre:'Sala 4',invs:Object.keys(INV_LAYOUT_SALA4)},
+    {id:'sala5',nombre:'Sala 5',invs:Object.keys(INV_LAYOUT_SALA5)}
+  ];
   return `
-    <div style="border:1.5px solid #ccc;border-radius:9px;padding:.75rem;background:#f8f8f8">
-      <div style="font-size:11px;font-weight:800;color:#555;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Invernaderos</div>
-      <div style="font-size:10px;color:var(--muted);margin-bottom:8px">Marca uno o varios — cada uno tiene su propia opción de Entero / Entero menos / Tramo de calles.</div>
-      <div style="display:flex;gap:14px;margin-bottom:8px">
-        <label style="font-size:11px;font-weight:700;display:flex;align-items:center;gap:5px;cursor:pointer">
-          <input type="checkbox" class="fm-sala-chk" data-sala="sala1" onchange="toggleFmBulkSala(this)"> Sala 1 completa
-        </label>
-        <label style="font-size:11px;font-weight:700;display:flex;align-items:center;gap:5px;cursor:pointer">
-          <input type="checkbox" class="fm-sala-chk" data-sala="sala2" onchange="toggleFmBulkSala(this)"> Sala 2 completa
-        </label>
-        <label style="font-size:11px;font-weight:700;display:flex;align-items:center;gap:5px;cursor:pointer">
-          <input type="checkbox" class="fm-sala-chk" data-sala="sala3" onchange="toggleFmBulkSala(this)"> Sala 3 completa
-        </label>
-        <label style="font-size:11px;font-weight:700;display:flex;align-items:center;gap:5px;cursor:pointer">
-          <input type="checkbox" class="fm-sala-chk" data-sala="sala4" onchange="toggleFmBulkSala(this)"> Sala 4 completa
-        </label>
-        <label style="font-size:11px;font-weight:700;display:flex;align-items:center;gap:5px;cursor:pointer">
-          <input type="checkbox" class="fm-sala-chk" data-sala="sala5" onchange="toggleFmBulkSala(this)"> Sala 5 completa
-        </label>
-      </div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px">
-        ${Object.keys(INV_LAYOUT_SALA1).map(id=>`<label style="font-size:10px;display:flex;align-items:center;gap:3px;background:#fff;border:1px solid #ddd;border-radius:5px;padding:3px 7px;cursor:pointer"><input type="checkbox" class="fm-inv-chk" data-sala="sala1" value="${id}"${fmBulkConfig[id]?' checked':''} onchange="toggleFmBulkInv(); actualizarResumenFito()"> ${id}</label>`).join('')}
-        ${Object.keys(INV_LAYOUT_SALA2).map(id=>`<label style="font-size:10px;display:flex;align-items:center;gap:3px;background:#fff;border:1px solid #ddd;border-radius:5px;padding:3px 7px;cursor:pointer"><input type="checkbox" class="fm-inv-chk" data-sala="sala2" value="${id}"${fmBulkConfig[id]?' checked':''} onchange="toggleFmBulkInv(); actualizarResumenFito()"> ${id}</label>`).join('')}
-        ${Object.keys(INV_LAYOUT_SALA3).map(id=>`<label style="font-size:10px;display:flex;align-items:center;gap:3px;background:#fff;border:1px solid #ddd;border-radius:5px;padding:3px 7px;cursor:pointer"><input type="checkbox" class="fm-inv-chk" data-sala="sala3" value="${id}"${fmBulkConfig[id]?' checked':''} onchange="toggleFmBulkInv(); actualizarResumenFito()"> ${id}</label>`).join('')}
-        ${Object.keys(INV_LAYOUT_SALA4).map(id=>`<label style="font-size:10px;display:flex;align-items:center;gap:3px;background:#fff;border:1px solid #ddd;border-radius:5px;padding:3px 7px;cursor:pointer"><input type="checkbox" class="fm-inv-chk" data-sala="sala4" value="${id}"${fmBulkConfig[id]?' checked':''} onchange="toggleFmBulkInv(); actualizarResumenFito()"> ${id}</label>`).join('')}
-        ${Object.keys(INV_LAYOUT_SALA5).map(id=>`<label style="font-size:10px;display:flex;align-items:center;gap:3px;background:#fff;border:1px solid #ddd;border-radius:5px;padding:3px 7px;cursor:pointer"><input type="checkbox" class="fm-inv-chk" data-sala="sala5" value="${id}"${fmBulkConfig[id]?' checked':''} onchange="toggleFmBulkInv(); actualizarResumenFito()"> ${id}</label>`).join('')}
-      </div>
-      <div id="fm-bulk-panels"></div>
+    <div style="display:flex;flex-direction:column;gap:7px">
+      ${salas.map(s=>`
+        <details ${s.invs.some(id=>fmBulkConfig[id])?'open':''} style="border:1px solid #c6d9ee;border-radius:7px;background:#fff">
+          <summary style="padding:10px 12px;cursor:pointer;font-size:13px;font-weight:800;color:#1558a0;background:#f4f8ff">
+            ${s.nombre} <span id="fm-sala-resumen-${s.id}" style="font-size:11px;font-weight:600"></span>
+          </summary>
+          <div style="padding:8px 10px;display:flex;flex-direction:column;gap:8px">
+            <label style="font-size:12px;font-weight:700;color:#1558a0;display:flex;align-items:center;gap:7px;min-height:36px;cursor:pointer">
+              <input type="checkbox" class="fm-sala-chk" data-sala="${s.id}" onchange="toggleFmBulkSala(this)">
+              Seleccionar sala completa
+            </label>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(73px,1fr));gap:6px">
+              ${s.invs.sort((a,b)=>a.localeCompare(b,'es',{numeric:true})).map(id=>`
+                <label style="display:flex;align-items:center;gap:6px;min-height:38px;padding:5px 8px;border:1px solid #d2deef;background:#fff;border-radius:6px;font-size:12px;cursor:pointer">
+                  <input type="checkbox" class="fm-inv-chk" data-sala="${s.id}" value="${id}" ${fmBulkConfig[id]?'checked':''} onchange="toggleFmBulkInv();actualizarResumenFito()"> ${id}
+                </label>`).join('')}
+            </div>
+          </div>
+        </details>`).join('')}
     </div>`;
 }
 function toggleFmBulkSala(salaChk){
   const sala = salaChk.dataset.sala;
   document.querySelectorAll(`.fm-inv-chk[data-sala="${sala}"]`).forEach(chk=>{ chk.checked = salaChk.checked; });
   toggleFmBulkInv();
+  actualizarResumenFito();
+}
+function guardarFmTramosVisibles(){
+  Object.keys(fmBulkConfig).forEach(id=>{
+    if(fmBulkConfig[id].modo==='tramo' && document.getElementById('fm-bulk-tramos-'+id)){
+      fmBulkConfig[id].tramos=leerFmBulkTramosDesdeDOM(id);
+    }
+  });
 }
 function toggleFmBulkInv(){
+  guardarFmTramosVisibles();
   const seleccionados = leerInvernaderosBulkSeleccionados('fm');
   Object.keys(fmBulkConfig).forEach(id=>{ if(!seleccionados.includes(id)) delete fmBulkConfig[id]; });
   seleccionados.forEach(id=>{ if(!fmBulkConfig[id]) fmBulkConfig[id] = {modo:'entero', excluir:{desde:null,hasta:null}, tramos:[], primerDia:false}; });
   renderFmBulkPanels();
+  actualizarResumenSeleccionFitoManual();
 }
 function renderFmBulkPanels(){
   const cont = document.getElementById('fm-bulk-panels');
   if(!cont) return;
   const ids = leerInvernaderosBulkSeleccionados('fm');
   cont.innerHTML = ids.map(invId=>`
-    <div style="border:1px solid #f0d0d0;border-radius:7px;padding:8px;margin-top:8px;background:#fffafa">
-      <div style="font-size:11px;font-weight:800;color:#a32020;margin-bottom:6px">INV ${invId}</div>
+    <div style="border:1px solid #c6d9ee;border-radius:7px;padding:8px;margin-top:8px;background:#f6f9fe">
+      <div style="font-size:11px;font-weight:800;color:#1558a0;margin-bottom:6px">INV ${invId}</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:6px">
         <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:var(--text);cursor:pointer">
           <input type="radio" name="fm-bulk-modo-${invId}" ${fmBulkConfig[invId].modo==='entero'?'checked':''} onchange="cambiarFmBulkModo('${invId}','entero')"> Entero
@@ -18577,7 +18658,7 @@ function renderFmBulkPanels(){
       <label style="display:flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:#6a1b9a;cursor:pointer;margin-bottom:6px">
         <input type="checkbox" ${fmBulkConfig[invId].primerDia?'checked':''} onchange="fmBulkConfig['${invId}'].primerDia=this.checked"> Primer día de tratamiento (marca la celda en morado)
       </label>
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;padding-top:6px;border-top:1px dashed #f0d0d0">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;padding-top:6px;border-top:1px dashed #c6d9ee">
         <label style="display:flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:#e65100;cursor:pointer">
           <input type="checkbox" ${fmBulkConfig[invId].esperaCarga?'checked':''} onchange="fmBulkConfig['${invId}'].esperaCarga=this.checked"> ⏳ Esperar a la carga
         </label>
@@ -18588,10 +18669,12 @@ function renderFmBulkPanels(){
       <div id="fm-bulk-detalle-${invId}"></div>
     </div>`).join('');
   ids.forEach(invId=>renderFmBulkDetalle(invId));
+  actualizarResumenSeleccionFitoManual();
 }
 function cambiarFmBulkModo(invId, modo){
   fmBulkConfig[invId].modo = modo;
   renderFmBulkDetalle(invId);
+  actualizarResumenSeleccionFitoManual();
 }
 function renderFmBulkDetalle(invId){
   const cont = document.getElementById(`fm-bulk-detalle-${invId}`);
@@ -18603,7 +18686,7 @@ function renderFmBulkDetalle(invId){
   // para cualquier otro invernadero que tenga el modo 'tramo' abierto.
   // De lo contrario, al cambiar de invernadero se pierden los tramos del anterior.
   Object.keys(fmBulkConfig).forEach(oId=>{
-    if(oId!==invId && fmBulkConfig[oId].modo==='tramo'){
+    if(oId!==invId && fmBulkConfig[oId].modo==='tramo' && document.getElementById('fm-bulk-tramos-'+oId)){
       fmBulkConfig[oId].tramos = leerFmBulkTramosDesdeDOM(oId);
     }
   });
@@ -18614,17 +18697,17 @@ function renderFmBulkDetalle(invId){
     if(cfg.excluir.desde==null || !allCalles.includes(cfg.excluir.desde)) cfg.excluir = {desde:allCalles[0], hasta:allCalles[0]};
     cont.innerHTML = `
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
-        <select onchange="fmBulkConfig['${invId}'].excluir.desde=parseInt(this.value,10)" style="width:100%;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;background:#f2f4f0;outline:none;cursor:pointer">
+        <select onchange="fmBulkConfig['${invId}'].excluir.desde=parseInt(this.value,10);actualizarResumenSeleccionFitoManual()" style="width:100%;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;background:#f2f4f0;outline:none;cursor:pointer">
           ${allCalles.map(c=>`<option value="${c}"${c===cfg.excluir.desde?' selected':''}>${c}</option>`).join('')}
         </select>
-        <select onchange="fmBulkConfig['${invId}'].excluir.hasta=parseInt(this.value,10)" style="width:100%;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;background:#f2f4f0;outline:none;cursor:pointer">
+        <select onchange="fmBulkConfig['${invId}'].excluir.hasta=parseInt(this.value,10);actualizarResumenSeleccionFitoManual()" style="width:100%;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;background:#f2f4f0;outline:none;cursor:pointer">
           ${allCalles.map(c=>`<option value="${c}"${c===cfg.excluir.hasta?' selected':''}>${c}</option>`).join('')}
         </select>
       </div>`;
   } else {
     if(!cfg.tramos.length) cfg.tramos = [{desde:allCalles[0], hasta:allCalles[0], obs:''}];
     cont.innerHTML = `<div id="fm-bulk-tramos-${invId}"></div>
-      <button type="button" onclick="agregarFmBulkTramoRow('${invId}')" style="width:100%;padding:5px;font-size:10px;font-weight:700;background:#fff;border:1.5px dashed #e8b0b0;border-radius:6px;cursor:pointer;color:#a32020;margin-top:4px">+ Añadir tramo</button>`;
+      <button type="button" onclick="agregarFmBulkTramoRow('${invId}')" style="width:100%;padding:5px;font-size:10px;font-weight:700;background:#fff;border:1.5px dashed #a8c4e8;border-radius:6px;cursor:pointer;color:#1558a0;margin-top:4px">+ Añadir tramo</button>`;
     renderFmBulkTramoRows(invId);
   }
 }
@@ -18634,12 +18717,12 @@ function renderFmBulkTramoRows(invId){
   const cfg = fmBulkConfig[invId];
   const allCalles = callesOrdenadasInv(invId);
   cont.innerHTML = cfg.tramos.map((t,i)=>`
-    <div class="fm-bulk-tramo-row" data-inv="${invId}" style="border:1px solid #f0d0d0;border-radius:6px;padding:6px;margin-bottom:6px;background:#fff">
+    <div class="fm-bulk-tramo-row" data-inv="${invId}" style="border:1px solid #c6d9ee;border-radius:6px;padding:6px;margin-bottom:6px;background:#fff">
       <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:6px;margin-bottom:4px">
-        <select class="fm-bulk-tramo-desde" style="width:100%;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;background:#f2f4f0;outline:none;cursor:pointer">
+        <select class="fm-bulk-tramo-desde" onchange="actualizarResumenSeleccionFitoManual()" style="width:100%;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;background:#f2f4f0;outline:none;cursor:pointer">
           ${allCalles.map(c=>`<option value="${c}"${c===t.desde?' selected':''}>${c}</option>`).join('')}
         </select>
-        <select class="fm-bulk-tramo-hasta" style="width:100%;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;background:#f2f4f0;outline:none;cursor:pointer">
+        <select class="fm-bulk-tramo-hasta" onchange="actualizarResumenSeleccionFitoManual()" style="width:100%;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;background:#f2f4f0;outline:none;cursor:pointer">
           ${allCalles.map(c=>`<option value="${c}"${c===t.hasta?' selected':''}>${c}</option>`).join('')}
         </select>
         ${cfg.tramos.length>1 ? `<button type="button" onclick="quitarFmBulkTramoRow('${invId}',${i})" style="width:26px;background:#fdecea;color:#c62828;border:1px solid #f3c2bd;border-radius:6px;cursor:pointer;font-size:11px">✕</button>` : '<span></span>'}
@@ -18660,6 +18743,7 @@ function agregarFmBulkTramoRow(invId){
   const allCalles = callesOrdenadasInv(invId);
   fmBulkConfig[invId].tramos.push({desde:allCalles[0], hasta:allCalles[0], obs:''});
   renderFmBulkTramoRows(invId);
+  actualizarResumenSeleccionFitoManual();
 }
 function quitarFmBulkTramoRow(invId, i){
   fmBulkConfig[invId].tramos = leerFmBulkTramosDesdeDOM(invId);
@@ -18667,6 +18751,7 @@ function quitarFmBulkTramoRow(invId, i){
   const allCalles = callesOrdenadasInv(invId);
   if(!fmBulkConfig[invId].tramos.length) fmBulkConfig[invId].tramos.push({desde:allCalles[0], hasta:allCalles[0], obs:''});
   renderFmBulkTramoRows(invId);
+  actualizarResumenSeleccionFitoManual();
 }
 // Calcula, para un invernadero de la selección, qué calles resultan según
 // su propio modo (fmBulkConfig[invId]).
@@ -18741,6 +18826,7 @@ function editarFitoManualDesdeCelda(invId, dia, calles){
     if(raw.tipoTrat) document.getElementById('fm-tipo-trat').value = raw.tipoTrat;
   }
   fmEditContextoOriginal = { invId, dia, calles: [...calles] };
+  actualizarAccionesFitoManual();
 }
 
 // Borrado atómico: lee la nube fresca y borra directamente esas claves, en
