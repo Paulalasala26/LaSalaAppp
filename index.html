@@ -18353,7 +18353,7 @@ function showFitoManualForm(){
             <div style="padding:12px;display:grid;gap:12px">
         <!-- DÍA -->
         <div>
-          <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Día (${riegoDiaLabelCorto(diasQ[0])} – ${riegoDiaLabelCorto(diasQ[diasQ.length-1])})</label>
+          <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Fecha de aplicación</label>
           <div style="position:relative">
             <select id="fm-dia" style="width:100%;padding:9px 32px 9px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:14px;font-weight:600;background:#f2f4f0;outline:none;cursor:pointer;-webkit-appearance:none">
               ${diasQ.map(d=>`<option value="${d}"${d===riegoDiaDeHoy()?' selected':''}>${riegoDiaLabelCorto(d)} — ${riegoDiaSemana(d)}</option>`).join('')}
@@ -18363,7 +18363,7 @@ function showFitoManualForm(){
         </div>
 
               <div>
-                <div style="font-size:12px;font-weight:700;color:#1558a0;margin-bottom:7px">Salas e invernaderos</div>
+                <div style="font-size:12px;font-weight:700;color:#1558a0;margin-bottom:7px">Invernaderos</div>
                 ${fitoBulkInvSelectorHTML()}
               </div>
             </div>
@@ -18397,7 +18397,7 @@ function showFitoManualForm(){
 
         <!-- TRATAMIENTO -->
         <div>
-          <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Producto o mezcla</label>
+          <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Tratamiento</label>
           <input id="fm-trat" type="text" placeholder="ej. Switch, Previcur, Amistar..."
             style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:#f2f4f0;outline:none;color:var(--text)">
         </div>
@@ -18456,12 +18456,7 @@ function showFitoManualForm(){
           <details id="fm-opciones-avanzadas" class="fm-accordion" ${expandirOpcionesAlAbrir?'open':''} style="background:#fff;border:1px solid #c6d9ee;border-radius:9px;overflow:hidden">
             <summary style="padding:13px 14px;font-size:14px;font-weight:800;color:#1558a0;cursor:pointer;background:#e8f0fb">4. Opciones por invernadero</summary>
             <div style="padding:12px;display:flex;flex-direction:column;gap:12px">
-              <div style="font-size:12px;color:#5b6875">Completo, excluir calles, tramos, primer día, esperar carga y orden.</div>
               <div id="fm-bulk-panels"></div>
-              <details style="border-top:1px solid #dce4ed;padding-top:10px">
-                <summary style="font-size:12px;font-weight:700;color:#1558a0;cursor:pointer">Consultar últimos 5 días</summary>
-                <div id="fito-resumen-ultimos5" style="padding:8px 0"></div>
-              </details>
               <div style="display:flex;flex-wrap:wrap;gap:8px;border-top:1px solid #dce4ed;padding-top:10px">
                 <button type="button" onclick="imprimirHojaFitosanitario()" title="Imprimir hoja de aplicación fitosanitaria"
                   style="padding:8px 12px;background:#fff;color:#1558a0;border:1px solid #a8c4e8;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer">
@@ -18603,7 +18598,7 @@ function fitoBulkInvSelectorHTML(){
           <div style="padding:8px 10px;display:flex;flex-direction:column;gap:8px">
             <label style="font-size:12px;font-weight:700;color:#1558a0;display:flex;align-items:center;gap:7px;min-height:36px;cursor:pointer">
               <input type="checkbox" class="fm-sala-chk" data-sala="${s.id}" onchange="toggleFmBulkSala(this)">
-              Seleccionar sala completa
+              Toda la sala
             </label>
             <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(73px,1fr));gap:6px">
               ${s.invs.sort((a,b)=>a.localeCompare(b,'es',{numeric:true})).map(id=>`
