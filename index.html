@@ -12617,16 +12617,19 @@ function cambiarResumenQuincenaDiaFiltro(modulo, dia){
   resumenQuincenaDiaFiltro[modulo] = dia===''?null:parseInt(dia,10);
   const wrap = document.getElementById('resumen-quincena-'+modulo);
   if(wrap) wrap.outerHTML = renderResumenQuincenaTratamientos(modulo);
+  if(modulo==='fito') reubicarFiltrosFito();
 }
 function cambiarResumenQuincenaSalaFiltro(modulo, sala){
   resumenQuincenaSalaFiltro[modulo] = sala||null;
   const wrap = document.getElementById('resumen-quincena-'+modulo);
   if(wrap) wrap.outerHTML = renderResumenQuincenaTratamientos(modulo);
+  if(modulo==='fito') reubicarFiltrosFito();
 }
 function cambiarResumenQuincenaInvFiltro(modulo, invId){
   resumenQuincenaInvFiltro[modulo] = invId||null;
   const wrap = document.getElementById('resumen-quincena-'+modulo);
   if(wrap) wrap.outerHTML = renderResumenQuincenaTratamientos(modulo);
+  if(modulo==='fito') reubicarFiltrosFito();
 }
 function renderResumenQuincenaTratamientos(modulo){
   const rawGetter = modulo==='fito' ? (invId,dia,c)=>getFitoCellRaw(invId,dia,c) : (invId,dia,c)=>getEspecificoCellRaw(invId,dia,c);
@@ -12764,14 +12767,14 @@ function renderResumenQuincenaTratamientos(modulo){
   // días de esta quincena que tengan algo aplicado, para no listar días vacíos.
   const diasConDatos = [...new Set(Object.values(grupos).map(g=>g.dia))].sort((a,b)=>a-b);
   const filtroDiaHTML = `
-    <select onchange="cambiarResumenQuincenaDiaFiltro('${modulo}',this.value)" style="padding:6px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:11px;font-weight:700">
-      <option value="">Todos los días</option>
+    <select aria-label="Día del tratamiento" onchange="cambiarResumenQuincenaDiaFiltro('${modulo}',this.value)" style="padding:8px 10px;min-height:40px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;font-weight:700;max-width:100%">
+      <option value=""${diaFiltro==null?' selected':''}>${modulo==='fito'?(diasConDatos.length?'Todos los días con tratamiento':'Sin tratamientos en esta quincena'):'Todos los días'}</option>
       ${diasConDatos.map(d=>`<option value="${d}"${diaFiltro===d?' selected':''}>${escapar(riegoDiaLabelCorto(d))} — ${escapar(riegoDiaSemana(d))}</option>`).join('')}
     </select>`;
   // Filtro de Sala (2026-09-15) — mismas 5 salas que el resto de la app.
   const SALAS_FILTRO = [['sala1','Sala 1'],['sala2','Sala 2'],['sala3','Sala 3'],['sala4','Sala 4'],['sala5','Sala 5']];
   const filtroSalaHTML = `
-    <select onchange="cambiarResumenQuincenaSalaFiltro('${modulo}',this.value)" style="padding:6px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:11px;font-weight:700">
+    <select aria-label="Sala del tratamiento" onchange="cambiarResumenQuincenaSalaFiltro('${modulo}',this.value)" style="padding:8px 10px;min-height:40px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;font-weight:700;max-width:100%">
       <option value="">Todas las salas</option>
       ${SALAS_FILTRO.map(([s,label])=>`<option value="${s}"${salaFiltro===s?' selected':''}>${label}</option>`).join('')}
     </select>`;
@@ -12779,14 +12782,14 @@ function renderResumenQuincenaTratamientos(modulo){
   // igual que el resto de selectores de invernadero de la app.
   const INV_POR_SALA_FILTRO = [['Sala 1',ALL_INV_IDS_SALA1],['Sala 2',ALL_INV_IDS],['Sala 3',ALL_INV_IDS_SALA3],['Sala 4',ALL_INV_IDS_SALA4],['Sala 5',ALL_INV_IDS_SALA5]];
   const filtroInvHTML = `
-    <select onchange="cambiarResumenQuincenaInvFiltro('${modulo}',this.value)" style="padding:6px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:11px;font-weight:700">
+    <select aria-label="Invernadero del tratamiento" onchange="cambiarResumenQuincenaInvFiltro('${modulo}',this.value)" style="padding:8px 10px;min-height:40px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;font-weight:700;max-width:100%">
       <option value="">Todos los invernaderos</option>
       ${INV_POR_SALA_FILTRO.map(([label,ids])=>`<optgroup label="${label}">${ids.map(id=>`<option value="${id}"${invFiltro===id?' selected':''}>${id}</option>`).join('')}</optgroup>`).join('')}
     </select>`;
   return `
     <div id="resumen-quincena-${modulo}">
       <div style="font-size:14px;font-weight:800;color:var(--text);margin-bottom:6px;padding:0 .25rem">Aplicado en esta quincena</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;padding:0 .25rem;margin-bottom:10px">${filtroDiaHTML}${filtroSalaHTML}${filtroInvHTML}</div>
+      <div ${modulo==='fito'?'id="fito-filtros-resumen"':''} style="display:flex;gap:8px;flex-wrap:wrap;padding:0 .25rem;margin-bottom:10px">${filtroDiaHTML}${filtroSalaHTML}${filtroInvHTML}</div>
       <div style="padding:0 .25rem">
         ${filas.length===0 ? `<div style="text-align:center;padding:2rem;color:var(--muted);font-style:italic;font-size:13px">Nada aplicado todavía${(diaFiltro!=null||salaFiltro||invFiltro)?' con ese filtro':''}.</div>` : filasHTML}
       </div>
@@ -13951,9 +13954,18 @@ let fitoRecognition = null;
 // (riegoQuincenaDias, riegoDiaSemana, riegoQuincenaLabel, RIEGO_HIGHLIGHT_POS)
 // pero con su propio índice de navegación, independiente del de Riego.
 function changeFitoQuincena(delta){
+  const anterior=fitoQuincenaOffset;
   fitoQuincenaOffset = Math.max(0, fitoQuincenaOffset + delta);
+  if(fitoQuincenaOffset===anterior) return;
+  // El día filtrado corresponde a una quincena concreta.
+  resumenQuincenaDiaFiltro.fito = null;
   renderFitoQuincenaBar();
   if(fitoInvSel) renderFitoGrid(fitoInvSel);
+  else {
+    const wrap=document.getElementById('fito-grid-wrap');
+    if(wrap) wrap.innerHTML=renderFitoResumenSeleccionHTML();
+    reubicarFiltrosFito();
+  }
 }
 function renderFitoQuincenaBar(){
   const bar = document.getElementById('fito-quincena-bar');
@@ -14318,6 +14330,10 @@ function showFitoModule(){
             <button onclick="document.getElementById('fito-overlay').style.display='none'" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 11px;cursor:pointer;font-size:13px">✕</button>
           </div>
         </div>
+        <!-- Filtros de tratamientos, sobre los desplegables de selección. -->
+        <div id="fito-filtros-superiores" style="display:block;padding:9px 12px;background:#e8f0fb;border-bottom:1px solid #b0c8e0;flex-shrink:0">
+          <div style="font-size:12px;font-weight:800;color:#1558a0;margin-bottom:5px">Filtrar tratamientos de la quincena</div>
+        </div>
         <!-- Paso 1: elección de invernadero. -->
         <div id="fito-inv-selector-wrap" style="display:block;flex-shrink:0">
           ${fitoSalaSelectorHTML(1, INV_LAYOUT_SALA1)}
@@ -14338,6 +14354,7 @@ function showFitoModule(){
       </div>`;
     overlay.style.display='flex';
     renderFitoQuincenaBar();
+    reubicarFiltrosFito();
     actualizarVistaFitoSeleccion(null);
   });
 }
@@ -14349,6 +14366,15 @@ function showFitoModule(){
 // miniaturas/semáforos no son necesarios en esta pantalla y se eliminan
 // de la vista Fito exclusivamente; Riego y Específicos conservan su dashboard.
 // El resumen de tratamientos sigue visible, con sus filtros/editar/imprimir.
+// Coloca los filtros del resumen arriba sin duplicar la consulta de datos.
+function reubicarFiltrosFito(){
+  const superior=document.getElementById('fito-filtros-superiores');
+  const filtros=document.getElementById('fito-filtros-resumen');
+  if(superior && filtros){
+    superior.querySelectorAll('#fito-filtros-resumen').forEach(el=>el.remove());
+    superior.appendChild(filtros);
+  }
+}
 function renderFitoResumenSeleccionHTML(){
   return `<div style="padding:1rem 1.25rem;max-width:1100px;margin:0 auto">
     ${renderResumenQuincenaTratamientos('fito')}
@@ -14376,6 +14402,8 @@ function actualizarVistaFitoSeleccion(invId){
   const label=document.getElementById('fito-selection-label');
   const elegido=!!invId;
   if(selectorWrap) selectorWrap.style.display=elegido?'none':'block';
+  const filtros=document.getElementById('fito-filtros-superiores');
+  if(filtros) filtros.style.display=elegido?'none':'block';
   if(selection) selection.style.display=elegido?'flex':'none';
   if(label){
     const sala=elegido?salaDeInv(String(invId)):null;
@@ -14619,6 +14647,7 @@ function retrocederFito(){
     actualizarVistaFitoSeleccion(null);
     const wrap = document.getElementById('fito-grid-wrap');
     if(wrap) wrap.innerHTML = renderFitoResumenSeleccionHTML();
+    reubicarFiltrosFito();
   } else {
     document.getElementById('fito-overlay').style.display = 'none';
   }
