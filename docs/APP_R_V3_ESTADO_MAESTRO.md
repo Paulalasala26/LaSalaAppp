@@ -61,6 +61,10 @@
 
 **21/10/2026 | Plaguicidas | CORRECCIÓN VISUAL PEDIDA POR EL USUARIO E IMPLEMENTADA SOLO EN TEST; UAT PENDIENTE.** Usuario: «no has respetado el color azul que estamos usando, has usado el de los botones pequeños». Contrastado en `index.html`: los accesos principales de la Home (incluido Plaguicidas) comparten **`linear-gradient(120deg,#2b6fae,#3c80c2 55%,#5b9bd5)`**, mientras los botones pequeños usan azul plano **`#1558a0`**. Los dos botones grandes y apilados del menú Plaguicidas («Registrar tratamientos» y «Consultar tratamientos aplicados») pasaron a compartir EXACTAMENTE el degradado de la Home en sus fondos; borde afinado al azul del primer tramo. **Solo dos sustituciones de estilo inline** en el menú, sin cambiar tamaños, textos, navegación, filtros, datos, otros módulos ni persistencia. Parser JS de los cinco scripts superado; HEAD y Vercel TEST a contrastar tras publicar. Prueba visual pendiente del usuario. **No tocar main ni PRD.**
 
+### 0.11. Plaguicidas — botones grandes con texto compacto en una línea (21/10/2026)
+
+**21/10/2026 | Plaguicidas | AJUSTE AUTORIZADO E IMPLEMENTADO SOLO EN TEST; UAT PENDIENTE.** Los dos botones grandes azules del menú usan el degradado exacto de la Home, pero el texto de 17px y el rótulo de consulta obligaban a dos líneas. Se conserva expresamente la **altura mínima 76px y el degradado**; se usa letra adaptable `clamp(12px,3.8vw,14px)`, iconos 18px y espaciado menor (flecha 18px, gap 8px), con `white-space:nowrap` en ambas etiquetas. Rótulos: «Registrar tratamientos» y «Consultar tratamientos» (nombre completo «Consultar tratamientos aplicados» conservado en accesibilidad/tooltip). Exclusivamente HTML/CSS de esos dos botones, sin cambios en handlers, funcionalidad, navegación, otros módulos ni datos. Cinco scripts inline parseados; misma altura y estilos visuales contrastados por código. UAT siguiente: una sola línea en ambos botones, móvil y ordenador, sin variación de altura. No tocar main ni PRD.
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).
