@@ -1,9 +1,19 @@
 # VIGUERAPP / APP R v3 — ESTADO MAESTRO CANÓNICO
 
-**Revisión:** 20/10/2026 (España) · **Responsable del estado:** esta conversación, con verificaciones GitHub/Vercel y confirmaciones expresas del usuario.
+**Revisión:** 21/10/2026 (España) · **Responsable del estado:** esta conversación, con verificaciones GitHub/Vercel y confirmaciones expresas del usuario.
 
 > **LEE ESTO ANTES DE PLANIFICAR O MODIFICAR APP R EN CUALQUIER CHAT O CHATGPT PROJECT.**
 > Este es el **único inventario vivo** de trabajo terminado y pendiente. Los handovers DOCX y otros `docs/*.md` con fechas anteriores son **histórico**, no una nueva lista de tareas. El repositorio es la fuente de código; la confirmación funcional del usuario es la fuente de la prueba de aceptación. **Nunca conviertas un pendiente histórico en pendiente actual sin contrastarlo.**
+
+## 0. REANUDACIÓN INMEDIATA — 21/10/2026 (para nuevo chat)
+
+**El usuario ha pedido pasar a lo siguiente después del cambio visual de QC. NO iniciar otra batería de pruebas QC ni reconstruir pendientes desde conversaciones anteriores.** El último cambio solicitado fue **mostrar OK en la primera fila** de Color, Tamaño, Sanidad, Flores y Raíces, con **fondo azul claro uniforme**, en el QC online y borrador offline. Está **IMPLEMENTADO EN TEST** y verificado técnicamente (orden DOM cinco categorías), con Vercel READY del commit `cbe4bd6cdc2d6ce113af74da3d2a043bca674848` al comprobarlo el 21/10; el usuario respondió «siguiente», pero **no confirmó de forma específica la visualización final**. Dejar anotada esa validación visual como pendiente no bloqueante; preguntar solo si aparece incidencia. El usuario SÍ había confirmado «Ok, correcto» a la precarga automática de cantidades y OK antes de estos retoques visuales.
+
+**Siguiente gran bloque: PLAGUICIDAS**; después **TAREAS**; después **PARTIDAS Y ESPECÍFICOS**. Son **tres grandes áreas pendientes de reprogramación**, no simples ajustes. Antes de modificar código, inspeccionar implementación y navegación real de Plaguicidas en `test/v1.0` (puede estar dentro de `index.html`), estructura de datos y dependencias, y presentar al usuario un diagnóstico sintético de **qué existe, qué se puede reaprovechar de Riego/Control/Backoffice ya validado, qué debe reprogramarse y un primer paso concreto**, pidiendo aceptación antes de implementar. No inferir requisitos ni reemplazar módulos por suposiciones. Si el usuario prefiere revisar primero otra de las tres áreas, seguir su prioridad. Avanzar **un paso por turno**, sin literatura y registrando cada hito en este maestro.
+
+**Cerrado/validado que no debe reabrirse como pendiente genérico:** Riego, Registros de Riego, histórico/auditoría, núcleo QC Túnel/Carga, cálculos/cuadre, guardado y fotos online/offline confirmadas. En QC offline quedan solo excepciones/UAT final; prueba real de aislamiento de snapshots JULIO↔PILAR superada el 20/10. **No tocar producción, `main`, datos históricos ni permisos generales** sin autorización expresa; la revisión completa de permisos está aplazada. **PRD sigue sin autorización de despliegue.** Revisar HEAD real y alias Vercel TEST antes de editar.
+
+**Origen y continuidad:** repo `Paulalasala26/LaSalaAppp`, rama exclusiva `test/v1.0`, TEST `https://la-sala-app-test.vercel.app`, Firebase TEST `la-sala-app-test`. Archivo canónico `docs/APP_R_V3_ESTADO_MAESTRO.md`; los handovers DOCX y las listas históricas NO prevalecen. No crear otro documento maestro. Al terminar cada intervención, actualizar este archivo y confirmar TEST READY con el SHA desplegado. Leer el inventario funcional (secciones 2–3) para conocer el resto de asuntos.
 
 ## 1. Reglas innegociables
 
@@ -170,7 +180,7 @@
 - **15/10**: modelo QC, API y formularios de cuantificación; descartadas interpretaciones antiguas que no cuadraban cantidades; arquitectura de fotos SharePoint con piloto administrativo.
 - **19/10**: guardado real QC, ETag, protección cambios, validación cuadre por categorías, estados Inspeccionado/Completados, indicadores, fotos asociadas, ADMIN restringido y frontend operarios autorizados: **validaciones del usuario**. Túnel y Carga permanecen en ficha tras guardar (`60347e61`). **No reaperturar Riego ni Histórico:** el usuario corrige expresamente que ya están hechos.
 - **19/10, continuidad**: se detecta deriva de 30 chats/3 ChatGPT Projects con handovers sucesivos. Se instaura este único registro maestro para evitar pérdidas de contexto.
-- **19/10, offline operarios**: lectura sin conexión y recuperación online VALIDADAS por usuario. Nuevo borrador cuantitativo solo local implementado en TEST, pendiente de prueba; aún no se sincroniza y no hay fotos offline.
+- **20–21/10, QC**: offline con borradores y fotos manualmente sincronizados y validados en TEST (Túnel PILAR/Carga JULIO), aislamiento de snapshots y sesión validado; precarga cuantitativa «todo OK» validada por usuario; 21/10 orden visual OK primero y resaltado azul implementados y simulados en TEST (aceptación visual final pendiente). Continúa Plaguicidas → Tareas → Partidas y Específicos.
 
 **Ruta fija:** `docs/APP_R_V3_ESTADO_MAESTRO.md` en `test/v1.0`.
 
