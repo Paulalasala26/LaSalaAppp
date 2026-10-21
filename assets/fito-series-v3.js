@@ -115,14 +115,83 @@ function setEditing(raw,records){
  }
  originalPanels();updateSeriesUI(false);
 }
+
+function editFullLinkedJournal(raw){
+ const rows=seriesCells(raw.serieId).filter(x=>x.raw.jornadaId===raw.jornadaId);
+ if(!rows.length){showToast('Jornada no encontrada. Recarga el listado.');return;}
+ const day=rows[0].day;
+ if(rows.some(x=>x.day!==day)){
+  showToast('Esta jornada contiene fechas distintas. Requiere revisión antes de editar.');
+  return;
+ }
+ const configurations={};
+ const profiles=new Map();
+ const byInv=new Map();
+ const expectedMix=parsearTextoFito(raw.texto);
+ for(const x of rows){
+  const parsed=parsearTextoFito(x.raw.texto);
+  if(parsed.trat!==expectedMix.trat||parsed.dosis!==expectedMix.dosis||parsed.horario!==expectedMix.horario||x.raw.tipoTrat!==raw.tipoTrat||x.raw.caldoLitros!==raw.caldoLitros){
+   showToast('La jornada tiene productos, método o caldo diferentes. No se editará en bloque.');
+   return;
+  }
+  if(!byInv.has(x.inv))byInv.set(x.inv,[]);
+  byInv.get(x.inv).push(x);
+  const cfgKey=x.inv;
+  const values=JSON.stringify([!!x.raw.esperaCarga,x.raw.orden??null]);
+  if(profiles.has(cfgKey)&&profiles.get(cfgKey)!==values){
+   showToast('La jornada contiene distintas opciones de espera u orden dentro de un mismo invernadero. Revisa el registro.');
+   return;
+  }
+  profiles.set(cfgKey,values);
+ }
+ const records=[];
+ for(const [inv,items] of byInv){
+  const perObservation=new Map();
+  for(const x of items){
+   const parsed=parsearTextoFito(x.raw.texto),obs=parsed.obs||'';
+   if(!perObservation.has(obs))perObservation.set(obs,[]);
+   perObservation.get(obs).push(x.street);
+  }
+  const sections=[];
+  for(const [obs,streets] of perObservation){
+   const contiguous=agruparCallesEnTramos([...new Set(streets)]);
+   contiguous.forEach(t=>sections.push({desde:t.desde,hasta:t.hasta,obs}));
+  }
+  const first=items[0].raw;
+  configurations[inv]={modo:'tramo',excluir:{desde:null,hasta:null},primerDia:!!first.primerDia,
+   esperaCarga:!!first.esperaCarga,orden:first.orden??null,tramos:sections};
+  records.push({inv,day,streets:[...new Set(items.map(x=>x.street))]});
+ }
+ const firstInv=records[0].inv;
+ fitoInvSel=firstInv;
+ fmPendingConfig=null;
+ fmPendingBulkConfig=configurations;
+ window.showFitoManualForm();
+ const set=(id,value)=>{const field=document.getElementById(id);if(field)field.value=value??'';};
+ set('fm-dia',String(day));set('fm-trat',expectedMix.trat);
+ set('fm-dosis',expectedMix.dosis);set('fm-horario',expectedMix.horario);
+ set('fm-caldo',raw.caldoLitros??'');set('fm-tipo-trat',raw.tipoTrat||'');
+ setEditing(raw,records);
+ // The full-journal editor bypasses the old cell/summary editors: explicitly
+ // flag edit mode so the header and the protected delete action remain available.
+ fmEditContextoOriginal={invId:records[0].inv,dia:day,calles:[...records[0].streets]};
+ actualizarAccionesFitoManual();
+}
 window.editarFitoManualDesdeCelda=function(inv,day,streets){
  const raw=getFitoCellRaw(inv,day,streets[0]);
+ if(raw&&typeof raw==='object'&&raw.serieId&&raw.jornadaId){
+  return editFullLinkedJournal(raw);
+ }
  const result=originalEditCell.apply(this,arguments);
  setEditing(raw,[{inv:String(inv),day:+day,streets:[...streets]}]);
  return result;
 };
 window.editarResumenTratamiento=function(mod,idx){
- const f=resumenQuincenaFilasCache[mod]?.[idx],r=originalEditSummary.apply(this,arguments);
+ const f=resumenQuincenaFilasCache[mod]?.[idx];
+ if(mod==='fito'&&f?.raw?.serieId&&f?.raw?.jornadaId){
+  return editFullLinkedJournal(f.raw);
+ }
+ const r=originalEditSummary.apply(this,arguments);
  if(mod==='fito'&&f){
   const rows=Object.entries(f.porInv).map(([inv,byObs])=>({inv,day:f.dia,streets:[...new Set(Object.values(byObs).flat())]}));
   setEditing(f.raw,rows);
@@ -254,9 +323,13 @@ window.saveFitoManual=async function(){
   const places=targets.map(x=>'INV '+x.inv+' ('+x.streets.length+' calles)').join(', ');
   if(!confirm((st.edit?'Modificar jornada':'Registrar jornada')+' '+iso+' · '+product+'\n'+places+'\n'+(start?'Inicio global: '+start+'\n':'')+'No confirma la aplicación física.'))return;
   const text=[dose?product+' '+dose:product,time].filter(Boolean).join(' ');
-  const undo=targets.map(x=>({invId:x.inv,dia:day,calles:x.streets}));
-  removed.forEach(x=>undo.push({invId:x.inv,dia:x.day,calles:[x.street]}));
-  registrarUndoFitoMultiInv(undo);
+  const byUndo=new Map();
+  for(const x of expect.values()){
+   const k=key(x.invId,x.dia,'');
+   if(!byUndo.has(k))byUndo.set(k,{invId:x.invId,dia:x.dia,calles:[]});
+   byUndo.get(k).calles.push(x.calle);
+  }
+  registrarUndoFitoMultiInv([...byUndo.values()]);
   for(const x of targets)for(const c of x.streets){
    const note=x.notes.get(c)||'',value=note?text+' — '+note:text,cfg=fmBulkConfig[x.inv]||{};
    const extra={caldoLitros:liters,caldoLabel,tipoTrat:method,primerDia:st.edit?.legacy?!!cfg.primerDia:false,esperaCarga:!!cfg.esperaCarga,orden:cfg.orden??null};
@@ -296,8 +369,69 @@ window.saveFitoManual=async function(){
  }catch(e){showToast(String(e?.message||e));}
  finally{st.busy=false;if(btn)btn.disabled=st.uncertain;}
 };
-window.borrarFitoManual=function(){
- if(st.edit&&!st.edit.legacy){showToast('Borrado de jornada vinculada bloqueado hasta incorporar la protección del bloque B.');return;}
- return originalDelete.apply(this,arguments);
+
+window.borrarFitoManual=async function(){
+ if(st.busy||st.uncertain)return;
+ const context=st.edit;
+ if(!context){showToast('Solo se puede borrar una selección editada.');return;}
+ st.busy=true;
+ try{
+  if(fitoDirtyCells.size)throw Error('Hay cambios pendientes de sincronizar. Recarga antes de borrar.');
+  const originals=context.records||[];
+  if(!originals.length)throw Error('No hay celdas originales identificadas.');
+  // Linked records delete an entire daily journal; legacy records delete only the explicitly edited group.
+  const records=(!context.legacy)?seriesCells(context.id).filter(x=>x.raw.jornadaId===context.jornadaId)
+    .map(x=>({inv:x.inv,day:x.day,street:x.street,raw:x.raw}))
+    : originals.flatMap(x=>x.streets.map(c=>({inv:x.inv,day:x.day,street:c,raw:getFitoCellRaw(x.inv,x.day,c)})));
+  if(!records.length)throw Error('Registro original vacío. Recarga y vuelve a consultar.');
+  if(records.some(x=>x.raw&&typeof x.raw==='object'&&x.raw.tipoTrat==='Pistola'))
+   throw Error('No se puede borrar esta jornada de Pistola hasta conciliar su tarea (bloque C).');
+  const affected=new Map(),capture=(inv,day,street)=>{
+   const k=key(inv,day,street);
+   if(!affected.has(k))affected.set(k,{invId:inv,dia:day,calle:street,raw:clone(getFitoCellRaw(inv,day,street))});
+  };
+  records.forEach(x=>capture(x.inv,x.day,x.street));
+  if(!context.legacy){
+   const more=seriesCells(context.id),remaining=more.filter(x=>x.raw.jornadaId!==context.jornadaId);
+   // Protect the immutable global start: it cannot be deleted while subsequent days remain.
+   if(remaining.length && records.some(x=>dayISO(x.day)===context.start))
+    throw Error('No se puede borrar la primera jornada mientras haya continuaciones. Requiere revisión del inicio global.');
+   more.forEach(x=>capture(x.inv,x.day,x.street));
+  }
+  if(!confirm('Borrar '+records.length+' calle(s) de '+(context.legacy?'la selección histórica':'la jornada completa')
+     +'?\nSe eliminarán únicamente los registros originales; nunca otras aplicaciones.'))return;
+  const undoGroups=new Map();
+  for(const x of affected.values()){
+   const k=key(x.invId,x.dia,'');
+   if(!undoGroups.has(k))undoGroups.set(k,{invId:x.invId,dia:x.dia,calles:[]});
+   undoGroups.get(k).calles.push(x.calle);
+  }
+  registrarUndoFitoMultiInv([...undoGroups.values()]);
+  records.forEach(x=>setFito(x.inv,x.day,x.street,''));
+  if(!context.legacy){
+   const remain=seriesCells(context.id),first=new Map();
+   remain.forEach(x=>{
+    const k=x.inv+'|'+x.street,date=x.raw.fechaJornadaISO||dayISO(x.day);
+    if(!first.has(k)||date<first.get(k))first.set(k,date);
+   });
+   remain.forEach(x=>{
+    const isFirst=(x.raw.fechaJornadaISO||dayISO(x.day))===first.get(x.inv+'|'+x.street);
+    if(x.raw.primerDia!==isFirst){x.raw.primerDia=isFirst;marcarFitoDirtyCell(x.inv,x.day,x.street);}
+   });
+  }
+  completarUndoFitoParaTodosGrupos();
+  const removed=[...new Map(records.map(x=>[key(x.inv,x.day,x.street),x])).values()];
+  const deletions=removed.map(x=>({invId:x.inv,dia:x.day,calles:[x.street]}));
+  const saved=await saveFitoPatch(deletions,[...affected.values()]);
+  if(!saved.ok){
+   st.uncertain=true;
+   showToast('Borrado sin confirmar. No repitas: recarga y verifica los datos.');
+   return;
+  }
+  document.getElementById('fito-manual-overlay').style.display='none';
+  if(fitoInvSel)renderFitoGrid(fitoInvSel);
+  showToast('✓ '+(context.legacy?'Selección histórica':'Jornada')+' borrada: '+records.length+' calles.');
+ }catch(e){showToast(String(e?.message||e));}
+ finally{st.busy=false;}
 };
 })();

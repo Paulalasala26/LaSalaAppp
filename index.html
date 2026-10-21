@@ -13961,6 +13961,11 @@ function marcarFitoDirtyCell(invId,dia,calle){
 function actualizarEstadoBotonGuardarFito(){
   const btn=document.getElementById('fito-btn-guardar');
   if(!btn) return;
+  // La cuadrícula Fito ya es consultiva: todas las escrituras pasan por el formulario
+  // con identificación de jornada, confirmación de alcance y control de versiones.
+  btn.disabled=true;
+  btn.style.display='none';
+  return;
   // Igual que en Riego: guardar solo cuando hay una cuadrícula activa y cambios pendientes.
   // Fito guarda todas las celdas pendientes, también las de otros invernaderos.
   const hayCambios=!!fitoInvSel && fitoDirtyCells.size>0;
@@ -14715,7 +14720,7 @@ function registrarUndoFitoMultiInv(entradas){
   const grupos = entradas.map(({invId, dia, calles})=>{
     const previos = {};
     calles.forEach(c=>{
-      previos[c] = getFito(invId, dia, c) || null;
+      previos[c] = clonarFitoSnapshot(getFitoCellRaw(invId, dia, c) ?? null);
     });
     return { invId, dia, calles, previos, ahoras: {} };
   });
@@ -14733,7 +14738,7 @@ function completarUndoFito(invId, dia, calles){
   if(grupo){
     grupo.calles = (grupo.calles || []).concat(calles).filter((v,i,a)=>a.indexOf(v)===i); // Dedup
     grupo.calles.forEach(c => {
-      grupo.ahoras[c] = getFito(invId, dia, c) || null;
+      grupo.ahoras[c] = clonarFitoSnapshot(getFitoCellRaw(invId, dia, c) ?? null);
     });
   }
 }
@@ -14744,40 +14749,71 @@ function completarUndoFitoParaTodosGrupos(){
   mov.grupos.forEach(grupo => {
     grupo.calles = grupo.calles || [];
     grupo.calles.forEach(c => {
-      grupo.ahoras[c] = getFito(grupo.invId, grupo.dia, c) || null;
+      grupo.ahoras[c] = clonarFitoSnapshot(getFitoCellRaw(grupo.invId, grupo.dia, c) ?? null);
     });
   });
+}
+// Restores the exact cell (including method, dose, series, wait, order and
+// first-day metadata) and persists it with the same ETag collision protection.
+function fijarSnapshotCompletoFito(invId,dia,calle,raw){
+  invId=String(invId);
+  if(!fitoData[invId])fitoData[invId]={};
+  if(!fitoData[invId][dia])fitoData[invId][dia]={};
+  if(raw!=null)fitoData[invId][dia][calle]=clonarFitoSnapshot(raw);
+  else delete fitoData[invId][dia][calle];
+  marcarFitoDirtyCell(invId,dia,calle);
+}
+async function restaurarMovimientoFitoSeguro(mov,campo){
+  if(fitoDirtyCells.size){
+    showToast('Hay cambios pendientes: no se puede deshacer antes de sincronizar.');
+    return false;
+  }
+  const cambios=new Map();
+  for(const grupo of mov.grupos||[]){
+    for(const [calle,raw] of Object.entries(grupo[campo]||{})){
+      const k=fitoDirtyCellKey(grupo.invId,grupo.dia,calle);
+      const current=clonarFitoSnapshot(getFitoCellRaw(grupo.invId,grupo.dia,calle)??null);
+      if([current,raw].some(x=>x&&typeof x==='object'&&x.tipoTrat==='Pistola')){
+        showToast('Las jornadas de Pistola requieren conciliar las tareas antes de deshacer.');
+        return false;
+      }
+      cambios.set(k,{invId:grupo.invId,dia:grupo.dia,calle:Number(calle),raw:clonarFitoSnapshot(raw),expected:current});
+    }
+  }
+  if(!cambios.size)return false;
+  if(!confirm('Restaurar '+cambios.size+' calle(s) con sus datos completos y guardar en el servidor?'))return false;
+  const deletes=[];
+  cambios.forEach(c=>{
+    fijarSnapshotCompletoFito(c.invId,c.dia,c.calle,c.raw);
+    if(c.raw==null)deletes.push({invId:c.invId,dia:c.dia,calles:[c.calle]});
+  });
+  const r=await saveFitoPatch(deletes,[...cambios.values()].map(c=>({
+    invId:c.invId,dia:c.dia,calle:c.calle,raw:c.expected
+  })));
+  if(!r.ok){
+    showToast('Restauración sin confirmar. No reintentes: comprueba el estado del servidor.');
+    return false;
+  }
+  if(fitoInvSel)renderFitoGrid(fitoInvSel);
+  return true;
 }
 async function deshacerFito(){
-  const mov = fitoHistorialDeshacer.pop();
-  if(!mov) return;
-  mov.grupos.forEach(({invId, dia, previos})=>{
-    Object.entries(previos).forEach(([calle, val])=>{
-      // setFito ya trata cualquier val "falsy" (incluido null) como borrado
-      // (ver su propia definición) — no existe (ni existió nunca) una
-      // función deleteFito separada; llamarla rompía deshacer/rehacer con
-      // un ReferenceError cada vez que la celda a restaurar estaba vacía.
-      setFito(invId, dia, parseInt(calle), val);
-    });
-  });
+  const mov=fitoHistorialDeshacer[fitoHistorialDeshacer.length-1];
+  if(!mov)return;
+  if(!(await restaurarMovimientoFitoSeguro(mov,'previos')))return;
+  fitoHistorialDeshacer.pop();
   fitoHistorialRehacer.push(mov);
-  renderFitoGrid(mov.grupos[0]?.invId);
-  showToast('↩ Cambio deshecho');
-  await saveFitoData();
+  showToast('↩ Cambio restaurado y verificado');
 }
 async function rehacerFito(){
-  const mov = fitoHistorialRehacer.pop();
-  if(!mov) return;
-  mov.grupos.forEach(({invId, dia, ahoras})=>{
-    Object.entries(ahoras).forEach(([calle, val])=>{
-      setFito(invId, dia, parseInt(calle), val);
-    });
-  });
+  const mov=fitoHistorialRehacer[fitoHistorialRehacer.length-1];
+  if(!mov)return;
+  if(!(await restaurarMovimientoFitoSeguro(mov,'ahoras')))return;
+  fitoHistorialRehacer.pop();
   fitoHistorialDeshacer.push(mov);
-  renderFitoGrid(mov.grupos[0]?.invId);
-  showToast('↪ Cambio rehecho');
-  await saveFitoData();
+  showToast('↪ Cambio rehecho y verificado');
 }
+
 // Mismo cambio que retrocederRiego (2026-07-31, a petición de Paula):
 // "Retroceder" pasa de deshacer el último cambio a navegación pura — vuelve
 // al dashboard de miniaturas si hay un invernadero elegido, o cierra el
