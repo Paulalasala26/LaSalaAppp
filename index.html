@@ -3477,7 +3477,7 @@ function imprimirHojaFitoConDatos(datos){
   const filasGastoHTML = filasGastoTexto.map((g,i)=>
     `<div class="ov" style="left:35.8%;top:${FILA_GASTO_TOP[i]}%;width:58.1%">${g}</div>`).join('');
   const pagina = `
-    <div class="hoja-fito">
+    <section class="hf-print-page"><div class="hoja-fito">
       <img class="hf-bg" src="${HOJA_PLAGUICIDAS_IMG}">
       <div class="ov" style="left:18.2%;top:3.1%;width:44.2%">${escapar(fechaLabel)}</div>
       <div class="ov" style="left:75.7%;top:3.1%;width:18.8%">${escapar(horaLabel)}</div>
@@ -3489,7 +3489,7 @@ function imprimirHojaFitoConDatos(datos){
       ${filasGastoHTML}
       <div class="ov ov-cultivos" style="left:5%;top:59%;width:91.3%;height:34.1%">${cultivosHTML}</div>
       <div class="ov ov-firma" style="left:69.8%;top:96%;width:23.9%">${escapar(nombreEncargado)}</div>
-    </div>`;
+    </div></section>`;
   return pagina;
   });
   let iframe = document.getElementById('print-fito-iframe');
@@ -3506,10 +3506,14 @@ function imprimirHojaFitoConDatos(datos){
       @page { size: A4; margin: 0; }
       * { -webkit-print-color-adjust: exact; print-color-adjust: exact; color-adjust: exact; }
       body { font-family: Arial, Helvetica, sans-serif; margin:0; color:#1a1e18; }
-      /* Relación del escaneo (1630×2318), con margen de seguridad de 0,5 mm
-         para evitar hojas en blanco por redondeos de impresión. */
-      .hoja-fito { position:relative; width:208.5mm; height:296.5mm; margin:0 auto; overflow:hidden; }
-      .hoja-fito:not(:last-child) { break-after:page; page-break-after:always; }
+      /* Hoja oficial íntegra (fondo + campos) a escala uniforme.
+         Las impresoras A4 comunes no imprimen hasta el borde: área segura
+         aproximada 7 mm a izquierda/derecha y 9 mm arriba/abajo.
+         No alterar las posiciones internas calibradas (%). */
+      .hf-print-page { position:relative; width:209mm; height:296mm; margin:0 auto; overflow:hidden; }
+      .hoja-fito { position:absolute; left:6.5mm; top:9mm; width:208.5mm; height:296.5mm;
+                   transform:scale(.94); transform-origin:top left; overflow:hidden; }
+      .hf-print-page:not(:last-child) { break-after:page; page-break-after:always; }
       .hf-bg { position:absolute; left:0; top:0; width:100%; height:100%; z-index:0; }
       .ov { position:absolute; z-index:1; font-size:15px; font-weight:700; color:#111; white-space:nowrap; overflow:hidden; }
       .ov-cultivos { white-space:normal; line-height:1.9; overflow:visible; font-size:20px; text-align:center; }
@@ -19247,7 +19251,7 @@ function imprimirHojaFitosanitario(){
     `<div class="ov" style="left:35.8%;top:${FILA_GASTO_TOP[i]}%;width:58.1%">${g}</div>`).join('');
 
   const pagina = `
-    <div class="hoja-fito">
+    <section class="hf-print-page"><div class="hoja-fito">
       <img class="hf-bg" src="${HOJA_PLAGUICIDAS_IMG}">
       <div class="ov" style="left:18.2%;top:3.1%;width:44.2%">${escapar(fechaLabel)}</div>
       <div class="ov" style="left:75.7%;top:3.1%;width:18.8%">${escapar(horaLabel)}</div>
@@ -19259,7 +19263,7 @@ function imprimirHojaFitosanitario(){
       ${filasGastoHTML}
       <div class="ov ov-cultivos" style="left:5%;top:59%;width:91.3%;height:34.1%">${cultivosHTML}</div>
       <div class="ov ov-firma" style="left:69.8%;top:96%;width:23.9%">${escapar(nombreEncargado)}</div>
-    </div>`;
+    </div></section>`;
 
   let iframe = document.getElementById('print-fito-iframe');
   if(!iframe){
@@ -19275,9 +19279,13 @@ function imprimirHojaFitosanitario(){
       @page { size: A4; margin: 0; }
       * { -webkit-print-color-adjust: exact; print-color-adjust: exact; color-adjust: exact; }
       body { font-family: Arial, Helvetica, sans-serif; margin:0; color:#1a1e18; }
-      /* Relación del escaneo (1630×2318), con margen de seguridad de 0,5 mm
-         para evitar hojas en blanco por redondeos de impresión. */
-      .hoja-fito { position:relative; width:208.5mm; height:296.5mm; margin:0 auto; overflow:hidden; }
+      /* Hoja oficial íntegra (fondo + campos) a escala uniforme.
+         Las impresoras A4 comunes no imprimen hasta el borde: área segura
+         aproximada 7 mm a izquierda/derecha y 9 mm arriba/abajo.
+         No alterar las posiciones internas calibradas (%). */
+      .hf-print-page { position:relative; width:209mm; height:296mm; margin:0 auto; overflow:hidden; }
+      .hoja-fito { position:absolute; left:6.5mm; top:9mm; width:208.5mm; height:296.5mm;
+                   transform:scale(.94); transform-origin:top left; overflow:hidden; }
       .hf-bg { position:absolute; left:0; top:0; width:100%; height:100%; z-index:0; }
       .ov { position:absolute; z-index:1; font-size:15px; font-weight:700; color:#111; white-space:nowrap; overflow:hidden; }
       .ov-cultivos { white-space:normal; line-height:1.9; overflow:visible; font-size:20px; text-align:center; }
