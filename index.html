@@ -15546,100 +15546,122 @@ let rmBulkConfig = {};
 // (venido de doble clic, de arrastrar un tramo, o de pulsar el día en la
 // cuadrícula) — se consume una sola vez, al abrir, igual que fmPendingConfig.
 let rmPendingConfig = null;
+let rmSalaActiva = "sala1";
 function riegoBulkInvSelectorHTML(){
   return `
-    <div style="border:1.5px solid #a8c4e8;border-radius:9px;padding:.75rem;background:#f5f9ff">
-      <div style="font-size:11px;font-weight:800;color:#1558a0;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Invernaderos y calles</div>
-      ${rmbQuickHTML()}
-      <details style="border-top:1px solid #d1dfef;padding-top:5px"><summary style="cursor:pointer;padding:5px 0;color:#1558a0;font-size:11px;font-weight:700">Selección múltiple / sala completa</summary>
-      <div style="display:flex;gap:14px;margin-bottom:8px">
-        <label style="font-size:11px;font-weight:700;display:flex;align-items:center;gap:5px;cursor:pointer">
-          <input type="checkbox" class="rmb-sala-chk" data-sala="sala1" onchange="toggleRmBulkSala(this)"> Sala 1 completa
-        </label>
-        <label style="font-size:11px;font-weight:700;display:flex;align-items:center;gap:5px;cursor:pointer">
-          <input type="checkbox" class="rmb-sala-chk" data-sala="sala2" onchange="toggleRmBulkSala(this)"> Sala 2 completa
-        </label>
-        <label style="font-size:11px;font-weight:700;display:flex;align-items:center;gap:5px;cursor:pointer">
-          <input type="checkbox" class="rmb-sala-chk" data-sala="sala3" onchange="toggleRmBulkSala(this)"> Sala 3 completa
-        </label>
-        <label style="font-size:11px;font-weight:700;display:flex;align-items:center;gap:5px;cursor:pointer">
-          <input type="checkbox" class="rmb-sala-chk" data-sala="sala4" onchange="toggleRmBulkSala(this)"> Sala 4 completa
-        </label>
-        <label style="font-size:11px;font-weight:700;display:flex;align-items:center;gap:5px;cursor:pointer">
-          <input type="checkbox" class="rmb-sala-chk" data-sala="sala5" onchange="toggleRmBulkSala(this)"> Sala 5 completa
-        </label>
-      </div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px">
-        ${Object.keys(INV_LAYOUT_SALA1).map(id=>`<label style="font-size:10px;display:flex;align-items:center;gap:3px;background:#fff;border:1px solid #ddd;border-radius:5px;padding:3px 7px;cursor:pointer"><input type="checkbox" class="rmb-inv-chk" data-sala="sala1" value="${id}"${rmBulkConfig[id]?' checked':''} onchange="toggleRmBulkInv()"> ${id}</label>`).join('')}
-        ${Object.keys(INV_LAYOUT_SALA2).map(id=>`<label style="font-size:10px;display:flex;align-items:center;gap:3px;background:#fff;border:1px solid #ddd;border-radius:5px;padding:3px 7px;cursor:pointer"><input type="checkbox" class="rmb-inv-chk" data-sala="sala2" value="${id}"${rmBulkConfig[id]?' checked':''} onchange="toggleRmBulkInv()"> ${id}</label>`).join('')}
-        ${Object.keys(INV_LAYOUT_SALA3).map(id=>`<label style="font-size:10px;display:flex;align-items:center;gap:3px;background:#fff;border:1px solid #ddd;border-radius:5px;padding:3px 7px;cursor:pointer"><input type="checkbox" class="rmb-inv-chk" data-sala="sala3" value="${id}"${rmBulkConfig[id]?' checked':''} onchange="toggleRmBulkInv()"> ${id}</label>`).join('')}
-        ${Object.keys(INV_LAYOUT_SALA4).map(id=>`<label style="font-size:10px;display:flex;align-items:center;gap:3px;background:#fff;border:1px solid #ddd;border-radius:5px;padding:3px 7px;cursor:pointer"><input type="checkbox" class="rmb-inv-chk" data-sala="sala4" value="${id}"${rmBulkConfig[id]?' checked':''} onchange="toggleRmBulkInv()"> ${id}</label>`).join('')}
-        ${Object.keys(INV_LAYOUT_SALA5).map(id=>`<label style="font-size:10px;display:flex;align-items:center;gap:3px;background:#fff;border:1px solid #ddd;border-radius:5px;padding:3px 7px;cursor:pointer"><input type="checkbox" class="rmb-inv-chk" data-sala="sala5" value="${id}"${rmBulkConfig[id]?' checked':''} onchange="toggleRmBulkInv()"> ${id}</label>`).join('')}
-      </div>
+    <section style="border:1px solid #b0c8e4;border-radius:8px;padding:10px;background:#f5f9ff">
+      <div style="font-size:12px;font-weight:800;color:#1558a0;margin-bottom:8px">Invernaderos y calles</div>
+      <div id="rmb-salas" aria-label="Seleccionar sala" style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px;margin-bottom:8px"></div>
+      <div id="rmb-sala-acciones" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px"></div>
+      <div id="rmb-matriz" aria-label="Seleccionar invernaderos" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(72px,1fr));gap:6px"></div>
+      <details open id="rmb-seleccion-detalles" style="border-top:1px solid #c8d9ec;margin-top:10px;padding-top:7px">
+        <summary style="cursor:pointer;font-size:12px;font-weight:800;color:#1558a0;padding:3px 0 6px">Seleccionados: <span id="rmb-total">0</span></summary>
+        <div id="rmb-panels"></div>
       </details>
-      <div id="rmb-panels"></div>
-    </div>`;
+    </section>`;
 }
-function rmbQuickHTML(){
- const salas={sala1:INV_LAYOUT_SALA1,sala2:INV_LAYOUT_SALA2,sala3:INV_LAYOUT_SALA3,sala4:INV_LAYOUT_SALA4,sala5:INV_LAYOUT_SALA5};
- const sala=salaDeInv(String(riegoInvSel||'')),sel=salas[sala]?sala:'sala1';
- return `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:7px">
-  <select id="rmb-quick-sala" aria-label="Sala" onchange="rmbCambiarSala()" style="flex:0 1 100px;min-height:36px;border:1px solid #a8c4e8;border-radius:6px;background:#fff;color:#1558a0;padding:5px;font-size:13px">${Object.keys(salas).map(s=>`<option value="${s}"${s===sel?' selected':''}>Sala ${s.slice(-1)}</option>`).join('')}</select>
-  <select id="rmb-quick-inv" aria-label="Invernadero" style="flex:1 1 110px;min-height:36px;border:1px solid #a8c4e8;border-radius:6px;background:#fff;color:#1558a0;padding:5px;font-size:13px">${Object.keys(salas[sel]).sort((a,b)=>a.localeCompare(b,'es',{numeric:true})).map(id=>`<option value="${id}">INV ${id}</option>`).join('')}</select>
-  <button type="button" onclick="rmbAgregarInv()" style="min-height:36px;padding:5px 14px;background:#1558a0;color:#fff;border:0;border-radius:6px;font-weight:800;font-size:12px;cursor:pointer">+ Añadir</button>
- </div>`;
+function rmbSalas(){
+  return {sala1:INV_LAYOUT_SALA1,sala2:INV_LAYOUT_SALA2,sala3:INV_LAYOUT_SALA3,sala4:INV_LAYOUT_SALA4,sala5:INV_LAYOUT_SALA5};
 }
-function rmbCambiarSala(){
- const sala=document.getElementById('rmb-quick-sala')?.value,select=document.getElementById('rmb-quick-inv');
- const salas={sala1:INV_LAYOUT_SALA1,sala2:INV_LAYOUT_SALA2,sala3:INV_LAYOUT_SALA3,sala4:INV_LAYOUT_SALA4,sala5:INV_LAYOUT_SALA5};
- if(select)select.innerHTML=Object.keys(salas[sala]||{}).sort((a,b)=>a.localeCompare(b,'es',{numeric:true})).map(id=>`<option value="${id}">INV ${id}</option>`).join('');
-}
-function rmbAgregarInv(){
- const id=document.getElementById('rmb-quick-inv')?.value;
- if(!id||!INV_LAYOUT[id])return;
- const input=Array.from(document.querySelectorAll('.rmb-inv-chk')).find(el=>el.value===id);
- if(input){input.checked=true;toggleRmBulkInv();}
-}
-function rmbPreservarTramos(){
- Object.keys(rmBulkConfig).forEach(id=>{
-  if(rmBulkConfig[id]?.modo==='tramo'&&document.querySelector(`.rmb-tramo-row[data-inv="${id}"]`))
-    rmBulkConfig[id].tramos=leerRmBulkTramosDesdeDOM(id);
- });
-}
-function toggleRmBulkSala(salaChk){
-  const sala = salaChk.dataset.sala;
-  document.querySelectorAll(`.rmb-inv-chk[data-sala="${sala}"]`).forEach(chk=>{ chk.checked = salaChk.checked; });
-  toggleRmBulkInv();
+function rmbConservarTramos(){
+  Object.keys(rmBulkConfig).forEach(id=>{
+    if(rmBulkConfig[id]?.modo!=='tramo')return;
+    if(document.querySelector(`.rmb-tramo-row[data-inv="${id}"]`)){
+      rmBulkConfig[id].tramos=leerRmBulkTramosDesdeDOM(id);
+    }
+  });
 }
 function leerRmBulkInvsSeleccionados(){
-  return Array.from(document.querySelectorAll('.rmb-inv-chk:checked')).map(el=>el.value);
+  return Object.keys(rmBulkConfig).sort((a,b)=>a.localeCompare(b,'es',{numeric:true}));
 }
-function toggleRmBulkInv(){
-  rmbPreservarTramos();
-  const seleccionados = leerRmBulkInvsSeleccionados();
-  Object.keys(rmBulkConfig).forEach(id=>{ if(!seleccionados.includes(id)) delete rmBulkConfig[id]; });
-  seleccionados.forEach(id=>{ if(!rmBulkConfig[id]) rmBulkConfig[id] = {modo:'entero', excluir:{desde:null,hasta:null}, tramos:[]}; });
+function rmbElegirSala(sala){
+  if(!rmbSalas()[sala])return;
+  rmbConservarTramos();
+  rmSalaActiva=sala;
+  renderRmBulkVista();
+}
+function rmbToggleInvernadero(invId){
+  if(!INV_LAYOUT[invId])return;
+  rmbConservarTramos();
+  if(rmBulkConfig[invId])delete rmBulkConfig[invId];
+  else rmBulkConfig[invId]={modo:'entero',excluir:{desde:null,hasta:null},tramos:[]};
+  renderRmBulkVista();
+}
+function rmbTodaSala(marcar){
+  const invs=rmbSalas()[rmSalaActiva];
+  if(!invs)return;
+  rmbConservarTramos();
+  Object.keys(invs).forEach(id=>{
+    if(marcar&&!rmBulkConfig[id])rmBulkConfig[id]={modo:'entero',excluir:{desde:null,hasta:null},tramos:[]};
+    if(!marcar)delete rmBulkConfig[id];
+  });
+  renderRmBulkVista();
+}
+function renderRmBulkVista(){
+  const salas=rmbSalas();
+  if(!salas[rmSalaActiva])rmSalaActiva='sala1';
+  const ids=leerRmBulkInvsSeleccionados();
+  const tabs=document.getElementById('rmb-salas');
+  const acciones=document.getElementById('rmb-sala-acciones');
+  const matriz=document.getElementById('rmb-matriz');
+  if(!tabs||!acciones||!matriz)return;
+  tabs.innerHTML=Object.keys(salas).map(sala=>{
+    const actual=sala===rmSalaActiva;
+    const cuantos=Object.keys(salas[sala]).filter(id=>!!rmBulkConfig[id]).length;
+    return `<button type="button" aria-pressed="${actual}" onclick="rmbElegirSala('${sala}')"
+      style="min-width:0;min-height:39px;padding:4px 2px;border:1px solid ${actual?'#1558a0':'#aac2dc'};border-radius:6px;background:${actual?'#1558a0':'#fff'};color:${actual?'#fff':'#1558a0'};font-size:12px;font-weight:800;cursor:pointer">Sala ${sala.slice(-1)}${cuantos?` · ${cuantos}`:''}</button>`;
+  }).join('');
+  const totalSala=Object.keys(salas[rmSalaActiva]).length;
+  const seleccionSala=Object.keys(salas[rmSalaActiva]).filter(id=>!!rmBulkConfig[id]).length;
+  acciones.innerHTML=`<span style="font-size:12px;font-weight:700;color:#1558a0;flex:1 1 110px">Sala ${rmSalaActiva.slice(-1)} · ${seleccionSala}/${totalSala}</span>
+    <button type="button" onclick="rmbTodaSala(true)" ${seleccionSala===totalSala?'disabled':''} style="padding:6px 10px;border:1px solid #a8c4e8;border-radius:6px;background:#e8f0fb;color:#1558a0;font-size:11px;font-weight:700;cursor:pointer">Toda la sala</button>
+    <button type="button" onclick="rmbTodaSala(false)" ${seleccionSala===0?'disabled':''} style="padding:6px 10px;border:1px solid #d4dbe5;border-radius:6px;background:#fff;color:#526578;font-size:11px;font-weight:700;cursor:pointer">Quitar sala</button>`;
+  matriz.innerHTML=Object.keys(salas[rmSalaActiva]).sort((a,b)=>a.localeCompare(b,'es',{numeric:true})).map(id=>{
+    const marcado=!!rmBulkConfig[id];
+    return `<button type="button" aria-pressed="${marcado}" onclick="rmbToggleInvernadero('${id}')"
+      style="min-height:41px;padding:6px 4px;border:1.5px solid ${marcado?'#1558a0':'#b8cadf'};border-radius:7px;background:${marcado?'#dbeafb':'#fff'};color:#1558a0;font-size:12px;font-weight:${marcado?'800':'600'};cursor:pointer;white-space:nowrap">${marcado?'✓ ':''}INV ${id}</button>`;
+  }).join('');
+  const count=document.getElementById('rmb-total');
+  if(count)count.textContent=String(ids.length);
   renderRmBulkPanels();
 }
 function renderRmBulkPanels(){
-  const cont = document.getElementById('rmb-panels');
-  if(!cont) return;
-  const ids = leerRmBulkInvsSeleccionados();
-  cont.innerHTML = ids.map(invId=>`
-    <div style="border:1px solid #cddcf0;border-radius:7px;padding:8px;margin-top:8px;background:#fbfdff">
-      <div style="font-size:11px;font-weight:800;color:#1558a0;margin-bottom:6px">INV ${invId}</div>
-      <select aria-label="Calles INV ${invId}" onchange="cambiarRmBulkModo('${invId}',this.value)" style="width:100%;min-height:33px;border:1px solid #a8c4e8;border-radius:6px;background:#fff;color:#1558a0;font-size:12px;padding:4px 6px">
-       <option value="entero"${rmBulkConfig[invId].modo==='entero'?' selected':''}>Entero</option>
-       <option value="entero_menos"${rmBulkConfig[invId].modo==='entero_menos'?' selected':''}>Entero menos…</option>
-       <option value="tramo"${rmBulkConfig[invId].modo==='tramo'?' selected':''}>Tramo de calles…</option>
-      </select>
-      <div id="rmb-detalle-${invId}"></div>
-    </div>`).join('');
-  ids.forEach(invId=>renderRmBulkDetalle(invId));
+  const cont=document.getElementById('rmb-panels');
+  if(!cont)return;
+  const ids=leerRmBulkInvsSeleccionados();
+  if(!ids.length){
+    cont.innerHTML='<div style="font-size:12px;color:#667b90;padding:4px 0">Marca uno o varios invernaderos de la cuadrícula.</div>';
+    return;
+  }
+  const salas=rmbSalas();
+  cont.innerHTML=Object.keys(salas).map(sala=>{
+    const grupo=ids.filter(id=>!!salas[sala][id]);
+    if(!grupo.length)return '';
+    return `<div style="margin-top:5px">
+      <div style="font-size:11px;font-weight:800;color:#55718f;margin-bottom:4px">Sala ${sala.slice(-1)}</div>
+      ${grupo.map(invId=>`<div style="border:1px solid #cedded;border-radius:7px;background:#fff;padding:6px 8px;margin-bottom:5px">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          <strong style="font-size:12px;color:#1558a0;flex:0 0 65px">INV ${invId}</strong>
+          <select aria-label="Calles del INV ${invId}" onchange="cambiarRmBulkModo('${invId}',this.value)"
+            style="flex:1 1 150px;min-width:135px;min-height:34px;padding:5px;border:1px solid #a8c4e8;border-radius:6px;background:#fff;color:#1558a0;font-size:12px">
+            <option value="entero"${rmBulkConfig[invId].modo==='entero'?' selected':''}>Entero</option>
+            <option value="entero_menos"${rmBulkConfig[invId].modo==='entero_menos'?' selected':''}>Entero menos…</option>
+            <option value="tramo"${rmBulkConfig[invId].modo==='tramo'?' selected':''}>Tramo de calles…</option>
+          </select>
+          <button type="button" onclick="rmbToggleInvernadero('${invId}')" aria-label="Quitar INV ${invId}" title="Quitar INV ${invId}"
+            style="width:32px;height:32px;border:1px solid #e3c2c2;border-radius:6px;background:#fff;color:#bc3535;font-size:17px;cursor:pointer">×</button>
+        </div>
+        <div id="rmb-detalle-${invId}" style="margin-top:${rmBulkConfig[invId].modo==='entero'?'0':'6px'}"></div>
+      </div>`).join('')}
+    </div>`;
+  }).join('');
+  ids.forEach(id=>renderRmBulkDetalle(id));
 }
-function cambiarRmBulkModo(invId, modo){
-  rmBulkConfig[invId].modo = modo;
-  renderRmBulkDetalle(invId);
+function cambiarRmBulkModo(invId,modo){
+  if(!rmBulkConfig[invId]||!['entero','entero_menos','tramo'].includes(modo))return;
+  rmbConservarTramos();
+  rmBulkConfig[invId].modo=modo;
+  renderRmBulkPanels();
 }
 function renderRmBulkDetalle(invId){
   const cont = document.getElementById(`rmb-detalle-${invId}`);
@@ -15647,7 +15669,7 @@ function renderRmBulkDetalle(invId){
   const cfg = rmBulkConfig[invId];
   const allCalles = callesOrdenadasInv(invId);
   if(cfg.modo==='entero'){
-    cont.innerHTML = `<div style="font-size:10px;color:var(--muted);font-style:italic">Se aplicará a las ${allCalles.length} calles.</div>`;
+    cont.innerHTML = '';
   } else if(cfg.modo==='entero_menos'){
     if(cfg.excluir.desde==null || !allCalles.includes(cfg.excluir.desde)) cfg.excluir = {desde:allCalles[0], hasta:allCalles[0]};
     cont.innerHTML = `
@@ -15763,6 +15785,7 @@ function showRiegoManualForm(){
   // la lista de abajo, el primero NO se borra ni se pisa (cada uno tiene su
   // propio modo independiente, ver comentario junto a rmBulkConfig).
   rmBulkConfig = {};
+  rmSalaActiva = salaDeInv(String(inv||"")) || "sala1";
   if(inv){
     rmBulkConfig[inv] = rmPendingConfig
       ? {modo: rmPendingConfig.modo, excluir: rmPendingConfig.excluir || {desde:null,hasta:null}, tramos: rmPendingConfig.tramos || []}
@@ -15980,7 +16003,7 @@ function showRiegoManualForm(){
   mo.style.display = 'flex';
   renderAguaRows();
   renderAbonoRows();
-  renderRmBulkPanels();
+  renderRmBulkVista();
 }
 
 // ── AGUA: filas repetibles ──────────────────────────────────────
