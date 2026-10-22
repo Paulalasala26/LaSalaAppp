@@ -495,6 +495,23 @@ El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en int
 **Validación:** parseo JavaScript realizado; prueba visual y funcional de alta/edición **pendiente del usuario**, sin cambiar datos Firebase ni PRD.
 
 
+## 0.50. Control de Riego — selección múltiple directa por sala (22/10/2026)
+
+**Corrección funcional del usuario:** «La selección múltiple no es viable de esa manera». La UX anterior exigía desplegar el selector múltiple escondido con cinco salas enteras y decenas de checkbox, además de un selector rápido separado, creando duplicidad.
+
+**Rediseño aplicado solo en TEST** (commit `78cf7ab0900c0a3e566c63eb98d0f280aca13472`, `index.html`):
+- Una única ruta de selección: cinco **botones de sala** en una fila compacta, con contador de invernaderos seleccionados por sala.
+- Para la sala activa, **cuadrícula de botones táctiles** con todos sus invernaderos, seleccionables/deseleccionables pulsando el botón completo. Los elegidos se muestran en azul claro y con marca ✓; se conservan aunque se navegue a otras salas.
+- Acciones «Toda la sala» y «Quitar sala», que solo afectan a la sala visible; no borran selecciones de otras salas.
+- Debajo, sección «Seleccionados: N» con lista **agrupada por sala**. Cada invernadero tiene en una misma línea: identificación, selector «Entero / Entero menos / Tramo de calles» y botón quitar. Los parámetros «desde/hasta» o tramos adicionales solo se muestran cuando proceden.
+- Fuente de verdad de selección = `rmBulkConfig`, no checkboxes invisibles en un desplegable. `leerRmBulkInvsSeleccionados()` sigue devolviendo los invernaderos activos para alta/borrado y conservar identidad de cada INV. Al cambiar sala, añadir/quitar o redibujar, `rmbConservarTramos()` captura tramos DOM antes de sustituir filas, evitando perder cambios no guardados.
+- Se ha mantenido la selección inicial que llega desde la cuadrícula o edición de histórico, con su sala y tramo originales. Resto del formulario, almacenamiento Firebase, rutas de alta/borrado y validaciones anteriores no alteradas.
+
+**Validación técnica:** cinco scripts inline parseados, selección por sala y persistencia de objetivos verificados con diez aserciones sobre funciones reales y DOM simulado (incluida selección intersala, sala completa sin duplicación, deselección de sala sin perder otras y tramos previos). **Pendiente validación visual y operativa del usuario** en móvil/PC, incluido alta y edición. No escribir datos de prueba sobre registros anteriores.
+
+**Prioridades sin cambio:** validar Riego → terminar Bloque B de Plaguicidas (impresión) → auditar Tareas completas → retomar Bloque C. No abrir Tareas antes de la auditoría.
+
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).
