@@ -1797,6 +1797,7 @@ async function showTareasModule(){
     if(!sigueAbierta())return;
     if(!esGestor)await avisarNuevasTareas(usuarioAlAbrir);
     if(esGestor)await loadMantenimientoData();
+    if(esGestor)await procesarColaRiegoTareas();
     if(!sigueAbierta())return;
     tareasGestorVista='operativas';
     resetFiltrosTareasGestorSinRender();
@@ -12443,6 +12444,12 @@ async function saveRiegoInvPatch(invId, extraDeletes, incluirDirty){
   extraDeletes.forEach(({dia,calles})=>(calles||[]).forEach(c=>riegoDirtyCells.delete(riegoDirtyCellKey(invId,dia,c))));
   if(!Array.from(riegoDirtyCells.values()).some(x=>x.invId===invId)) riegoDirtyInvs.delete(invId);
   quitarRiegoOfflineClaves(clavesOffline);
+  // Solo se encola al haber recibido PUT remoto confirmado; nunca en la cola offline.
+  const diasTocados=[...new Set([...dirty.map(x=>String(x.dia)),...extraDeletes.map(x=>String(x.dia))])];
+  if(diasTocados.length){
+    encolarRiegoTareasConfirmado(invId,diasTocados);
+    await procesarColaRiegoTareas();
+  }
   return true;
 }
 async function saveRiegoData(){
@@ -16667,6 +16674,144 @@ function fusionarCallesTarea(existentes, nuevas){
   const partes = [...new Set([...existentes.split(', '), ...nuevas.split(', ')])];
   return partes.join(', ');
 }
+
+// APP R v3 0.69 — conciliar SOLO jornadas de Riego confirmadas en Firebase.
+// La cola local sobrevive a fallos de red/cierre. Nunca se alimenta de guardados offline.
+const RIEGO_TAREAS_CONCILIACION_KEY='viguerapp-test-riego-tareas-conciliacion-v1';
+let riegoTareasConciliando=false;
+function leerColaRiegoTareas(){
+  try{const x=JSON.parse(localStorage.getItem(RIEGO_TAREAS_CONCILIACION_KEY)||'[]');return Array.isArray(x)?x.filter(e=>e&&e.inv&&Array.isArray(e.dias)):[];}catch(e){return [];}
+}
+function escribirColaRiegoTareas(cola){
+  try{localStorage.setItem(RIEGO_TAREAS_CONCILIACION_KEY,JSON.stringify(cola));return true;}catch(e){showToast('No se pudo conservar la conciliación de tareas. Avise a ADMIN.');return false;}
+}
+function encolarRiegoTareasConfirmado(invId,dias){
+  const cola=leerColaRiegoTareas(),inv=String(invId);
+  const actual=cola.find(e=>e.inv===inv);
+  const validos=[...new Set((dias||[]).map(String).filter(d=>/^\d+$/.test(d)))];
+  if(!validos.length)return true;
+  if(actual) actual.dias=[...new Set([...actual.dias,...validos])];
+  else cola.push({inv,dias:validos});
+  return escribirColaRiegoTareas(cola);
+}
+function claveTareaPlanRiego(t){
+  return [t.asignadoA,t.inv,t.fechaISO,t.titulo,t.horario||''].map(v=>String(v||'')).join('||');
+}
+function planTareasRiegoParaDias(invId,dias){
+  invId=String(invId);
+  const layout=INV_LAYOUT[invId];if(!layout)throw Error('Invernadero desconocido');
+  const today=fechaLocalISO(new Date()),plan=new Map();
+  const all=[...layout.row1,...layout.row2];
+  for(const d of [...new Set(dias.map(Number))]){
+    if(!Number.isInteger(d)||!Number.isFinite(riegoDiaToDate(d).getTime()))continue;
+    const fechaISO=fechaLocalISO(riegoDiaToDate(d));
+    if(fechaISO<today)continue; // no crear órdenes retrospectivas
+    for(const br of detectBrackets(invId,d,all)){
+      const parsed=parsearTrabajoDeTexto(br.text);
+      const add=(title,horario,esFoliar)=>{
+        if(!title)return;
+        const tarea={
+          inv:invId, fechaISO, fecha:riegoDiaLabelCorto(d), titulo:expandirAbreviaturasRiego(title),
+          horario:horario||'', asignadoA:peonDelaSala(invId), esFoliar:!!esFoliar
+        };
+        const key=claveTareaPlanRiego(tarea);
+        if(!plan.has(key))plan.set(key,{...tarea,callesNumeros:new Set()});
+        (br.calles||[]).forEach(c=>plan.get(key).callesNumeros.add(Number(c)));
+      };
+      add(parsed.tituloFumi,'1º HORA',true);
+      add(parsed.titulo,parsed.horario,tituloTrabajoEsFoliar(parsed.titulo));
+    }
+  }
+  return [...plan.values()].map(p=>{
+    const calles=formatCallesConEnteroParaTareaPeon(invId,[...p.callesNumeros].sort((a,b)=>a-b));
+    const {callesNumeros,...rest}=p;
+    return {...rest,calles,categoria:'riego',origenTarea:'riego'};
+  });
+}
+async function conciliarRiegoTareasConfirmadas(invId,dias){
+  if(!['ADMIN','TECNICO'].includes(currentUserRole))return false;
+  if(navigator.onLine===false)return false;
+  // Nunca usar un riego local todavía sin guardar como fuente de órdenes.
+  if([...riegoDirtyCells.values()].some(x=>x.invId===String(invId)) ||
+      leerRiegoOffline().some(x=>String(x.invId)===String(invId)))return false;
+  const ok=await loadRiegoInvData(String(invId),true);
+  if(!ok) return false;
+  const plan=planTareasRiegoParaDias(invId,dias);
+  const days=new Set(dias.map(d=>fechaLocalISO(riegoDiaToDate(Number(d)))));
+  const aComparar=plan.filter(p=>days.has(p.fechaISO));
+  const now=new Date().toISOString();
+  let conflicto=false;
+  const tx=await actualizarStorageJsonConEtag(TAREAS_KEY,[],cloud=>{
+    if(!Array.isArray(cloud))throw Error('Tareas: formato inválido');
+    const delDia=t=>t&&String(t.inv)===String(invId)&&days.has(t.fechaISO)&&
+      (t.categoria==='riego'||t.origenTarea==='riego')&&!esTareaArchivada(t);
+    const actuales=cloud.filter(delDia);
+    // No sustituir trabajos ya iniciados, completados ni reasignados manualmente.
+    for(const t of actuales){
+      if(t.asignadoA!==peonDelaSala(invId) ||
+        (t.estado==='iniciada' && !aComparar.some(p=>claveTareaPlanRiego(p)===claveTareaPlanRiego(t)&&p.calles===t.calles))){
+        conflicto=true;return undefined;
+      }
+    }
+    const previstos=new Map(aComparar.map(p=>[claveTareaPlanRiego(p),p]));
+    const presentes=new Set(),next=[];
+    let changed=false;
+    for(const t of cloud){
+      if(!delDia(t)||t.estado!=='pendiente'){next.push(t);continue;}
+      const key=claveTareaPlanRiego(t),p=previstos.get(key);
+      if(!p||presentes.has(key)){
+        next.push({...t,estado:'anulada',archivadaEn:now,motivoAnulacion:'Reprogramación automática desde Riego'});
+        changed=true;continue;
+      }
+      presentes.add(key);
+      if(t.calles!==p.calles || !!t.esFoliar!==p.esFoliar){
+        next.push({...t,calles:p.calles,esFoliar:p.esFoliar,visto:false});
+        changed=true;
+      }else next.push(t);
+    }
+    for(const [key,p] of previstos){
+      if(presentes.has(key))continue;
+      // Reintentos y trabajos ya ejecutados nunca crean duplicados.
+      if(cloud.some(t=>(t.categoria==='riego'||t.origenTarea==='riego')&&
+         claveTareaPlanRiego(t)===key&&['iniciada','completada'].includes(t.estado)))continue;
+      next.push({...p,id:'tarea_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
+        descripcion:'',asignadoPor:currentUser||'—',turno:'',prioridad:'normal',
+        estado:'pendiente',horaInicio:null,horaFin:null,firmante:null,visto:false,
+        creadoEn:new Date().toLocaleString('es-ES')});
+      changed=true;
+    }
+    return changed?next:undefined;
+  });
+  if(!tx.ok||conflicto)return false;
+  if(tx.value)tareasData=tx.value;
+  refreshTareasViews();
+  return true;
+}
+async function procesarColaRiegoTareas(){
+  if(riegoTareasConciliando||navigator.onLine===false||!['ADMIN','TECNICO'].includes(currentUserRole))return;
+  riegoTareasConciliando=true;
+  try{
+    // La cola es local: ejecutar solo para el usuario autenticado que la registró.
+    for(const pendiente of leerColaRiegoTareas()){
+      let done=false;
+      try{done=await conciliarRiegoTareasConfirmadas(pendiente.inv,pendiente.dias);}catch(e){console.error('Conciliación Riego/Tareas',e);}
+      if(done){
+        const cola=leerColaRiegoTareas(),current=cola.find(x=>x.inv===pendiente.inv);
+        if(current){
+          const resto=current.dias.filter(d=>!pendiente.dias.includes(d));
+          if(resto.length)current.dias=resto;
+          else cola.splice(cola.indexOf(current),1);
+          escribirColaRiegoTareas(cola);
+        }
+      }
+    }
+  }finally{
+    riegoTareasConciliando=false;
+    if(leerColaRiegoTareas().length)showToast('Riego guardado; hay tareas pendientes de conciliación. Revisión ADMIN.');
+  }
+}
+window.addEventListener('online',()=>{if(currentUserRole==='ADMIN'||currentUserRole==='TECNICO')procesarColaRiegoTareas();});
+
 // ════════════════════════════════════════════════════════════════
 // GENERAR TAREAS DE PEÓN DESDE RIEGO — a petición de Paula, 2026-08-10.
 // Antes las tareas de peón se creaban/actualizaban automáticamente en CADA
