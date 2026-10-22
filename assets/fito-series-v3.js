@@ -417,6 +417,9 @@ function construirConsultaFitoV3(mod){
    +(linkedRow?'Editar jornada':'Editar registro')+'</button>'
    +'<button type="button"'+attrs+' onclick="'+printOnclick+'" title="Imprimir hoja oficial" aria-label="Imprimir hoja oficial" style="'+buttonStyle+';width:46px;padding:0">'
    +'<i class="ti ti-printer" aria-hidden="true" style="font-size:19px"></i></button>';
+  const taskAction=linkedRow&&row.method==='Pistola'&&['ADMIN','TECNICO'].includes(currentUserRole)
+   ?'<button type="button"'+attrs+' onclick="consultarTareaJornadaFitoV3(this.dataset.serie,this.dataset.jornada)" style="'+buttonStyle+';background:#fff;color:#1558a0;width:100%;margin-top:7px">Estado de tarea</button>'
+   :'';
   const badges=[row.method,row.broth].filter(Boolean).join(' · ');
   const detailsText=[row.dose,row.time,badges].filter(Boolean).map(x=>esc(x)).join(' · ');
   const location=esc(row.location)+(row.count?' · '+row.count+' calles':'');
@@ -437,7 +440,7 @@ function construirConsultaFitoV3(mod){
    +'<div style="box-sizing:border-box;width:100%;background:#f6f9fd;border-top:1px solid #dce6f2;padding:10px 12px">'
    +'<div style="display:flex;flex-direction:column;width:100%;gap:7px">'+row.detail+'</div>'
    +'<div style="display:grid;grid-template-columns:minmax(0,1fr) 46px;gap:8px;width:100%;margin-top:10px">'+action+'</div>'
-   +'</div></details>';
+   +taskAction+'</div></details>';
  }).join('');
  const shown=rows.filter(row=>!buscar||limpiarBusquedaFitoV3(row.search).includes(buscar)).length;
  return '<div id="resumen-quincena-fito" style="box-sizing:border-box;width:100%;max-width:950px;margin:0 auto">'
@@ -507,6 +510,68 @@ function imprimirJornadaFitoConsultaV3(id,journalId){
  imprimirHojaFitoConDatos(pages.map(x=>({...x.datos,asignadoPor:currentUser})));
 }
 window.imprimirJornadaFitoConsultaV3=imprimirJornadaFitoConsultaV3;
+
+async function consultarTareaJornadaFitoV3(serieId,jornadaId){
+ if(!['ADMIN','TECNICO'].includes(currentUserRole)){showToast('Consulta reservada a técnicos y administradores.');return;}
+ try{
+  const result=await window.storage.get(TAREAS_KEY);
+  if(!result)throw Error('No se pudo consultar Tareas.');
+  const tareas=JSON.parse(result.value);
+  if(!Array.isArray(tareas))throw Error('Formato remoto de Tareas inválido.');
+  const iguales=tareas.filter(t=>t.categoria==='fumigacion'
+    &&t.origenFito?.serieId===serieId&&t.origenFito?.jornadaId===jornadaId);
+  if(iguales.length>1)throw Error('Hay duplicados; revisión administrativa obligatoria.');
+  if(iguales.length){
+   const t=iguales[0];
+   const detalle=['Estado: '+t.estado,'Operario: '+t.asignadoA,'Zonas: '+invCallesLabelDeTarea(t),
+    t.horaInicio?'Inicio: '+t.horaInicio:'',t.horaFin?'Fin: '+t.horaFin:'',
+    t.caldoSobrante?'Caldo sobrante: '+t.caldoSobrante:'',
+    t.firmaPreparador?'Preparó: '+t.firmaPreparador:'',
+    t.firmaAplicador?'Aplicó: '+t.firmaAplicador:''].filter(Boolean).join('\n');
+   await confirmarFitoAccionV3({titulo:'Ejecución Pistola',detalle,accion:'Cerrar'});
+   return;
+  }
+  if(!(await confirmarFitoAccionV3({titulo:'Tarea Pistola sin confirmar',
+    detalle:'No consta tarea vinculada. Se comprobará la jornada en el servidor antes de asignarla.',
+    accion:'Conciliar tarea'})))return;
+  if(fitoDirtyCells.size)throw Error('Hay cambios locales sin sincronizar.');
+  if(!(await loadFitoData(true)))throw Error('No se pudo verificar Plaguicidas.');
+  const cells=seriesCells(serieId).filter(x=>x.raw.jornadaId===jornadaId);
+  if(!cells.length)throw Error('Jornada ausente tras la lectura remota.');
+  const day=cells[0].day;
+  if(cells.some(x=>x.day!==day||x.raw.tipoTrat!=='Pistola'||x.raw.estadoRegistro==='anulado'))
+   throw Error('Jornada no válida para asignar Pistola.');
+  const base=cells[0].raw,parsed=parsearTextoFito(base.texto||'');
+  if(!parsed.trat||cells.some(x=>{
+   const p=parsearTextoFito(x.raw.texto||'');
+   return p.trat!==parsed.trat||p.dosis!==parsed.dosis||p.horario!==parsed.horario
+    ||x.raw.caldoLitros!==base.caldoLitros||x.raw.caldoLabel!==base.caldoLabel;
+  }))throw Error('Diferentes preparaciones en la jornada; revisar manualmente.');
+  const invs=[...new Set(cells.map(x=>x.inv))];
+  const salas=[...new Set(invs.map(salaDeInv))];
+  if(salas.length!==1||!salas[0])throw Error('Jornada distribuida entre salas incompatibles.');
+  const titulo=[parsed.trat,parsed.dosis].filter(Boolean).join(' ');
+  const peon=peonDelaSala(invs[0]);
+  if(tareas.some(t=>t.categoria==='fumigacion'&&!t.origenFito?.serieId
+    &&t.fechaISO===dayISO(day)&&t.asignadoA===peon&&t.titulo===titulo))
+   throw Error('Existe tarea histórica similar sin vínculo; conciliación manual obligatoria.');
+  const objetivos=[];
+  for(const inv of invs){
+   const calles=[...new Set(cells.filter(x=>x.inv===inv).map(x=>x.street))].sort((a,b)=>a-b);
+   agruparCallesEnTramos(calles).forEach(t=>objetivos.push({
+    invId:inv,callesLabel:formatRangoConInv(inv,t.desde,t.hasta)
+   }));
+  }
+  const assigned=await autoAsignarTareaFumigacion(objetivos,day,titulo,parsed.horario,{
+   producto:parsed.trat,dosis:parsed.dosis,caldoLitros:base.caldoLitros,
+   caldoLabel:base.caldoLabel,serieId,jornadaId
+  });
+  if(!assigned?.ok)throw Error('No se confirmó la asignación de Tareas.');
+  showToast(assigned.yaExistia?'✓ Tarea ya existente, no duplicada.':'✓ Tarea Pistola asignada.');
+ }catch(e){showToast('Pistola: '+String(e?.message||e),'warning');}
+}
+window.consultarTareaJornadaFitoV3=consultarTareaJornadaFitoV3;
+
 function gatherTargets(ids){
  return ids.map(inv=>{
   const r=calcularCallesFmBulk(inv),notes=new Map(),valid=new Set([...INV_LAYOUT[inv].row1,...INV_LAYOUT[inv].row2]);
