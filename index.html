@@ -1900,6 +1900,7 @@ function buildTareaGestorRow(t, conSeleccion){
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const est = estadoTareaColores(t.estado);
   const origen=tareaOrigenGestion(t),manual=origen==='manual',pistola=origen==='pistola';
+  const pistolaVinculada=pistola&&!!t.origenFito?.serieId;
   const origenLabel={riego:'Riego',pistola:'Pistola',manual:'Manual',especificos:'Específicos',sin_origen:'Antiguo'}[origen]||origen;
   const subtitulo = t.objetivos && t.objetivos.length ? invCallesLabelDeTarea(t) : ((t.inv?('INV '+t.inv):'')+(t.calles?(' · '+(/\(INV completo\)$/.test(t.calles)?'ENTERO':t.calles)):''));
   const detalles = [
@@ -1927,7 +1928,7 @@ function buildTareaGestorRow(t, conSeleccion){
         ${manual ? `<button onclick="showEditarTareaForm('${t.id}')" style="padding:7px 12px;font-size:11px;font-weight:700;background:#1558a0;color:#fff;border:0;border-radius:7px;cursor:pointer">Editar</button>
           <button onclick="eliminarTarea('${t.id}')" style="padding:7px 12px;font-size:11px;background:#eef4fb;color:#1558a0;border:1px solid #a8c4e8;border-radius:7px;cursor:pointer">Anular</button>` : ''}
         ${pistola ? `<button onclick="imprimirHojaFumigacionTarea('${t.id}')" style="padding:7px 12px;font-size:11px;font-weight:700;background:#1558a0;color:#fff;border:0;border-radius:7px;cursor:pointer">Hoja oficial</button>
-          <button onclick="abrirJornadaPistolaDesdeTareas('${t.id}')" style="padding:7px 12px;font-size:11px;background:#eef4fb;color:#1558a0;border:1px solid #a8c4e8;border-radius:7px;cursor:pointer">Ver jornada</button>` : ''}
+          ${pistolaVinculada?`<button onclick="abrirJornadaPistolaDesdeTareas('${t.id}')" style="padding:7px 12px;font-size:11px;background:#eef4fb;color:#1558a0;border:1px solid #a8c4e8;border-radius:7px;cursor:pointer">Ver jornada</button>`:''}` : ''}
         ${!pistola ? `<button onclick="imprimirTareaSuelta('${t.id}')" style="padding:7px 12px;font-size:11px;background:#eef4fb;color:#1558a0;border:1px solid #a8c4e8;border-radius:7px;cursor:pointer">Imprimir</button>` : ''}
       </div>
     </div>`;
@@ -2471,6 +2472,11 @@ function renderTareasGestorFullScreen(overlay){
    </div>`:''}
  </div>`;
  const action=(fn,icon,label)=>`<button onclick="${fn}()" style="padding:8px 11px;border:1px solid #a8c4e8;border-radius:7px;background:#fff;color:#1558a0;cursor:pointer;font-size:12px;font-weight:700"><i class="ti ${icon}"></i> ${label}</button>`;
+ const pendientesRiego=leerColaRiegoTareas().length;
+ const avisoRiegoPendiente=vista==='operativas'&&pendientesRiego?`<div role="status" style="padding:9px 12px;background:#fff8e1;color:#795300;border-bottom:1px solid #e4d39b;font-size:12px;font-weight:700">
+   Riego · ${pendientesRiego} invernadero(s) pendiente(s) de conciliar
+   ${currentUserRole==='ADMIN'?'<button onclick="procesarColaRiegoTareas()" style="margin-left:9px;background:#1558a0;color:#fff;border:0;border-radius:6px;padding:6px 10px;cursor:pointer">Reintentar</button>':''}
+ </div>`:'';
  const toolbar=vista==='operativas'?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
    ${action('showNuevaTareaForm','ti-plus','Nueva tarea')}
    
@@ -2497,6 +2503,7 @@ function renderTareasGestorFullScreen(overlay){
      ${nav('archivo','Archivo',tareasData.filter(esTareaArchivada).length+archivoMantenimientoRegistros().length,'ti-archive')}
         </div>
    ${fechaBar}
+   ${avisoRiegoPendiente}
    ${filtroHTML}
    <div id="tareas-gestor-content-wrap" style="flex:1;overflow-y:auto;padding:12px 14px">
      ${vista==='mantenimiento'?'<div id="nuevo-ticket-mant-wrap"></div>':''}${body}
@@ -16801,7 +16808,9 @@ async function conciliarRiegoTareasConfirmadas(invId,dias){
   const ok=await loadRiegoInvData(String(invId),true);
   if(!ok) return false;
   const plan=planTareasRiegoParaDias(invId,dias);
-  const days=new Set(dias.map(d=>fechaLocalISO(riegoDiaToDate(Number(d)))));
+  const hoy=fechaLocalISO(new Date());
+  const days=new Set(dias.map(d=>fechaLocalISO(riegoDiaToDate(Number(d)))).filter(d=>d>=hoy));
+  if(!days.size)return true; // jamás anular pendientes históricos por una edición retroactiva
   const aComparar=plan.filter(p=>days.has(p.fechaISO));
   const now=new Date().toISOString();
   let conflicto=false;
