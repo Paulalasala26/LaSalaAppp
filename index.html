@@ -3595,7 +3595,7 @@ async function autoAsignarTareaFumigacion(objetivos, dia, titulo, horario, extra
   const fusionarOCrear = (asignadoA) => {
     // Igual que en autoAsignarTareasRiego: fusiona con pendiente O iniciada,
     // solo crea aparte si ya está completada (evita duplicados al re-guardar).
-    const existente = tareasData.find(t => t.fechaISO===fechaISO && t.asignadoA===asignadoA && t.titulo===titulo && t.categoria==='fumigacion' && t.estado!=='completada' && (t.caldoLabel||'')===caldoLabel);
+    const existente = tareasData.find(t => t.fechaISO===fechaISO && t.asignadoA===asignadoA && t.titulo===titulo && t.categoria==='fumigacion' && !t.origenFito?.serieId && t.estado!=='completada' && (t.caldoLabel||'')===caldoLabel);
     if(existente){
       if(!existente.objetivos) existente.objetivos = [];
       objetivos.forEach(o=>{
