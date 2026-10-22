@@ -15529,6 +15529,41 @@ let rmTramos = [{desde:null, hasta:null}];
 // manual normal no mueve nada, y si se marca el mismo riego en varios días
 // distintos por separado (sin editar), cada uno se queda donde está.
 let rmEditContextoOriginal = null;
+let rmModoTextoLibre = false;
+function rmActualizarModoEdicion(){
+  const bloque=document.getElementById('rm-texto-libre-bloque');
+  if(bloque)bloque.style.display=rmModoTextoLibre?'block':'none';
+  document.querySelectorAll('[data-rm-estructurado]').forEach(el=>{
+    el.style.display=rmModoTextoLibre?'none':'';
+  });
+}
+function rmMostrarTextoLibreRiego(texto){
+  const campo=document.getElementById('rm-texto-libre');
+  if(!campo)return;
+  campo.value=String(texto||'');
+  rmModoTextoLibre=true;
+  rmActualizarModoEdicion();
+}
+function rmSustituirTextoLibrePorSelectores(){
+  if(!rmModoTextoLibre)return;
+  if(!confirm('El texto libre se sustituirá por los selectores. Las partes no reconocidas se perderán al aplicar. ¿Continuar?'))return;
+  rmModoTextoLibre=false;
+  rmActualizarModoEdicion();
+}
+function rmPrecargarEdicionRiego(texto){
+  const original=String(texto||'').trim();
+  precargarFormularioRiegoDesdeTexto(original);
+  // Sólo editar con selectores cuando reconstruyen el riego íntegramente.
+  // Si la conversión pierde información, conservar el texto literal completo.
+  if(construirPartesRiegoManual().textoCompleto!==original){
+    rmMostrarTextoLibreRiego(original);
+  }
+}
+function rmTextoRiegoAAplicar(){
+  return rmModoTextoLibre
+    ? String(document.getElementById('rm-texto-libre')?.value||'').trim()
+    : construirPartesRiegoManual().textoCompleto;
+}
 // A petición de Paula (2026-08-06): "añade el mismo recuadro de al
 // seleccionar invernaderos aparezca la opción de Entero/Entero menos/Tramo
 // de calles" — hasta ahora Riego solo tenía esto para UN invernadero
@@ -15782,6 +15817,7 @@ function showRiegoManualForm(){
   rmAbonoRows = [{tiempo:'', cat:'', producto:'', horario:''}];
   rmTramos = inv ? [{desde:allCalles[0], hasta:allCalles[0]}] : [];
   rmEditContextoOriginal = null;
+  rmModoTextoLibre = false;
   rmTrabajoVias = {};
   // El invernadero con el que se abre el formulario (día pulsado en la
   // cuadrícula, arrastre de un tramo, o doble clic para editar) entra en
@@ -15822,8 +15858,14 @@ function showRiegoManualForm(){
         menos/Tramo de calles — mismo recuadro que ya usa Plaguicidas, arriba
         del todo para que se vea igual que en Plaguicidas/Específicos) -->
         ${riegoBulkInvSelectorHTML()}
+        <div id="rm-texto-libre-bloque" style="display:none;border:1.5px solid #a8c4e8;border-radius:9px;padding:10px;background:#f5f9ff">
+          <label for="rm-texto-libre" style="display:block;font-size:12px;font-weight:800;color:#1558a0;margin-bottom:6px">Texto del riego</label>
+          <textarea id="rm-texto-libre" rows="4" style="box-sizing:border-box;display:block;width:100%;min-height:90px;padding:9px;border:1.5px solid #a8c4e8;border-radius:7px;font-size:14px;color:var(--text);background:#fff;resize:vertical"></textarea>
+          <div style="font-size:11px;color:#486078;margin-top:6px">No se puede recuperar este riego íntegramente con los selectores. Edita el texto sin perder el contenido original.</div>
+          <button type="button" onclick="rmSustituirTextoLibrePorSelectores()" style="margin-top:9px;padding:7px 11px;border:1px solid #1558a0;border-radius:7px;background:#1558a0;color:#fff;font-size:11px;font-weight:700;cursor:pointer">Sustituir por selectores</button>
+        </div>
         <!-- RIEGO (regante): agua+sal, abono tiempo+tipo, fitosanitarios, horario -->
-        <div style="border:1.5px solid #a8c4e8;border-radius:9px;padding:.75rem;background:#f5f9ff">
+        <div data-rm-estructurado style="border:1.5px solid #a8c4e8;border-radius:9px;padding:.75rem;background:#f5f9ff">
           <div style="font-size:11px;font-weight:800;color:#1558a0;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;display:flex;align-items:center;gap:5px"><i class="ti ti-droplet" style="font-size:13px"></i> Riego</div>
           <div id="rm-agua-rows"></div>
           <button type="button" onclick="agregarAguaRow()" style="width:100%;padding:6px;font-size:11px;font-weight:700;background:#fff;border:1.5px dashed #a8c4e8;border-radius:6px;cursor:pointer;color:#1558a0;margin-bottom:10px">+ Añadir agua</button>
@@ -15885,7 +15927,7 @@ function showRiegoManualForm(){
             </div>
           </div>
         </div>
-        <details id="rm-grupo-foliares" style="border:1px solid #a8c4e8;border-radius:8px;background:#f5f9ff"><summary style="padding:10px;font-size:12px;font-weight:800;color:#1558a0;cursor:pointer">Foliares</summary>
+        <details id="rm-grupo-foliares" data-rm-estructurado style="border:1px solid #a8c4e8;border-radius:8px;background:#f5f9ff"><summary style="padding:10px;font-size:12px;font-weight:800;color:#1558a0;cursor:pointer">Foliares</summary>
         <!-- FOLIARES: las 3 fumigaciones con AF, con dosis elegible -->
         <div style="border:0;border-radius:9px;padding:.75rem;background:#f5f9ff">
           <div style="display:flex;flex-direction:column;gap:8px">
@@ -15936,7 +15978,7 @@ function showRiegoManualForm(){
         </div>
 
         </details>
-        <details id="rm-grupo-trabajo" style="border:1px solid #a8c4e8;border-radius:8px;background:#f5f9ff"><summary style="padding:10px;font-size:12px;font-weight:800;color:#1558a0;cursor:pointer">Trabajo</summary>
+        <details id="rm-grupo-trabajo" data-rm-estructurado style="border:1px solid #a8c4e8;border-radius:8px;background:#f5f9ff"><summary style="padding:10px;font-size:12px;font-weight:800;color:#1558a0;cursor:pointer">Trabajo</summary>
         <!-- TRABAJO (peón): con abono foliar / con agua (PP/PA/RS/DESPAREJOS en
         ambas, sincronizadas), tipo + horario -->
         <div style="border:0;border-radius:9px;padding:.75rem;background:#f5f9ff">
@@ -16511,8 +16553,8 @@ async function saveRiegoManual(){
   if(btn) btn.disabled = true;
   try{
     const dia = parseInt(document.getElementById('rm-dia').value);
-    const { textoCompleto } = construirPartesRiegoManual();
-    if(!textoCompleto){ showToast('Rellena al menos un campo de riego o de trabajo'); return; }
+    const textoCompleto = rmTextoRiegoAAplicar();
+    if(!textoCompleto){ showToast(rmModoTextoLibre?'Introduce el texto del riego':'Rellena al menos un campo de riego o de trabajo'); return; }
     const invIds = leerRmBulkInvsSeleccionados();
     if(!invIds.length){ showToast('Elige al menos un invernadero'); return; }
     const contextoOriginal = rmEditContextoOriginal;
@@ -16957,7 +16999,9 @@ function editarRiegoManualDesdeCelda(invId, dia, calles){
   const raw = getRiegoCellRaw(invId, dia, calles[0]);
   const infoEl = document.getElementById('rm-info-marcador');
   if(infoEl) infoEl.innerHTML = construirInfoMarcadorRiego(raw);
-  precargarFormularioRiegoDesdeTexto(getRiego(invId, dia, calles[0]) || '');
+  const guardarBtn = document.getElementById('rm-guardar-btn');
+  if(guardarBtn) guardarBtn.innerHTML = '<i class="ti ti-check" style="font-size:14px"></i> Guardar cambios';
+  rmPrecargarEdicionRiego(rmEditContextoOriginal.textoOriginal);
 }
 // Contexto de navegación creado únicamente desde el Backoffice de TEST.
 let riegoVieneDeBackoffice=false;
