@@ -1088,7 +1088,7 @@ async function limpiarTareasVencidas(){
       necesitaGuardar=true;
     }
   });
-  const aBorrar=tareasData.filter(esTareaVencidaParaBorrar);
+  const aBorrar=tareasData.filter(t=>!t.origenFito?.serieId&&esTareaVencidaParaBorrar(t));
   if(!aBorrar.length && !necesitaGuardar) return;
   const idsBorrar=new Set(aBorrar.map(t=>t.id));
   tareasData=tareasData.filter(t=>!idsBorrar.has(t.id));
@@ -1122,7 +1122,11 @@ async function persistTareasData(){
       if(!Array.isArray(cloud)) cloud=[];
       const map={};
       cloud.forEach(t=>map[t.id]=t);
-      locales.forEach(t=>map[t.id]=t);
+      locales.forEach(t=>{
+         // Las tareas Pistola vinculadas no admiten sobrescrituras de snapshots.
+         if(t.origenFito?.serieId||map[t.id]?.origenFito?.serieId)return;
+         map[t.id]=t;
+       });
       return Object.values(map);
     });
     if(!tx.ok){ avisarFalloGuardado(); return; }
@@ -1870,6 +1874,9 @@ async function asignarTareasEnLote(){
   if(!persona){ showToast('Elige a quién asignar'); return; }
   if(!tareasSeleccionadas.size){ showToast('Selecciona al menos una tarea'); return; }
   await loadTareasData();
+  if([...tareasSeleccionadas].some(id=>tareasData.some(t=>t.id===id&&t.origenFito?.serieId))){
+    showToast('No se reasignan tareas Pistola vinculadas en lote.');return;
+  }
   let cambios = 0;
   tareasSeleccionadas.forEach(id=>{
     const t = tareasData.find(x=>x.id===id);
@@ -2841,6 +2848,7 @@ async function crearTarea(){
 function showEditarTareaForm(id){
   const t = tareasData.find(x=>x.id===id);
   if(!t){ showToast('No se encontró la tarea'); return; }
+  if(t.origenFito?.serieId){showToast('Tarea Pistola vinculada: edición desde Plaguicidas.');return;}
   const wrap = document.getElementById('nueva-tarea-form-wrap');
   if(!wrap) return;
   const asignables = Object.keys(USERS);
@@ -2915,6 +2923,7 @@ async function guardarEdicionTarea(id){
     if(!Array.isArray(cloud)) cloud=[];
     const idx=cloud.findIndex(x=>x.id===id);
     if(idx<0) return {value:cloud,result:{missing:true}};
+    if(cloud[idx].origenFito?.serieId)return {value:cloud,result:{protected:true}};
     const cambioDeDueño=cloud[idx].asignadoA!==asignadoA;
     const actualizada={...cloud[idx],...campos,visto:cambioDeDueño?false:cloud[idx].visto};
     if(nuevoEstado==='pendiente'){ actualizada.horaInicio=null;actualizada.horaFin=null;actualizada.firmante=null;actualizada.completadoISO=null; }
@@ -2926,7 +2935,8 @@ async function guardarEdicionTarea(id){
   });
   if(!tx.ok){ avisarFalloGuardado();showToast('✗ No se han podido guardar los cambios');return; }
   if(tx.result?.missing){ showToast('No se encontró la tarea (puede que ya se haya eliminado)');return; }
-  tareasData=tx.value;
+  if(tx.result?.protected){showToast('La jornada Pistola protege su tarea vinculada.');return;}
+   tareasData=tx.value;
   logHistorial(`Editó la tarea "${titulo}" (asignada a ${asignadosMarcados.join(', ')})`);
   const wrap=document.getElementById('nueva-tarea-form-wrap');
   if(wrap) wrap.innerHTML='';
@@ -2936,12 +2946,16 @@ async function guardarEdicionTarea(id){
 async function eliminarTarea(id){
   const t=tareasData.find(x=>x.id===id);
   if(!t){ showToast('No se encontró la tarea'); return; }
+  if(t.origenFito?.serieId){showToast('No se elimina una tarea Pistola vinculada.');return;}
   if(!confirm(`¿Eliminar la tarea "${t.titulo}" (asignada a ${t.asignadoA})? Esta acción no se puede deshacer.`)) return;
   const tx=await actualizarStorageJsonConEtag(TAREAS_KEY,[],cloud=>{
     if(!Array.isArray(cloud)) cloud=[];
+    if(cloud.some(x=>x.id===id&&x.origenFito?.serieId))
+      return {value:cloud,result:{protected:true}};
     return cloud.filter(x=>x.id!==id);
   });
   if(!tx.ok){ avisarFalloGuardado();return; }
+  if(tx.result?.protected){showToast('No se elimina una tarea Pistola vinculada.');return;}
   tareasData=tx.value;
   logHistorial(`Eliminó la tarea "${t.titulo}" (asignada a ${t.asignadoA})`);
   showToast('Tarea eliminada');
@@ -3243,10 +3257,44 @@ function buildTareaCardPeonFactorial(t){
     </div>
   </div>`;
 }
+
+async function cambiarEjecucionPistolaVinculada(id,accion,firmas){
+  if(currentUserRole!=='PEON'||!currentUser){showToast('Solo el peón asignado puede ejecutar Pistola.');return false;}
+  const fecha=new Date(),hora=fecha.toLocaleString('es-ES'),ts=fecha.getTime();
+  const tx=await actualizarStorageJsonConEtag(TAREAS_KEY,[],cloud=>{
+    if(!Array.isArray(cloud))throw Error('Formato de tareas inválido');
+    const actual=cloud.find(t=>t.id===id);
+    const esperado=accion==='iniciar'?'pendiente':'iniciada';
+    if(!actual||!actual.origenFito?.serieId||actual.asignadoA!==currentUser||
+        actual.estado!==esperado||actual.conciliacionFito)return undefined;
+    const cambio=accion==='iniciar'
+      ?{estado:'iniciada',horaInicio:hora,horaInicioTs:ts}
+      :{estado:'completada',horaFin:hora,horaFinTs:ts,completadoISO:fechaLocalISO(fecha),
+        caldoSobrante:firmas.caldoSobrante,firmaPreparador:firmas.firmaPreparador,
+        firmaAplicador:firmas.firmaAplicador,firmante:firmas.firmaAplicador};
+    return cloud.map(t=>t.id===id?{...t,...cambio}:t);
+  });
+  if(!tx.ok){showToast('Guardado de ejecución sin confirmar; revisa el estado antes de actuar.');return false;}
+  tareasData=tx.value;
+  if(tx.noChange){showToast('El estado o la asignación han cambiado; no se sobrescribe.');refreshTareasViews();return false;}
+  logHistorial(accion==='iniciar'?'Inició tarea Pistola vinculada':'Completó fumigación Pistola vinculada');
+  if(accion==='completar'){
+    const overlay=document.getElementById('completar-fumigacion-overlay');
+    if(overlay)overlay.style.display='none';
+    showToast('✓ Fumigación completada');
+  }
+  refreshTareasViews();
+  return true;
+}
+
 async function iniciarTarea(id){
   await loadTareasData();
   const t = tareasData.find(x=>x.id===id);
-  if(!t) return;
+  if(!t)return;
+  if(t.origenFito?.serieId){
+    await cambiarEjecucionPistolaVinculada(id,'iniciar',{});
+    return;
+  }
   t.estado='iniciada';
   t.horaInicio = new Date().toLocaleString('es-ES');
   t.horaInicioTs = Date.now(); // timestamp numérico — lo usa el cronómetro en pantalla de las fumigaciones
@@ -3391,7 +3439,11 @@ async function completarFumigacion(id){
   if(!caldoSobrante || !firmaPreparador || !firmaAplicador){ showToast('Rellena las 3 casillas antes de confirmar'); return; }
   await loadTareasData();
   const t = tareasData.find(x=>x.id===id);
-  if(!t) return;
+  if(!t)return;
+  if(t.origenFito?.serieId){
+    await cambiarEjecucionPistolaVinculada(id,'completar',{caldoSobrante,firmaPreparador,firmaAplicador});
+    return;
+  }
   t.estado = 'completada';
   t.horaFin = new Date().toLocaleString('es-ES');
   t.completadoISO = fechaLocalISO(new Date());
@@ -3543,7 +3595,7 @@ function imprimirHojaFitoConDatos(datos){
 // distintos, el título y/o el caldo no coincidirán con lo ya pendiente y se
 // creará una tarea aparte (fusionarOCrear exige también mismo caldoLabel).
 async function autoAsignarTareaFumigacion(objetivos, dia, titulo, horario, extra){
-  if(!titulo || !objetivos || !objetivos.length) return;
+  if(!titulo || !objetivos || !objetivos.length)throw Error('Pistola: faltan producto u objetivos.');
   const fechaLabel = riegoDiaLabelCorto(dia);
   const fechaISO = fechaLocalISO(riegoDiaToDate(dia));
   const caldoLabel = extra?.caldoLabel || '';
