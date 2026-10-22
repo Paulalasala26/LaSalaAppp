@@ -3503,10 +3503,12 @@ function imprimirHojaFitoConDatos(datos){
   doc.open();
   doc.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Tratamientos con plaguicidas</title>
     <style>
-      @page { size: 210mm 298.6mm; margin: 0; }
+      @page { size: A4; margin: 0; }
       * { -webkit-print-color-adjust: exact; print-color-adjust: exact; color-adjust: exact; }
       body { font-family: Arial, Helvetica, sans-serif; margin:0; color:#1a1e18; }
-      .hoja-fito { position:relative; width:210mm; height:298.6mm; overflow:hidden; }
+      /* Relación del escaneo (1630×2318), con margen de seguridad de 0,5 mm
+         para evitar hojas en blanco por redondeos de impresión. */
+      .hoja-fito { position:relative; width:208.5mm; height:296.5mm; margin:0 auto; overflow:hidden; }
       .hoja-fito:not(:last-child) { break-after:page; page-break-after:always; }
       .hf-bg { position:absolute; left:0; top:0; width:100%; height:100%; z-index:0; }
       .ov { position:absolute; z-index:1; font-size:15px; font-weight:700; color:#111; white-space:nowrap; overflow:hidden; }
@@ -19132,6 +19134,12 @@ function lanzarImpresionFitoUnaVez(iframe,doc){
     if(lanzada||numero!==fitoImpresionNumero)return;
     lanzada=true;
     if(respaldo!=null)clearTimeout(respaldo);
+    // Una hoja oficial sin el impreso base no debe salir de la impresora.
+    // <img>.complete también es true cuando la carga FALLA: comprobar naturalWidth.
+    if(!imagenes.length||imagenes.some(img=>!img.complete||img.naturalWidth<=0)){
+      showToast('No se ha cargado la plantilla oficial. Revisa la conexión y vuelve a imprimir.');
+      return;
+    }
     iframe.contentWindow.focus();
     iframe.contentWindow.print();
   };
@@ -19264,10 +19272,12 @@ function imprimirHojaFitosanitario(){
   doc.open();
   doc.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Tratamientos con plaguicidas</title>
     <style>
-      @page { size: 210mm 298.6mm; margin: 0; }
+      @page { size: A4; margin: 0; }
       * { -webkit-print-color-adjust: exact; print-color-adjust: exact; color-adjust: exact; }
       body { font-family: Arial, Helvetica, sans-serif; margin:0; color:#1a1e18; }
-      .hoja-fito { position:relative; width:210mm; height:298.6mm; overflow:hidden; }
+      /* Relación del escaneo (1630×2318), con margen de seguridad de 0,5 mm
+         para evitar hojas en blanco por redondeos de impresión. */
+      .hoja-fito { position:relative; width:208.5mm; height:296.5mm; margin:0 auto; overflow:hidden; }
       .hf-bg { position:absolute; left:0; top:0; width:100%; height:100%; z-index:0; }
       .ov { position:absolute; z-index:1; font-size:15px; font-weight:700; color:#111; white-space:nowrap; overflow:hidden; }
       .ov-cultivos { white-space:normal; line-height:1.9; overflow:visible; font-size:20px; text-align:center; }
