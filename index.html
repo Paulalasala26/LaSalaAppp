@@ -3547,7 +3547,8 @@ async function autoAsignarTareaFumigacion(objetivos, dia, titulo, horario, extra
   const fechaLabel = riegoDiaLabelCorto(dia);
   const fechaISO = fechaLocalISO(riegoDiaToDate(dia));
   const caldoLabel = extra?.caldoLabel || '';
-  await loadTareasData();
+  const vinculo=extra?.serieId&&extra?.jornadaId
+    ?{serieId:String(extra.serieId),jornadaId:String(extra.jornadaId)}:null;
   const crearTareaAuto = (asignadoA) => ({
     id: 'tarea_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
     titulo, descripcion:'', asignadoA, asignadoPor: currentUser||'—',
@@ -3559,6 +3560,38 @@ async function autoAsignarTareaFumigacion(objetivos, dia, titulo, horario, extra
     caldoSobrante:null, firmaPreparador:null, firmaAplicador:null,
     visto:false, creadoEn: new Date().toLocaleString('es-ES')
   });
+  // APP R v3: cada jornada guardada es una orden identificable, incluso si
+  // otro tratamiento del mismo día tiene idénticos producto, hora y caldo.
+  // La transacción ETag verifica la relación EN LA NUBE (sin copiar un estado
+  // local obsoleto), impide fusiones erróneas y tolera reintentos/concurrencia.
+  if(vinculo){
+    const salas=[...new Set(objetivos.map(o=>salaDeInv(o.invId)))];
+    if(salas.length!==1||!salas[0])throw Error('Pistola: tarea no asignada por salas incompatibles.');
+    const asignadoA=peonDelaSala(objetivos[0].invId);
+    const nueva={...crearTareaAuto(asignadoA),origenFito:vinculo};
+    const tx=await actualizarStorageJsonConEtag(TAREAS_KEY,[],cloud=>{
+      if(!Array.isArray(cloud))throw Error('Tareas: formato inesperado; no se puede asignar.');
+      const mismas=cloud.filter(t=>t.categoria==='fumigacion'
+        &&t.origenFito?.serieId===vinculo.serieId
+        &&t.origenFito?.jornadaId===vinculo.jornadaId);
+      if(mismas.length>1)throw Error('Tareas: varias asignaciones para una jornada. Revisar conciliación.');
+      if(mismas.length===1){
+        const t=mismas[0];
+        if(t.fechaISO!==fechaISO||t.asignadoA!==asignadoA)
+          throw Error('Tareas: vínculo incompatible. Revisar la tarea existente.');
+        // Nunca reiniciar una tarea vista, iniciada o completada.
+        return undefined;
+      }
+      return [...cloud,nueva];
+    });
+    if(!tx.ok)throw Error('Jornada guardada; tarea de Pistola no confirmada en servidor.');
+    tareasData=tx.value;
+    if(!tx.noChange)logHistorial('Tarea Pistola vinculada a jornada '+fechaISO);
+    refreshTareasViews();
+    return {ok:true,yaExistia:!!tx.noChange};
+  }
+  // Circuito histórico sin serieId/jornadaId: mantener compatibilidad.
+  await loadTareasData();
   const fusionarOCrear = (asignadoA) => {
     // Igual que en autoAsignarTareasRiego: fusiona con pendiente O iniciada,
     // solo crea aparte si ya está completada (evita duplicados al re-guardar).
