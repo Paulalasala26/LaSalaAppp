@@ -388,7 +388,7 @@ function construirConsultaFitoV3(mod){
    lines.push('<div style="font-weight:750">INV '+esc(inv)+' · '+esc(formatCallesConEnteroParaImprimir(inv,all))+'</div>');
    if(firstStreets.length)lines.push('<span style="color:#6a1b9a">Primer día: '+esc(formatCallesConEnteroParaImprimir(inv,firstStreets))+'</span>');
    if(further.length)lines.push('<span>Continúan: '+esc(formatCallesConEnteroParaImprimir(inv,further))+'</span>');
-   locations.push('<div style="padding:9px 11px;border:1px solid #dce6f2;border-radius:8px;background:#fff;display:flex;flex-direction:column;gap:4px">'+lines.join('')+'</div>');
+   locations.push('<div style="box-sizing:border-box;width:100%;padding:9px 11px;border:1px solid #dce6f2;border-radius:8px;background:#fff;display:flex;flex-direction:column;gap:3px;font-size:12px;line-height:1.5">'+lines.join('')+'</div>');
   }
   j.detail=locations.join('');
   j.location=j.invIds.map(inv=>'INV '+inv).join(', ');
@@ -404,7 +404,7 @@ function construirConsultaFitoV3(mod){
   for(const inv of invs){
    const byObs=f.porInv[inv];
    const calles=[...new Set(Object.values(byObs).flat().map(Number))].sort((a,b)=>a-b);
-   ranges.push('<div style="padding:9px 11px;border:1px solid #dce6f2;border-radius:8px;background:#fff">'
+   ranges.push('<div style="box-sizing:border-box;width:100%;padding:9px 11px;border:1px solid #dce6f2;border-radius:8px;background:#fff;font-size:12px;line-height:1.5">'
      +'<b>INV '+esc(inv)+'</b> · '+esc(formatCallesConEnteroParaImprimir(inv,calles))+'</div>');
   }
   rows.push({
@@ -422,7 +422,7 @@ function construirConsultaFitoV3(mod){
  const invsPorSala=[['Sala 1',Object.keys(INV_LAYOUT_SALA1)],
   ['Sala 2',Object.keys(INV_LAYOUT_SALA2)],['Sala 3',Object.keys(INV_LAYOUT_SALA3)],
   ['Sala 4',Object.keys(INV_LAYOUT_SALA4)],['Sala 5',Object.keys(INV_LAYOUT_SALA5)]];
- const boxSelect='min-height:40px;width:100%;padding:7px 9px;border:1px solid #b5c9df;border-radius:8px;background:#fff;color:#263344;font-size:13px';
+ const boxSelect='box-sizing:border-box;min-height:40px;width:100%;padding:7px 9px;border:1px solid #b5c9df;border-radius:8px;background:#fff;color:#263344;font-size:13px';
  const filtDia='<select aria-label="Día" onchange="cambiarResumenQuincenaDiaFiltro(\'fito\',this.value)" style="'+boxSelect+'">'
   +'<option value="">Todos los días</option>'
   +dias.map(d=>'<option value="'+d+'"'+(filtroDia===d?' selected':'')+'>'+esc(riegoDiaLabelCorto(d))+' · '+esc(riegoDiaSemana(d))+'</option>').join('')+'</select>';
@@ -433,57 +433,66 @@ function construirConsultaFitoV3(mod){
   +'<option value="">Todos los invernaderos</option>'
   +invsPorSala.map(([s,ids])=>'<optgroup label="'+s+'">'+ids.sort((a,b)=>a.localeCompare(b,'es',{numeric:true})).map(k=>'<option value="'+esc(k)+'"'+(filtroInv===k?' selected':'')+'>INV '+esc(k)+'</option>').join('')+'</optgroup>').join('')+'</select>';
  const cards=rows.map(row=>{
-  const parsedDate=esc(riegoDiaLabelCorto(row.day))+' · '+esc(riegoDiaSemana(row.day));
-  const kind=row.kind==='linked';
-  const note=kind?'Inicio global: '+esc(row.start):'Registro histórico sin vínculo';
-  const badges=[row.method, row.broth].filter(Boolean).map(s=>'<span>'+esc(s)+'</span>').join('<span aria-hidden="true"> · </span>');
-  const action=kind
-   ?'<button type="button" data-serie="'+esc(row.serieId)+'" data-jornada="'+esc(row.jornadaId)+'" onclick="editarJornadaFitoConsultaV3(this.dataset.serie,this.dataset.jornada)" style="padding:9px 12px;min-height:40px;background:#1558a0;color:#fff;border:0;border-radius:7px;font-weight:750;cursor:pointer">Editar jornada</button>'
-    +'<button type="button" data-serie="'+esc(row.serieId)+'" data-jornada="'+esc(row.jornadaId)+'" onclick="imprimirJornadaFitoConsultaV3(this.dataset.serie,this.dataset.jornada)" style="padding:9px 12px;min-height:40px;background:#fff;color:#1558a0;border:1px solid #1558a0;border-radius:7px;font-weight:750;cursor:pointer">Imprimir hoja oficial</button>'
-   :'<button type="button" onclick="editarResumenTratamiento(\'fito\','+row.idx+')" style="padding:9px 12px;min-height:40px;background:#1558a0;color:#fff;border:0;border-radius:7px;font-weight:750;cursor:pointer">Editar registro</button>'
-    +'<button type="button" onclick="imprimirHojaResumen(\'fito\','+row.idx+')" style="padding:9px 12px;min-height:40px;background:#fff;color:#1558a0;border:1px solid #1558a0;border-radius:7px;font-weight:750;cursor:pointer">Imprimir hoja oficial</button>';
-  const locationShort=esc(row.location)+(row.count?' · '+row.count+' calles':'');
+  const dateLabel=esc(riegoDiaLabelCorto(row.day))+' · '+esc(riegoDiaSemana(row.day));
+  const linkedRow=row.kind==='linked';
+  const note=linkedRow&&row.start&&row.start!==dayISO(row.day)
+   ?'Inicio '+esc(row.start.slice(8,10)+'/'+row.start.slice(5,7)):'';
+  const attrs=linkedRow?' data-serie="'+esc(row.serieId)+'" data-jornada="'+esc(row.jornadaId)+'"':'';
+  const editOnclick=linkedRow
+   ?'editarJornadaFitoConsultaV3(this.dataset.serie,this.dataset.jornada)'
+   :'editarResumenTratamiento(\'fito\','+row.idx+')';
+  const printOnclick=linkedRow
+   ?'imprimirJornadaFitoConsultaV3(this.dataset.serie,this.dataset.jornada)'
+   :'imprimirHojaResumen(\'fito\','+row.idx+')';
+  const buttonStyle='box-sizing:border-box;min-height:44px;height:44px;border:1px solid #1558a0;border-radius:8px;background:#1558a0;color:#fff;font-size:13px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;justify-content:center';
+  const action='<button type="button"'+attrs+' onclick="'+editOnclick+'" style="'+buttonStyle+';width:100%;min-width:0;padding:0 12px">'
+   +(linkedRow?'Editar jornada':'Editar registro')+'</button>'
+   +'<button type="button"'+attrs+' onclick="'+printOnclick+'" title="Imprimir hoja oficial" aria-label="Imprimir hoja oficial" style="'+buttonStyle+';width:46px;padding:0">'
+   +'<i class="ti ti-printer" aria-hidden="true" style="font-size:19px"></i></button>';
+  const badges=[row.method,row.broth].filter(Boolean).map(x=>esc(x)).join(' · ');
+  const detailsText=[row.dose,row.time,badges].filter(Boolean).map(x=>esc(x)).join(' · ');
+  const location=esc(row.location)+(row.count?' · '+row.count+' calles':'');
   const visible=!buscar||limpiarBusquedaFitoV3(row.search).includes(buscar);
   return '<details data-fito-consulta-registro data-busqueda="'+esc(limpiarBusquedaFitoV3(row.search))+'"'
-   +(visible?'':' hidden')+' style="border:1px solid #cfdeec;border-radius:10px;background:#fff;overflow:hidden">'
-   +'<summary style="cursor:pointer;list-style:revert;padding:12px 14px;display:list-item;min-height:54px;color:#1a2e42">'
-   +'<div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:5px 12px;margin-bottom:4px">'
-   +'<span style="font-size:12px;font-weight:800;color:#1558a0">'+parsedDate+'</span>'
-   +'<span style="font-size:11px;color:#53677d">'+note+'</span></div>'
+   +(visible?'':' hidden')+' style="box-sizing:border-box;width:100%;border:1px solid #cfdeec;border-radius:10px;background:#fff;overflow:hidden">'
+   +'<summary style="cursor:pointer;list-style:none;display:block;padding:11px 13px;min-height:54px;color:#1a2e42">'
+   +'<div style="display:grid;grid-template-columns:minmax(0,1fr) 24px;gap:8px;align-items:start">'
+   +'<div style="min-width:0">'
+   +'<div style="display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;margin-bottom:4px">'
+   +'<span style="font-size:12px;font-weight:800;color:#1558a0">'+dateLabel+'</span>'
+   +(note?'<span style="font-size:11px;color:#53677d">'+note+'</span>':'')+'</div>'
    +'<div style="font-size:14px;font-weight:800;overflow-wrap:anywhere">'+esc(row.title)+'</div>'
-   +'<div style="font-size:12px;color:#455c74;margin-top:4px;overflow-wrap:anywhere">'
-   +esc(row.dose)+(row.dose&&row.time?' · ':'')+esc(row.time)
-   +(row.method||row.broth?' · '+badges:'')+'</div>'
-   +'<div style="font-size:12px;color:#455c74;margin-top:4px">'+locationShort+'</div>'
-   +'</summary>'
-   +'<div style="background:#f6f9fd;border-top:1px solid #dce6f2;padding:12px 14px">'
-   +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(195px,1fr));gap:7px">'+row.detail+'</div>'
-   +'<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">'+action+'</div></div></details>';
+   +(detailsText?'<div style="font-size:12px;color:#455c74;margin-top:4px;overflow-wrap:anywhere">'+detailsText+'</div>':'')
+   +'<div style="font-size:12px;color:#455c74;margin-top:4px">'+location+'</div></div>'
+   +'<i class="ti ti-chevron-down fito-consulta-toggle" aria-hidden="true" style="justify-self:center;margin-top:2px;font-size:17px;color:#1558a0;transition:transform .18s"></i>'
+   +'</div></summary>'
+   +'<div style="box-sizing:border-box;width:100%;background:#f6f9fd;border-top:1px solid #dce6f2;padding:10px 12px">'
+   +'<div style="display:flex;flex-direction:column;width:100%;gap:7px">'+row.detail+'</div>'
+   +'<div style="display:grid;grid-template-columns:minmax(0,1fr) 46px;gap:8px;width:100%;margin-top:10px">'+action+'</div>'
+   +'</div></details>';
  }).join('');
  const shown=rows.filter(row=>!buscar||limpiarBusquedaFitoV3(row.search).includes(buscar)).length;
- return '<div id="resumen-quincena-fito" style="width:100%;max-width:950px;margin:0 auto">'
-  +'<div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;padding:0 0 12px">'
-  +'<div><h3 style="font-size:16px;font-weight:800;color:#1558a0;margin:0">Consultar tratamientos</h3>'
-  +'<div style="font-size:11px;color:#53677d;margin-top:4px">Jornadas registradas; no confirma su ejecución.</div></div>'
-  +'<div style="display:flex;align-items:center;gap:7px">'
+ return '<div id="resumen-quincena-fito" style="box-sizing:border-box;width:100%;max-width:950px;margin:0 auto">'
+  +'<style>#resumen-quincena-fito summary::-webkit-details-marker{display:none}#resumen-quincena-fito details[open] .fito-consulta-toggle{transform:rotate(180deg)}</style>'
+  // Same width as the consultation records, with arrow controls at both ends.
+  +'<div style="box-sizing:border-box;width:100%;display:grid;grid-template-columns:44px minmax(0,1fr) 44px;align-items:center;gap:8px;padding:7px;background:#e8f0fb;border:1px solid #cbdcef;border-radius:9px;margin-bottom:9px">'
   +'<button type="button" onclick="changeFitoQuincena(-1)"'+(fitoQuincenaOffset<=0?' disabled':'')
-  +' title="Quincena anterior" style="min-width:38px;min-height:38px;background:'+(fitoQuincenaOffset<=0?'#dae2ea':'#1558a0')+';color:'+(fitoQuincenaOffset<=0?'#687b8d':'#fff')+';border:0;border-radius:7px;font-size:21px;cursor:pointer">‹</button>'
-  +'<span style="min-width:155px;text-align:center;font-size:13px;font-weight:800;color:#1558a0">'+esc(riegoQuincenaLabel(fitoQuincenaOffset))+'</span>'
-  +'<button type="button" onclick="changeFitoQuincena(1)" title="Quincena siguiente" style="min-width:38px;min-height:38px;background:#1558a0;color:#fff;border:0;border-radius:7px;font-size:21px;cursor:pointer">›</button>'
-  +'</div></div>'
-  +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:7px;padding:11px;background:#eaf1fa;border:1px solid #cbdcef;border-radius:9px;margin-bottom:11px">'
-  +'<label style="font-size:11px;font-weight:750;color:#1558a0">Día'+filtDia+'</label>'
-  +'<label style="font-size:11px;font-weight:750;color:#1558a0">Sala'+filtSala+'</label>'
-  +'<label style="font-size:11px;font-weight:750;color:#1558a0">Invernadero'+filtInv+'</label>'
-  +'<label style="font-size:11px;font-weight:750;color:#1558a0">Buscar tratamiento'
-  +'<input type="search" value="'+esc(busquedaFitoV3)+'" placeholder="Nombre o producto" oninput="filtrarConsultaFitoV3(this.value)" style="'+boxSelect+';box-sizing:border-box"></label>'
+  +' title="Quincena anterior" aria-label="Quincena anterior" style="width:44px;height:44px;background:'+(fitoQuincenaOffset<=0?'#dae2ea':'#1558a0')
+  +';color:'+(fitoQuincenaOffset<=0?'#687b8d':'#fff')+';border:0;border-radius:7px;font-size:21px;cursor:'+(fitoQuincenaOffset<=0?'default':'pointer')+'">‹</button>'
+  +'<span style="min-width:0;text-align:center;font-size:13px;font-weight:800;color:#1558a0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(riegoQuincenaLabel(fitoQuincenaOffset))+'</span>'
+  +'<button type="button" onclick="changeFitoQuincena(1)" title="Quincena siguiente" aria-label="Quincena siguiente" style="width:44px;height:44px;background:#1558a0;color:#fff;border:0;border-radius:7px;font-size:21px;cursor:pointer">›</button>'
   +'</div>'
-  +'<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px">'
-  +'<div id="fito-consulta-conteo" aria-live="polite" style="font-size:12px;font-weight:800;color:#1558a0">'+shown+' '+(shown===1?'registro':'registros')+'</div>'
-  +'<div style="font-size:11px;color:#53677d">Selecciona un registro para ver sus calles y acciones</div></div>'
-  +'<div style="display:flex;flex-direction:column;gap:8px">'+cards+'</div>'
+  +'<div style="box-sizing:border-box;width:100%;display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:7px;padding:9px;background:#eaf1fa;border:1px solid #cbdcef;border-radius:9px;margin-bottom:8px">'
+  +'<label style="min-width:0;font-size:11px;font-weight:750;color:#1558a0">Día'+filtDia+'</label>'
+  +'<label style="min-width:0;font-size:11px;font-weight:750;color:#1558a0">Sala'+filtSala+'</label>'
+  +'<label style="min-width:0;font-size:11px;font-weight:750;color:#1558a0">Invernadero'+filtInv+'</label>'
+  +'<label style="min-width:0;font-size:11px;font-weight:750;color:#1558a0">Buscar'
+  +'<input type="search" value="'+esc(busquedaFitoV3)+'" placeholder="Tratamiento" oninput="filtrarConsultaFitoV3(this.value)" style="'+boxSelect+'"></label>'
+  +'</div>'
+  +'<div id="fito-consulta-conteo" aria-live="polite" style="font-size:12px;font-weight:750;color:#53677d;margin:0 0 7px">'+shown+' '+(shown===1?'registro':'registros')+'</div>'
+  +'<div style="display:flex;flex-direction:column;gap:8px;width:100%">'+cards+'</div>'
   +'<div id="fito-consulta-vacio"'+(shown?' hidden':'')+' style="font-size:13px;text-align:center;padding:24px 8px;color:#53677d">'
-  +'No hay tratamientos con los filtros seleccionados.</div>'
+  +'No hay tratamientos.</div>'
   +'</div>';
 }
 window.renderResumenQuincenaTratamientos=construirConsultaFitoV3;
