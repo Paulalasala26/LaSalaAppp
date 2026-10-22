@@ -16625,7 +16625,8 @@ function parsearTrabajoDeTexto(texto){
 // "categoria" y no se tocan — que no estén ya completadas) y las vuelve a
 // crear desde cero recorriendo riegoData entero.
 async function generarTareasDesdeRiego(){
-  if(!confirm('¿Generar tareas de peón desde lo que hay escrito ahora mismo en Riego?\n\nSe borrarán las tareas de peón pendientes/iniciadas (no las completadas) y se crearán de nuevo solo con lo que esté escrito en este momento.')) return;
+  if(!['ADMIN','TECNICO'].includes(currentUserRole)) return;
+  if(!confirm('¿Actualizar las tareas generadas desde Riego? Se conservarán las manuales, las iniciadas y el historial. Solo se reemplazará la programación pendiente de origen Riego.'))return;
   showToast('Generando tareas…');
   // persistTareasData() solo FUSIONA con la nube (nunca borra, ver
   // persistTareasData) — si se usara aquí, las tareas obsoletas que se
@@ -16644,7 +16645,9 @@ async function generarTareasDesdeRiego(){
   // Detectado en la auditoría completa del 2026-09-09.
   if(!rCloud){ avisarFalloGuardado(); return; }
   tareasData = JSON.parse(rCloud.value);
-  tareasData = tareasData.filter(t => !((['PEON1','PEON2','PEON3'].includes(t.asignadoA)) && !t.categoria && t.estado!=='completada'));
+  // Trabajar con propuesta temporal: la nube conserva los originales.
+  // No se puede asumir que una tarea antigua sin categoría proceda de Riego.
+  tareasData=tareasData.filter(t=>!((t.categoria==='riego'||t.origenTarea==='riego')&&t.estado==='pendiente'&&!esTareaArchivada(t)));
   const invIds = [...Object.keys(INV_LAYOUT_SALA1), ...Object.keys(INV_LAYOUT_SALA2), ...Object.keys(INV_LAYOUT_SALA3), ...Object.keys(INV_LAYOUT_SALA4), ...Object.keys(INV_LAYOUT_SALA5)];
   let creadas = 0;
   invIds.forEach(invId=>{
@@ -16676,7 +16679,7 @@ async function generarTareasDesdeRiego(){
         const crearOFusionar = (tituloBruto, horarioTarea, esFoliar) => {
           const tituloExpandido = expandirAbreviaturasRiego(tituloBruto);
           const peonAsignado = peonDelaSala(invId);
-          const existente = tareasData.find(t=>t.asignadoA===peonAsignado && !t.categoria && t.inv===invId && t.fechaISO===fechaISO && t.titulo===tituloExpandido && (t.horario||'')===(horarioTarea||''));
+          const existente = tareasData.find(t=>t.asignadoA===peonAsignado && t.categoria==='riego' && t.inv===invId && t.fechaISO===fechaISO && t.titulo===tituloExpandido && (t.horario||'')===(horarioTarea||''));
           if(existente){
             existente._callesNumeros = [...new Set([...(existente._callesNumeros||[]), ...br.calles])];
           } else {
@@ -16684,7 +16687,7 @@ async function generarTareasDesdeRiego(){
               id: 'tarea_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
               titulo: tituloExpandido, descripcion:'', asignadoA:peonAsignado, asignadoPor: currentUser||'—',
               inv: invId, calles: '', _callesNumeros:[...br.calles], fecha: riegoDiaLabelCorto(dia), fechaISO, turno:'',
-              horario: horarioTarea||'', esFoliar: !!esFoliar,
+              horario: horarioTarea||'', esFoliar: !!esFoliar, categoria:'riego', origenTarea:'riego',
               prioridad:'normal', estado:'pendiente', horaInicio:null, horaFin:null, firmante:null,
               visto:false, creadoEn: new Date().toLocaleString('es-ES')
             });
@@ -16714,16 +16717,29 @@ async function generarTareasDesdeRiego(){
     t.calles = formatCallesConEnteroParaTareaPeon(t.inv, t._callesNumeros);
     delete t._callesNumeros;
   });
-  const generadasRiego=tareasData.filter(t=>['PEON1','PEON2','PEON3'].includes(t.asignadoA) && !t.categoria && t.estado!=='completada');
+  const generadasRiego=tareasData.filter(t=>t.categoria==='riego'&&t.estado==='pendiente'&&!esTareaArchivada(t));
   const txTareas=await actualizarStorageJsonConEtag(TAREAS_KEY,[],fresh=>{
-    if(!Array.isArray(fresh)) fresh=[];
-    const base=fresh.filter(t=>!((['PEON1','PEON2','PEON3'].includes(t.asignadoA)) && !t.categoria && t.estado!=='completada'));
-    return base.concat(generadasRiego);
+    if(!Array.isArray(fresh))throw Error('Tareas: formato de servidor inválido');
+    const key=t=>[String(t.asignadoA||''),String(t.inv||''),String(t.fechaISO||''),String(t.titulo||''),String(t.horario||'')].join('||');
+    const nuevasMap=new Map(generadasRiego.map(t=>[key(t),t]));
+    const iniciadas=new Set(fresh.filter(t=>(t.categoria==='riego'||t.origenTarea==='riego')&&t.estado==='iniciada').map(key));
+    const ahora=new Date().toISOString();
+    const actualizadas=fresh.map(t=>{
+      if(!(t.categoria==='riego'||t.origenTarea==='riego')||t.estado!=='pendiente'||esTareaArchivada(t))return t;
+      if(nuevasMap.has(key(t))){
+        const nueva=nuevasMap.get(key(t));
+        nuevasMap.delete(key(t));
+        return {...t,...nueva,id:t.id,visto:t.calles===nueva.calles?t.visto:false,creadoEn:t.creadoEn};
+      }
+      // Anular y archivar; nunca suprimir un registro o su trazabilidad.
+      return {...t,estado:'anulada',archivadaEn:ahora,motivoAnulacion:'Sustituida al regenerar Riego'};
+    });
+    return actualizadas.concat([...nuevasMap.values()].filter(t=>!iniciadas.has(key(t))));
   });
   if(!txTareas.ok){ avisarFalloGuardado(); return; }
   tareasData=txTareas.value;
-  logHistorial(`Generó tareas de peón desde Riego (${creadas} nueva${creadas===1?'':'s'})`);
-  showToast(`✓ Tareas generadas (${creadas} nueva${creadas===1?'':'s'})`);
+  logHistorial('Actualizó tareas de Riego conservando manuales e historial');
+  showToast('✓ Tareas de Riego actualizadas; manuales e historial conservados');
   refreshTareasViews();
 }
 // Pulsar la etiqueta de un día en la cuadrícula abre el alta manual con ese
