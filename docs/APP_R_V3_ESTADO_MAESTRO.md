@@ -1,6 +1,6 @@
 # VIGUERAPP / APP R v3 — ESTADO MAESTRO CANÓNICO
 
-**Revisión:** 21/10/2026 (España) · **Responsable del estado:** esta conversación, con verificaciones GitHub/Vercel y confirmaciones expresas del usuario.
+**Revisión:** 22/10/2026 (España) · **Responsable del estado:** esta conversación, con verificaciones GitHub/Vercel y confirmaciones expresas del usuario.
 
 > **LEE ESTO ANTES DE PLANIFICAR O MODIFICAR APP R EN CUALQUIER CHAT O CHATGPT PROJECT.**
 > Este es el **único inventario vivo** de trabajo terminado y pendiente. Los handovers DOCX y otros `docs/*.md` con fechas anteriores son **histórico**, no una nueva lista de tareas. El repositorio es la fuente de código; la confirmación funcional del usuario es la fuente de la prueba de aceptación. **Nunca conviertas un pendiente histórico en pendiente actual sin contrastarlo.**
@@ -659,6 +659,18 @@ El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en int
 4. **Puerta estricta a PRD:** solamente el usuario ordena explícitamente publicar a PRD, tras aceptación de funcionamiento. Los datos del arranque oficial empiezan desde la puesta en marcha. Nunca copiar históricos TEST automáticamente; decidir caso por caso importación selectiva, y proteger el resto con **respaldo verificable** antes de cualquier paso. La opción «Respaldo JSON» existe, pero **aún no hay evidencia de que se haya descargado/verificado efectivamente**. `main` y Firebase PRD totalmente intocables sin nueva autorización.
 
 **No realizar cambios adicionales por el mero hecho de abrir nuevo chat.** Leer `docs/APP_R_V3_ESTADO_MAESTRO.md` al inicio; señalar estado vigente y ofrecer UAT agrupada (no microtests).
+
+## 0.61. Inicio de UAT agrupada de Tareas — protocolo TEST (22/10/2026)
+
+**Continuación solicitada por usuario:** se lee el maestro 0.60 antes de actuar. Rama exclusiva `test/v1.0`; último HEAD comprobado `e1a0535e8a4133a6c622ef7d1e7d1c4dd6ace449`. Alias Vercel `la-sala-app-test.vercel.app` READY asociado al mismo SHA. `index.html` blob `84c09efca9ffe9e3edc36c5c655b1f8437bf09ac` comprobado vía GitHub y revisados los recorridos reales. **No hay UAT humana nueva ni escrituras sobre datos** en esta apertura, ni cambios funcionales de código.
+
+**Secuencia de aceptación agrupada, sin reabrir auditoría 0.58 ni diseño 0.59:**
+1. **ADMIN/TÉCNICO.** Como ADMIN, **descargar primero «Respaldo JSON»** y verificar localmente `tipo`, `exportadoEn` y arrays `tareas` y `mantenimiento` (no declararlo realizado hasta evidencia); la opción no aparece a TÉCNICO. En **Operativas**, comprobar navegación/filtros (origen, estado, sala, asignado, fecha), alta y edición de tareas manuales de prueba identificadas, asignación en lote, conservación después de `Actualizar desde Riego`; comprobar que pendientes o iniciadas manuales, tareas iniciadas de Riego y vinculadas Pistola no se suprimen. En **Archivo**, consultar completadas antiguas, anuladas, horas, firmas y ejecuciones anteriores de mantenimiento: solo lectura, sin purga. En **Mantenimiento**, crear/asignar un ticket de ensayo y verificar su tránsito y recurrencia con histórico conservado, sin borrar tickets reales.
+2. **PEÓN.** Comprobar una única tarea ordinaria activa, inicio, firma/cierre y paso de la siguiente; después acceso al mantenimiento asignado, inicio, cierre y firma. Pistola solo se acepta en Bloque C, sin generar tratamientos ficticios ni repetir sus pruebas previas.
+3. **REGANTE.** Comprobar desde Home «Mis tareas» y lectura de tareas manuales asignadas al propio usuario; conservar accesos independientes a «Hojas de riego», «Índice Abonos», «Específicos» y notificación de incidencias, sin alterar las hojas validadas.
+4. Tras cada conjunto, **el usuario confirma UAT o comunica incidencias**; corregir exclusivamente en TEST y registrar los cambios y resultados. **No dar por cerrado Tareas ni retomar Bloque C Pistola → Tareas antes de aceptación expresa.**
+
+**Orden seguro de datos:** primero copia JSON real y verificada; alta únicamente de registros identificables de TEST con autorización del operador; no usar borrado de históricos ni restauraciones indiscriminadas como prueba. El «Respaldo JSON» cubre nodos Tareas y Mantenimiento, **no es el backup general de toda ViguerAPP**. El nuevo arranque PRD usará registros desde su puesta en marcha; anteriores solo mediante incorporación selectiva, con respaldo verificado de los demás. Ni `main` ni Firebase PRD deben modificarse en absoluto sin autorización explícita del usuario.
 
 ## 1. Reglas innegociables
 
