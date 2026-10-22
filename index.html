@@ -13583,7 +13583,8 @@ function renderRiegoGrid(invId){
             const textoResaltado = esNota ? escaparOpcionRiego(br.text) : resaltarProgramadoHTML(br.text);
             const colorCelda = esNota ? '#8a6d00' : (colorTextoRiego || '#3a3a1a');
             const fontSize = esReganteSoloLectura ? fontSizeUnaLinea : fontSizeMultilinea;
-            cells += `<td colspan="${br.span}" style="height:${DH}px;border:1px solid #9ab8d8;padding:2px 4px;position:relative;background:${bgBase};vertical-align:middle;${riegoSoloLectura?'':'cursor:pointer'}" ${clickAttr} title="${riegoSoloLectura?'Riego':'Pulsa para consultar riego'}">
+            cells += `<td colspan="${br.span}" style="height:${DH}px;border:1px solid #9ab8d8;padding:2px 4px;position:relative;background:${bgBase};vertical-align:middle;${riegoSoloLectura?'':'cursor:pointer'}" ${clickAttr}
+              onmousedown="riegoClickTrasArrastre=false" title="${riegoSoloLectura?'Riego':'Pulsa para consultar riego'}">
               <div style="font-size:${fontSize}px;font-weight:700;color:${colorCelda};white-space:normal;overflow-wrap:anywhere;text-align:center;line-height:1.2">[${textoResaltado}]</div>
             </td>`;
           } else {
