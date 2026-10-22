@@ -198,6 +198,55 @@ window.editarResumenTratamiento=function(mod,idx){
  }
  return r;
 };
+// Print a single saved journal, never an entire linked series. Split distinct
+// preparations by product/dose/time, method, broth and fixed-tank rules.
+function buildPrintJobsV3(records){
+ if(!records.length)return [];
+ const dateSet=new Set(records.map(e=>e.raw.fechaJornadaISO||dayISO(e.day)));
+ if(dateSet.size!==1)return []; // Corrupt journal ID with different dates: do not print ambiguously.
+ const groups=new Map();
+ for(const e of records){
+  const r=e.raw,parsed=parsearTextoFito(r.texto||'');
+  const fixed=grupoCubaDeInv(e.inv);
+  // Same rules as renderResumenQuincenaTratamientos: ecological Sala 1
+  // never mixes; Cañón is not bound to other fixed tanks.
+  const tank=fixed==='S1_ECO'?'S1_ECO'
+   :r.tipoTrat==='Cañón'?'CANON'
+   :/CUBA DE RUEDAS/i.test(r.caldoLabel||'')?'RUEDAS':fixed;
+  const liters=r.caldoLitros==null?null:Number(r.caldoLitros);
+  const date=r.fechaJornadaISO||dayISO(e.day);
+  const signature=JSON.stringify([date,parsed.trat,parsed.dosis,parsed.horario,r.tipoTrat||'',r.caldoLabel||'',liters,tank]);
+  if(!groups.has(signature))groups.set(signature,{
+   signature,date,parsed,method:r.tipoTrat||'',liters,broth:r.caldoLabel||'',areas:new Map()
+  });
+  const g=groups.get(signature);
+  // Options are per area, not per journal: preserve street-level exceptions.
+  const areaKey=JSON.stringify([e.inv,!!r.esperaCarga,r.orden??null]);
+  if(!g.areas.has(areaKey))g.areas.set(areaKey,{
+   inv:e.inv,esperaCarga:!!r.esperaCarga,orden:r.orden??null,streets:new Set()
+  });
+  g.areas.get(areaKey).streets.add(e.street);
+ }
+ return [...groups.values()].map(g=>{
+  const areas=[...g.areas.values()].sort((a,b)=>
+   (a.orden==null?Number.MAX_SAFE_INTEGER:Number(a.orden))-(b.orden==null?Number.MAX_SAFE_INTEGER:Number(b.orden))
+   || a.inv.localeCompare(b.inv,'es',{numeric:true}));
+  const objetivos=areas.map(a=>({
+   inv:a.inv,calles:formatCallesConEnteroParaImprimir(a.inv,[...a.streets].sort((a,b)=>a-b)),
+   orden:a.orden,esperaCarga:a.esperaCarga
+  }));
+  return {
+   signature:g.signature,
+   datos:{
+    producto:g.parsed.trat,dosis:g.parsed.dosis,horario:g.parsed.horario,
+    tipoTrat:g.method,caldoLitros:g.liters,caldoLabel:g.broth,
+    fechaISO:g.date,objetivos
+   },
+   label:[g.method||'Sin método',[...new Set(areas.map(a=>a.inv))].map(x=>'INV '+x).join(', ')].join(' · ')
+  };
+ });
+}
+
 window.verHistorialFitoV3=function(id){
  const entries=seriesCells(id);
  if(!entries.length){showToast('No hay jornadas vinculadas');return;}
@@ -209,8 +258,9 @@ window.verHistorialFitoV3=function(id){
  const byJournal=new Map();
  entries.forEach(e=>{
   const date=e.raw.fechaJornadaISO||dayISO(e.day),code=e.raw.jornadaId||date;
-  if(!byJournal.has(code))byJournal.set(code,{date,examples:e.raw.texto,inv:new Map()});
+  if(!byJournal.has(code))byJournal.set(code,{code,date,examples:e.raw.texto,inv:new Map(),records:[]});
   const j=byJournal.get(code);
+  j.records.push(e);
   if(!j.inv.has(e.inv))j.inv.set(e.inv,new Set());
   j.inv.get(e.inv).add(e.street);
  });
@@ -227,6 +277,7 @@ window.verHistorialFitoV3=function(id){
   return sections.join(', ');
  };
  const dates=[...byJournal.values()].sort((a,b)=>a.date.localeCompare(b.date));
+ const printJobs=[];
  const modal=getOrCreateOverlay('fm-serie-historial-v3');modal.style.zIndex=2200;
  const detail=dates.map(j=>{
   let firstCount=0;
@@ -243,13 +294,36 @@ window.verHistorialFitoV3=function(id){
     +(continuations.length?'<div>Continúan: '+esc(rangeText(continuations))+'</div>':'')
     +'</div>';
   }).join('');
+  const groups=buildPrintJobsV3(j.records);
+  const printButtons=groups.map((job,n)=>{
+   const index=printJobs.length;
+   printJobs.push({journalId:j.code,signature:job.signature});
+   const label=groups.length===1?'Imprimir hoja oficial':'Imprimir hoja '+(n+1)+' · '+job.label;
+   return '<button type="button" data-fito-jornada-print="'+index+'"'
+    +' style="min-height:40px;padding:8px 10px;border:1px solid #1558a0;border-radius:7px;'
+    +'background:#e8f0fb;color:#1558a0;font-size:12px;font-weight:800;cursor:pointer">'
+    +'<i class="ti ti-printer" aria-hidden="true"></i> '+esc(label)+'</button>';
+  }).join('');
   return '<div style="border:1px solid #c6d9ee;border-radius:8px;padding:10px;margin-bottom:8px">'
-   +'<strong>'+esc(j.date)+'</strong> · '+firstCount+' calle(s) que empiezan'
-   +'<div style="font-size:12px;margin:5px 0">'+esc(j.examples)+'</div>'+invDetails+'</div>';
+   +'<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">'
+   +'<strong>'+esc(j.date)+'</strong><span style="font-size:12px">'+firstCount+' calle(s) que empiezan</span></div>'
+   +'<div style="font-size:12px;margin:5px 0">'+esc(j.examples)+'</div>'+invDetails
+   +'<div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px">'
+   +(printButtons||'<span style="font-size:12px;color:#a32020">Impresión bloqueada: jornada con fechas inconsistentes</span>')
+   +'</div></div>';
  }).join('');
  modal.innerHTML='<div style="background:#fff;border-radius:10px;width:min(600px,96vw);max-height:88vh;overflow:auto">'
  +'<div class="control-ui-header" style="padding:10px"><b>Tratamiento · inicio global '+esc(entries[0].raw.inicioSerieISO)+'</b><button class="control-ui-close" onclick="document.getElementById(\'fm-serie-historial-v3\').style.display=\'none\'">×</button></div>'
  +'<div style="padding:14px"><p style="font-size:12px">Jornadas registradas; no implica ejecución confirmada.</p>'+detail+'</div></div>';
+ modal.querySelectorAll('[data-fito-jornada-print]').forEach(btn=>btn.addEventListener('click',()=>{
+  if(fitoDirtyCells.size){showToast('Hay cambios pendientes de guardar. No se imprime un registro sin confirmar.');return;}
+  const reference=printJobs[Number(btn.dataset.fitoJornadaPrint)];
+  if(!reference)return;
+  const fresh=seriesCells(id).filter(e=>(e.raw.jornadaId||e.raw.fechaJornadaISO||dayISO(e.day))===reference.journalId);
+  const sheet=buildPrintJobsV3(fresh).find(x=>x.signature===reference.signature);
+  if(!sheet){showToast('La jornada ha cambiado. Cierra y vuelve a abrir la consulta antes de imprimir.');return;}
+  imprimirHojaFitoConDatos({...sheet.datos,asignadoPor:currentUser});
+ }));
  modal.style.display='flex';
 };
 window.renderResumenQuincenaTratamientos=function(mod){
