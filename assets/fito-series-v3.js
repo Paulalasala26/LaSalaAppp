@@ -442,14 +442,17 @@ function construirConsultaFitoV3(mod){
  const shown=rows.filter(row=>!buscar||limpiarBusquedaFitoV3(row.search).includes(buscar)).length;
  return '<div id="resumen-quincena-fito" style="box-sizing:border-box;width:100%;max-width:950px;margin:0 auto">'
   +'<style>#resumen-quincena-fito summary::-webkit-details-marker{display:none}#resumen-quincena-fito details[open] .fito-consulta-toggle{transform:rotate(180deg)}</style>'
-  // Same width as the consultation records, with arrow controls at both ends.
-  +'<div style="box-sizing:border-box;width:100%;display:grid;grid-template-columns:44px minmax(0,1fr) 44px;align-items:center;gap:8px;padding:7px;background:#e8f0fb;border:1px solid #cbdcef;border-radius:9px;margin-bottom:9px">'
+  // Mismo paginador que Marcar riego: flechas 36×36, borde y texto fluido.
+  +'<div style="box-sizing:border-box;width:100%;padding:.45rem .75rem;background:#e8f0fb;border-bottom:1px solid #b0c8e0;margin-bottom:9px">'
+  +'<div style="display:grid;grid-template-columns:36px minmax(0,1fr) 36px;align-items:center;gap:8px;width:100%">'
   +'<button type="button" onclick="changeFitoQuincena(-1)"'+(fitoQuincenaOffset<=0?' disabled':'')
-  +' title="Quincena anterior" aria-label="Quincena anterior" style="width:44px;height:44px;background:'+(fitoQuincenaOffset<=0?'#dae2ea':'#1558a0')
-  +';color:'+(fitoQuincenaOffset<=0?'#687b8d':'#fff')+';border:0;border-radius:7px;font-size:21px;cursor:'+(fitoQuincenaOffset<=0?'default':'pointer')+'">‹</button>'
-  +'<span style="min-width:0;text-align:center;font-size:13px;font-weight:800;color:#1558a0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(riegoQuincenaLabel(fitoQuincenaOffset))+'</span>'
-  +'<button type="button" onclick="changeFitoQuincena(1)" title="Quincena siguiente" aria-label="Quincena siguiente" style="width:44px;height:44px;background:#1558a0;color:#fff;border:0;border-radius:7px;font-size:21px;cursor:pointer">›</button>'
-  +'</div>'
+  +' title="Quincena anterior" aria-label="Quincena anterior" style="background:'+(fitoQuincenaOffset<=0?'#d6dbe1':'#1558a0')
+  +';border:1px solid '+(fitoQuincenaOffset<=0?'#b8c0ca':'#1558a0')+';color:'+(fitoQuincenaOffset<=0?'#68727d':'#fff')
+  +';border-radius:7px;width:36px;height:36px;cursor:'+(fitoQuincenaOffset<=0?'default':'pointer')+';font-size:20px;font-weight:700;line-height:1">&#8249;</button>'
+  +'<span style="min-width:0;font-size:clamp(12px,3.3vw,15px);font-weight:800;color:#1558a0;line-height:1.3;text-align:center;white-space:nowrap">'+esc(riegoQuincenaLabel(fitoQuincenaOffset))+'</span>'
+  +'<button type="button" onclick="changeFitoQuincena(1)" title="Quincena siguiente" aria-label="Quincena siguiente"'
+  +' style="background:#1558a0;border:1px solid #1558a0;color:#fff;border-radius:7px;width:36px;height:36px;cursor:pointer;font-size:20px;font-weight:700;line-height:1">&#8250;</button>'
+  +'</div></div>'
   +'<div style="box-sizing:border-box;width:100%;display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:7px;padding:9px;background:#eaf1fa;border:1px solid #cbdcef;border-radius:9px;margin-bottom:8px">'
   +'<label style="min-width:0;font-size:11px;font-weight:750;color:#1558a0">Día'+filtDia+'</label>'
   +'<label style="min-width:0;font-size:11px;font-weight:750;color:#1558a0">Sala'+filtSala+'</label>'
