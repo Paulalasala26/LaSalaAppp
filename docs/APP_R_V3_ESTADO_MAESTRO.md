@@ -626,6 +626,23 @@ El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en int
 
 **Estado:** AUDITORÍA ESTÁTICA COMPLETADA; diseño pendiente de **aprobación expresa del usuario**. No crear cambios de Tareas ni cerrar Bloque C todavía.
 
+
+## 0.59. Tareas — primera implementación de rediseño y archivo consultable en TEST (22/10/2026)
+
+**Aprobación expresa del usuario:** «adelante, conservaremos las tareas en un archivo consultable» y posterior «adelante». Se ratifica que **solo el usuario autoriza el paso a PRD**, que el arranque oficial tendrá sus **propios datos desde la puesta en marcha**, y que lo previo se incorporará únicamente si se decide factible y conveniente; en caso contrario debe **conservarse copia de seguridad**. Prioridad general del proyecto: funcionalidad validada para PRD, no importar históricos indiscriminadamente.
+
+**Estado de código leído en TEST:** `index.html` blob `84c09efca9ffe9e3edc36c5c655b1f8437bf09ac`, rama `test/v1.0` (último commit observado `7591f033823504cd83be645a5b1d7bad780462cf`). En el intervalo de trabajo, otros commits han incorporado la primera implementación funcional del rediseño ya autorizado. No sobrescribirlos con una variante construida sobre el blob anterior. Funciones verificadas presentes:
+- Gestor ADMIN/TÉCNICO renovado con navegación compacta **Operativas / Mantenimiento / Archivo**, filtros de origen, estado, sala, asignado y fecha, acciones contextuales e impresión. Índice Abonos y hojas no duplicados en la barra principal.
+- `limpiarTareasVencidas()` sin borrado (`return`), sin purga al cargar. Las pendientes sin ejecución permanecen; las completadas antiguas pasan a **vista de archivo sin eliminación física**. `esTareaArchivada` determina la vista, incluyendo anuladas y completadas con dos días desde finalización.
+- Las altas manuales llevan `categoria:'manual'` y `origenTarea:'manual'`; las tareas reconstruidas desde Riego, `categoria:'riego'` y `origenTarea:'riego'`. `generarTareasDesdeRiego` sólo reemplaza pendientes con origen Riego e incorpora protección adicional frente a Riego iniciado, sin suprimir las manuales ni Pistola vinculadas.
+- Edición, asignación y transiciones incorporan guardas contra operaciones en el archivo y rutas ETag específicas; la ejecución de Pistola sigue vinculada estrictamente al origen.
+- **Respaldo JSON** accesible a ADMIN: `descargarRespaldoTareas` lee datos en remoto `lasala-tareas-v1` y `lasala-mantenimiento-v1`, valida ambos arrays y descarga un fichero con fecha, sin escribir ni alterar Firebase. El archivo del gestor también presenta histórico de mantenimiento (`archivoMantenimientoRegistros`).
+- Se conservan la vista PEÓN y accesos de REGANTE/Específicos y se amplía visibilidad de tareas manuales en recorrido de regante.
+
+**Advertencias de estado:** Esta sección describe **código presente y auditado estáticamente**, no UAT humana realizada ni garantía de migración a PRD. No afirmar que hay copia JSON exportada del TEST hasta ejecutar realmente la descarga y verificar el fichero. No desactivar ni reemplazar datos vivos de TEST ni habilitar movimientos a PRD sin **aprobación expresa y posterior** del usuario. Antes de PRD se exigirá respaldo verificado de TEST/legado, criterio de arranque vacío o importación selectiva, y aceptación funcional.
+
+**Siguiente trabajo:** comprobación funcional agrupada por ADMIN/TÉCNICO, PEÓN y REGANTE, archivo/filtros, ausencia de purga de históricos, conservación de manuales tras regeneración desde Riego y exportación JSON; luego rematar los fallos detectados y retomar únicamente Bloque C Pistola después de la validación.
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).
