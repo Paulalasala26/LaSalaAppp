@@ -14363,10 +14363,6 @@ function showFitoModule(){
           </button>
           <div class="control-ui-header-right">
             <span id="fito-subtitulo" class="control-ui-section-label" aria-live="polite">Inicio</span>
-            <button id="fito-btn-imprimir" type="button" class="control-ui-close" onclick="showImprimirResumenSelector('fito')"
-              title="Imprimir resumen por invernaderos y días" aria-label="Imprimir resumen por invernaderos y días" style="font-size:12px;width:auto;padding:0 8px;gap:5px;white-space:nowrap">
-              <i class="ti ti-printer" aria-hidden="true"></i><span>Resumen</span>
-            </button>
             <button type="button" class="control-ui-close"
               onclick="document.getElementById('fito-overlay').style.display='none'"
               title="Cerrar Plaguicidas" aria-label="Cerrar Plaguicidas">&times;</button>
@@ -14395,17 +14391,12 @@ function showFitoModule(){
               <span style="white-space:nowrap;min-width:0"><i class="ti ti-spray" style="font-size:18px;vertical-align:-2px;margin-right:8px"></i>Registrar tratamientos</span>
               
             </button>
-            <button type="button" onclick="abrirSeccionFito('consulta')" aria-label="Consultar tratamientos aplicados" title="Consultar tratamientos aplicados"
+            <button type="button" onclick="abrirSeccionFito('consulta')" aria-label="Consultar tratamientos registrados" title="Consultar tratamientos registrados"
               style="width:100%;min-height:76px;padding:17px 22px;background:linear-gradient(120deg,#2b6fae,#3c80c2 55%,#5b9bd5);color:#fff;border:1px solid #2b6fae;border-radius:12px;display:flex;align-items:center;justify-content:flex-start;gap:12px;font-size:14px;font-weight:800;text-align:left;cursor:pointer">
               <span style="white-space:nowrap;min-width:0"><i class="ti ti-clipboard-list" style="font-size:18px;vertical-align:-2px;margin-right:8px"></i>Consultar tratamientos</span>
               
             </button>
           </div>
-        </div>
-        <!-- Filtros exclusivos de la pantalla de consulta. -->
-        <div id="fito-filtros-superiores" style="display:block;padding:9px 12px;background:#e8f0fb;border-bottom:1px solid #b0c8e0;flex-shrink:0">
-          <div style="font-size:12px;font-weight:800;color:#1558a0;margin-bottom:5px">Filtrar tratamientos de la quincena</div>
-          <div id="fito-filtros-feedback" role="status" aria-live="polite" style="font-size:12px;font-weight:700;color:#1558a0;margin-top:5px">Estos filtros solo afectan al resumen inferior.</div>
         </div>
         <!-- Paso 1: elección de invernadero. -->
         <div id="fito-inv-selector-wrap" style="display:none;flex:1;overflow:auto">
@@ -14438,25 +14429,10 @@ function showFitoModule(){
 // El resumen de tratamientos sigue visible, con sus filtros/editar/imprimir.
 // El resumen se recrea tras filtrar. Hay que tomar los controles NUEVOS
 // del resumen, no los antiguos que ya residen en la banda superior.
-function reubicarFiltrosFito(){
-  const superior=document.getElementById('fito-filtros-superiores');
-  const resumen=document.getElementById('resumen-quincena-fito');
-  if(!superior || !resumen) return;
-  const filtrosNuevos=resumen.querySelector('#fito-filtros-resumen');
-  if(!filtrosNuevos) return;
-  superior.querySelectorAll('#fito-filtros-resumen').forEach(el=>el.remove());
-  superior.appendChild(filtrosNuevos);
-  const feedback=document.getElementById('fito-filtros-feedback');
-  if(feedback){
-    const n=resumenQuincenaFilasCache.fito.length;
-    const filtros=[];
-    if(resumenQuincenaDiaFiltro.fito!=null) filtros.push('Día '+resumenQuincenaDiaFiltro.fito);
-    if(resumenQuincenaSalaFiltro.fito) filtros.push(resumenQuincenaSalaFiltro.fito.replace(/^sala/i,'Sala '));
-    if(resumenQuincenaInvFiltro.fito) filtros.push('INV '+resumenQuincenaInvFiltro.fito);
-    feedback.textContent=(n===0?'Ningún tratamiento coincide en esta quincena':n+' '+(n===1?'resultado':'resultados')+' en el resumen inferior')
-      +(filtros.length?' · Filtros: '+filtros.join(' / '):' · Sin filtros aplicados');
-  }
-}
+// La consulta única conserva los filtros en su propia cabecera de contenido.
+// Llamadas históricas desde handlers y navegación: sin traslados de DOM.
+function reubicarFiltrosFito(){}
+
 function renderFitoResumenSeleccionHTML(){
   return `<div style="padding:1rem 1.25rem;max-width:1100px;margin:0 auto">
     ${renderResumenQuincenaTratamientos('fito')}
@@ -14483,7 +14459,6 @@ function actualizarVistaFitoSeleccion(invId){
   const selectorWrap=document.getElementById('fito-inv-selector-wrap');
   const selection=document.getElementById('fito-selection-bar');
   const label=document.getElementById('fito-selection-label');
-  const filtros=document.getElementById('fito-filtros-superiores');
   const grid=document.getElementById('fito-grid-wrap');
   const quincena=document.getElementById('fito-quincena-wrap');
   const subtitulo=document.getElementById('fito-subtitulo');
@@ -14495,9 +14470,9 @@ function actualizarVistaFitoSeleccion(invId){
   if(menu) menu.style.display=esMenu?'block':'none';
   if(selectorWrap) selectorWrap.style.display=esRegistro&&!elegido?'block':'none';
   if(selection) selection.style.display=elegido?'flex':'none';
-  if(filtros) filtros.style.display=esConsulta?'block':'none';
   if(grid) grid.style.display=(esConsulta||elegido)?'block':'none';
-  if(quincena) quincena.style.display=esMenu?'none':'flex';
+  // Registrar mantiene el selector de quincena como Riego. Consultar lo integra con sus filtros.
+  if(quincena) quincena.style.display=esRegistro?'flex':'none';
   if(subtitulo) subtitulo.textContent=esMenu?'Inicio':esConsulta?'Consultar tratamientos':'Registrar tratamientos';
   if(label){
     const sala=elegido?salaDeInv(String(invId)):null;
@@ -14506,8 +14481,6 @@ function actualizarVistaFitoSeleccion(invId){
   // Como Marcar riego: las acciones aparecen solo tras elegir invernadero.
   if(acciones) acciones.style.display=elegido?'flex':'none';
   actualizarEstadoBotonGuardarFito();
-  const imprimir=document.getElementById('fito-btn-imprimir');
-  if(imprimir) imprimir.style.display=esConsulta?'flex':'none';
 }
 function abrirSeccionFito(seccion){
   if(seccion!=='registrar' && seccion!=='consulta') return;
