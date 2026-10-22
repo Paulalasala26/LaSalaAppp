@@ -512,6 +512,19 @@ El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en int
 **Prioridades sin cambio:** validar Riego → terminar Bloque B de Plaguicidas (impresión) → auditar Tareas completas → retomar Bloque C. No abrir Tareas antes de la auditoría.
 
 
+## 0.51. Riego: acciones de selección coherentes y eliminación exclusiva al editar (22/10/2026)
+
+**Aprobación explícita:** botones de selección de sala juntos y de color azul; «Toda la sala» pasa a **Seleccionar toda** y «Quitar sala» pasa a **Limpiar selección**, aclarando que es un reset de los invernaderos seleccionados en la sala activa y **NO borra riegos guardados**. Los estados deshabilitados son grises; los botones habilitados son azul ViguerAPP y están agrupados en el mismo bloque.
+
+**Hallazgo funcional confirmado:** el botón rojo «Borrar» estaba visible en el formulario de **alta** y `borrarRiegoManual()` eliminaba realmente riegos existentes del día y de TODOS los invernaderos/tramos escogidos en el formulario, incluso sin haber abierto un registro previo. Además el texto de confirmación decía erróneamente que «Retroceder» permitía deshacer, aunque ahora ese botón solo sirve para navegar.
+
+**Solución TEST:** «Eliminar riego» oculto en todas las altas y visible **solo al abrir con edición una celda con contenido existente**; cabecera de edición identificada como «Editar riego — INV». `rmEditContextoOriginal` conserva la identidad original (invernadero, día, calles y texto) ANTES de añadir/cambiar selecciones. Al eliminar, se validan calles y valor original; se ignoran completamente cambios no aplicados de fecha, sala, invernaderos o calles en el formulario. La confirmación identifica **fecha completa, invernadero, rangos exactos de calles y número de calles**, más advertencia explícita de alcance. Un texto diferente, calles inválidas, alta sin contexto o ausencia de conexión bloquean la eliminación. La eliminación aceptada utiliza la ruta existente `aplicarTextoRiegoManual(..., '')` y su guardado optimista/conflictos; se advierte expresamente si queda en cola de sincronización. No se añade ninguna capacidad de borrado masivo.
+
+**Comprobación técnica:** parseo de todos los scripts inline y **9 escenarios** con ejecución de la función real contra mocks: alta, cancelar, eliminar las calles originales, conflicto de valor, sin red, invernadero o calle inválidos, calles discontinuas y rechazo de guardado. **Pendiente validación humana en UI y servidor**, sin crear ni borrar registros durante esta intervención. Rama TEST exclusivamente.
+
+**Próxima prioridad:** validar Riego → cerrar impresión Bloque B de Plaguicidas → auditoría funcional completa de Tareas antes de continuar Bloque C.
+
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).

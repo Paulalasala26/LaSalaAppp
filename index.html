@@ -15613,9 +15613,13 @@ function renderRmBulkVista(){
   }).join('');
   const totalSala=Object.keys(salas[rmSalaActiva]).length;
   const seleccionSala=Object.keys(salas[rmSalaActiva]).filter(id=>!!rmBulkConfig[id]).length;
-  acciones.innerHTML=`<span style="font-size:12px;font-weight:700;color:#1558a0;flex:1 1 110px">Sala ${rmSalaActiva.slice(-1)} · ${seleccionSala}/${totalSala}</span>
-    <button type="button" onclick="rmbTodaSala(true)" ${seleccionSala===totalSala?'disabled':''} style="padding:6px 10px;border:1px solid #a8c4e8;border-radius:6px;background:#e8f0fb;color:#1558a0;font-size:11px;font-weight:700;cursor:pointer">Toda la sala</button>
-    <button type="button" onclick="rmbTodaSala(false)" ${seleccionSala===0?'disabled':''} style="padding:6px 10px;border:1px solid #d4dbe5;border-radius:6px;background:#fff;color:#526578;font-size:11px;font-weight:700;cursor:pointer">Quitar sala</button>`;
+  acciones.innerHTML=`<span style="font-size:12px;font-weight:700;color:#1558a0;flex:1 1 90px">Sala ${rmSalaActiva.slice(-1)} · ${seleccionSala}/${totalSala}</span>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <button type="button" onclick="rmbTodaSala(true)" ${seleccionSala===totalSala?'disabled':''}
+        style="min-height:34px;padding:7px 10px;border:1px solid ${seleccionSala===totalSala?'#b8c0ca':'#1558a0'};border-radius:6px;background:${seleccionSala===totalSala?'#d6dbe1':'#1558a0'};color:${seleccionSala===totalSala?'#68727d':'#fff'};font-size:11px;font-weight:800;cursor:${seleccionSala===totalSala?'default':'pointer'};white-space:nowrap">Seleccionar toda</button>
+      <button type="button" onclick="rmbTodaSala(false)" ${seleccionSala===0?'disabled':''}
+        style="min-height:34px;padding:7px 10px;border:1px solid ${seleccionSala===0?'#b8c0ca':'#1558a0'};border-radius:6px;background:${seleccionSala===0?'#d6dbe1':'#1558a0'};color:${seleccionSala===0?'#68727d':'#fff'};font-size:11px;font-weight:800;cursor:${seleccionSala===0?'default':'pointer'};white-space:nowrap">Limpiar selección</button>
+    </div>`;
   matriz.innerHTML=Object.keys(salas[rmSalaActiva]).sort((a,b)=>a.localeCompare(b,'es',{numeric:true})).map(id=>{
     const marcado=!!rmBulkConfig[id];
     return `<button type="button" aria-pressed="${marcado}" onclick="rmbToggleInvernadero('${id}')"
@@ -15798,7 +15802,7 @@ function showRiegoManualForm(){
   mo.innerHTML = `
     <div style="background:#fff;border-radius:0;width:100vw;height:100vh;max-width:100vw;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.3)">
       <div style="background:linear-gradient(120deg,#2b6fae,#3c80c2 55%,#5b9bd5);color:#fff;padding:.45rem .75rem;display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
-        <div style="font-size:14px;font-weight:800">&#128167; Añadir riego${inv?' — INV '+inv:''}</div>
+        <div id="rm-titulo" style="font-size:14px;font-weight:800">&#128167; Añadir riego${inv?' — INV '+inv:''}</div>
         <button onclick="cerrarRiegoManualConRetorno()" title="Cerrar" aria-label="Cerrar" style="width:30px;height:30px;background:#1558a0;border:1px solid #1558a0;color:#fff;border-radius:6px;padding:0;cursor:pointer;font-size:20px">×</button>
       </div>
       <div style="flex:1;overflow-y:auto;padding:.75rem;display:flex;flex-direction:column;gap:8px;max-width:760px;width:100%;margin:0 auto">
@@ -15986,9 +15990,9 @@ function showRiegoManualForm(){
       </div>
       <!-- BUTTONS (fijos abajo, siempre visibles) -->
       <div style="display:flex;gap:8px;justify-content:space-between;padding:.55rem .75rem;border-top:1px solid #dce4ed;flex-shrink:0;background:#fff">
-        <button onclick="borrarRiegoManual()" title="Borrar el riego de estos tramos"
-          style="padding:9px 14px;font-size:13px;font-weight:700;background:#fdecea;color:#c62828;border:1px solid #f3c2bd;border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:6px">
-          <i class="ti ti-trash" style="font-size:14px"></i> Borrar
+        <button id="rm-borrar-btn" type="button" onclick="borrarRiegoManual()" title="Eliminar solo el riego original que estás editando"
+          style="display:none;padding:9px 12px;font-size:12px;font-weight:700;background:#fdecea;color:#c62828;border:1px solid #f3c2bd;border-radius:8px;cursor:pointer;align-items:center;gap:5px;white-space:nowrap">
+          <i class="ti ti-trash" style="font-size:14px"></i> Eliminar riego
         </button>
         <div style="display:flex;gap:8px">
           <button onclick="cerrarRiegoManualConRetorno()"
@@ -16587,15 +16591,65 @@ async function aplicarTextoRiegoManualMoviendoDia(invId, diaOriginal, callesOrig
 // vacías), o de los invernaderos completos marcados abajo si los hay. Se
 // puede deshacer con "Retroceder", igual que cualquier cambio.
 async function borrarRiegoManual(){
-  if(!confirm('¿Borrar el riego marcado? Se puede deshacer con "Retroceder".')) return;
-  const dia = parseInt(document.getElementById('rm-dia').value);
-  const invIds = leerRmBulkInvsSeleccionados();
-  if(!invIds.length){ showToast('Elige al menos un invernadero'); return; }
-  // Las tareas de peón ya no se tocan aquí — ver comentario en
-  // saveRiegoManual (botón "Generar tareas" en Tareas).
-  for(const invId of invIds){
-    const {tramos} = calcularCallesRmBulk(invId);
-    await aplicarTextoRiegoManual(invId, dia, tramos, '');
+  if(guardandoRiegoManual)return false;
+  const origen=rmEditContextoOriginal;
+  if(!origen||!Array.isArray(origen.calles)){
+    showToast('Eliminar riego solo está disponible al editar uno existente.');
+    return false;
+  }
+  const invId=String(origen.invId||'');
+  const dia=Number(origen.dia);
+  const validas=callesOrdenadasInv(invId);
+  const calles=[...new Set(origen.calles.map(Number))].sort((a,b)=>a-b);
+  const texto=String(origen.textoOriginal||'').trim();
+  if(!validas.length||!Number.isInteger(dia)||!calles.length||!texto||
+      calles.some(c=>!Number.isInteger(c)||!validas.includes(c))){
+    showToast('No se ha podido identificar con seguridad el riego original.');
+    return false;
+  }
+  // La eliminación ignora la sala, fecha y selección múltiple que el usuario
+  // haya cambiado en el formulario. Solo afecta a las celdas del registro abierto.
+  if(calles.some(c=>getRiego(invId,dia,c)!==texto)){
+    showToast('El riego original ha cambiado. Reabre el registro antes de eliminarlo.');
+    return false;
+  }
+  if(navigator.onLine===false){
+    showToast('Conéctate a Internet para eliminar un riego ya registrado.');
+    return false;
+  }
+  const tramos=agruparCallesEnTramos(calles);
+  const rango=tramos.map(({desde,hasta})=>desde===hasta?String(desde):desde+'–'+hasta).join(', ');
+  const fecha=riegoDiaToDate(dia).toLocaleDateString('es-ES',{day:'2-digit',month:'long',year:'numeric'});
+  const mensaje='¿Eliminar este riego registrado?\\n\\n'+
+    'Fecha: '+fecha+'\\n'+
+    'Invernadero: '+invId+'\\n'+
+    'Calles: '+rango+' ('+calles.length+')\\n\\n'+
+    'Se eliminará únicamente el riego original de estas calles.\\n'+
+    'No se borrarán otros invernaderos ni los cambios aún sin aplicar.';
+  if(!confirm(mensaje))return false;
+  // Revalidar después de la confirmación y antes de la escritura.
+  if(rmEditContextoOriginal!==origen||
+     calles.some(c=>getRiego(invId,dia,c)!==texto))return false;
+  guardandoRiegoManual=true;
+  const btn=document.getElementById('rm-borrar-btn');
+  const aplicar=document.getElementById('rm-guardar-btn');
+  if(btn)btn.disabled=true;
+  if(aplicar)aplicar.disabled=true;
+  try{
+    const ok=await aplicarTextoRiegoManual(invId,dia,tramos,'');
+    if(ok){
+      rmEditContextoOriginal=null;
+      const enCola=leerRiegoOffline().some(e=>String(e.invId)===invId && String(e.dia)===String(dia) && calles.includes(Number(e.calle)));
+      if(enCola)showToast('Borrado pendiente de sincronizar; no está confirmado en el servidor.');
+    }else showToast('El borrado no se ha confirmado. Revisa el estado de la conexión.');
+    return !!ok;
+  }catch(e){
+    showToast('No se pudo eliminar el riego. Comprueba la conexión.');
+    return false;
+  }finally{
+    guardandoRiegoManual=false;
+    if(btn)btn.disabled=false;
+    if(aplicar)aplicar.disabled=false;
   }
 }
 function tramosLabelTexto(invId, tramos){
@@ -16895,7 +16949,11 @@ function editarRiegoManualDesdeCelda(invId, dia, calles){
   rmPendingConfig = {modo:'tramo', tramos:[{desde, hasta}]};
   showRiegoManualForm();
   document.getElementById('rm-dia').value = dia;
-  rmEditContextoOriginal = { invId, dia, calles: [...calles] };
+  rmEditContextoOriginal = { invId, dia, calles: [...calles], textoOriginal: getRiego(invId, dia, calles[0]) || '' };
+  const borrarBtn = document.getElementById('rm-borrar-btn');
+  if(borrarBtn && rmEditContextoOriginal.textoOriginal) borrarBtn.style.display = 'inline-flex';
+  const titulo = document.getElementById('rm-titulo');
+  if(titulo) titulo.textContent = '💧 Editar riego — INV ' + invId;
   const raw = getRiegoCellRaw(invId, dia, calles[0]);
   const infoEl = document.getElementById('rm-info-marcador');
   if(infoEl) infoEl.innerHTML = construirInfoMarcadorRiego(raw);
