@@ -719,6 +719,18 @@ El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en int
 
 **Estado:** análisis documentado, **sin cambios funcionales ni escrituras de datos**. Solamente `test/v1.0`. No tocar `main` ni Firebase PRD. Esperar decisión del usuario antes de implementar.
 
+## 0.66. Decisión APROBADA — distribución Plaguicidas/Riego/Tareas (22/10/2026)
+
+**Aprobación expresa del usuario («aprobado») de la propuesta 0.65.** Decisión de negocio firme para continuar el diseño de Operativas; **NO constituye autorización para PRD ni implica que Bloque C esté implementado o validado**.
+
+- **Riego (códigos de Trabajo reconocidos) → PEÓN/Tareas Operativas**: la sincronización automática tras guardado remoto confirmado es el objetivo de diseño pendiente de implementación, evitando duplicados, manteniendo iniciadas/completadas e históricos.
+- **Riego (agua/abono e instrucciones para regar) → REGANTE** por circuitos independientes de Hojas de Riego / Índice Abonos, no generar tareas genéricas de PEÓN.
+- **Plaguicidas Pistola → PEÓN/Tareas Operativas**: una tarea vinculada por `serieId+jornadaId` por jornada, desde Plaguicidas; en Tareas se ejecuta y firma. La edición/anulación de la jornada corresponde exclusivamente a Plaguicidas, y Tareas muestra «Ver jornada»/«Hoja oficial» en lugar de acciones genéricas de editar, borrar o imprimir A5. La consulta de Plaguicidas indica el estado real de la tarea enlazada y posible conciliación sin confundir registro con aplicación; implementación/validación final pertenece a Bloque C pendiente.
+- **Plaguicidas Cañón → TRACTORISTA, circuito independiente en Plaguicidas y su hoja oficial**. No crear tareas de PEÓN, ni implementar por suposición una bandeja de TRACTORISTA.
+- **Tareas manuales** continúan en Operativas sin depender de esos generadores. No mover ni fusionar Específicos/legado sin análisis específico.
+
+**Siguiente decisión por bloques, todavía no aprobada:** fijar el comportamiento final de **Operativas** (listado único ordenado, filtros compactos, estados, origen y responsable; alta/asignación manual; sincronización Riego→Tareas y tratamiento de incidencias; impresión correcta por origen y protecciones Pistola). Luego mantenimiento, archivo y boceto visual antes de código, salvo instrucción expresa del usuario. **No modificar `index.html`, Firebase, ni PRD en este turno; solo registrar acuerdo.**
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).
