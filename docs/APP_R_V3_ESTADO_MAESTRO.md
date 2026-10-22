@@ -731,6 +731,20 @@ El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en int
 
 **Siguiente decisión por bloques, todavía no aprobada:** fijar el comportamiento final de **Operativas** (listado único ordenado, filtros compactos, estados, origen y responsable; alta/asignación manual; sincronización Riego→Tareas y tratamiento de incidencias; impresión correcta por origen y protecciones Pistola). Luego mantenimiento, archivo y boceto visual antes de código, salvo instrucción expresa del usuario. **No modificar `index.html`, Firebase, ni PRD en este turno; solo registrar acuerdo.**
 
+## 0.67. Asignación de operarios — conservar reglas actuales; revisión durante training (22/10/2026)
+
+**Decisión explícita del usuario:** no definir ni cambiar ahora la asignación de tareas; revisarla **más adelante con el técnico que recibirá el training**. No pedir al usuario una matriz nueva en esta fase ni considerar esa revisión como bloqueo para terminar y validar funcionalidades de TEST. Registrar el tema como **validación operativa diferida al training**; no asumir que las asignaciones actuales representan ya los nombres/personas definitivos para PRD.
+
+**Reglas existentes comprobadas en el código TEST** (`index.html` blob `c7fc013e881b2e76373abc063bcf4d0481be4624`):
+- `peonDelaSala(invId)`: Sala 1→`PEON1`, Sala 2→`PEON2`, Salas 3/4/5→`PEON3`.
+- `reganteDelaSala(invId)`: Sala 1→`REGANTE1`, Sala 2→`REGANTE2`, Salas 3/4/5→`REGANTE3`.
+- Trabajos de Riego reconocidos asignados al peón por sala cuando se generan; **sincronización automática tras guardar todavía pendiente**, no afirmar que ya se realiza.
+- Jornadas de Pistola enlazadas `serieId+jornadaId` generan tarea para `peonDelaSala` correspondiente, por sala; Cañón sigue independiente y no crea PEÓN.
+- Específicos usa `reganteDelaSala` en su circuito actual, que debe respetarse hasta revisar ese módulo; no confundir con instrucciones Hojas de Riego.
+- Tareas manuales: ADMIN/TÉCNICO eligen uno o más asignados (una tarea independiente por usuario); mantenimiento puede asignarse a varias personas por ticket.
+
+**Pautas de avance:** usar estos valores actuales como comportamiento de compatibilidad sin codificar reglas nuevas ni refactorizar asignación ahora; continuar la definición técnica/visual de Operativas y luego Mantenimiento y Archivo según 0.64–0.66. Durante el training revisar quién recibe cada tipo de tarea, asignaciones múltiples, excepciones por sala, regantes/peones reales y notificaciones; incorporar cambios SOLO tras validación del usuario. **Sin cambio funcional, sin tocar Firebase ni PRD.**
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).
