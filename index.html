@@ -1718,17 +1718,34 @@ async function loadMantenimientoData(){
 // app de un solo archivo sin servidor, así que la comprobación es "perezosa":
 // se dispara la próxima vez que alguien abra el tablero.
 async function revisarTicketsMantenimientoProgramados(){
-  const hoyISO = fechaLocalISO(new Date());
-  let huboCambios = false;
-  mantenimientoData.forEach(t=>{
-    if(t.recurrencia && t.estado==='cerrado' && t.proximaFecha && t.proximaFecha<=hoyISO){
-      t.estado='sin_asignar'; t.asignados=[]; t.visto={};
-      t.horaInicio=null; t.horaFin=null; t.horaInicioTs=null; t.horaFinTs=null; t.firmante=null; t.completadoISO=null;
-      t.proximaFecha = calcularProximaFechaMant(t.recurrencia.cada, t.recurrencia.unidad, hoyISO);
-      huboCambios = true;
-    }
+  const hoyISO=fechaLocalISO(new Date());
+  if(!mantenimientoData.some(t=>t.recurrencia&&t.estado==='cerrado'&&t.proximaFecha&&t.proximaFecha<=hoyISO))return;
+  const tx=await actualizarStorageJsonConEtag(MANTENIMIENTO_KEY,[],cloud=>{
+    if(!Array.isArray(cloud))throw Error('Mantenimiento: formato inválido');
+    let cambios=0;
+    const actualizado=cloud.map(t=>{
+      if(!t.recurrencia||t.estado!=='cerrado'||!t.proximaFecha||t.proximaFecha>hoyISO)return t;
+      const ejecucion={
+        id:'ejecucion_'+(t.horaFinTs||t.completadoISO||t.proximaFecha),
+        completadoISO:t.completadoISO||parseFechaHoraToISO(t.horaFin)||null,
+        horaInicio:t.horaInicio||null,horaInicioTs:t.horaInicioTs||null,
+        horaFin:t.horaFin||null,horaFinTs:t.horaFinTs||null,
+        firmante:t.firmante||null,
+        asignados:Array.isArray(t.asignados)?t.asignados.slice():[],
+        fechaProgramada:t.fechaProgramada||null,
+        siguienteVencimiento:t.proximaFecha
+      };
+      cambios++;
+      return {...t,historialEjecuciones:[...(t.historialEjecuciones||[]),ejecucion],
+        estado:'sin_asignar',asignados:[],visto:{},
+        horaInicio:null,horaFin:null,horaInicioTs:null,horaFinTs:null,
+        firmante:null,completadoISO:null,
+        proximaFecha:calcularProximaFechaMant(t.recurrencia.cada,t.recurrencia.unidad,hoyISO)};
+    });
+    return cambios?actualizado:undefined;
   });
-  if(huboCambios) await persistMantenimientoData();
+  if(!tx.ok){avisarFalloGuardado();return;}
+  if(!tx.noChange)mantenimientoData=tx.value;
 }
 async function persistMantenimientoData(){
   try{
@@ -1743,6 +1760,20 @@ async function persistMantenimientoData(){
     if(!tx.ok){ avisarFalloGuardado(); return; }
     mantenimientoData=tx.value;
   }catch(e){ avisarFalloGuardado(); }
+}
+async function transicionarMantenimientoPeonSeguro(id,estadoAnterior,campos){
+  if(currentUserRole!=='PEON'||!currentUser){showToast('Solo el peón asignado puede ejecutar mantenimiento.');return false;}
+  const tx=await actualizarStorageJsonConEtag(MANTENIMIENTO_KEY,[],cloud=>{
+    if(!Array.isArray(cloud))throw Error('Mantenimiento: formato inválido');
+    const t=cloud.find(x=>x.id===id);
+    if(!t||t.estado!==estadoAnterior||!(t.asignados||[]).includes(currentUser))return undefined;
+    return cloud.map(x=>x.id===id?{...x,...campos}:x);
+  });
+  if(!tx.ok||tx.noChange){
+    showToast('El mantenimiento ha cambiado o el guardado no se confirmó.');
+    await loadMantenimientoData();renderPeonTareasInline();return false;
+  }
+  mantenimientoData=tx.value;renderPeonTareasInline();return true;
 }
 function showTareasModule(){
   loadTareasData(false).then(async ()=>{
@@ -2257,6 +2288,7 @@ const TAREAS_GESTOR_VISTAS = [
 let tareasGestorFiltros={estado:'todas',origen:'todos',sala:'todas',asignado:'todos',fecha:''};
 function resetFiltrosTareasGestorSinRender(){tareasGestorFiltros={estado:'todas',origen:'todos',sala:'todas',asignado:'todos',fecha:''};}
 function tareaOrigenGestion(t){
+ if(t.categoria==='mantenimiento')return 'mantenimiento';
  if(t.origenFito?.serieId||t.categoria==='fumigacion')return 'pistola';
  if(t.categoria==='especifico')return 'especificos';
  if(t.categoria==='riego'||t.origenTarea==='riego')return 'riego';
@@ -2274,9 +2306,26 @@ function resetFiltrosTareasGestor(){
  tareasSeleccionadas.clear();
  renderTareasContent(document.getElementById('tareas-overlay'),true);
 }
+function archivoMantenimientoRegistros(){
+  return mantenimientoData.flatMap(t=>{
+    const parseInv=/\\bINV\\s+([^\\s)]+)/i.exec(t.titulo||'');
+    const inv=parseInv?parseInv[1]:'';
+    const convertir=h=>({
+      id:String(t.id)+'@'+String(h.id||h.horaFinTs||h.completadoISO||''),
+      categoria:'mantenimiento',titulo:t.titulo,descripcion:t.descripcion||'',
+      fechaISO:h.completadoISO||h.fechaProgramada||null,
+      asignadoA:(h.asignados||[]).join(', ')||h.firmante||'',
+      inv,horario:'',estado:'completada',
+      horaInicio:h.horaInicio||null,horaFin:h.horaFin||null,firmante:h.firmante||null
+    });
+    const historicas=(t.historialEjecuciones||[]).map(convertir);
+    if(t.estado==='cerrado')historicas.push(convertir(t));
+    return historicas;
+  });
+}
 function renderTareaArchivoConsultable(t){
  const esc=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
- const origen={manual:'Manual',riego:'Riego',especificos:'Específicos',pistola:'Pistola',sin_origen:'Origen antiguo'}[tareaOrigenGestion(t)];
+ const origen={manual:'Manual',riego:'Riego',especificos:'Específicos',pistola:'Pistola',mantenimiento:'Mantenimiento',sin_origen:'Origen antiguo'}[tareaOrigenGestion(t)];
  const lugar=invCallesLabelDeTarea(t);
  return `<div style="border:1px solid #aec4de;border-radius:9px;padding:12px;background:#fff;display:flex;flex-direction:column;gap:5px">
    <div style="display:flex;justify-content:space-between;gap:8px"><strong style="font-size:13px;color:#1558a0;overflow-wrap:anywhere">${esc(t.titulo)}</strong>
@@ -2311,7 +2360,8 @@ function renderTareasGestorFullScreen(overlay){
  overlay.style.padding='0';
  const old=overlay.querySelector('#tareas-gestor-content-wrap'),scroll=old?old.scrollTop:0;
  const vista=tareasGestorVista||'operativas',f=tareasGestorFiltros;
- const all=tareasData.filter(t=>vista==='archivo'?esTareaArchivada(t):!esTareaArchivada(t));
+ const all=tareasData.filter(t=>vista==='archivo'?esTareaArchivada(t):!esTareaArchivada(t))
+    .concat(vista==='archivo'?archivoMantenimientoRegistros():[]);
  const filtered=all.filter(t=>{
    if(f.estado!=='todas'&&t.estado!==f.estado)return false;
    if(f.origen!=='todos'&&tareaOrigenGestion(t)!==f.origen)return false;
@@ -2322,7 +2372,7 @@ function renderTareasGestorFullScreen(overlay){
  const active=filtered.filter(t=>t.estado!=='completada'&&t.estado!=='anulada'),done=filtered.filter(t=>t.estado==='completada');
  const nav=(key,label,count,icon)=>`<button onclick="irATareasGestorVista('${key}')" style="padding:9px 12px;font-size:12px;font-weight:800;background:${vista===key?'#fff':'transparent'};color:${vista===key?'#1558a0':'#fff'};border:1px solid #8eb1d5;border-radius:7px;cursor:pointer;white-space:nowrap"><i class="ti ${icon}"></i> ${label} ${count}</button>`;
  const select=(campo,ops)=>`<select aria-label="${campo}" onchange="cambiarFiltroTareasGestor('${campo}',this.value)" style="min-width:110px;max-width:190px;padding:8px;border:1px solid #a8c4e8;border-radius:7px;background:#fff;color:#1558a0;font-size:12px">${ops.map(([val,label])=>`<option value="${val}" ${f[campo]===val?'selected':''}>${label}</option>`).join('')}</select>`;
- const origen=[['todos','Todos los orígenes'],['manual','Manual'],['riego','Riego'],['especificos','Específicos'],['pistola','Pistola'],['sin_origen','Antiguos']];
+ const origen=[['todos','Todos los orígenes'],['manual','Manual'],['riego','Riego'],['especificos','Específicos'],['pistola','Pistola'],['mantenimiento','Mantenimiento'],['sin_origen','Antiguos']];
  const salas=[['todas','Todas las salas'],...['sala1','sala2','sala3','sala4','sala5'].map((v,i)=>[v,'Sala '+(i+1)])];
  const personal=[['todos','Todos los operarios'],...Object.keys(USERS).map(u=>[u,u])];
  const filtroHTML=vista==='mantenimiento'?'':`<div style="padding:9px 12px;background:#eef4fb;border-bottom:1px solid #cad9ea;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
@@ -2355,7 +2405,7 @@ function renderTareasGestorFullScreen(overlay){
    <div style="padding:9px 12px;background:#1558a0;display:flex;gap:7px;overflow-x:auto">
      ${nav('operativas','Operativas',tareasData.filter(t=>!esTareaArchivada(t)).length,'ti-list-check')}
      ${nav('mantenimiento','Mantenimiento',mantenimientoData.filter(t=>t.estado!=='cerrado').length,'ti-tool')}
-     ${nav('archivo','Archivo',tareasData.filter(esTareaArchivada).length,'ti-archive')}
+     ${nav('archivo','Archivo',tareasData.filter(esTareaArchivada).length+archivoMantenimientoRegistros().length,'ti-archive')}
      ${currentUserRole==='ADMIN'?action('descargarRespaldoTareas','ti-download','Respaldo JSON'):''}
    </div>
    ${filtroHTML}
@@ -3015,15 +3065,11 @@ function buildTarjetaMantenimientoPeon(t){
   </div>`;
 }
 async function iniciarMantenimientoPeon(id){
-  await loadMantenimientoData();
-  const t = mantenimientoData.find(x=>x.id===id);
-  if(!t) return;
-  t.estado = 'en_proceso';
-  t.horaInicio = new Date().toLocaleString('es-ES');
-  t.horaInicioTs = Date.now(); // timestamp numérico — para calcular cuánto ha tardado al cerrarlo
-  await persistMantenimientoData();
-  logHistorial(`Inició el ticket de mantenimiento "${t.titulo}"`);
-  renderPeonTareasInline();
+  const fecha=new Date();
+  const ok=await transicionarMantenimientoPeonSeguro(id,'asignado',{
+    estado:'en_proceso',horaInicio:fecha.toLocaleString('es-ES'),horaInicioTs:fecha.getTime()
+  });
+  if(ok)logHistorial('Inició mantenimiento asignado '+id);
 }
 function showCompletarMantenimientoPeonDialog(id){
   const mo = getOrCreateOverlay('completar-mant-overlay');
@@ -3042,21 +3088,18 @@ function showCompletarMantenimientoPeonDialog(id){
   mo.style.display='flex';
 }
 async function completarMantenimientoPeon(id){
-  const firma = document.getElementById('cm-firma')?.value?.trim();
-  if(!firma){ showToast('Indica tu nombre para firmar'); return; }
-  await loadMantenimientoData();
-  const t = mantenimientoData.find(x=>x.id===id);
-  if(!t) return;
-  t.estado = 'cerrado';
-  t.horaFin = new Date().toLocaleString('es-ES');
-  t.horaFinTs = Date.now(); // timestamp numérico — junto a horaInicioTs, para mostrar cuánto ha tardado
-  t.completadoISO = fechaLocalISO(new Date());
-  t.firmante = firma;
-  await persistMantenimientoData();
-  logHistorial(`Completó y firmó el ticket de mantenimiento "${t.titulo}" como "${firma}"`);
-  document.getElementById('completar-mant-overlay').style.display='none';
-  showToast('✓ Tarea de mantenimiento completada');
-  renderPeonTareasInline();
+  const firma=document.getElementById('cm-firma')?.value?.trim();
+  if(!firma){showToast('Indica tu nombre para firmar');return;}
+  const fecha=new Date();
+  const ok=await transicionarMantenimientoPeonSeguro(id,'en_proceso',{
+    estado:'cerrado',horaFin:fecha.toLocaleString('es-ES'),horaFinTs:fecha.getTime(),
+    completadoISO:fechaLocalISO(fecha),firmante:firma
+  });
+  if(!ok)return;
+  logHistorial('Completó y firmó mantenimiento '+id+' como '+firma);
+  const overlay=document.getElementById('completar-mant-overlay');
+  if(overlay)overlay.style.display='none';
+  showToast('✓ Mantenimiento completado');
 }
 let tareasInlineGen = 0;
 // ════════════════════════════════════════════════════════════════
