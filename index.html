@@ -3437,7 +3437,8 @@ function imprimirHojaFitoConDatos(datos){
   const paginas=hojas.map(datos=>{
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const productos = parsearProductosDosis(datos.producto||'', datos.dosis||'');
-  const caldoLitros = datos.caldoLitros || null;
+  const caldoLitros = litrosRealesFitoParaGasto(datos.caldoLitros);
+  const caldoLabel = datos.caldoLabel||(FITO_CALDO_OPCIONES.find(o=>o.litros===Number(datos.caldoLitros))||{}).label||(caldoLitros>0?caldoLitros+'L':'');
   const fechaLabel = fechaCompletaImprimir({fechaISO: datos.fechaISO});
   const horaLabel = datos.horario || '';
   const nombreEncargado = nombreLegibleUsuario(datos.asignadoPor||currentUser);
@@ -3485,7 +3486,7 @@ function imprimirHojaFitoConDatos(datos){
       <div class="ov" style="left:26%;top:9.9%;width:66.3%">${datos.tipoTrat==='Cañón'?'TRACTORISTA':''}</div>
       <div class="ov" style="left:32.6%;top:13.4%;width:60.8%">REGANTE</div>
       ${filasFitoHTML}
-      <div class="ov" style="left:19.3%;top:37.1%;width:42%">${escapar(datos.caldoLabel||'')}</div>
+      <div class="ov" style="left:19.3%;top:37.1%;width:42%">${escapar(caldoLabel)}</div>
       ${filasGastoHTML}
       <div class="ov ov-cultivos" style="left:5%;top:59%;width:91.3%;height:34.1%">${cultivosHTML}</div>
       <div class="ov ov-firma" style="left:69.8%;top:96%;width:23.9%">${escapar(nombreEncargado)}</div>
@@ -18345,6 +18346,12 @@ const FITO_CALDO_OPCIONES = [
   {label:'500L', litros:500},
   {label:'600L', litros:600}
 ];
+// 100.01 identifica 100L sin cuba, pero el volumen físico para el cálculo es 100 L.
+// Mantener el valor guardado para no romper la selección histórica.
+function litrosRealesFitoParaGasto(caldoLitros){
+ const litros=Number(caldoLitros);
+ return litros===100.01?100:litros;
+}
 // Mezclas ya preparadas que se pueden elegir directamente en el desplegable
 // "Mezclas predeterminadas", en vez de escribir cada producto y dosis a mano.
 // Agrupadas por tipo de planta (a petición de Vigueras, 2026-09-15): las que
@@ -19170,8 +19177,9 @@ function imprimirHojaFitosanitario(){
   const dia = parseInt(document.getElementById('fm-dia')?.value);
   const trat = document.getElementById('fm-trat')?.value?.trim() || '';
   const dosis = document.getElementById('fm-dosis')?.value?.trim() || '';
-  const caldoLitros = parseFloat(document.getElementById('fm-caldo')?.value) || null;
-  const caldoLabel = (FITO_CALDO_OPCIONES.find(o=>o.litros===caldoLitros)||{}).label || '';
+  const caldoSeleccionado = parseFloat(document.getElementById('fm-caldo')?.value) || null;
+  const caldoLitros = litrosRealesFitoParaGasto(caldoSeleccionado);
+  const caldoLabel = (FITO_CALDO_OPCIONES.find(o=>o.litros===caldoSeleccionado)||{}).label || '';
   const tipoTrat = document.getElementById('fm-tipo-trat')?.value || '';
   if(!validarDatosImpresionFito(trat, dosis, caldoLitros, tipoTrat)) return;
 
