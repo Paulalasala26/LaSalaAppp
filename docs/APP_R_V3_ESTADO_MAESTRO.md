@@ -378,6 +378,21 @@
 
 **Validación técnica:** parser JS correcto; comparados los estilos y medidas en código contra `renderRiegoQuincenaBar` y `riego-quincena-bar`; 11 verificaciones estáticas favorables. Pendiente UAT visual en navegador de la nueva escala del paginador. **Siguiente prueba única:** recargar [ViguerAPP TEST](https://la-sala-app-test.vercel.app) → Consultar tratamientos, comparar el paginador con Marcar riego (36×36, misma altura/tipo de letra). No ejecutar guardados ni impresiones. Tras validación, volver a revisar contenido/flujo de impresión del Bloque B.
 
+### 0.41. Bloque B — revisión inicial del formato A4 y de la carga de hoja oficial (22/10/2026)
+
+**CONTINUIDAD USUARIO:** «siguiente» tras el paginador de Consulta. Se interpreta como avanzar a **Impresión**, manteniendo los cambios de la consulta y del paginador de 0.39–0.40 (sin reabrirlos). Bloque B permanece **ABIERTO** hasta UAT de impresión real.
+
+**REVISIÓN CON DIAGNÓSTICO DEL CÓDIGO TEST:** `imprimirHojaFitoConDatos` y la ruta antigua `imprimirHojaFitosanitario` generaban hojas de `210 × 298,6 mm`; el papel A4 normal es `210 × 297 mm`. En impresoras/navegadores, la altura mayor y la paginación pueden provocar recortes, páginas extra o tamaños de papel no estándar. El fondo de la hoja oficial es el escaneo `assets/hoja-plaguicidas.jpg` (1630×2318); su relación de aspecto se debe conservar. Además, el helper de impresión comprobaba `HTMLImageElement.complete` pero **`complete === true` también ocurre si la imagen FALLA**; entonces era posible imprimir una hoja aparentemente oficial sin el papel base.
+
+**CAMBIO ACOTADO SOLO TEST:** commit `32f5edfbb6f23d19a745bcf8733aa8fd954d4d7e`, únicamente `index.html`.
+- Ambas rutas existentes de hoja oficial: `@page { size:A4; margin:0 }`; contenedor de hoja `width:208.5mm;height:296.5mm;margin:0 auto;overflow:hidden`. Se conserva prácticamente exacta la relación ancho/alto del escaneo, sin mover ninguno de los porcentajes calibrados de fecha, hora, producto, dosis, gasto, caldo, calles o firma. Holgura de 0,5mm para evitar redondeos/desbordamientos. Se mantiene `break-after:page` solo entre hojas al imprimir un lote. No se crea formato nuevo ni se modifica la plantilla de fondo.
+- `lanzarImpresionFitoUnaVez` conserva el seguro de una sola impresión por clic, pero ahora comprueba que existen todas las imágenes de fondo y están cargadas con `complete === true` y `naturalWidth > 0`. Si alguna falla o se supera el límite de espera, se muestra «No se ha cargado la plantilla oficial. Revisa la conexión y vuelve a imprimir.» y **no se abre la impresión incompleta**. La validación previa de productos, dosis, método y caldo continúa igual.
+- **Sin cambios** en agrupación por preparación/cuba, fechas de inicio o jornada, celdas de Firebase, tareas, campos persistidos, registrar, filtros o acciones de Consulta. Ni `main`, ni PRD.
+
+**PRUEBAS TÉCNICAS, NO UAT FÍSICA:** parser de 5 scripts inline de `index.html` sin error. Mock de `HTMLImageElement` y timers: 2 imágenes cargadas dan **una sola llamada `print()`**, imagen fallida da cero, `load` más timeout no repiten, timeout sin carga bloquea. Render simulado produce 2 hojas oficiales en el mismo documento A4 con una sola llamada a la impresora; lote con una página inválida se cancela completo. **Pendiente verificación del PDF/vista previa real en navegador**: número de páginas, proporciones y campos correctamente colocados.
+
+**SIGUIENTE PRUEBA (única, no destructiva):** recargar [ViguerAPP TEST](https://la-sala-app-test.vercel.app) → Plaguicidas → Consultar tratamientos → abrir el registro TEST del **22/10** (`TEST BLOQUE A - NO APLICAR`) → pulsar icono azul de impresora. En la vista previa, comprobar tamaño **A4**, **exactamente dos páginas** (INV 8 y INV 1A separados por sus cubas), plantilla de fondo y textos superpuestos completos. **Cancelar** la vista previa; debe cerrarse una sola vez. No guardar ni borrar ni imprimir papel. Reportar capturas o anomalías para el siguiente ajuste fino; **no cerrar Bloque B** sin esta prueba.
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).
