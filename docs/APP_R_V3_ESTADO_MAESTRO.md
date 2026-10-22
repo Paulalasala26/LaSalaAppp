@@ -273,6 +273,16 @@
 
 **RECORDATORIO EXPRESO DEL USUARIO AL FINAL DE B:** ampliar área clicable a toda la celda (no solo el texto) y corregir desbordamiento lateral del mensaje de confirmación al editar. Se mantienen diferidas por orden del usuario: no distraerse ahora. No tocar main ni PRD.
 
+### 0.32. Bloque B — UAT restauración 23/10 y acceso a Deshacer/Rehacer (22/10/2026)
+
+**VALIDADO POR USUARIO («correcto», tras la prueba del apartado 0.31):** tras reducir a calle 13 la jornada TEST `TEST BLOQUE A - NO APLICAR` del 23/10/2026, INV 1A, el usuario ha abierto y restaurado el tramo **13–14** guardando una vez con método Cañón y recargando. La prueba precedente exigía comprobar: calle 14 morada como primer día de su zona, calle 13 como continuación, inicio global 22/10 y jornada del 22 intacta. Su confirmación «correcto» responde al circuito indicado. No existe lectura backend independiente: evidencia UAT del usuario.
+
+**MODIFICACIÓN FUNCIONAL DE BLOQUE B IMPLEMENTADA SOLO EN TEST / UAT PENDIENTE:** los métodos de restauración por instantánea completa y ETag `deshacerFito`/`rehacerFito` estaban implementados pero sin acceso de UI en Plaguicidas. Se habilitan botones «Deshacer» y «Rehacer» en la barra de acciones de registro, solo durante la misma sesión y solo si existe un movimiento recuperable; no aparecen con historial vacío ni se pueden pulsar mientras hay cambios sin sincronizar. Barra de acciones con ajuste de línea para evitar desbordes al añadir estos CONTROLES FUNCIONALES (no se modifica todavía el aviso desbordado del diálogo de confirmación). `actualizarBotonesHistorialFito` sincroniza el estado al registrar un movimiento, guardar con `saveFitoPatch`, deshacer y rehacer. El botón heredado `Guardar` sigue oculto.
+
+**SIGUIENTE UAT INTEGRAL RECOMENDADA, ÚNICAMENTE SOBRE EL TRATAMIENTO FICTICIO TEST:** sin recargar DESPUÉS de guardar el borrado, abrir desde 23/10 INV 1A calle 13/14, confirmar método Cañón, pulsar «Borrar tratamiento», confirmar borrado de jornada COMPLETA de dos calles, observar 23/10 vacío pero 22/10 intacto, luego «Deshacer» SIN recargar entre ambas operaciones; debe restaurar la jornada del 23 completa y metadatos (primer día por calle y fecha global). Tras deshacer, recargar y comprobar 22/10 y 23/10 persistentes. Detenerse sin repetir ante cualquier fallo. Opcional: el bloqueo de borrado del 22/10 mientras hay una continuación se verifica como caso no destructivo aparte; no borrar 22 si 23 aún existe.
+
+**RIESGOS/ACLARACIONES:** estos botones no restauran sesiones anteriores; si se refresca tras borrar, se pierde el historial en memoria y no se debe prometer «Deshacer» desde otra sesión. La conciliación de Pistola con Tareas sigue pendiente B/C y las funciones la bloquean. **RECORDAR Y CORREGIR AL FINAL DEL BLOQUE B (PEDIDO DEL USUARIO):** área pulsable de toda la celda de Plaguicidas y aviso de confirmación Editar con desbordamiento horizontal. No perder foco ni tocar main/PRD.
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).

@@ -13965,6 +13965,7 @@ function actualizarEstadoBotonGuardarFito(){
   // con identificación de jornada, confirmación de alcance y control de versiones.
   btn.disabled=true;
   btn.style.display='none';
+  actualizarBotonesHistorialFito();
   return;
   // Igual que en Riego: guardar solo cuando hay una cuadrícula activa y cambios pendientes.
   // Fito guarda todas las celdas pendientes, también las de otros invernaderos.
@@ -14376,7 +14377,7 @@ function showFitoModule(){
           <div id="fito-quincena-bar" style="display:grid;grid-template-columns:36px minmax(0,1fr) 36px;align-items:center;gap:8px;width:100%"></div>
         </div>
         <!-- Herramientas de registro fuera de la cabecera, con la escala de Riego. -->
-        <div id="fito-actions-row" style="display:none;position:relative;z-index:30;padding:.65rem 1.25rem;background:#fff;border-bottom:1px solid #dce4ed;align-items:center;gap:8px;flex-shrink:0">
+        <div id="fito-actions-row" style="display:none;position:relative;z-index:30;padding:.65rem 1.25rem;background:#fff;border-bottom:1px solid #dce4ed;align-items:center;gap:8px;flex-wrap:wrap;flex-shrink:0">
           <button id="fito-btn-anadir" type="button" onclick="showFitoManualForm()" title="Añadir tratamiento"
             style="padding:7px 14px;background:#1558a0;border:1px solid #1558a0;color:#fff;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">
             <i class="ti ti-plus" style="font-size:14px;vertical-align:-2px" aria-hidden="true"></i> Añadir tratamiento
@@ -14384,6 +14385,14 @@ function showFitoModule(){
           <button id="fito-btn-guardar" type="button" onclick="saveFitoData()" disabled title="Guardar cambios"
             style="padding:7px 14px;background:#d6dbe1;border:1px solid #b8c0ca;color:#68727d;border-radius:7px;font-size:12px;font-weight:700;cursor:default;white-space:nowrap">
             <i class="ti ti-device-floppy" style="font-size:14px;vertical-align:-2px" aria-hidden="true"></i> Guardar
+          </button>
+          <button id="fito-btn-deshacer" type="button" onclick="deshacerFito()" disabled title="Restaurar el último cambio guardado de Plaguicidas (solo durante esta sesión)"
+            style="display:none;padding:7px 10px;background:#d6dbe1;border:1px solid #b8c0ca;color:#68727d;border-radius:7px;font-size:12px;font-weight:700;cursor:default;white-space:nowrap">
+            <i class="ti ti-arrow-back-up" aria-hidden="true"></i> Deshacer
+          </button>
+          <button id="fito-btn-rehacer" type="button" onclick="rehacerFito()" disabled title="Reaplicar el último cambio deshecho (solo durante esta sesión)"
+            style="display:none;padding:7px 10px;background:#d6dbe1;border:1px solid #b8c0ca;color:#68727d;border-radius:7px;font-size:12px;font-weight:700;cursor:default;white-space:nowrap">
+            <i class="ti ti-arrow-forward-up" aria-hidden="true"></i> Rehacer
           </button>
         </div>
         <!-- Menú inicial: dos accesos independientes, largos y apilados. -->
@@ -14803,6 +14812,7 @@ async function deshacerFito(){
   if(!(await restaurarMovimientoFitoSeguro(mov,'previos')))return;
   fitoHistorialDeshacer.pop();
   fitoHistorialRehacer.push(mov);
+  actualizarBotonesHistorialFito();
   showToast('↩ Cambio restaurado y verificado');
 }
 async function rehacerFito(){
@@ -14811,6 +14821,7 @@ async function rehacerFito(){
   if(!(await restaurarMovimientoFitoSeguro(mov,'ahoras')))return;
   fitoHistorialRehacer.pop();
   fitoHistorialDeshacer.push(mov);
+  actualizarBotonesHistorialFito();
   showToast('↪ Cambio rehecho y verificado');
 }
 
@@ -14839,7 +14850,23 @@ function retrocederFito(){
     if(overlay) overlay.style.display='none';
   }
 }
-function actualizarBotonRetrocederFito(){}
+function actualizarBotonesHistorialFito(){
+  for(const [id,history] of [
+    ['fito-btn-deshacer',fitoHistorialDeshacer],
+    ['fito-btn-rehacer',fitoHistorialRehacer]
+  ]){
+    const btn=document.getElementById(id);
+    if(!btn)continue;
+    const enabled=history.length>0 && fitoDirtyCells.size===0;
+    btn.style.display=history.length?'inline-flex':'none';
+    btn.disabled=!enabled;
+    btn.style.cursor=enabled?'pointer':'default';
+    btn.style.background=enabled?'#1558a0':'#d6dbe1';
+    btn.style.borderColor=enabled?'#1558a0':'#b8c0ca';
+    btn.style.color=enabled?'#fff':'#68727d';
+  }
+}
+function actualizarBotonRetrocederFito(){actualizarBotonesHistorialFito();}
 
 function toggleFitoAudio(){
   const btn=document.getElementById('fito-audio-btn');
