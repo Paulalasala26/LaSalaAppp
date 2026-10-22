@@ -647,16 +647,24 @@ window.saveFitoManual=async function(){
    showToast('Guardado sin confirmar. No repitas; comprueba el servidor antes de continuar.');
    return;
   }
+  let tareaNoConfirmada=false;
   if(method==='Pistola'&&!st.edit){
    try{
     const objectives=[];
     targets.forEach(x=>agruparCallesEnTramos(x.streets).forEach(t=>objectives.push({invId:x.inv,callesLabel:formatRangoConInv(x.inv,t.desde,t.hasta)})));
-    await autoAsignarTareaFumigacion(objectives,day,[product,dose].filter(Boolean).join(' '),time,{producto:product,dosis:dose,caldoLitros:liters,caldoLabel});
-   }catch(e){showToast('Jornada guardada. Revisa la asignación de la tarea.');}
+    const asignada=await autoAsignarTareaFumigacion(objectives,day,[product,dose].filter(Boolean).join(' '),time,{
+     producto:product,dosis:dose,caldoLitros:liters,caldoLabel,serieId,jornadaId
+    });
+    if(!asignada?.ok)tareaNoConfirmada=true;
+   }catch(e){tareaNoConfirmada=true;}
   }
   document.getElementById('fito-manual-overlay').style.display='none';
   if(fitoInvSel)renderFitoGrid(fitoInvSel);
-  showToast('✓ Jornada '+iso+' registrada · '+total+' calles. Inicio global '+(start||'no vinculado'));
+  if(tareaNoConfirmada){
+   showToast('Jornada guardada; tarea Pistola sin confirmar. Revisar con ADMIN.','warning');
+  }else{
+   showToast('✓ Jornada '+iso+' registrada · '+total+' calles. Inicio global '+(start||'no vinculado'));
+  }
  }catch(e){showToast(String(e?.message||e));}
  finally{st.busy=false;if(btn)btn.disabled=st.uncertain;}
 };
