@@ -525,6 +525,21 @@ El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en int
 **Próxima prioridad:** validar Riego → cerrar impresión Bloque B de Plaguicidas → auditoría funcional completa de Tareas antes de continuar Bloque C.
 
 
+
+## 0.52. Control de Riego — edición segura de texto libre en la cuadrícula (22/10/2026)
+
+**Hallazgo usuario:** al escribir manualmente cualquier texto en una celda de riego y entrar después en el formulario de edición, se reutiliza «Añadir riego». El uso del mismo formulario es correcto, pero la precarga previa intentaba convertir cualquier cadena en selectores y descartaba silenciosamente los componentes no reconocidos al pulsar «Aplicar». El formulario ya tenía rótulo dinámico «Editar riego» por doble clic; se mejora además su acción a «Guardar cambios».
+
+**Corrección exclusivamente TEST:** `index.html`, commit `fd56507b28238cf94cb109335e0c4b4608f36096`.
+- Se mantiene **un solo formulario** de alta y edición. El modo edición conserva invernadero, fecha, calles originales, información del autor y «Eliminar riego» exclusivamente para registros existentes. El botón del pie de edición muestra «Guardar cambios».
+- Al editar, se precargan selectores y se compara el resultado que realmente reconstruiría `construirPartesRiegoManual()` con el **texto original completo**. Solo si coincide exactamente continúa la edición estructurada. Si no coincide, aparece un **campo «Texto del riego»** con el original íntegro, y se ocultan los controles estructurados para no sugerir que pueden guardarlo completo. Este caso incluye texto libre, notas, construcciones parciales y formatos antiguos no recuperables.
+- «Guardar cambios» toma el texto libre completo cuando ese modo está activo; no utiliza el resultado parcial de los selectores. Para pasar deliberadamente de texto libre a selectores se ofrece «Sustituir por selectores», con confirmación explícita de la posible pérdida de fragmentos no reconocidos. Cancelar no cambia de modo. Se reinicia el modo al abrir una nueva alta.
+- No se modifican rutas de persistencia, selección múltiple, reglas de edición/eliminación, esquema Firebase ni otros módulos.
+
+**Comprobaciones técnicas:** los 5 scripts inline parsean; prueba simulada de cinco escenarios sobre funciones reales: texto estructurado reconstruible mantiene selectores; texto arbitrario abre campo íntegro y oculta selectores; modificación del texto se aplica literalmente; rechazo del cambio de modo conserva el texto; aceptación expresa activa selectores. **No se han escrito datos en Firebase**. Pendiente UAT humana de alta/edición en TEST, incluidos cambios tras doble clic y conservación exacta del texto.
+
+**Orden obligatorio intacto:** terminar UAT de Añadir/Editar riego → impresión A4 del Bloque B Plaguicidas → auditoría funcional completa de Tareas → diseño validado → Bloque C Pistola.
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).
