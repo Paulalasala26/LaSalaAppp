@@ -547,6 +547,22 @@ El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en int
 
 **Código TEST:** commit `d04ddfa13fa4647fed5818768ab41cee3ef1dd68`, archivo `index.html`, rama `test/v1.0`. Parseo correcto de los cinco scripts inline. Pendiente verificación visual humana; sin datos escritos en Firebase. Seguir validando Control de Riego antes de cerrar Bloque B de Plaguicidas (impresión A4), auditar Tareas y retomar C.
 
+
+## 0.54. Control de Riego — entrada exclusiva por formulario al pulsar celda (22/10/2026)
+
+**Decisión expresa del usuario:** eliminar «Texto del riego», «Sustituir por selectores» y el modo dual técnico introducido en 0.52. Desde la cuadrícula, una **pulsación simple** sobre una celda abre **Añadir riego** (vacía) o **Editar riego** (registrada), reutilizando el formulario, con el día, invernadero y calles del registro. Las instrucciones de riego/trabajo se obtienen de los selectores habituales y se muestran compactas pero completas en la celda. El usuario introduce texto complementario **exclusivamente** en «Instrucciones adicionales», al final del formulario: se añade a la misma celda sin sustituir el riego ni generar códigos operativos falsos.
+
+**Cambios aplicados solo en TEST, `index.html`, rama exclusiva `test/v1.0`:**
+- Commit `1662a754c36d5494155bb666878959d4ea1d0374`: retirado selector de sustitución y editor técnico de texto libre, añadido «Instrucciones adicionales» (dos líneas), retirado botón redundante «* Nota». El texto almacenado usa el separador visual « · » entre programación y anotación; solo notas `NOTA: <texto>`. `separarInstruccionesAdicionalesRiego` mantiene compatibilidad con antiguos `* <texto>`. Los parsers de agua/abono y trabajos ignoran el comentario al procesar órdenes e índices; el resalte PROGRAMADO lo mantiene fuera de la anotación.
+- Commit `9c2575abcad18f99ff44dfb36204efa74aa8170b`: toda celda editable vacía o registrada abre el formulario con un clic; eliminado el `input`/`textarea` de edición directa dentro de la cuadrícula. Continúa el arrastre de tramos y se impide que su evento posterior abra un segundo formulario. El rol REGANTE en Hojas de riego y los días bloqueados siguen sin edición. Las celdas visualizan íntegro su texto, incluidas notas históricas.
+- Commit `5814f6b292812944b9faf8884b91cc1b93901716`: eliminadas las funciones muertas del antiguo diálogo post-it. Se conserva visible el formulario si falla guardar o mover un riego, y el contexto original de edición solo se limpia tras concluir las operaciones.
+
+**Compatibilidad y precaución:** los datos históricos no reconstruibles exactamente desde los selectores no se borran al reabrir y guardar sin cambiar los campos; si el usuario altera los selectores se solicita confirmación antes de sustituir su programación antigua. No hay migración de Firebase ni cambios en PRD. El botón de papelera roja de 0.53 conserva su comportamiento y confirmación.
+
+**Validaciones técnicas:** parseo correcto de los 5 scripts inline; verificaciones de presencia/ausencia de controles y 12 comprobaciones lógicas del separador y conservación de las notas. No se han insertado registros de prueba en Firebase. **Pendiente validación humana en TEST**: alta desde celda vacía con selectores + nota; edición de celda con ambos datos; nota sola; rango por arrastre; lectura REGANTE; día bloqueado; y comprobar que los textos de notas no crean falsos índices/tareas.
+
+**Orden de trabajo mantenido:** validar Control de Riego → corregir impresión A4 Bloque B de Plaguicidas → auditar íntegramente Tareas antes de implementar → diseño con aprobación del usuario → Bloque C Pistola.
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).
