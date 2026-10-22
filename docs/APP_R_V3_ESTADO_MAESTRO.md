@@ -680,6 +680,14 @@ El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en int
 
 **PRUEBAS TÉCNICAS:** los cinco scripts JS inline compilan; tres simulaciones aisladas de `showTareasModule`: (1) clic abre overlay antes de que resuelva la lectura y después muestra contenido, (2) fallo de lectura muestra error y Reintentar, (3) cierre durante la lectura no repinta ventana cerrada. Tres casos superados. Despliegue Vercel TEST confirmado READY en alias público con SHA funcional `a5ee169b3f90f43cd64c0f25fde7d36c20596b18`. **UAT REAL PENDIENTE:** recargar TEST, clicar tarjeta Tareas como ADMIN/TÉCNICO y comprobar que se abre Operativas/Mantenimiento/Archivo o aparece un aviso de carga/error concreto; comunicarlo. No pasar a más pruebas hasta confirmar acceso. Mantener protocolo 0.61, sin reauditar 0.58/0.59. Ni `main` ni Firebase PRD tocados.
 
+## 0.63. Tareas — error real al entrar como GINÉS (22/10/2026)
+
+**Incidencia del usuario:** al pulsar Tareas, tras la corrección de apertura 0.62, aparece «No se han podido abrir las tareas» con sesión GINÉS (rol TÉCNICO). Se comprobó el origen mediante ejecución aislada del código REAL de `renderTareasGestorFullScreen`: el gestor llama a `Object.keys(USERS)` al crear selector de personal y asignación en lote, **pero `USERS` no existe** en los scripts de `index.html`; la variable real de usuarios y perfiles es `USER_ROLES`. El fallo reproducido es `ReferenceError: USERS is not defined`, tanto como TÉCNICO como ADMIN. Esto explica por qué la pantalla de carga 0.62 terminaba en aviso de error.
+
+**Corrección implementada exclusivamente en TEST:** reemplazadas las 10 referencias ejecutables `Object.keys(USERS)` por `Object.keys(USER_ROLES)` en `index.html` (gestor de Tareas y demás selectores de usuarios que tenían la misma referencia obsoleta), sin crear estructuras nuevas ni alterar los perfiles existentes; resto de flujos y datos intactos. Commit funcional `03610de0032ae2889380f2afed7b868326ba606c`, blob `c7fc013e881b2e76373abc063bcf4d0481be4624`. Cinco scripts inline compilados; **prueba de regresión con la función real**: versión antigua falla reproduciblemente con `ReferenceError` en TÉCNICO y ADMIN; versión corregida renderiza el gestor con listado/filtros para ambos roles, datos simulados, sin acceder ni escribir Firebase. UAT real **pendiente** de confirmar tras refresco del navegador. Verificar que Vercel sirve el SHA corregido en TEST antes de declararlo desplegado.
+
+**Continuidad:** solo una verificación de acceso con GINÉS, comprobar que aparecen las pestañas Operativas/Mantenimiento/Archivo; cuando el usuario confirme, reanudar batería agrupada 0.61. Mantener BLOQUE C sin reabrir hasta cierre de Tareas. `main` y Firebase PRD intocables.
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).
