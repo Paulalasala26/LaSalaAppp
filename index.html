@@ -16032,9 +16032,9 @@ function showRiegoManualForm(){
       </div>
       <!-- BUTTONS (fijos abajo, siempre visibles) -->
       <div style="display:flex;gap:8px;justify-content:space-between;padding:.55rem .75rem;border-top:1px solid #dce4ed;flex-shrink:0;background:#fff">
-        <button id="rm-borrar-btn" type="button" onclick="borrarRiegoManual()" title="Eliminar solo el riego original que estás editando"
-          style="display:none;padding:9px 12px;font-size:12px;font-weight:700;background:#fdecea;color:#c62828;border:1px solid #f3c2bd;border-radius:8px;cursor:pointer;align-items:center;gap:5px;white-space:nowrap">
-          <i class="ti ti-trash" style="font-size:14px"></i> Eliminar riego
+        <button id="rm-borrar-btn" type="button" onclick="borrarRiegoManual()" title="Eliminar riego original" aria-label="Eliminar riego original"
+          style="display:none;width:36px;height:36px;padding:0;background:#fdecea;color:#c62828;border:1px solid #f3c2bd;border-radius:8px;cursor:pointer;align-items:center;justify-content:center;flex-shrink:0">
+          <i class="ti ti-trash" aria-hidden="true" style="font-size:17px"></i>
         </button>
         <div style="display:flex;gap:8px">
           <button onclick="cerrarRiegoManualConRetorno()"
