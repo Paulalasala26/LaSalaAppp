@@ -13469,11 +13469,8 @@ function renderRiegoGrid(invId){
         const cellBg = weekdayBg || (val?'#e8f5e0':'#fff');
 
         if(br){
-          // Render bracket cell spanning br.span columns. Si el texto no cabe
-          // en una línea a este ancho (habitual cuando span=1, una única
-          // calle), se pasa a un textarea de hasta 2 renglones y se reduce la
-          // fuente según la longitud, para que se vea todo el contenido en
-          // vez de quedar oculto/cortado como antes.
+          // La celda es de lectura visual y edición por clic único. Su
+          // texto completo se ajusta al ancho sin entradas directas.
           const spanW = br.span * CW;
           const trimmedLen = br.text.trim().length;
           const { fontSize: fontSizeUnaLinea, fitsOneLine, fontSizeMultilinea } = calcularFontSizeCeldaGrid(spanW, br.text, esReganteSoloLectura);
@@ -13546,9 +13543,8 @@ function renderRiegoGrid(invId){
           // es como si esa celda siguiera vacía. Lo que escribió el propio
           // Vigueras, o lo ya revisado, sí se ve con normalidad.
           const ocultoParaRegante = riegoSoloLectura && !!marcadoPor && marcadoPor!=='VIGUERAS' && !revisado;
-          // Las notas ("* ...") no se muestran escritas en la fila: solo un
-          // indicador ("*"), y el texto real solo aparece al pulsar una vez
-          // encima (para cualquier rol, editable o no).
+          // Las notas históricas ("* ...") se muestran completas; una
+          // pulsación abre su edición en el mismo formulario de riego.
           const esNota = br.text.startsWith('* ');
           const clickAttr = editable ? `onclick="abrirRiegoDesdeClick('${invId}',${dia},[${br.calles.join(',')}])"` : '';
 
@@ -16383,7 +16379,6 @@ async function aplicarTextoRiegoManual(invId, dia, tramos, texto, callesExtraALi
     if(texto) capturarAnteriorRiego(previos[c], getRiegoCellRaw(invId, dia, c), motivo);
   });
   sobrantes.forEach(c=>{ if(riegoData[invId]?.[dia]) delete riegoData[invId][dia][c]; });
-  document.getElementById('riego-manual-overlay').style.display = 'none';
   if(texto){
     // Guardado normal (fusiona con la nube) + limpieza de las calles
     // sobrantes en la MISMA lectura/escritura, para que no compitan entre sí
@@ -16402,6 +16397,7 @@ async function aplicarTextoRiegoManual(invId, dia, tramos, texto, callesExtraALi
     const borrado=await guardarBorradoRiego(invId, dia, [...callesAfectadas, ...sobrantes]);
     if(!borrado)return false;
   }
+  document.getElementById('riego-manual-overlay').style.display = 'none';
   renderRiegoGrid(invId);
   const tramosLabel = tramos.map(({desde,hasta})=>{const s=Math.min(desde,hasta),e=Math.max(desde,hasta); return s===e?`${s}`:`${s}-${e}`;}).join(', ');
   showToast(texto ? `✓ Día ${dia}, C/${tramosLabel} → "${texto}" (${callesAfectadas.length} calles)` : `🗑 Borrado — Día ${dia}, C/${tramosLabel} (${callesAfectadas.length} calles)`);
@@ -16527,9 +16523,9 @@ async function aplicarTextoRiegoManualMoviendoDia(invId, diaOriginal, callesOrig
   });
   callesOriginal.forEach(c=>{ if(riegoData[invId]?.[diaOriginal]) delete riegoData[invId][diaOriginal][c]; });
 
-  document.getElementById('riego-manual-overlay').style.display = 'none';
   const okSave = await saveRiegoInvPatch(invId, [{dia:diaOriginal, calles:callesOriginal}], true);
   if(!okSave) return false;
+  document.getElementById('riego-manual-overlay').style.display = 'none';
   renderRiegoGrid(invId);
   const tramosLabel = tramosNuevos.map(({desde,hasta})=>{const s=Math.min(desde,hasta),e=Math.max(desde,hasta); return s===e?`${s}`:`${s}-${e}`;}).join(', ');
   showToast(`✓ Riego movido del día ${diaOriginal} al día ${diaNuevo}, C/${tramosLabel} → "${texto}"`);
@@ -16808,30 +16804,6 @@ async function generarTareasDesdeRiego(){
   logHistorial(`Generó tareas de peón desde Riego (${creadas} nueva${creadas===1?'':'s'})`);
   showToast(`✓ Tareas generadas (${creadas} nueva${creadas===1?'':'s'})`);
   refreshTareasViews();
-}
-// "*" — abre un post-it para escribir una nota especificando qué es.
-function abrirPostItRiego(){
-  const po = getOrCreateOverlay('riego-postit-overlay');
-  po.innerHTML = `
-    <div style="background:#fff9c4;border-radius:4px;max-width:300px;width:100%;box-shadow:0 8px 30px rgba(0,0,0,.3);padding:1rem">
-      <div style="font-size:12px;font-weight:800;color:#8a6d00;margin-bottom:8px">📝 Nota (*)</div>
-      <textarea id="rm-postit-texto" rows="4" style="width:100%;border:1px solid #f0e2a0;border-radius:4px;background:#fffef2;resize:none;outline:none;font-size:13px;font-family:inherit;color:#5c4a00;padding:6px" placeholder="Escribe qué es..."></textarea>
-      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
-        <button onclick="document.getElementById('riego-postit-overlay').style.display='none'" style="padding:6px 12px;font-size:12px;background:#fff;border:1px solid #ddd;border-radius:6px;cursor:pointer">Cancelar</button>
-        <button onclick="guardarPostItRiego()" style="padding:6px 14px;font-size:12px;font-weight:700;background:#8a6d00;color:#fff;border:none;border-radius:6px;cursor:pointer">Guardar</button>
-      </div>
-    </div>`;
-  po.style.display = 'flex';
-}
-async function guardarPostItRiego(){
-  const nota = document.getElementById('rm-postit-texto').value.trim();
-  if(!nota){ showToast('Escribe algo en la nota'); return; }
-  document.getElementById('riego-postit-overlay').style.display = 'none';
-  const dia = parseInt(document.getElementById('rm-dia').value);
-  for(const invId of leerRmBulkInvsSeleccionados()){
-    const {tramos} = calcularCallesRmBulk(invId);
-    await aplicarTextoRiegoManual(invId, dia, tramos, '* '+nota);
-  }
 }
 // Pulsar la etiqueta de un día en la cuadrícula abre el alta manual con ese
 // día ya puesto (para no tener que elegirlo otra vez en el desplegable).
