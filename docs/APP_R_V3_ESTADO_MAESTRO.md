@@ -563,6 +563,21 @@ El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en int
 
 **Orden de trabajo mantenido:** validar Control de Riego → corregir impresión A4 Bloque B de Plaguicidas → auditar íntegramente Tareas antes de implementar → diseño con aprobación del usuario → Bloque C Pistola.
 
+
+## 0.55. Control de Riego — clic en riegos históricos de fechas bloqueadas (22/10/2026)
+
+**Incidencia reproducida visualmente:** pantalla Control de Riego con quincena `7 sept — 20 sept`, INV 1A, celdas con datos; al pulsar cualquiera no abría el formulario. Causa exacta en `renderRiegoGrid`: `editable = !riegoSoloLectura && !esDiaPasadoRiego(dia)`; para fechas pasadas de usuarios distintos a VIGUERAS se renderizaba `<td>` sin `onclick`. Además `abrirRiegoDesdeClick` descartaba explícitamente días pasados.
+
+**Decisión funcional:** bloqueo de modificación **no** equivale a bloqueo de consulta. Toda celda **ocupada** de Control de Riego abre el mismo formulario al clic, incluso en fechas pasadas; para usuarios a quienes `esDiaPasadoRiego` bloquea esa fecha, abre «Consultar riego — INV ...» en modo solo lectura. Se incluye la fecha histórica real en el selector, aunque esté fuera de las opciones activas, y se muestra arriba la **instrucción guardada completa** (también para códigos o formatos antiguos no reconstruibles). Campos/selectores y botones de modificación quedan deshabilitados, «Aplicar» y papelera ocultos, «Cancelar» pasa a «Cerrar». El cierre funciona. Las celdas vacías pasadas continúan sin ofrecer alta. Los usuarios VIGUERAS mantienen la edición autorizada en fechas históricas. `Hojas de riego` del rol REGANTE mantiene su consulta de cuadrícula sin abrir formularios ni permitir edición. Se refuerzan las comprobaciones de fecha al guardar y borrar.
+
+**Rama TEST** exclusivamente, `index.html`:
+- `7675548176616d5da8d29d91a246b5342ab38aa7` permite clic en celda histórica ocupada, aporta formulario de lectura con instrucción literal y comprobaciones explícitas contra guardado/borrado no autorizados.
+- `ffb901d587308a0dcd7376b6bf87570f82ed6a3d` evita suprimir por error el primer clic histórico después de haber arrastrado un tramo.
+
+**Pruebas técnicas (sin escribir Firebase):** sintaxis de los 5 scripts inline correcta; ruta de apertura contrastada en escenarios (histórico ocupado, actual ocupado, actual vacío, histórico vacío, Hojas de riego solo lectura y bloqueo de clic posterior al arrastre). El formulario en consulta probado con DOM simulado: texto completo conservado, selectores deshabilitados, Aplicar y papelera ocultos, cierre operativo y botones de acción deshabilitados. **UAT humana pendiente** en la misma quincena de septiembre mostrada en captura, con usuario no VIGUERAS, y después pruebas de edición en día habilitado.
+
+**Orden pendiente sin cambio:** cerrar Control de Riego → Plaguicidas Bloque B impresión A4 → auditoría completa de Tareas → propuesta y validación de diseño → Plaguicidas Bloque C.
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).
