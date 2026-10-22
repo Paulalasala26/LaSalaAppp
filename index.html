@@ -2451,11 +2451,24 @@ function renderTareasGestorFullScreen(overlay){
  const origen=[['todos','Todos los orígenes'],['manual','Manual'],['riego','Riego'],['especificos','Específicos'],['pistola','Pistola'],['mantenimiento','Mantenimiento'],['sin_origen','Antiguos']];
  const salas=[['todas','Todas las salas'],...['sala1','sala2','sala3','sala4','sala5'].map((v,i)=>[v,'Sala '+(i+1)])];
  const personal=[['todos','Todos los operarios'],...Object.keys(USER_ROLES).map(u=>[u,u])];
- const filtroHTML=vista==='mantenimiento'?'':`<div style="padding:9px 12px;background:#eef4fb;border-bottom:1px solid #cad9ea;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-   ${select('origen',origen)}${select('sala',salas)}${select('asignado',personal)}
-   ${vista==='operativas'?select('estado',[['todas','Todos los estados'],['pendiente','Pendientes'],['iniciada','En curso'],['completada','Completadas']]):''}
-   <input aria-label="Fecha" type="date" value="${f.fecha}" onchange="cambiarFiltroTareasGestor('fecha',this.value)" style="padding:7px;border:1px solid #a8c4e8;border-radius:7px;color:#1558a0;font-size:12px">
-   <button onclick="resetFiltrosTareasGestor()" style="padding:7px 10px;background:#fff;border:1px solid #a8c4e8;border-radius:7px;color:#1558a0;cursor:pointer">Limpiar</button>
+ const estadoExtra=vista==='operativas'?select('estado',[['todas','Todos los estados'],['pendiente','Pendientes'],['iniciada','En curso'],['completada','Completadas']]):'';
+ const fechaBar=vista!=='operativas'?'':`<div style="display:flex;align-items:center;justify-content:center;gap:6px;padding:8px;background:#eaf1fa;border-bottom:1px solid #cfdeec">
+   <button onclick="cambiarFechaTareasGestor(-1)" aria-label="Día anterior" style="min-width:36px;height:36px;background:#1558a0;color:#fff;border:0;border-radius:7px;cursor:pointer;font-size:20px">‹</button>
+   <input type="date" aria-label="Fecha tareas" value="${f.fecha}" onchange="cambiarFiltroTareasGestor('fecha',this.value)" style="width:min(155px,42vw);min-width:0;box-sizing:border-box;padding:8px;border:1px solid #a8c4e8;border-radius:7px;color:#1558a0;font-size:12px">
+   <button onclick="cambiarFechaTareasGestor(1)" aria-label="Día siguiente" style="min-width:36px;height:36px;background:#1558a0;color:#fff;border:0;border-radius:7px;cursor:pointer;font-size:20px">›</button>
+   <button onclick="cambiarFiltroTareasGestor('fecha','')" style="padding:8px;border:1px solid #1558a0;border-radius:7px;background:#fff;color:#1558a0;font-size:11px;cursor:pointer">Todos</button>
+ </div>`;
+ const qSafe=String(f.busqueda||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+ const filtroHTML=vista==='mantenimiento'?'':`<div style="padding:8px 12px;background:#f7faff;border-bottom:1px solid #cbdcef">
+   <div style="display:flex;gap:7px;align-items:center">
+     <input id="tareas-gestor-buscar" type="search" aria-label="Buscar tareas" value="${qSafe}" placeholder="Buscar trabajo, INV, operario..." oninput="cambiarBusquedaTareasGestor(this)" style="flex:1;min-width:0;box-sizing:border-box;padding:9px;border:1px solid #a8c4e8;border-radius:7px;font-size:12px">
+     <button onclick="abrirFiltrosTareasGestor()" aria-expanded="${tareasGestorFiltrosAbiertos}" style="background:#1558a0;color:#fff;border:0;border-radius:7px;padding:9px 12px;font-size:12px;cursor:pointer">Filtros</button>
+   </div>
+   ${tareasGestorFiltrosAbiertos?`<div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:9px">
+     ${select('origen',origen)}${select('sala',salas)}${select('asignado',personal)}${estadoExtra}
+     ${vista==='archivo'?`<input type="date" value="${f.fecha}" onchange="cambiarFiltroTareasGestor('fecha',this.value)" style="padding:7px;border:1px solid #a8c4e8;border-radius:7px">`:''}
+     <button onclick="resetFiltrosTareasGestor()" style="padding:8px 10px;background:#fff;border:1px solid #a8c4e8;border-radius:7px;color:#1558a0;cursor:pointer">Limpiar</button>
+   </div>`:''}
  </div>`;
  const action=(fn,icon,label)=>`<button onclick="${fn}()" style="padding:8px 11px;border:1px solid #a8c4e8;border-radius:7px;background:#fff;color:#1558a0;cursor:pointer;font-size:12px;font-weight:700"><i class="ti ${icon}"></i> ${label}</button>`;
  const toolbar=vista==='operativas'?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
@@ -2483,6 +2496,7 @@ function renderTareasGestorFullScreen(overlay){
      ${nav('mantenimiento','Mantenimiento',mantenimientoData.filter(t=>t.estado!=='cerrado').length,'ti-tool')}
      ${nav('archivo','Archivo',tareasData.filter(esTareaArchivada).length+archivoMantenimientoRegistros().length,'ti-archive')}
         </div>
+   ${fechaBar}
    ${filtroHTML}
    <div id="tareas-gestor-content-wrap" style="flex:1;overflow-y:auto;padding:12px 14px">
      ${vista==='mantenimiento'?'<div id="nuevo-ticket-mant-wrap"></div>':''}${body}
