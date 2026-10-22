@@ -1634,21 +1634,12 @@ async function avisarHojasCorregidas(){
 // Solo se reinicia al ABRIR el módulo de cero (showTareasModule) — no en
 // cada refresco (refreshTareasViews llama a renderTareasContent
 // directamente, sin pasar por aquí, para no perder en qué sección estaba).
-let tareasGestorVista = null; // null (resumen) | 'antiguas' | 'hoy' | 'manana' | 'mantenimiento'
-async function irATareasGestorVista(v){
-  tareasGestorVista = v;
+let tareasGestorVista = 'operativas';
+function irATareasGestorVista(v){
+  if(!['operativas','mantenimiento','archivo'].includes(v))return;
+  tareasGestorVista=v;
   tareasSeleccionadas.clear();
-  renderTareasContent(document.getElementById('tareas-overlay'), true);
-  // "Índice Abonos" depende de riegoData, pero showTareasModule() nunca lo
-  // carga (solo tareasData) — sin este loader a demanda, la vista se queda
-  // en "Nada marcado" para siempre salvo que riegoData ya estuviera en
-  // memoria por casualidad (haber abierto antes Riego/Sala en Vivo/etc en
-  // la misma sesión). Encontrado 2026-09-04: por esto no se veían ni las
-  // filas ni el botón "↕ Ordenar" al entrar aquí directamente desde Tareas.
-  if(v==='indice'){
-    await Promise.all([loadRiegoData(false), loadIndiceAbonosEstadoData(), loadIndiceAbonosOrdenData()]);
-    if(tareasGestorVista==='indice') renderTareasContent(document.getElementById('tareas-overlay'), true);
-  }
+  renderTareasContent(document.getElementById('tareas-overlay'),true);
 }
 // Clasifica una tarea por fecha para el menú lateral del gestor: "antiguas"
 // (ya pasadas — se eliminan solas, ver esTareaVencidaParaBorrar más abajo),
@@ -1756,7 +1747,8 @@ function showTareasModule(){
     const esGestor = ['ADMIN','TECNICO'].includes(currentUserRole);
     if(!esGestor) await avisarNuevasTareas(currentUser);
     if(esGestor) await loadMantenimientoData();
-    tareasGestorVista = null;
+    tareasGestorVista='operativas';
+    resetFiltrosTareasGestorSinRender();
     renderTareasContent(overlay, esGestor);
     overlay.style.display='flex';
   });
@@ -2258,57 +2250,116 @@ const TAREAS_GESTOR_VISTAS = [
 // sección del menú lateral (Antiguas/Hoy/Mañana/Mantenimiento) se pinta en
 // el panel de la derecha, sin perder nada de lo que ya había (nueva tarea,
 // asignar en lote, editar/eliminar, imprimir, kanban de mantenimiento...).
+let tareasGestorFiltros={estado:'todas',origen:'todos',sala:'todas',asignado:'todos',fecha:''};
+function resetFiltrosTareasGestorSinRender(){tareasGestorFiltros={estado:'todas',origen:'todos',sala:'todas',asignado:'todos',fecha:''};}
+function tareaOrigenGestion(t){
+ if(t.origenFito?.serieId||t.categoria==='fumigacion')return 'pistola';
+ if(t.categoria==='especifico')return 'especificos';
+ if(t.categoria==='riego'||t.origenTarea==='riego')return 'riego';
+ if(t.categoria==='manual'||t.origenTarea==='manual')return 'manual';
+ return 'sin_origen';
+}
+function cambiarFiltroTareasGestor(campo,valor){
+ if(!['estado','origen','sala','asignado','fecha'].includes(campo))return;
+ tareasGestorFiltros[campo]=valor;
+ tareasSeleccionadas.clear();
+ renderTareasContent(document.getElementById('tareas-overlay'),true);
+}
+function resetFiltrosTareasGestor(){
+ tareasGestorFiltros={estado:'todas',origen:'todos',sala:'todas',asignado:'todos',fecha:''};
+ tareasSeleccionadas.clear();
+ renderTareasContent(document.getElementById('tareas-overlay'),true);
+}
+function renderTareaArchivoConsultable(t){
+ const esc=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+ const origen={manual:'Manual',riego:'Riego',especificos:'Específicos',pistola:'Pistola',sin_origen:'Origen antiguo'}[tareaOrigenGestion(t)];
+ const lugar=invCallesLabelDeTarea(t);
+ return `<div style="border:1px solid #aec4de;border-radius:9px;padding:12px;background:#fff;display:flex;flex-direction:column;gap:5px">
+   <div style="display:flex;justify-content:space-between;gap:8px"><strong style="font-size:13px;color:#1558a0;overflow-wrap:anywhere">${esc(t.titulo)}</strong>
+     <span style="font-size:10px;font-weight:800;color:${t.estado==='anulada'?'#a32020':'#2e7d32'}">${t.estado==='anulada'?'Anulada':'Completada'}</span></div>
+   <div style="font-size:11px;color:#55697e">${esc(t.fechaISO||'Sin fecha')} · ${esc(origen)} · ${esc(t.asignadoA||'Sin asignar')}${lugar?' · '+esc(lugar):''}</div>
+   ${t.descripcion?`<div style="font-size:11px">${esc(t.descripcion)}</div>`:''}
+   ${t.horario?`<div style="font-size:11px;color:#1558a0">Horario: ${esc(t.horario)}</div>`:''}
+   ${t.horaInicio||t.horaFin?`<div style="font-size:11px">Inicio: ${esc(t.horaInicio||'—')} · Fin: ${esc(t.horaFin||'—')}</div>`:''}
+   ${t.firmante||t.firmaPreparador||t.firmaAplicador?`<div style="font-size:11px">Firma: ${esc(t.firmante||'—')}${t.firmaPreparador?' · Preparó: '+esc(t.firmaPreparador):''}${t.firmaAplicador?' · Aplicó: '+esc(t.firmaAplicador):''}</div>`:''}
+   ${t.motivoAnulacion?`<div style="font-size:11px;color:#a32020">Motivo: ${esc(t.motivoAnulacion)}</div>`:''}
+ </div>`;
+}
+function imprimirTareasGestorActivas(){
+ showImprimirTareasSelector(tareasData.filter(t=>USER_ROLES[t.asignadoA]==='PEON'&&!esTareaArchivada(t)&&t.estado!=='completada'));
+}
+async function descargarRespaldoTareas(){
+ if(currentUserRole!=='ADMIN')return;
+ try{
+   const datos=await Promise.all([window.storage.get(TAREAS_KEY),window.storage.get(MANTENIMIENTO_KEY)]);
+   if(!datos[0]||!datos[1])throw Error('Datos remotos no disponibles');
+   const tareas=JSON.parse(datos[0].value),mantenimiento=JSON.parse(datos[1].value);
+   if(!Array.isArray(tareas)||!Array.isArray(mantenimiento))throw Error('Formato inesperado');
+   const data={tipo:'ViguerAPP TEST - respaldo de Tareas',exportadoEn:new Date().toISOString(),version:1,tareas,mantenimiento};
+   const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+   const url=URL.createObjectURL(blob),a=document.createElement('a');
+   a.href=url;a.download='viguerapp-tareas-backup-'+fechaLocalISO(new Date())+'.json';
+   document.body.appendChild(a);a.click();a.remove();
+   setTimeout(()=>URL.revokeObjectURL(url),1000);
+ }catch(e){showToast('No se ha generado el respaldo: '+e.message);}
+}
 function renderTareasGestorFullScreen(overlay){
-  overlay.style.padding = '0';
-  const porFecha = {antiguas:[], hoy:[], manana:[]};
-  tareasData.forEach(t=>{ porFecha[categoriaFechaTarea(t)].push(t); });
-  const counts = {
-    antiguas: porFecha.antiguas.filter(t=>t.estado!=='completada').length,
-    hoy: porFecha.hoy.filter(t=>t.estado!=='completada').length,
-    manana: porFecha.manana.filter(t=>t.estado!=='completada').length,
-    mantenimiento: mantenimientoData.filter(t=>t.estado!=='cerrado').length,
-    indice: 0
-  };
-  // Menú de arriba en vez de lateral (a petición de Paula, 2026-08-12: "para
-  // que sea más visible en móvil") — mismo patrón ya usado para quitar el
-  // sidebar de Control (renderControlContent).
-  const wrapAnteriorTG = overlay.querySelector('#tareas-gestor-content-wrap');
-  const scrollTopAnteriorTG = wrapAnteriorTG ? wrapAnteriorTG.scrollTop : 0;
-  const navItem = (v) => `
-    <button onclick="irATareasGestorVista('${v.key}')" style="padding:9px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid rgba(255,255,255,.4);display:flex;align-items:center;gap:7px;white-space:nowrap;background:${tareasGestorVista===v.key?'#fff':'transparent'};color:${tareasGestorVista===v.key?'#1558a0':'#fff'}">
-      <i class="ti ${v.icon}" style="font-size:14px"></i> ${v.label}
-      ${counts[v.key]>0 ? `<span style="background:${tareasGestorVista===v.key?'#1558a0':'rgba(255,255,255,.25)'};color:#fff;border-radius:999px;padding:1px 8px;font-size:10.5px;font-weight:800">${counts[v.key]}</span>` : ''}
-    </button>`;
-  overlay.innerHTML = `
-    <div style="background:#f2f4f0;width:100vw;height:100vh;max-width:100vw;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.3)">
-      <div style="background:var(--grad-blue);color:#fff;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;flex-wrap:wrap;gap:10px">
-        <div onclick="irATareasGestorVista(null)" style="cursor:pointer;font-size:17px;font-weight:800;display:flex;align-items:center;gap:8px">
-          <i class="ti ti-clipboard-list" style="font-size:20px"></i> Tareas
-        </div>
-        <button onclick="document.getElementById('tareas-overlay').style.display='none'" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700;background:rgba(255,255,255,.15);color:#fff;border:none;cursor:pointer">✕ Cerrar</button>
-      </div>
-      <div style="padding:.75rem 1.25rem;background:#0d3d73;border-bottom:1px solid rgba(255,255,255,.15);display:flex;gap:6px;flex-wrap:wrap;align-items:center;flex-shrink:0">
-        ${TAREAS_GESTOR_VISTAS.map(navItem).join('')}
-        <span style="width:1px;height:22px;background:rgba(255,255,255,.25);margin:0 2px"></span>
-        <button onclick="mostrarOrdenTareasPorPersona()" title="Ver las tareas de cada persona ordenadas por prioridad" style="padding:9px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid rgba(255,255,255,.4);background:transparent;color:#fff;display:flex;align-items:center;gap:7px;white-space:nowrap">
-          <i class="ti ti-arrows-sort" style="font-size:14px"></i> Ordenar
-        </button>
-        <button onclick="generarTareasDesdeRiego()" title="Borra las tareas de peón pendientes/iniciadas y las reconstruye desde lo que hay escrito ahora mismo en Riego" style="padding:9px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid rgba(255,255,255,.4);background:transparent;color:#fff;display:flex;align-items:center;gap:7px;white-space:nowrap">
-          <i class="ti ti-refresh" style="font-size:14px"></i> Generar tareas
-        </button>
-        <button onclick="avanzarRiegoReganteDia()" title="Avanza las hojas de riego de los regantes al día siguiente" style="padding:9px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid rgba(255,255,255,.4);background:transparent;color:#fff;display:flex;align-items:center;gap:7px;white-space:nowrap">
-          <i class="ti ti-calendar-check" style="font-size:14px"></i> Generar hojas riego
-        </button>
-        <button onclick="showImprimirTareasSelector(tareasData.filter(t=>USER_ROLES[t.asignadoA]==='PEON' && !esTareaArchivada(t) && t.estado!=='completada'))" style="padding:9px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid rgba(255,255,255,.4);background:transparent;color:#fff;display:flex;align-items:center;gap:7px;white-space:nowrap">
-          <i class="ti ti-printer" style="font-size:14px"></i> Imprimir tareas de peones
-        </button>
-      </div>
-      <div id="tareas-gestor-content-wrap" style="flex:1;overflow-y:auto;padding:1.5rem 2rem">
-        ${tareasGestorVista===null ? renderTareasGestorResumenHTML(counts) : renderTareasGestorVistaHTML(tareasGestorVista, porFecha)}
-      </div>
-    </div>`;
-  const wrapNuevoTG = overlay.querySelector('#tareas-gestor-content-wrap');
-  if(wrapNuevoTG) wrapNuevoTG.scrollTop = scrollTopAnteriorTG;
+ overlay.style.padding='0';
+ const old=overlay.querySelector('#tareas-gestor-content-wrap'),scroll=old?old.scrollTop:0;
+ const vista=tareasGestorVista||'operativas',f=tareasGestorFiltros;
+ const all=tareasData.filter(t=>vista==='archivo'?esTareaArchivada(t):!esTareaArchivada(t));
+ const filtered=all.filter(t=>{
+   if(f.estado!=='todas'&&t.estado!==f.estado)return false;
+   if(f.origen!=='todos'&&tareaOrigenGestion(t)!==f.origen)return false;
+   if(f.sala!=='todas'&&salaDeInv(t.inv)!==f.sala)return false;
+   if(f.asignado!=='todos'&&t.asignadoA!==f.asignado)return false;
+   return !f.fecha||t.fechaISO===f.fecha;
+ });
+ const active=filtered.filter(t=>t.estado!=='completada'&&t.estado!=='anulada'),done=filtered.filter(t=>t.estado==='completada');
+ const nav=(key,label,count,icon)=>`<button onclick="irATareasGestorVista('${key}')" style="padding:9px 12px;font-size:12px;font-weight:800;background:${vista===key?'#fff':'transparent'};color:${vista===key?'#1558a0':'#fff'};border:1px solid #8eb1d5;border-radius:7px;cursor:pointer;white-space:nowrap"><i class="ti ${icon}"></i> ${label} ${count}</button>`;
+ const select=(campo,ops)=>`<select aria-label="${campo}" onchange="cambiarFiltroTareasGestor('${campo}',this.value)" style="min-width:110px;max-width:190px;padding:8px;border:1px solid #a8c4e8;border-radius:7px;background:#fff;color:#1558a0;font-size:12px">${ops.map(([val,label])=>`<option value="${val}" ${f[campo]===val?'selected':''}>${label}</option>`).join('')}</select>`;
+ const origen=[['todos','Todos los orígenes'],['manual','Manual'],['riego','Riego'],['especificos','Específicos'],['pistola','Pistola'],['sin_origen','Antiguos']];
+ const salas=[['todas','Todas las salas'],...['sala1','sala2','sala3','sala4','sala5'].map((v,i)=>[v,'Sala '+(i+1)])];
+ const personal=[['todos','Todos los operarios'],...Object.keys(USERS).map(u=>[u,u])];
+ const filtroHTML=vista==='mantenimiento'?'':`<div style="padding:9px 12px;background:#eef4fb;border-bottom:1px solid #cad9ea;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+   ${select('origen',origen)}${select('sala',salas)}${select('asignado',personal)}
+   ${vista==='operativas'?select('estado',[['todas','Todos los estados'],['pendiente','Pendientes'],['iniciada','En curso'],['completada','Completadas']]):''}
+   <input aria-label="Fecha" type="date" value="${f.fecha}" onchange="cambiarFiltroTareasGestor('fecha',this.value)" style="padding:7px;border:1px solid #a8c4e8;border-radius:7px;color:#1558a0;font-size:12px">
+   <button onclick="resetFiltrosTareasGestor()" style="padding:7px 10px;background:#fff;border:1px solid #a8c4e8;border-radius:7px;color:#1558a0;cursor:pointer">Limpiar</button>
+ </div>`;
+ const action=(fn,icon,label)=>`<button onclick="${fn}()" style="padding:8px 11px;border:1px solid #a8c4e8;border-radius:7px;background:#fff;color:#1558a0;cursor:pointer;font-size:12px;font-weight:700"><i class="ti ${icon}"></i> ${label}</button>`;
+ const toolbar=vista==='operativas'?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+   ${action('showNuevaTareaForm','ti-plus','Nueva tarea')}
+   ${action('generarTareasDesdeRiego','ti-refresh','Actualizar desde Riego')}
+   ${action('imprimirTareasGestorActivas','ti-printer','Imprimir tareas')}
+ </div><div id="nueva-tarea-form-wrap"></div>`:'';
+ const batch=active.some(t=>t.estado==='pendiente'&&!t.origenFito?.serieId)?`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:9px;background:#eef4fb;border-radius:8px;margin:12px 0">
+   <span style="font-size:12px;color:#1558a0;font-weight:700">Asignar marcadas:</span>
+   <select id="lote-asignado-select" style="padding:7px;border:1px solid #a8c4e8;border-radius:7px"><option value="">Operario</option>${Object.keys(USERS).map(u=>`<option value="${u}">${u}</option>`).join('')}</select>
+   <button id="btn-asignar-lote" onclick="asignarTareasEnLote()" disabled style="padding:8px 11px;border:0;border-radius:7px;background:#1558a0;color:#fff;opacity:.5">Asignar (<span id="lote-contador">0</span>)</button>
+ </div>`:'';
+ const cards=(list,selectable)=>`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(275px,1fr));gap:11px">${list.map(t=>buildTareaGestorRow(t,selectable&&t.estado==='pendiente'&&!t.origenFito?.serieId)).join('')||'<div style="font-size:12px;color:#667">No hay tareas.</div>'}</div>`;
+ const body=vista==='mantenimiento'?renderMantenimientoColgandoHTML()
+   :vista==='archivo'?`<div style="font-size:13px;font-weight:800;color:#1558a0;margin-bottom:12px">Archivo consultable · ${filtered.length} registros</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(275px,1fr));gap:10px">${filtered.map(renderTareaArchivoConsultable).join('')||'<div>Sin registros.</div>'}</div>`
+   :`${toolbar}${batch}<h3 style="font-size:13px;color:#1558a0;margin:12px 0">Pendientes y en curso (${active.length})</h3>${cards(ordenarTareasPorHorario(active),true)}
+      <h3 style="font-size:13px;color:#2e7d32;margin:19px 0 10px">Completadas recientes (${done.length})</h3>${cards(ordenarTareasCompletadas(done),false)}`;
+ overlay.innerHTML=`<div style="background:#f7faff;width:100vw;height:100vh;max-width:100vw;overflow:hidden;display:flex;flex-direction:column">
+   <div style="background:var(--grad-blue);padding:10px 13px;color:#fff;display:flex;align-items:center;justify-content:space-between">
+     <strong style="font-size:16px"><i class="ti ti-clipboard-list"></i> Tareas</strong>
+     <button onclick="document.getElementById('tareas-overlay').style.display='none'" style="background:#1558a0;color:#fff;border:0;border-radius:6px;width:34px;height:34px;cursor:pointer" aria-label="Cerrar"><i class="ti ti-x"></i></button>
+   </div>
+   <div style="padding:9px 12px;background:#1558a0;display:flex;gap:7px;overflow-x:auto">
+     ${nav('operativas','Operativas',tareasData.filter(t=>!esTareaArchivada(t)).length,'ti-list-check')}
+     ${nav('mantenimiento','Mantenimiento',mantenimientoData.filter(t=>t.estado!=='cerrado').length,'ti-tool')}
+     ${nav('archivo','Archivo',tareasData.filter(esTareaArchivada).length,'ti-archive')}
+     ${currentUserRole==='ADMIN'?action('descargarRespaldoTareas','ti-download','Respaldo JSON'):''}
+   </div>
+   ${filtroHTML}
+   <div id="tareas-gestor-content-wrap" style="flex:1;overflow-y:auto;padding:12px 14px">
+     ${vista==='mantenimiento'?'<div id="nuevo-ticket-mant-wrap"></div>':''}${body}
+   </div>
+ </div>`;
+ const next=overlay.querySelector('#tareas-gestor-content-wrap');if(next)next.scrollTop=scroll;
 }
 function renderTareasGestorResumenHTML(counts){
   const subLabel = key => key==='mantenimiento' ? (counts[key]===1?'ticket abierto':'tickets abiertos') : key==='indice' ? 'agua y abono' : (counts[key]===1?'pendiente':'pendientes');
