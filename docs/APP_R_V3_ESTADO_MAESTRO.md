@@ -540,6 +540,13 @@ El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en int
 
 **Orden obligatorio intacto:** terminar UAT de Añadir/Editar riego → impresión A4 del Bloque B Plaguicidas → auditoría funcional completa de Tareas → diseño validado → Bloque C Pistola.
 
+
+## 0.53. Control de Riego — eliminar solo icono de papelera roja (22/10/2026)
+
+**Cambio visual aprobado por usuario:** en Añadir/Editar riego, el botón de «Eliminar riego» se presenta **solo como icono de papelera roja**, sin texto, manteniendo fondo rojo suave, dimensiones compactas (36 × 36 px) y título/etiqueta accesible «Eliminar riego original». Sigue oculto en altas y se muestra únicamente en edición de registro existente; la confirmación con fecha, invernadero y calles originales y el handler `borrarRiegoManual()` **no se han modificado**.
+
+**Código TEST:** commit `d04ddfa13fa4647fed5818768ab41cee3ef1dd68`, archivo `index.html`, rama `test/v1.0`. Parseo correcto de los cinco scripts inline. Pendiente verificación visual humana; sin datos escritos en Firebase. Seguir validando Control de Riego antes de cerrar Bloque B de Plaguicidas (impresión A4), auditar Tareas y retomar C.
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).
