@@ -1925,7 +1925,7 @@ function buildTareaGestorRow(t, conSeleccion){
       </div>
       ${detalles ? `<div style="font-size:11px;color:var(--muted);margin-top:8px;padding-top:8px;border-top:1px dashed var(--border)">${detalles}</div>` : ''}
       <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
-        ${manual ? `<button onclick="showEditarTareaForm('${t.id}')" style="padding:7px 12px;font-size:11px;font-weight:700;background:#1558a0;color:#fff;border:0;border-radius:7px;cursor:pointer">Editar</button>
+        ${manual&&t.estado==='pendiente' ? `<button onclick="showEditarTareaForm('${t.id}')" style="padding:7px 12px;font-size:11px;font-weight:700;background:#1558a0;color:#fff;border:0;border-radius:7px;cursor:pointer">Editar</button>
           <button onclick="eliminarTarea('${t.id}')" style="padding:7px 12px;font-size:11px;background:#eef4fb;color:#1558a0;border:1px solid #a8c4e8;border-radius:7px;cursor:pointer">Anular</button>` : ''}
         ${pistola ? `<button onclick="imprimirHojaFumigacionTarea('${t.id}')" style="padding:7px 12px;font-size:11px;font-weight:700;background:#1558a0;color:#fff;border:0;border-radius:7px;cursor:pointer">Hoja oficial</button>
           ${pistolaVinculada?`<button onclick="abrirJornadaPistolaDesdeTareas('${t.id}')" style="padding:7px 12px;font-size:11px;background:#eef4fb;color:#1558a0;border:1px solid #a8c4e8;border-radius:7px;cursor:pointer">Ver jornada</button>`:''}` : ''}
@@ -2994,7 +2994,7 @@ function showEditarTareaForm(id){
   if(!['ADMIN','TECNICO'].includes(currentUserRole)){showToast('Solo ADMIN y TÉCNICO pueden gestionar Tareas.');return;}
   const t = tareasData.find(x=>x.id===id);
   if(!t){ showToast('No se encontró la tarea'); return; }
-  if(tareaOrigenGestion(t)!=='manual'){showToast('Este trabajo se gestiona desde su origen.');return;}
+  if(tareaOrigenGestion(t)!=='manual'||t.estado!=='pendiente'){showToast('Solo se editan tareas manuales pendientes.');return;}
   if(esTareaArchivada(t)){showToast('El archivo es de solo consulta.');return;}
   const wrap = document.getElementById('nueva-tarea-form-wrap');
   if(!wrap) return;
@@ -3034,11 +3034,7 @@ function showEditarTareaForm(id){
         <label style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:5px">
           <input type="checkbox" id="et-prioridad" ${t.prioridad==='alta'?'checked':''}> Prioridad alta
         </label>
-        <select id="et-estado" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px">
-          <option value="pendiente" ${t.estado==='pendiente'?'selected':''}>⏳ Pendiente</option>
-          <option value="iniciada" ${t.estado==='iniciada'?'selected':''}>▶ Iniciada</option>
-          <option value="completada" ${t.estado==='completada'?'selected':''}>✓ Completada</option>
-        </select>
+        <span style="font-size:11px;color:#1558a0;font-weight:700">Estado: Pendiente · La ejecución se firma desde Mis tareas</span>
       </div>
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button onclick="document.getElementById('nueva-tarea-form-wrap').innerHTML=''" style="padding:8px 14px;font-size:11px;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:7px;cursor:pointer">Cancelar</button>
@@ -3054,7 +3050,7 @@ async function guardarEdicionTarea(id){
   const asignadoA=asignadosMarcados[0];
   const extraAsignados=asignadosMarcados.slice(1);
   if(!titulo||!asignadoA){ showToast('Indica al menos un título y a quién se asigna'); return; }
-  const nuevoEstado=document.getElementById('et-estado')?.value||'pendiente';
+  const nuevoEstado='pendiente'; // La ejecución/cierre se realiza exclusivamente desde el operario
   const fechaRaw=document.getElementById('et-fecha')?.value||'';
   const fechaLabel=fechaRaw ? new Date(fechaRaw+'T00:00:00').toLocaleDateString('es-ES',{day:'2-digit',month:'short'}).replace('.','') : '';
   const campos={
@@ -3071,7 +3067,7 @@ async function guardarEdicionTarea(id){
     if(!Array.isArray(cloud)) cloud=[];
     const idx=cloud.findIndex(x=>x.id===id);
     if(idx<0) return {value:cloud,result:{missing:true}};
-    if(tareaOrigenGestion(cloud[idx])!=='manual')return {value:cloud,result:{protected:true}};
+    if(tareaOrigenGestion(cloud[idx])!=='manual'||cloud[idx].estado!=='pendiente')return {value:cloud,result:{protected:true}};
     if(esTareaArchivada(cloud[idx]))return {value:cloud,result:{archived:true}};
     const cambioDeDueño=cloud[idx].asignadoA!==asignadoA;
     const actualizada={...cloud[idx],...campos,visto:cambioDeDueño?false:cloud[idx].visto};
@@ -3097,12 +3093,12 @@ async function eliminarTarea(id){
  if(!['ADMIN','TECNICO'].includes(currentUserRole))return;
  const tarea=tareasData.find(t=>t.id===id);
  if(!tarea){showToast('Tarea no encontrada');return;}
- if(tareaOrigenGestion(tarea)!=='manual'||esTareaArchivada(tarea)){showToast('Esta tarea está protegida.');return;}
+ if(tareaOrigenGestion(tarea)!=='manual'||tarea.estado!=='pendiente'||esTareaArchivada(tarea)){showToast('Esta tarea está protegida.');return;}
  if(!confirm('¿Anular la tarea "'+tarea.titulo+'"? Se conservará en el Archivo, sin borrarse.'))return;
  const tx=await actualizarStorageJsonConEtag(TAREAS_KEY,[],cloud=>{
    if(!Array.isArray(cloud))throw Error('Tareas: formato inválido');
    const t=cloud.find(x=>x.id===id);
-   if(!t||tareaOrigenGestion(t)!=='manual'||esTareaArchivada(t))return undefined;
+   if(!t||tareaOrigenGestion(t)!=='manual'||t.estado!=='pendiente'||esTareaArchivada(t))return undefined;
    const fecha=new Date().toISOString();
    return cloud.map(x=>x.id===id?{...x,estado:'anulada',archivadaEn:fecha,motivoAnulacion:'Anulada desde Tareas',anuladaPor:currentUser}:x);
  });
