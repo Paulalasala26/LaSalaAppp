@@ -454,6 +454,23 @@ El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en int
 
 **ESTADO DEL BLOQUE C:** asignación nueva vinculada implementada y probada con mocks, **pendiente UAT con una jornada de prueba Pistola futura creada voluntariamente en TEST** y comprobación en «Mis tareas» del PEÓN. No crear tareas de ejemplo automáticamente. Edición y borrado de jornadas Pistola siguen bloqueados por seguridad; siguiente fase de C: conciliar actualización/borrado con tareas vinculadas, teniendo en cuenta tareas `pendiente / iniciada / completada`, conflictos ETag, posibles fallos parciales entre las dos colecciones Firebase y datos históricos sin vínculo. No borrar nunca firmas o tiempos de tareas ejecutadas. Bloque B no cerrado hasta confirmar impreso real.
 
+### 0.47. Bloque C — protección de Tareas Pistola y consulta/conciliación (22/10/2026)
+
+**HEAD verificado de partida:** `35e8d5441ef98e150bd5d3d3dcb4d6251ae90d78`; la asignación inicial por `serieId+jornadaId` ya existía según 0.46. Bloque B continúa abierto por impresión física de la primera línea.
+
+**Auditoría adicional:** `limpiarTareasVencidas()` borraba tareas incluso vinculadas a Plaguicidas; `persistTareasData()` mezclaba una copia local por ID sobre la versión remota y podía revertir una firma/estado recientes; inicio y cierre del peón usaban lectura+guardado genérico; edición, reasignación en lote y borrado administrativo permitían romper la relación jornada/tarea. Son defectos comprobados en el código, no UAT.
+
+**Commit `3762b6174866bb0157a2a7df80983ad16736d424` (index.html):** las tareas vinculadas no se borran automáticamente por antigüedad y la fusión genérica no sobrescribe su estado remoto. Inicio `pendiente → iniciada` y finalización `iniciada → completada` del PEÓN dueño se realizan con ETag y verifican estado previo, asignación y ausencia de bloqueo de conciliación; el cierre guarda `horaFinTs`, firma de preparador/aplicador y caldo sobrante. Un segundo cierre/conflicto no pisa evidencias. Edición, clonado, eliminación o reasignación en lote por la gestión independiente de Tareas quedan bloqueados también dentro del mutador ETag (si una tarea pasó a ser vinculada mientras se abría su formulario). La ruta legacy de Tareas permanece sin cambios funcionales. READY del commit comprobado en el alias TEST.
+
+**Commit `350dc17a124a2f1c26d3ce67d41623484af91384` (assets/fito-series-v3.js):** tarjeta de Consulta de jornada Pistola vinculada incluye **Estado de tarea** para ADMIN/TÉCNICO. Lectura remota muestra estado, PEÓN, INV/calles, horas y firmas. Si no existe tarea, se pide aprobación para conciliar; se refresca Plaguicidas remoto y se verifica identidad de jornada, mismo día, método Pistola, preparación/horario/caldo homogéneos y misma sala. Si hay una tarea legacy parecida sin vínculo, se bloquea la creación automática y se exige resolución manual. Se utiliza el asignador idempotente ETag previo; consultar no genera tarea por sí solo. READY del commit comprobado en el alias TEST.
+
+**Permisos pendientes de endurecimiento en servidor:** la configuración `database.rules.test.json` usa `"$other".write = "auth != null && auth.token.appUser != null"` y no discrimina ADMIN/TÉCNICO/PEÓN a nivel Firebase. Los controles anteriores son de interfaz/cliente; no se consideran autorización inviolable. Se requiere diseñar control de escritura por rol sin romper los módulos existentes, antes de producción.
+
+**Verificación técnica de esta intervención:** comprobadas anclas y guardas en ambas fuentes, límites de archivos, commits independientes en TEST, estado READY y SHA desplegado. No hay pruebas automáticas integradas del flujo con emulador Firebase en este entorno y tampoco UAT de PEÓN; no declarar cerrado. Ningún registro Firebase, ni los tratamientos del 22/23, fue modificado durante la intervención.
+
+**Sigue abierto Bloque C:** edición/anulación de jornadas Pistola requiere protocolo de operación pendiente, exclusión de tareas iniciadas o completadas, preservación de historial y recuperación de error parcial entre nodo Fito y Tareas. Mantener los bloqueos hasta verificación técnica. Siguiente validación humana agrupada, cuando se complete el bloque: jornada nueva Pistola de TEST → asignación única al PEÓN correcto → inicio/fin con firmas → estado desde Consulta; reintento sin duplicado; error parcial simulado. No pedir micropruebas.
+
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).
