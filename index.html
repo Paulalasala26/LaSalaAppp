@@ -238,10 +238,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
           <i class="ti ti-bug" style="font-size:20px;opacity:.95;flex-shrink:0" aria-hidden="true"></i>
           <span style="font-size:14px;font-weight:700;line-height:1.25">Plaguicidas</span>
         </div>
-        <div class="home-shortcut-card" onclick="handleQuickAction('tareas')" style="background:linear-gradient(120deg,#2b6fae,#3c80c2 55%,#5b9bd5);color:#fff;border-radius:11px;padding:.8rem 1rem;display:flex;align-items:center;gap:10px;min-height:50px;white-space:nowrap">
+        <button type="button" id="shortcut-tareas" class="home-shortcut-card" onclick="handleQuickAction('tareas')" style="background:linear-gradient(120deg,#2b6fae,#3c80c2 55%,#5b9bd5);color:#fff;border:0;cursor:pointer;font-family:inherit;border-radius:11px;padding:.8rem 1rem;display:flex;align-items:center;gap:10px;min-height:50px;white-space:nowrap">
           <i class="ti ti-clipboard-list" style="font-size:20px;opacity:.95;flex-shrink:0" aria-hidden="true"></i>
           <span style="font-size:14px;font-weight:700;line-height:1.25">Tareas</span>
-        </div>
+        </button>
         <div id="shortcut-clima" class="home-shortcut-card" onclick="handleQuickAction('clima')" style="background:linear-gradient(120deg,#2b6fae,#3c80c2 55%,#5b9bd5);color:#fff;border-radius:11px;padding:.8rem 1rem;display:flex;align-items:center;gap:10px;min-height:50px;white-space:nowrap">
           <i class="ti ti-cloud" style="font-size:20px;opacity:.95;flex-shrink:0" aria-hidden="true"></i>
           <span style="font-size:14px;font-weight:700;line-height:1.25">Clima</span>
@@ -1775,17 +1775,41 @@ async function transicionarMantenimientoPeonSeguro(id,estadoAnterior,campos){
   }
   mantenimientoData=tx.value;renderPeonTareasInline();return true;
 }
-function showTareasModule(){
-  loadTareasData(false).then(async ()=>{
-    const overlay = getOrCreateOverlay('tareas-overlay');
-    const esGestor = ['ADMIN','TECNICO'].includes(currentUserRole);
-    if(!esGestor) await avisarNuevasTareas(currentUser);
-    if(esGestor) await loadMantenimientoData();
+let tareasAperturaIntento = 0;
+async function showTareasModule(){
+  // La pulsación debe abrir la pantalla incluso cuando Firebase responde lento.
+  const overlay = getOrCreateOverlay('tareas-overlay');
+  const intento = ++tareasAperturaIntento;
+  const usuarioAlAbrir = currentUser, rolAlAbrir = currentUserRole;
+  const esGestor = ['ADMIN','TECNICO'].includes(rolAlAbrir);
+  overlay.style.padding='1rem';
+  overlay.innerHTML = `<div style="background:#fff;border-radius:12px;width:min(430px,100%);overflow:hidden">
+    <div style="background:var(--grad-blue);color:#fff;padding:13px 15px;display:flex;align-items:center;justify-content:space-between">
+      <strong>Tareas</strong>
+      <button type="button" onclick="document.getElementById('tareas-overlay').style.display='none'" aria-label="Cerrar" style="background:#1558a0;color:#fff;border:0;border-radius:6px;min-width:34px;min-height:34px;cursor:pointer">✕</button>
+    </div>
+    <div role="status" style="padding:22px 16px;color:#1558a0;font-weight:600;font-size:13px">Cargando tareas…</div>
+  </div>`;
+  overlay.style.display='flex';
+  const sigueAbierta = ()=>intento===tareasAperturaIntento && overlay.style.display==='flex' && usuarioAlAbrir===currentUser && rolAlAbrir===currentUserRole;
+  try {
+    await loadTareasData(false);
+    if(!sigueAbierta())return;
+    if(!esGestor)await avisarNuevasTareas(usuarioAlAbrir);
+    if(esGestor)await loadMantenimientoData();
+    if(!sigueAbierta())return;
     tareasGestorVista='operativas';
     resetFiltrosTareasGestorSinRender();
-    renderTareasContent(overlay, esGestor);
-    overlay.style.display='flex';
-  });
+    renderTareasContent(overlay,esGestor);
+  } catch (e) {
+    console.error('Error al abrir Tareas:',e);
+    if(!sigueAbierta())return;
+    overlay.innerHTML = `<div style="background:#fff;border-radius:12px;width:min(430px,100%);padding:20px;text-align:center">
+      <div style="font-size:14px;font-weight:700;color:#a32020;margin-bottom:12px">No se han podido abrir las tareas.</div>
+      <button type="button" onclick="showTareasModule()" style="padding:10px 16px;background:#1558a0;color:#fff;border:0;border-radius:7px;cursor:pointer">Reintentar</button>
+      <button type="button" onclick="document.getElementById('tareas-overlay').style.display='none'" style="padding:10px 16px;margin-left:8px;background:#eef4fb;color:#1558a0;border:0;border-radius:7px;cursor:pointer">Cerrar</button>
+    </div>`;
+  }
 }
 function showMantenimientoPeonModule(){
   loadMantenimientoData().then(()=>{
