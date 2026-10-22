@@ -3428,7 +3428,13 @@ function imprimirHojaFumigacionTarea(id){
 // datos: {producto, dosis, caldoLitros, caldoLabel, fechaISO, horario,
 // asignadoPor, tipoTrat, objetivos:[{inv,calles}]}
 function imprimirHojaFitoConDatos(datos){
-  if(!validarDatosImpresionFito(datos.producto, datos.dosis, datos.caldoLitros, datos.tipoTrat)) return false;
+  const hojas=Array.isArray(datos)?datos:[datos];
+  if(!hojas.length)return false;
+  // Validar todas las preparaciones antes de abrir un único diálogo para el lote.
+  for(const hoja of hojas){
+    if(!hoja||!validarDatosImpresionFito(hoja.producto,hoja.dosis,hoja.caldoLitros,hoja.tipoTrat))return false;
+  }
+  const paginas=hojas.map(datos=>{
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const productos = parsearProductosDosis(datos.producto||'', datos.dosis||'');
   const caldoLitros = datos.caldoLitros || null;
@@ -3484,6 +3490,8 @@ function imprimirHojaFitoConDatos(datos){
       <div class="ov ov-cultivos" style="left:5%;top:59%;width:91.3%;height:34.1%">${cultivosHTML}</div>
       <div class="ov ov-firma" style="left:69.8%;top:96%;width:23.9%">${escapar(nombreEncargado)}</div>
     </div>`;
+  return pagina;
+  });
   let iframe = document.getElementById('print-fito-iframe');
   if(!iframe){
     iframe = document.createElement('iframe');
@@ -3499,6 +3507,7 @@ function imprimirHojaFitoConDatos(datos){
       * { -webkit-print-color-adjust: exact; print-color-adjust: exact; color-adjust: exact; }
       body { font-family: Arial, Helvetica, sans-serif; margin:0; color:#1a1e18; }
       .hoja-fito { position:relative; width:210mm; height:298.6mm; overflow:hidden; }
+      .hoja-fito:not(:last-child) { break-after:page; page-break-after:always; }
       .hf-bg { position:absolute; left:0; top:0; width:100%; height:100%; z-index:0; }
       .ov { position:absolute; z-index:1; font-size:15px; font-weight:700; color:#111; white-space:nowrap; overflow:hidden; }
       .ov-cultivos { white-space:normal; line-height:1.9; overflow:visible; font-size:20px; text-align:center; }
@@ -3508,17 +3517,9 @@ function imprimirHojaFitoConDatos(datos){
       .hf-arrow { font-size:24px; font-weight:800; }
       .hf-espera-carga { color:#e65100; font-weight:900; font-size:17px; }
       .ov-firma { text-align:center; }
-    </style></head><body>${pagina}</body></html>`);
+    </style></head><body>${paginas.join('')}</body></html>`);
   doc.close();
-  const dispararImpresion = () => { iframe.contentWindow.focus(); iframe.contentWindow.print(); };
-  const bgImg = doc.querySelector('.hf-bg');
-  if(bgImg && !bgImg.complete){
-    bgImg.addEventListener('load', dispararImpresion, {once:true});
-    bgImg.addEventListener('error', dispararImpresion, {once:true});
-    setTimeout(dispararImpresion, 3000);
-  } else {
-    setTimeout(dispararImpresion, 200);
-  }
+  lanzarImpresionFitoUnaVez(iframe,doc);
 }
 // Mismo patrón que autoAsignarTareasRiego (cada peón recibe su propia copia,
 // fusionando calles si ya había una pendiente igual), pero para las
@@ -14363,8 +14364,8 @@ function showFitoModule(){
           <div class="control-ui-header-right">
             <span id="fito-subtitulo" class="control-ui-section-label" aria-live="polite">Inicio</span>
             <button id="fito-btn-imprimir" type="button" class="control-ui-close" onclick="showImprimirResumenSelector('fito')"
-              title="Imprimir resumen de tratamientos" aria-label="Imprimir resumen de tratamientos" style="font-size:16px">
-              <i class="ti ti-printer" aria-hidden="true"></i>
+              title="Imprimir resumen por invernaderos y días" aria-label="Imprimir resumen por invernaderos y días" style="font-size:12px;width:auto;padding:0 8px;gap:5px;white-space:nowrap">
+              <i class="ti ti-printer" aria-hidden="true"></i><span>Resumen</span>
             </button>
             <button type="button" class="control-ui-close"
               onclick="document.getElementById('fito-overlay').style.display='none'"
@@ -14506,7 +14507,7 @@ function actualizarVistaFitoSeleccion(invId){
   if(acciones) acciones.style.display=elegido?'flex':'none';
   actualizarEstadoBotonGuardarFito();
   const imprimir=document.getElementById('fito-btn-imprimir');
-  if(imprimir) imprimir.style.display=esMenu?'none':'grid';
+  if(imprimir) imprimir.style.display=esConsulta?'flex':'none';
 }
 function abrirSeccionFito(seccion){
   if(seccion!=='registrar' && seccion!=='consulta') return;
@@ -19147,6 +19148,37 @@ function validarDatosImpresionFito(trat, dosis, caldoLitros, tipoTrat){
 // con sus calles, y tres huecos para firmar a mano (el del encargado ya
 // lleva puesto el nombre de quien ha hecho la hoja).
 const HOJA_PLAGUICIDAS_IMG = 'assets/hoja-plaguicidas.jpg';
+// Un solo diálogo por acción. Carga de imagen y temporizador de respaldo
+// comparten seguro de disparo, incluso al imprimir varias hojas oficiales.
+let fitoImpresionNumero=0;
+function lanzarImpresionFitoUnaVez(iframe,doc){
+  const numero=++fitoImpresionNumero, imagenes=[...doc.querySelectorAll('.hf-bg')];
+  let lanzada=false, respaldo=null;
+  const lanzar=()=>{
+    if(lanzada||numero!==fitoImpresionNumero)return;
+    lanzada=true;
+    if(respaldo!=null)clearTimeout(respaldo);
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
+  };
+  const pendientes=imagenes.filter(img=>!img.complete);
+  if(!pendientes.length){respaldo=setTimeout(lanzar,200);return;}
+  let restantes=pendientes.length;
+  pendientes.forEach(img=>{
+    let resuelta=false;
+    const completar=()=>{
+      if(resuelta)return;
+      resuelta=true;
+      restantes--;
+      if(restantes===0)setTimeout(lanzar,100);
+    };
+    img.addEventListener('load',completar,{once:true});
+    img.addEventListener('error',completar,{once:true});
+    if(img.complete)completar();
+  });
+  respaldo=setTimeout(lanzar,5000);
+}
+
 
 function imprimirHojaFitosanitario(){
   const dia = parseInt(document.getElementById('fm-dia')?.value);
@@ -19277,15 +19309,7 @@ function imprimirHojaFitosanitario(){
   // de 200ms en decodificarse la primera vez — si se imprime antes de que
   // termine de cargar, sale la hoja sin la foto detrás. Se espera al evento
   // "load" de la imagen (con una red de seguridad por si no llegara nunca).
-  const dispararImpresion = () => { iframe.contentWindow.focus(); iframe.contentWindow.print(); };
-  const bgImg = doc.querySelector('.hf-bg');
-  if(bgImg && !bgImg.complete){
-    bgImg.addEventListener('load', dispararImpresion, {once:true});
-    bgImg.addEventListener('error', dispararImpresion, {once:true});
-    setTimeout(dispararImpresion, 3000);
-  } else {
-    setTimeout(dispararImpresion, 200);
-  }
+  lanzarImpresionFitoUnaVez(iframe,doc);
 }
 
 
