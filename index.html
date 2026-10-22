@@ -14471,6 +14471,7 @@ function actualizarVistaFitoSeleccion(invId){
   if(selectorWrap) selectorWrap.style.display=esRegistro&&!elegido?'block':'none';
   if(selection) selection.style.display=elegido?'flex':'none';
   if(grid) grid.style.display=(esConsulta||elegido)?'block':'none';
+  if(grid) grid.style.background=esConsulta?'#f6f9fe':'#fdf9f9';
   // Registrar mantiene el selector de quincena como Riego. Consultar lo integra con sus filtros.
   if(quincena) quincena.style.display=esRegistro?'flex':'none';
   if(subtitulo) subtitulo.textContent=esMenu?'Inicio':esConsulta?'Consultar tratamientos':'Registrar tratamientos';
