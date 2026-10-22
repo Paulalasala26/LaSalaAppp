@@ -278,7 +278,7 @@ window.verHistorialFitoV3=function(id){
   return sections.join(', ');
  };
  const dates=[...byJournal.values()].sort((a,b)=>a.date.localeCompare(b.date));
- const printJobs=[];
+ const printJobs=new Map();
  const modal=getOrCreateOverlay('fm-serie-historial-v3');modal.style.zIndex=2200;
  const detail=dates.map(j=>{
   let firstCount=0;
@@ -296,34 +296,43 @@ window.verHistorialFitoV3=function(id){
     +'</div>';
   }).join('');
   const groups=buildPrintJobsV3(j.records);
-  const printButtons=groups.map((job,n)=>{
-   const index=printJobs.length;
-   printJobs.push({journalId:j.code,signature:job.signature,identity:job.identity});
-   const label=groups.length===1?'Imprimir hoja oficial':'Imprimir hoja '+(n+1)+' · '+job.label;
-   return '<button type="button" data-fito-jornada-print="'+index+'"'
-    +' style="min-height:40px;padding:8px 10px;border:1px solid #1558a0;border-radius:7px;'
+  const expected=JSON.stringify(groups.map(g=>[g.signature,g.identity]).sort((a,b)=>a[0].localeCompare(b[0])));
+  if(groups.length)printJobs.set(j.code,{expected});
+  const printButton=groups.length
+   ?'<button type="button" data-fito-jornada-print="'+esc(j.code)+'"'
+    +' style="min-height:40px;padding:8px 12px;border:1px solid #1558a0;border-radius:7px;'
     +'background:#e8f0fb;color:#1558a0;font-size:12px;font-weight:800;cursor:pointer">'
-    +'<i class="ti ti-printer" aria-hidden="true"></i> '+esc(label)+'</button>';
-  }).join('');
+    +'<i class="ti ti-printer" aria-hidden="true"></i> Imprimir jornada · '+groups.length
+    +(groups.length===1?' hoja':' hojas')+'</button>'
+   :'<span style="font-size:12px;color:#a32020">Impresión bloqueada: jornada con fechas inconsistentes</span>';
+  const printNote=groups.length>1
+   ?'<div style="font-size:11px;color:#425c75;margin-top:7px">Se imprimirán '+groups.length
+    +' hojas oficiales, separadas por cuba o preparación: '+esc(groups.map(g=>g.label).join(' / '))+'</div>'
+   :'';
   return '<div style="border:1px solid #c6d9ee;border-radius:8px;padding:10px;margin-bottom:8px">'
    +'<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">'
    +'<strong>'+esc(j.date)+'</strong><span style="font-size:12px">'+firstCount+' calle(s) que empiezan</span></div>'
    +'<div style="font-size:12px;margin:5px 0">'+esc(j.examples)+'</div>'+invDetails
    +'<div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px">'
-   +(printButtons||'<span style="font-size:12px;color:#a32020">Impresión bloqueada: jornada con fechas inconsistentes</span>')
-   +'</div></div>';
+   +printButton+'</div>'+printNote+'</div>';
  }).join('');
  modal.innerHTML='<div style="background:#fff;border-radius:10px;width:min(600px,96vw);max-height:88vh;overflow:auto">'
  +'<div class="control-ui-header" style="padding:10px"><b>Tratamiento · inicio global '+esc(entries[0].raw.inicioSerieISO)+'</b><button class="control-ui-close" onclick="document.getElementById(\'fm-serie-historial-v3\').style.display=\'none\'">×</button></div>'
  +'<div style="padding:14px"><p style="font-size:12px">Jornadas registradas; no implica ejecución confirmada.</p>'+detail+'</div></div>';
  modal.querySelectorAll('[data-fito-jornada-print]').forEach(btn=>btn.addEventListener('click',()=>{
   if(fitoDirtyCells.size){showToast('Hay cambios pendientes de guardar. No se imprime un registro sin confirmar.');return;}
-  const reference=printJobs[Number(btn.dataset.fitoJornadaPrint)];
+  const journalId=btn.dataset.fitoJornadaPrint;
+  const reference=printJobs.get(journalId);
   if(!reference)return;
-  const fresh=seriesCells(id).filter(e=>(e.raw.jornadaId||e.raw.fechaJornadaISO||dayISO(e.day))===reference.journalId);
-  const sheet=buildPrintJobsV3(fresh).find(x=>x.signature===reference.signature&&x.identity===reference.identity);
-  if(!sheet){showToast('La jornada ha cambiado. Cierra y vuelve a abrir la consulta antes de imprimir.');return;}
-  imprimirHojaFitoConDatos({...sheet.datos,asignadoPor:currentUser});
+  const fresh=seriesCells(id).filter(e=>(e.raw.jornadaId||e.raw.fechaJornadaISO||dayISO(e.day))===journalId);
+  const sheets=buildPrintJobsV3(fresh);
+  const identity=JSON.stringify(sheets.map(g=>[g.signature,g.identity]).sort((a,b)=>a[0].localeCompare(b[0])));
+  if(!sheets.length||identity!==reference.expected){
+   showToast('La jornada ha cambiado. Cierra y vuelve a abrir la consulta antes de imprimir.');
+   return;
+  }
+  // Una sola llamada a print(): las distintas preparaciones serán páginas del mismo documento.
+  imprimirHojaFitoConDatos(sheets.map(g=>({...g.datos,asignadoPor:currentUser})));
  }));
  modal.style.display='flex';
 };
