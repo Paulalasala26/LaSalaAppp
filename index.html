@@ -1094,7 +1094,7 @@ async function limpiarTareasVencidas(){
   tareasData=tareasData.filter(t=>!idsBorrar.has(t.id));
   const tx=await actualizarStorageJsonConEtag(TAREAS_KEY,[],cloud=>{
     if(!Array.isArray(cloud)) cloud=[];
-    return cloud.filter(t=>!idsBorrar.has(t.id)).map(t=>{
+    return cloud.filter(t=>!idsBorrar.has(t.id)||!!t.origenFito?.serieId).map(t=>{
       if(t.estado==='completada' && !t.completadoISO) return {...t,completadoISO:completadoISOBackfill(t)};
       return t;
     });
@@ -1818,7 +1818,7 @@ async function persistMantenimientoData(){
 function showTareasModule(){
   loadTareasData(false).then(async ()=>{
     const overlay = getOrCreateOverlay('tareas-overlay');
-    const esGestor = currentUserRole!=='REGANTE' && currentUserRole!=='PEON';
+    const esGestor = ['ADMIN','TECNICO'].includes(currentUserRole);
     if(!esGestor) await avisarNuevasTareas(currentUser);
     if(esGestor) await loadMantenimientoData();
     tareasGestorVista = null;
@@ -1870,6 +1870,7 @@ function actualizarBotonAsignarLote(){
 // cada una que cambia de verdad de dueño, esa persona recibe un solo aviso
 // agrupado ("N tareas nuevas") la próxima vez que entre, no uno por tarea.
 async function asignarTareasEnLote(){
+  if(!['ADMIN','TECNICO'].includes(currentUserRole)){showToast('Solo ADMIN y TÉCNICO pueden gestionar Tareas.');return;}
   const persona = document.getElementById('lote-asignado-select')?.value;
   if(!persona){ showToast('Elige a quién asignar'); return; }
   if(!tareasSeleccionadas.size){ showToast('Selecciona al menos una tarea'); return; }
@@ -2762,6 +2763,7 @@ function buildTareaCard(t){
   </div>`;
 }
 function showNuevaTareaForm(){
+  if(!['ADMIN','TECNICO'].includes(currentUserRole)){showToast('Solo ADMIN y TÉCNICO pueden gestionar Tareas.');return;}
   const wrap = document.getElementById('nueva-tarea-form-wrap');
   if(!wrap) return;
   const asignables = Object.keys(USERS);
@@ -2806,6 +2808,7 @@ function showNuevaTareaForm(){
     </div>`;
 }
 async function crearTarea(){
+  if(!['ADMIN','TECNICO'].includes(currentUserRole)){showToast('Solo ADMIN y TÉCNICO pueden gestionar Tareas.');return;}
   const titulo = document.getElementById('nt-titulo')?.value?.trim();
   // Asignar a varias personas a la vez (a petición de Paula, 2026-08-11) —
   // se crea UNA TAREA POR CADA PERSONA marcada (mismo título/descripción/
@@ -2846,6 +2849,7 @@ async function crearTarea(){
 // exacta y guardar ese resultado tal cual, para que una edición o un
 // borrado no reaparezcan fusionados con la versión antigua.
 function showEditarTareaForm(id){
+  if(!['ADMIN','TECNICO'].includes(currentUserRole)){showToast('Solo ADMIN y TÉCNICO pueden gestionar Tareas.');return;}
   const t = tareasData.find(x=>x.id===id);
   if(!t){ showToast('No se encontró la tarea'); return; }
   if(t.origenFito?.serieId){showToast('Tarea Pistola vinculada: edición desde Plaguicidas.');return;}
@@ -2901,6 +2905,7 @@ function showEditarTareaForm(id){
   wrap.scrollIntoView({behavior:'smooth', block:'nearest'});
 }
 async function guardarEdicionTarea(id){
+  if(!['ADMIN','TECNICO'].includes(currentUserRole)){showToast('Solo ADMIN y TÉCNICO pueden gestionar Tareas.');return;}
   const titulo=document.getElementById('et-titulo')?.value?.trim();
   const asignadosMarcados=Array.from(document.querySelectorAll('#et-asignado-chips .chip-asignado-on')).map(b=>b.dataset.etAsignadoChip);
   const asignadoA=asignadosMarcados[0];
@@ -2944,6 +2949,7 @@ async function guardarEdicionTarea(id){
   refreshTareasViews();
 }
 async function eliminarTarea(id){
+  if(!['ADMIN','TECNICO'].includes(currentUserRole)){showToast('Solo ADMIN y TÉCNICO pueden gestionar Tareas.');return;}
   const t=tareasData.find(x=>x.id===id);
   if(!t){ showToast('No se encontró la tarea'); return; }
   if(t.origenFito?.serieId){showToast('No se elimina una tarea Pistola vinculada.');return;}
@@ -2971,7 +2977,7 @@ function refreshTareasViews(){
   // Repinta con los datos ya en memoria (tareasData) sin recargar ni volver
   // al nivel más alto — así un ADMIN/TÉCNICO que esté dentro de Pendientes →
   // Sala 1 no se ve devuelto al principio cada vez que algo cambia.
-  if(overlay && overlay.style.display==='flex') renderTareasContent(overlay, currentUserRole!=='REGANTE' && currentUserRole!=='PEON');
+  if(overlay && overlay.style.display==='flex') renderTareasContent(overlay, ['ADMIN','TECNICO'].includes(currentUserRole));
 }
 // A petición de Paula: en cuanto el peón termina TODAS sus tareas de riego
 // activas, en vez de "no te quedan tareas pendientes" se le invita a
@@ -3342,6 +3348,7 @@ async function completarTarea(id){
   await loadTareasData();
   const t = tareasData.find(x=>x.id===id);
   if(!t) return;
+  if(t.origenFito?.serieId){showToast('Usa el cierre Pistola con firmas de preparador y aplicador.');return;}
   t.estado='completada';
   t.horaFin = new Date().toLocaleString('es-ES');
   t.horaFinTs = Date.now(); // a petición de Paula, 2026-08-11: poder mostrar cuánto tardó (inicio→ejecución)
@@ -3617,20 +3624,26 @@ async function autoAsignarTareaFumigacion(objetivos, dia, titulo, horario, extra
   // La transacción ETag verifica la relación EN LA NUBE (sin copiar un estado
   // local obsoleto), impide fusiones erróneas y tolera reintentos/concurrencia.
   if(vinculo){
+    if(!['ADMIN','TECNICO'].includes(currentUserRole))throw Error('Solo técnicos y administradores asignan jornadas Pistola.');
     const salas=[...new Set(objetivos.map(o=>salaDeInv(o.invId)))];
     if(salas.length!==1||!salas[0])throw Error('Pistola: tarea no asignada por salas incompatibles.');
     const asignadoA=peonDelaSala(objetivos[0].invId);
     const nueva={...crearTareaAuto(asignadoA),origenFito:vinculo};
     const tx=await actualizarStorageJsonConEtag(TAREAS_KEY,[],cloud=>{
       if(!Array.isArray(cloud))throw Error('Tareas: formato inesperado; no se puede asignar.');
-      const mismas=cloud.filter(t=>t.categoria==='fumigacion'
-        &&t.origenFito?.serieId===vinculo.serieId
+      const mismas=cloud.filter(t=>t.origenFito?.serieId===vinculo.serieId
         &&t.origenFito?.jornadaId===vinculo.jornadaId);
       if(mismas.length>1)throw Error('Tareas: varias asignaciones para una jornada. Revisar conciliación.');
       if(mismas.length===1){
         const t=mismas[0];
-        if(t.fechaISO!==fechaISO||t.asignadoA!==asignadoA)
-          throw Error('Tareas: vínculo incompatible. Revisar la tarea existente.');
+        const objetivosKey=a=>JSON.stringify((a||[]).map(o=>[String(o.inv),String(o.calles||'')])
+          .sort((x,y)=>x[0].localeCompare(y[0],'es',{numeric:true})||x[1].localeCompare(y[1],'es')));
+        if(t.fechaISO!==fechaISO||t.asignadoA!==asignadoA||t.categoria!=='fumigacion'
+         ||t.titulo!==nueva.titulo||t.producto!==nueva.producto||t.dosis!==nueva.dosis
+         ||t.horario!==nueva.horario||t.caldoLabel!==nueva.caldoLabel
+         ||(t.caldoLitros??null)!==(nueva.caldoLitros??null)
+         ||objetivosKey(t.objetivos)!==objetivosKey(nueva.objetivos))
+          throw Error('Tareas: vínculo con datos incompatibles. Revisión manual obligatoria.');
         // Nunca reiniciar una tarea vista, iniciada o completada.
         return undefined;
       }
