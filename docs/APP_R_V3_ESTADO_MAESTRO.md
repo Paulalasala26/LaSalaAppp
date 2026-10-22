@@ -587,6 +587,45 @@ El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en int
 
 **Siguiente secuencia intacta:** finalizar UAT Control de Riego → Bloque B Plaguicidas impresión A4 → auditoría Tareas → propuesta Tareas → Bloque C Pistola.
 
+
+## 0.57. Cierre de Control de Riego y Plaguicidas Bloque B — validación del usuario (22/10/2026)
+
+**Validación expresa:** tras retirar el botón «?» del Control de Riego, el usuario indica «ok, siguiente». Se considera **Control de Riego validado y cerrado** en su alcance visual/funcional revisado (incluida lectura histórica y formularios unificados). A continuación, al recuperar el pendiente de Plaguicidas Bloque B (impresión oficial A4), el usuario confirma «tambien validado, siguiente». En consecuencia, queda **Bloque B de Plaguicidas VALIDADO y CERRADO** por aceptación explícita, incluida la primera línea y los márgenes de impresión de 0.44 y el cálculo de caldo físico de 0.45. No volver a exigir la prueba en jornadas 22/10 o 23/10, salvo nueva incidencia.
+
+**No se cambian formularios, datos ni el algoritmo de impresión:** cierre de UAT exclusivamente documental. El **Bloque C Pistola → Tareas continúa ABIERTO** y no debe confundirse con el cierre de B.
+
+**Orden autorizado siguiente:** auditoría integral de Tareas primero, presentación de diseño para aprobación; solo después implementación y continuación de C.
+
+## 0.58. Auditoría funcional estática de Tareas — hallazgos y diseño propuesto sin implementar (22/10/2026)
+
+**Alcance revisado sobre la rama TEST vigente:** `index.html`, interfaz ADMIN/TÉCNICO, PEÓN, REGANTE, tareas manuales, asignación en lote, trabajo de Riego, Específicos, Plaguicidas Pistola, mantenimiento recurrente, estados/firmas, borrados, impresión, notificaciones, persistencia y roles. Auditoría del código sin modificar Tareas ni realizar escrituras en Firebase; faltará UAT operativa una vez validado el nuevo diseño.
+
+**Modelo actual y accesos:**
+1. Tareas normales usan `lasala-tareas-v1` (un array; tareas manuales por persona, generadas de Riego, Específicos y Pistola). ADMIN/TÉCNICO abren gestor a pantalla completa con «Tareas antiguas», «Tareas de hoy», «Tareas de mañana» (engloba también fechas futuras), «Mantenimiento de Parcelas» e «Índice Abonos», más barra «Ordenar», «Generar tareas», «Generar hojas riego» e «Imprimir tareas de peones». La pantalla de resumen duplica esa navegación con grandes tarjetas y ayuda textual.
+2. PEÓN abre Mis tareas directamente en Home, con una tarea activa y el resto difuminadas/inaccesibles hasta terminar la anterior, por orden de horario. Mantenimiento se ofrece después de finalizar las ordinarias y también como botón condicionado. REGANTE tiene accesos directos a Hojas de riego, Índice Abonos y Específicos; la pantalla Específicos usa tareas de categoría `especifico` para mostrar hojas por sala, pero no equivale a una bandeja general de tareas manuales.
+3. Mantenimiento vive en almacenamiento propio `lasala-mantenimiento-v1` y tiene estados `sin_asignar/asignado/en_proceso/cerrado`, listas de personas y recurrencias; Trabajos (Mujeres/Túnel/Externos) es otro módulo diferente. No mezclar almacenes sin diseño/migración.
+
+**Hallazgos de impacto alto (comprobados):**
+- **Generación desde Riego puede borrar tareas manuales:** `generarTareasDesdeRiego` suprime del conjunto todas las tareas PEON1/2/3 sin `categoria` que sigan pendientes/iniciadas, sin distinguir si su origen fue Riego o un alta manual. La simulación de ese filtro elimina tareas manuales pendientes e iniciadas, conserva completadas y Pistola categorizadas. La generación posterior no repone las manuales.
+- **Eliminación automática por antigüedad:** `limpiarTareasVencidas` se ejecuta al cargar Tareas y elimina a los dos días de la fecha asignada también tareas NO realizadas, y a los dos días de finalización las completadas, salvo `origenFito.serieId`. Es comportamiento legado explícito, pero destruye trazabilidad, pendientes sin ejecutar y firmas fuera de Pistola.
+- **Concurrencia y confirmación insuficientes en tareas normales:** `persistTareasData` fusiona por id y permite que un snapshot local antiguo sustituya datos nuevos de la nube; `iniciarTarea`, `completarTarea`, `completarFumigacion` legado y altas manuales no comprueban resultado confirmado de esa persistencia antes de mostrar éxito. No aplica a ruta vinculada Pistola, que sí usa transacción ETag y guardas de propietario/estado.
+- **Autorización en transiciones no Pistola:** iniciar/completar tareas ordinarias y mantenimiento se confía a las acciones visibles y al `id`, sin comprobar de forma consistente propietario, rol asignado y estado inicial al persistir; editar manualmente desde gestor puede pasar directamente a `completada` y rellenar firma con `currentUser`, distinto del cierre por operario.
+- **Trazabilidad de mantenimiento recurrente:** el mismo ticket cerrado se reinicia a sin asignar cuando vence, limpiando horas/firmas sin conservar dentro del ticket un historial de ejecuciones. La revisión ocurre al abrir, no por cron autónomo.
+- **Duplicación de navegación:** Índice Abonos existe ya como destino para REGANTE y se incrusta en gestor de Tareas; «Generar hojas riego» hace avanzar fecha de Hojas de riego, no genera tareas; pantallas resumen, fecha, sala, ordenar e impresión tienen distintos criterios y mucho texto auxiliar. Es un problema de claridad/UI, no de falta de botones.
+- **Destino de tareas manuales a REGANTE:** el formulario permite asignar cualquier usuario, pero el acceso habitual del REGANTE es Específicos + Índice Abonos, no una bandeja general de tareas manuales; una tarea genérica asignada a REGANTE puede no ser visible en su recorrido principal.
+- **Impresión:** tareas ordinarias A5, unificadas por título+fecha+horario (abono foliar separa cubas); Pistola conserva la hoja oficial propia. No confundir con el A4 validado del Bloque B de Plaguicidas.
+
+**Protecciones que hay que conservar:** identidad estricta Pistola por `origenFito.serieId+jornadaId`, no reasignar/editar/borrar desde Tareas, empezar/finalizar solo como PEÓN asignado y en transición válida, cronómetro, caldo sobrante, firma del preparador y del aplicador; separación por cubas físicas para abono foliar; tarea de PEÓN individual y decisión vigente de mostrar solo una tarea activa; controles de acceso de ADMIN/TÉCNICO.
+
+**Propuesta de diseño PARA APROBACIÓN — nada implementado todavía:**
+- Gestor con cabecera azul ViguerAPP; entrada clara por **Operativas** y **Mantenimiento** (separados). Dentro de Operativas, filtros compactos por estado (`Pendientes / En curso / Completadas`), fecha, sala, asignado y origen (`Manual / Riego / Específicos / Pistola`). Crear/Asignar en lote e Imprimir quedan acciones contextuales, no barra permanente de botones no relacionados.
+- **Índice Abonos** y «Avanzar hojas riego» siguen bajo su funcionalidad de Riego, con acceso cruzado contextual si hace falta, sin duplicarlos como secciones de Tareas.
+- Distinguir explícitamente la identidad y procedencia de cada tarea, proteger manuales ante regeneración de Riego, salvaguardar los vínculos Pistola; cerrar/modificar por transición de estado y guardado confirmado con concurrencia. Revisar visibilidad real por rol antes de aplicar el cambio.
+- Propuesta a validar especialmente: **no borrar pendientes sin ejecutar automáticamente**, archivar completadas conservando firma/hora y disponer de histórico de recurrencias; proponer política de retención concreta y validarla con el usuario ANTES de alterar lógica o datos. La política actual no se cambia sin su aceptación.
+- Vista de PEÓN simplificada pero respetando secuencia vigente de una tarea activa; Mantenimiento sin ocultación accidental; para REGANTE solo destinos correspondientes y una bandeja de manuales si esta categoría se permite.
+
+**Estado:** AUDITORÍA ESTÁTICA COMPLETADA; diseño pendiente de **aprobación expresa del usuario**. No crear cambios de Tareas ni cerrar Bloque C todavía.
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).
