@@ -370,6 +370,14 @@
 
 **PRÓXIMA PRUEBA ÚNICA NO DESTRUCTIVA:** `Ctrl+F5` en [ViguerAPP TEST](https://la-sala-app-test.vercel.app) → Consultar tratamientos → abrir registro 23/10; verificar flechas hasta extremos, anchuras, ubicación coherente, «Editar jornada» y botón azul cuadrado solo icono impresora en una fila; confirmar ausencia de textos irrelevantes y ausencia de impresora en Registrar (incluido historial al añadir). No pulsar Guardar/Borrar/Imprimir en esta prueba. Ajustar visual según observación antes de retomar impresión oficial. **Bloque B permanece ABIERTO; no proclamar UAT cerrado.**
  
+### 0.40. Bloque B — paginador de Consulta idéntico al de Riego (22/10/2026)
+
+**UAT parcial del usuario:** aprueba todo el pulido de Consulta de 0.39 salvo tamaño del paginador («Paginador, es más grande que en riego, por ejemplo, guarda coherencia. Rehazlo. Resto, ok»). Por tanto, **resto de Consulta 0.39 validado por el usuario**, sin reabrir tarjetas, filtros, acciones ni textos. Se mantiene Bloque B ABIERTO para impresión posteriormente.
+
+**Cambio único TEST:** `assets/fito-series-v3.js`, commit `03374fda94e61633c1f8ebc265a595e57f64b4d6`. En `construirConsultaFitoV3` se reemplaza exclusivamente el bloque HTML del paginador de Consulta, copiando el patrón visual real de `renderRiegoQuincenaBar` y el contenedor de Riego: botones de **36×36 px** (antes 44×44), columnas `36px minmax(0,1fr) 36px`, hueco 8px, borde 1px y radio 7px, fondo `#e8f0fb`, padding `.45rem .75rem`, borde inferior `#b0c8e0`, título `clamp(12px,3.3vw,15px)` y flechas de 20px. Las flechas se mantienen a extremos y el texto centrado. Se preservan `changeFitoQuincena(±1)` y el estado disabled del límite inferior. Sin cambiar lógica de filtros, tarjetas, guardado, Firebase ni impresión.
+
+**Validación técnica:** parser JS correcto; comparados los estilos y medidas en código contra `renderRiegoQuincenaBar` y `riego-quincena-bar`; 11 verificaciones estáticas favorables. Pendiente UAT visual en navegador de la nueva escala del paginador. **Siguiente prueba única:** recargar [ViguerAPP TEST](https://la-sala-app-test.vercel.app) → Consultar tratamientos, comparar el paginador con Marcar riego (36×36, misma altura/tipo de letra). No ejecutar guardados ni impresiones. Tras validación, volver a revisar contenido/flujo de impresión del Bloque B.
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).
