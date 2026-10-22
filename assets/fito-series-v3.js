@@ -535,8 +535,20 @@ async function consultarTareaJornadaFitoV3(serieId,jornadaId){
     detalle:'No consta tarea vinculada. Se comprobará la jornada en el servidor antes de asignarla.',
     accion:'Conciliar tarea'})))return;
   if(fitoDirtyCells.size)throw Error('Hay cambios locales sin sincronizar.');
-  if(!(await loadFitoData(true)))throw Error('No se pudo verificar Plaguicidas.');
-  const cells=seriesCells(serieId).filter(x=>x.raw.jornadaId===jornadaId);
+  // v1 es fuente canónica; el espejo v2 puede estar desfasado tras un fallo parcial.
+  const remoto=await window.storage.get(FITO_KEY);
+  if(!remoto)throw Error('No se pudo verificar Plaguicidas en el servidor.');
+  const cloud=JSON.parse(remoto.value);
+  if(!cloud||typeof cloud!=='object'||Array.isArray(cloud))
+   throw Error('Formato remoto de Plaguicidas inválido.');
+  const cells=[];
+  Object.entries(cloud).forEach(([inv,days])=>
+   Object.entries(days||{}).forEach(([d,streets])=>
+    Object.entries(streets||{}).forEach(([street,raw])=>{
+     if(raw&&typeof raw==='object'&&raw.serieId===serieId
+       &&raw.jornadaId===jornadaId&&raw.texto)
+      cells.push({inv,day:Number(d),street:Number(street),raw});
+    })));
   if(!cells.length)throw Error('Jornada ausente tras la lectura remota.');
   const day=cells[0].day;
   if(cells.some(x=>x.day!==day||x.raw.tipoTrat!=='Pistola'||x.raw.estadoRegistro==='anulado'))
