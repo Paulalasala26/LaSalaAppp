@@ -1011,96 +1011,31 @@ function fechaLocalISO(d){
   const day = String(d.getDate()).padStart(2,'0');
   return `${y}-${m}-${day}`;
 }
-// Días transcurridos desde la fecha "de referencia" de la tarea (positivo =
-// ya ha pasado). Si la tarea ya está completada, la referencia es cuándo se
-// completó (completadoISO) — así lo pidió Paula: 1 día desde que se realizó
-// pasa a "Tareas antiguas", a los 2 días se borra. Si todavía no se ha
-// completado (pendiente/iniciada), se usa su fecha asignada (fechaISO) como
-// antes, para que una tarea abandonada sin hacer no se quede para siempre.
-// Sin ninguna de las dos fechas (tareas de antes de este cambio) nunca entra
-// en el archivado/borrado automático.
-function diasDesdeFechaTarea(t){
-  const ref = (t.estado==='completada' && t.completadoISO) ? t.completadoISO : t.fechaISO;
-  if(!ref) return null;
-  const hoy = new Date(); hoy.setHours(0,0,0,0);
-  const f = new Date(ref+'T00:00:00');
-  return Math.round((hoy-f)/86400000);
-}
-function esTareaDeAyer(t){ return diasDesdeFechaTarea(t)===1; }
-// Ciclo de vida de una tarea de peón/regante: pendiente/iniciada → en cuanto
-// se completa pasa a su propio apartado de "Tareas completadas" → al día
-// siguiente a "Tareas antiguas" → a los 2 días se borra sola (arriba). Este
-// helper separa una lista ya filtrada (activas/vigentes, sin las de ayer)
-// entre pendientes+iniciadas y completadas, para pintarlas en apartados
-// distintos tanto en la vista de gestión como en la del propio peón/regante.
-function splitTareasPorEstado(lista){
-  return {
-    activas: lista.filter(t=>t.estado!=='completada'),
-    completadas: lista.filter(t=>t.estado==='completada')
-  };
-}
-// Tareas completadas: la más reciente primero.
-function ordenarTareasCompletadas(lista){
-  return lista.slice().sort((a,b)=>{
-    const ca = a.completadoISO || a.fechaISO || '';
-    const cb = b.completadoISO || b.fechaISO || '';
-    if(ca!==cb) return ca<cb ? 1 : -1;
-    return String(b.id).localeCompare(String(a.id));
-  });
-}
-// Orden de las tareas del PEÓN por horario (1º hora, sin horario ~ "media
-// mañana", por la tarde...) — a petición de Paula, para que se vayan
-// ejecutando en el orden real del día en vez de por prioridad/fecha.
-// prioridadHorarioRiego está definida más abajo en el archivo (con
-// RIEGO_HORARIOS) pero al ser declaraciones de función de nivel superior
-// están disponibles igual en tiempo de ejecución.
-function ordenarTareasPorHorario(lista){
-  return lista.slice().sort((a,b)=>{
-    const ha = prioridadHorarioRiego(a.horario), hb = prioridadHorarioRiego(b.horario);
-    if(ha!==hb) return ha-hb;
-    const pa = a.prioridad==='alta' ? 0 : 1, pb = b.prioridad==='alta' ? 0 : 1;
-    if(pa!==pb) return pa-pb;
-    return String(a.id).localeCompare(String(b.id));
-  });
-}
-function esTareaVencidaParaBorrar(t){ const d=diasDesdeFechaTarea(t); return d!=null && d>=2; }
-// Las tareas de PEÓN/REGANTE con más de 1 día de retraso sobre su fecha se
-// borran solas (a los 2 días); el día intermedio quedan un día en "Tareas de
-// ayer", que solo ven ADMIN/TÉCNICO — el peón/regante deja de verlas en
-// cuanto pasan a ese estado.
-// horaFin se guarda con new Date().toLocaleString('es-ES'), formato
-// "D/M/YYYY, HH:MM:SS" — lo convertimos a ISO para poder usarlo como fecha
-// real de finalización al rellenar tareas antiguas sin completadoISO.
+// Archivo consultable sin migrar ni borrar registros del almacén vigente.
 function parseFechaHoraToISO(str){
-  if(!str) return null;
-  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(str);
-  if(!m) return null;
-  return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+ const m=/^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(str||'');
+ return m?`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`:null;
 }
-function completadoISOBackfill(t){
-  return parseFechaHoraToISO(t.horaFin) || t.fechaISO || fechaLocalISO(new Date());
+function fechaEjecucionTareaISO(t){return t.completadoISO||parseFechaHoraToISO(t.horaFin)||t.fechaISO||null;}
+function diasDesdeFechaTarea(t){
+ const ref=t.estado==='completada'?fechaEjecucionTareaISO(t):t.fechaISO;
+ if(!ref)return null;
+ const now=new Date();now.setHours(0,0,0,0);
+ const date=new Date(ref+'T00:00:00');
+ return Number.isFinite(date.getTime())?Math.round((now-date)/86400000):null;
 }
-async function limpiarTareasVencidas(){
-  let necesitaGuardar=false;
-  tareasData.forEach(t=>{
-    if(t.estado==='completada' && !t.completadoISO){
-      t.completadoISO=completadoISOBackfill(t);
-      necesitaGuardar=true;
-    }
-  });
-  const aBorrar=tareasData.filter(t=>!t.origenFito?.serieId&&esTareaVencidaParaBorrar(t));
-  if(!aBorrar.length && !necesitaGuardar) return;
-  const idsBorrar=new Set(aBorrar.map(t=>t.id));
-  tareasData=tareasData.filter(t=>!idsBorrar.has(t.id));
-  const tx=await actualizarStorageJsonConEtag(TAREAS_KEY,[],cloud=>{
-    if(!Array.isArray(cloud)) cloud=[];
-    return cloud.filter(t=>!idsBorrar.has(t.id)||!!t.origenFito?.serieId).map(t=>{
-      if(t.estado==='completada' && !t.completadoISO) return {...t,completadoISO:completadoISOBackfill(t)};
-      return t;
-    });
-  });
-  if(tx.ok) tareasData=tx.value;
-}
+function esTareaArchivada(t){return !!t.archivadaEn||t.estado==='anulada'||(t.estado==='completada'&&diasDesdeFechaTarea(t)>=2);}
+function esTareaDeAyer(t){return diasDesdeFechaTarea(t)===1&&t.estado==='completada';}
+function splitTareasPorEstado(lista){return {activas:lista.filter(t=>!['completada','anulada'].includes(t.estado)),completadas:lista.filter(t=>t.estado==='completada')};}
+function ordenarTareasCompletadas(lista){return lista.slice().sort((a,b)=>(fechaEjecucionTareaISO(b)||'').localeCompare(fechaEjecucionTareaISO(a)||''));}
+function ordenarTareasPorHorario(lista){return lista.slice().sort((a,b)=>{
+ const ha=prioridadHorarioRiego(a.horario),hb=prioridadHorarioRiego(b.horario);
+ if(ha!==hb)return ha-hb;
+ const pa=a.prioridad==='alta'?0:1,pb=b.prioridad==='alta'?0:1;
+ if(pa!==pb)return pa-pb;
+ return String(a.id).localeCompare(String(b.id));
+});}
+async function limpiarTareasVencidas(){return;}
 let tareasDataCargadaEn = 0;
 const TAREAS_DATA_CACHE_TTL_MS = 30000;
 // forzar=false: mismo patrón/TTL que loadRiegoData (ver comentario ahí) — solo
@@ -1113,7 +1048,7 @@ async function loadTareasData(forzar){
   // La marca de caché solo se pone si la lectura fue bien — si no, se
   // estaría cacheando 30s una lista vacía por un fallo de red.
   try{ const r=await window.storage.get(TAREAS_KEY); if(r){ tareasData=JSON.parse(r.value); tareasDataCargadaEn = Date.now(); } }catch(e){}
-  await limpiarTareasVencidas();
+  // Ninguna tarea se elimina al abrir; Archivo conserva la trazabilidad.
 }
 async function persistTareasData(){
   try{
@@ -1147,10 +1082,10 @@ function estadoTareaLabel(estado){
 // abierta — pero el conteo de "tareas nuevas" en el botón si queda visible
 // desde que entran, aunque no hayan abierto la lista todavía.
 function contarTareasNuevas(usuario){
-  return tareasData.filter(t=>t.asignadoA===usuario && t.visto===false).length;
+  return tareasData.filter(t=>t.asignadoA===usuario && t.visto===false&&!esTareaArchivada(t)).length;
 }
 async function avisarNuevasTareas(usuario){
-  const nuevas=tareasData.filter(t=>t.asignadoA===usuario && t.visto===false);
+  const nuevas=tareasData.filter(t=>t.asignadoA===usuario && t.visto===false&&!esTareaArchivada(t));
   if(!nuevas.length) return;
   const resumen=nuevas.length===1 ? `Nueva tarea: "${nuevas[0].titulo}"` : `${nuevas.length} tareas nuevas asignadas`;
   showToast('🔔 '+resumen);
@@ -1961,7 +1896,7 @@ function ordenarTareasPorPrioridad(lista){
 function mostrarOrdenTareasPorPersona(){
   const overlay = getOrCreateOverlay('tareas-orden-overlay');
   overlay.style.padding = '0';
-  const activas = tareasData.filter(t=>t.estado!=='completada');
+  const activas = tareasData.filter(t=>!esTareaArchivada(t)&&t.estado!=='completada');
   const personas = Object.keys(USERS).filter(u=>activas.some(t=>t.asignadoA===u));
   const bloquesHTML = personas.map(u=>{
     const propias = ordenarTareasPorPrioridad(activas.filter(t=>t.asignadoA===u));
@@ -2364,7 +2299,7 @@ function renderTareasGestorFullScreen(overlay){
         <button onclick="avanzarRiegoReganteDia()" title="Avanza las hojas de riego de los regantes al día siguiente" style="padding:9px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid rgba(255,255,255,.4);background:transparent;color:#fff;display:flex;align-items:center;gap:7px;white-space:nowrap">
           <i class="ti ti-calendar-check" style="font-size:14px"></i> Generar hojas riego
         </button>
-        <button onclick="showImprimirTareasSelector(tareasData.filter(t=>USER_ROLES[t.asignadoA]==='PEON' && !esTareaDeAyer(t) && t.estado!=='completada'))" style="padding:9px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid rgba(255,255,255,.4);background:transparent;color:#fff;display:flex;align-items:center;gap:7px;white-space:nowrap">
+        <button onclick="showImprimirTareasSelector(tareasData.filter(t=>USER_ROLES[t.asignadoA]==='PEON' && !esTareaArchivada(t) && t.estado!=='completada'))" style="padding:9px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid rgba(255,255,255,.4);background:transparent;color:#fff;display:flex;align-items:center;gap:7px;white-space:nowrap">
           <i class="ti ti-printer" style="font-size:14px"></i> Imprimir tareas de peones
         </button>
       </div>
@@ -2513,7 +2448,7 @@ function renderTareasContent(overlay, esGestor){
   } else {
     // PEÓN: ordenadas por horario y de una en una — hasta que no se complete
     // y firme la actual no aparece la siguiente (a petición de Paula).
-    const todasMias = tareasData.filter(t=>t.asignadoA===currentUser && !esTareaDeAyer(t));
+    const todasMias = tareasData.filter(t=>t.asignadoA===currentUser && !esTareaArchivada(t));
     const { activas, completadas } = splitTareasPorEstado(todasMias);
     const activasOrdenadas = ordenarTareasPorHorario(activas), completadasRev = ordenarTareasCompletadas(completadas);
     tareasImprimirMias = activasOrdenadas;
@@ -2767,7 +2702,7 @@ function showNuevaTareaForm(){
   const wrap = document.getElementById('nueva-tarea-form-wrap');
   if(!wrap) return;
   const asignables = Object.keys(USERS);
-  const hoyISO = new Date().toISOString().slice(0,10);
+  const hoyISO = fechaLocalISO(new Date());
   const invOptions = `<option value="">Invernadero (opcional)</option>`+
     `<optgroup label="Sala 1">${ALL_INV_IDS_SALA1.map(id=>`<option value="${id}">${id}</option>`).join('')}</optgroup>`+
     `<optgroup label="Sala 2">${ALL_INV_IDS.map(id=>`<option value="${id}">${id}</option>`).join('')}</optgroup>`+
@@ -2831,7 +2766,7 @@ async function crearTarea(){
       id: 'tarea_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
       titulo, descripcion, asignadoA, asignadoPor: currentUser||'—',
       inv, calles, fecha, fechaISO: fechaRaw||null, turno,
-      prioridad, estado:'pendiente', horaInicio:null, horaFin:null, firmante:null,
+      categoria:'manual', origenTarea:'manual', prioridad, estado:'pendiente', horaInicio:null, horaFin:null, firmante:null,
       visto: false,
       creadoEn: new Date().toLocaleString('es-ES')
     });
@@ -3120,7 +3055,7 @@ async function renderPeonTareasInline(){
   const container = document.getElementById('peon-tareas-inline');
   if(!container) return;
 
-  const todasMias = tareasData.filter(t=>t.asignadoA===currentUser && !esTareaDeAyer(t));
+  const todasMias = tareasData.filter(t=>t.asignadoA===currentUser && !esTareaArchivada(t));
   const { activas, completadas } = splitTareasPorEstado(todasMias);
   const activasOrdenadas = ordenarTareasPorHorario(activas);
   const completadasRev = ordenarTareasCompletadas(completadas);
@@ -3191,7 +3126,7 @@ function verificarMantenimientoDisponible(){
   const msg = document.getElementById('mantenimiento-msg');
   if(!btn || !msg) return;
 
-  const tareasActivas = tareasData.filter(t => t.asignadoA === currentUser && t.estado !== 'completada' && !esTareaDeAyer(t));
+  const tareasActivas = tareasData.filter(t => t.asignadoA === currentUser && t.estado !== 'completada' && !esTareaArchivada(t));
 
   if(tareasActivas.length === 0){
     btn.disabled = false;
@@ -17672,7 +17607,7 @@ function showEspecificosReganteModule(){
 
     // Renderizar hojas de específicos (igual que impresión)
     // Filtrar por sala si es REGANTE
-    let especificosRegante = tareasData.filter(t=>t.categoria==='especifico' && !esTareaDeAyer(t));
+    let especificosRegante = tareasData.filter(t=>t.categoria==='especifico' && !esTareaArchivada(t));
     if(currentUserRole==='REGANTE'){
       const saladRegante = {REGANTE1:['sala1'], REGANTE2:['sala2'], REGANTE3:['sala3','sala4','sala5']}[currentUser] || ['sala1'];
       especificosRegante = especificosRegante.filter(t => saladRegante.includes(salaDeInv(t.inv)));
@@ -18074,10 +18009,10 @@ function renderSalaEnVivoInvCard(invId){
   let especificos = null;
   let tareasAsignadas = null;
   if(currentUserRole === 'REGANTE'){
-    const misEspecificos = tareasData.filter(t=>t.categoria==='especifico' && t.asignadoA===currentUser && t.inv===invId && !esTareaDeAyer(t) && t.estado!=='completada');
+    const misEspecificos = tareasData.filter(t=>t.categoria==='especifico' && t.asignadoA===currentUser && t.inv===invId && !esTareaArchivada(t) && t.estado!=='completada');
     especificos = misEspecificos.length ? misEspecificos.map(t=>`${escapar(t.titulo)}`).join('<br>') : null;
 
-    const misTareas = tareasData.filter(t=>t.asignadoA===currentUser && t.inv===invId && !esTareaDeAyer(t) && t.estado!=='completada' && t.categoria!=='especifico');
+    const misTareas = tareasData.filter(t=>t.asignadoA===currentUser && t.inv===invId && !esTareaArchivada(t) && t.estado!=='completada' && t.categoria!=='especifico');
     tareasAsignadas = misTareas.length ? misTareas.map(t=>`${escapar(t.titulo)}`).join('<br>') : null;
   }
 
