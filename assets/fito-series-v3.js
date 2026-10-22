@@ -217,9 +217,10 @@ function buildPrintJobsV3(records){
   const date=r.fechaJornadaISO||dayISO(e.day);
   const signature=JSON.stringify([date,parsed.trat,parsed.dosis,parsed.horario,r.tipoTrat||'',r.caldoLabel||'',liters,tank]);
   if(!groups.has(signature))groups.set(signature,{
-   signature,date,parsed,method:r.tipoTrat||'',liters,broth:r.caldoLabel||'',areas:new Map()
+   signature,date,parsed,method:r.tipoTrat||'',liters,broth:r.caldoLabel||'',areas:new Map(),members:[]
   });
   const g=groups.get(signature);
+  g.members.push(JSON.stringify([e.inv,e.day,e.street,r]));
   // Options are per area, not per journal: preserve street-level exceptions.
   const areaKey=JSON.stringify([e.inv,!!r.esperaCarga,r.orden??null]);
   if(!g.areas.has(areaKey))g.areas.set(areaKey,{
@@ -236,7 +237,7 @@ function buildPrintJobsV3(records){
    orden:a.orden,esperaCarga:a.esperaCarga
   }));
   return {
-   signature:g.signature,
+   signature:g.signature,identity:JSON.stringify(g.members.sort()),
    datos:{
     producto:g.parsed.trat,dosis:g.parsed.dosis,horario:g.parsed.horario,
     tipoTrat:g.method,caldoLitros:g.liters,caldoLabel:g.broth,
@@ -297,7 +298,7 @@ window.verHistorialFitoV3=function(id){
   const groups=buildPrintJobsV3(j.records);
   const printButtons=groups.map((job,n)=>{
    const index=printJobs.length;
-   printJobs.push({journalId:j.code,signature:job.signature});
+   printJobs.push({journalId:j.code,signature:job.signature,identity:job.identity});
    const label=groups.length===1?'Imprimir hoja oficial':'Imprimir hoja '+(n+1)+' · '+job.label;
    return '<button type="button" data-fito-jornada-print="'+index+'"'
     +' style="min-height:40px;padding:8px 10px;border:1px solid #1558a0;border-radius:7px;'
@@ -320,7 +321,7 @@ window.verHistorialFitoV3=function(id){
   const reference=printJobs[Number(btn.dataset.fitoJornadaPrint)];
   if(!reference)return;
   const fresh=seriesCells(id).filter(e=>(e.raw.jornadaId||e.raw.fechaJornadaISO||dayISO(e.day))===reference.journalId);
-  const sheet=buildPrintJobsV3(fresh).find(x=>x.signature===reference.signature);
+  const sheet=buildPrintJobsV3(fresh).find(x=>x.signature===reference.signature&&x.identity===reference.identity);
   if(!sheet){showToast('La jornada ha cambiado. Cierra y vuelve a abrir la consulta antes de imprimir.');return;}
   imprimirHojaFitoConDatos({...sheet.datos,asignadoPor:currentUser});
  }));
