@@ -578,6 +578,15 @@ El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en int
 
 **Orden pendiente sin cambio:** cerrar Control de Riego → Plaguicidas Bloque B impresión A4 → auditoría completa de Tareas → propuesta y validación de diseño → Plaguicidas Bloque C.
 
+
+## 0.56. Control de Riego — eliminar botón de ayuda «?» (22/10/2026)
+
+**Solicitado y aprobado:** retirar el botón «?» situado junto a «Añadir riego» y «Guardar» en la barra de Control de Riego por irrelevante tras la navegación directa por celda. También se retiran su ventana explicativa sobre rangos, la función `toggleRiegoAyuda` y las referencias muertas desde `actualizarVistaRiegoSeleccion`. Se mantienen las acciones «Añadir riego» y «Guardar», los permisos, la consulta histórica y todos los flujos operativos sin cambios.
+
+**Código:** `index.html`, exclusivamente rama `test/v1.0`, commit `cdb6d53030251a8d8ce303a1a84749d61832d5e5`. Verificación estática: ningún identificador ni función de la ayuda persiste, los 5 scripts inline parsean, acciones conservadas. **Sin escrituras en Firebase**. Pendiente simple comprobación visual en TEST. No reabrir otros módulos.
+
+**Siguiente secuencia intacta:** finalizar UAT Control de Riego → Bloque B Plaguicidas impresión A4 → auditoría Tareas → propuesta Tareas → Bloque C Pistola.
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).
