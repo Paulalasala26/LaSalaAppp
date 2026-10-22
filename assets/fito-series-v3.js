@@ -518,11 +518,12 @@ async function consultarTareaJornadaFitoV3(serieId,jornadaId){
   if(!result)throw Error('No se pudo consultar Tareas.');
   const tareas=JSON.parse(result.value);
   if(!Array.isArray(tareas))throw Error('Formato remoto de Tareas inválido.');
-  const iguales=tareas.filter(t=>t.categoria==='fumigacion'
-    &&t.origenFito?.serieId===serieId&&t.origenFito?.jornadaId===jornadaId);
+  const iguales=tareas.filter(t=>t.origenFito?.serieId===serieId
+    &&t.origenFito?.jornadaId===jornadaId);
   if(iguales.length>1)throw Error('Hay duplicados; revisión administrativa obligatoria.');
   if(iguales.length){
    const t=iguales[0];
+   if(t.categoria!=='fumigacion')throw Error('La tarea vinculada tiene una categoría incompatible.');
    const detalle=['Estado: '+t.estado,'Operario: '+t.asignadoA,'Zonas: '+invCallesLabelDeTarea(t),
     t.horaInicio?'Inicio: '+t.horaInicio:'',t.horaFin?'Fin: '+t.horaFin:'',
     t.caldoSobrante?'Caldo sobrante: '+t.caldoSobrante:'',
