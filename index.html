@@ -13546,7 +13546,9 @@ function renderRiegoGrid(invId){
           // Las notas históricas ("* ...") se muestran completas; una
           // pulsación abre su edición en el mismo formulario de riego.
           const esNota = br.text.startsWith('* ');
-          const clickAttr = editable ? `onclick="abrirRiegoDesdeClick('${invId}',${dia},[${br.calles.join(',')}])"` : '';
+          // Incluso un riego histórico debe poder consultarse con un clic;
+          // esDiaPasadoRiego impide modificarlo pero no abrirlo.
+          const clickAttr = !riegoSoloLectura ? `onclick="abrirRiegoDesdeClick('${invId}',${dia},[${br.calles.join(',')}])"` : '';
 
           // Agua/abono sin marcar como "Ejecutada" (desde Orden Abonos/Orden
           // Aguas del regante) se ve en verde; en cuanto se marcan TODAS las
@@ -13576,11 +13578,12 @@ function renderRiegoGrid(invId){
           if(ocultoParaRegante){
             cells += `<td colspan="${br.span}" style="height:${DH}px;border:1px solid #b8c8d8;padding:0;background:${weekdayBg||'#fff'}"></td>`;
           } else if(!editable){
-            // Los regantes y los días bloqueados nunca abren edición.
+            // En Control de Riego el histórico abre el formulario en modo
+            // consulta; en Hojas de riego REGANTE sigue sin abrir formularios.
             const textoResaltado = esNota ? escaparOpcionRiego(br.text) : resaltarProgramadoHTML(br.text);
             const colorCelda = esNota ? '#8a6d00' : (colorTextoRiego || '#3a3a1a');
             const fontSize = esReganteSoloLectura ? fontSizeUnaLinea : fontSizeMultilinea;
-            cells += `<td colspan="${br.span}" style="height:${DH}px;border:1px solid #9ab8d8;padding:2px 4px;position:relative;background:${bgBase};vertical-align:middle">
+            cells += `<td colspan="${br.span}" style="height:${DH}px;border:1px solid #9ab8d8;padding:2px 4px;position:relative;background:${bgBase};vertical-align:middle;${riegoSoloLectura?'':'cursor:pointer'}" ${clickAttr} title="${riegoSoloLectura?'Riego':'Pulsa para consultar riego'}">
               <div style="font-size:${fontSize}px;font-weight:700;color:${colorCelda};white-space:normal;overflow-wrap:anywhere;text-align:center;line-height:1.2">[${textoResaltado}]</div>
             </td>`;
           } else {
@@ -16448,12 +16451,13 @@ async function guardarBorradoRiegoMultiInv(entradas){
 // completarse a la vez.
 let guardandoRiegoManual = false;
 async function saveRiegoManual(){
-  if(guardandoRiegoManual) return;
+  if(guardandoRiegoManual || riegoSoloLectura || (rmEditContextoOriginal && esDiaPasadoRiego(rmEditContextoOriginal.dia))) return;
   guardandoRiegoManual = true;
   const btn = document.getElementById('rm-guardar-btn');
   if(btn) btn.disabled = true;
   try{
     const dia = parseInt(document.getElementById('rm-dia').value);
+    if(esDiaPasadoRiego(dia))return;
     const textoCompleto = rmTextoRiegoAAplicar();
     if(textoCompleto===null)return;
     if(!textoCompleto){ showToast('Indica riego, trabajo o instrucciones adicionales'); return; }
@@ -16535,7 +16539,7 @@ async function aplicarTextoRiegoManualMoviendoDia(invId, diaOriginal, callesOrig
 // vacías), o de los invernaderos completos marcados abajo si los hay. Se
 // puede deshacer con "Retroceder", igual que cualquier cambio.
 async function borrarRiegoManual(){
-  if(guardandoRiegoManual)return false;
+  if(guardandoRiegoManual || riegoSoloLectura || (rmEditContextoOriginal && esDiaPasadoRiego(rmEditContextoOriginal.dia)))return false;
   const origen=rmEditContextoOriginal;
   if(!origen||!Array.isArray(origen.calles)){
     showToast('Eliminar riego solo está disponible al editar uno existente.');
@@ -16824,9 +16828,14 @@ let dragMoved = false;
 let riegoClickTrasArrastre=false;
 function abrirRiegoDesdeClick(invId,dia,calles){
   if(riegoClickTrasArrastre){riegoClickTrasArrastre=false;return;}
-  if(riegoSoloLectura||esDiaPasadoRiego(dia))return;
-  if(getRiego(invId,dia,calles[0]))editarRiegoManualDesdeCelda(invId,dia,calles);
-  else abrirRiegoManualDiaConTramo(invId,dia,calles[0],calles[0]);
+  if(riegoSoloLectura)return;
+  const texto=getRiego(invId,dia,calles[0]);
+  if(!texto){
+    if(!esDiaPasadoRiego(dia))abrirRiegoManualDiaConTramo(invId,dia,calles[0],calles[0]);
+    return;
+  }
+  editarRiegoManualDesdeCelda(invId,dia,calles);
+  if(esDiaPasadoRiego(dia))rmActivarConsultaRiegoHistorico(texto);
 }
 function dragCalleStart(tipo, invId, dia, calle){
   if(tipo==='riego')riegoClickTrasArrastre=false;
@@ -16865,8 +16874,7 @@ function abrirEspecificoManualDiaConTramo(invId, dia, desde, hasta){
   showEspecificoManualForm();
   document.getElementById('esp-dia').value = dia;
 }
-// Abre el formulario de alta manual pero precargado con lo que ya había en
-// una celda (para editar un riego ya marcado con doble clic). También
+// Abre el formulario con el riego existente mediante un clic. También
 // muestra quién lo marcó y, si Vigueras corrigió lo de otra persona, qué
 // había marcado esa persona originalmente antes de la corrección.
 function editarRiegoManualDesdeCelda(invId, dia, calles){
@@ -16874,7 +16882,15 @@ function editarRiegoManualDesdeCelda(invId, dia, calles){
   const desde = Math.min(...calles), hasta = Math.max(...calles);
   rmPendingConfig = {modo:'tramo', tramos:[{desde, hasta}]};
   showRiegoManualForm();
-  document.getElementById('rm-dia').value = dia;
+  // El selector del día filtra fechas pasadas para la creación. Insertar la
+  // fecha original en consulta evita que quede en blanco en el histórico.
+  const selectDia=document.getElementById('rm-dia');
+  if(selectDia){
+    if(!Array.from(selectDia.options).some(o=>String(o.value)===String(dia))){
+      selectDia.add(new Option(riegoDiaLabelCorto(dia)+' — '+riegoDiaSemana(dia),String(dia)));
+    }
+    selectDia.value=String(dia);
+  }
   rmEditContextoOriginal = { invId, dia, calles: [...calles], textoOriginal: getRiego(invId, dia, calles[0]) || '' };
   const borrarBtn = document.getElementById('rm-borrar-btn');
   if(borrarBtn && rmEditContextoOriginal.textoOriginal) borrarBtn.style.display = 'inline-flex';
@@ -16886,6 +16902,36 @@ function editarRiegoManualDesdeCelda(invId, dia, calles){
   const guardarBtn = document.getElementById('rm-guardar-btn');
   if(guardarBtn) guardarBtn.innerHTML = '<i class="ti ti-check" style="font-size:14px"></i> Guardar cambios';
   rmPrecargarEdicionRiego(rmEditContextoOriginal.textoOriginal);
+}
+// Consulta histórica: formulario visible y precargado, pero sin cambios ni
+// borrado en fechas reservadas a VIGUERAS. Se conserva el texto literal
+// completo para datos antiguos imposibles de reconstruir con selectores.
+function rmActivarConsultaRiegoHistorico(texto){
+  const overlay=document.getElementById('riego-manual-overlay');
+  if(!overlay)return;
+  const titulo=document.getElementById('rm-titulo');
+  if(titulo)titulo.textContent='💧 Consultar riego — INV '+riegoInvSel;
+  const info=document.getElementById('rm-info-marcador');
+  if(info){
+    const resumen=document.createElement('div');
+    resumen.style.cssText='margin-top:6px;padding:7px 9px;border:1px solid #a8c4e8;border-radius:6px;background:#e8f0fb;color:#1558a0;font-size:12px;white-space:pre-wrap;overflow-wrap:anywhere';
+    const label=document.createElement('strong');
+    label.textContent='Solo consulta · Instrucción guardada: ';
+    resumen.appendChild(label);
+    resumen.appendChild(document.createTextNode(String(texto||'')));
+    info.appendChild(resumen);
+  }
+  overlay.querySelectorAll('input, select, textarea').forEach(el=>{el.disabled=true;});
+  overlay.querySelectorAll('button').forEach(el=>{
+    if(el.id==='rm-guardar-btn'||el.id==='rm-borrar-btn'){
+      el.style.display='none';
+      el.disabled=true;
+    }else if(el.getAttribute('onclick')!=='cerrarRiegoManualConRetorno()'){
+      el.disabled=true;
+    }else if(el.textContent.trim()==='Cancelar'){
+      el.textContent='Cerrar';
+    }
+  });
 }
 // Contexto de navegación creado únicamente desde el Backoffice de TEST.
 let riegoVieneDeBackoffice=false;
