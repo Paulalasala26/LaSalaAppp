@@ -1801,16 +1801,17 @@ async function asignarTareasEnLote(){
   const persona = document.getElementById('lote-asignado-select')?.value;
   if(!persona){ showToast('Elige a quién asignar'); return; }
   if(!tareasSeleccionadas.size){ showToast('Selecciona al menos una tarea'); return; }
-  await loadTareasData();
-  if([...tareasSeleccionadas].some(id=>tareasData.some(t=>t.id===id&&t.origenFito?.serieId))){
-    showToast('No se reasignan tareas Pistola vinculadas en lote.');return;
-  }
-  let cambios = 0;
-  tareasSeleccionadas.forEach(id=>{
-    const t = tareasData.find(x=>x.id===id);
-    if(t && t.asignadoA!==persona){ t.asignadoA = persona; t.visto = false; cambios++; }
+  const ids=new Set(tareasSeleccionadas);
+  const tx=await actualizarStorageJsonConEtag(TAREAS_KEY,[],cloud=>{
+    if(!Array.isArray(cloud))throw Error('Tareas: formato inválido');
+    const seleccionadas=cloud.filter(t=>ids.has(t.id));
+    if(seleccionadas.some(t=>t.origenFito?.serieId||esTareaArchivada(t)||t.estado!=='pendiente'))
+      return undefined;
+    return cloud.map(t=>ids.has(t.id)&&t.asignadoA!==persona?{...t,asignadoA:persona,visto:false}:t);
   });
-  await persistTareasData();
+  if(!tx.ok||tx.noChange){showToast('No se confirmó la reasignación: revisa tareas o permisos.');return;}
+  const cambios=tx.value.filter(t=>ids.has(t.id)&&t.asignadoA===persona).length;
+  tareasData=tx.value;
   logHistorial(`Asignó ${cambios} tarea(s) a ${persona} en lote`);
   tareasSeleccionadas.clear();
   showToast(`✓ ${cambios} tarea(s) asignada(s) a ${persona}`);
@@ -2812,8 +2813,9 @@ async function crearTarea(){
   const fechaRaw = document.getElementById('nt-fecha')?.value;
   const fecha = fechaRaw ? new Date(fechaRaw+'T00:00:00').toLocaleDateString('es-ES',{day:'2-digit',month:'short'}).replace('.','') : '';
   if(!titulo||!asignados.length){ showToast('Indica al menos un título y a quién se asigna'); return; }
+  const nuevasTareas=[];
   asignados.forEach(asignadoA=>{
-    tareasData.push({
+    nuevasTareas.push({
       id: 'tarea_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
       titulo, descripcion, asignadoA, asignadoPor: currentUser||'—',
       inv, calles, fecha, fechaISO: fechaRaw||null, turno,
@@ -2822,7 +2824,12 @@ async function crearTarea(){
       creadoEn: new Date().toLocaleString('es-ES')
     });
   });
-  await persistTareasData();
+  const tx=await actualizarStorageJsonConEtag(TAREAS_KEY,[],cloud=>{
+    if(!Array.isArray(cloud))throw Error('Tareas: formato inválido');
+    return cloud.concat(nuevasTareas);
+  });
+  if(!tx.ok){avisarFalloGuardado();showToast('No se ha confirmado la creación de la tarea');return;}
+  tareasData=tx.value;
   logHistorial(`Creó la tarea "${titulo}" y la asignó a ${asignados.join(', ')}`);
   showToast('✓ Tarea creada y asignada a '+asignados.join(', '));
   showTareasModule();
@@ -2839,6 +2846,7 @@ function showEditarTareaForm(id){
   const t = tareasData.find(x=>x.id===id);
   if(!t){ showToast('No se encontró la tarea'); return; }
   if(t.origenFito?.serieId){showToast('Tarea Pistola vinculada: edición desde Plaguicidas.');return;}
+  if(esTareaArchivada(t)){showToast('El archivo es de solo consulta.');return;}
   const wrap = document.getElementById('nueva-tarea-form-wrap');
   if(!wrap) return;
   const asignables = Object.keys(USERS);
@@ -2915,6 +2923,7 @@ async function guardarEdicionTarea(id){
     const idx=cloud.findIndex(x=>x.id===id);
     if(idx<0) return {value:cloud,result:{missing:true}};
     if(cloud[idx].origenFito?.serieId)return {value:cloud,result:{protected:true}};
+    if(esTareaArchivada(cloud[idx]))return {value:cloud,result:{archived:true}};
     const cambioDeDueño=cloud[idx].asignadoA!==asignadoA;
     const actualizada={...cloud[idx],...campos,visto:cambioDeDueño?false:cloud[idx].visto};
     if(nuevoEstado==='pendiente'){ actualizada.horaInicio=null;actualizada.horaFin=null;actualizada.firmante=null;actualizada.completadoISO=null; }
@@ -2927,6 +2936,7 @@ async function guardarEdicionTarea(id){
   if(!tx.ok){ avisarFalloGuardado();showToast('✗ No se han podido guardar los cambios');return; }
   if(tx.result?.missing){ showToast('No se encontró la tarea (puede que ya se haya eliminado)');return; }
   if(tx.result?.protected){showToast('La jornada Pistola protege su tarea vinculada.');return;}
+   if(tx.result?.archived){showToast('El archivo es de solo consulta.');return;}
    tareasData=tx.value;
   logHistorial(`Editó la tarea "${titulo}" (asignada a ${asignadosMarcados.join(', ')})`);
   const wrap=document.getElementById('nueva-tarea-form-wrap');
@@ -2935,23 +2945,23 @@ async function guardarEdicionTarea(id){
   refreshTareasViews();
 }
 async function eliminarTarea(id){
-  if(!['ADMIN','TECNICO'].includes(currentUserRole)){showToast('Solo ADMIN y TÉCNICO pueden gestionar Tareas.');return;}
-  const t=tareasData.find(x=>x.id===id);
-  if(!t){ showToast('No se encontró la tarea'); return; }
-  if(t.origenFito?.serieId){showToast('No se elimina una tarea Pistola vinculada.');return;}
-  if(!confirm(`¿Eliminar la tarea "${t.titulo}" (asignada a ${t.asignadoA})? Esta acción no se puede deshacer.`)) return;
-  const tx=await actualizarStorageJsonConEtag(TAREAS_KEY,[],cloud=>{
-    if(!Array.isArray(cloud)) cloud=[];
-    if(cloud.some(x=>x.id===id&&x.origenFito?.serieId))
-      return {value:cloud,result:{protected:true}};
-    return cloud.filter(x=>x.id!==id);
-  });
-  if(!tx.ok){ avisarFalloGuardado();return; }
-  if(tx.result?.protected){showToast('No se elimina una tarea Pistola vinculada.');return;}
-  tareasData=tx.value;
-  logHistorial(`Eliminó la tarea "${t.titulo}" (asignada a ${t.asignadoA})`);
-  showToast('Tarea eliminada');
-  refreshTareasViews();
+ if(!['ADMIN','TECNICO'].includes(currentUserRole))return;
+ const tarea=tareasData.find(t=>t.id===id);
+ if(!tarea){showToast('Tarea no encontrada');return;}
+ if(tarea.origenFito?.serieId||esTareaArchivada(tarea)){showToast('Esta tarea está protegida.');return;}
+ if(!confirm('¿Anular la tarea "'+tarea.titulo+'"? Se conservará en el Archivo, sin borrarse.'))return;
+ const tx=await actualizarStorageJsonConEtag(TAREAS_KEY,[],cloud=>{
+   if(!Array.isArray(cloud))throw Error('Tareas: formato inválido');
+   const t=cloud.find(x=>x.id===id);
+   if(!t||t.origenFito?.serieId||esTareaArchivada(t))return undefined;
+   const fecha=new Date().toISOString();
+   return cloud.map(x=>x.id===id?{...x,estado:'anulada',archivadaEn:fecha,motivoAnulacion:'Anulada desde Tareas',anuladaPor:currentUser}:x);
+ });
+ if(!tx.ok||tx.noChange){showToast('No se confirmó la anulación.');return;}
+ tareasData=tx.value;
+ logHistorial('Anuló una tarea y la conservó en el Archivo');
+ showToast('✓ Tarea anulada y archivada');
+ refreshTareasViews();
 }
 
 // Refresca la vista de tareas que esté activa en cada momento: el panel
