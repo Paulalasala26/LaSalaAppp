@@ -1864,7 +1864,7 @@ async function asignarTareasEnLote(){
   const tx=await actualizarStorageJsonConEtag(TAREAS_KEY,[],cloud=>{
     if(!Array.isArray(cloud))throw Error('Tareas: formato inválido');
     const seleccionadas=cloud.filter(t=>ids.has(t.id));
-    if(seleccionadas.some(t=>t.origenFito?.serieId||esTareaArchivada(t)||t.estado!=='pendiente'))
+    if(seleccionadas.some(t=>t.origenFito?.serieId||esTareaArchivada(t)||t.estado!=='pendiente'||tareaOrigenGestion(t)!=='manual'))
       return undefined;
     return cloud.map(t=>ids.has(t.id)&&t.asignadoA!==persona?{...t,asignadoA:persona,visto:false}:t);
   });
@@ -1895,6 +1895,8 @@ function estadoTareaColores(estado){
 function buildTareaGestorRow(t, conSeleccion){
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const est = estadoTareaColores(t.estado);
+  const origen=tareaOrigenGestion(t),manual=origen==='manual',pistola=origen==='pistola';
+  const origenLabel={riego:'Riego',pistola:'Pistola',manual:'Manual',especificos:'Específicos',sin_origen:'Antiguo'}[origen]||origen;
   const subtitulo = t.objetivos && t.objetivos.length ? invCallesLabelDeTarea(t) : ((t.inv?('INV '+t.inv):'')+(t.calles?(' · '+(/\(INV completo\)$/.test(t.calles)?'ENTERO':t.calles)):''));
   const detalles = [
     t.horaInicio ? `Inicio: ${escapar(t.horaInicio)}` : '',
@@ -1912,14 +1914,17 @@ function buildTareaGestorRow(t, conSeleccion){
       ${subtitulo ? `<div style="font-size:12.5px;font-weight:600;color:var(--muted);margin-top:3px">${escapar(subtitulo)}</div>` : ''}
       ${t.descripcion ? `<div style="font-size:12px;color:var(--muted);margin-top:4px">${escapar(t.descripcion)}</div>` : ''}
       <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center">
+        <span style="font-size:11px;font-weight:700;background:#eef4fb;color:#1558a0;border-radius:999px;padding:3px 11px">${escapar(origenLabel)}</span>
         <span style="font-size:11px;font-weight:700;background:#f2f4f0;color:var(--text);border-radius:999px;padding:3px 11px">👤 ${escapar(t.asignadoA)}</span>
         ${t.horario ? `<span style="font-size:10.5px;font-weight:800;color:#c62828;border:1.5px solid #c62828;border-radius:999px;padding:2px 10px">⏰ ${escapar(t.horario)}</span>` : ''}
       </div>
       ${detalles ? `<div style="font-size:11px;color:var(--muted);margin-top:8px;padding-top:8px;border-top:1px dashed var(--border)">${detalles}</div>` : ''}
       <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
-        <button onclick="showEditarTareaForm('${t.id}')" title="Editar" style="padding:5px 10px;font-size:10.5px;font-weight:700;background:#eef4fb;color:#1558a0;border:1px solid #a8c4e8;border-radius:6px;cursor:pointer">✏️ Editar</button>
-        <button onclick="imprimirTareaSuelta('${t.id}')" title="Imprimir" style="padding:5px 10px;font-size:10.5px;font-weight:700;background:#eef9f0;color:#2e7d32;border:1px solid #a8dcb0;border-radius:6px;cursor:pointer">🖨️ Imprimir</button>
-        <button onclick="eliminarTarea('${t.id}')" title="Eliminar" style="padding:5px 10px;font-size:10.5px;font-weight:700;background:#fdecea;color:#c62828;border:1px solid #f0b0b0;border-radius:6px;cursor:pointer">🗑️ Eliminar</button>
+        ${manual ? `<button onclick="showEditarTareaForm('${t.id}')" style="padding:7px 12px;font-size:11px;font-weight:700;background:#1558a0;color:#fff;border:0;border-radius:7px;cursor:pointer">Editar</button>
+          <button onclick="eliminarTarea('${t.id}')" style="padding:7px 12px;font-size:11px;background:#eef4fb;color:#1558a0;border:1px solid #a8c4e8;border-radius:7px;cursor:pointer">Anular</button>` : ''}
+        ${pistola ? `<button onclick="imprimirHojaFumigacionTarea('${t.id}')" style="padding:7px 12px;font-size:11px;font-weight:700;background:#1558a0;color:#fff;border:0;border-radius:7px;cursor:pointer">Hoja oficial</button>
+          <button onclick="abrirJornadaPistolaDesdeTareas('${t.id}')" style="padding:7px 12px;font-size:11px;background:#eef4fb;color:#1558a0;border:1px solid #a8c4e8;border-radius:7px;cursor:pointer">Ver jornada</button>` : ''}
+        ${!pistola ? `<button onclick="imprimirTareaSuelta('${t.id}')" style="padding:7px 12px;font-size:11px;background:#eef4fb;color:#1558a0;border:1px solid #a8c4e8;border-radius:7px;cursor:pointer">Imprimir</button>` : ''}
       </div>
     </div>`;
 }
@@ -2363,8 +2368,28 @@ function renderTareaArchivoConsultable(t){
    ${t.motivoAnulacion?`<div style="font-size:11px;color:#a32020">Motivo: ${esc(t.motivoAnulacion)}</div>`:''}
  </div>`;
 }
+function abrirJornadaPistolaDesdeTareas(id){
+  const t=tareasData.find(x=>x.id===id);
+  if(!t||!t.origenFito?.serieId)return;
+  const esc=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  const overlay=getOrCreateOverlay('jornada-pistola-tareas-overlay');
+  overlay.style.zIndex='2100';
+  overlay.innerHTML=`<div style="background:#fff;border-radius:12px;padding:18px;max-width:480px;width:100%;max-height:88vh;overflow:auto">
+    <div style="color:#1558a0;font-weight:800;font-size:16px;margin-bottom:10px">Jornada de Pistola</div>
+    <div style="font-size:13px;line-height:1.9">${esc(t.titulo)} · ${esc(t.fechaISO)}
+      <div>${esc(invCallesLabelDeTarea(t))}</div>
+      <div>PEÓN: ${esc(t.asignadoA)} · ${esc(t.estado)}</div>
+      <div>Caldo inicial: ${esc(t.caldoLabel)}</div>
+      <div>Inicio: ${esc(t.horaInicio||'—')} · Fin: ${esc(t.horaFin||'—')}</div>
+      <div>Preparó: ${esc(t.firmaPreparador||'—')} · Aplicó: ${esc(t.firmaAplicador||'—')}</div></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:15px">
+      <button onclick="document.getElementById('jornada-pistola-tareas-overlay').style.display='none'" style="padding:9px 14px;border:1px solid #a8c4e8;background:#fff;color:#1558a0;border-radius:7px">Cerrar</button>
+      <button onclick="document.getElementById('jornada-pistola-tareas-overlay').style.display='none';document.getElementById('tareas-overlay').style.display='none';showFitoModule()" style="padding:9px 14px;border:0;background:#1558a0;color:#fff;border-radius:7px">Plaguicidas</button>
+    </div></div>`;
+  overlay.style.display='flex';
+}
 function imprimirTareasGestorActivas(){
- showImprimirTareasSelector(tareasData.filter(t=>USER_ROLES[t.asignadoA]==='PEON'&&!esTareaArchivada(t)&&t.estado!=='completada'));
+ showImprimirTareasSelector(tareasData.filter(t=>USER_ROLES[t.asignadoA]==='PEON'&&!esTareaArchivada(t)&&t.estado!=='completada'&&!t.origenFito?.serieId&&t.categoria!=='fumigacion'&&t.categoria!=='especifico'));
 }
 async function descargarRespaldoTareas(){
  if(currentUserRole!=='ADMIN')return;
@@ -2923,7 +2948,7 @@ function showEditarTareaForm(id){
   if(!['ADMIN','TECNICO'].includes(currentUserRole)){showToast('Solo ADMIN y TÉCNICO pueden gestionar Tareas.');return;}
   const t = tareasData.find(x=>x.id===id);
   if(!t){ showToast('No se encontró la tarea'); return; }
-  if(t.origenFito?.serieId){showToast('Tarea Pistola vinculada: edición desde Plaguicidas.');return;}
+  if(tareaOrigenGestion(t)!=='manual'){showToast('Este trabajo se gestiona desde su origen.');return;}
   if(esTareaArchivada(t)){showToast('El archivo es de solo consulta.');return;}
   const wrap = document.getElementById('nueva-tarea-form-wrap');
   if(!wrap) return;
@@ -3000,7 +3025,7 @@ async function guardarEdicionTarea(id){
     if(!Array.isArray(cloud)) cloud=[];
     const idx=cloud.findIndex(x=>x.id===id);
     if(idx<0) return {value:cloud,result:{missing:true}};
-    if(cloud[idx].origenFito?.serieId)return {value:cloud,result:{protected:true}};
+    if(tareaOrigenGestion(cloud[idx])!=='manual')return {value:cloud,result:{protected:true}};
     if(esTareaArchivada(cloud[idx]))return {value:cloud,result:{archived:true}};
     const cambioDeDueño=cloud[idx].asignadoA!==asignadoA;
     const actualizada={...cloud[idx],...campos,visto:cambioDeDueño?false:cloud[idx].visto};
@@ -3026,12 +3051,12 @@ async function eliminarTarea(id){
  if(!['ADMIN','TECNICO'].includes(currentUserRole))return;
  const tarea=tareasData.find(t=>t.id===id);
  if(!tarea){showToast('Tarea no encontrada');return;}
- if(tarea.origenFito?.serieId||esTareaArchivada(tarea)){showToast('Esta tarea está protegida.');return;}
+ if(tareaOrigenGestion(tarea)!=='manual'||esTareaArchivada(tarea)){showToast('Esta tarea está protegida.');return;}
  if(!confirm('¿Anular la tarea "'+tarea.titulo+'"? Se conservará en el Archivo, sin borrarse.'))return;
  const tx=await actualizarStorageJsonConEtag(TAREAS_KEY,[],cloud=>{
    if(!Array.isArray(cloud))throw Error('Tareas: formato inválido');
    const t=cloud.find(x=>x.id===id);
-   if(!t||t.origenFito?.serieId||esTareaArchivada(t))return undefined;
+   if(!t||tareaOrigenGestion(t)!=='manual'||esTareaArchivada(t))return undefined;
    const fecha=new Date().toISOString();
    return cloud.map(x=>x.id===id?{...x,estado:'anulada',archivadaEn:fecha,motivoAnulacion:'Anulada desde Tareas',anuladaPor:currentUser}:x);
  });
