@@ -2308,7 +2308,7 @@ function resetFiltrosTareasGestor(){
 }
 function archivoMantenimientoRegistros(){
   return mantenimientoData.flatMap(t=>{
-    const parseInv=/\\bINV\\s+([^\\s)]+)/i.exec(t.titulo||'');
+    const parseInv=/\bINV\s+([^\s)]+)/i.exec(t.titulo||'');
     const inv=parseInv?parseInv[1]:'';
     const convertir=h=>({
       id:String(t.id)+'@'+String(h.id||h.horaFinTs||h.completadoISO||''),
