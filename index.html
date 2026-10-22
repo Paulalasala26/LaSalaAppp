@@ -13535,14 +13535,6 @@ function renderRiegoGrid(invId){
             }
           }
           const bgBase = bgPasstel || weekdayBg || colorEspecial || '#fff';
-          // Editar lo de otra persona cambia el dueño a quien edita — en ese
-          // caso conviene refrescar la cuadrícula al momento para que se vea
-          // el cambio de color/dueño. Editando lo propio se mantiene el
-          // comportamiento de siempre (sin re-render, para no perder el foco
-          // si se están rellenando varias celdas seguidas).
-          const onchangeAttr = esPropio
-            ? `updateBracketValue('${invId}',${dia},[${br.calles.join(',')}],this.value)`
-            : `updateBracketValue('${invId}',${dia},[${br.calles.join(',')}],this.value);renderRiegoGrid('${invId}')`;
           const siNoHTML = puedeSupervisar ? `
                 <div style="display:flex;gap:3px;margin-top:2px">
                   <button onclick="event.stopPropagation();confirmarRiegoCorrecto('${unlockKey}')" title="Está bien, no hace falta cambiarlo" style="flex:1;font-size:8px;font-weight:900;background:#2e7d32;color:#fff;border:none;border-radius:3px;padding:1px 2px;cursor:pointer">SÍ</button>
@@ -13558,7 +13550,7 @@ function renderRiegoGrid(invId){
           // indicador ("*"), y el texto real solo aparece al pulsar una vez
           // encima (para cualquier rol, editable o no).
           const esNota = br.text.startsWith('* ');
-          const dblclickAttr = `ondblclick="editarRiegoManualDesdeCelda('${invId}',${dia},[${br.calles.join(',')}])"`;
+          const clickAttr = editable ? `onclick="abrirRiegoDesdeClick('${invId}',${dia},[${br.calles.join(',')}])"` : '';
 
           // Agua/abono sin marcar como "Ejecutada" (desde Orden Abonos/Orden
           // Aguas del regante) se ve en verde; en cuanto se marcan TODAS las
@@ -13587,107 +13579,26 @@ function renderRiegoGrid(invId){
 
           if(ocultoParaRegante){
             cells += `<td colspan="${br.span}" style="height:${DH}px;border:1px solid #b8c8d8;padding:0;background:${weekdayBg||'#fff'}"></td>`;
-          } else if(esNota){
-            const notaTexto = br.text.slice(2);
-            cells += `<td colspan="${br.span}" style="height:${DH}px;border:1px solid #9ab8d8;padding:0;position:relative;background:${bgBase};cursor:pointer;text-align:center" onclick="showToast('📝 '+decodeURIComponent('${encodeURIComponent(notaTexto)}'))" ${dblclickAttr} title="Pulsa para ver la nota">
-              <div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:12px;font-weight:900;color:#8a6d00">*</div>
-            </td>`;
           } else if(!editable){
-            // Solo lectura ("Hojas de riego" de REGANTE): se ve el texto pero
-            // no se puede escribir encima. Solo se subraya en rojo el trozo
-            // (agua/abono/"?") cuyo horario sea PROGRAMADO, no toda la celda.
-            const textoResaltado = resaltarProgramadoHTML(br.text);
-            const colorCelda = colorTextoRiego || '#3a3a1a';
-            const readOnlyFontSize = esReganteSoloLectura ? `${fontSizeUnaLinea}px` : '9px';
-            // Los corchetes van FUERA del bloque de texto que envuelve línea
-            // (word-break) — antes "[" y "]" eran parte del mismo texto
-            // centrado, así que si el texto saltaba a 2 líneas (letra grande
-            // del regante), cada línea se centraba por su cuenta y "[" y "]"
-            // acababan en sitios distintos en vez de fijos en los bordes de
-            // la celda (visto por Paula/regante 2026-09-04: "el símbolo [ no
-            // está bien situado"). Con flex, los corchetes quedan siempre
-            // pegados a los extremos de la celda, sea cual sea el número de
-            // líneas que ocupe el texto del medio.
-            cells += `<td colspan="${br.span}" style="border:1px solid #9ab8d8;padding:2px 4px;position:relative;background:${bgBase};vertical-align:middle">
-              <div style="display:flex;align-items:center;height:100%">
-                <span style="font-size:${readOnlyFontSize};font-weight:900;color:${colorCelda};flex-shrink:0;align-self:flex-start">[</span>
-                <span style="flex:1;font-size:${readOnlyFontSize};font-weight:700;color:${colorCelda};white-space:normal;word-break:break-word;line-height:1.2;text-align:center;min-width:0">${textoResaltado}</span>
-                <span style="font-size:${readOnlyFontSize};font-weight:900;color:${colorCelda};flex-shrink:0;align-self:flex-end">]</span>
-              </div>
-            </td>`;
-          } else if(fitsOneLine && contieneProgramado(br.text)){
-            // A petición de Paula (2026-07-31): la línea roja de PROGRAMADO
-            // solo tiene que subrayar el trozo que de verdad es PROGRAMADO
-            // (agua/abono/fitosanitario), no el resto de la celda que vaya
-            // mezclado con él (p.ej. unas Orillas por la tarde en la misma
-            // calle) — un <input> no puede subrayar solo un trozo de su
-            // propio texto, así que aquí se pinta como texto fijo con el
-            // mismo subrayado preciso que en solo lectura (resaltarProgramadoHTML);
-            // para editarla se sigue usando el doble clic, como siempre.
-            const textoResaltado = resaltarProgramadoHTML(br.text);
-            const colorBracket = colorTextoRiego || '#0a7a0a';
-            const colorTexto = colorTextoRiego || '#0a5a0a';
-            cells += `<td colspan="${br.span}" style="height:${DH}px;border:1px solid #9ab8d8;padding:0;position:relative;background:${bgBase};cursor:pointer" ${dblclickAttr}>
-              <div style="display:flex;align-items:center;justify-content:center;height:100%;padding:0 2px">
-                <span style="font-size:${Math.min(11,fontSizeUnaLinea+1)}px;font-weight:900;color:${colorBracket};margin-right:1px;flex-shrink:0">[</span>
-                <span style="flex:1;font-size:${fontSizeUnaLinea}px;font-weight:700;color:${colorTexto};text-align:center;min-width:0">${textoResaltado}</span>
-                <span style="font-size:${Math.min(11,fontSizeUnaLinea+1)}px;font-weight:900;color:${colorBracket};margin-left:1px;flex-shrink:0">]</span>
-              </div>
-              ${siNoHTML}
-              ${botonPropuestaHTML}
-            </td>`;
-          } else if(fitsOneLine){
-            const colorBracket = colorTextoRiego || '#0a7a0a';
-            const colorTexto = colorTextoRiego || '#0a5a0a';
-            cells += `<td colspan="${br.span}" style="height:${DH}px;border:1px solid #9ab8d8;padding:0;position:relative;background:${bgBase}">
-              <div style="display:flex;align-items:center;justify-content:center;height:100%;padding:0 2px">
-                <span style="font-size:${Math.min(11,fontSizeUnaLinea+1)}px;font-weight:900;color:${colorBracket};margin-right:1px;flex-shrink:0">[</span>
-                <input type="text"
-                  value="${br.text.replace(/"/g,'&quot;')}"
-                  data-rinv="${invId}" data-dia="${dia}" data-rc="${br.calles.join(',')}"
-                  onchange="${onchangeAttr}"
-                  ondblclick="editarRiegoManualDesdeCelda('${invId}',${dia},[${br.calles.join(',')}])"
-                  onmousedown="dragCalleStart('riego','${invId}',${dia},${br.calles[0]})"
-                  onmouseenter="dragCalleOver('riego','${invId}',${dia},${br.calles[0]})"
-                  style="flex:1;border:none;background:transparent;font-size:${fontSizeUnaLinea}px;font-weight:700;color:${colorTexto};outline:none;min-width:0;padding:0 1px;text-align:center">
-                <span style="font-size:${Math.min(11,fontSizeUnaLinea+1)}px;font-weight:900;color:${colorBracket};margin-left:1px;flex-shrink:0">]</span>
-              </div>
-              ${siNoHTML}
-              ${botonPropuestaHTML}
-            </td>`;
-          } else if(contieneProgramado(br.text)){
-            const fontSize = fontSizeMultilinea;
-            const textoResaltado = resaltarProgramadoHTML(br.text);
-            const colorBracket = colorTextoRiego || '#0a7a0a';
-            const colorTexto = colorTextoRiego || '#0a5a0a';
-            cells += `<td colspan="${br.span}" style="border:1px solid #9ab8d8;padding:0;position:relative;background:${bgBase};cursor:pointer" ${dblclickAttr}>
-              <div style="display:flex;align-items:flex-start;padding:1px 2px">
-                <span style="font-size:${Math.min(11,fontSize+1)}px;font-weight:900;color:${colorBracket};margin-right:1px;flex-shrink:0;line-height:1.3">[</span>
-                <span style="flex:1;font-size:${fontSize}px;font-weight:700;color:${colorTexto};text-align:center;line-height:1.15;white-space:normal;word-break:break-word;min-width:0">${textoResaltado}</span>
-                <span style="font-size:${Math.min(11,fontSize+1)}px;font-weight:900;color:${colorBracket};margin-left:1px;flex-shrink:0;line-height:1.3">]</span>
-              </div>
-              ${siNoHTML}
-              ${botonPropuestaHTML}
+            // Los regantes y los días bloqueados nunca abren edición.
+            const textoResaltado = esNota ? escaparOpcionRiego(br.text) : resaltarProgramadoHTML(br.text);
+            const colorCelda = esNota ? '#8a6d00' : (colorTextoRiego || '#3a3a1a');
+            const fontSize = esReganteSoloLectura ? fontSizeUnaLinea : fontSizeMultilinea;
+            cells += `<td colspan="${br.span}" style="height:${DH}px;border:1px solid #9ab8d8;padding:2px 4px;position:relative;background:${bgBase};vertical-align:middle">
+              <div style="font-size:${fontSize}px;font-weight:700;color:${colorCelda};white-space:normal;overflow-wrap:anywhere;text-align:center;line-height:1.2">[${textoResaltado}]</div>
             </td>`;
           } else {
-            const fontSize = fontSizeMultilinea;
-            const textEsc = br.text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-            const colorBracket = colorTextoRiego || '#0a7a0a';
-            const colorTexto = colorTextoRiego || '#0a5a0a';
-            cells += `<td colspan="${br.span}" style="border:1px solid #9ab8d8;padding:0;position:relative;background:${bgBase}">
-              <div style="display:flex;align-items:flex-start;padding:1px 2px">
-                <span style="font-size:${Math.min(11,fontSize+1)}px;font-weight:900;color:${colorBracket};margin-right:1px;flex-shrink:0;line-height:1.3">[</span>
-                <textarea rows="${esPantallaMovil()?3:2}"
-                  data-rinv="${invId}" data-dia="${dia}" data-rc="${br.calles.join(',')}"
-                  onchange="${onchangeAttr}"
-                  ondblclick="editarRiegoManualDesdeCelda('${invId}',${dia},[${br.calles.join(',')}])"
-                  onmousedown="dragCalleStart('riego','${invId}',${dia},${br.calles[0]})"
-                  onmouseenter="dragCalleOver('riego','${invId}',${dia},${br.calles[0]})"
-                  style="flex:1;border:none;background:transparent;font-size:${fontSize}px;font-weight:700;color:${colorTexto};outline:none;min-width:0;padding:0 1px;text-align:center;resize:none;line-height:1.15;white-space:normal;word-break:break-word;overflow-y:auto;font-family:inherit">${textEsc}</textarea>
-                <span style="font-size:${Math.min(11,fontSize+1)}px;font-weight:900;color:${colorBracket};margin-left:1px;flex-shrink:0;line-height:1.3">]</span>
-              </div>
-              ${siNoHTML}
-              ${botonPropuestaHTML}
+            // Clic único en cualquier celda marcada: mismo formulario de riego
+            // que en alta, con día, calles y valores originales ya seleccionados.
+            const textoResaltado = esNota ? escaparOpcionRiego(br.text) : resaltarProgramadoHTML(br.text);
+            const colorTexto = esNota ? '#8a6d00' : (colorTextoRiego || '#0a5a0a');
+            const fontSize = fitsOneLine ? fontSizeUnaLinea : fontSizeMultilinea;
+            cells += `<td colspan="${br.span}" style="height:${DH}px;border:1px solid #9ab8d8;padding:2px 4px;position:relative;background:${bgBase};cursor:pointer" ${clickAttr}
+              onmousedown="dragCalleStart('riego','${invId}',${dia},${br.calles[0]})"
+              onmouseenter="dragCalleOver('riego','${invId}',${dia},${br.calles[0]})"
+              title="Pulsa para editar riego">
+              <div style="font-size:${fontSize}px;font-weight:700;color:${colorTexto};white-space:normal;overflow-wrap:anywhere;text-align:center;line-height:1.2">[${textoResaltado}]</div>
+              ${siNoHTML}${botonPropuestaHTML}
             </td>`;
           }
           ci += br.span;
@@ -13698,17 +13609,12 @@ function renderRiegoGrid(invId){
           cells += `<td style="height:${DH}px;border:1px solid #b8c8d8;padding:0;background:${cellBg}"></td>`;
           ci++;
         } else {
-          // Celda vacía
-          cells += `<td style="height:${DH}px;border:1px solid #b8c8d8;padding:0;background:${cellBg}">
-            <input type="text"
-              value="${val.replace(/"/g,'&quot;')}"
-              placeholder=""
-              data-rinv="${invId}" data-dia="${dia}" data-rc="${calle}"
-              onchange="setRiegoUndo('${invId}',${dia},${calle},this.value);renderRiegoGrid('${invId}')"
-              onmousedown="dragCalleStart('riego','${invId}',${dia},${calle})"
-              onmouseenter="dragCalleOver('riego','${invId}',${dia},${calle})"
-              style="width:100%;height:100%;border:none;background:transparent;font-size:9px;font-weight:${val?700:400};color:${val?'#0a5a0a':'#888'};text-align:center;outline:none;padding:0 2px;font-family:inherit">
-          </td>`;
+          // Las celdas vacías también abren Añadir riego con una pulsación.
+          cells += `<td style="height:${DH}px;border:1px solid #b8c8d8;padding:0;background:${cellBg};cursor:pointer"
+            onclick="abrirRiegoDesdeClick('${invId}',${dia},[${calle}])"
+            onmousedown="dragCalleStart('riego','${invId}',${dia},${calle})"
+            onmouseenter="dragCalleOver('riego','${invId}',${dia},${calle})"
+            title="Pulsa para añadir riego"></td>`;
           ci++;
         }
       }
@@ -16935,19 +16841,23 @@ function abrirRiegoManualDia(invId, dia){
   document.getElementById('rm-dia').value = dia;
 }
 
-// Arrastrar el ratón de una calle a otra dentro del mismo día abre el alta
-// manual con ese tramo de calles ya puesto (desde-hasta el rango arrastrado),
-// para no tener que elegirlo otra vez a mano. Un simple clic sin arrastre
-// (mousedown+mouseup en la misma calle) no dispara nada — deja pasar el
-// comportamiento normal (foco/edición directa de la celda). Compartido por
-// Riego, Plaguicidas y Específicos ('tipo' distingue cuál de los tres).
+// Un clic en Riego abre el formulario; arrastrar mantiene la selección por
+// calles. Plaguicidas y Específicos conservan sus recorridos de arrastre.
 let dragTipo = null;
 let dragInvId = null;
 let dragDia = null;
 let dragCalleInicio = null;
 let dragCalleActual = null;
 let dragMoved = false;
+let riegoClickTrasArrastre=false;
+function abrirRiegoDesdeClick(invId,dia,calles){
+  if(riegoClickTrasArrastre){riegoClickTrasArrastre=false;return;}
+  if(riegoSoloLectura||esDiaPasadoRiego(dia))return;
+  if(getRiego(invId,dia,calles[0]))editarRiegoManualDesdeCelda(invId,dia,calles);
+  else abrirRiegoManualDiaConTramo(invId,dia,calles[0],calles[0]);
+}
 function dragCalleStart(tipo, invId, dia, calle){
+  if(tipo==='riego')riegoClickTrasArrastre=false;
   dragTipo = tipo; dragInvId = invId; dragDia = dia; dragCalleInicio = calle; dragCalleActual = calle; dragMoved = false;
 }
 function dragCalleOver(tipo, invId, dia, calle){
@@ -16959,6 +16869,7 @@ function dragCalleEnd(){
   const tipo = dragTipo, invId = dragInvId, dia = dragDia, desde = dragCalleInicio, hasta = dragCalleActual, moved = dragMoved;
   dragTipo = null; dragInvId = null; dragDia = null; dragCalleInicio = null; dragCalleActual = null; dragMoved = false;
   if(!moved) return;
+  if(tipo==='riego')riegoClickTrasArrastre=true;
   if(tipo==='riego') abrirRiegoManualDiaConTramo(invId, dia, desde, hasta);
   else if(tipo==='fito') abrirFitoManualDiaConTramo(invId, dia, desde, hasta);
   else if(tipo==='especifico') abrirEspecificoManualDiaConTramo(invId, dia, desde, hasta);
