@@ -427,6 +427,18 @@ El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en int
 
 **PRUEBA INTEGRADA ÚNICA (NO DESTRUCTIVA):** refrescar TEST → Consultar tratamientos → abrir impresión oficial **22/10** (deben ser **2 páginas A4**) y **23/10** (debe ser **1 página**, con 100 L si ya quedó guardado realmente), comprobar que la primera línea y el resto de bordes aparecen completos, datos/calles correctos, sin blanco extra ni cuadro doble; cancelar sin enviar a impresora. Si el 23/10 todavía no tiene caldo persistido, debe seguir mostrando la advertencia ámbar y **no** inventarlo ni modificarlo. Pedir valoración global o una captura del defecto; no abrir validaciones paso a paso.
 
+### 0.45. Bloque B — auditoría de cálculo en hojas oficiales: código interno de 100 L (22/10/2026)
+
+**Continuación a petición del usuario («siguiente»):** avanzar por bloques, sin manuales de micropruebas, manteniendo Consulta y paginador previamente aceptados. **No hay UAT todavía que confirme que la primera línea de las hojas oficiales quedó completamente legible** después del escalado seguro de 0.44, por lo que no se proclama cierre de Bloque B.
+
+**ERROR REAL LOCALIZADO EN REVISIÓN ESTÁTICA:** `FITO_CALDO_OPCIONES` define dos alternativas distintas, `{label:'100L CUBA DE RUEDAS',litros:100}` y `{label:'100L',litros:100.01}`. La segunda cifra es un **sentinela técnico del selector** para mantener dos opciones históricas en un modelo que usa litros como ID; no representa 100,01 L físicos. Sin embargo, en `imprimirHojaFitoConDatos` y `imprimirHojaFitosanitario` se aplicaba `dosis × caldoLitros` a la cifra interna, falseando ligeramente el gasto impreso (ej. 1 cc/L × 100.01 = 100.01 cc, frente a los 100 cc reales).
+
+**CORRECCIÓN SOLO TEST:** commit `43d0a03b323f47775759b37581481852b8497b26`, únicamente `index.html`. Helper `litrosRealesFitoParaGasto` convierte **100.01 → 100** solo para realizar los cálculos de hojas oficiales; 100L con cuba de ruedas continúa usando 100 y se conserva su etiqueta diferenciada. La plantilla oficial de Consulta puede reconstruir el texto del caldo a partir de la opción guardada cuando `caldoLabel` esté vacío, sin inventar una cantidad nueva. Ambas rutas oficiales de impresión usan los litros físicos para calcular gastos; no se modifica la opción guardada, su ID `100.01`, ni el valor de Firebase, la edición, los grupos de cuba, la cantidad de hojas, el tratamiento ni la generación de tareas. Continúan intactos el formato A4 con zona segura y el seguro de un solo diálogo.
+
+**Verificación técnica aislada, NO impresión real:** 5 scripts HTML compilan; casos simulados: sentinela 100.01 produce **100cc** a 1cc/L, **50cc** a 0.5cc/L, conserva «100L» sin cuba; 100 con cuba conserva «100L CUBA DE RUEDAS»; se mantienen dos hojas oficiales en una impresión, márgenes A4/escala 94 % y selector de origen sin cambios. Cero escrituras de datos.
+
+**Siguiente UAT INTEGRADA, sin pasos triviales:** consultar/imprimir 22/10 (dos hojas) y 23/10 (una si su caldo real está persistido). Revisar de una vez primera línea y márgenes, número de páginas, fecha, hora, producto, dosis, cálculo de gasto, calle/INV, separación por cuba y ausencia de diálogos duplicados; solo reportar fallos o «validado». El 23/10 requiere caldo real guardado y no debe rellenarse automáticamente. Si la impresión queda validada, cerrar solamente el alcance del Bloque B, con Pistola/Tareas aún en Bloque C. TEST `test/v1.0` exclusivamente; `main`, PRD, Firebase intactos.
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).
