@@ -16620,11 +16620,11 @@ async function borrarRiegoManual(){
   const tramos=agruparCallesEnTramos(calles);
   const rango=tramos.map(({desde,hasta})=>desde===hasta?String(desde):desde+'–'+hasta).join(', ');
   const fecha=riegoDiaToDate(dia).toLocaleDateString('es-ES',{day:'2-digit',month:'long',year:'numeric'});
-  const mensaje='¿Eliminar este riego registrado?\\n\\n'+
-    'Fecha: '+fecha+'\\n'+
-    'Invernadero: '+invId+'\\n'+
-    'Calles: '+rango+' ('+calles.length+')\\n\\n'+
-    'Se eliminará únicamente el riego original de estas calles.\\n'+
+  const mensaje='¿Eliminar este riego registrado?\n\n'+
+    'Fecha: '+fecha+'\n'+
+    'Invernadero: '+invId+'\n'+
+    'Calles: '+rango+' ('+calles.length+')\n\n'+
+    'Se eliminará únicamente el riego original de estas calles.\n'+
     'No se borrarán otros invernaderos ni los cambios aún sin aplicar.';
   if(!confirm(mensaje))return false;
   // Revalidar después de la confirmación y antes de la escritura.
