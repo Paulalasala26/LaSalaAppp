@@ -894,6 +894,9 @@ function applyRoleHomeUI(){
           <button class="home-shortcut-card" onclick="showEspecificosReganteModule()" style="padding:14px 20px;font-size:14px;font-weight:700;background:#2e7d32;color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:8px">
             <i class="ti ti-target-arrow" style="font-size:18px"></i><span>Específicos <span id="regante-tareas-badge"></span></span>
           </button>
+          <button class="home-shortcut-card" onclick="showTareasModule()" style="padding:14px 20px;font-size:14px;font-weight:700;background:#1558a0;color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:8px">
+            <i class="ti ti-list-check" style="font-size:18px"></i><span>Mis tareas</span>
+          </button>
           <button class="home-shortcut-card" onclick="mostrarNotificarProblemaRiego()" style="padding:14px 20px;font-size:14px;font-weight:700;background:#c62828;color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:8px">
             <i class="ti ti-alert-triangle" style="font-size:18px"></i><span>Notificar problema de ejecución</span>
           </button>
@@ -16710,6 +16713,9 @@ async function generarTareasDesdeRiego(){
     const allCalles = [...layout.row1, ...layout.row2];
     const diasConDatos = Object.keys(riegoData[invId]||{}).map(d=>parseInt(d,10));
     diasConDatos.forEach(dia=>{
+      // Nunca reconstruir órdenes de días pasados como nuevos pendientes:
+      // desde que conservamos las pendientes, crearían una cola histórica falsa.
+      if(fechaLocalISO(riegoDiaToDate(dia))<fechaLocalISO(new Date()))return;
       detectBrackets(invId, dia, allCalles).forEach(br=>{
         const {titulo, horario, tituloFumi} = parsearTrabajoDeTexto(br.text);
         if(!titulo && !tituloFumi) return;
