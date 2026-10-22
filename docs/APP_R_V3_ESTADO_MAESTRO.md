@@ -283,6 +283,14 @@
 
 **RIESGOS/ACLARACIONES:** estos botones no restauran sesiones anteriores; si se refresca tras borrar, se pierde el historial en memoria y no se debe prometer «Deshacer» desde otra sesión. La conciliación de Pistola con Tareas sigue pendiente B/C y las funciones la bloquean. **RECORDAR Y CORREGIR AL FINAL DEL BLOQUE B (PEDIDO DEL USUARIO):** área pulsable de toda la celda de Plaguicidas y aviso de confirmación Editar con desbordamiento horizontal. No perder foco ni tocar main/PRD.
 
+### 0.33. Bloque B — retirar botones Deshacer/Rehacer de Plaguicidas (22/10/2026)
+
+**DECISIÓN EXPRESA DEL USUARIO:** «Retíralos». Los botones temporales **Deshacer** y **Rehacer** añadidos en 0.32 son innecesarios para la operativa habitual y se **eliminan de la interfaz de Plaguicidas** en TEST, incluido su refresco dinámico y el flex-wrap extra asociado. No mostrar ninguno en pantallas de registro. Se preservan internamente las estructuras de instantáneas y funciones de restauración de objeto completo para auditoría, validación técnica y una futura estrategia de historial persistente, pero NO se ofrece deshacer temporal como control de trabajo. La eliminación de los botones no introduce cambios de datos ni altera la lógica de edición, confirmación, borrado seguro, ETag o v1/v2.
+
+**UAT en curso:** el usuario confirmó («correcto») la restauración, tras recargar, del tramo 13–14 de 23/10 en el tratamiento ficticio vinculado, INV 1A. No se ha validado un borrado y recuperación real tras el retiro de controles; NO pedirle que borre una jornada contando con un botón temporal que ya no existe. El borrado debe comprobarse primero en un circuito controlado y con estrategia segura persistente si se necesita recuperación. Bloque B todavía abierto.
+
+**RECORDATORIO EXPRESO PENDIENTE PARA FINAL DE BLOQUE B:** (1) ampliar área pulsable a toda la celda de Plaguicidas, hoy limitada al texto; (2) corregir el aviso/modal de confirmación en edición que desborda lateralmente en móvil/PC. No perder foco en integridad y pruebas antes de esos dos ajustes. Solo rama `test/v1.0`, no tocar `main` ni PRD.
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).
