@@ -1948,7 +1948,7 @@ function mostrarOrdenTareasPorPersona(){
   const overlay = getOrCreateOverlay('tareas-orden-overlay');
   overlay.style.padding = '0';
   const activas = tareasData.filter(t=>!esTareaArchivada(t)&&t.estado!=='completada');
-  const personas = Object.keys(USERS).filter(u=>activas.some(t=>t.asignadoA===u));
+  const personas = Object.keys(USER_ROLES).filter(u=>activas.some(t=>t.asignadoA===u));
   const bloquesHTML = personas.map(u=>{
     const propias = ordenarTareasPorPrioridad(activas.filter(t=>t.asignadoA===u));
     return `
@@ -2000,7 +2000,7 @@ function renderMantenimientoColgandoHTML(){
       <div style="padding:10px;background:#fff;border:1.5px dashed ${nivel.color};border-radius:8px;margin-bottom:10px">
         <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:6px">Marcar personas en todas las "sin asignar":</div>
         <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px">
-          ${Object.keys(USERS).map(u=>`
+          ${Object.keys(USER_ROLES).map(u=>`
             <label style="font-size:10px;border:1px solid #ccc;border-radius:999px;padding:3px 9px;cursor:pointer;display:inline-flex;align-items:center;gap:3px">
               <input type="checkbox" class="mant-persona-todas-chk" onchange="marcarPersonaEnTodas('${u}',this.checked)" style="width:11px;height:11px"> ${u}
             </label>`).join('')}
@@ -2044,7 +2044,7 @@ function buildTarjetaMantenimiento(t, mostrarAsignarPersonas){
   const personasHTML = (t.asignados||[]).map(u=>`<span style="font-size:9px;font-weight:700;background:#eef4fb;color:#1558a0;border-radius:999px;padding:2px 8px">${escapar(u)}</span>`).join(' ');
   const asignarPersonasHTML = mostrarAsignarPersonas ? `
     <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px">
-      ${Object.keys(USERS).map(u=>`
+      ${Object.keys(USER_ROLES).map(u=>`
         <label style="font-size:9px;border:1px solid #ccc;border-radius:999px;padding:2px 7px;cursor:pointer;display:inline-flex;align-items:center;gap:2px">
           <input type="checkbox" class="mant-persona-chk" data-ticket="${t.id}" value="${u}" onchange="actualizarBotonConfirmarMantenimiento()" style="width:10px;height:10px"> ${u}
         </label>`).join('')}
@@ -2398,7 +2398,7 @@ function renderTareasGestorFullScreen(overlay){
  const select=(campo,ops)=>`<select aria-label="${campo}" onchange="cambiarFiltroTareasGestor('${campo}',this.value)" style="min-width:110px;max-width:190px;padding:8px;border:1px solid #a8c4e8;border-radius:7px;background:#fff;color:#1558a0;font-size:12px">${ops.map(([val,label])=>`<option value="${val}" ${f[campo]===val?'selected':''}>${label}</option>`).join('')}</select>`;
  const origen=[['todos','Todos los orígenes'],['manual','Manual'],['riego','Riego'],['especificos','Específicos'],['pistola','Pistola'],['mantenimiento','Mantenimiento'],['sin_origen','Antiguos']];
  const salas=[['todas','Todas las salas'],...['sala1','sala2','sala3','sala4','sala5'].map((v,i)=>[v,'Sala '+(i+1)])];
- const personal=[['todos','Todos los operarios'],...Object.keys(USERS).map(u=>[u,u])];
+ const personal=[['todos','Todos los operarios'],...Object.keys(USER_ROLES).map(u=>[u,u])];
  const filtroHTML=vista==='mantenimiento'?'':`<div style="padding:9px 12px;background:#eef4fb;border-bottom:1px solid #cad9ea;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
    ${select('origen',origen)}${select('sala',salas)}${select('asignado',personal)}
    ${vista==='operativas'?select('estado',[['todas','Todos los estados'],['pendiente','Pendientes'],['iniciada','En curso'],['completada','Completadas']]):''}
@@ -2413,7 +2413,7 @@ function renderTareasGestorFullScreen(overlay){
  </div><div id="nueva-tarea-form-wrap"></div>`:'';
  const batch=active.some(t=>t.estado==='pendiente'&&!t.origenFito?.serieId)?`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:9px;background:#eef4fb;border-radius:8px;margin:12px 0">
    <span style="font-size:12px;color:#1558a0;font-weight:700">Asignar marcadas:</span>
-   <select id="lote-asignado-select" style="padding:7px;border:1px solid #a8c4e8;border-radius:7px"><option value="">Operario</option>${Object.keys(USERS).map(u=>`<option value="${u}">${u}</option>`).join('')}</select>
+   <select id="lote-asignado-select" style="padding:7px;border:1px solid #a8c4e8;border-radius:7px"><option value="">Operario</option>${Object.keys(USER_ROLES).map(u=>`<option value="${u}">${u}</option>`).join('')}</select>
    <button id="btn-asignar-lote" onclick="asignarTareasEnLote()" disabled style="padding:8px 11px;border:0;border-radius:7px;background:#1558a0;color:#fff;opacity:.5">Asignar (<span id="lote-contador">0</span>)</button>
  </div>`:'';
  const cards=(list,selectable)=>`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(275px,1fr));gap:11px">${list.map(t=>buildTareaGestorRow(t,selectable&&t.estado==='pendiente'&&!t.origenFito?.serieId)).join('')||'<div style="font-size:12px;color:#667">No hay tareas.</div>'}</div>`;
@@ -2501,7 +2501,7 @@ function renderTareasGestorVistaHTML(vista, porFecha){
       <span style="font-size:11px;font-weight:700;color:#1558a0">Asignar seleccionadas a:</span>
       <select id="lote-asignado-select" style="padding:6px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:12px">
         <option value="">— Elige —</option>
-        ${Object.keys(USERS).map(u=>`<option value="${u}">${u}</option>`).join('')}
+        ${Object.keys(USER_ROLES).map(u=>`<option value="${u}">${u}</option>`).join('')}
       </select>
       <button id="btn-asignar-lote" onclick="asignarTareasEnLote()" disabled style="padding:6px 14px;font-size:12px;font-weight:800;background:#1558a0;color:#fff;border:none;border-radius:6px;cursor:pointer;opacity:.5">Confirmar (<span id="lote-contador">0</span>)</button>
     </div>` : '';
@@ -2830,7 +2830,7 @@ function showNuevaTareaForm(){
   if(!['ADMIN','TECNICO'].includes(currentUserRole)){showToast('Solo ADMIN y TÉCNICO pueden gestionar Tareas.');return;}
   const wrap = document.getElementById('nueva-tarea-form-wrap');
   if(!wrap) return;
-  const asignables = Object.keys(USERS);
+  const asignables = Object.keys(USER_ROLES);
   const hoyISO = fechaLocalISO(new Date());
   const invOptions = `<option value="">Invernadero (opcional)</option>`+
     `<optgroup label="Sala 1">${ALL_INV_IDS_SALA1.map(id=>`<option value="${id}">${id}</option>`).join('')}</optgroup>`+
@@ -2926,7 +2926,7 @@ function showEditarTareaForm(id){
   if(esTareaArchivada(t)){showToast('El archivo es de solo consulta.');return;}
   const wrap = document.getElementById('nueva-tarea-form-wrap');
   if(!wrap) return;
-  const asignables = Object.keys(USERS);
+  const asignables = Object.keys(USER_ROLES);
   const invOptions = `<option value="">Invernadero (opcional)</option>`+
     `<optgroup label="Sala 1">${ALL_INV_IDS_SALA1.map(iid=>`<option value="${iid}" ${t.inv===iid?'selected':''}>${iid}</option>`).join('')}</optgroup>`+
     `<optgroup label="Sala 2">${ALL_INV_IDS.map(iid=>`<option value="${iid}" ${t.inv===iid?'selected':''}>${iid}</option>`).join('')}</optgroup>`+
@@ -4465,7 +4465,7 @@ function mostrarFormNuevoTrabajo(seccionKey, subKey, editId){
       </div>
       <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px">Personas</div>
       <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px">
-        ${Object.keys(USERS).map(u=>`
+        ${Object.keys(USER_ROLES).map(u=>`
           <label style="font-size:11px;border:1px solid #ccc;border-radius:999px;padding:3px 9px;cursor:pointer;display:inline-flex;align-items:center;gap:4px">
             <input type="checkbox" class="nw-persona-chk" value="${u}" ${t?.personas?.includes(u)?'checked':''} style="width:11px;height:11px"> ${u}
           </label>`).join('')}
@@ -10488,7 +10488,7 @@ function mostrarFormNuevoClimaCuadro(cuadroKey){
       </div>
       <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px">Personas</div>
       <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px">
-        ${Object.keys(USERS).map(u=>`
+        ${Object.keys(USER_ROLES).map(u=>`
           <label style="font-size:11px;border:1px solid #ccc;border-radius:999px;padding:3px 9px;cursor:pointer;display:inline-flex;align-items:center;gap:4px">
             <input type="checkbox" class="ccu-persona-chk" value="${u}" style="width:11px;height:11px"> ${u}
           </label>`).join('')}
