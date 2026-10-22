@@ -13156,17 +13156,6 @@ function showRiegoModule(soloLectura){
             style="padding:7px 14px;background:#d6dbe1;border:1px solid #b8c0ca;color:#68727d;border-radius:7px;font-size:12px;font-weight:700;cursor:default;opacity:1;white-space:nowrap">
             <i class="ti ti-device-floppy" style="font-size:14px;vertical-align:-2px"></i> Guardar
           </button>
-          <div style="position:relative">
-            <button id="riego-help-btn" onclick="toggleRiegoAyuda()" title="Ayuda sobre rangos" aria-label="Ayuda sobre rangos"
-              style="width:30px;height:30px;padding:0;background:#1558a0;border:1px solid #1558a0;color:#fff;border-radius:7px;font-size:16px;font-weight:800;line-height:1;cursor:pointer">
-              ?
-            </button>
-            <div id="riego-help-popover" role="dialog" aria-label="Ayuda sobre rangos"
-              style="display:none;position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:2147483646;width:360px;max-width:calc(100vw - 2rem);max-height:calc(100vh - 2rem);overflow:auto;padding:14px 16px;background:#fff;border:1px solid #a8c4e8;border-radius:9px;box-shadow:0 10px 32px rgba(0,0,0,.28);color:#34495e;font-size:13px;line-height:1.4">
-              <strong style="color:#1558a0">Ayuda</strong><br>
-              Para marcar varias calles, introduce el texto en la primera calle del rango. Las calles adyacentes con el mismo valor se unen automáticamente con corchete.
-            </div>
-          </div>
         </div>
 
         <!-- GRID AREA -->
@@ -13205,22 +13194,14 @@ function actualizarVistaRiegoSeleccion(invId){
   const label = document.getElementById('riego-selection-label');
   const actions = document.getElementById('riego-actions-row');
   const printWrap = document.getElementById('riego-print-wrap');
-  const help = document.getElementById('riego-help-popover');
   const selected = !!invId;
   if(selectorWrap) selectorWrap.style.display = selected ? 'none' : 'block';
   if(selection) selection.style.display = selected ? 'flex' : 'none';
   if(label) label.textContent = selected ? (riegoSalaTexto(invId) + ' · INV. ' + invId) : '';
   if(actions) actions.style.display = selected && !riegoSoloLectura ? 'flex' : 'none';
   if(printWrap) printWrap.style.display = selected ? 'block' : 'none';
-  if(help) help.style.display = 'none';
   actualizarEstadoBotonGuardarRiego();
 }
-function toggleRiegoAyuda(){
-  const help = document.getElementById('riego-help-popover');
-  if(!help) return;
-  help.style.display = help.style.display === 'none' ? 'block' : 'none';
-}
-
 async function selectRiegoInv(invId){
   cerrarRiegoSync();
   riegoInvSel = invId;
