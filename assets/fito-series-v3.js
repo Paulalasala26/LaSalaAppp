@@ -449,7 +449,7 @@ function construirConsultaFitoV3(mod){
    +(linkedRow?'Editar jornada':'Editar registro')+'</button>'
    +'<button type="button"'+attrs+' onclick="'+printOnclick+'" title="Imprimir hoja oficial" aria-label="Imprimir hoja oficial" style="'+buttonStyle+';width:46px;padding:0">'
    +'<i class="ti ti-printer" aria-hidden="true" style="font-size:19px"></i></button>';
-  const badges=[row.method,row.broth].filter(Boolean).map(x=>esc(x)).join(' · ');
+  const badges=[row.method,row.broth].filter(Boolean).join(' · ');
   const detailsText=[row.dose,row.time,badges].filter(Boolean).map(x=>esc(x)).join(' · ');
   const location=esc(row.location)+(row.count?' · '+row.count+' calles':'');
   const visible=!buscar||limpiarBusquedaFitoV3(row.search).includes(buscar);
