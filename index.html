@@ -3279,20 +3279,25 @@ async function cambiarEjecucionPistolaVinculada(id,accion,firmas){
   return true;
 }
 
+async function transicionarTareaOperarioSegura(id,estadoPrevio,campos){
+ if(!currentUser||!['PEON','REGANTE'].includes(currentUserRole)){showToast('Solo el operario asignado puede ejecutar esta tarea.');return false;}
+ const tx=await actualizarStorageJsonConEtag(TAREAS_KEY,[],cloud=>{
+   if(!Array.isArray(cloud))throw Error('Tareas: datos inválidos');
+   const vigente=cloud.find(t=>t.id===id);
+   if(!vigente||vigente.origenFito?.serieId||esTareaArchivada(vigente)||vigente.asignadoA!==currentUser||vigente.estado!==estadoPrevio)return undefined;
+   return cloud.map(t=>t.id===id?{...t,...campos}:t);
+ });
+ if(!tx.ok||tx.noChange){showToast('La tarea ha cambiado o no se confirmó el guardado. Actualiza antes de actuar.');await loadTareasData(true);refreshTareasViews();return false;}
+ tareasData=tx.value;refreshTareasViews();return true;
+}
 async function iniciarTarea(id){
-  await loadTareasData();
-  const t = tareasData.find(x=>x.id===id);
-  if(!t)return;
-  if(t.origenFito?.serieId){
-    await cambiarEjecucionPistolaVinculada(id,'iniciar',{});
-    return;
-  }
-  t.estado='iniciada';
-  t.horaInicio = new Date().toLocaleString('es-ES');
-  t.horaInicioTs = Date.now(); // timestamp numérico — lo usa el cronómetro en pantalla de las fumigaciones
-  await persistTareasData();
-  logHistorial(`Inició la tarea "${t.titulo}"`);
-  refreshTareasViews();
+ await loadTareasData(true);
+ const actual=tareasData.find(t=>t.id===id);
+ if(!actual)return;
+ if(actual.origenFito?.serieId){await cambiarEjecucionPistolaVinculada(id,'iniciar',{});return;}
+ const ahora=new Date();
+ const ok=await transicionarTareaOperarioSegura(id,'pendiente',{estado:'iniciada',horaInicio:ahora.toLocaleString('es-ES'),horaInicioTs:ahora.getTime()});
+ if(ok)logHistorial(`Inició la tarea "${actual.titulo}"`);
 }
 // Tareas normales guardan un solo inv/calles; las de fumigación (ver
 // autoAsignarTareaFumigacion) pueden cubrir varios invernaderos a la vez en
@@ -3329,24 +3334,19 @@ function showCompletarTareaDialog(id){
   mo.style.display='flex';
 }
 async function completarTarea(id){
-  const firma = document.getElementById('ct-firma')?.value?.trim();
-  if(!firma){ showToast('Indica tu nombre para firmar'); return; }
-  await loadTareasData();
-  const t = tareasData.find(x=>x.id===id);
-  if(!t) return;
-  if(t.origenFito?.serieId){showToast('Usa el cierre Pistola con firmas de preparador y aplicador.');return;}
-  t.estado='completada';
-  t.horaFin = new Date().toLocaleString('es-ES');
-  t.horaFinTs = Date.now(); // a petición de Paula, 2026-08-11: poder mostrar cuánto tardó (inicio→ejecución)
-  t.completadoISO = fechaLocalISO(new Date());
-  t.firmante = firma;
-  await persistTareasData();
-  logHistorial(`Completó y firmó la tarea "${t.titulo}" como "${firma}"`);
-  document.getElementById('completar-tarea-overlay').style.display='none';
-  showToast('✓ Tarea completada');
-  refreshTareasViews();
+ const firma=document.getElementById('ct-firma')?.value?.trim();
+ if(!firma){showToast('Indica tu nombre para firmar');return;}
+ await loadTareasData(true);
+ const t=tareasData.find(x=>x.id===id);
+ if(!t)return;
+ if(t.origenFito?.serieId){showToast('Usa el cierre Pistola con las dos firmas.');return;}
+ const ahora=new Date();
+ const ok=await transicionarTareaOperarioSegura(id,'iniciada',{estado:'completada',horaFin:ahora.toLocaleString('es-ES'),horaFinTs:ahora.getTime(),completadoISO:fechaLocalISO(ahora),firmante:firma});
+ if(!ok)return;
+ logHistorial(`Completó y firmó la tarea "${t.titulo}" como "${firma}"`);
+ const overlay=document.getElementById('completar-tarea-overlay');if(overlay)overlay.style.display='none';
+ showToast('✓ Tarea completada');
 }
-
 // ════════════════════════════════════════════════════════════════
 // FUMIGACIONES A PISTOLA COMO TAREA DE PEÓN — a petición de Paula: las
 // fumigaciones a Pistola las hace el peón (a Cañón las hace el TRACTORISTA,
@@ -3426,29 +3426,23 @@ function showCompletarFumigacionDialog(id){
   mo.style.display='flex';
 }
 async function completarFumigacion(id){
-  const caldoSobrante = document.getElementById('cf-caldo-sobrante')?.value?.trim();
-  const firmaPreparador = document.getElementById('cf-firma-preparador')?.value?.trim();
-  const firmaAplicador = document.getElementById('cf-firma-aplicador')?.value?.trim();
-  if(!caldoSobrante || !firmaPreparador || !firmaAplicador){ showToast('Rellena las 3 casillas antes de confirmar'); return; }
-  await loadTareasData();
-  const t = tareasData.find(x=>x.id===id);
-  if(!t)return;
-  if(t.origenFito?.serieId){
-    await cambiarEjecucionPistolaVinculada(id,'completar',{caldoSobrante,firmaPreparador,firmaAplicador});
-    return;
-  }
-  t.estado = 'completada';
-  t.horaFin = new Date().toLocaleString('es-ES');
-  t.completadoISO = fechaLocalISO(new Date());
-  t.caldoSobrante = caldoSobrante;
-  t.firmaPreparador = firmaPreparador;
-  t.firmaAplicador = firmaAplicador;
-  t.firmante = firmaAplicador;
-  await persistTareasData();
-  logHistorial(`Completó la fumigación "${t.titulo}" (caldo sobrante: ${caldoSobrante}; preparó: ${firmaPreparador}; aplicó: ${firmaAplicador})`);
-  document.getElementById('completar-fumigacion-overlay').style.display='none';
-  showToast('✓ Fumigación completada');
-  refreshTareasViews();
+ const caldoSobrante=document.getElementById('cf-caldo-sobrante')?.value?.trim();
+ const firmaPreparador=document.getElementById('cf-firma-preparador')?.value?.trim();
+ const firmaAplicador=document.getElementById('cf-firma-aplicador')?.value?.trim();
+ if(!caldoSobrante||!firmaPreparador||!firmaAplicador){showToast('Rellena las tres casillas antes de confirmar');return;}
+ await loadTareasData(true);
+ const t=tareasData.find(x=>x.id===id);
+ if(!t)return;
+ if(t.origenFito?.serieId){
+   await cambiarEjecucionPistolaVinculada(id,'completar',{caldoSobrante,firmaPreparador,firmaAplicador});
+   return;
+ }
+ const ahora=new Date();
+ const ok=await transicionarTareaOperarioSegura(id,'iniciada',{estado:'completada',horaFin:ahora.toLocaleString('es-ES'),horaFinTs:ahora.getTime(),completadoISO:fechaLocalISO(ahora),caldoSobrante,firmaPreparador,firmaAplicador,firmante:firmaAplicador});
+ if(!ok)return;
+ logHistorial(`Completó fumigación "${t.titulo}"`);
+ const overlay=document.getElementById('completar-fumigacion-overlay');if(overlay)overlay.style.display='none';
+ showToast('✓ Fumigación completada');
 }
 // Reconstruye la misma hoja oficial (escaneo + datos superpuestos) que
 // imprimirHojaFitosanitario, pero a partir de los datos ya guardados en la
