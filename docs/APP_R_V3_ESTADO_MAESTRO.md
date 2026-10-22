@@ -291,6 +291,18 @@
 
 **RECORDATORIO EXPRESO PENDIENTE PARA FINAL DE BLOQUE B:** (1) ampliar área pulsable a toda la celda de Plaguicidas, hoy limitada al texto; (2) corregir el aviso/modal de confirmación en edición que desborda lateralmente en móvil/PC. No perder foco en integridad y pruebas antes de esos dos ajustes. Solo rama `test/v1.0`, no tocar `main` ni PRD.
 
+### 0.34. Bloque B — cerrar UX de edición sin tocar datos (22/10/2026)
+
+**DOS INCIDENCIAS EXPRESAMENTE APLAZADAS POR EL USUARIO EN 0.30, RESUELTAS EN CÓDIGO TEST:**
+1. **Clic sobre toda la celda Plaguicidas:** en `renderFitoGrid`, tanto las celdas ocupadas en una línea como las que usan varias líneas y las vacías trasladan la activación de `abrirFitoManualCelda` al `<td>` completo; el botón textual conserva el foco para accesibilidad por teclado y sus eventos de arrastre, pero se le quita el `onclick` duplicado. La pulsación del botón burbujea al `<td>`, por lo que abre exactamente UNA VEZ. Conservados colspan, agrupación operativa y renderizado; el objetivo es que cualquier punto del recuadro, incluyendo márgenes y corchetes, abra el formulario.
+2. **Confirmaciones que se desbordaban:** `assets/fito-series-v3.js` sustituye `confirm()` nativo en el guardado/edición y borrado de Plaguicidas por un diálogo interno de ancho máximo 440px y adaptable a la ventana con saltos de línea y `overflow-wrap:anywhere`. Muestra fecha, producto, alcance, inicio global y aviso de que registrar no confirma ejecución; «Cancelar» o Escape no alteran datos; la escritura solo se realiza tras «Guardar cambios»/«Registrar jornada» o «Borrar jornada» expresos. Incluye máscara, foco inicial en Cancelar y protección contra doble confirmación; NO afecta confirmaciones de otros módulos.
+
+**ALCANCE:** cambios solo en `index.html`, `assets/fito-series-v3.js` y maestro. Protección de la edición, selección, instantáneas, bloqueo de Pistola multisala, concurrencia ETag, espejo v2 y no escritura antes de confirmar INTACTOS. `main` y PRD intocables. No se han borrado ni modificado tratamientos durante la implementación.
+
+**PRUEBAS TÉCNICAS ESTÁTICAS:** tres `<td>` de las variantes de cuadrícula tienen un único onclick cada uno, los `<button>` internos no duplican evento y preservan drag; scripts inline de `index.html` y script independiente parsean sin error. La interfaz y el diálogo aún necesitan UAT real de navegador.
+
+**CIERRE DE BLOQUE B — TEST PENDIENTE DE UAT:** recargar TEST, verificar que una pulsación en zona vacía dentro de la celda *ocupada* del 23/10 INV 1A abre «Editar tratamiento» (y que una celda vacía abre «Añadir»); abrir la edición y pulsar «Aplicar y guardar» SIN cambios, comprobar diálogo de ancho correcto y usar «Cancelar»: no debe guardar ni cerrar formulario. El borrado controlado de la jornada 23/10 debe ejecutarse solo cuando exista una estrategia acordada de restauración sin depender de Deshacer (controles retirados por petición del usuario). De momento no solicitar borrado real. Cerrar B cuando se valide clic, diálogo, cancelación y ausencia de regresiones; bloqueo de tareas Pistola permanece en C.
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).

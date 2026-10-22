@@ -273,6 +273,46 @@ function gatherTargets(ids){
   return {inv,streets:[...new Set(r.calles)].sort((a,b)=>a-b),notes};
  }).filter(x=>x.streets.length);
 }
+
+// In-form confirmation for pesticide writes: native confirm() cannot reliably
+// wrap greenhouse / street lists on small screens. No data mutation before OK.
+function confirmarFitoAccionV3({titulo,detalle,accion='Confirmar',destructivo=false}){
+ return new Promise(resolve=>{
+  const modal=getOrCreateOverlay('fito-v3-confirmacion');
+  if(modal.dataset.enCurso==='1'){resolve(false);return;}
+  modal.dataset.enCurso='1';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:2600;display:flex;align-items:center;justify-content:center;padding:12px;box-sizing:border-box';
+  modal.setAttribute('role','presentation');
+  modal.innerHTML='<div role="dialog" aria-modal="true" aria-labelledby="fito-v3-confirmar-titulo" style="width:min(440px,100%);max-width:100%;min-width:0;max-height:85vh;overflow:auto;box-sizing:border-box;border-radius:12px;background:#fff;padding:16px;box-shadow:0 9px 35px rgba(0,0,0,.25)">'
+   +'<div id="fito-v3-confirmar-titulo" style="font-size:16px;font-weight:800;color:#1558a0;overflow-wrap:anywhere"></div>'
+   +'<div id="fito-v3-confirmar-detalle" style="font-size:13px;line-height:1.55;color:#263344;white-space:pre-wrap;overflow-wrap:anywhere;word-break:normal;margin:12px 0 18px"></div>'
+   +'<div style="display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px">'
+   +'<button type="button" id="fito-v3-cancelar" style="padding:10px 14px;min-height:40px;border:1px solid #b5c5d6;background:#fff;color:#1558a0;border-radius:8px;font-weight:700">Cancelar</button>'
+   +'<button type="button" id="fito-v3-aceptar" style="padding:10px 14px;min-height:40px;border:0;border-radius:8px;font-weight:800;color:#fff"></button>'
+   +'</div></div>';
+  modal.querySelector('#fito-v3-confirmar-titulo').textContent=titulo;
+  modal.querySelector('#fito-v3-confirmar-detalle').textContent=detalle;
+  const yes=modal.querySelector('#fito-v3-aceptar');
+  yes.textContent=accion;yes.style.background=destructivo?'#b91c1c':'#1558a0';
+  let finished=false;
+  const done=ok=>{
+   if(finished)return;
+   finished=true;
+   document.removeEventListener('keydown',keyboard,true);
+   modal.style.display='none';
+   modal.dataset.enCurso='0';
+   modal.onclick=null;
+   resolve(ok);
+  };
+  const keyboard=e=>{if(e.key==='Escape'){e.preventDefault();done(false);}};
+  modal.onclick=e=>{if(e.target===modal)done(false);};
+  modal.querySelector('#fito-v3-cancelar').addEventListener('click',()=>done(false));
+  yes.addEventListener('click',()=>done(true));
+  document.addEventListener('keydown',keyboard,true);
+  modal.querySelector('#fito-v3-cancelar').focus();
+ });
+}
+
 window.saveFitoManual=async function(){
  if(st.busy||st.uncertain)return;
  st.busy=true;
@@ -321,7 +361,11 @@ window.saveFitoManual=async function(){
    }
   }
   const places=targets.map(x=>'INV '+x.inv+' ('+x.streets.length+' calles)').join(', ');
-  if(!confirm((st.edit?'Modificar jornada':'Registrar jornada')+' '+iso+' · '+product+'\n'+places+'\n'+(start?'Inicio global: '+start+'\n':'')+'No confirma la aplicación física.'))return;
+  if(!(await confirmarFitoAccionV3({
+   titulo:st.edit?'Confirmar edición de jornada':'Confirmar registro de jornada',
+   detalle:iso+' · '+product+'\n'+places+'\n'+(start?'Inicio global: '+start+'\n':'')+'Registrar no confirma la aplicación física.',
+   accion:st.edit?'Guardar cambios':'Registrar jornada'
+  })))return;
   const text=[dose?product+' '+dose:product,time].filter(Boolean).join(' ');
   const byUndo=new Map();
   for(const x of expect.values()){
@@ -398,8 +442,12 @@ window.borrarFitoManual=async function(){
     throw Error('No se puede borrar la primera jornada mientras haya continuaciones. Requiere revisión del inicio global.');
    more.forEach(x=>capture(x.inv,x.day,x.street));
   }
-  if(!confirm('Borrar '+records.length+' calle(s) de '+(context.legacy?'la selección histórica':'la jornada completa')
-     +'?\nSe eliminarán únicamente los registros originales; nunca otras aplicaciones.'))return;
+  if(!(await confirmarFitoAccionV3({
+    titulo:'Confirmar borrado de tratamiento',
+    detalle:'Se borrarán '+records.length+' calle(s) de '+(context.legacy?'la selección histórica':'la jornada completa')
+     +'\nSolo se eliminarán los registros originales; nunca otras aplicaciones.',
+    accion:'Borrar jornada',destructivo:true
+   })))return;
   const undoGroups=new Map();
   for(const x of affected.values()){
    const k=key(x.invId,x.dia,'');
