@@ -308,22 +308,6 @@ function limpiarBusquedaFitoV3(v){
  return String(v??'').toLocaleLowerCase('es').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
 }
 let busquedaFitoV3='';
-// El volumen es una propiedad de cada preparación/celda. No atribuir a una
-// jornada completa el caldo de un único invernadero si otro aún no lo tiene.
-function estadoCaldoFitoConsultaV3(entries){
- const pending=entries.filter(e=>!Number.isFinite(Number(e.raw.caldoLitros))||Number(e.raw.caldoLitros)<=0);
- const labels=[...new Set(entries.filter(e=>Number.isFinite(Number(e.raw.caldoLitros))&&Number(e.raw.caldoLitros)>0).map(e=>{
-  const liters=Number(e.raw.caldoLitros);
-  return e.raw.caldoLabel||(FITO_CALDO_OPCIONES.find(o=>o.litros===liters)||{}).label||liters+'L';
- }))];
- return {
-  pendientes:pending.length,
-  etiqueta:pending.length?'Caldo pendiente':labels.length===1?labels[0]:labels.length>1?'Caldos distintos':'',
-  detalle:pending.length
-   ?'Caldo pendiente'+(pending.length<entries.length?' en '+pending.length+' de '+entries.length+' calles':'')
-   :labels.length===1?'Caldo: '+labels[0]:labels.length>1?'Caldos distintos':''
- };
-}
 function construirConsultaFitoV3(mod){
  if(mod!=='fito')return originalSummary.apply(this,arguments);
  // Original agrupación remains the single source for historical/unlinked
@@ -353,8 +337,7 @@ function construirConsultaFitoV3(mod){
   j.time=parsed.horario||'';
   j.start=first.inicioSerieISO||dayISO(j.day);
   j.method=[...new Set(j.items.map(e=>e.raw.tipoTrat).filter(Boolean))].join(' / ');
-  const estadoCaldo=estadoCaldoFitoConsultaV3(j.items);
-  j.broth=estadoCaldo.etiqueta;
+  j.broth=[...new Set(j.items.map(e=>e.raw.caldoLabel).filter(Boolean))].join(' / ');
   j.invIds=invIds.sort((a,b)=>a.localeCompare(b,'es',{numeric:true}));
   j.count=j.items.length;
   const byInv=new Map();
@@ -373,10 +356,6 @@ function construirConsultaFitoV3(mod){
    lines.push('<div style="font-weight:750">INV '+esc(inv)+' · '+esc(formatCallesConEnteroParaImprimir(inv,all))+'</div>');
    if(firstStreets.length)lines.push('<span style="color:#6a1b9a">Primer día: '+esc(formatCallesConEnteroParaImprimir(inv,firstStreets))+'</span>');
    if(further.length)lines.push('<span>Continúan: '+esc(formatCallesConEnteroParaImprimir(inv,further))+'</span>');
-   if(estadoCaldo.pendientes){
-    const areaCaldo=estadoCaldoFitoConsultaV3(entries);
-    if(areaCaldo.detalle)lines.push('<span style="color:'+(areaCaldo.pendientes?'#9a6700':'#455c74')+'">'+esc(areaCaldo.detalle)+'</span>');
-   }
    locations.push('<div style="box-sizing:border-box;width:100%;padding:9px 11px;border:1px solid #dce6f2;border-radius:8px;background:#fff;display:flex;flex-direction:column;gap:3px;font-size:12px;line-height:1.5">'+lines.join('')+'</div>');
   }
   j.detail=locations.join('');
