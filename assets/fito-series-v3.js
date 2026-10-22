@@ -495,7 +495,15 @@ function imprimirJornadaFitoConsultaV3(id,journalId){
  if(fitoDirtyCells.size){showToast('Hay cambios pendientes. Guarda o cancela antes de imprimir.');return;}
  const entries=seriesCells(id).filter(e=>(e.raw.jornadaId||e.raw.fechaJornadaISO||dayISO(e.day))===journalId);
  const pages=buildPrintJobsV3(entries);
- if(!pages.length){showToast('La jornada no tiene una fecha única. Revisa el registro.');return;}
+ if(!pages.length){showToast('La jornada no tiene una fecha única. Revisa el registro.','warning');return;}
+ // El alta permite caldo opcional; una hoja oficial no debe atribuir un gasto
+ // calculado a un volumen inexistente. Informar del INV afectado sin escribir.
+ const sinCaldo=pages.filter(x=>!Number.isFinite(Number(x.datos.caldoLitros))||Number(x.datos.caldoLitros)<=0);
+ if(sinCaldo.length){
+  const invs=[...new Set(sinCaldo.flatMap(x=>(x.datos.objetivos||[]).map(o=>String(o.inv))))].sort((a,b)=>a.localeCompare(b,'es',{numeric:true}));
+  showToast('Falta caldo inicial en INV '+invs.join(', ')+'. Completa la jornada antes de imprimir.','warning');
+  return;
+ }
  imprimirHojaFitoConDatos(pages.map(x=>({...x.datos,asignadoPor:currentUser})));
 }
 window.imprimirJornadaFitoConsultaV3=imprimirJornadaFitoConsultaV3;
