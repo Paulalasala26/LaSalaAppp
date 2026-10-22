@@ -336,14 +336,189 @@ window.verHistorialFitoV3=function(id){
  }));
  modal.style.display='flex';
 };
-window.renderResumenQuincenaTratamientos=function(mod){
- const s=originalSummary.apply(this,arguments);if(mod!=='fito')return s;
- const list=listSeries(),rows=list.slice(0,80).map(x=>
- '<button type="button" onclick="verHistorialFitoV3(\''+esc(x.id)+'\')" style="width:100%;display:flex;justify-content:space-between;text-align:left;padding:9px;border:none;border-bottom:1px solid #dce4ed;background:#fff;color:#1558a0;font-size:12px;cursor:pointer">'
- +'<span>'+esc(x.start+' · '+parsearTextoFito(x.text).trat.slice(0,55))+'</span><span>'+x.journals.size+' jornadas</span></button>').join('');
- const extra=list.length?'<details style="border:1px solid #c6d9ee;border-radius:8px;margin-bottom:10px;background:#fff"><summary style="padding:12px;color:#1558a0;font-weight:800">Tratamientos vinculados · '+list.length+' (todas las quincenas)</summary>'+rows+'</details>':'';
- return s.replace('<div id="resumen-quincena-fito">','<div id="resumen-quincena-fito">'+extra).replace('Aplicado en esta quincena','Registrado en esta quincena');
-};
+function limpiarBusquedaFitoV3(v){
+ return String(v??'').toLocaleLowerCase('es').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+}
+let busquedaFitoV3='';
+function construirConsultaFitoV3(mod){
+ if(mod!=='fito')return originalSummary.apply(this,arguments);
+ // Original agrupación remains the single source for historical/unlinked
+ // cards and legacy edit IDs; never render its duplicated dashboard.
+ originalSummary.apply(this,arguments);
+ const dias=riegoQuincenaDias(fitoQuincenaOffset);
+ const porDia=new Set(dias.map(Number));
+ const filtroDia=resumenQuincenaDiaFiltro.fito;
+ const filtroSala=resumenQuincenaSalaFiltro.fito;
+ const filtroInv=resumenQuincenaInvFiltro.fito;
+ const rows=[];
+ const linked=new Map();
+ allCells().forEach(c=>{
+  if(!porDia.has(c.day)||filtroDia!=null&&c.day!==filtroDia)return;
+  const r=c.raw;
+  const id=JSON.stringify([r.serieId,r.jornadaId||r.fechaJornadaISO||dayISO(c.day),c.day]);
+  if(!linked.has(id))linked.set(id,{kind:'linked',serieId:r.serieId,jornadaId:r.jornadaId||r.fechaJornadaISO||dayISO(c.day),day:c.day,items:[]});
+  linked.get(id).items.push(c);
+ });
+ for(const j of linked.values()){
+  const invIds=[...new Set(j.items.map(c=>c.inv))];
+  if(filtroSala&&!invIds.some(inv=>salaDeInv(inv)===filtroSala))continue;
+  if(filtroInv&&!invIds.includes(filtroInv))continue;
+  const first=j.items[0].raw,parsed=parsearTextoFito(first.texto);
+  j.title=parsed.trat||first.texto;
+  j.dose=parsed.dosis||'';
+  j.time=parsed.horario||'';
+  j.start=first.inicioSerieISO||dayISO(j.day);
+  j.method=[...new Set(j.items.map(e=>e.raw.tipoTrat).filter(Boolean))].join(' / ');
+  j.broth=[...new Set(j.items.map(e=>e.raw.caldoLabel).filter(Boolean))].join(' / ');
+  j.invIds=invIds.sort((a,b)=>a.localeCompare(b,'es',{numeric:true}));
+  j.count=j.items.length;
+  const byInv=new Map();
+  for(const e of j.items){
+   if(!byInv.has(e.inv))byInv.set(e.inv,[]);
+   byInv.get(e.inv).push(e);
+  }
+  const locations=[];
+  const searchLocations=[];
+  for(const [inv,entries] of [...byInv].sort(([a],[b])=>a.localeCompare(b,'es',{numeric:true}))){
+   const all=[...new Set(entries.map(e=>e.street))].sort((a,b)=>a-b);
+   searchLocations.push('INV '+inv+' '+all.join(' '));
+   const firstStreets=entries.filter(e=>!!e.raw.primerDia).map(e=>e.street);
+   const further=entries.filter(e=>!e.raw.primerDia).map(e=>e.street);
+   const lines=[];
+   lines.push('<div style="font-weight:750">INV '+esc(inv)+' · '+esc(formatCallesConEnteroParaImprimir(inv,all))+'</div>');
+   if(firstStreets.length)lines.push('<span style="color:#6a1b9a">Primer día: '+esc(formatCallesConEnteroParaImprimir(inv,firstStreets))+'</span>');
+   if(further.length)lines.push('<span>Continúan: '+esc(formatCallesConEnteroParaImprimir(inv,further))+'</span>');
+   locations.push('<div style="padding:9px 11px;border:1px solid #dce6f2;border-radius:8px;background:#fff;display:flex;flex-direction:column;gap:4px">'+lines.join('')+'</div>');
+  }
+  j.detail=locations.join('');
+  j.location=j.invIds.map(inv=>'INV '+inv).join(', ');
+  j.search=[j.title,j.dose,j.time,j.method,j.start,j.day,j.location,searchLocations.join(' ')].join(' ');
+  rows.push(j);
+ }
+ const cache=resumenQuincenaFilasCache.fito||[];
+ cache.forEach((f,idx)=>{
+  if(f.raw&&typeof f.raw==='object'&&f.raw.serieId)return; // already represented as one linked journal
+  const parsed=parsearTextoFito(f.texto);
+  const invs=Object.keys(f.porInv||{}).sort((a,b)=>a.localeCompare(b,'es',{numeric:true}));
+  let ranges=[];
+  for(const inv of invs){
+   const byObs=f.porInv[inv];
+   const calles=[...new Set(Object.values(byObs).flat().map(Number))].sort((a,b)=>a-b);
+   ranges.push('<div style="padding:9px 11px;border:1px solid #dce6f2;border-radius:8px;background:#fff">'
+     +'<b>INV '+esc(inv)+'</b> · '+esc(formatCallesConEnteroParaImprimir(inv,calles))+'</div>');
+  }
+  rows.push({
+   kind:'legacy',idx,day:f.dia,title:parsed.trat||f.texto,dose:parsed.dosis||'',
+   time:parsed.horario||'',method:f.raw?.tipoTrat||'',broth:f.raw?.caldoLabel||'',
+   location:invs.map(x=>'INV '+x).join(', '),detail:ranges.join(''),
+   count:Object.values(f.porInv||{}).reduce((n,v)=>n+new Set(Object.values(v).flat()).size,0),
+   search:[f.texto,parsed.trat,parsed.dosis,f.dia,invs.join(' ')].join(' ')
+  });
+ });
+ rows.sort((a,b)=>b.day-a.day||a.title.localeCompare(b.title,'es'));
+ const n=rows.length;
+ const buscar=limpiarBusquedaFitoV3(busquedaFitoV3);
+ const salas=[['sala1','Sala 1'],['sala2','Sala 2'],['sala3','Sala 3'],['sala4','Sala 4'],['sala5','Sala 5']];
+ const invsPorSala=[['Sala 1',Object.keys(INV_LAYOUT_SALA1)],
+  ['Sala 2',Object.keys(INV_LAYOUT_SALA2)],['Sala 3',Object.keys(INV_LAYOUT_SALA3)],
+  ['Sala 4',Object.keys(INV_LAYOUT_SALA4)],['Sala 5',Object.keys(INV_LAYOUT_SALA5)]];
+ const boxSelect='min-height:40px;width:100%;padding:7px 9px;border:1px solid #b5c9df;border-radius:8px;background:#fff;color:#263344;font-size:13px';
+ const filtDia='<select aria-label="Día" onchange="cambiarResumenQuincenaDiaFiltro(\'fito\',this.value)" style="'+boxSelect+'">'
+  +'<option value="">Todos los días</option>'
+  +dias.map(d=>'<option value="'+d+'"'+(filtroDia===d?' selected':'')+'>'+esc(riegoDiaLabelCorto(d))+' · '+esc(riegoDiaSemana(d))+'</option>').join('')+'</select>';
+ const filtSala='<select aria-label="Sala" onchange="cambiarResumenQuincenaSalaFiltro(\'fito\',this.value)" style="'+boxSelect+'">'
+  +'<option value="">Todas las salas</option>'
+  +salas.map(([k,v])=>'<option value="'+k+'"'+(filtroSala===k?' selected':'')+'>'+v+'</option>').join('')+'</select>';
+ const filtInv='<select aria-label="Invernadero" onchange="cambiarResumenQuincenaInvFiltro(\'fito\',this.value)" style="'+boxSelect+'">'
+  +'<option value="">Todos los invernaderos</option>'
+  +invsPorSala.map(([s,ids])=>'<optgroup label="'+s+'">'+ids.sort((a,b)=>a.localeCompare(b,'es',{numeric:true})).map(k=>'<option value="'+esc(k)+'"'+(filtroInv===k?' selected':'')+'>INV '+esc(k)+'</option>').join('')+'</optgroup>').join('')+'</select>';
+ const cards=rows.map(row=>{
+  const parsedDate=esc(riegoDiaLabelCorto(row.day))+' · '+esc(riegoDiaSemana(row.day));
+  const kind=row.kind==='linked';
+  const note=kind?'Inicio global: '+esc(row.start):'Registro histórico sin vínculo';
+  const badges=[row.method, row.broth].filter(Boolean).map(s=>'<span>'+esc(s)+'</span>').join('<span aria-hidden="true"> · </span>');
+  const action=kind
+   ?'<button type="button" data-serie="'+esc(row.serieId)+'" data-jornada="'+esc(row.jornadaId)+'" onclick="editarJornadaFitoConsultaV3(this.dataset.serie,this.dataset.jornada)" style="padding:9px 12px;min-height:40px;background:#1558a0;color:#fff;border:0;border-radius:7px;font-weight:750;cursor:pointer">Editar jornada</button>'
+    +'<button type="button" data-serie="'+esc(row.serieId)+'" data-jornada="'+esc(row.jornadaId)+'" onclick="imprimirJornadaFitoConsultaV3(this.dataset.serie,this.dataset.jornada)" style="padding:9px 12px;min-height:40px;background:#fff;color:#1558a0;border:1px solid #1558a0;border-radius:7px;font-weight:750;cursor:pointer">Imprimir hoja oficial</button>'
+   :'<button type="button" onclick="editarResumenTratamiento(\'fito\','+row.idx+')" style="padding:9px 12px;min-height:40px;background:#1558a0;color:#fff;border:0;border-radius:7px;font-weight:750;cursor:pointer">Editar registro</button>'
+    +'<button type="button" onclick="imprimirHojaResumen(\'fito\','+row.idx+')" style="padding:9px 12px;min-height:40px;background:#fff;color:#1558a0;border:1px solid #1558a0;border-radius:7px;font-weight:750;cursor:pointer">Imprimir hoja oficial</button>';
+  const locationShort=esc(row.location)+(row.count?' · '+row.count+' calles':'');
+  const visible=!buscar||limpiarBusquedaFitoV3(row.search).includes(buscar);
+  return '<details data-fito-consulta-registro data-busqueda="'+esc(limpiarBusquedaFitoV3(row.search))+'"'
+   +(visible?'':' hidden')+' style="border:1px solid #cfdeec;border-radius:10px;background:#fff;overflow:hidden">'
+   +'<summary style="cursor:pointer;list-style:revert;padding:12px 14px;display:list-item;min-height:54px;color:#1a2e42">'
+   +'<div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:5px 12px;margin-bottom:4px">'
+   +'<span style="font-size:12px;font-weight:800;color:#1558a0">'+parsedDate+'</span>'
+   +'<span style="font-size:11px;color:#53677d">'+note+'</span></div>'
+   +'<div style="font-size:14px;font-weight:800;overflow-wrap:anywhere">'+esc(row.title)+'</div>'
+   +'<div style="font-size:12px;color:#455c74;margin-top:4px;overflow-wrap:anywhere">'
+   +esc(row.dose)+(row.dose&&row.time?' · ':'')+esc(row.time)
+   +(row.method||row.broth?' · '+badges:'')+'</div>'
+   +'<div style="font-size:12px;color:#455c74;margin-top:4px">'+locationShort+'</div>'
+   +'</summary>'
+   +'<div style="background:#f6f9fd;border-top:1px solid #dce6f2;padding:12px 14px">'
+   +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(195px,1fr));gap:7px">'+row.detail+'</div>'
+   +'<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">'+action+'</div></div></details>';
+ }).join('');
+ const shown=rows.filter(row=>!buscar||limpiarBusquedaFitoV3(row.search).includes(buscar)).length;
+ return '<div id="resumen-quincena-fito" style="width:100%;max-width:950px;margin:0 auto">'
+  +'<div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;padding:0 0 12px">'
+  +'<div><h3 style="font-size:16px;font-weight:800;color:#1558a0;margin:0">Consultar tratamientos</h3>'
+  +'<div style="font-size:11px;color:#53677d;margin-top:4px">Jornadas registradas; no confirma su ejecución.</div></div>'
+  +'<div style="display:flex;align-items:center;gap:7px">'
+  +'<button type="button" onclick="changeFitoQuincena(-1)"'+(fitoQuincenaOffset<=0?' disabled':'')
+  +' title="Quincena anterior" style="min-width:38px;min-height:38px;background:'+(fitoQuincenaOffset<=0?'#dae2ea':'#1558a0')+';color:'+(fitoQuincenaOffset<=0?'#687b8d':'#fff')+';border:0;border-radius:7px;font-size:21px;cursor:pointer">‹</button>'
+  +'<span style="min-width:155px;text-align:center;font-size:13px;font-weight:800;color:#1558a0">'+esc(riegoQuincenaLabel(fitoQuincenaOffset))+'</span>'
+  +'<button type="button" onclick="changeFitoQuincena(1)" title="Quincena siguiente" style="min-width:38px;min-height:38px;background:#1558a0;color:#fff;border:0;border-radius:7px;font-size:21px;cursor:pointer">›</button>'
+  +'</div></div>'
+  +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:7px;padding:11px;background:#eaf1fa;border:1px solid #cbdcef;border-radius:9px;margin-bottom:11px">'
+  +'<label style="font-size:11px;font-weight:750;color:#1558a0">Día'+filtDia+'</label>'
+  +'<label style="font-size:11px;font-weight:750;color:#1558a0">Sala'+filtSala+'</label>'
+  +'<label style="font-size:11px;font-weight:750;color:#1558a0">Invernadero'+filtInv+'</label>'
+  +'<label style="font-size:11px;font-weight:750;color:#1558a0">Buscar tratamiento'
+  +'<input type="search" value="'+esc(busquedaFitoV3)+'" placeholder="Nombre o producto" oninput="filtrarConsultaFitoV3(this.value)" style="'+boxSelect+';box-sizing:border-box"></label>'
+  +'</div>'
+  +'<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px">'
+  +'<div id="fito-consulta-conteo" aria-live="polite" style="font-size:12px;font-weight:800;color:#1558a0">'+shown+' '+(shown===1?'registro':'registros')+'</div>'
+  +'<div style="font-size:11px;color:#53677d">Selecciona un registro para ver sus calles y acciones</div></div>'
+  +'<div style="display:flex;flex-direction:column;gap:8px">'+cards+'</div>'
+  +'<div id="fito-consulta-vacio"'+(shown?' hidden':'')+' style="font-size:13px;text-align:center;padding:24px 8px;color:#53677d">'
+  +'No hay tratamientos con los filtros seleccionados.</div>'
+  +'</div>';
+}
+window.renderResumenQuincenaTratamientos=construirConsultaFitoV3;
+function filtrarConsultaFitoV3(value){
+ busquedaFitoV3=value;
+ const container=document.getElementById('resumen-quincena-fito');
+ if(!container)return;
+ const key=limpiarBusquedaFitoV3(value);
+ const elements=container.querySelectorAll('[data-fito-consulta-registro]');
+ let n=0;
+ elements.forEach(e=>{
+  const matches=!key||(e.dataset.busqueda||'').includes(key);
+  e.hidden=!matches;
+  if(matches)n++;
+ });
+ const count=container.querySelector('#fito-consulta-conteo');
+ if(count)count.textContent=n+' '+(n===1?'registro':'registros');
+ const empty=container.querySelector('#fito-consulta-vacio');
+ if(empty)empty.hidden=n>0;
+}
+window.filtrarConsultaFitoV3=filtrarConsultaFitoV3;
+function editarJornadaFitoConsultaV3(id,journalId){
+ const e=seriesCells(id).find(x=>(x.raw.jornadaId||x.raw.fechaJornadaISO||dayISO(x.day))===journalId);
+ if(!e){showToast('No se encuentra la jornada. Recarga la consulta.');return;}
+ editFullLinkedJournal(e.raw);
+}
+window.editarJornadaFitoConsultaV3=editarJornadaFitoConsultaV3;
+function imprimirJornadaFitoConsultaV3(id,journalId){
+ if(fitoDirtyCells.size){showToast('Hay cambios pendientes. Guarda o cancela antes de imprimir.');return;}
+ const entries=seriesCells(id).filter(e=>(e.raw.jornadaId||e.raw.fechaJornadaISO||dayISO(e.day))===journalId);
+ const pages=buildPrintJobsV3(entries);
+ if(!pages.length){showToast('La jornada no tiene una fecha única. Revisa el registro.');return;}
+ imprimirHojaFitoConDatos(pages.map(x=>({...x.datos,asignadoPor:currentUser})));
+}
+window.imprimirJornadaFitoConsultaV3=imprimirJornadaFitoConsultaV3;
 function gatherTargets(ids){
  return ids.map(inv=>{
   const r=calcularCallesFmBulk(inv),notes=new Map(),valid=new Set([...INV_LAYOUT[inv].row1,...INV_LAYOUT[inv].row2]);
