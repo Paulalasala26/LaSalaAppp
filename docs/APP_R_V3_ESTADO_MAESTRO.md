@@ -643,6 +643,23 @@ El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en int
 
 **Siguiente trabajo:** comprobación funcional agrupada por ADMIN/TÉCNICO, PEÓN y REGANTE, archivo/filtros, ausencia de purga de históricos, conservación de manuales tras regeneración desde Riego y exportación JSON; luego rematar los fallos detectados y retomar únicamente Bloque C Pistola después de la validación.
 
+
+## 0.60. Cierre de conversación — Tareas primera versión TEST desplegada y verificada estáticamente (22/10/2026)
+
+**Instrucción de cierre:** el usuario indica «final de chat. Procede». La continuación debe partir del estado real vigente de GitHub y el maestro, NO repetir la auditoría (0.58), el diseño aprobado (0.59) ni las modificaciones que ya están implementadas.
+
+**GitHub TEST verificado:** `Paulalasala26/LaSalaAppp`, rama exclusiva `test/v1.0`, HEAD observado `c2841ae64167d93d5f4b3038d51498db3398dd96`. **Despliegue Vercel TEST READY** en `https://la-sala-app-test.vercel.app` con ese mismo commit. `index.html` blob `84c09efca9ffe9e3edc36c5c655b1f8437bf09ac` leído y analizado.
+
+**Comprobaciones estáticas completadas sin escribir datos:** los cinco scripts inline parsean correctamente. 11 verificaciones simuladas/estáticas satisfactorias: las tareas manuales pendientes e iniciadas sobreviven al filtrado previo de regeneración desde Riego; las tareas Pistola vinculadas y Específicos sobreviven; las tareas de Riego iniciadas sobreviven; solo las pendientes etiquetadas inequívocamente Riego entran en regeneración; `limpiarTareasVencidas()` no borra ninguna; existe exportación JSON de las claves remotas Tareas y Mantenimiento, restringida a ADMIN; rama TEST exclusiva. Se confirma la conservación física en el mismo almacén y la clasificación visual en **Archivo** al completar/archivar, no una migración automática entre bases de datos. Se requiere UAT real para validar el conjunto; nunca inferirla de las simulaciones.
+
+**Siguiente paso en nuevo chat:**
+1. UAT agrupada con ADMIN/TÉCNICO: Operativas (filtros, creación/edición/asignación), Mantenimiento (recurrencias), Archivo (completadas antiguas, firmas, filtros y registros de ejecuciones), historial conservado y exportación JSON real desde sesión ADMIN (confirmar existencia de fichero y lectura JSON). Probar «Actualizar desde Riego» solo con registros TEST controlados y demostrar que no borra manuales, iniciadas ni Pistola. No usar datos que deba preservarse como experimento destructivo.
+2. UAT PEÓN: una tarea activa, inicio, firma/cierre, aparición en archivo y trabajo de mantenimiento; Pistola mantiene sus tres campos de cierre y vínculo; UAT REGANTE: Específicos e instrucciones manuales asignadas y accesos pertinentes.
+3. Corregir incidencias UAT en `test/v1.0` y documentar cada bloque en maestro. **No declarar Tareas validado por usuario ni pasar a Bloque C sin su confirmación.** Después de aceptar Tareas, retomar Bloque C Pistola → Tareas (sin repetir Bloques A/B ya cerrados).
+4. **Puerta estricta a PRD:** solamente el usuario ordena explícitamente publicar a PRD, tras aceptación de funcionamiento. Los datos del arranque oficial empiezan desde la puesta en marcha. Nunca copiar históricos TEST automáticamente; decidir caso por caso importación selectiva, y proteger el resto con **respaldo verificable** antes de cualquier paso. La opción «Respaldo JSON» existe, pero **aún no hay evidencia de que se haya descargado/verificado efectivamente**. `main` y Firebase PRD totalmente intocables sin nueva autorización.
+
+**No realizar cambios adicionales por el mero hecho de abrir nuevo chat.** Leer `docs/APP_R_V3_ESTADO_MAESTRO.md` al inicio; señalar estado vigente y ofrecer UAT agrupada (no microtests).
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).
