@@ -232,7 +232,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
       <div id="quick-access-block" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,225px),1fr));gap:10px">
         <div class="home-shortcut-card" onclick="handleQuickAction('riego')" style="background:linear-gradient(120deg,#2b6fae,#3c80c2 55%,#5b9bd5);color:#fff;border-radius:11px;padding:.8rem 1rem;display:flex;align-items:center;gap:10px;min-height:50px;white-space:nowrap">
           <i class="ti ti-droplet" style="font-size:20px;opacity:.95;flex-shrink:0" aria-hidden="true"></i>
-          <span style="font-size:14px;font-weight:700;line-height:1.25">Marcar riego</span>
+          <span style="font-size:14px;font-weight:700;line-height:1.25">Control de Riego</span>
         </div>
         <div class="home-shortcut-card" onclick="handleQuickAction('plaguicidas')" style="background:linear-gradient(120deg,#2b6fae,#3c80c2 55%,#5b9bd5);color:#fff;border-radius:11px;padding:.8rem 1rem;display:flex;align-items:center;gap:10px;min-height:50px;white-space:nowrap">
           <i class="ti ti-bug" style="font-size:20px;opacity:.95;flex-shrink:0" aria-hidden="true"></i>
@@ -13061,7 +13061,7 @@ function showRiegoModule(soloLectura){
   return Promise.all([loadRiegoEjecutadoData(), loadIndiceAbonosEstadoData(), cargarOpcionesRiegoTest()]).then(()=>{
     const overlay = getOrCreateOverlay('riego-overlay');
     overlay.style.padding = '0';
-    const titulo = riegoSoloLectura ? 'Hojas de riego' : 'Marcar riego';
+    const titulo = riegoSoloLectura ? 'Hojas de riego' : 'Control de Riego';
     const subtitulo = riegoSoloLectura ? 'Solo consulta &mdash; no se puede modificar' : '';
     overlay.innerHTML = `
       <div style="background:#fff;border-radius:0;width:100vw;height:100vh;max-width:100vw;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.3)">
@@ -15549,8 +15549,9 @@ let rmPendingConfig = null;
 function riegoBulkInvSelectorHTML(){
   return `
     <div style="border:1.5px solid #a8c4e8;border-radius:9px;padding:.75rem;background:#f5f9ff">
-      <div style="font-size:11px;font-weight:800;color:#1558a0;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Invernaderos</div>
-      <div style="font-size:10px;color:var(--muted);margin-bottom:8px">Marca uno o varios — cada uno tiene su propia opción de Entero / Entero menos / Tramo de calles, sin afectar a los demás.</div>
+      <div style="font-size:11px;font-weight:800;color:#1558a0;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Invernaderos y calles</div>
+      ${rmbQuickHTML()}
+      <details style="border-top:1px solid #d1dfef;padding-top:5px"><summary style="cursor:pointer;padding:5px 0;color:#1558a0;font-size:11px;font-weight:700">Selección múltiple / sala completa</summary>
       <div style="display:flex;gap:14px;margin-bottom:8px">
         <label style="font-size:11px;font-weight:700;display:flex;align-items:center;gap:5px;cursor:pointer">
           <input type="checkbox" class="rmb-sala-chk" data-sala="sala1" onchange="toggleRmBulkSala(this)"> Sala 1 completa
@@ -15575,8 +15576,35 @@ function riegoBulkInvSelectorHTML(){
         ${Object.keys(INV_LAYOUT_SALA4).map(id=>`<label style="font-size:10px;display:flex;align-items:center;gap:3px;background:#fff;border:1px solid #ddd;border-radius:5px;padding:3px 7px;cursor:pointer"><input type="checkbox" class="rmb-inv-chk" data-sala="sala4" value="${id}"${rmBulkConfig[id]?' checked':''} onchange="toggleRmBulkInv()"> ${id}</label>`).join('')}
         ${Object.keys(INV_LAYOUT_SALA5).map(id=>`<label style="font-size:10px;display:flex;align-items:center;gap:3px;background:#fff;border:1px solid #ddd;border-radius:5px;padding:3px 7px;cursor:pointer"><input type="checkbox" class="rmb-inv-chk" data-sala="sala5" value="${id}"${rmBulkConfig[id]?' checked':''} onchange="toggleRmBulkInv()"> ${id}</label>`).join('')}
       </div>
+      </details>
       <div id="rmb-panels"></div>
     </div>`;
+}
+function rmbQuickHTML(){
+ const salas={sala1:INV_LAYOUT_SALA1,sala2:INV_LAYOUT_SALA2,sala3:INV_LAYOUT_SALA3,sala4:INV_LAYOUT_SALA4,sala5:INV_LAYOUT_SALA5};
+ const sala=salaDeInv(String(riegoInvSel||'')),sel=salas[sala]?sala:'sala1';
+ return `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:7px">
+  <select id="rmb-quick-sala" aria-label="Sala" onchange="rmbCambiarSala()" style="flex:0 1 100px;min-height:36px;border:1px solid #a8c4e8;border-radius:6px;background:#fff;color:#1558a0;padding:5px;font-size:13px">${Object.keys(salas).map(s=>`<option value="${s}"${s===sel?' selected':''}>Sala ${s.slice(-1)}</option>`).join('')}</select>
+  <select id="rmb-quick-inv" aria-label="Invernadero" style="flex:1 1 110px;min-height:36px;border:1px solid #a8c4e8;border-radius:6px;background:#fff;color:#1558a0;padding:5px;font-size:13px">${Object.keys(salas[sel]).sort((a,b)=>a.localeCompare(b,'es',{numeric:true})).map(id=>`<option value="${id}">INV ${id}</option>`).join('')}</select>
+  <button type="button" onclick="rmbAgregarInv()" style="min-height:36px;padding:5px 14px;background:#1558a0;color:#fff;border:0;border-radius:6px;font-weight:800;font-size:12px;cursor:pointer">+ Añadir</button>
+ </div>`;
+}
+function rmbCambiarSala(){
+ const sala=document.getElementById('rmb-quick-sala')?.value,select=document.getElementById('rmb-quick-inv');
+ const salas={sala1:INV_LAYOUT_SALA1,sala2:INV_LAYOUT_SALA2,sala3:INV_LAYOUT_SALA3,sala4:INV_LAYOUT_SALA4,sala5:INV_LAYOUT_SALA5};
+ if(select)select.innerHTML=Object.keys(salas[sala]||{}).sort((a,b)=>a.localeCompare(b,'es',{numeric:true})).map(id=>`<option value="${id}">INV ${id}</option>`).join('');
+}
+function rmbAgregarInv(){
+ const id=document.getElementById('rmb-quick-inv')?.value;
+ if(!id||!INV_LAYOUT[id])return;
+ const input=Array.from(document.querySelectorAll('.rmb-inv-chk')).find(el=>el.value===id);
+ if(input){input.checked=true;toggleRmBulkInv();}
+}
+function rmbPreservarTramos(){
+ Object.keys(rmBulkConfig).forEach(id=>{
+  if(rmBulkConfig[id]?.modo==='tramo'&&document.querySelector(`.rmb-tramo-row[data-inv="${id}"]`))
+    rmBulkConfig[id].tramos=leerRmBulkTramosDesdeDOM(id);
+ });
 }
 function toggleRmBulkSala(salaChk){
   const sala = salaChk.dataset.sala;
@@ -15587,6 +15615,7 @@ function leerRmBulkInvsSeleccionados(){
   return Array.from(document.querySelectorAll('.rmb-inv-chk:checked')).map(el=>el.value);
 }
 function toggleRmBulkInv(){
+  rmbPreservarTramos();
   const seleccionados = leerRmBulkInvsSeleccionados();
   Object.keys(rmBulkConfig).forEach(id=>{ if(!seleccionados.includes(id)) delete rmBulkConfig[id]; });
   seleccionados.forEach(id=>{ if(!rmBulkConfig[id]) rmBulkConfig[id] = {modo:'entero', excluir:{desde:null,hasta:null}, tramos:[]}; });
@@ -15599,17 +15628,11 @@ function renderRmBulkPanels(){
   cont.innerHTML = ids.map(invId=>`
     <div style="border:1px solid #cddcf0;border-radius:7px;padding:8px;margin-top:8px;background:#fbfdff">
       <div style="font-size:11px;font-weight:800;color:#1558a0;margin-bottom:6px">INV ${invId}</div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:6px">
-        <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:var(--text);cursor:pointer">
-          <input type="radio" name="rmb-modo-${invId}" ${rmBulkConfig[invId].modo==='entero'?'checked':''} onchange="cambiarRmBulkModo('${invId}','entero')"> Entero
-        </label>
-        <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:var(--text);cursor:pointer">
-          <input type="radio" name="rmb-modo-${invId}" ${rmBulkConfig[invId].modo==='entero_menos'?'checked':''} onchange="cambiarRmBulkModo('${invId}','entero_menos')"> Entero menos
-        </label>
-        <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:var(--text);cursor:pointer">
-          <input type="radio" name="rmb-modo-${invId}" ${rmBulkConfig[invId].modo==='tramo'?'checked':''} onchange="cambiarRmBulkModo('${invId}','tramo')"> Tramo de calles
-        </label>
-      </div>
+      <select aria-label="Calles INV ${invId}" onchange="cambiarRmBulkModo('${invId}',this.value)" style="width:100%;min-height:33px;border:1px solid #a8c4e8;border-radius:6px;background:#fff;color:#1558a0;font-size:12px;padding:4px 6px">
+       <option value="entero"${rmBulkConfig[invId].modo==='entero'?' selected':''}>Entero</option>
+       <option value="entero_menos"${rmBulkConfig[invId].modo==='entero_menos'?' selected':''}>Entero menos…</option>
+       <option value="tramo"${rmBulkConfig[invId].modo==='tramo'?' selected':''}>Tramo de calles…</option>
+      </select>
       <div id="rmb-detalle-${invId}"></div>
     </div>`).join('');
   ids.forEach(invId=>renderRmBulkDetalle(invId));
@@ -15751,17 +15774,13 @@ function showRiegoManualForm(){
   mo.style.padding = '0';
   mo.innerHTML = `
     <div style="background:#fff;border-radius:0;width:100vw;height:100vh;max-width:100vw;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.3)">
-      <div style="background:var(--grad-blue);color:#fff;padding:1rem 1.5rem;display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
-        <div style="font-size:15px;font-weight:800">&#128167; Añadir riego${inv?' — INV '+inv:''}</div>
-        <button onclick="cerrarRiegoManualConRetorno()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer">✕</button>
+      <div style="background:linear-gradient(120deg,#2b6fae,#3c80c2 55%,#5b9bd5);color:#fff;padding:.45rem .75rem;display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
+        <div style="font-size:14px;font-weight:800">&#128167; Añadir riego${inv?' — INV '+inv:''}</div>
+        <button onclick="cerrarRiegoManualConRetorno()" title="Cerrar" aria-label="Cerrar" style="width:30px;height:30px;background:#1558a0;border:1px solid #1558a0;color:#fff;border-radius:6px;padding:0;cursor:pointer;font-size:20px">×</button>
       </div>
-      <div style="flex:1;overflow-y:auto;padding:1.25rem;display:flex;flex-direction:column;gap:12px;max-width:560px;width:100%;margin:0 auto">
+      <div style="flex:1;overflow-y:auto;padding:.75rem;display:flex;flex-direction:column;gap:8px;max-width:760px;width:100%;margin:0 auto">
         <!-- Quién marcó este riego (solo al editar uno ya existente, por doble clic) -->
         <div id="rm-info-marcador"></div>
-        <!-- INVERNADEROS (uno o varios a la vez, cada uno con Entero/Entero
-        menos/Tramo de calles — mismo recuadro que ya usa Plaguicidas, arriba
-        del todo para que se vea igual que en Plaguicidas/Específicos) -->
-        ${riegoBulkInvSelectorHTML()}
         <!-- DÍA (los días ya pasados quedan bloqueados para todos menos Vigueras) -->
         <div>
           <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Día (${riegoDiaLabelCorto(diasQ[0])} – ${riegoDiaLabelCorto(diasQ[diasQ.length-1])})</label>
@@ -15772,10 +15791,20 @@ function showRiegoManualForm(){
             <i class="ti ti-chevron-down" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);pointer-events:none;color:#1558a0;font-size:14px"></i>
           </div>
         </div>
+        <!-- INVERNADEROS (uno o varios a la vez, cada uno con Entero/Entero
+        menos/Tramo de calles — mismo recuadro que ya usa Plaguicidas, arriba
+        del todo para que se vea igual que en Plaguicidas/Específicos) -->
+        ${riegoBulkInvSelectorHTML()}
         <!-- RIEGO (regante): agua+sal, abono tiempo+tipo, fitosanitarios, horario -->
         <div style="border:1.5px solid #a8c4e8;border-radius:9px;padding:.75rem;background:#f5f9ff">
           <div style="font-size:11px;font-weight:800;color:#1558a0;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;display:flex;align-items:center;gap:5px"><i class="ti ti-droplet" style="font-size:13px"></i> Riego</div>
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:6px 8px;background:#fff3cd;border:1.5px solid #ffe08a;border-radius:7px;flex-wrap:wrap">
+          <div id="rm-agua-rows"></div>
+          <button type="button" onclick="agregarAguaRow()" style="width:100%;padding:6px;font-size:11px;font-weight:700;background:#fff;border:1.5px dashed #a8c4e8;border-radius:6px;cursor:pointer;color:#1558a0;margin-bottom:10px">+ Añadir agua</button>
+          <div id="rm-abono-rows"></div>
+          <button type="button" onclick="agregarAbonoRow()" style="width:100%;padding:6px;font-size:11px;font-weight:700;background:#fff;border:1.5px dashed #a8c4e8;border-radius:6px;cursor:pointer;color:#1558a0;margin-bottom:10px">+ Añadir abono</button>
+       <details id="rm-grupo-especiales" style="border:1px solid #a8c4e8;border-radius:7px;background:#fff;margin:7px 0">
+        <summary style="padding:8px 10px;font-weight:800;font-size:12px;color:#1558a0;cursor:pointer">Opciones especiales y humedad</summary>
+        <div style="padding:2px 8px 8px">          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:6px 8px;background:#fff3cd;border:1.5px solid #ffe08a;border-radius:7px;flex-wrap:wrap">
             <label style="display:flex;align-items:center;gap:5px;font-size:11px;font-weight:800;color:#8a6d00;white-space:nowrap">
               <input type="checkbox" id="rm-interrogante"> ?
             </label>
@@ -15801,10 +15830,8 @@ function showRiegoManualForm(){
             <span style="font-size:11px;color:#1558a0;white-space:nowrap">Hasta las</span>
             <input type="time" id="rm-humedad-hasta" style="padding:5px 6px;border:1.5px solid var(--border);border-radius:6px;font-size:12px">
           </div>
-          <div id="rm-agua-rows"></div>
-          <button type="button" onclick="agregarAguaRow()" style="width:100%;padding:6px;font-size:11px;font-weight:700;background:#fff;border:1.5px dashed #a8c4e8;border-radius:6px;cursor:pointer;color:#1558a0;margin-bottom:10px">+ Añadir agua</button>
-          <div id="rm-abono-rows"></div>
-          <button type="button" onclick="agregarAbonoRow()" style="width:100%;padding:6px;font-size:11px;font-weight:700;background:#fff;border:1.5px dashed #a8c4e8;border-radius:6px;cursor:pointer;color:#1558a0;margin-bottom:10px">+ Añadir abono</button>
+</div>
+       </details>
           <div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end;margin-bottom:8px">
             <div>
               <label style="font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bottom:3px">Tiempo de agua con el fitosanitario (opcional)</label>
@@ -15831,9 +15858,9 @@ function showRiegoManualForm(){
             </div>
           </div>
         </div>
+        <details id="rm-grupo-foliares" style="border:1px solid #a8c4e8;border-radius:8px;background:#f5f9ff"><summary style="padding:10px;font-size:12px;font-weight:800;color:#1558a0;cursor:pointer">Foliares</summary>
         <!-- FOLIARES: las 3 fumigaciones con AF, con dosis elegible -->
-        <div style="border:1.5px solid #f0c896;border-radius:9px;padding:.75rem;background:#fffaf3">
-          <div style="font-size:11px;font-weight:800;color:#a35d00;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;display:flex;align-items:center;gap:5px"><i class="ti ti-droplet-half-2" style="font-size:13px"></i> Foliares</div>
+        <div style="border:0;border-radius:9px;padding:.75rem;background:#f5f9ff">
           <div style="display:flex;flex-direction:column;gap:8px">
             <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
               <label style="font-size:11px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:4px;background:#fff;border:1px solid #f0d9b8;border-radius:6px;padding:4px 8px;cursor:pointer;white-space:nowrap">
@@ -15880,10 +15907,12 @@ function showRiegoManualForm(){
             </div>
           </div>
         </div>
+
+        </details>
+        <details id="rm-grupo-trabajo" style="border:1px solid #a8c4e8;border-radius:8px;background:#f5f9ff"><summary style="padding:10px;font-size:12px;font-weight:800;color:#1558a0;cursor:pointer">Trabajo</summary>
         <!-- TRABAJO (peón): con abono foliar / con agua (PP/PA/RS/DESPAREJOS en
         ambas, sincronizadas), tipo + horario -->
-        <div style="border:1.5px solid #f0c896;border-radius:9px;padding:.75rem;background:#fffaf3">
-          <div style="font-size:11px;font-weight:800;color:#a35d00;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;display:flex;align-items:center;gap:5px"><i class="ti ti-tool" style="font-size:13px"></i> Trabajo</div>
+        <div style="border:0;border-radius:9px;padding:.75rem;background:#f5f9ff">
           <div style="margin-bottom:8px">
             <label style="font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">Con abono foliar</label>
             <div style="display:flex;flex-wrap:wrap;gap:8px">
@@ -15931,8 +15960,10 @@ function showRiegoManualForm(){
           </div>
         </div>
       </div>
+
+        </details>
       <!-- BUTTONS (fijos abajo, siempre visibles) -->
-      <div style="display:flex;gap:8px;justify-content:space-between;padding:1rem 1.25rem;border-top:1px solid #eee;flex-shrink:0;background:#fff">
+      <div style="display:flex;gap:8px;justify-content:space-between;padding:.55rem .75rem;border-top:1px solid #dce4ed;flex-shrink:0;background:#fff">
         <button onclick="borrarRiegoManual()" title="Borrar el riego de estos tramos"
           style="padding:9px 14px;font-size:13px;font-weight:700;background:#fdecea;color:#c62828;border:1px solid #f3c2bd;border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:6px">
           <i class="ti ti-trash" style="font-size:14px"></i> Borrar
@@ -18408,6 +18439,10 @@ function precargarFormularioRiegoDesdeTexto(texto){
   if(nuevasAguas.length){ rmAguaRows = nuevasAguas; renderAguaRows(); }
   if(nuevosAbonos.length){ rmAbonoRows = nuevosAbonos; renderAbonoRows(); }
   renderTrabajoVias();
+  const abrirSi=(id,si)=>{const el=document.getElementById(id);if(el&&si)el.open=true;};
+  abrirSi('rm-grupo-especiales',['rm-interrogante','rm-guion','rm-integrate-chk','rm-humedad'].some(id=>document.getElementById(id)?.checked));
+  abrirSi('rm-grupo-foliares',[1,2,3,4].some(n=>document.getElementById('rm-fumi'+n+'-chk')?.checked));
+  abrirSi('rm-grupo-trabajo',!!document.querySelector('.rm-trabajo-chk:checked')||!!document.getElementById('rm-tipo-trabajo')?.value||!!document.getElementById('rm-horario-trabajo')?.value);
 }
 
 // ════════════════════════════════════════════════════════════════

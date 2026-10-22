@@ -484,6 +484,17 @@ El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en int
 
 
 
+## 0.49. Orden obligatorio actualizado — Riego, B, Tareas, C (22/10/2026)
+
+**Decisión explícita:** se detiene Bloque C, ya que se conectó Pistola con Tareas antes de analizar funcionalmente el módulo Tareas. No reanudar cambios de Tareas sin auditar las pantallas y flujos reales, funciones, roles, asignaciones, ejecución/cierre, duplicidades y relaciones con Riego/Plaguicidas/Específicos; presentar diseño antes y obtener validación. Los avances anteriores de C siguen únicamente en TEST.
+
+**Orden confirmado:** 1. Volver a **Control de Riego**, renombrar los dos rótulos visibles «Marcar riego», compactar y validar Añadir riego. 2. Cerrar **Bloque B** de Plaguicidas, ABIERTO por márgenes de impresión A4 y primera línea cortada, tras prueba física. 3. Auditar íntegramente **Tareas** y consensuar rediseño. 4. Solo entonces continuar **Bloque C** incluyendo edición/anulación segura de Pistola.
+
+**Cambios de Riego en TEST:** fecha primero; selector rápido Sala → Invernadero → Añadir; selector múltiple heredado/salas completas conservado en panel plegable para no alterar selección ni guardado; modos de calles convertidos a selectores; opciones especiales/humedad, foliares y trabajo en paneles desplegables; al editar se abren grupos con valores previos; cabecera azul, cierre y márgenes compactos. Todos los campos e IDs siguen accesibles dentro del DOM incluso plegados. Se conservan reglas de fecha, generación de riegos, guardado, edición y opciones mult-invernadero. Al cambiar la selección se conservan valores escritos en rangos de calles.
+
+**Validación:** parseo JavaScript realizado; prueba visual y funcional de alta/edición **pendiente del usuario**, sin cambiar datos Firebase ni PRD.
+
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).
