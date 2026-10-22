@@ -406,6 +406,14 @@
 
 **Siguiente prueba acotada:** recargar [ViguerAPP TEST](https://la-sala-app-test.vercel.app) Ctrl+F5 → Consulta → registro 22/10 → icono de impresión. Debe mostrarse advertencia **ámbar** que especifica INV(s) con caldo ausente. Para generar hoja oficial completa, el usuario deberá **elegir un valor de caldo real** en «Editar jornada» y guardar la edición TEST después de revisar cómo afecta a todos los INV; **no rellenar cantidades ficticias ni guardar sin consentimiento de usuario**. Dado que la hoja puede contener dos preparaciones separadas, revisar si la jornada necesita volúmenes individuales antes de cambiar los datos. El Bloque B queda ABIERTO hasta UAT de impresión con datos suficientes; el resto de Consulta queda validado.
 
+### 0.43. Corrección expresa del usuario — impresión 22/10 válida; aviso ámbar solamente 23/10 (22/10/2026)
+
+El usuario corrige la interpretación del apartado 0.42: **«la impresión funciona en el 22, donde no funciona y sale el aviso en ámbar es en el 23»**. Interpretación operativa correcta: jornada **22/10/2026** del tratamiento TEST imprime, con sus INV 8 e INV 1A; **23/10/2026** es la jornada que muestra el aviso de **caldo inicial ausente** y bloquea su impresión. Por tanto, **no corregir ni volver a cambiar la jornada 22 por este aviso; tampoco modificar su presentación ni sus preparaciones**.
+
+El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en interpretar erróneamente la captura de 22/10 como un fallo y **se ha revertido íntegramente** en `af3fa43353fde3288f705f47239f7c118c7f28ee`, restaurando el blob exacto `c4e25d7b9dad7625990bfd1864ac00bceee99797` de `assets/fito-series-v3.js`. No se modificaron datos ni lógica de impresión. Los avisos ámbar y contextualizados de 0.42 continúan vigentes.
+
+**Siguiente acción ÚNICA**: confirmar en el registro 23/10 el valor real de `caldoLitros` desde «Consultar → Editar jornada», sin pulsar Guardar ni inventar litros. El formulario de alta permite dejarlo opcional, pero la hoja oficial exige volumen válido para calcular gasto de productos. Determinar el dato operativo antes de editar. Bloque B **ABIERTO** para completar y verificar la hoja del 23/10 sin alterar la jornada del 22/10.
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).
