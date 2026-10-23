@@ -156,13 +156,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 <!-- Diagnóstico RTDB opcional: activo únicamente con ?fbdiag=1 en TEST -->
 <script src="assets/firebase-diagnostics.js"></script>
 <link rel="stylesheet" href="assets/control-qc-operativo.css?v=077">
-<link rel="stylesheet" href="assets/control-ui-empty.css">
-<link rel="stylesheet" href="assets/control-ui-list.css">
+<link rel="stylesheet" href="assets/control-ui-empty.css?v=078">
+<link rel="stylesheet" href="assets/control-ui-list.css?v=078">
 <link rel="stylesheet" href="assets/control-ui-cards.css">
 <style>.qc-card-medido{display:inline-block;font-size:11px;font-weight:800;color:#1558a0;margin-top:4px}</style>
 <script src="admin/qc-indicadores.js?v=077" defer></script>
 <script src="assets/control-qc-operativo.js?v=077" defer></script>
-<script src="assets/control-ui-empty.js" defer></script>
+<script src="assets/control-ui-empty.js?v=078" defer></script>
 <script src="assets/qc-offline-operarios-store.js" defer></script>
 </head>
 <body>
@@ -5993,6 +5993,35 @@ async function guardarControlPdf(tipo, dia, nombre, pdfB64){
 let controlSeccion = null;
 let controlQuincenaOffset = 0;
 let controlDiaSel = null;
+// Navegador compartido de fechas QC: Túnel, Carga, Ginés y jornadas vacías.
+function renderControlQCDateNav(offset,selected,mode){
+  const wizard=mode==='wizard';
+  const onPeriod=wizard?'cambiarControlWizardQuincena':'cambiarControlQuincena';
+  const onDay=wizard?'seleccionarControlWizardDia':'cambiarControlDia';
+  const days=riegoQuincenaDias(offset);
+  const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const period='Quincena '+(offset+1)+' · '+riegoQuincenaLabel(offset);
+  const buttons=days.map(d=>{
+    const active=d===selected;
+    const date=esc(riegoDiaLabelCorto(d)),weekday=esc(riegoDiaSemana(d));
+    return '<button type="button" class="qc-date-day'+(active?' is-active':'')+'"'+
+      ' data-qc-day="'+d+'" aria-pressed="'+(active?'true':'false')+'"'+
+      ' aria-label="'+esc('Seleccionar '+riegoDiaLabelCorto(d)+' · '+riegoDiaSemana(d))+'"'+
+      ' onclick="'+onDay+'('+d+')">'+
+      '<span class="qc-date-day-date">'+date+'</span>'+
+      '<span class="qc-date-day-weekday">'+weekday+'</span></button>';
+  }).join('');
+  return '<section class="qc-date-nav" data-qc-period="'+offset+'" aria-label="Fechas de control de calidad">'+
+    '<div class="qc-date-period">'+
+    '<button type="button" class="qc-date-arrow" onclick="'+onPeriod+'(-1)"'+
+      (offset<=0?' disabled':'')+' aria-label="Quincena anterior">&#8249;</button>'+
+    '<span class="qc-date-period-label">'+esc(period)+'</span>'+
+    '<button type="button" class="qc-date-arrow" onclick="'+onPeriod+'(1)"'+
+      ' aria-label="Quincena siguiente">&#8250;</button>'+
+    '</div>'+
+    '<div class="qc-date-days" role="group" aria-label="Seleccionar día">'+buttons+'</div>'+
+    '</section>';
+}
 // A petición de Paula (2026-08-04): una misma partida puede repartirse en
 // varios "guiones" — el mismo Nº de partida repetido en el PDF en días
 // distintos, cada uno con su propio Nº de bandejas (p.ej. la partida
@@ -6153,6 +6182,9 @@ function renderControlContent(overlay){
   if(!overlay) return;
   const wrapAnterior=overlay.querySelector('#control-content-wrap');
   const navAnterior=overlay.querySelector('.control-ui-nav');
+  const daysAnterior=overlay.querySelector('.qc-date-days');
+  const periodAnterior=overlay.querySelector('.qc-date-nav')?.dataset.qcPeriod;
+  const dateScrollAnterior=daysAnterior?.scrollLeft||0;
   const scrollAnterior=wrapAnterior ? wrapAnterior.scrollTop : 0;
   const navScrollAnterior=navAnterior ? navAnterior.scrollLeft : 0;
   const cambioSeccion=controlUltimaSeccionRenderizada!==controlSeccion;
@@ -6197,6 +6229,16 @@ function renderControlContent(overlay){
     </div>`;
   const wrapNuevo=overlay.querySelector('#control-content-wrap');
   if(wrapNuevo) wrapNuevo.scrollTop=cambioSeccion ? 0 : scrollAnterior;
+  const daysNuevo=overlay.querySelector('.qc-date-days');
+  if(daysNuevo){
+    if(!cambioSeccion && periodAnterior===overlay.querySelector('.qc-date-nav')?.dataset.qcPeriod){
+      daysNuevo.scrollLeft=dateScrollAnterior;
+    }else{
+      const dayActive=daysNuevo.querySelector('.qc-date-day.is-active');
+      if(dayActive)daysNuevo.scrollLeft=Math.max(0,
+        dayActive.offsetLeft-(daysNuevo.clientWidth-dayActive.offsetWidth)/2);
+    }
+  }
   const navNuevo=overlay.querySelector('.control-ui-nav');
   if(navNuevo){
     navNuevo.scrollLeft=cambioSeccion ? 0 : navScrollAnterior;
@@ -6274,8 +6316,9 @@ async function cambiarControlWizardQuincena(delta){
     const ok=await loadControlChecksSlice('tunel',siguiente,false);
     if(!ok){avisarFalloCarga();return;}
     controlWizardQuincenaOffset=siguiente;
-    controlWizardDiaSel=null;
-    controlWizardNivel='dias';
+    controlWizardDiaSel=riegoQuincenaDias(siguiente)[0];
+    controlWizardNivel='partidas';
+    controlWizardPartidaId=null;
     renderControlContent(document.getElementById('control-overlay'));
   });
 }
@@ -6439,22 +6482,11 @@ function renderControlTunelWizardHTML(){
   const seccion = CONTROL_SECCIONES.find(s=>s.key==='tunel');
   if(controlWizardQuincenaOffset==null) controlWizardQuincenaOffset = riegoQuincenaOffsetActual();
   const diasQ = riegoQuincenaDias(controlWizardQuincenaOffset);
-  if(controlWizardDiaSel!=null && !diasQ.includes(controlWizardDiaSel)) controlWizardDiaSel = null;
+  if(controlWizardDiaSel==null || !diasQ.includes(controlWizardDiaSel))
+    controlWizardDiaSel=diasQ.includes(riegoDiaDeHoy())?riegoDiaDeHoy():diasQ[0];
 
-  const diaBotonesHTML = diasQ.map(d=>`
-    <button onclick="seleccionarControlWizardDia(${d})" style="flex:0 0 auto;min-width:68px;padding:16px 10px;border-radius:14px;font-size:14px;font-weight:800;cursor:pointer;border:2px solid ${d===controlWizardDiaSel?'transparent':'var(--border)'};background:${d===controlWizardDiaSel?seccion.color:'#fff'};color:${d===controlWizardDiaSel?'#fff':'var(--text)'}">
-      ${riegoDiaLabelCorto(d)}<br><span style="font-weight:600;opacity:.85;font-size:11px">${riegoDiaSemana(d)}</span>
-    </button>`).join('');
-  const cabeceraHTML = `
-    <div style="margin-bottom:1.1rem">
-      <h2 style="font-size:22px;font-weight:800;color:var(--text)">QC Túnel</h2>
-    </div>
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
-      <button onclick="cambiarControlWizardQuincena(-1)" ${controlWizardQuincenaOffset<=0?'disabled style="opacity:.35"':''} style="background:#fff;border:2px solid var(--border);border-radius:10px;width:38px;height:38px;font-size:18px;cursor:pointer">&#8249;</button>
-      <span style="font-size:12px;font-weight:700;color:var(--muted)">Quincena ${controlWizardQuincenaOffset+1} · ${riegoQuincenaLabel(controlWizardQuincenaOffset)}</span>
-      <button onclick="cambiarControlWizardQuincena(1)" style="background:#fff;border:2px solid var(--border);border-radius:10px;width:38px;height:38px;font-size:18px;cursor:pointer">&#8250;</button>
-    </div>
-    <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:10px;margin-bottom:1.25rem">${diaBotonesHTML}</div>`;
+  const cabeceraHTML='<div class="qc-wizard-heading"><h2>QC Túnel</h2></div>'+
+    renderControlQCDateNav(controlWizardQuincenaOffset,controlWizardDiaSel,'wizard');
 
   if(controlWizardDiaSel==null){
     return cabeceraHTML + `<div style="text-align:center;padding:2.5rem 1rem;color:var(--muted);font-style:italic">Elige un día para ver sus partidas.</div>`;
@@ -6520,7 +6552,7 @@ async function cambiarControlQuincena(delta){
       if(!ok){avisarFalloCarga();return;}
     }
     controlQuincenaOffset=siguiente;
-    controlDiaSel=null;
+    controlDiaSel=riegoQuincenaDias(siguiente)[0];
     renderControlContent(document.getElementById('control-overlay'));
   });
 }
@@ -6887,15 +6919,12 @@ function renderControlChecklistHTML(seccion){
   if(listaDia.length===0 && window.QCEmptyState){
     return window.QCEmptyState.render({
       tipo:seccion.key,titulo:seccion.label,selected:controlDiaSel,
-      dias:diasQ.map(d=>({id:d,label:riegoDiaLabelCorto(d)+' · '+riegoDiaSemana(d)})),
-      periodo:'Quincena '+(controlQuincenaOffset+1)+' · '+riegoQuincenaLabel(controlQuincenaOffset),
-      prevDisabled:controlQuincenaOffset<=0,
+      dateNavHTML:renderControlQCDateNav(controlQuincenaOffset,controlDiaSel,'list'),
       pending:leerColaOffline().length,
       pdfNombre:pdf?.nombre||'',pdfUrl:pdf?.pdfB64||''
     });
   }
 
-  const diaOpciones = diasQ.map(d=>'<option value="'+d+'"'+(d===controlDiaSel?' selected':'')+'>'+escapar(riegoDiaLabelCorto(d)+' · '+riegoDiaSemana(d))+'</option>').join('');
   const filtrosHTML = '<label class="qc-list-state"><span>Estado</span><select class="qc-list-select" onchange="cambiarControlFiltroEstado(this.value)" aria-label="Filtrar por estado">'+[
     {value:'todos',label:'Todos ('+listaDia.length+')'},
     {value:'pendientes',label:'Pendientes ('+numPendientes+')'},
@@ -6980,16 +7009,8 @@ function renderControlChecklistHTML(seccion){
         <h2>${seccion.label}</h2>
         <button type="button" class="qc-list-add" onclick="${addAction}"><i class="ti ti-plus" aria-hidden="true"></i> Añadir línea</button>
       </div>
-      <div class="qc-list-date">
-        <div class="qc-list-period">Quincena ${controlQuincenaOffset+1} · ${riegoQuincenaLabel(controlQuincenaOffset)}</div>
-        <div class="qc-list-choose">
-          <button type="button" onclick="cambiarControlQuincena(-1)" aria-label="Quincena anterior" ${controlQuincenaOffset<=0?'disabled':''}>&lsaquo;</button>
-          <label for="qc-list-dia">Día</label>
-          <select id="qc-list-dia" class="qc-list-select" onchange="cambiarControlDia(parseInt(this.value,10))">${diaOpciones}</select>
-          <button type="button" onclick="cambiarControlQuincena(1)" aria-label="Quincena siguiente">&rsaquo;</button>
-        </div>
-      </div>
-      <div id="nuevo-control-form-wrap"></div>
+      ${renderControlQCDateNav(controlQuincenaOffset,controlDiaSel,'list')}
+       <div id="nuevo-control-form-wrap"></div>
       <div class="qc-list-tools">
         <div class="qc-list-search">
           <input id="control-buscar-partida" type="search" placeholder="Buscar Nº partida" aria-label="Buscar número de partida"

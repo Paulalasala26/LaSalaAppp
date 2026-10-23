@@ -7,14 +7,9 @@
     });
   }
   function render(opts){
-    if(!opts||!['tunel','carga'].includes(opts.tipo)||!Array.isArray(opts.dias))return '';
+    if(!opts||!['tunel','carga'].includes(opts.tipo)||typeof opts.dateNavHTML!=='string')return '';
     const tunel=opts.tipo==='tunel';
     const selected=Number(opts.selected);
-    const choices=opts.dias.map(function(d){
-      const id=Number(d.id);
-      if(!Number.isInteger(id))return '';
-      return '<option value="'+id+'"'+(selected===id?' selected':'')+'>'+esc(d.label)+'</option>';
-    }).join('');
     const addAction=tunel?"mostrarFormNuevoControlCheck('tunel')":"mostrarFormNuevoControlCargaCheck()";
     const pdfAction="handleControlPdfInput(this,'"+opts.tipo+"',"+selected+")";
     const more=[
@@ -33,13 +28,7 @@
       (pdfUrl?' · <a href="'+esc(pdfUrl)+'" target="_blank" rel="noopener noreferrer">Ver PDF</a>':'')+'</div>':'';
     return '<div class="qc-empty-screen">'+
       '<h2 class="qc-empty-title">'+esc(opts.titulo)+'</h2>'+
-      '<div class="qc-empty-date">'+
-        '<span class="qc-empty-period">'+esc(opts.periodo)+'</span>'+
-        '<button type="button" onclick="cambiarControlQuincena(-1)" aria-label="Quincena anterior"'+(opts.prevDisabled?' disabled':'')+'>&lsaquo;</button>'+
-        '<label class="qc-empty-daylabel" for="qc-empty-date-select">Día</label>'+
-        '<select id="qc-empty-date-select" onchange="cambiarControlDia(parseInt(this.value,10))">'+choices+'</select>'+
-        '<button type="button" onclick="cambiarControlQuincena(1)" aria-label="Quincena siguiente">&rsaquo;</button>'+
-      '</div>'+
+      opts.dateNavHTML+
       '<div class="qc-empty-panel" role="status">'+
         '<i class="ti ti-clipboard-list" aria-hidden="true"></i>'+
         '<strong>Sin partidas para este día</strong>'+

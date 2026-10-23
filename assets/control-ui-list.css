@@ -3,14 +3,8 @@
 .qc-list-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .qc-list-head h2{font-size:20px;font-weight:800;color:#1558a0}
 .qc-list-add{display:inline-flex;align-items:center;gap:7px;padding:10px 15px;min-height:44px;background:#1558a0;color:#fff;border:0;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer}
-.qc-list-date{background:#fff;border:1px solid #d5e2ee;border-radius:10px;padding:10px 12px}
-.qc-list-period{font-size:12px;font-weight:700;color:#456582;margin-bottom:8px}
-.qc-list-choose{display:flex;align-items:center;gap:9px}
-.qc-list-choose label,.qc-list-state span{font-size:12px;font-weight:700;color:#365c82}
-.qc-list-choose button{min-height:43px;min-width:43px;border:1px solid #b7cce2;border-radius:9px;background:#fff;color:#1558a0;font-size:21px;cursor:pointer}
-.qc-list-choose button:disabled{opacity:.35;cursor:default}
 .qc-list-select{min-height:43px;padding:8px 10px;border:1px solid #b7cce2;border-radius:9px;background:#fff;color:#173d6b;font-size:13px;min-width:0}
-.qc-list-choose .qc-list-select{flex:1}
+.qc-list-state span{font-size:12px;font-weight:700;color:#365c82}
 .qc-list-tools{display:grid;grid-template-columns:minmax(160px,1.35fr) minmax(150px,1fr) minmax(170px,1fr);gap:9px;align-items:end}
 .qc-list-search{display:flex;min-width:0}
 .qc-list-search input{min-width:0;flex:1;min-height:43px;border:1px solid #b7cce2;border-right:0;border-radius:9px 0 0 9px;padding:9px 11px;font-size:13px;background:#fff}
@@ -33,13 +27,45 @@
 @media(max-width:640px){
  .qc-list-tools{grid-template-columns:1fr 1fr}
  .qc-list-search{grid-column:1/-1}
- .qc-list-date{padding:9px}
  .qc-list-more-actions{flex-direction:column}
  .qc-list-option{width:100%}
 }
 @media(max-width:390px){
  .qc-list-tools{grid-template-columns:1fr}
  .qc-list-search{grid-column:auto}
- .qc-list-choose{gap:6px}
- .qc-list-choose button{min-width:38px}
+}
+
+/* 0.78 — Selector único, compacto, táctil y azul de fechas QC. */
+.qc-date-nav{box-sizing:border-box;width:100%;min-width:0;background:#fff;
+  border:1px solid #d5e2ee;border-radius:10px;padding:11px 12px;color:#173d6b}
+.qc-date-period{display:flex;justify-content:space-between;align-items:center;gap:9px}
+.qc-date-period-label{font-size:12px;font-weight:800;color:#456582;text-align:center;
+  flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qc-date-arrow{display:flex;align-items:center;justify-content:center;
+  min-width:42px;width:42px;height:42px;flex:none;border:1px solid #b7cce2;
+  border-radius:9px;background:#f7fbff;color:#1558a0;font-size:22px;line-height:1;cursor:pointer}
+.qc-date-arrow:hover:not(:disabled){background:#e8f2fc}
+.qc-date-arrow:disabled{opacity:.35;cursor:default}
+.qc-date-days{position:relative;display:flex;gap:7px;overflow-x:auto;overflow-y:hidden;
+  width:100%;box-sizing:border-box;padding:9px 0 3px;scrollbar-width:thin;
+  scroll-snap-type:x proximity;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
+.qc-date-day{box-sizing:border-box;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;flex:0 0 61px;min-height:51px;gap:2px;padding:7px 5px;
+  scroll-snap-align:start;border:1px solid #b7cce2;border-radius:8px;
+  background:#f7fbff;color:#1558a0;cursor:pointer;line-height:1.2}
+.qc-date-day-date{font-size:12px;font-weight:800;white-space:nowrap}
+.qc-date-day-weekday{font-size:11px;font-weight:650;opacity:.88;white-space:nowrap}
+.qc-date-day:hover:not(.is-active){background:#e8f2fc;border-color:#8cb6de}
+.qc-date-day.is-active{color:#fff;background:#1558a0;border-color:#1558a0}
+.qc-date-day:focus-visible,.qc-date-arrow:focus-visible{outline:3px solid #5c9dd8;outline-offset:2px}
+.qc-wizard-heading h2{margin:0 0 9px;font-size:20px;font-weight:800;color:#1558a0}
+@media(max-width:640px){
+  .qc-date-nav{padding:9px 10px}
+  .qc-date-days{gap:6px}
+  .qc-date-day{flex-basis:56px;min-height:51px}
+  .qc-date-arrow{min-width:40px;width:40px;height:40px}
+}
+@media(max-width:390px){
+  .qc-date-period{gap:6px}
+  .qc-date-day{flex-basis:53px}
 }
