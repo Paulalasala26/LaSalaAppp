@@ -10,8 +10,7 @@
   ['raices','Raíces',[['pocaRaiz','Poca raíz'],['raizVariedad','Raíz en variedad'],['ok','OK'],['noEvaluada','No evaluada']]]
  ];
  const HEALTH=['enfermedad1','enfermedad2','enfermedad3','enfermedad4'];
- const healthSum=(field)=>Array.from(field.querySelectorAll('select[data-qc-disease]')).reduce(
-  (sum,p)=>sum+(p.closest('label')?.querySelector('input[type=checkbox]')?.checked?Number(p.value):0),0);
+ // El detalle por enfermedad v3 persiste solo en los borradores históricos.
  let owner='',role='',drafts=new Map(),editor=null,active=null,startValue='',syncing=false;
  function requireSession(){
   if(window.QCOfflineSessionGuard&&!window.QCOfflineSessionGuard.active())
@@ -50,6 +49,27 @@
  }
  function validate(v){
   const total=v.bandejasInspeccionadas;
+  if(v.schemaVersion===4){
+   if(!quantity(total))throw Error('Falta el total de bandejas.');
+   const cats=v.categorias;
+   if(!cats||Object.keys(cats).sort().join('|')!==CATS.map(x=>x[0]).sort().join('|'))
+    throw Error('Categorías incompletas.');
+   for(const [cat,name,opts] of CATS){
+    const item=cats[cat],a=item?.opciones,p=item?.porcentajeInvalidas;
+    const allowed=new Set(opts.map(([key])=>key));
+    if(!item||Object.keys(item).sort().join('|')!=='opciones|porcentajeInvalidas'||
+       !Array.isArray(a)||!a.length||new Set(a).size!==a.length||
+       a.some(k=>!allowed.has(k))||!Number.isInteger(p)||p<0||p>100||p%10)
+      throw Error(name+': selección o porcentaje no válido.');
+    if(cat!=='sanidad'&&a.length!==1)throw Error(name+': solo una opción.');
+    if(cat==='sanidad'&&a.length>1&&(a.includes('ok')||a.includes('noEvaluada')))
+      throw Error('Sanidad: OK y las enfermedades son incompatibles.');
+    const affected=a.some(k=>k!=='ok'&&k!=='noEvaluada');
+    if(affected&&p<10||!affected&&p!==0)
+      throw Error(name+': el porcentaje debe corresponder al estado.');
+   }
+   return v;
+  }
   if(v.categorias){
    if(!quantity(total))throw Error('Falta el total de bandejas.');
    for(const [cat,name,opts] of CATS){
@@ -96,19 +116,12 @@
   return v;
  }
  function input(form){
-  const out={bandejasInspeccionadas:Number(form.elements.namedItem('total').value),categorias:{}};
+  const out={schemaVersion:4,
+    bandejasInspeccionadas:Number(form.elements.namedItem('total').value),categorias:{}};
   for(const [cat] of CATS){
-   const fields=Array.from(form.querySelectorAll('[data-qc-cat="'+cat+'"] input[type="checkbox"]:checked'));
-   const select=form.elements.namedItem(cat+'_pct');
-   const item={opciones:fields.map(x=>x.value),porcentajeInvalidas:Number(select.value)};
-   if(cat==='sanidad'){
-    item.porcentajesEnfermedades={};
-    for(const k of HEALTH){
-     if(item.opciones.includes(k))
-      item.porcentajesEnfermedades[k]=Number(form.querySelector('[data-qc-cat="sanidad"] select[data-qc-disease="'+k+'"]')?.value||0);
-    }
-   }
-   out.categorias[cat]=item;
+   const selected=Array.from(form.querySelectorAll('[data-qc-cat="'+cat+'"] input[type="checkbox"]:checked')).map(x=>x.value);
+   out.categorias[cat]={opciones:selected,
+     porcentajeInvalidas:Number(form.elements.namedItem(cat+'_pct').value)};
   }
   return out;
  }
@@ -157,36 +170,34 @@
     selected=old?Object.keys(old).filter(k=>Number(old[k])>0):['ok'];
    }
    selected=[...new Set(selected.map(k=>cat==='flores'&&k==='no'?'ok':k))];
-   if(cat==='sanidad'){
-    const unresolved=selected.includes('enferma')&&!draft?.categorias?.sanidad?.porcentajesEnfermedades;
-    field.dataset.legacyUnresolved=unresolved?'1':'0';
-    selected=selected.filter(k=>k!=='enferma');
+   let warning='';
+   if(selected.includes('noEvaluada')&&selected.length>1){
+    warning='El registro anterior mezclaba No evaluada con otros estados.';
+    selected=[];
+   }else if(cat==='sanidad'){
+    if(selected.includes('enferma')){
+     warning='Sanidad anterior sin diagnóstico: elige las enfermedades.';
+     selected=[];
+    }else if(selected.includes('ok')&&selected.some(k=>HEALTH.includes(k))){
+     warning='Sanidad anterior con OK y enfermedades simultáneas: vuelve a elegir las enfermedades.';
+     selected=[];
+    }
+   }else if(selected.length>1){
+    warning='Registro anterior con varias opciones: selecciona una sola.';
+    selected=[];
    }
-   if(selected.includes('noEvaluada')&&selected.length>1)selected=selected.filter(k=>k!=='noEvaluada');
+   field.dataset.legacyUnresolved=warning?'1':'0';
    for(const [opt,desc] of [...opts.filter(([key])=>key==='ok'),...opts.filter(([key])=>key!=='ok')]){
     const row=el('label');row.style.cssText='box-sizing:border-box;display:flex;width:100%;align-items:center;gap:11px;min-height:42px;border:1px solid #cadcec;border-radius:8px;padding:8px 12px;background:#f6f9fd;color:#294968;font-size:13px;font-weight:750;cursor:pointer';
     const box=el('input');box.type='checkbox';box.value=opt;box.checked=selected.includes(opt);
     box.style.cssText='width:19px;height:19px;accent-color:#1558a0';
-    row.append(box,el('span',desc));
-    if(cat==='sanidad'&&HEALTH.includes(opt)){
-     const picker=el('select');picker.dataset.qcDisease=opt;
-     picker.style.cssText='box-sizing:border-box;width:103px;min-height:40px;margin-left:auto;padding:6px 8px;border:1px solid #adc8e5;border-radius:7px;background:#fff;color:#1558a0;font-size:15px;font-weight:800;flex:none';
-     picker.setAttribute('aria-label',desc+' · porcentaje');
-     for(let n=0;n<=100;n+=10){const o=el('option',n+' %');o.value=String(n);picker.append(o);}
-     picker.value=String(draft?.categorias?.sanidad?.porcentajesEnfermedades?.[opt]??0);
-     picker.disabled=!box.checked;
-     picker.dataset.previous=picker.value==='0'?'10':picker.value;
-     picker.addEventListener('click',e=>e.stopPropagation());
-     picker.addEventListener('keydown',e=>e.stopPropagation());
-     row.append(picker);
-    }
-    choices.append(row);
+    row.append(box,el('span',desc));choices.append(row);
    }
    field.append(choices);
-   if(cat==='sanidad'&&field.dataset.legacyUnresolved==='1'){
-    const legacy=el('p','Registro anterior: Enferma sin desglose. Selecciona Enfermedad 1–4 antes de actualizar el control.');
-    legacy.style.cssText='color:#936516;font-size:12px;line-height:1.5';
-    legacy.className='qc-health-legacy';field.append(legacy);
+   if(warning){
+    const note=el('p',warning);note.className='qc-legacy-warning';
+    note.style.cssText='color:#936516;font-size:12px;line-height:1.5';
+    field.append(note);
    }
    const paintChoices=()=>{
     for(const row of choices.querySelectorAll('label')){
@@ -203,66 +214,34 @@
    pct.style.cssText='min-width:120px;min-height:45px;padding:8px;border:1px solid #9fbedf;border-radius:8px;color:#1558a0;background:#fff;font-size:16px;font-weight:800';
    for(let n=0;n<=100;n+=10){const option=el('option',n+' %');option.value=String(n);pct.append(option);}
    const old=draft?.mediciones?.[cat];
-   const prior=old&&initialTotal?Math.max(0,Math.min(100,Math.round((initialTotal-(Number(old.ok)||0)-(Number(old.noEvaluada)||0))/initialTotal*10)*10)):0;
+   const prior=old&&initialTotal?
+      Math.max(0,Math.min(100,Math.floor((initialTotal-(Number(old.ok)||0)-(Number(old.noEvaluada)||0))/initialTotal*10)*10)):0;
    pct.value=String(draft?.categorias?.[cat]?.porcentajeInvalidas??prior);
-   if(cat==='sanidad'){
-    pct.style.cssText='display:none';
-    const totalLabel=el('strong','0 %');totalLabel.className='qc-health-total';
-    footer.append(totalLabel);
-    const recalc=()=>{
-     const pctNumber=Math.floor(healthSum(field)/10)*10;
-     pct.value=String(pctNumber);totalLabel.textContent=pctNumber+' %';
-     for(const disease of field.querySelectorAll('select[data-qc-disease]')){
-      disease.disabled=!disease.closest('label')?.querySelector('input[type=checkbox]')?.checked;
-     }
-     paintChoices();
-    };
-    for(const box of choices.querySelectorAll('input')){
-     box.addEventListener('change',()=>{
-      if(box.checked&&box.value==='noEvaluada')
-       choices.querySelectorAll('input').forEach(c=>{if(c!==box)c.checked=false;});
-      else if(box.checked)choices.querySelector('input[value="noEvaluada"]').checked=false;
-      if(HEALTH.includes(box.value)){
-       const picker=box.closest('label').querySelector('select[data-qc-disease]');
-       if(box.checked){
-        picker.value='10';
-        if(healthSum(field)>100){box.checked=false;picker.value='0';info.textContent='Sanidad: máximo 100 % en total.';}
-        else picker.dataset.previous='10';
-       }else picker.value='0';
-      }
-      field.dataset.legacyUnresolved='0';
-      const note=field.querySelector('.qc-health-legacy');if(note)note.hidden=true;
-      recalc();
-     });
-    }
-    for(const picker of field.querySelectorAll('select[data-qc-disease]')){
-     picker.addEventListener('change',()=>{
-      if(healthSum(field)>100){
-       picker.value=picker.dataset.previous||'10';
-       info.textContent='Sanidad: máximo 100 % en total.';
-      }else{picker.dataset.previous=picker.value;info.textContent='';}
-      recalc();
-     });
-    }
-    recalc();
-    footer.append(pct);field.append(footer);form.append(field);continue;
-   }
-   const adjust=()=>{
+   const adjust=(newProblem=false)=>{
     const a=Array.from(field.querySelectorAll('input[type="checkbox"]:checked')).map(x=>x.value);
-    const mixed=a.length>=2&&!a.includes('noEvaluada');
-    if(!mixed)pct.value=a.length===1&&a[0]!=='ok'&&a[0]!=='noEvaluada'?'100':'0';
-    pct.disabled=!mixed;
+    const affected=a.some(k=>k!=='ok'&&k!=='noEvaluada');
+    if(!affected)pct.value='0';
+    else if(newProblem||Number(pct.value)<10)pct.value='10';
+    pct.disabled=!affected;
+    paintChoices();
    };
-   for(const box of choices.querySelectorAll('input')){
+   for(const box of choices.querySelectorAll('input[type="checkbox"]')){
     box.addEventListener('change',()=>{
-     if(box.checked&&box.value==='noEvaluada')
-      choices.querySelectorAll('input').forEach(x=>{if(x!==box)x.checked=false;});
-     else if(box.checked){
-      const no=choices.querySelector('input[value="noEvaluada"]');if(no)no.checked=false;
+     if(box.checked){
+      if(cat==='sanidad'){
+       if(box.value==='ok'||box.value==='noEvaluada'){
+        choices.querySelectorAll('input[type="checkbox"]').forEach(x=>{if(x!==box)x.checked=false;});
+       }else{
+        for(const key of ['ok','noEvaluada']){
+         const exclusive=choices.querySelector('input[value="'+key+'"]');
+         if(exclusive)exclusive.checked=false;
+        }
+       }
+      }else choices.querySelectorAll('input[type="checkbox"]').forEach(x=>{if(x!==box)x.checked=false;});
      }
-     const wasDisabled=pct.disabled;adjust();
-     if(!pct.disabled&&wasDisabled)pct.value='10';
-     paintChoices();
+     field.dataset.legacyUnresolved='0';
+     const notice=field.querySelector('.qc-legacy-warning');if(notice)notice.hidden=true;
+     adjust(box.checked&&box.value!=='ok'&&box.value!=='noEvaluada');
     });
    }
    adjust();
@@ -285,13 +264,17 @@
    save.disabled=true;
    try{
     requireSession();
-    if(form.querySelector('[data-qc-cat="sanidad"]')?.dataset.legacyUnresolved==='1')
-     throw Error('Sanidad antigua sin desglose: selecciona las enfermedades antes de guardar.');
+    if(Array.from(form.querySelectorAll('fieldset[data-qc-cat]')).some(x=>x.dataset.legacyUnresolved==='1'))
+     throw Error('La inspección anterior tiene varias opciones. Selecciona expresamente el nuevo estado antes de guardar.');
     const data=validate(input(form));
     const isNew=!drafts.has(key(ref));
     if(isNew&&drafts.size>=LIMIT)throw Error('Hay demasiados borradores. Conéctate para revisarlos.');
     const stored={key:key(ref),owner,role,ref:{id:ref.id,tipo:ref.tipo,dia:ref.dia,partida:ref.partida},
-      ...data,...(draft?.mediciones?{legacyMediciones:draft.mediciones}:{}),at:Date.now(),status:'PENDIENTE_LOCAL'};
+      ...data,
+      ...(draft?.mediciones?{legacyMediciones:draft.mediciones}:{}),
+      ...(draft?.categorias&&!draft.legacyCategorias?{legacyCategorias:draft.categorias}:
+        draft?.legacyCategorias?{legacyCategorias:draft.legacyCategorias}:{}),
+      at:Date.now(),status:'PENDIENTE_LOCAL'};
     await operation('readwrite',s=>s.put(stored));
     drafts.set(key(ref),stored);
     active=null;close();
@@ -509,6 +492,7 @@
    if(!navigator.onLine)throw Error('No hay conexión. Borrador conservado.');
    const payload={id:ref.id,tipo:ref.tipo,dia:ref.dia,partida:ref.partida,
     version:0,bandejasInspeccionadas:d.bandejasInspeccionadas,
+    ...(d.schemaVersion===4?{schemaVersion:4}:{}),
     ...(d.categorias?{categorias:d.categorias}:{mediciones:d.mediciones})};
    // Persistir el hecho del intento antes del POST; resiste recarga o cierre.
    const attempted=await markAttempt(d);

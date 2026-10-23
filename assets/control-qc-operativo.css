@@ -179,18 +179,15 @@
   }
 }
 
-/* 0.74 — Sanidad: diagnóstico a la izquierda, selector individual a la derecha. */
-.qco-inline .qco-health-row{min-width:0;display:flex;align-items:center;gap:10px}
-.qco-inline .qco-health-row>span{min-width:0;flex:1;line-height:1.3}
-.qco-inline .qco-disease-select{box-sizing:border-box;width:108px;min-width:108px;min-height:42px;
- margin-left:auto;padding:7px 8px;border:1px solid #a6c6e5;border-radius:8px;
- background:#fff;color:#1558a0;font-size:15px;font-weight:750;text-align:right;cursor:pointer}
-.qco-inline .qco-disease-select:disabled{color:#778da3;background:#edf3f9;cursor:default}
-.qco-inline .qco-health-total{font-size:18px;color:#1558a0;font-variant-numeric:tabular-nums}
-.qco-inline .qco-health-legacy{color:#94651c;font-size:12px;line-height:1.45;margin:9px 0 3px}
-.qco-inline .qco-health-legacy[hidden]{display:none}
+/* 0.75 — Porcentaje global por categoría, una opción salvo enfermedades de Sanidad. */
+.qco-inline .qco-percent-row{display:flex;align-items:center;justify-content:space-between}
+.qco-inline .qco-percent{width:115px;min-width:110px;max-width:135px;margin-left:auto}
+.qco-inline .qco-percent:disabled{opacity:1;background:#edf3fa;color:#55728d}
+.qco-inline .qco-health-legacy,
+.qco-inline .qco-choice-legacy{color:#94651c;font-size:12px;line-height:1.45;margin:9px 0 3px}
+.qco-inline .qco-health-legacy[hidden],
+.qco-inline .qco-choice-legacy[hidden]{display:none}
 @media(max-width:560px){
- .qco-inline .qco-health-row{gap:7px;min-height:49px;padding:7px 10px}
- .qco-inline .qco-disease-select{width:102px;min-width:102px;min-height:44px;padding:7px;font-size:16px}
- .qco-inline .qco-health-row>span{font-size:12px}
+  .qco-inline .qco-percent-row{gap:9px}
+  .qco-inline .qco-percent{width:115px;min-height:44px;font-size:16px}
 }

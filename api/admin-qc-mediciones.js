@@ -158,6 +158,39 @@ function validateDiseaseCategorias(input){
   }
   return clean;
 }
+// v4: porcentaje global por categoría. Selección exclusiva salvo varias enfermedades
+// de Sanidad; OK es incompatible con cualquier enfermedad y No evaluada es exclusiva.
+function validateGlobalCategorias(input){
+  if(!validQty(input.bandejasInspeccionadas))throw httpError(400,'INVALID_INSPECTED');
+  const source=input.categorias;
+  if(!source||typeof source!=='object'||Array.isArray(source)||
+    Object.keys(source).sort().join('|')!==Object.keys(OPTIONS).sort().join('|'))
+    throw httpError(400,'INVALID_MEASUREMENTS');
+  const clean={};
+  for(const [cat,allowed] of Object.entries(OPTIONS)){
+    const item=source[cat];
+    if(!item||typeof item!=='object'||Array.isArray(item)||
+      Object.keys(item).sort().join('|')!=='opciones|porcentajeInvalidas')
+      throw httpError(400,'INVALID_MEASUREMENTS');
+    const opts=item.opciones,pct=item.porcentajeInvalidas;
+    const choices=cat==='sanidad'?['ok',...SANIDAD_DISEASE_KEYS,'noEvaluada']:
+      [...allowed.filter(o=>cat!=='flores'||o!=='no'),'noEvaluada'];
+    if(!Array.isArray(opts)||opts.length===0||new Set(opts).size!==opts.length||
+       opts.some(o=>!choices.includes(o))||
+       !Number.isInteger(pct)||pct<0||pct>100||pct%10!==0)
+      throw httpError(400,'INVALID_MEASUREMENTS');
+    const exclusive=opts.includes('ok')||opts.includes('noEvaluada');
+    if(exclusive&&opts.length!==1)throw httpError(400,'CATEGORY_EXCLUSIVE');
+    if(cat!=='sanidad'&&opts.length!==1)throw httpError(400,'CATEGORY_EXCLUSIVE');
+    if(exclusive){
+      if(pct!==0)throw httpError(400,'INVALID_PERCENT');
+    }else if(pct<10){
+      throw httpError(400,'INVALID_PERCENT');
+    }
+    clean[cat]={opciones:opts,porcentajeInvalidas:pct};
+  }
+  return clean;
+}
 function pathFor(id){return DB+'/'+PREFIX+'/'+encodeURIComponent(id)+'.json';}
 function sourcePath(ref){
   const q=Math.floor((ref.dia-15)/14);
@@ -184,7 +217,7 @@ async function legacyRecord(ref,token){
 function validateStored(entry,ref,partida){
   if(entry===null)return {version:0};
   if(!entry||typeof entry!=='object'||Array.isArray(entry)||
-     ![1,2,3].includes(entry.schemaVersion)||!Number.isInteger(entry.version)||entry.version<1||
+     ![1,2,3,4].includes(entry.schemaVersion)||!Number.isInteger(entry.version)||entry.version<1||
      entry.legacy?.id!==ref.id||entry.legacy?.tipo!==ref.tipo||
      entry.legacy?.dia!==ref.dia||entry.legacy?.partida!==partida)
     throw httpError(409,'SAVED_CONFLICT');
@@ -232,7 +265,8 @@ async function consultarEstadosQC(req,res,data){
       try{
         const stored=validateStored(value,{id:ref.id,tipo:q.tipo,dia:q.dia},ref.partida);
         if(stored.version<1)return false;
-        if(stored.schemaVersion===3)validateDiseaseCategorias(stored);
+        if(stored.schemaVersion===4)validateGlobalCategorias(stored);
+        else if(stored.schemaVersion===3)validateDiseaseCategorias(stored);
         else if(stored.schemaVersion===2)validateCategorias(stored);
         else validateMeasurements(stored);
         return true;
@@ -280,7 +314,11 @@ module.exports=async function handler(req,res){
     const isPercent=!!request.categorias;
     const hasDiseaseBreakdown=isPercent&&
       Object.prototype.hasOwnProperty.call(request.categorias?.sanidad||{},'porcentajesEnfermedades');
-    const checked=hasDiseaseBreakdown?validateDiseaseCategorias(request):
+    // No interpretar formatos antiguos como v4: esos borradores siguen protegidos.
+    const v4=request.schemaVersion===4;
+    if(v4&&(!isPercent||hasDiseaseBreakdown))throw httpError(400,'INVALID_MEASUREMENTS');
+    const checked=v4?validateGlobalCategorias(request):
+      hasDiseaseBreakdown?validateDiseaseCategorias(request):
       isPercent?validateCategorias(request):validateMeasurements(request);
     phase='ETAG_READ';
     const stored=await getJson(pathFor(ref.id),token,true);
@@ -290,10 +328,15 @@ module.exports=async function handler(req,res){
     if(before.version!==request.version)throw httpError(409,'CONCURRENT_MODIFICATION');
     const now=new Date().toISOString();
     const next={
-      schemaVersion:hasDiseaseBreakdown?3:isPercent?2:1,version:before.version+1,
+      schemaVersion:v4?4:hasDiseaseBreakdown?3:isPercent?2:1,version:before.version+1,
       legacy:{...ref,partida:source.partida},
       bandejasInspeccionadas:request.bandejasInspeccionadas,
-      ...(isPercent?{categorias:checked,legacyMediciones:before.legacyMediciones||before.mediciones||null}:{mediciones:checked}),
+      ...(isPercent?{categorias:checked,
+        legacyMediciones:before.legacyMediciones||before.mediciones||null,
+        ...(v4&&before.schemaVersion===3?
+          {legacyCategorias:before.legacyCategorias||before.categorias}:
+          before.legacyCategorias?{legacyCategorias:before.legacyCategorias}:{})
+      }:{mediciones:checked}),
       createdAt:before.createdAt||now,
       updatedAt:now,updatedBy:actor,
       resultadoQC:null

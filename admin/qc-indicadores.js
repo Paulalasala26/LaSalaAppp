@@ -6,7 +6,7 @@
   const CATS=[
     ['color','Color',{verde:'Verde',amarillo:'Amarillo',verdeClaro:'Verde claro',ok:'OK'}],
     ['tamano','Tamaño',{grande:'Grande',pequeno:'Pequeño',ok:'OK'}],
-    ['sanidad','Sanidad',{ok:'OK',enferma:'Enferma'}],
+    ['sanidad','Sanidad',{ok:'OK',enferma:'Enferma',enfermedad1:'Enfermedad 1',enfermedad2:'Enfermedad 2',enfermedad3:'Enfermedad 3',enfermedad4:'Enfermedad 4'}],
     ['flores','Flores',{si:'Sí',no:'No',ok:'OK'}],
     ['raices','Raíces',{pocaRaiz:'Poca raíz',raizVariedad:'Raíz en variedad',ok:'OK'}]
   ];
