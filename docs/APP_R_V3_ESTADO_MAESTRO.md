@@ -907,6 +907,16 @@ El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en int
 
 **Continuidad ordenada:** volver a Operativas/Tareas UAT agrupada de 0.69–0.70; Mantenimiento y Archivo; Plaguicidas Bloque C; Partidas y Específicos. Sin duplicar ni reabrir bloques cerrados.
 
+## 0.82. Operativas — incidencia real «no hay tarea» tras Riego; corrección visual y frescura (23/10/2026)
+
+**Incidencia comunicada por usuario en UAT:** al guardar un Trabajo desde Control de Riego y abrir Tareas→Operativas, indica «no hay tarea en operativa». **NO validada** la generación automática extremo a extremo; la respuesta del usuario no especifica todavía INV, jornada ni código de Trabajo. No registrar una tarea como generada ni asegurar que se trata solo de un filtro; tampoco ejecutar escrituras directas en Firebase o una regeneración masiva para fabricarla.
+
+**Diagnóstico estático del código real:** `saveRiegoInvPatch` encola conciliación después de PUT Firebase confirmado (pero no si queda en cola offline). `planTareasRiegoParaDias` solo transforma códigos reconocidos de Trabajo, nunca agua/abono aislados ni PREPARAR, y omite fechas anteriores a hoy. Operativas se abría con `f.fecha=hoy` sin que se viera un filtro de fecha seleccionado como intención del usuario; las tareas de mañana quedaban **ocultas por defecto**. Además `showTareasModule` llamaba `loadTareasData(false)`, que admite 30 segundos de caché, antes de intentar conciliación: una tarea generada en otro dispositivo podía no ser visible inmediatamente. La existencia de esas dos causas de invisibilidad se comprueba en código, **pero no demuestra todavía que sean la causa específica de este caso real**.
+
+**Corrección implementada SOLO en TEST:** commit `53e84cbc97f4726530fb94556b3162ecf8982572`. El filtro fecha de Operativas se inicializa a **Todos** tanto en la apertura como en el cambio a Operativas; se mantiene la selección explícita de hoy u otra fecha con flechas/calendario. Tras intentar conciliación al abrir la pantalla se hace lectura remota fresca de Tareas antes de renderizar, sin caché. No toca algoritmo de Riego→Tareas, reasignaciones, archivo, Pistola, backend, datos de Firebase, ni PRD. Los cinco scripts inline de `index.html` superan validación sintáctica; sin prueba remota autenticada aún. Vercel TEST verificar READY del commit funcional y del commit documental posterior antes de comunicar despliegue final.
+
+**Siguiente comprobación AGRUPADA:** usuario vuelve a abrir Operativas en TEST y comprueba lista `Todos` por defecto, con tareas de hoy y mañana; localizar el trabajo guardado. Si sigue faltando, pedir exactamente invernadero, día y código de trabajo del registro real y revisar su camino de conciliación sin crear ni editar datos de terceros, y distinguir la cola local de fallo remoto. **No dar por arreglada la generación automática sin aceptación de UAT.**
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).
