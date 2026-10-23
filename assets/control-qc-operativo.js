@@ -15,13 +15,40 @@
   const HEALTH_KEYS=['enfermedad1','enfermedad2','enfermedad3','enfermedad4'];
   const isDisease=k=>HEALTH_KEYS.includes(k);
   const selectedOf=wrap=>Array.from(wrap.querySelectorAll('input[type="checkbox"]:checked')).map(b=>b.value);
-  function syncGlobalPercent(wrap,enteringAnomaly=false){
-    const selected=selectedOf(wrap),input=wrap.querySelector('.qco-percent');
-    const affected=selected.some(v=>v!=='ok'&&v!=='noEvaluada');
-    if(!affected)input.value='0';
-    else if(enteringAnomaly||Number(input.value)<10)input.value='10';
-    input.disabled=!affected||loading||writing;
+  const maxHealth=wrap=>Math.max(0,...Array.from(wrap.querySelectorAll('.qco-disease-select')).map(p=>
+    p.closest('.qco-health-row')?.querySelector('input[type="checkbox"]')?.checked?Number(p.value):0));
+  const sumHealth=wrap=>Array.from(wrap.querySelectorAll('.qco-disease-select')).reduce((n,p)=>
+    n+(p.closest('.qco-health-row')?.querySelector('input[type="checkbox"]')?.checked?Number(p.value):0),0);
+  const hasProblems=()=>!!active&&CATS.some(([cat])=>selectedOf(active.querySelector('[data-qco-cat="'+cat+'"]')).some(k=>k!=='ok'&&k!=='noEvaluada'));
+  function syncGlobal(entered=false){
+    if(!active)return;
+    const selector=active.querySelector('.qco-global-percent');
+    const bad=hasProblems();
+    if(!bad){selector.value='0';selector.disabled=true;}
+    else{
+      if(entered||Number(selector.value)<10)selector.value=String(Math.max(10,maxHealth(active)));
+      if(Number(selector.value)<maxHealth(active))selector.value=String(maxHealth(active));
+      selector.disabled=loading||writing;
+    }
     updateIndicatorVisibility();
+  }
+  function syncHealthSelectors(){
+    if(!active)return;
+    for(const select of active.querySelectorAll('.qco-disease-select')){
+      const picked=select.closest('.qco-health-row')?.querySelector('input[type="checkbox"]')?.checked;
+      select.disabled=!picked||loading||writing;
+    }
+  }
+  function changeDiseasePercent(picker){
+    const previous=Number(picker.dataset.previous||10);
+    if(sumHealth(active)>100){
+      picker.value=String(previous);
+      report('Sanidad: la suma de porcentajes por enfermedad no puede superar el 100 %.','error');
+    }else{
+      picker.dataset.previous=picker.value;
+      report('','');
+    }
+    syncGlobal();
   }
   function categoryIssue(category,values,total){
     const notEvaluated=values.noEvaluada||0;
@@ -162,13 +189,19 @@
   }
   function snapshot(){
     if(!active)return null;
-    const out={bandejasInspeccionadas:active.querySelector('.qco-total input').value,categorias:{}};
+    const out={bandejasInspeccionadas:active.querySelector('.qco-total input').value,categorias:{},
+      porcentajeInvalidasGlobal:Number(active.querySelector('.qco-global-percent').value)};
     for(const [cat] of CATS){
       const wrap=active.querySelector('[data-qco-cat="'+cat+'"]');
-      out.categorias[cat]={
-        opciones:selectedOf(wrap),
-        porcentajeInvalidas:Number(wrap.querySelector('.qco-percent').value)
-      };
+      const item={opciones:selectedOf(wrap)};
+      if(cat==='sanidad'){
+        item.porcentajesEnfermedades={};
+        for(const key of HEALTH_KEYS){
+          if(item.opciones.includes(key))
+            item.porcentajesEnfermedades[key]=Number(wrap.querySelector('.qco-health-row[data-option="'+key+'"] .qco-disease-select').value);
+        }
+      }
+      out.categorias[cat]=item;
     }
     return out;
   }
@@ -226,32 +259,39 @@
   // Solo un control SIN mediciones previas recibe propuesta inicial.
   // Usamos bandejas informadas de ESTE registro, nunca de otras partidas.
   function chooseState(box){
-    const wrap=box.closest('.qco-cat');
-    const cat=wrap.dataset.qcoCat;
+    const wrap=box.closest('.qco-cat'),cat=wrap.dataset.qcoCat;
+    const hadProblems=hasProblems();
     if(box.checked){
       if(cat==='sanidad'){
         if(box.value==='ok'||box.value==='noEvaluada'){
           wrap.querySelectorAll('input[type="checkbox"]').forEach(other=>{if(other!==box)other.checked=false;});
+          for(const selector of wrap.querySelectorAll('.qco-disease-select'))selector.value='0';
         }else{
           for(const key of ['ok','noEvaluada']){
-            const other=wrap.querySelector('input[value="'+key+'"]');
-            if(other)other.checked=false;
+            const other=wrap.querySelector('input[value="'+key+'"]');if(other)other.checked=false;
           }
+          const picker=box.closest('.qco-health-row').querySelector('.qco-disease-select');
+          picker.value='10';
+          if(sumHealth(wrap)>100){
+            box.checked=false;picker.value='0';
+            report('Sanidad: el desglose no puede sumar más del 100 %.','error');
+          }else picker.dataset.previous='10';
         }
-      }else{
-        // Para el resto, estados mutuamente exclusivos, incluido OK.
-        wrap.querySelectorAll('input[type="checkbox"]').forEach(other=>{if(other!==box)other.checked=false;});
-      }
+      }else wrap.querySelectorAll('input[type="checkbox"]').forEach(other=>{if(other!==box)other.checked=false;});
+    }else if(cat==='sanidad'&&isDisease(box.value)){
+      box.closest('.qco-health-row').querySelector('.qco-disease-select').value='0';
     }
     wrap.dataset.legacyUnresolved='0';
     const note=wrap.querySelector('.qco-health-legacy, .qco-choice-legacy');
     if(note)note.hidden=true;
-    syncGlobalPercent(wrap,box.checked&&box.value!=='ok'&&box.value!=='noEvaluada');
+    syncHealthSelectors();
+    syncGlobal(!hadProblems&&hasProblems());
   }
   function restorePercentControls(){
     if(!active)return;
     active.querySelectorAll('.qco-cat input[type="checkbox"]').forEach(box=>box.disabled=false);
-    for(const wrap of active.querySelectorAll('.qco-cat'))syncGlobalPercent(wrap);
+    syncHealthSelectors();
+    syncGlobal();
   }
   // El histórico puede conservar Flores/No (equivalente agronómico a OK).
   // Adaptar solo para presentar; nunca modificar un registro sin guardado expreso.
@@ -265,6 +305,9 @@
     const total=saved?strCount(saved.bandejasInspeccionadas):strCount(rec?.numBandejas);
     active.querySelector('.qco-total input').value=total===null?'':String(total);
     active.querySelector('.qco-total-value').textContent=total===null?'No disponible':total.toLocaleString('es-ES');
+    const savedV5=saved?.schemaVersion===5;
+    const aggregate=active.querySelector('.qco-global-percent');
+    let needsGlobalReview=false;
     for(const [cat] of CATS){
       const wrap=active.querySelector('[data-qco-cat="'+cat+'"]');
       const old=saved?.mediciones?.[cat];
@@ -273,41 +316,52 @@
       chosen=normalizeOptions(cat,chosen);
       let issue='';
       if(chosen.includes('noEvaluada')&&chosen.length>1){
-        issue='La medición anterior combinaba «No evaluada» con otros estados.';
-        chosen=[];
+        issue='La medición anterior combinaba «No evaluada» con otros estados.';chosen=[];
       }
       if(cat==='sanidad'){
         if(chosen.includes('enferma')){
-          issue='Sanidad anterior: «Enferma» sin diagnóstico. Selecciona las enfermedades para reclasificar.';
-          chosen=[];
+          issue='Sanidad histórica «Enferma» sin diagnóstico. Selecciona la enfermedad real.';chosen=[];
         }else if(chosen.includes('ok')&&chosen.some(isDisease)){
-          issue='Sanidad anterior con OK y enfermedades simultáneas. Vuelve a marcar las enfermedades sin OK.';
-          chosen=[];
+          issue='Sanidad histórica con OK y enfermedades. Vuelve a seleccionar las enfermedades.';chosen=[];
         }
       }else if(chosen.length>1){
-        issue='Medición anterior con varias opciones ('+chosen.join(', ')+'). Selecciona un único estado.';
-        chosen=[];
+        issue='Medición anterior con varias opciones: selecciona un único estado.';chosen=[];
       }
       wrap.dataset.legacyUnresolved=issue?'1':'0';
-      const notice=wrap.querySelector('.qco-health-legacy, .qco-choice-legacy');
-      if(notice){notice.hidden=!issue;notice.textContent=issue;}
-      for(const checkbox of wrap.querySelectorAll('input[type="checkbox"]')){
-        checkbox.checked=chosen.includes(checkbox.value);
-        checkbox.disabled=false;
+      const note=wrap.querySelector('.qco-health-legacy, .qco-choice-legacy');
+      if(note){note.hidden=!issue;note.textContent=issue;}
+      for(const box of wrap.querySelectorAll('input[type="checkbox"]')){
+        box.checked=chosen.includes(box.value);box.disabled=false;
       }
-      const pct=wrap.querySelector('.qco-percent');
-      const prior=old&&total?
-        Math.max(0,Math.min(100,Math.round((total-(Number(old.ok)||0)-(Number(old.noEvaluada)||0))/total*10)*10)):0;
-      const selectedPercent=saved?.categorias?.[cat]?.porcentajeInvalidas??prior;
-      const rounded=Math.max(0,Math.min(100,Math.floor(Number(selectedPercent)/10)*10));
-      pct.value=String(rounded);
-      // No establecer porcentajes clínicos artificialmente al convertir históricos.
-      if(!issue)syncGlobalPercent(wrap);
-      else pct.disabled=true;
+      if(cat==='sanidad'){
+        const details=saved?.categorias?.sanidad?.porcentajesEnfermedades||{};
+        for(const key of HEALTH_KEYS){
+          const picker=wrap.querySelector('.qco-health-row[data-option="'+key+'"] .qco-disease-select');
+          const n=Number(details[key]);
+          picker.value=chosen.includes(key)&&Number.isInteger(n)&&n>=10?String(n):'0';
+          picker.dataset.previous=picker.value==='0'?'10':picker.value;
+        }
+        if(chosen.some(isDisease)&&(!savedV5&&!saved?.categorias?.sanidad?.porcentajesEnfermedades)){
+          wrap.dataset.legacyUnresolved='1';
+          const note=wrap.querySelector('.qco-health-legacy');
+          note.hidden=false;
+          note.textContent='Inspección anterior sin porcentajes por enfermedad. Asigna los porcentajes para continuar.';
+        }
+      }
+      if(chosen.some(k=>k!=='ok'&&k!=='noEvaluada'))needsGlobalReview=!savedV5;
     }
+    const global=Number(saved?.porcentajeInvalidasGlobal);
+    aggregate.value=savedV5&&Number.isInteger(global)?String(global):'0';
+    const globalNote=active.querySelector('.qco-global-review');
+    if(needsGlobalReview){
+      globalNote.hidden=false;
+      globalNote.textContent='Control anterior sin porcentaje global único. Selecciona el porcentaje global para actualizarlo.';
+      globalNote.dataset.review='1';
+    }else{globalNote.hidden=true;globalNote.dataset.review='0';}
     savedMeasurement=saved;lastTotal=total;loading=false;
-    original=saved?JSON.stringify(snapshot()):'';
+    // No inventar un total global combinando porcentajes por categorías antiguas.
     restorePercentControls();
+    original=saved?JSON.stringify(snapshot()):'';
     updateIndicatorVisibility();report('','');
   }
   async function fetchRules(jwt,stage){
@@ -351,24 +405,34 @@
   function validate(){
     const v=snapshot(),total=strCount(v.bandejasInspeccionadas),errors=[];
     if(total===null)errors.push('No consta el total de bandejas de la partida.');
+    const global=v.porcentajeInvalidasGlobal;
+    const hasIssue=Object.values(v.categorias).some(i=>i.opciones.some(k=>k!=='ok'&&k!=='noEvaluada'));
+    if(!Number.isInteger(global)||global<0||global>100||global%10!==0||
+       hasIssue&&global<10||!hasIssue&&global!==0)
+      errors.push('Porcentaje global: 0 % sin incidencias, o de 10 a 100 % cuando las hay.');
+    if(active.querySelector('.qco-global-review')?.dataset.review==='1')
+      errors.push('Selecciona expresamente el porcentaje global del control anterior.');
     for(const [cat,name,opts] of CATS){
-      const {opciones:a,porcentajeInvalidas:p}=v.categorias[cat];
+      const {opciones:a}=v.categorias[cat];
       const wrap=active.querySelector('[data-qco-cat="'+cat+'"]');
       const allowed=new Set(opts.map(([key])=>key));
-      if(wrap.dataset.legacyUnresolved==='1')errors.push(name+': selecciona de nuevo un estado antes de guardar.');
+      if(wrap.dataset.legacyUnresolved==='1')errors.push(name+': revisa las opciones anteriores.');
       if(!a.length||new Set(a).size!==a.length||a.some(k=>!allowed.has(k)))
-        errors.push(name+': selecciona al menos una opción válida.');
+        errors.push(name+': selecciona una opción válida.');
       if(cat==='sanidad'){
-        if(a.includes('ok')&&a.length>1||a.includes('noEvaluada')&&a.length>1)
-          errors.push('Sanidad: OK y No evaluada son incompatibles con las enfermedades.');
-      }else if(a.length!==1)errors.push(name+': solo se permite una opción.');
-      if(!Number.isInteger(p)||p<0||p>100||p%10!==0)
-        errors.push(name+': porcentaje fuera de los tramos de 10.');
-      const affected=a.some(k=>k!=='ok'&&k!=='noEvaluada');
-      if(affected&&p<10)errors.push(name+': selecciona un porcentaje entre 10 % y 100 %.');
-      if(!affected&&p!==0)errors.push(name+': OK/No evaluada exige 0 %.');
+        if(a.length>1&&(a.includes('ok')||a.includes('noEvaluada')))
+          errors.push('Sanidad: OK y enfermedades no son compatibles.');
+        const details=v.categorias.sanidad.porcentajesEnfermedades;
+        const diseases=a.filter(isDisease);
+        if(Object.keys(details).length!==diseases.length||
+           diseases.some(k=>!Number.isInteger(details[k])||details[k]<10||details[k]>100||details[k]%10!==0))
+          errors.push('Sanidad: comprueba el porcentaje de cada enfermedad.');
+        const sum=diseases.reduce((n,k)=>n+details[k],0);
+        if(sum>100||global<Math.max(0,...diseases.map(k=>details[k])))
+          errors.push('Sanidad: los porcentajes deben cuadrar con el global (máximo 100 %).');
+      }else if(a.length!==1)errors.push(name+': solo permite una opción.');
     }
-    return {errors,total,categorias:v.categorias};
+    return {errors,total,categorias:v.categorias,porcentajeInvalidasGlobal:global};
   }
   // Tras una respuesta de guardado incierta, solo LEER la misma medición.
   // Nunca reintentar la escritura automáticamente (evita duplicados/conflictos).
@@ -386,7 +450,9 @@
       if(!saved)return {state:'absent'};
       if(!Number.isInteger(saved.version)||saved.version<=previousVersion)
         return {state:'different'};
-      const same=saved.bandejasInspeccionadas===expected.total && Object.keys(expected.categorias).every(cat=>JSON.stringify(saved.categorias?.[cat])===JSON.stringify(expected.categorias[cat]));
+      const same=saved.schemaVersion===5&&saved.bandejasInspeccionadas===expected.total&&
+        saved.porcentajeInvalidasGlobal===expected.porcentajeInvalidasGlobal&&
+        Object.keys(expected.categorias).every(cat=>JSON.stringify(saved.categorias?.[cat])===JSON.stringify(expected.categorias[cat]));
       return same?{state:'confirmed',value:saved}:{state:'different'};
     }catch(_){return {state:'unknown'};}
   }
@@ -418,7 +484,7 @@
     const refAtSave={...record},versionAtSave=version;
     writing=true;
     // Los campos quedan congelados hasta confirmar la escritura.
-    active.querySelectorAll('.qco-cat input[type="checkbox"], .qco-cat select')
+    active.querySelectorAll('.qco-cat input[type="checkbox"], .qco-cat select, .qco-global-percent')
       .forEach(input=>{input.disabled=true;});
     active.querySelectorAll('.qco-live-control input').forEach(x=>x.disabled=true);
     document.querySelectorAll('#control-overlay .qco-live-control input').forEach(x=>x.disabled=true);
@@ -432,7 +498,8 @@
         method:'POST',headers:{Authorization:'Bearer '+jwt,'Content-Type':'application/json'},
         body:JSON.stringify({
           id:record.id,tipo:record.tipo,dia:record.dia,partida:record.partida,
-          schemaVersion:4,version,bandejasInspeccionadas:checked.total,categorias:checked.categorias
+          schemaVersion:5,version,bandejasInspeccionadas:checked.total,
+          categorias:checked.categorias,porcentajeInvalidasGlobal:checked.porcentajeInvalidasGlobal
         }),cache:'no-store'
       });
       if(!r.ok){
@@ -448,7 +515,8 @@
       const data=await r.json();
       if(!data.ok||!Number.isInteger(data.version))throw Error('INVALID_RESPONSE');
       version=data.version;original=JSON.stringify(snapshot());
-      savedMeasurement={schemaVersion:4,version,bandejasInspeccionadas:checked.total,categorias:checked.categorias};
+      savedMeasurement={schemaVersion:5,version,bandejasInspeccionadas:checked.total,
+        categorias:checked.categorias,porcentajeInvalidasGlobal:checked.porcentajeInvalidasGlobal};
       confirmed=true;
     }catch(err){
       const reason=String(err?.message||'').slice(0,80);
@@ -514,22 +582,48 @@
       const wrap=node('fieldset',null,'qco-cat');wrap.dataset.qcoCat=cat;wrap.append(node('legend',name));
       const choices=node('div',null,'qco-choices');
       for(const [value,label] of [...options.filter(x=>x[0]==='ok'),...options.filter(x=>x[0]!=='ok')]){
-        const row=node('label',null,'qco-option');row.dataset.option=value;
+        const disease=cat==='sanidad'&&isDisease(value);
+        const row=node(disease?'div':'label',null,'qco-option'+(disease?' qco-health-row':''));
+        row.dataset.option=value;
+        const labelEl=disease?node('label',null,'qco-health-choice'):row;
         const input=node('input');input.type='checkbox';input.value=value;input.disabled=true;
         input.addEventListener('change',()=>chooseState(input));
-        row.append(input,node('span',label));choices.append(row);
+        labelEl.append(input,node('span',label));
+        if(disease){
+          row.append(labelEl);
+          const picker=node('select',null,'qco-disease-select');
+          picker.setAttribute('aria-label',label+' · porcentaje');
+          for(let n=0;n<=100;n+=10){const o=node('option',n+' %');o.value=String(n);picker.append(o);}
+          picker.value='0';picker.disabled=true;picker.dataset.previous='10';
+          picker.addEventListener('change',()=>changeDiseasePercent(picker));
+          row.append(picker);
+        }
+        choices.append(row);
       }
       wrap.append(choices);
       const note=node('p',null,cat==='sanidad'?'qco-health-legacy':'qco-choice-legacy');
-      note.hidden=true;wrap.append(note);
-      const footer=node('label',null,'qco-percent-row');
-      footer.append(node('span','% inválidas · Global'));
-      const pct=node('select',null,'qco-percent');pct.disabled=true;
-      pct.setAttribute('aria-label',name+' · porcentaje global de inválidas');
-      for(let n=0;n<=100;n+=10){const o=node('option',n+' %');o.value=String(n);pct.append(o);}
-      pct.addEventListener('change',updateIndicatorVisibility);
-      footer.append(pct);wrap.append(footer);form.append(wrap);
+      note.hidden=true;wrap.append(note);form.append(wrap);
     }
+    const globalRow=node('section',null,'qco-global-result');
+    globalRow.append(node('strong','Porcentaje global de inválidas','qco-global-heading'));
+    const summary=node('div',null,'qco-global-row');
+    const percent=node('select',null,'qco-global-percent');percent.disabled=true;
+    percent.setAttribute('aria-label','Porcentaje global de inválidas de la evaluación completa');
+    for(let n=0;n<=100;n+=10){const op=node('option',n+' %');op.value=String(n);percent.append(op);}
+    percent.addEventListener('change',()=>{
+      const diseaseMax=maxHealth(active);
+      if(Number(percent.value)<diseaseMax){
+        percent.value=String(diseaseMax);
+        report('El porcentaje global no puede ser menor que el de una enfermedad.','error');
+      }else report('','');
+      const note=active.querySelector('.qco-global-review');
+      note.hidden=true;note.dataset.review='0';
+      updateIndicatorVisibility();
+    });
+    summary.append(node('span','Inválidas · Total evaluación'),percent);
+    globalRow.append(summary);
+    const review=node('p',null,'qco-global-review');review.hidden=true;review.dataset.review='0';
+    globalRow.append(review);form.append(globalRow);
     if(legacyApi){
       // Las observaciones/fotos se editan usando su registro histórico original.
       const section=node('section',null,'qco-legacy-extras');

@@ -18,6 +18,33 @@
   function evalIndicators(measurement,rules){
     const inspected=measurement?.bandejasInspeccionadas;
     const data=measurement?.mediciones;
+    // V5: un porcentaje de toda la evaluación, sin porcentajes por el resto
+    // de categorías; enfermedades con estimación propia y posible solapamiento.
+    if(measurement?.schemaVersion===5&&Number.isSafeInteger(inspected)&&inspected>0&&
+       measurement?.categorias&&Number.isInteger(measurement.porcentajeInvalidasGlobal)){
+      const rows=[];
+      for(const [cat,name,labels] of CATS){
+        const item=measurement.categorias[cat];
+        if(!item||!Array.isArray(item.opciones))continue;
+        if(cat==='sanidad'){
+          const dis=item.porcentajesEnfermedades||{};
+          for(const k of ['enfermedad1','enfermedad2','enfermedad3','enfermedad4']){
+            if(!Object.hasOwn(dis,k))continue;
+            rows.push({category:cat,categoryLabel:name,option:k,
+              optionLabel:labels[k],count:null,pct:dis[k],percentDisplay:dis[k],
+              treatment:'informativo',treatmentLabel:'Informativo',tolerance:null,
+              level:'neutral',description:'Porcentaje individual de enfermedad'});
+          }
+        }
+      }
+      rows.push({category:'global',categoryLabel:'Evaluación',option:'invalidas',
+        optionLabel:'Total inválidas',count:null,pct:measurement.porcentajeInvalidasGlobal,
+        percentDisplay:measurement.porcentajeInvalidasGlobal,treatment:'informativo',
+        treatmentLabel:'Informativo',tolerance:null,level:'neutral',
+        description:'Porcentaje global de bandejas inválidas'});
+      return {available:true,inspected,rows,evaluatedCount:rows.length,
+        configuredCount:0,warningCount:0,criticalCount:0,objective:null,hasRules:false};
+    }
     // V2: porcentaje global por categoría, sin atribuir cantidades a opciones.
     if(Number.isSafeInteger(inspected)&&inspected>0&&measurement?.categorias){
       const rows=[];

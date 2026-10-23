@@ -191,6 +191,58 @@ function validateGlobalCategorias(input){
   }
   return clean;
 }
+// Modelo v5: un porcentaje de inválidas para toda la inspección; solo Sanidad
+// desglosa enfermedades individualmente. Los demás grupos tienen estado único.
+function validateEvaluationV5(input){
+  if(!validQty(input.bandejasInspeccionadas))throw httpError(400,'INVALID_INSPECTED');
+  const source=input.categorias;
+  if(!source||typeof source!=='object'||Array.isArray(source)||
+     Object.keys(source).sort().join('|')!==Object.keys(OPTIONS).sort().join('|'))
+    throw httpError(400,'INVALID_MEASUREMENTS');
+  const total=input.porcentajeInvalidasGlobal;
+  if(!Number.isInteger(total)||total<0||total>100||total%10!==0)
+    throw httpError(400,'INVALID_GLOBAL_PERCENT');
+  const clean={};let hasIssue=false,maxDisease=0;
+  for(const [cat,allowed] of Object.entries(OPTIONS)){
+    const item=source[cat],isHealth=cat==='sanidad';
+    if(!item||typeof item!=='object'||Array.isArray(item)||
+       Object.keys(item).sort().join('|')!==(isHealth?'opciones|porcentajesEnfermedades':'opciones'))
+      throw httpError(400,'INVALID_MEASUREMENTS');
+    const opts=item.opciones;
+    const validOptions=isHealth?['ok','noEvaluada',...SANIDAD_DISEASE_KEYS]:
+      [...allowed.filter(k=>cat!=='flores'||k!=='no'),'noEvaluada'];
+    if(!Array.isArray(opts)||!opts.length||new Set(opts).size!==opts.length||
+       opts.some(k=>!validOptions.includes(k)))
+      throw httpError(400,'INVALID_MEASUREMENTS');
+    if((!isHealth&&opts.length!==1)||
+       ((opts.includes('ok')||opts.includes('noEvaluada'))&&opts.length!==1))
+      throw httpError(400,'CATEGORY_EXCLUSIVE');
+    const affected=opts.filter(k=>k!=='ok'&&k!=='noEvaluada');
+    if(affected.length)hasIssue=true;
+    if(!isHealth){clean[cat]={opciones:opts};continue;}
+    const details=item.porcentajesEnfermedades;
+    if(!details||typeof details!=='object'||Array.isArray(details)||
+       Object.keys(details).length!==affected.length||
+       Object.keys(details).some(k=>!affected.includes(k)))
+      throw httpError(400,'INVALID_DISEASE_PERCENT');
+    const cleaned={};
+    let diseaseSum=0;
+    for(const key of affected){
+      const pct=details[key];
+      if(!SANIDAD_DISEASE_KEYS.includes(key)||!Number.isInteger(pct)||
+         pct<10||pct>100||pct%10!==0)
+        throw httpError(400,'INVALID_DISEASE_PERCENT');
+      cleaned[key]=pct;diseaseSum+=pct;maxDisease=Math.max(maxDisease,pct);
+    }
+    // Con esta distribución el porcentaje global mide bandejas únicas:
+    // no sumar incidencias que podrían concurrir en una misma bandeja.
+    if(diseaseSum>100)throw httpError(400,'DISEASE_PERCENT_OVER_100');
+    clean[cat]={opciones:opts,porcentajesEnfermedades:cleaned};
+  }
+  if(hasIssue&&total<10||!hasIssue&&total!==0||total<maxDisease)
+    throw httpError(400,'INVALID_GLOBAL_PERCENT');
+  return {categorias:clean,porcentajeInvalidasGlobal:total};
+}
 function pathFor(id){return DB+'/'+PREFIX+'/'+encodeURIComponent(id)+'.json';}
 function sourcePath(ref){
   const q=Math.floor((ref.dia-15)/14);
@@ -217,7 +269,7 @@ async function legacyRecord(ref,token){
 function validateStored(entry,ref,partida){
   if(entry===null)return {version:0};
   if(!entry||typeof entry!=='object'||Array.isArray(entry)||
-     ![1,2,3,4].includes(entry.schemaVersion)||!Number.isInteger(entry.version)||entry.version<1||
+     ![1,2,3,4,5].includes(entry.schemaVersion)||!Number.isInteger(entry.version)||entry.version<1||
      entry.legacy?.id!==ref.id||entry.legacy?.tipo!==ref.tipo||
      entry.legacy?.dia!==ref.dia||entry.legacy?.partida!==partida)
     throw httpError(409,'SAVED_CONFLICT');
@@ -265,7 +317,8 @@ async function consultarEstadosQC(req,res,data){
       try{
         const stored=validateStored(value,{id:ref.id,tipo:q.tipo,dia:q.dia},ref.partida);
         if(stored.version<1)return false;
-        if(stored.schemaVersion===4)validateGlobalCategorias(stored);
+        if(stored.schemaVersion===5)validateEvaluationV5(stored);
+        else if(stored.schemaVersion===4)validateGlobalCategorias(stored);
         else if(stored.schemaVersion===3)validateDiseaseCategorias(stored);
         else if(stored.schemaVersion===2)validateCategorias(stored);
         else validateMeasurements(stored);
@@ -303,7 +356,8 @@ module.exports=async function handler(req,res){
       return res.status(200).json({ok:true,record:value?{
         version:stored.version,updatedAt:stored.updatedAt,
         updatedBy:stored.updatedBy,bandejasInspeccionadas:stored.bandejasInspeccionadas,
-        mediciones:stored.mediciones,categorias:stored.categorias,schemaVersion:stored.schemaVersion
+        mediciones:stored.mediciones,categorias:stored.categorias,
+        porcentajeInvalidasGlobal:stored.porcentajeInvalidasGlobal,schemaVersion:stored.schemaVersion
       }:null,sourcePartida:source.partida,
       ...(probe?{diagnostic:{etagAvailable:!!etag}}:{})});
     }
@@ -315,9 +369,11 @@ module.exports=async function handler(req,res){
     const hasDiseaseBreakdown=isPercent&&
       Object.prototype.hasOwnProperty.call(request.categorias?.sanidad||{},'porcentajesEnfermedades');
     // No interpretar formatos antiguos como v4: esos borradores siguen protegidos.
-    const v4=request.schemaVersion===4;
-    if(v4&&(!isPercent||hasDiseaseBreakdown))throw httpError(400,'INVALID_MEASUREMENTS');
-    const checked=v4?validateGlobalCategorias(request):
+    const v4=request.schemaVersion===4,v5=request.schemaVersion===5;
+    if((v4||v5)&&!isPercent||v4&&hasDiseaseBreakdown)
+      throw httpError(400,'INVALID_MEASUREMENTS');
+    const checked=v5?validateEvaluationV5(request):
+      v4?validateGlobalCategorias(request):
       hasDiseaseBreakdown?validateDiseaseCategorias(request):
       isPercent?validateCategorias(request):validateMeasurements(request);
     phase='ETAG_READ';
@@ -328,10 +384,15 @@ module.exports=async function handler(req,res){
     if(before.version!==request.version)throw httpError(409,'CONCURRENT_MODIFICATION');
     const now=new Date().toISOString();
     const next={
-      schemaVersion:v4?4:hasDiseaseBreakdown?3:isPercent?2:1,version:before.version+1,
+      schemaVersion:v5?5:v4?4:hasDiseaseBreakdown?3:isPercent?2:1,version:before.version+1,
       legacy:{...ref,partida:source.partida},
       bandejasInspeccionadas:request.bandejasInspeccionadas,
-      ...(isPercent?{categorias:checked,
+      ...(v5?{
+        categorias:checked.categorias,porcentajeInvalidasGlobal:checked.porcentajeInvalidasGlobal,
+        legacyMediciones:before.legacyMediciones||before.mediciones||null,
+        ...((before.legacyCategorias||before.categorias&&before.schemaVersion!==5)?
+          {legacyCategorias:before.legacyCategorias||before.categorias}:{})
+      }:isPercent?{categorias:checked,
         legacyMediciones:before.legacyMediciones||before.mediciones||null,
         ...(v4&&before.schemaVersion===3?
           {legacyCategorias:before.legacyCategorias||before.categorias}:

@@ -191,3 +191,29 @@
   .qco-inline .qco-percent-row{gap:9px}
   .qco-inline .qco-percent{width:115px;min-height:44px;font-size:16px}
 }
+
+/* 0.76: un único resultado global tras todas las categorías. */
+.qco-inline .qco-health-row{display:flex;align-items:center;gap:10px;min-width:0}
+.qco-inline .qco-health-choice{display:flex;align-items:center;gap:9px;flex:1;min-width:0;cursor:pointer;font-size:13px;font-weight:750}
+.qco-inline .qco-health-choice span{min-width:0;line-height:1.25}
+.qco-inline .qco-disease-select{box-sizing:border-box;width:112px;min-width:112px;min-height:43px;
+  margin-left:auto;padding:7px 9px;border:1px solid #a3c5e6;border-radius:8px;
+  background:#fff;color:#1558a0;font-size:16px;font-weight:750;text-align:right}
+.qco-inline .qco-disease-select:disabled{background:#edf3fa;color:#7089a0}
+.qco-inline .qco-global-result{margin:17px 0 12px;padding:16px 13px;
+  border:1px solid #a2c4e7;border-radius:11px;background:#edf5ff}
+.qco-inline .qco-global-heading{font-size:15px;color:#1558a0;font-weight:800}
+.qco-inline .qco-global-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px}
+.qco-inline .qco-global-row span{font-weight:700;font-size:13px;color:#245886}
+.qco-inline .qco-global-percent{box-sizing:border-box;width:122px;min-width:116px;min-height:47px;
+  padding:8px 10px;border:1px solid #8cb6de;border-radius:8px;
+  color:#1558a0;background:#fff;font-size:17px;font-weight:800}
+.qco-inline .qco-global-percent:disabled{color:#69829b;background:#e2ebf4}
+.qco-inline .qco-global-review{margin:8px 0 0;font-size:12px;line-height:1.45;color:#94651c}
+.qco-inline .qco-global-review[hidden]{display:none}
+@media(max-width:560px){
+  .qco-inline .qco-health-row{gap:8px;min-height:49px;padding:7px 9px}
+  .qco-inline .qco-health-choice{gap:7px;font-size:12px}
+  .qco-inline .qco-disease-select{width:104px;min-width:104px;min-height:44px;padding:6px 7px}
+  .qco-inline .qco-global-result{padding:14px 11px;margin:14px 0 9px}
+}
