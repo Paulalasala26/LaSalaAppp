@@ -15,21 +15,32 @@
   const HEALTH_KEYS=['enfermedad1','enfermedad2','enfermedad3','enfermedad4'];
   const isDisease=k=>HEALTH_KEYS.includes(k);
   const selectedOf=wrap=>Array.from(wrap.querySelectorAll('input[type="checkbox"]:checked')).map(b=>b.value);
-  const maxHealth=wrap=>Math.max(0,...Array.from(wrap.querySelectorAll('.qco-disease-select')).map(p=>
-    p.closest('.qco-health-row')?.querySelector('input[type="checkbox"]')?.checked?Number(p.value):0));
   const sumHealth=wrap=>Array.from(wrap.querySelectorAll('.qco-disease-select')).reduce((n,p)=>
     n+(p.closest('.qco-health-row')?.querySelector('input[type="checkbox"]')?.checked?Number(p.value):0),0);
-  const hasProblems=()=>!!active&&CATS.some(([cat])=>selectedOf(active.querySelector('[data-qco-cat="'+cat+'"]')).some(k=>k!=='ok'&&k!=='noEvaluada'));
-  function syncGlobal(entered=false){
+  const hasProblems=()=>!!active&&CATS.some(([cat])=>
+    selectedOf(active.querySelector('[data-qco-cat="'+cat+'"]')).some(k=>k!=='ok'&&k!=='noEvaluada'));
+  // Cinco bloques con el mismo peso. Sanidad agrega primero todas las enfermedades
+  // y participa una sola vez. No evaluada y OK no suman; el resto, incidencia 100.
+  function suggestedGlobal(){
+    if(!active)return 0;
+    let sum=0;
+    for(const [cat] of CATS){
+      const wrap=active.querySelector('[data-qco-cat="'+cat+'"]');
+      const picked=selectedOf(wrap);
+      if(cat==='sanidad')sum+=Math.min(100,sumHealth(wrap));
+      else if(picked.some(k=>k!=='ok'&&k!=='noEvaluada'))sum+=100;
+    }
+    return Math.floor(sum/CATS.length/10)*10;
+  }
+  // El usuario puede cambiar el total calculado; no se recalcula al restaurar
+  // ni al guardar, solo al editar algún estado o porcentaje de enfermedad.
+  function syncGlobal(recalculate=false){
     if(!active)return;
     const selector=active.querySelector('.qco-global-percent');
-    const bad=hasProblems();
-    if(!bad){selector.value='0';selector.disabled=true;}
-    else{
-      if(entered||Number(selector.value)<10)selector.value=String(Math.max(10,maxHealth(active)));
-      if(Number(selector.value)<maxHealth(active))selector.value=String(maxHealth(active));
-      selector.disabled=loading||writing;
-    }
+    if(recalculate)selector.value=String(suggestedGlobal());
+    if(!hasProblems()){
+      selector.value='0';selector.disabled=true;
+    }else selector.disabled=loading||writing;
     updateIndicatorVisibility();
   }
   function syncHealthSelectors(){
@@ -48,7 +59,7 @@
       picker.dataset.previous=picker.value;
       report('','');
     }
-    syncGlobal();
+    syncGlobal(true);
   }
   function categoryIssue(category,values,total){
     const notEvaluated=values.noEvaluada||0;
@@ -260,7 +271,6 @@
   // Usamos bandejas informadas de ESTE registro, nunca de otras partidas.
   function chooseState(box){
     const wrap=box.closest('.qco-cat'),cat=wrap.dataset.qcoCat;
-    const hadProblems=hasProblems();
     if(box.checked){
       if(cat==='sanidad'){
         if(box.value==='ok'||box.value==='noEvaluada'){
@@ -282,10 +292,8 @@
       box.closest('.qco-health-row').querySelector('.qco-disease-select').value='0';
     }
     wrap.dataset.legacyUnresolved='0';
-    const note=wrap.querySelector('.qco-health-legacy, .qco-choice-legacy');
-    if(note)note.hidden=true;
     syncHealthSelectors();
-    syncGlobal(!hadProblems&&hasProblems());
+    syncGlobal(true);
   }
   function restorePercentControls(){
     if(!active)return;
@@ -307,8 +315,7 @@
     active.querySelector('.qco-total-value').textContent=total===null?'No disponible':total.toLocaleString('es-ES');
     const savedV5=saved?.schemaVersion===5;
     const aggregate=active.querySelector('.qco-global-percent');
-    let needsGlobalReview=false;
-    for(const [cat] of CATS){
+     for(const [cat] of CATS){
       const wrap=active.querySelector('[data-qco-cat="'+cat+'"]');
       const old=saved?.mediciones?.[cat];
       let chosen=saved?.categorias?.[cat]?.opciones;
@@ -328,9 +335,7 @@
         issue='Medición anterior con varias opciones: selecciona un único estado.';chosen=[];
       }
       wrap.dataset.legacyUnresolved=issue?'1':'0';
-      const note=wrap.querySelector('.qco-health-legacy, .qco-choice-legacy');
-      if(note){note.hidden=!issue;note.textContent=issue;}
-      for(const box of wrap.querySelectorAll('input[type="checkbox"]')){
+       for(const box of wrap.querySelectorAll('input[type="checkbox"]')){
         box.checked=chosen.includes(box.value);box.disabled=false;
       }
       if(cat==='sanidad'){
@@ -343,24 +348,15 @@
         }
         if(chosen.some(isDisease)&&(!savedV5&&!saved?.categorias?.sanidad?.porcentajesEnfermedades)){
           wrap.dataset.legacyUnresolved='1';
-          const note=wrap.querySelector('.qco-health-legacy');
-          note.hidden=false;
-          note.textContent='Inspección anterior sin porcentajes por enfermedad. Asigna los porcentajes para continuar.';
-        }
+         }
       }
-      if(chosen.some(k=>k!=='ok'&&k!=='noEvaluada'))needsGlobalReview=!savedV5;
-    }
-    const global=Number(saved?.porcentajeInvalidasGlobal);
+     }
+    const global=saved?.porcentajeInvalidasGlobal;
     aggregate.value=savedV5&&Number.isInteger(global)?String(global):'0';
-    const globalNote=active.querySelector('.qco-global-review');
-    if(needsGlobalReview){
-      globalNote.hidden=false;
-      globalNote.textContent='Control anterior sin porcentaje global único. Selecciona el porcentaje global para actualizarlo.';
-      globalNote.dataset.review='1';
-    }else{globalNote.hidden=true;globalNote.dataset.review='0';}
     savedMeasurement=saved;lastTotal=total;loading=false;
-    // No inventar un total global combinando porcentajes por categorías antiguas.
     restorePercentControls();
+    // Históricos no poseen un global unificado: proponer el nuevo cálculo sin avisos.
+    if(!savedV5)syncGlobal(true);
     original=saved?JSON.stringify(snapshot()):'';
     updateIndicatorVisibility();report('','');
   }
@@ -408,11 +404,9 @@
     const global=v.porcentajeInvalidasGlobal;
     const hasIssue=Object.values(v.categorias).some(i=>i.opciones.some(k=>k!=='ok'&&k!=='noEvaluada'));
     if(!Number.isInteger(global)||global<0||global>100||global%10!==0||
-       hasIssue&&global<10||!hasIssue&&global!==0)
-      errors.push('Porcentaje global: 0 % sin incidencias, o de 10 a 100 % cuando las hay.');
-    if(active.querySelector('.qco-global-review')?.dataset.review==='1')
-      errors.push('Selecciona expresamente el porcentaje global del control anterior.');
-    for(const [cat,name,opts] of CATS){
+       !hasIssue&&global!==0)
+      errors.push('Porcentaje global incorrecto.');
+     for(const [cat,name,opts] of CATS){
       const {opciones:a}=v.categorias[cat];
       const wrap=active.querySelector('[data-qco-cat="'+cat+'"]');
       const allowed=new Set(opts.map(([key])=>key));
@@ -428,8 +422,7 @@
            diseases.some(k=>!Number.isInteger(details[k])||details[k]<10||details[k]>100||details[k]%10!==0))
           errors.push('Sanidad: comprueba el porcentaje de cada enfermedad.');
         const sum=diseases.reduce((n,k)=>n+details[k],0);
-        if(sum>100||global<Math.max(0,...diseases.map(k=>details[k])))
-          errors.push('Sanidad: los porcentajes deben cuadrar con el global (máximo 100 %).');
+        if(sum>100)errors.push('Sanidad: suma de enfermedades superior al 100 %.');
       }else if(a.length!==1)errors.push(name+': solo permite una opción.');
     }
     return {errors,total,categorias:v.categorias,porcentajeInvalidasGlobal:global};
@@ -601,8 +594,7 @@
         choices.append(row);
       }
       wrap.append(choices);
-      const note=node('p',null,cat==='sanidad'?'qco-health-legacy':'qco-choice-legacy');
-      note.hidden=true;wrap.append(note);form.append(wrap);
+      form.append(wrap);
     }
     const globalRow=node('section',null,'qco-global-result');
     globalRow.append(node('strong','Porcentaje global de inválidas','qco-global-heading'));
@@ -610,20 +602,10 @@
     const percent=node('select',null,'qco-global-percent');percent.disabled=true;
     percent.setAttribute('aria-label','Porcentaje global de inválidas de la evaluación completa');
     for(let n=0;n<=100;n+=10){const op=node('option',n+' %');op.value=String(n);percent.append(op);}
-    percent.addEventListener('change',()=>{
-      const diseaseMax=maxHealth(active);
-      if(Number(percent.value)<diseaseMax){
-        percent.value=String(diseaseMax);
-        report('El porcentaje global no puede ser menor que el de una enfermedad.','error');
-      }else report('','');
-      const note=active.querySelector('.qco-global-review');
-      note.hidden=true;note.dataset.review='0';
-      updateIndicatorVisibility();
-    });
+    percent.addEventListener('change',()=>{report('','');updateIndicatorVisibility();});
     summary.append(node('span','Inválidas · Total evaluación'),percent);
     globalRow.append(summary);
-    const review=node('p',null,'qco-global-review');review.hidden=true;review.dataset.review='0';
-    globalRow.append(review);form.append(globalRow);
+    form.append(globalRow);
     if(legacyApi){
       // Las observaciones/fotos se editan usando su registro histórico original.
       const section=node('section',null,'qco-legacy-extras');

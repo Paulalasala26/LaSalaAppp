@@ -55,7 +55,7 @@
    if(!cs||Object.keys(cs).sort().join('|')!==CATS.map(x=>x[0]).sort().join('|')||
       !Number.isInteger(g)||g<0||g>100||g%10!==0)
     throw Error('Evaluación o porcentaje global inválidos.');
-   let hasIssue=false,maximum=0;
+   let hasIssue=false;
    for(const [cat,name,opts] of CATS){
     const item=cs[cat],health=cat==='sanidad';
     if(!item||Object.keys(item).sort().join('|')!==(health?'opciones|porcentajesEnfermedades':'opciones'))
@@ -80,12 +80,12 @@
      const pct=detail[key];
      if(!HEALTH.includes(key)||!Number.isInteger(pct)||pct<10||pct>100||pct%10)
       throw Error('Sanidad: porcentaje individual incorrecto.');
-     sum+=pct;maximum=Math.max(maximum,pct);
+     sum+=pct;
     }
     if(sum>100)throw Error('Sanidad: suma superior al 100 %.');
    }
-   if(hasIssue&&g<10||!hasIssue&&g!==0||g<maximum)
-    throw Error('El porcentaje global debe recoger las incidencias, sin ser inferior a una enfermedad.');
+   if(!hasIssue&&g!==0)
+    throw Error('Sin incidencias el porcentaje global debe ser 0 %.');
    return v;
   }
   if(v.schemaVersion===4){
@@ -208,15 +208,13 @@
   const totalInput=el('input');totalInput.type='hidden';totalInput.name='total';totalInput.value=initialTotal||'';
   total.append(totalInput);form.append(total);
   const current=draft?.schemaVersion===5;
-  const globalNotes=[];
-  const findSelected=cat=>{
+   const findSelected=cat=>{
    const old=draft?.mediciones?.[cat];
    const options=draft?.categorias?.[cat]?.opciones;
    return Array.isArray(options)?options.slice():
      old?Object.keys(old).filter(k=>Number(old[k])>0):['ok'];
   };
-  const selectedByCat={};
-  for(const [cat,name,opts] of CATS){
+   for(const [cat,name,opts] of CATS){
    const field=el('fieldset');field.dataset.qcCat=cat;
    field.style.cssText='border:1px solid #cad9e7;border-radius:9px;padding:11px;margin:10px 0;background:#fff';
    const legend=el('legend',name);legend.style.cssText='font-size:14px;font-weight:800;color:#1558a0';
@@ -236,8 +234,7 @@
    }else if(selected.length>1){
     warning='Medición anterior con múltiples estados. Selecciona solo uno.';selected=[];
    }
-   selectedByCat[cat]=selected;
-   field.dataset.legacyUnresolved=warning?'1':'0';
+    field.dataset.legacyUnresolved=warning?'1':'0';
    for(const [opt,desc] of [...opts.filter(x=>x[0]==='ok'),...opts.filter(x=>x[0]!=='ok')]){
     const disease=cat==='sanidad'&&HEALTH.includes(opt);
     const row=el(disease?'div':'label');
@@ -263,19 +260,14 @@
        picker.value=picker.dataset.previous;
        feedback.textContent='Sanidad: máximo 100 % sumando porcentajes.';
       }else{picker.dataset.previous=picker.value;feedback.textContent='';}
-      updateGlobal();
+      updateGlobal(true);
      });
      row.append(picker);
     }
     choices.append(row);
    }
    field.append(choices);
-   if(warning){
-    const note=el('p',warning);
-    note.style.cssText='color:#94651c;font-size:12px';
-    note.className='qc-legacy-warning';field.append(note);
-   }
-   const paint=()=>{
+    const paint=()=>{
     for(const row of choices.children){
      const checked=!!row.querySelector('input[type=checkbox]')?.checked;
      row.style.background=checked?'#e2f0ff':'#f6f9fd';
@@ -285,8 +277,7 @@
    };
    for(const box of choices.querySelectorAll('input[type=checkbox]')){
     box.addEventListener('change',()=>{
-     const had=hasProblems();
-     if(box.checked){
+      if(box.checked){
       if(cat==='sanidad'){
        if(box.value==='ok'||box.value==='noEvaluada'){
         choices.querySelectorAll('input[type=checkbox]').forEach(other=>{if(other!==box)other.checked=false;});
@@ -304,8 +295,7 @@
       box.closest('[data-qc-row]').querySelector('select[data-qc-disease]').value='0';
      }
      field.dataset.legacyUnresolved='0';
-     const note=field.querySelector('.qc-legacy-warning');if(note)note.hidden=true;
-     paint();updateDiseaseDisabled();updateGlobal(!had&&hasProblems());
+     paint();updateDiseaseDisabled();updateGlobal(true);
     });
    }
    paint();form.append(field);
@@ -322,10 +312,6 @@
   for(let n=0;n<=100;n+=10){const option=el('option',n+' %');option.value=String(n);global.append(option);}
   global.value=current?String(draft.porcentajeInvalidasGlobal):'0';
   const feedback=el('p');feedback.setAttribute('role','alert');feedback.style.cssText='color:#a32c27;font-size:12px';
-  const oldNote=el('p','Borrador anterior sin porcentaje global único. Selecciona este porcentaje antes de guardarlo.');
-  oldNote.style.cssText='color:#94651c;font-size:12px';
-  oldNote.dataset.review=(!current&&Object.values(selectedByCat).some(xs=>xs.some(k=>k!=='ok'&&k!=='noEvaluada')))?'1':'0';
-  oldNote.hidden=oldNote.dataset.review==='0';
   const hasProblems=()=>CATS.some(([cat])=>Array.from(form.querySelectorAll('[data-qc-cat="'+cat+'"] input[type=checkbox]:checked')).some(k=>k.value!=='ok'&&k.value!=='noEvaluada'));
   const healthField=()=>form.querySelector('[data-qc-cat="sanidad"]');
   const maxDisease=()=>Math.max(0,...Array.from(healthField().querySelectorAll('select[data-qc-disease]')).map(p=>
@@ -335,28 +321,28 @@
   const updateDiseaseDisabled=()=>healthField().querySelectorAll('select[data-qc-disease]').forEach(p=>{
    p.disabled=!p.closest('[data-qc-row]').querySelector('input[type=checkbox]').checked;
   });
-  const updateGlobal=(entered=false)=>{
-   if(!hasProblems()){global.value='0';global.disabled=true;}
-   else{
-    if(entered||Number(global.value)<10)global.value=String(Math.max(10,maxDisease()));
-    if(Number(global.value)<maxDisease())global.value=String(maxDisease());
-    global.disabled=false;
+  // Fórmula: media de los cinco bloques; enfermedades sumadas dentro de Sanidad.
+  const suggestedGlobal=()=>{
+   let sum=0;
+   for(const [cat] of CATS){
+    if(cat==='sanidad')sum+=Math.min(100,sumDisease());
+    else{
+     const selected=Array.from(form.querySelectorAll('[data-qc-cat="'+cat+'"] input[type=checkbox]:checked'));
+     if(selected.some(x=>x.value!=='ok'&&x.value!=='noEvaluada'))sum+=100;
+    }
    }
+   return Math.floor(sum/CATS.length/10)*10;
   };
-  global.addEventListener('change',()=>{
-   if(Number(global.value)<maxDisease()){
-    global.value=String(maxDisease());
-    feedback.textContent='El porcentaje global debe ser al menos el de la enfermedad más alta.';
-   }else feedback.textContent='';
-   oldNote.dataset.review='0';oldNote.hidden=true;
-  });
-  line.append(global);percentSection.append(titlePercent,line,oldNote,feedback);
+  const updateGlobal=(recalculate=false)=>{
+   if(recalculate)global.value=String(suggestedGlobal());
+   if(!hasProblems()){global.value='0';global.disabled=true;}
+   else global.disabled=false;
+  };
+  global.addEventListener('change',()=>{feedback.textContent='';});
+  line.append(global);percentSection.append(titlePercent,line,feedback);
   form.append(percentSection);
-  updateDiseaseDisabled();updateGlobal();
-  if(draft?.mediciones&&!draft?.categorias){
-   const notice=el('p','Este borrador utiliza cantidades anteriores. Al editarlo se convertirán a porcentajes; el borrador original no se envía hasta que confirmes Guardar.');
-   notice.style.cssText='font-size:12px;color:#805900';form.append(notice);
-  }
+  updateDiseaseDisabled();updateGlobal(!current);
+
 
    const info=el('p');info.setAttribute('role','alert');info.style.color='#9b1631';
   const actions=el('div');actions.style.cssText='display:flex;gap:10px;flex-wrap:wrap;margin-top:16px';
@@ -370,8 +356,7 @@
    save.disabled=true;
    try{
     requireSession();
-    if(Array.from(form.querySelectorAll('fieldset[data-qc-cat]')).some(x=>x.dataset.legacyUnresolved==='1')||
-       oldNote.dataset.review==='1')
+    if(Array.from(form.querySelectorAll('fieldset[data-qc-cat]')).some(x=>x.dataset.legacyUnresolved==='1'))
      throw Error('La inspección anterior tiene varias opciones. Selecciona expresamente el nuevo estado antes de guardar.');
     const data=validate(input(form));
     const isNew=!drafts.has(key(ref));

@@ -202,7 +202,7 @@ function validateEvaluationV5(input){
   const total=input.porcentajeInvalidasGlobal;
   if(!Number.isInteger(total)||total<0||total>100||total%10!==0)
     throw httpError(400,'INVALID_GLOBAL_PERCENT');
-  const clean={};let hasIssue=false,maxDisease=0;
+  const clean={};let hasIssue=false;
   for(const [cat,allowed] of Object.entries(OPTIONS)){
     const item=source[cat],isHealth=cat==='sanidad';
     if(!item||typeof item!=='object'||Array.isArray(item)||
@@ -232,14 +232,14 @@ function validateEvaluationV5(input){
       if(!SANIDAD_DISEASE_KEYS.includes(key)||!Number.isInteger(pct)||
          pct<10||pct>100||pct%10!==0)
         throw httpError(400,'INVALID_DISEASE_PERCENT');
-      cleaned[key]=pct;diseaseSum+=pct;maxDisease=Math.max(maxDisease,pct);
+      cleaned[key]=pct;diseaseSum+=pct;
     }
     // Con esta distribución el porcentaje global mide bandejas únicas:
     // no sumar incidencias que podrían concurrir en una misma bandeja.
     if(diseaseSum>100)throw httpError(400,'DISEASE_PERCENT_OVER_100');
     clean[cat]={opciones:opts,porcentajesEnfermedades:cleaned};
   }
-  if(hasIssue&&total<10||!hasIssue&&total!==0||total<maxDisease)
+  if(!hasIssue&&total!==0)
     throw httpError(400,'INVALID_GLOBAL_PERCENT');
   return {categorias:clean,porcentajeInvalidasGlobal:total};
 }
