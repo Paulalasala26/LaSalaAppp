@@ -75,6 +75,32 @@ function validateMeasurements(input){
   }
   return clean;
 }
+function validateCategorias(input){
+  if(!validQty(input.bandejasInspeccionadas))throw httpError(400,'INVALID_INSPECTED');
+  const source=input.categorias;
+  if(!source||typeof source!=='object'||Array.isArray(source)||
+    Object.keys(source).sort().join('|')!==Object.keys(OPTIONS).sort().join('|'))
+    throw httpError(400,'INVALID_MEASUREMENTS');
+  const clean={};
+  for(const [cat,allowed] of Object.entries(OPTIONS)){
+    const item=source[cat];
+    if(!item||typeof item!=='object'||Array.isArray(item)||
+      Object.keys(item).sort().join('|')!=='opciones|porcentajeInvalidas')
+      throw httpError(400,'INVALID_MEASUREMENTS');
+    const opts=item.opciones,pct=item.porcentajeInvalidas;
+    if(!Array.isArray(opts)||!opts.length||new Set(opts).size!==opts.length||
+       opts.some(o=>![...allowed,'noEvaluada'].includes(o))||
+       !Number.isInteger(pct)||pct<0||pct>100||pct%10!==0)
+      throw httpError(400,'INVALID_MEASUREMENTS');
+    if(opts.includes('noEvaluada')&&opts.length!==1)throw httpError(400,'INVALID_MEASUREMENTS');
+    if(opts.length===1){
+      const required=opts[0]==='ok'||opts[0]==='noEvaluada'?0:100;
+      if(pct!==required)throw httpError(400,'INVALID_PERCENT');
+    }
+    clean[cat]={opciones:opts,porcentajeInvalidas:pct};
+  }
+  return clean;
+}
 function pathFor(id){return DB+'/'+PREFIX+'/'+encodeURIComponent(id)+'.json';}
 function sourcePath(ref){
   const q=Math.floor((ref.dia-15)/14);
@@ -101,7 +127,7 @@ async function legacyRecord(ref,token){
 function validateStored(entry,ref,partida){
   if(entry===null)return {version:0};
   if(!entry||typeof entry!=='object'||Array.isArray(entry)||
-     entry.schemaVersion!==1||!Number.isInteger(entry.version)||entry.version<1||
+     ![1,2].includes(entry.schemaVersion)||!Number.isInteger(entry.version)||entry.version<1||
      entry.legacy?.id!==ref.id||entry.legacy?.tipo!==ref.tipo||
      entry.legacy?.dia!==ref.dia||entry.legacy?.partida!==partida)
     throw httpError(409,'SAVED_CONFLICT');
@@ -149,7 +175,7 @@ async function consultarEstadosQC(req,res,data){
       try{
         const stored=validateStored(value,{id:ref.id,tipo:q.tipo,dia:q.dia},ref.partida);
         if(stored.version<1)return false;
-        validateMeasurements(stored);
+        if(stored.schemaVersion===2)validateCategorias(stored);else validateMeasurements(stored);
         return true;
       }catch(_){return false;}
     }));
@@ -184,7 +210,7 @@ module.exports=async function handler(req,res){
       return res.status(200).json({ok:true,record:value?{
         version:stored.version,updatedAt:stored.updatedAt,
         updatedBy:stored.updatedBy,bandejasInspeccionadas:stored.bandejasInspeccionadas,
-        mediciones:stored.mediciones
+        mediciones:stored.mediciones,categorias:stored.categorias,schemaVersion:stored.schemaVersion
       }:null,sourcePartida:source.partida,
       ...(probe?{diagnostic:{etagAvailable:!!etag}}:{})});
     }
@@ -192,7 +218,8 @@ module.exports=async function handler(req,res){
     if(request.partida!==source.partida)throw httpError(409,'SOURCE_CHANGED');
     if(!Number.isSafeInteger(request.version)||request.version<0)
       throw httpError(400,'INVALID_VERSION');
-    const mediciones=validateMeasurements(request);
+    const isPercent=!!request.categorias;
+    const checked=isPercent?validateCategorias(request):validateMeasurements(request);
     phase='ETAG_READ';
     const stored=await getJson(pathFor(ref.id),token,true);
     if(!stored.etag)throw new Error('Firebase ETag unavailable');
@@ -201,10 +228,10 @@ module.exports=async function handler(req,res){
     if(before.version!==request.version)throw httpError(409,'CONCURRENT_MODIFICATION');
     const now=new Date().toISOString();
     const next={
-      schemaVersion:1,version:before.version+1,
+      schemaVersion:isPercent?2:1,version:before.version+1,
       legacy:{...ref,partida:source.partida},
       bandejasInspeccionadas:request.bandejasInspeccionadas,
-      mediciones,
+      ...(isPercent?{categorias:checked,legacyMediciones:before.legacyMediciones||before.mediciones||null}:{mediciones:checked}),
       createdAt:before.createdAt||now,
       updatedAt:now,updatedBy:actor,
       resultadoQC:null

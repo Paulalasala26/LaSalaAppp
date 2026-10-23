@@ -47,6 +47,19 @@
  }
  function validate(v){
   const total=v.bandejasInspeccionadas;
+  if(v.categorias){
+   if(!quantity(total))throw Error('Falta el total de bandejas.');
+   for(const [cat,name,opts] of CATS){
+    const item=v.categorias[cat],a=item?.opciones,p=item?.porcentajeInvalidas;
+    const allowed=new Set(opts.map(([key])=>key));
+    if(!Array.isArray(a)||!a.length||new Set(a).size!==a.length||a.some(k=>!allowed.has(k))||
+      !Number.isInteger(p)||p<0||p>100||p%10)throw Error(name+': selección o porcentaje no válido.');
+    if(a.includes('noEvaluada')&&a.length!==1)throw Error(name+': No evaluada debe estar sola.');
+    if(a.length===1&&p!==(a[0]==='ok'||a[0]==='noEvaluada'?0:100))
+     throw Error(name+': porcentaje incompatible con la selección.');
+   }
+   return v;
+  }
   if(!quantity(total))throw Error('Indica un número entero positivo de bandejas inspeccionadas.');
   for(const [category,name,opts] of CATS){
    const values=v.mediciones[category],entries=Object.entries(values);
@@ -64,15 +77,13 @@
   return v;
  }
  function input(form){
-  const result={bandejasInspeccionadas:Number(form.elements.namedItem('total').value),mediciones:{}};
-  for(const [cat,,opts] of CATS){
-   result.mediciones[cat]={};
-   for(const [opt] of opts){
-    const raw=form.elements.namedItem(cat+'_'+opt).value.trim();
-    if(raw!=='')result.mediciones[cat][opt]=Number(raw);
-   }
+  const out={bandejasInspeccionadas:Number(form.elements.namedItem('total').value),categorias:{}};
+  for(const [cat] of CATS){
+   const fields=Array.from(form.querySelectorAll('[data-qc-cat="'+cat+'"] input[type="checkbox"]:checked'));
+   const select=form.querySelector('[data-qc-cat="'+cat+'"] select');
+   out.categorias[cat]={opciones:fields.map(x=>x.value),porcentajeInvalidas:Number(select.value)};
   }
-  return result;
+  return out;
  }
  function close(){
   if(!editor)return;
@@ -99,92 +110,67 @@
   title.style.cssText='font-size:20px;color:#1558a0';
   const hint=el('p','No se enviará al servidor. Solo disponible en este dispositivo.');
   const form=el('form');form.noValidate=true;
-  const total=el('label','Bandejas inspeccionadas *');
-  total.style.cssText='display:block;font-weight:700;margin:15px 0';
-  const totalInput=el('input');totalInput.type='number';totalInput.name='total';
-  totalInput.min='1';totalInput.max='10000000';totalInput.step='1';totalInput.inputMode='numeric';
-  const sourceTotal=quantity(Number(ref.bandejas))&&/^\d+$/.test(String(ref.bandejas||'').trim())?
-    Number(ref.bandejas):null;
+  const total=el('div','Bandejas de la partida:');
+  total.style.cssText='display:flex;gap:8px;align-items:center;color:#1558a0;font-weight:800;margin:12px 0';
+  const sourceTotal=quantity(Number(ref.bandejas))&&/^\d+$/.test(String(ref.bandejas||'').trim())?Number(ref.bandejas):null;
   const initialTotal=draft?.bandejasInspeccionadas||sourceTotal;
-  let previousTotal=initialTotal||null;
-  totalInput.value=initialTotal||'';
-  totalInput.style.cssText='display:block;width:100%;padding:10px;border:1px solid #aac1d7;border-radius:8px';
+  const visibleTotal=el('strong',initialTotal?initialTotal.toLocaleString('es-ES'):'No disponible');
+  total.append(visibleTotal);
+  const totalInput=el('input');totalInput.type='hidden';totalInput.name='total';totalInput.value=initialTotal||'';
   total.append(totalInput);form.append(total);
   for(const [cat,name,opts] of CATS){
-   const field=el('fieldset'),legend=el('legend',name);
-   field.style.cssText='border:1px solid #cad9e7;border-radius:8px;padding:10px;margin:10px 0;background:white';
-   legend.style.fontWeight='700';field.append(legend);
-   const grid=el('div');grid.style.cssText='display:grid;grid-template-columns:1fr 1fr;gap:10px';
-   // Presentación únicamente: OK es la primera opción en cada categoría.
-   const displayOptions=[...opts.filter(([opt])=>opt==='ok'),
-    ...opts.filter(([opt])=>opt!=='ok')];
-   for(const [opt,desc] of displayOptions){
-    const labelField=el('label',desc);labelField.style.cssText='font-size:13px;display:block';
-    const n=el('input');n.type='number';n.step='1';n.min='1';n.max='10000000';n.inputMode='numeric';
-    n.name=cat+'_'+opt;
-    n.value=draft?(draft.mediciones?.[cat]?.[opt]||''):
-      sourceTotal&&opt==='ok'?sourceTotal:'';
-    n.style.cssText='display:block;width:100%;min-width:0;padding:10px;border:1px solid #aac1d7;border-radius:6px;margin-top:4px';
-    labelField.append(n);grid.append(labelField);
-   }field.append(grid);form.append(field);
-  }
-  // En un cambio de total reajustar solo OK que cuadraba antes.
-  // Los defectos y las cantidades incompletas se mantienen sin inventar bandejas.
-  function categoryBalanced(cat,values,total){
-   if(cat!=='raices')return Object.values(values).reduce((sum,n)=>sum+n,0)===total;
-   const evaluated=total-(values.noEvaluada||0);
-   const affected=evaluated-(values.ok||0);
-   return affected>=Math.max(values.pocaRaiz||0,values.raizVariedad||0)&&
-    affected<=(values.pocaRaiz||0)+(values.raizVariedad||0);
-  }
-  function syncMax(){
-   const total=Number(totalInput.value);
-   const maximum=quantity(total)?String(total):'10000000';
-   for(const element of form.querySelectorAll('input[type="number"]')){
-    if(element!==totalInput)element.max=maximum;
+   const field=el('fieldset');field.dataset.qcCat=cat;
+   field.style.cssText='border:1px solid #cad9e7;border-radius:9px;padding:11px;margin:10px 0;background:#fff';
+   const legend=el('legend',name);legend.style.cssText='font-size:14px;font-weight:800;color:#1558a0';
+   field.append(legend);
+   const choices=el('div');choices.style.cssText='display:flex;flex-wrap:wrap;gap:8px';
+   let selected=draft?.categorias?.[cat]?.opciones;
+   if(!Array.isArray(selected)){
+    const old=draft?.mediciones?.[cat];
+    selected=old?opts.map(([k])=>k).filter(k=>Number(old[k])>0):['ok'];
+    if(selected.includes('noEvaluada')&&selected.length>1)selected=selected.filter(k=>k!=='noEvaluada');
    }
-  }
-  for(const element of form.querySelectorAll('input[type="number"]')){
-   if(element===totalInput)continue;
-   element.addEventListener('change',()=>{
-    const max=Number(totalInput.value),n=Number(element.value);
-    if(element.value!==''&&quantity(max)&&quantity(n)&&n>max){
-     element.value=String(max);
-     info.textContent='Máximo '+max+' bandejas por opción. Valor ajustado.';
-    }
-   });
-  }
-  totalInput.addEventListener('change',()=>{
-   const total=Number(totalInput.value);
-   if(!quantity(total)){syncMax();return;}
-   if(previousTotal!==null&&total!==previousTotal){
-    for(const [cat,,opts] of CATS){
-     const values={};let valid=true;
-     for(const [opt] of opts){
-      const field=form.elements.namedItem(cat+'_'+opt);
-      if(field.value==='')continue;
-      const n=Number(field.value);
-      if(!quantity(n)){valid=false;break;}
-      values[opt]=n;
+   for(const [opt,desc] of [...opts.filter(([key])=>key==='ok'),...opts.filter(([key])=>key!=='ok')]){
+    const row=el('label');row.style.cssText='display:inline-flex;align-items:center;gap:7px;min-height:44px;border:1px solid #c1d9ef;border-radius:8px;padding:7px 11px;background:'+(opt==='ok'?'#e8f2ff':'#f5f9ff')+';font-size:13px;font-weight:700';
+    const box=el('input');box.type='checkbox';box.value=opt;box.checked=selected.includes(opt);
+    box.style.cssText='width:19px;height:19px;accent-color:#1558a0';
+    row.append(box,el('span',desc));choices.append(row);
+   }
+   field.append(choices);
+   const footer=el('label');footer.style.cssText='display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:11px;padding-top:10px;border-top:1px solid #dce8f4;font-size:13px;font-weight:800;color:#1558a0';
+   footer.append(el('span','% inválidas'));
+   const pct=el('select');pct.name=cat+'_pct';
+   pct.style.cssText='min-width:120px;min-height:45px;padding:8px;border:1px solid #9fbedf;border-radius:8px;color:#1558a0;background:#fff;font-size:16px;font-weight:800';
+   for(let n=0;n<=100;n+=10){const option=el('option',n+' %');option.value=String(n);pct.append(option);}
+   const old=draft?.mediciones?.[cat];
+   const prior=old&&initialTotal?Math.max(0,Math.min(100,Math.round((initialTotal-(Number(old.ok)||0)-(Number(old.noEvaluada)||0))/initialTotal*10)*10)):0;
+   pct.value=String(draft?.categorias?.[cat]?.porcentajeInvalidas??prior);
+   const adjust=()=>{
+    const a=Array.from(field.querySelectorAll('input[type="checkbox"]:checked')).map(x=>x.value);
+    const mixed=a.length>=2&&!a.includes('noEvaluada');
+    if(!mixed)pct.value=a.length===1&&a[0]!=='ok'&&a[0]!=='noEvaluada'?'100':'0';
+    pct.disabled=!mixed;
+   };
+   for(const box of choices.querySelectorAll('input')){
+    box.addEventListener('change',()=>{
+     if(box.checked&&box.value==='noEvaluada')
+      choices.querySelectorAll('input').forEach(x=>{if(x!==box)x.checked=false;});
+     else if(box.checked){
+      const no=choices.querySelector('input[value="noEvaluada"]');if(no)no.checked=false;
      }
-     if(!valid||!values.ok||!categoryBalanced(cat,values,previousTotal))continue;
-     const adjusted=values.ok+total-previousTotal;
-     if(adjusted>=0&&adjusted<=total)
-      form.elements.namedItem(cat+'_ok').value=adjusted||'';
-    }
+     const wasDisabled=pct.disabled;adjust();
+     if(!pct.disabled&&wasDisabled)pct.value='10';
+    });
    }
-   previousTotal=total;syncMax();
-  });
-  syncMax();
-  // Como en QC online, Enter avanza por cantidades; nunca confirma por accidente.
-  form.addEventListener('keydown',event=>{
-   if(event.key!=='Enter'||event.target?.tagName!=='INPUT'||event.target.type!=='number')return;
-   event.preventDefault();
-   const inputs=Array.from(form.querySelectorAll('input[type="number"]:not(:disabled)'));
-   const next=inputs[inputs.indexOf(event.target)+1];
-   if(next)next.focus();else event.target.blur();
-  });
-  const info=el('p');info.setAttribute('role','alert');info.style.color='#9b1631';
+   adjust();
+   footer.append(pct);field.append(footer);form.append(field);
+  }
+  if(draft?.mediciones&&!draft?.categorias){
+   const notice=el('p','Este borrador utiliza cantidades anteriores. Al editarlo se convertirán a porcentajes; el borrador original no se envía hasta que confirmes Guardar.');
+   notice.style.cssText='font-size:12px;color:#805900';form.append(notice);
+  }
+
+   const info=el('p');info.setAttribute('role','alert');info.style.color='#9b1631';
   const actions=el('div');actions.style.cssText='display:flex;gap:10px;flex-wrap:wrap;margin-top:16px';
   const cancel=el('button','Volver');cancel.type='button';
   const save=el('button','Guardar en dispositivo');save.type='submit';
@@ -200,7 +186,7 @@
     const isNew=!drafts.has(key(ref));
     if(isNew&&drafts.size>=LIMIT)throw Error('Hay demasiados borradores. Conéctate para revisarlos.');
     const stored={key:key(ref),owner,role,ref:{id:ref.id,tipo:ref.tipo,dia:ref.dia,partida:ref.partida},
-      ...data,at:Date.now(),status:'PENDIENTE_LOCAL'};
+      ...data,...(draft?.mediciones?{legacyMediciones:draft.mediciones}:{}),at:Date.now(),status:'PENDIENTE_LOCAL'};
     await operation('readwrite',s=>s.put(stored));
     drafts.set(key(ref),stored);
     active=null;close();
@@ -290,12 +276,16 @@
  // Es obligatorio persistir el intento ANTES de enviar: nunca tratar una foto
  // o un borrador con POST incierto como si nunca hubiera sido enviado.
  const canonical=value=>JSON.stringify(value);
- const matches=(stored,draft)=>!!stored&&stored.bandejasInspeccionadas===draft.bandejasInspeccionadas&&
-  CATS.every(([cat])=>{
-   const actual=stored.mediciones?.[cat],expected=draft.mediciones[cat];
-   if(!actual||Object.keys(actual).length!==Object.keys(expected).length)return false;
-   return Object.keys(expected).every(k=>actual[k]===expected[k]);
+ const matches=(stored,draft)=>{
+  if(!stored||stored.bandejasInspeccionadas!==draft.bandejasInspeccionadas)return false;
+  if(draft.categorias)return CATS.every(([cat])=>
+    JSON.stringify(stored.categorias?.[cat])===JSON.stringify(draft.categorias[cat]));
+  return CATS.every(([cat])=>{
+   const actual=stored.mediciones?.[cat],expected=draft.mediciones?.[cat];
+   return !!actual&&!!expected&&Object.keys(actual).length===Object.keys(expected).length&&
+    Object.keys(expected).every(k=>actual[k]===expected[k]);
   });
+ };
  // El servidor no almacena ID de intento. Para dar por nuestro un envío
  // anterior se exige además el mismo usuario, versión 1 y fecha posterior
  // al intento guardado. Si falta alguna evidencia, conservar el borrador.
@@ -315,7 +305,7 @@
    get.onsuccess=()=>{
     const current=get.result;
     if(!current||current.owner!==owner||current.role!==role||
-       current.at!==d.at||canonical(current.mediciones)!==canonical(d.mediciones)||
+       current.at!==d.at||canonical(current.categorias||current.mediciones)!==canonical(d.categorias||d.mediciones)||
        current.bandejasInspeccionadas!==d.bandejasInspeccionadas||
        !refValid(current.ref)||current.ref.id!==d.ref.id||
        !['PENDIENTE_LOCAL','ENVIO_INCIERTO'].includes(current.status)){
@@ -337,7 +327,7 @@
    get.onsuccess=()=>{
     const current=get.result;
     if(!current||current.owner!==owner||current.role!==role||
-       current.at!==d.at||canonical(current.mediciones)!==canonical(d.mediciones)||
+       current.at!==d.at||canonical(current.categorias||current.mediciones)!==canonical(d.categorias||d.mediciones)||
        current.bandejasInspeccionadas!==d.bandejasInspeccionadas||
        !refValid(current.ref)||current.ref.id!==d.ref.id||
        current.status!=='ENVIO_INCIERTO'){
@@ -413,7 +403,8 @@
     throw Error('Reenvío cancelado. Borrador local conservado para revisión.');
    if(!navigator.onLine)throw Error('No hay conexión. Borrador conservado.');
    const payload={id:ref.id,tipo:ref.tipo,dia:ref.dia,partida:ref.partida,
-    version:0,bandejasInspeccionadas:d.bandejasInspeccionadas,mediciones:d.mediciones};
+    version:0,bandejasInspeccionadas:d.bandejasInspeccionadas,
+    ...(d.categorias?{categorias:d.categorias}:{mediciones:d.mediciones})};
    // Persistir el hecho del intento antes del POST; resiste recarga o cierre.
    const attempted=await markAttempt(d);
    postAttempted=true;

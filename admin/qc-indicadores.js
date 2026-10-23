@@ -18,6 +18,21 @@
   function evalIndicators(measurement,rules){
     const inspected=measurement?.bandejasInspeccionadas;
     const data=measurement?.mediciones;
+    // V2: porcentaje global por categoría, sin atribuir cantidades a opciones.
+    if(Number.isSafeInteger(inspected)&&inspected>0&&measurement?.categorias){
+      const rows=[];
+      for(const [cat,name,labels] of CATS){
+        const item=measurement.categorias[cat];
+        if(!item||!Array.isArray(item.opciones)||!Number.isInteger(item.porcentajeInvalidas))continue;
+        rows.push({category:cat,categoryLabel:name,option:'invalidas',
+          optionLabel:item.opciones.map(k=>labels[k]||k).join(' + '),
+          count:null,pct:item.porcentajeInvalidas,percentDisplay:item.porcentajeInvalidas,
+          treatment:'informativo',treatmentLabel:'Informativo',
+          tolerance:null,level:'neutral',description:'Porcentaje global de inválidas'});
+      }
+      return {available:rows.length>0,inspected,rows,evaluatedCount:rows.length,
+        configuredCount:0,warningCount:0,criticalCount:0,objective:null,hasRules:false};
+    }
     if(!Number.isSafeInteger(inspected)||inspected<1||!data||typeof data!=='object'||Array.isArray(data))
       return {available:false,rows:[],inspected:null,warningCount:0,criticalCount:0,
         evaluatedCount:0,configuredCount:0,objective:null};

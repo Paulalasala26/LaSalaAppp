@@ -137,3 +137,17 @@
   .qco-inline .qco-photo-area{justify-content:flex-start}
   .qco-inline .qco-notes input{font-size:16px}
 }
+
+/* QC porcentual: selección táctil y porcentaje único al pie de cada apartado. */
+.qco-inline .qco-cat{padding:11px 12px;margin:8px 0;border:1px solid #c5d9ed}
+.qco-inline .qco-cat legend{font-size:14px;color:#1558a0}
+.qco-inline .qco-choices{display:flex;flex-wrap:wrap;gap:7px}
+.qco-inline .qco-option{display:inline-flex;grid-template-columns:none;flex-direction:row;align-items:center;justify-content:flex-start;gap:8px;margin:0;padding:9px 12px;min-height:42px;border:1px solid #cbdef0;border-radius:8px;background:#f5f9ff;cursor:pointer}
+.qco-inline .qco-option[data-option="ok"]{background:#e8f2ff}
+.qco-inline .qco-option input[type=checkbox]{width:20px;height:20px;flex:none;accent-color:#1558a0}
+.qco-inline .qco-percent-row{display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid #d6e5f5;margin-top:10px;padding-top:10px;font-size:13px;font-weight:800;color:#1558a0}
+.qco-inline .qco-percent{min-width:110px;min-height:43px;padding:8px 12px;font-size:16px;color:#1558a0;border:1px solid #a8c7e9;border-radius:8px;background:#fff;font-weight:800;cursor:pointer}
+.qco-inline .qco-percent:disabled{opacity:1;color:#456581;background:#edf3fa;cursor:default}
+.qco-inline .qco-total{padding:9px 3px;font-size:13px}
+.qco-inline .qco-total-value{font-variant-numeric:tabular-nums}
+@media(max-width:560px){.qco-inline .qco-choices{display:flex;gap:7px}.qco-inline .qco-option{display:inline-flex;flex-direction:row;align-items:center;justify-content:flex-start;min-height:45px;padding:9px 11px}.qco-inline .qco-option[data-option=noEvaluada]{display:inline-flex;grid-column:auto}.qco-inline .qco-percent{min-width:120px;min-height:46px}}
