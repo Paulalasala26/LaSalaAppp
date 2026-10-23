@@ -5736,7 +5736,15 @@ async function procesarColaOffline(){
     const fn = ACCIONES_OFFLINE_REPLAYABLES[accion.fn];
     if(!fn){ sinAplicar++; continue; } // no se sabe reaplicar: NO se descarta
     let lanzoExcepcion = false;
-    try{ await fn(...accion.args); }catch(e){ lanzoExcepcion = true; sinAplicar++; }
+    try{
+      if((accion.fn==='aplicarNuevaLineaControl'||accion.fn==='aplicarNuevaLineaControlCarga')&&accion.args?.length===1){
+        // Una línea creada ayer sin conexión se sincroniza con su fecha original
+        // si la acción se creó ese día o antes; no se trata de un alta retroactiva.
+        // A diferencia de una acción ordinaria, NO duplicamos el cambio en la cola.
+        const saved=await fn(accion.args[0],{qcReplayCreatedAt:accion.t});
+        if(saved!==true){sinAplicar++;continue;}
+      }else await fn(...accion.args);
+    }catch(e){ lanzoExcepcion = true; sinAplicar++; }
     // La propia fn ya gestiona su reintento (vuelve a encolarse con un qid
     // nuevo si falla) — aquí solo se retira la entrada ORIGINAL de esta
     // ronda, nunca antes de haberla intentado, y nunca si lanzó (en ese caso
@@ -7959,6 +7967,21 @@ function renderControlCargaCardHTML(c, seccion){
 }
 // No se admiten altas manuales QC con fecha anterior a hoy, ningún rol exceptuado.
 function puedeCrearLineaControlQC(dia){return Number.isInteger(dia)&&dia>=riegoDiaDeHoy();}
+// Recuperación de un registro creado válidamente sin conexión un día anterior.
+// Solo aplica a una acción ya encolada: nunca autoriza pulsar Añadir/Guardar
+// en fechas pasadas. En caso de formato de fecha dudoso, la cola se conserva.
+function altaQCOfflineOriginalValida(dia,queuedAt){
+  if(!Number.isInteger(dia)||typeof queuedAt!=='string')return false;
+  const match=queuedAt.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\D|$)/);
+  if(!match)return false;
+  const day=Number(match[1]),month=Number(match[2]),year=Number(match[3]);
+  if(year<2020||year>2100||month<1||month>12||day<1||day>31)return false;
+  const when=new Date(year,month-1,day);
+  if(when.getFullYear()!==year||when.getMonth()!==month-1||when.getDate()!==day)return false;
+  const target=riegoDiaToDate(dia);
+  return target instanceof Date&&Number.isFinite(target.getTime())&&
+    fechaLocalISO(target)>=fechaLocalISO(when);
+}
 function bloquearAltaPasadaControlQC(dia){
   if(puedeCrearLineaControlQC(dia))return false;
   showToast('No se pueden añadir líneas manuales a días anteriores a hoy.');
@@ -8030,20 +8053,25 @@ async function guardarNuevoControlCargaCheck(){
 // nube pero el aviso de éxito no llegó al dispositivo), no se vuelve a añadir — si no,
 // una reconexión podría duplicar la línea. El toast/repintado se hacen ANTES de
 // esperar la red (mismo motivo que aplicarSanidadEnfermedad).
-async function aplicarNuevaLineaControlCarga(entry){
-  // No insertar una línea nueva retroactiva, ni al reproducir la cola offline.
-  // Un ID ya existente se conserva por idempotencia.
+async function aplicarNuevaLineaControlCarga(entry,replay){
   if(!entry||entry.tipo!=='carga')return false;
+  const reentry=!!replay?.qcReplayCreatedAt;
   if(!controlChecksData.find(x=>x.id===entry.id)){
-    if(bloquearAltaPasadaControlQC(entry.dia))return false;
+    if(!puedeCrearLineaControlQC(entry.dia)&&
+       !altaQCOfflineOriginalValida(entry.dia,replay?.qcReplayCreatedAt)){
+      if(reentry)throw Error('QC_CARGA_COLA_FECHA_NO_VALIDADA');
+      bloquearAltaPasadaControlQC(entry.dia);
+      return false;
+    }
     controlChecksData.push(entry);
   }
   showToast('✓ Línea añadida');
   renderControlContent(document.getElementById('control-overlay'));
-  const qid = encolarAccionOffline('aplicarNuevaLineaControlCarga', [entry]);
+  const qid = reentry?null:encolarAccionOffline('aplicarNuevaLineaControlCarga', [entry]);
   marcarControlCheckSucio(entry.id);
   const ok = await persistControlChecksData();
-  if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
+  if(ok){if(qid)desencolarAccion(qid);}
+  else if(!reentry) avisarGuardadoLocalPendiente(leerColaOffline().length);
   return ok;
 }
 // Destinos manuales permitidos: hoy o futuro. La fecha antigua ORIGINAL de
@@ -8718,18 +8746,25 @@ async function guardarNuevoControlCheck(tipo){
 }
 // Mismo motivo que aplicarNuevaLineaControlCarga: el id se genera antes de intentar
 // guardar, así reproducir esta acción desde la cola offline nunca duplica la línea.
-async function aplicarNuevaLineaControl(entry){
+async function aplicarNuevaLineaControl(entry,replay){
   if(!entry||entry.tipo!=='tunel')return false;
+  const reentry=!!replay?.qcReplayCreatedAt;
   if(!controlChecksData.find(x=>x.id===entry.id)){
-    if(bloquearAltaPasadaControlQC(entry.dia))return false;
+    if(!puedeCrearLineaControlQC(entry.dia)&&
+       !altaQCOfflineOriginalValida(entry.dia,replay?.qcReplayCreatedAt)){
+      if(reentry)throw Error('QC_TUNEL_COLA_FECHA_NO_VALIDADA');
+      bloquearAltaPasadaControlQC(entry.dia);
+      return false;
+    }
     controlChecksData.push(entry);
   }
   showToast('✓ Línea añadida');
   renderControlContent(document.getElementById('control-overlay'));
-  const qid = encolarAccionOffline('aplicarNuevaLineaControl', [entry]);
+  const qid = reentry?null:encolarAccionOffline('aplicarNuevaLineaControl', [entry]);
   marcarControlCheckSucio(entry.id);
   const ok = await persistControlChecksData();
-  if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
+  if(ok){if(qid)desencolarAccion(qid);}
+  else if(!reentry) avisarGuardadoLocalPendiente(leerColaOffline().length);
   return ok;
 }
 function eliminarControlCheck(id){

@@ -1,11 +1,20 @@
 # VIGUERAPP / APP R v3 — ESTADO MAESTRO CANÓNICO
 
-**Revisión:** 22/10/2026 (España) · **Responsable del estado:** esta conversación, con verificaciones GitHub/Vercel y confirmaciones expresas del usuario.
+**Revisión:** 23/10/2026 (España) · **Responsable del estado:** esta conversación, con verificaciones GitHub/Vercel y confirmaciones expresas del usuario.
 
 > **LEE ESTO ANTES DE PLANIFICAR O MODIFICAR APP R EN CUALQUIER CHAT O CHATGPT PROJECT.**
 > Este es el **único inventario vivo** de trabajo terminado y pendiente. Los handovers DOCX y otros `docs/*.md` con fechas anteriores son **histórico**, no una nueva lista de tareas. El repositorio es la fuente de código; la confirmación funcional del usuario es la fuente de la prueba de aceptación. **Nunca conviertas un pendiente histórico en pendiente actual sin contrastarlo.**
 
-## 0. REANUDACIÓN INMEDIATA — 21/10/2026 (para nuevo chat)
+## 0. CONTINUIDAD ACTUAL — 23/10/2026 (LEER ANTES DEL RESTO)
+
+**Última petición del usuario:** impedir cualquier **alta manual de QC Túnel y QC Carga en fechas anteriores al día actual**; al terminar este ajuste solicitó «fin de chat. Procede». La medida está implementada en TEST en 0.79 (botón Añadir línea oculto en históricos, impedir abrir/guardar/aplicar alta, impedir traslado manual hacia otras fechas pasadas, impedir importación desde PDF a jornadas anteriores; para cualquier rol). La corrección complementaria **0.80** protege las altas registradas **legítimamente hoy/ayer sin conexión** y reenviadas después: el sincronizador conserva la cola si falla el guardado, o reenvía la fecha original solo si la fecha local de encolado demuestra que la jornada de destino no era pasada en el momento del alta. Nunca abre la posibilidad de añadir un registro histórico nuevo por la interfaz. No se inventan datos ni se modifican registros anteriores.
+
+**Validez:** tests estáticos y de funciones sin escribir datos; **UAT visual/operativa pendiente** del usuario sobre días AYER, HOY y MAÑANA en Túnel/Carga, con y sin partidas; comprobar botón, apertura forzada, guardado, edición de históricos, importación PDF y sincronización offline legítima. **No declarar aprobación de usuario hasta que lo confirme.** Repo `Paulalasala26/LaSalaAppp`, SOLO rama `test/v1.0`; TEST `https://la-sala-app-test.vercel.app`. El código canónico está en `index.html`, helper `puedeCrearLineaControlQC` y funciones de alta `aplicarNuevaLineaControl`/`aplicarNuevaLineaControlCarga`; documento maestro `docs/APP_R_V3_ESTADO_MAESTRO.md`. Comprobar SHA HEAD y Vercel READY al abrir nuevo chat. `main`/PRD no tocar ni promover sin aprobación expresa.
+
+**Próximo trabajo:** esperar el resultado de la revisión visual/operativa de QC o la nueva prioridad que indique el usuario. El bloque de recodificación de QC 0.71–0.78 y la navegación compartida están implementados en TEST y tienen aprobaciones parciales del usuario; no reabrir por defecto. Después quedan Operativas/Tareas, Plaguicidas → Pistola → Tareas (pendiente de contraste con técnico), Partidas y Específicos, revisión final de roles y preparación controlada PRD. Priorizar la decisión del usuario, evitar guías de prueba atomizadas y mantener el diseño azul homogéneo.
+
+---
+## 0. HISTÓRICO DE REANUDACIÓN — 21/10/2026 (SUPERADO POR LA SECCIÓN ANTERIOR)
 
 **El usuario ha pedido pasar a lo siguiente después del cambio visual de QC. NO iniciar otra batería de pruebas QC ni reconstruir pendientes desde conversaciones anteriores.** El último cambio solicitado fue **mostrar OK en la primera fila** de Color, Tamaño, Sanidad, Flores y Raíces, con **fondo azul claro uniforme**, en el QC online y borrador offline. Está **IMPLEMENTADO EN TEST** y verificado técnicamente (orden DOM cinco categorías), con Vercel READY del commit `cbe4bd6cdc2d6ce113af74da3d2a043bca674848` al comprobarlo el 21/10; el usuario respondió «siguiente», pero **no confirmó de forma específica la visualización final**. Dejar anotada esa validación visual como pendiente no bloqueante; preguntar solo si aparece incidencia. El usuario SÍ había confirmado «Ok, correcto» a la precarga automática de cantidades y OK antes de estos retoques visuales.
 
@@ -879,6 +888,16 @@ El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en int
 **Archivos de esta versión:** `index.html` (alta manual, fechas, PDF, controles), `assets/control-ui-empty.js` (botones condicionales); busting del JS a `v079` en la página. Sin cambios de estilos, categorías QC, cálculos, endpoints, RTDB/SharePoint ni datos existentes. Exclusivamente `test/v1.0`; `main`/PRD no se tocan.
 
 **Comprobaciones técnicas aisladas:** evaluado permiso con fecha no válida, ayer, hoy y mañana; ambos tipos y pantallas vacías no muestran alta ni PDF en ayer y sí lo muestran hoy; se verifica la comprobación en apertura, guardado, aplicación, reubicación, reparto e importación PDF; el JavaScript completo de las cinco etiquetas `<script>` inline de `index.html` supera parseo sintáctico. Pendiente UAT autenticada verificando ayer/hoy/mañana en Túnel y Carga, tanto con registros como sin ellos; sin escritura de datos TEST en esta implementación.
+
+## 0.80. QC — sincronización tardía de altas offline sin permitir altas retroactivas (23/10/2026)
+
+**Motivo:** el bloqueo v0.79 evita correctamente registros manuales nuevos en fechas pasadas, pero puede bloquear una acción genuina creada sin conexión el día permitido y sincronizada al día siguiente. La cola anterior de la aplicación interpreta la devolución `false` como un intento consumido, **retira el registro sin persistencia y aparenta sincronización exitosa**. Es riesgo de pérdida de datos de campo y se corrige sin deshacer la prohibición.
+
+**Implementación:** en `index.html`, el procesador `procesarColaOffline` reconoce únicamente las acciones ya guardadas `aplicarNuevaLineaControl` y `aplicarNuevaLineaControlCarga`. Pasa el timestamp original `accion.t` como contexto de replay. `altaQCOfflineOriginalValida(dia,queuedAt)` solo autoriza el reenvío de una línea atrasada cuando el timestamp es una fecha española real `DD/MM/YYYY` y el día del propio registro es **igual o posterior al de encolado original**. Cualquier llamada interactiva sin ese contexto sigue evaluando `puedeCrearLineaControlQC(dia)` y solo permite hoy o futuro. Las funciones de replay no crean un segundo elemento de cola: si el intento falla se conserva **la acción original** para otro reintento; las acciones desconocidas, timestamps ambiguos y entradas retroactivas nunca se descartan falsamente. La UI sigue ocultando Añadir línea en los días anteriores; no modifica importaciones PDF, cambios de fecha, evaluaciones, fotos ni otros módulos. Se mantiene la idempotencia por ID.
+
+**Prueba aislada:** cinco scripts inline de `index.html` parseados con `new Function`, tests del validador con fecha española 22/10 que se sincroniza 23/10 (permitido), selección de fecha futura válida, intento de encolar el 22 una línea con fecha 21 (rechazado), fecha imposible y fecha antigua (rechazadas). Comprobada existencia de los dos caminos QC y que el procesador preserva la acción cuando no obtiene confirmación de guardado. No probado todavía con dispositivo real offline y Firebase; se deja en **UAT pendiente**.
+
+**Estado:** TEST `test/v1.0` exclusivamente; no mutación de datos reales, Firebase ni PRD. Documentar commit y despliegue READY con SHA en el mensaje final de este chat, no inferirlos de versiones anteriores.
 
 ## 1. Reglas innegociables
 
