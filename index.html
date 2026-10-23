@@ -1641,7 +1641,7 @@ let tareasGestorVista = 'operativas';
 function irATareasGestorVista(v){
   if(!['operativas','mantenimiento','archivo'].includes(v))return;
   if(v!==tareasGestorVista){
-    tareasGestorFiltros={estado:'todas',origen:'todos',sala:'todas',asignado:'todos',fecha:v==='operativas'?fechaLocalISO(new Date()):'',busqueda:''};
+    tareasGestorFiltros={estado:'todas',origen:'todos',sala:'todas',asignado:'todos',fecha:'',busqueda:''};
     tareasGestorFiltrosAbiertos=false;
   }
   tareasGestorVista=v;
@@ -1801,7 +1801,11 @@ async function showTareasModule(){
     if(!sigueAbierta())return;
     if(!esGestor)await avisarNuevasTareas(usuarioAlAbrir);
     if(esGestor)await loadMantenimientoData();
-    if(esGestor)await procesarColaRiegoTareas();
+    if(esGestor){
+      await procesarColaRiegoTareas();
+      // Releer estado remoto: otra sesión puede haber generado tareas en los últimos 30 segundos.
+      await loadTareasData();
+    }
     if(!sigueAbierta())return;
     tareasGestorVista='operativas';
     resetFiltrosTareasGestorSinRender();
@@ -2320,10 +2324,10 @@ const TAREAS_GESTOR_VISTAS = [
 // sección del menú lateral (Antiguas/Hoy/Mañana/Mantenimiento) se pinta en
 // el panel de la derecha, sin perder nada de lo que ya había (nueva tarea,
 // asignar en lote, editar/eliminar, imprimir, kanban de mantenimiento...).
-let tareasGestorFiltros={estado:'todas',origen:'todos',sala:'todas',asignado:'todos',fecha:fechaLocalISO(new Date()),busqueda:''};
+let tareasGestorFiltros={estado:'todas',origen:'todos',sala:'todas',asignado:'todos',fecha:'',busqueda:''};
 let tareasGestorFiltrosAbiertos=false;
 function resetFiltrosTareasGestorSinRender(){
- tareasGestorFiltros={estado:'todas',origen:'todos',sala:'todas',asignado:'todos',fecha:fechaLocalISO(new Date()),busqueda:''};
+ tareasGestorFiltros={estado:'todas',origen:'todos',sala:'todas',asignado:'todos',fecha:'',busqueda:''};
  tareasGestorFiltrosAbiertos=false;
 }
 function cambiarFechaTareasGestor(n){
