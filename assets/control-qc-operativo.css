@@ -151,3 +151,30 @@
 .qco-inline .qco-total{padding:9px 3px;font-size:13px}
 .qco-inline .qco-total-value{font-variant-numeric:tabular-nums}
 @media(max-width:560px){.qco-inline .qco-choices{display:flex;gap:7px}.qco-inline .qco-option{display:inline-flex;flex-direction:row;align-items:center;justify-content:flex-start;min-height:45px;padding:9px 11px}.qco-inline .qco-option[data-option=noEvaluada]{display:inline-flex;grid-column:auto}.qco-inline .qco-percent{min-width:120px;min-height:46px}}
+
+/* 0.72: opciones alineadas verticalmente; selección azul inequívoca. */
+.qco-inline .qco-choices{display:grid;grid-template-columns:minmax(0,1fr);gap:6px;width:100%}
+.qco-inline .qco-option,
+.qco-inline .qco-option[data-option="ok"],
+.qco-inline .qco-option[data-option=noEvaluada]{
+  box-sizing:border-box;display:flex;flex-direction:row;align-items:center;justify-content:flex-start;
+  width:100%;min-height:42px;margin:0;padding:8px 12px;gap:11px;
+  border:1px solid #cadcec;border-radius:8px;
+  background:#f6f9fd;color:#294968;font-size:13px;font-weight:750;cursor:pointer;
+}
+.qco-inline .qco-option input[type=checkbox]{
+  width:19px;height:19px;margin:0;accent-color:#1558a0;flex:none
+}
+.qco-inline .qco-option:has(input:checked){
+  border-color:#2874b8;background:#e2f0ff;color:#104f88;
+  box-shadow:inset 3px 0 0 #2874b8
+}
+.qco-inline .qco-option:focus-within{outline:2px solid #7bade0;outline-offset:1px}
+.qco-inline .qco-option[data-option=noEvaluada]{font-weight:600;color:#617a91}
+.qco-inline .qco-percent-row{margin-top:9px;padding:11px 3px 1px}
+@media(max-width:560px){
+  .qco-inline .qco-choices{display:grid;grid-template-columns:minmax(0,1fr)}
+  .qco-inline .qco-option,.qco-inline .qco-option[data-option=noEvaluada]{
+    display:flex;flex-direction:row;align-items:center;min-height:43px;padding:9px 11px
+  }
+}

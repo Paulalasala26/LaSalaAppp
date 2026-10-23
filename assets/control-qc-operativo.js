@@ -8,7 +8,7 @@
     ['color','Color',[['verde','Verde'],['amarillo','Amarillo'],['verdeClaro','Verde claro'],['ok','OK']]],
     ['tamano','Tamaño',[['grande','Grande'],['pequeno','Pequeño'],['ok','OK']]],
     ['sanidad','Sanidad',[['ok','OK'],['enferma','Enferma']]],
-    ['flores','Flores',[['si','Sí'],['no','No'],['ok','OK']]],
+    ['flores','Flores',[['ok','OK · Sin flores'],['si','Sí · Con flores']]],
     ['raices','Raíces',[['pocaRaiz','Poca raíz'],['raizVariedad','Raíz en variedad'],['ok','OK']]]
   ];
   CATS.forEach(cat=>cat[2].push(['noEvaluada','No evaluada']));
@@ -231,6 +231,13 @@
       wrap.querySelector('.qco-percent').disabled=!(selected.length>=2&&!selected.includes('noEvaluada'));
     }
   }
+  // El histórico puede conservar Flores/No (equivalente agronómico a OK).
+  // Adaptar solo para presentar; nunca modificar un registro sin guardado expreso.
+  function normalizeOptions(cat,values){
+    const seen=new Set();
+    return values.map(v=>cat==='flores'&&v==='no'?'ok':v)
+      .filter(v=>{if(seen.has(v))return false;seen.add(v);return true;});
+  }
   function populate(saved,rec){
     version=saved?.version||0;
     const total=saved?strCount(saved.bandejasInspeccionadas):strCount(rec?.numBandejas);
@@ -241,9 +248,10 @@
       let chosen=saved?.categorias?.[cat]?.opciones;
       if(!Array.isArray(chosen)){
         const old=saved?.mediciones?.[cat];
-        chosen=old?opts.map(([k])=>k).filter(k=>Number(old[k])>0):['ok'];
-        if(chosen.includes('noEvaluada')&&chosen.length>1)chosen=chosen.filter(k=>k!=='noEvaluada');
+        chosen=old?Object.keys(old).filter(k=>Number(old[k])>0):['ok'];
       }
+      chosen=normalizeOptions(cat,chosen);
+      if(chosen.includes('noEvaluada')&&chosen.length>1)chosen=chosen.filter(k=>k!=='noEvaluada');
       for(const box of wrap.querySelectorAll('input[type="checkbox"]')){box.checked=chosen.includes(box.value);box.disabled=false;}
       const picker=wrap.querySelector('.qco-percent');
       const mixed=chosen.length>=2&&!chosen.includes('noEvaluada');

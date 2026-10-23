@@ -89,7 +89,7 @@ function validateCategorias(input){
       throw httpError(400,'INVALID_MEASUREMENTS');
     const opts=item.opciones,pct=item.porcentajeInvalidas;
     if(!Array.isArray(opts)||!opts.length||new Set(opts).size!==opts.length||
-       opts.some(o=>![...allowed,'noEvaluada'].includes(o))||
+       opts.some(o=>![...allowed.filter(o=>cat!=='flores'||o!=='no'),'noEvaluada'].includes(o))||
        !Number.isInteger(pct)||pct<0||pct>100||pct%10!==0)
       throw httpError(400,'INVALID_MEASUREMENTS');
     if(opts.includes('noEvaluada')&&opts.length!==1)throw httpError(400,'INVALID_MEASUREMENTS');

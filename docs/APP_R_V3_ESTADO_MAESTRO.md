@@ -796,6 +796,16 @@ El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en int
 
 **Pruebas técnicas aisladas:** parseo de JS API, online, offline e indicadores correcto; validador API verifica OK→0 %, Sanidad OK+Enferma→30 %, solo Enferma→100 %, Flores Sí+No→40 %; rechaza solo Enferma→20 % y 15 % fuera de tramos. **No equivale a UAT real** ni verifica el end-to-end online/offline autenticado contra Firebase TEST. Falta probar en dispositivo selección, guardado confirmado, recarga sin pérdida y sincronización offline con una inspección TEST. Después de validar, reanudar Operativas/Mantenimiento/Archivo y Bloque C según decisión del usuario. Prohibido tocar `main`, Firebase PRD o ViguerAPP PRD sin autorización expresa.
 
+## 0.72. QC Flores — semántica correcta y botones ordenados (23/10/2026)
+
+**Cambio solicitado tras aceptación funcional general del 0.71:** QC Túnel y Carga deben ofrecer en Flores **OK = sin flores, planta correcta** y **Sí = con flores**. La antigua opción «No» desaparece de la captura nueva para evitar duplicarse con OK. Se conserva «No evaluada» como estado operativo independiente, no diagnóstico. Si se marca solo OK el % inválidas es 0, solo Sí es 100, y OK + Sí admite 0–100 en tramos de 10 según las reglas ya aceptadas. Resto de categorías y algoritmo porcentual sin cambio.
+
+**Diseño:** opciones de las cinco categorías en filas de ancho completo, una bajo otra, con altura táctil compacta, borde y fondo azules al seleccionar, porcentaje único alineado al pie; mismo patrón en formulario online y borrador offline. Se conserva azul ViguerAPP, total de bandejas informadas no editable, observaciones/foto y las protecciones de guardado/concurrencia. Ajustes acotados a `assets/control-qc-operativo.js`, `.css`, `assets/qc-offline-operarios-drafts.js`, `api/admin-qc-mediciones.js`, `admin/qc-indicadores.js`, versionado de recursos en `index.html` y caché offline `sw.js` v17.
+
+**Compatibilidad:** mediciones antiguas schema v1 con Flores/No siguen siendo aceptadas por su validador histórico y consultables; borradores offline v1 con Flores/No pueden sincronizarse sin editarse. En el editor de nuevo formato, v1 o v2 con «No» se visualizan como **OK**, sin escritura automática ni eliminación del dato original. El API rechaza «No» únicamente en nuevas mediciones schema v2, manteniendo el soporte de las antiguas. Resumen de v2 presenta el mismo nombre agronómico. No se modifican registros remotos, criterios antiguos ni reglas de otros módulos.
+
+**Pruebas técnicas:** análisis sintáctico JS; comprobación de aceptaciones/rechazos API v2 y lectura de datos legados; estilos fila única y coherencia offline. UAT pendiente de verificar con usuario en Túnel/Carga: Flores OK solo, Sí solo y ambos con porcentaje libre, legibilidad móvil y reapertura conservando selección. No declarar UAT completa antes de respuesta real. Solo GitHub `test/v1.0` y Vercel TEST, sin escritura Firebase ni acceso PRD/main.
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).

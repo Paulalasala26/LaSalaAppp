@@ -6,7 +6,7 @@
   ['color','Color',[['verde','Verde'],['amarillo','Amarillo'],['verdeClaro','Verde claro'],['ok','OK'],['noEvaluada','No evaluada']]],
   ['tamano','Tamaño',[['grande','Grande'],['pequeno','Pequeño'],['ok','OK'],['noEvaluada','No evaluada']]],
   ['sanidad','Sanidad',[['ok','OK'],['enferma','Enferma'],['noEvaluada','No evaluada']]],
-  ['flores','Flores',[['si','Sí'],['no','No'],['ok','OK'],['noEvaluada','No evaluada']]],
+  ['flores','Flores',[['ok','OK · Sin flores'],['si','Sí · Con flores'],['noEvaluada','No evaluada']]],
   ['raices','Raíces',[['pocaRaiz','Poca raíz'],['raizVariedad','Raíz en variedad'],['ok','OK'],['noEvaluada','No evaluada']]]
  ];
  let owner='',role='',drafts=new Map(),editor=null,active=null,startValue='',syncing=false;
@@ -64,7 +64,9 @@
   for(const [category,name,opts] of CATS){
    const values=v.mediciones[category],entries=Object.entries(values);
    if(!entries.length)throw Error(name+': falta clasificar las bandejas.');
-   for(const [option,n] of entries)if(!opts.some(x=>x[0]===option)||!quantity(n)||n>total)
+   // Borradores cuantitativos v1 podían registrar Flores/No: conservar su envío original.
+   for(const [option,n] of entries)if(!(opts.some(x=>x[0]===option)||
+       category==='flores'&&option==='no')||!quantity(n)||n>total)
     throw Error(name+': cantidad incorrecta.');
    if(category==='raices'){
     const no=values.noEvaluada||0,ok=values.ok||0,affected=total-no-ok;
@@ -123,20 +125,30 @@
    field.style.cssText='border:1px solid #cad9e7;border-radius:9px;padding:11px;margin:10px 0;background:#fff';
    const legend=el('legend',name);legend.style.cssText='font-size:14px;font-weight:800;color:#1558a0';
    field.append(legend);
-   const choices=el('div');choices.style.cssText='display:flex;flex-wrap:wrap;gap:8px';
+   const choices=el('div');choices.style.cssText='display:grid;grid-template-columns:minmax(0,1fr);gap:6px';
    let selected=draft?.categorias?.[cat]?.opciones;
    if(!Array.isArray(selected)){
     const old=draft?.mediciones?.[cat];
-    selected=old?opts.map(([k])=>k).filter(k=>Number(old[k])>0):['ok'];
-    if(selected.includes('noEvaluada')&&selected.length>1)selected=selected.filter(k=>k!=='noEvaluada');
+    selected=old?Object.keys(old).filter(k=>Number(old[k])>0):['ok'];
    }
+   selected=[...new Set(selected.map(k=>cat==='flores'&&k==='no'?'ok':k))];
+   if(selected.includes('noEvaluada')&&selected.length>1)selected=selected.filter(k=>k!=='noEvaluada');
    for(const [opt,desc] of [...opts.filter(([key])=>key==='ok'),...opts.filter(([key])=>key!=='ok')]){
-    const row=el('label');row.style.cssText='display:inline-flex;align-items:center;gap:7px;min-height:44px;border:1px solid #c1d9ef;border-radius:8px;padding:7px 11px;background:'+(opt==='ok'?'#e8f2ff':'#f5f9ff')+';font-size:13px;font-weight:700';
+    const row=el('label');row.style.cssText='box-sizing:border-box;display:flex;width:100%;align-items:center;gap:11px;min-height:42px;border:1px solid #cadcec;border-radius:8px;padding:8px 12px;background:#f6f9fd;color:#294968;font-size:13px;font-weight:750;cursor:pointer';
     const box=el('input');box.type='checkbox';box.value=opt;box.checked=selected.includes(opt);
     box.style.cssText='width:19px;height:19px;accent-color:#1558a0';
     row.append(box,el('span',desc));choices.append(row);
    }
    field.append(choices);
+   const paintChoices=()=>{
+    for(const row of choices.querySelectorAll('label')){
+     const checked=!!row.querySelector('input')?.checked;
+     row.style.background=checked?'#e2f0ff':'#f6f9fd';
+     row.style.borderColor=checked?'#2874b8':'#cadcec';
+     row.style.color=checked?'#104f88':'#294968';
+    }
+   };
+   paintChoices();
    const footer=el('label');footer.style.cssText='display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:11px;padding-top:10px;border-top:1px solid #dce8f4;font-size:13px;font-weight:800;color:#1558a0';
    footer.append(el('span','% inválidas'));
    const pct=el('select');pct.name=cat+'_pct';
@@ -160,6 +172,7 @@
      }
      const wasDisabled=pct.disabled;adjust();
      if(!pct.disabled&&wasDisabled)pct.value='10';
+     paintChoices();
     });
    }
    adjust();
