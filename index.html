@@ -162,7 +162,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 <style>.qc-card-medido{display:inline-block;font-size:11px;font-weight:800;color:#1558a0;margin-top:4px}</style>
 <script src="admin/qc-indicadores.js?v=077" defer></script>
 <script src="assets/control-qc-operativo.js?v=077" defer></script>
-<script src="assets/control-ui-empty.js?v=078" defer></script>
+<script src="assets/control-ui-empty.js?v=079" defer></script>
 <script src="assets/qc-offline-operarios-store.js" defer></script>
 </head>
 <body>
@@ -6920,6 +6920,7 @@ function renderControlChecklistHTML(seccion){
     return window.QCEmptyState.render({
       tipo:seccion.key,titulo:seccion.label,selected:controlDiaSel,
       dateNavHTML:renderControlQCDateNav(controlQuincenaOffset,controlDiaSel,'list'),
+      canAdd:puedeCrearLineaControlQC(controlDiaSel),
       pending:leerColaOffline().length,
       pdfNombre:pdf?.nombre||'',pdfUrl:pdf?.pdfB64||''
     });
@@ -6991,6 +6992,7 @@ function renderControlChecklistHTML(seccion){
   // nada pendiente sin tener que fiarse solo del aviso naranja automático.
   const pendientesGlobal = leerColaOffline().length;
   const addAction = seccion.key==='carga' ? 'mostrarFormNuevoControlCargaCheck()' : "mostrarFormNuevoControlCheck('tunel')";
+  const addAllowed=puedeCrearLineaControlQC(controlDiaSel);
   const pdfInfoHTML = pdf ? `<div class="qc-list-pdf-existing"><i class="ti ti-file-check" aria-hidden="true"></i> ${escapar(pdf.nombre)} · <a href="${pdf.pdfB64}" target="_blank" rel="noopener noreferrer">Ver PDF</a></div>` : '';
   const syncHTML = pendientesGlobal>0 ? `<button type="button" class="qc-list-sync" onclick="sincronizarControlManual()"><i class="ti ti-refresh"></i> ${pendientesGlobal} pendiente${pendientesGlobal===1?'':'s'} · Sincronizar</button>` : '';
   const extraTunelHTML = seccion.key==='tunel' ? `
@@ -7007,7 +7009,7 @@ function renderControlChecklistHTML(seccion){
     <section class="qc-list-screen" aria-label="${seccion.label}">
       <div class="qc-list-head">
         <h2>${seccion.label}</h2>
-        <button type="button" class="qc-list-add" onclick="${addAction}"><i class="ti ti-plus" aria-hidden="true"></i> Añadir línea</button>
+        ${addAllowed?'<button type="button" class="qc-list-add" onclick="'+addAction+'"><i class="ti ti-plus" aria-hidden="true"></i> Añadir línea</button>':''}
       </div>
       ${renderControlQCDateNav(controlQuincenaOffset,controlDiaSel,'list')}
        <div id="nuevo-control-form-wrap"></div>
@@ -7026,9 +7028,9 @@ function renderControlChecklistHTML(seccion){
         <summary>Más opciones</summary>
         <div class="qc-list-more-actions">
           ${controlVistaChecklist==='dashboard'?'':viewActionHTML}
-          <label class="qc-list-option"><i class="ti ti-file-type-pdf"></i> ${pdf?'Sustituir PDF':'Insertar PDF'}
+          ${addAllowed?`<label class="qc-list-option"><i class="ti ti-file-type-pdf"></i> ${pdf?'Sustituir PDF':'Insertar PDF'}
             <input type="file" accept="application/pdf" onchange="handleControlPdfInput(this,'${seccion.key}',${controlDiaSel})">
-          </label>
+          </label>`:''}
           ${extraTunelHTML}
           ${pendientesGlobal===0?'<button type="button" class="qc-list-option" onclick="sincronizarControlManual()"><i class="ti ti-refresh"></i> Sincronizar</button>':''}
         </div>
@@ -7039,10 +7041,13 @@ function renderControlChecklistHTML(seccion){
 
 }
 function handleControlPdfInput(input, tipo, dia){
+  // La importación manual de un PDF también puede crear líneas QC.
+  if(bloquearAltaPasadaControlQC(dia)){if(input)input.value='';return;}
   if(!input.files || !input.files[0]) return;
   const file = input.files[0];
   const reader = new FileReader();
   reader.onload = async function(e){
+    if(bloquearAltaPasadaControlQC(dia))return;
     const pdfOk=await guardarControlPdf(tipo,dia,file.name,e.target.result);
     if(!pdfOk){
       showToast('❌ Error al guardar el PDF — inténtalo de nuevo');
@@ -7362,6 +7367,7 @@ async function autoCrearPinzadosDesdePdfTunel(pdfB64){
   }
 }
 async function autoCrearLineasDesdePdfControl(tipo, dia, pdfB64){
+  if(bloquearAltaPasadaControlQC(dia))return -4;
   try{
     const base64 = pdfB64.split(',')[1];
     const binStr = atob(base64);
@@ -7473,6 +7479,7 @@ function parseControlCargaPdfPartidas(lineas){
   return { records: records.filter(r => !/ZE|YE/i.test(r.partida)), noReconocidas };
 }
 async function autoCrearLineasDesdePdfControlCarga(dia, pdfB64){
+  if(bloquearAltaPasadaControlQC(dia))return -4;
   try{
     const base64 = pdfB64.split(',')[1];
     const binStr = atob(base64);
@@ -7950,7 +7957,15 @@ function renderControlCargaCardHTML(c, seccion){
       </div>
     </div>`;
 }
+// No se admiten altas manuales QC con fecha anterior a hoy, ningún rol exceptuado.
+function puedeCrearLineaControlQC(dia){return Number.isInteger(dia)&&dia>=riegoDiaDeHoy();}
+function bloquearAltaPasadaControlQC(dia){
+  if(puedeCrearLineaControlQC(dia))return false;
+  showToast('No se pueden añadir líneas manuales a días anteriores a hoy.');
+  return true;
+}
 function mostrarFormNuevoControlCargaCheck(){
+  if(bloquearAltaPasadaControlQC(controlDiaSel))return;
   const wrap = document.getElementById('nuevo-control-form-wrap');
   if(!wrap) return;
   wrap.innerHTML = `
@@ -7993,6 +8008,7 @@ function mostrarFormNuevoControlCargaCheck(){
     </div>`;
 }
 async function guardarNuevoControlCargaCheck(){
+  if(bloquearAltaPasadaControlQC(controlDiaSel))return false;
   const cliente = document.getElementById('ncc-cliente')?.value?.trim() || '';
   const partida = document.getElementById('ncc-partida')?.value?.trim() || '';
   const variedad = document.getElementById('ncc-variedad')?.value?.trim() || '';
@@ -8015,7 +8031,13 @@ async function guardarNuevoControlCargaCheck(){
 // una reconexión podría duplicar la línea. El toast/repintado se hacen ANTES de
 // esperar la red (mismo motivo que aplicarSanidadEnfermedad).
 async function aplicarNuevaLineaControlCarga(entry){
-  if(!controlChecksData.find(x=>x.id===entry.id)) controlChecksData.push(entry);
+  // No insertar una línea nueva retroactiva, ni al reproducir la cola offline.
+  // Un ID ya existente se conserva por idempotencia.
+  if(!entry||entry.tipo!=='carga')return false;
+  if(!controlChecksData.find(x=>x.id===entry.id)){
+    if(bloquearAltaPasadaControlQC(entry.dia))return false;
+    controlChecksData.push(entry);
+  }
   showToast('✓ Línea añadida');
   renderControlContent(document.getElementById('control-overlay'));
   const qid = encolarAccionOffline('aplicarNuevaLineaControlCarga', [entry]);
@@ -8024,17 +8046,12 @@ async function aplicarNuevaLineaControlCarga(entry){
   if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
   return ok;
 }
-// Opciones de <select> de día para mover una línea de Control a otra fecha
-// (a petición de Paula, 2026-08-01, tanto en Túnel como en Carga) — rango
-// amplio (±30 días desde hoy) en vez de limitarlo a la quincena que se esté
-// viendo, para poder mover una línea a cualquier fecha cercana sin tener que
-// cambiar de quincena antes; si la propia línea ya estuviera fuera de ese
-// rango (poco probable) se añade igualmente para que no desaparezca de la
-// lista.
+// Destinos manuales permitidos: hoy o futuro. La fecha antigua ORIGINAL de
+// una línea existente se mantiene como opción para poder editar sin moverla.
 function generarOpcionesDiaControl(diaSel){
   const centro = riegoDiaDeHoy();
   const dias = [];
-  for(let d=centro-30; d<=centro+30; d++) dias.push(d);
+  for(let d=centro; d<=centro+30; d++) dias.push(d);
   if(!dias.includes(diaSel)) dias.push(diaSel);
   dias.sort((a,b)=>a-b);
   return dias.map(d=>`<option value="${d}"${d===diaSel?' selected':''}>${riegoDiaLabelCorto(d)} — ${riegoDiaSemana(d)}</option>`).join('');
@@ -8095,6 +8112,7 @@ async function guardarEditarControlCargaCheck(id){
   const diaNuevo = parseInt(document.getElementById('ecc-dia')?.value, 10);
   const diaCambio = !isNaN(diaNuevo) && diaNuevo !== c.dia;
   const dia = isNaN(diaNuevo) ? c.dia : diaNuevo;
+  if(diaCambio && bloquearAltaPasadaControlQC(dia))return false;
   const cliente = document.getElementById('ecc-cliente')?.value?.trim() || '';
   const partida = document.getElementById('ecc-partida')?.value?.trim() || '';
   const variedad = document.getElementById('ecc-variedad')?.value?.trim() || '';
@@ -8106,6 +8124,7 @@ async function guardarEditarControlCargaCheck(id){
 async function aplicarEditarControlCargaCheck(id, dia, cliente, partida, variedad, numBandejas, invernadero, diaCambio){
   const c = controlChecksData.find(x=>x.id===id);
   if(!c) return;
+  if(dia!==c.dia && bloquearAltaPasadaControlQC(dia))return false;
   c.dia = dia; c.cliente = cliente; c.partida = partida; c.variedad = variedad;
   c.numBandejas = numBandejas; c.invernadero = invernadero;
   document.getElementById('control-editar-carga-overlay').style.display = 'none';
@@ -8485,6 +8504,7 @@ async function aplicarAsignarCalleControl(id, invId, tramos){
 async function aplicarAsignarCalleControlMulti(id, grupos){
   const c = controlChecksData.find(x=>x.id===id);
   if(!c) return;
+  if(grupos.length>1 && bloquearAltaPasadaControlQC(c.dia))return false;
   if(grupos.length===1){
     // Caso normal (un solo invernadero) — sin cambios de comportamiento.
     return aplicarAsignarCalleControl(id, grupos[0].invId, grupos[0].tramos);
@@ -8558,6 +8578,7 @@ async function guardarEditarControlCheck(id){
   const diaNuevo = parseInt(document.getElementById('ec-dia')?.value, 10);
   const diaCambio = !isNaN(diaNuevo) && diaNuevo !== c.dia;
   const dia = isNaN(diaNuevo) ? c.dia : diaNuevo;
+  if(diaCambio && bloquearAltaPasadaControlQC(dia))return false;
   const clienteVariedad = document.getElementById('ec-cliente-variedad')?.value?.trim() || '';
   const partida = document.getElementById('ec-partida')?.value?.trim() || '';
   const numBandejas = document.getElementById('ec-bandejas')?.value?.trim() || '';
@@ -8567,6 +8588,7 @@ async function guardarEditarControlCheck(id){
 async function aplicarEditarControlCheck(id, dia, clienteVariedad, partida, numBandejas, diaCambio){
   const c = controlChecksData.find(x=>x.id===id);
   if(!c) return;
+  if(dia!==c.dia && bloquearAltaPasadaControlQC(dia))return false;
   c.dia = dia; c.clienteVariedad = clienteVariedad; c.partida = partida; c.numBandejas = numBandejas;
   document.getElementById('control-editar-overlay').style.display = 'none';
   showToast(diaCambio ? `✓ Línea actualizada y movida a ${riegoDiaLabelCorto(dia)}` : '✓ Línea actualizada');
@@ -8622,6 +8644,7 @@ async function guardarControlObservaciones(id, valor){
   return ok; // Permite a QC distinguir guardado remoto de cola pendiente.
 }
 function mostrarFormNuevoControlCheck(tipo){
+  if(tipo!=='tunel'||bloquearAltaPasadaControlQC(controlDiaSel))return;
   const wrap = document.getElementById('nuevo-control-form-wrap');
   if(!wrap) return;
   wrap.innerHTML = `
@@ -8675,6 +8698,7 @@ function actualizarCallesControl(){
   hastaSel.innerHTML = opts;
 }
 async function guardarNuevoControlCheck(tipo){
+  if(tipo!=='tunel'||bloquearAltaPasadaControlQC(controlDiaSel))return false;
   const clienteVariedad = document.getElementById('nc-cliente-variedad')?.value?.trim() || '';
   const partida = document.getElementById('nc-partida')?.value?.trim() || '';
   const numBandejas = document.getElementById('nc-bandejas')?.value?.trim() || '';
@@ -8695,7 +8719,11 @@ async function guardarNuevoControlCheck(tipo){
 // Mismo motivo que aplicarNuevaLineaControlCarga: el id se genera antes de intentar
 // guardar, así reproducir esta acción desde la cola offline nunca duplica la línea.
 async function aplicarNuevaLineaControl(entry){
-  if(!controlChecksData.find(x=>x.id===entry.id)) controlChecksData.push(entry);
+  if(!entry||entry.tipo!=='tunel')return false;
+  if(!controlChecksData.find(x=>x.id===entry.id)){
+    if(bloquearAltaPasadaControlQC(entry.dia))return false;
+    controlChecksData.push(entry);
+  }
   showToast('✓ Línea añadida');
   renderControlContent(document.getElementById('control-overlay'));
   const qid = encolarAccionOffline('aplicarNuevaLineaControl', [entry]);
