@@ -24,6 +24,24 @@
       for(const [cat,name,labels] of CATS){
         const item=measurement.categorias[cat];
         if(!item||!Array.isArray(item.opciones)||!Number.isInteger(item.porcentajeInvalidas))continue;
+        if(cat==='sanidad'&&item.porcentajesEnfermedades){
+          const names={enfermedad1:'Enfermedad 1',enfermedad2:'Enfermedad 2',
+            enfermedad3:'Enfermedad 3',enfermedad4:'Enfermedad 4'};
+          for(const key of ['enfermedad1','enfermedad2','enfermedad3','enfermedad4']){
+            if(!Object.hasOwn(item.porcentajesEnfermedades,key))continue;
+            const value=item.porcentajesEnfermedades[key];
+            rows.push({category:cat,categoryLabel:name,option:key,
+              optionLabel:names[key],count:null,pct:value,percentDisplay:value,
+              treatment:'informativo',treatmentLabel:'Informativo',
+              tolerance:null,level:'neutral',description:'Porcentaje individual de enfermedad'});
+          }
+          rows.push({category:cat,categoryLabel:name,option:'invalidas',
+            optionLabel:'Total inválidas',count:null,pct:item.porcentajeInvalidas,
+            percentDisplay:item.porcentajeInvalidas,
+            treatment:'informativo',treatmentLabel:'Informativo',
+            tolerance:null,level:'neutral',description:'Suma de enfermedades redondeada hacia abajo'});
+          continue;
+        }
         rows.push({category:cat,categoryLabel:name,option:'invalidas',
           optionLabel:item.opciones.map(k=>cat==='flores'&&k==='no'?'Ok':cat==='flores'&&k==='ok'?'Ok':cat==='flores'&&k==='si'?'Con flores':labels[k]||k).join(' + '),
           count:null,pct:item.porcentajeInvalidas,percentDisplay:item.porcentajeInvalidas,

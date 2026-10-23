@@ -75,6 +75,9 @@ function validateMeasurements(input){
   }
   return clean;
 }
+const SANIDAD_DISEASE_KEYS=Object.freeze(['enfermedad1','enfermedad2','enfermedad3','enfermedad4']);
+// Claves estables: cambiar las etiquetas por enfermedades/plagas reales antes de PRD,
+// nunca asignar diagnósticos nuevos a un antiguo 'enferma' sin dato de origen.
 function validateCategorias(input){
   if(!validQty(input.bandejasInspeccionadas))throw httpError(400,'INVALID_INSPECTED');
   const source=input.categorias;
@@ -98,6 +101,60 @@ function validateCategorias(input){
       if(pct!==required)throw httpError(400,'INVALID_PERCENT');
     }
     clean[cat]={opciones:opts,porcentajeInvalidas:pct};
+  }
+  return clean;
+}
+// Formato v3: una incidencia de sanidad, un porcentaje propio (10,20,...,100).
+// El total es la suma (sin solapamientos) redondeada hacia abajo al tramo de 10.
+// No aceptar silenciosamente más del 100%, ni asignar enfermedad a registros v2.
+function validateDiseaseCategorias(input){
+  if(!validQty(input.bandejasInspeccionadas))throw httpError(400,'INVALID_INSPECTED');
+  const source=input.categorias;
+  if(!source||typeof source!=='object'||Array.isArray(source)||
+     Object.keys(source).sort().join('|')!==Object.keys(OPTIONS).sort().join('|'))
+     throw httpError(400,'INVALID_MEASUREMENTS');
+  const clean={};
+  for(const [cat,allowed] of Object.entries(OPTIONS)){
+    const item=source[cat];
+    if(!item||typeof item!=='object'||Array.isArray(item))throw httpError(400,'INVALID_MEASUREMENTS');
+    const sanidad=cat==='sanidad';
+    if(Object.keys(item).sort().join('|')!==(sanidad?
+       'opciones|porcentajeInvalidas|porcentajesEnfermedades':'opciones|porcentajeInvalidas'))
+       throw httpError(400,'INVALID_MEASUREMENTS');
+    const opts=item.opciones,pct=item.porcentajeInvalidas;
+    const choices=sanidad?['ok',...SANIDAD_DISEASE_KEYS,'noEvaluada']:
+      [...allowed.filter(o=>cat!=='flores'||o!=='no'),'noEvaluada'];
+    if(!Array.isArray(opts)||!opts.length||new Set(opts).size!==opts.length||
+       opts.some(o=>!choices.includes(o))||
+       !Number.isInteger(pct)||pct<0||pct>100||pct%10!==0)
+       throw httpError(400,'INVALID_MEASUREMENTS');
+    if(opts.includes('noEvaluada')&&opts.length!==1)throw httpError(400,'INVALID_MEASUREMENTS');
+    if(!sanidad){
+      if(opts.length===1&&pct!==(opts[0]==='ok'||opts[0]==='noEvaluada'?0:100))
+        throw httpError(400,'INVALID_PERCENT');
+      clean[cat]={opciones:opts,porcentajeInvalidas:pct};
+      continue;
+    }
+    const details=item.porcentajesEnfermedades;
+    if(!details||typeof details!=='object'||Array.isArray(details))
+      throw httpError(400,'INVALID_DISEASE_PERCENT');
+    const diseases=opts.filter(o=>SANIDAD_DISEASE_KEYS.includes(o));
+    if(Object.keys(details).length!==diseases.length||
+       Object.keys(details).some(k=>!diseases.includes(k)))
+      throw httpError(400,'INVALID_DISEASE_PERCENT');
+    let sum=0;
+    for(const key of diseases){
+      const n=details[key];
+      if(!Number.isInteger(n)||n<10||n>100||n%10!==0)
+        throw httpError(400,'INVALID_DISEASE_PERCENT');
+      sum+=n;
+    }
+    if(sum>100)throw httpError(400,'DISEASE_PERCENT_OVER_100');
+    const rounded=Math.floor(sum/10)*10;
+    if(pct!==rounded)throw httpError(400,'INVALID_DISEASE_TOTAL');
+    if(!diseases.length&&opts.length!==1)throw httpError(400,'INVALID_MEASUREMENTS');
+    clean[cat]={opciones:opts,porcentajeInvalidas:rounded,
+      porcentajesEnfermedades:Object.fromEntries(diseases.map(k=>[k,details[k]]))};
   }
   return clean;
 }
@@ -127,7 +184,7 @@ async function legacyRecord(ref,token){
 function validateStored(entry,ref,partida){
   if(entry===null)return {version:0};
   if(!entry||typeof entry!=='object'||Array.isArray(entry)||
-     ![1,2].includes(entry.schemaVersion)||!Number.isInteger(entry.version)||entry.version<1||
+     ![1,2,3].includes(entry.schemaVersion)||!Number.isInteger(entry.version)||entry.version<1||
      entry.legacy?.id!==ref.id||entry.legacy?.tipo!==ref.tipo||
      entry.legacy?.dia!==ref.dia||entry.legacy?.partida!==partida)
     throw httpError(409,'SAVED_CONFLICT');
@@ -175,7 +232,9 @@ async function consultarEstadosQC(req,res,data){
       try{
         const stored=validateStored(value,{id:ref.id,tipo:q.tipo,dia:q.dia},ref.partida);
         if(stored.version<1)return false;
-        if(stored.schemaVersion===2)validateCategorias(stored);else validateMeasurements(stored);
+        if(stored.schemaVersion===3)validateDiseaseCategorias(stored);
+        else if(stored.schemaVersion===2)validateCategorias(stored);
+        else validateMeasurements(stored);
         return true;
       }catch(_){return false;}
     }));
@@ -219,7 +278,10 @@ module.exports=async function handler(req,res){
     if(!Number.isSafeInteger(request.version)||request.version<0)
       throw httpError(400,'INVALID_VERSION');
     const isPercent=!!request.categorias;
-    const checked=isPercent?validateCategorias(request):validateMeasurements(request);
+    const hasDiseaseBreakdown=isPercent&&
+      Object.prototype.hasOwnProperty.call(request.categorias?.sanidad||{},'porcentajesEnfermedades');
+    const checked=hasDiseaseBreakdown?validateDiseaseCategorias(request):
+      isPercent?validateCategorias(request):validateMeasurements(request);
     phase='ETAG_READ';
     const stored=await getJson(pathFor(ref.id),token,true);
     if(!stored.etag)throw new Error('Firebase ETag unavailable');
@@ -228,7 +290,7 @@ module.exports=async function handler(req,res){
     if(before.version!==request.version)throw httpError(409,'CONCURRENT_MODIFICATION');
     const now=new Date().toISOString();
     const next={
-      schemaVersion:isPercent?2:1,version:before.version+1,
+      schemaVersion:hasDiseaseBreakdown?3:isPercent?2:1,version:before.version+1,
       legacy:{...ref,partida:source.partida},
       bandejasInspeccionadas:request.bandejasInspeccionadas,
       ...(isPercent?{categorias:checked,legacyMediciones:before.legacyMediciones||before.mediciones||null}:{mediciones:checked}),
