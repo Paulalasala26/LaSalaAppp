@@ -25,7 +25,7 @@
         const item=measurement.categorias[cat];
         if(!item||!Array.isArray(item.opciones)||!Number.isInteger(item.porcentajeInvalidas))continue;
         rows.push({category:cat,categoryLabel:name,option:'invalidas',
-          optionLabel:item.opciones.map(k=>cat==='flores'&&k==='no'?'OK · Sin flores':cat==='flores'&&k==='ok'?'OK · Sin flores':cat==='flores'&&k==='si'?'Sí · Con flores':labels[k]||k).join(' + '),
+          optionLabel:item.opciones.map(k=>cat==='flores'&&k==='no'?'Ok':cat==='flores'&&k==='ok'?'Ok':cat==='flores'&&k==='si'?'Con flores':labels[k]||k).join(' + '),
           count:null,pct:item.porcentajeInvalidas,percentDisplay:item.porcentajeInvalidas,
           treatment:'informativo',treatmentLabel:'Informativo',
           tolerance:null,level:'neutral',description:'Porcentaje global de inválidas'});

@@ -806,6 +806,10 @@ El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en int
 
 **Pruebas técnicas:** análisis sintáctico JS; comprobación de aceptaciones/rechazos API v2 y lectura de datos legados; estilos fila única y coherencia offline. UAT pendiente de verificar con usuario en Túnel/Carga: Flores OK solo, Sí solo y ambos con porcentaje libre, legibilidad móvil y reapertura conservando selección. No declarar UAT completa antes de respuesta real. Solo GitHub `test/v1.0` y Vercel TEST, sin escritura Firebase ni acceso PRD/main.
 
+## 0.73. QC Flores — etiquetas exactas, sin alterar lógica (23/10/2026)
+
+**Corrección literal del usuario:** sustituir exclusivamente las dos etiquetas de Flores en QC Túnel y QC Carga: primera opción **«Ok»**, segunda **«Con flores»**. Retirar los textos añadidos «Sin flores» y «Sí ·». Mantener «No evaluada» y toda la lógica de selección/porcentaje v0.72, persistencia schema v1/v2, compatibilidad histórica, fotografías, firmas, API y guardado sin modificaciones funcionales. Misma corrección en el borrador offline y resumen de indicadores. CSS y distribución vertical aprobada sin cambios. Actualizar cachés de recursos en `index.html` a v073 y shell offline en `sw.js` a v18. UAT visual pendiente. Exclusivamente rama `test/v1.0` y Vercel TEST; no tocar main ni Firebase PRD.
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).

@@ -8,7 +8,7 @@
     ['color','Color',[['verde','Verde'],['amarillo','Amarillo'],['verdeClaro','Verde claro'],['ok','OK']]],
     ['tamano','Tamaño',[['grande','Grande'],['pequeno','Pequeño'],['ok','OK']]],
     ['sanidad','Sanidad',[['ok','OK'],['enferma','Enferma']]],
-    ['flores','Flores',[['ok','OK · Sin flores'],['si','Sí · Con flores']]],
+    ['flores','Flores',[['ok','Ok'],['si','Con flores']]],
     ['raices','Raíces',[['pocaRaiz','Poca raíz'],['raizVariedad','Raíz en variedad'],['ok','OK']]]
   ];
   CATS.forEach(cat=>cat[2].push(['noEvaluada','No evaluada']));
