@@ -6113,6 +6113,8 @@ async function showControlModule(){
   // Si el índice no estuviera disponible, se conserva el loader v1 como
   // fallback de seguridad; los módulos heredados siguen usándolo aparte.
   const esCargador=currentUserRole==='CARGADOR';
+  controlCargaInvFiltro='';
+  controlTunelInvFiltro='';
   const [v2ok] = await Promise.all([
     loadControlV2Index(false),
     ...(esCargador?[]:[loadConteoTutaData(),loadControlInvernaderoData()])
@@ -6523,9 +6525,10 @@ function renderControlTunelWizardHTML(){
 
   const cabeceraHTML='<div class="qc-wizard-heading"><h2>QC Túnel</h2></div>'+
     renderControlQCDateNav(controlWizardQuincenaOffset,controlWizardDiaSel,'wizard');
+  const filtroInvHTML=renderControlFiltroInvHTML('tunel');
 
   if(controlWizardDiaSel==null){
-    return cabeceraHTML + `<div style="text-align:center;padding:2.5rem 1rem;color:var(--muted);font-style:italic">Elige un día para ver sus partidas.</div>`;
+    return cabeceraHTML + filtroInvHTML + `<div style="text-align:center;padding:2.5rem 1rem;color:var(--muted);font-style:italic">Elige un día para ver sus partidas.</div>`;
   }
 
   if(controlWizardNivel==='evaluar' && controlWizardPartidaId){
@@ -6538,13 +6541,13 @@ function renderControlTunelWizardHTML(){
   // Misma agrupación en guiones que la vista clásica (partida repetida en
   // varios días → 1 tarjeta), sin tocar renderControlChecklistHTML — ver
   // [[lasala_control_tunel_intocable]].
-  const listaDia = controlChecksData.filter(c=>c.tipo==='tunel' && c.dia===controlWizardDiaSel);
+  const listaDia = controlLineasFiltradasInv(controlChecksData.filter(c=>c.tipo==='tunel' && c.dia===controlWizardDiaSel),'tunel');
   const gruposYaPintados = new Set();
   const filasHTML = listaDia.map(c=>{
     if(!c.partida) return renderControlWizardFilaHTML(c, null);
     const groupKey = 'tunel|'+c.partida;
     if(gruposYaPintados.has(groupKey)) return '';
-    const grupo = controlChecksData.filter(x=>x.tipo==='tunel' && x.partida===c.partida).sort((a,b)=>a.dia-b.dia);
+    const grupo = controlLineasFiltradasInv(controlChecksData.filter(x=>x.tipo==='tunel' && x.partida===c.partida),'tunel').sort((a,b)=>a.dia-b.dia);
     gruposYaPintados.add(groupKey);
     const guionInfo = grupo.length>1 ? {n: grupo.findIndex(x=>x.id===c.id)+1, total: grupo.length} : null;
     return renderControlWizardFilaHTML(c, guionInfo);
@@ -6553,9 +6556,9 @@ function renderControlTunelWizardHTML(){
   // Ginés: con cero partidas, ocultar Dashboard y CSV, que no aportan datos.
   // Se conserva su cinta de fechas y el wizard existente.
   if(!listaDia.length){
-    return cabeceraHTML + '<div class="qc-empty-panel" role="status">'+
+    return cabeceraHTML + filtroInvHTML + '<div class="qc-empty-panel" role="status">'+
       '<i class="ti ti-clipboard-list" aria-hidden="true"></i>'+
-      '<strong>Sin partidas para este día</strong>'+
+      '<strong>'+(controlTunelInvFiltro?'Sin partidas para este invernadero y día':'Sin partidas para este día')+'</strong>'+
       '<p>Selecciona otra fecha para continuar.</p></div>';
   }
 
@@ -6570,10 +6573,10 @@ function renderControlTunelWizardHTML(){
     <button onclick="exportarControlCSV('tunel', controlWizardDiaSel)" style="width:100%;margin-bottom:16px;padding:16px;border-radius:12px;font-size:14px;font-weight:800;border:2px solid #2e7d32;cursor:pointer;background:#fff;color:#2e7d32;display:flex;align-items:center;justify-content:center;gap:8px"><i class="ti ti-file-spreadsheet" style="font-size:17px"></i> Exportar CSV del día</button>`;
 
   if(controlWizardVista==='dashboard'){
-    return cabeceraHTML + barraSuperiorHTML + renderControlDashboardDiaHTML(seccion, listaDia);
+    return cabeceraHTML + filtroInvHTML + barraSuperiorHTML + renderControlDashboardDiaHTML(seccion, listaDia);
   }
 
-  return cabeceraHTML + barraSuperiorHTML + `
+  return cabeceraHTML + filtroInvHTML + barraSuperiorHTML + `
     <div style="font-size:13px;font-weight:700;color:var(--muted);margin-bottom:14px">${listaDia.length} partida${listaDia.length===1?'':'s'} · ${numCompletados} completada${numCompletados===1?'':'s'}</div>
     <div style="display:flex;flex-direction:column;gap:12px">
       ${filasHTML || `<div style="text-align:center;padding:3rem 1rem;color:var(--muted);font-style:italic">No hay partidas para este día todavía.</div>`}
@@ -6696,6 +6699,29 @@ async function cambiarControlFiltroEstado(v){
 // código (ver [[lasala_control_tunel_intocable]]).
 let controlCargaInvFiltro = '';
 let controlTunelInvFiltro = '';
+
+function renderControlFiltroInvHTML(tipo){
+  const actual=tipo==='carga'?controlCargaInvFiltro:controlTunelInvFiltro;
+  const cambiar=tipo==='carga'?'cambiarControlCargaInvFiltro':'cambiarControlTunelInvFiltro';
+  // Mismo orden que QC Carga: títulos de Sala no clicables (<optgroup>).
+  const salas=[['Sala 1',ALL_INV_IDS_SALA1],['Sala 2',ALL_INV_IDS],
+    ['Sala 3',ALL_INV_IDS_SALA3],['Sala 4',ALL_INV_IDS_SALA4],['Sala 5',ALL_INV_IDS_SALA5]];
+  return '<div class="qc-list-inv" style="box-sizing:border-box;min-width:0;width:100%;max-width:100%;margin:9px 0 11px">'
+   +'<label for="qc-inv-filtro-'+tipo+'" style="display:block;font-size:12px;font-weight:800;color:#1558a0;margin-bottom:4px">Invernadero</label>'
+   +'<select id="qc-inv-filtro-'+tipo+'" onchange="'+cambiar+'(this.value)" class="qc-list-select" aria-label="Filtrar invernadero" '
+   +'style="box-sizing:border-box;width:100%;max-width:100%;min-width:0;min-height:42px;padding:8px;border:1px solid #b5c9df;border-radius:7px;background:#fff;color:#17324e;font-size:14px">'
+   +'<option value=""'+(!actual?' selected':'')+'>Todos los invernaderos</option>'
+   +salas.map(([sala,ids])=>'<optgroup label="'+sala+'">'+ids.map(id=>
+     '<option value="'+id+'"'+(actual===id?' selected':'')+'>INV '+id+'</option>').join('')+'</optgroup>').join('')
+   +'</select></div>';
+}
+function controlLineasFiltradasInv(lista,tipo){
+  const selected=tipo==='carga'?controlCargaInvFiltro:controlTunelInvFiltro;
+  if(!selected)return lista;
+  return lista.map(c=>({c,part:tipo==='carga'?calleTramoDeCarga(c):calleTramoDeTunel(c)}))
+    .filter(({part})=>part&&(tipo==='carga'?coincideInvernaderoCarga(part.invId,selected):part.invId===selected))
+    .sort((a,b)=>a.part.desde-b.part.desde).map(x=>x.c);
+}
 async function cambiarControlCargaInvFiltro(v){
   if(v===controlCargaInvFiltro)return;
   let applied=false;
@@ -6867,7 +6893,8 @@ function exportarControlCSV(tipo, dia){
 }
 function renderControlDashboardDiaHTML(seccion, listaDia){
   if(!listaDia.length){
-    return `<div style="text-align:center;padding:2rem;color:var(--muted);font-style:italic;font-size:13px">Sin líneas para este día todavía.</div>`;
+    const inv=seccion.key==='carga'?controlCargaInvFiltro:controlTunelInvFiltro;
+    return `<div style="text-align:center;padding:2rem;color:var(--muted);font-style:italic;font-size:13px">${inv?'Sin partidas para este invernadero y día.':'Sin líneas para este día todavía.'}</div>`;
   }
   const total = listaDia.length;
   const completados = listaDia.filter(controlLineaFinalizadaQC).length;
@@ -6938,10 +6965,11 @@ function renderControlChecklistHTML(seccion){
   if(controlDiaSel==null || !diasQ.includes(controlDiaSel)) controlDiaSel = diasQ[0];
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const listaDia = controlChecksData.filter(c=>c.tipo===seccion.key && c.dia===controlDiaSel);
-  // No confundir las casillas clásicas con el nuevo QC por cantidades.
+  // Los filtros modifican solo la consulta, nunca los registros persistidos.
   void cargarEstadosQCDia(seccion.key,controlDiaSel,listaDia);
-  const numCompletados = listaDia.filter(controlLineaFinalizadaQC).length;
-  const numPendientes = listaDia.length - numCompletados;
+  const listaInv=controlLineasFiltradasInv(listaDia,seccion.key);
+  const numCompletados = listaInv.filter(controlLineaFinalizadaQC).length;
+  const numPendientes = listaInv.length - numCompletados;
   const lista = controlFiltroEstado==='completados' ? listaDia.filter(controlLineaFinalizadaQC)
     : controlFiltroEstado==='pendientes' ? listaDia.filter(c=>!controlLineaFinalizadaQC(c))
     : listaDia;
@@ -6955,7 +6983,7 @@ function renderControlChecklistHTML(seccion){
   if(listaDia.length===0 && window.QCEmptyState){
     return window.QCEmptyState.render({
       tipo:seccion.key,titulo:seccion.label,selected:controlDiaSel,
-      dateNavHTML:renderControlQCDateNav(controlQuincenaOffset,controlDiaSel,'list'),
+      dateNavHTML:renderControlQCDateNav(controlQuincenaOffset,controlDiaSel,'list')+renderControlFiltroInvHTML(seccion.key),
       canAdd:puedeCrearLineaControlQC(controlDiaSel),
       pending:leerColaOffline().length,
       pdfNombre:pdf?.nombre||'',pdfUrl:pdf?.pdfB64||''
@@ -6963,21 +6991,11 @@ function renderControlChecklistHTML(seccion){
   }
 
   const filtrosHTML = '<label class="qc-list-state"><span>Estado</span><select class="qc-list-select" onchange="cambiarControlFiltroEstado(this.value)" aria-label="Filtrar por estado">'+[
-    {value:'todos',label:'Todos ('+listaDia.length+')'},
+    {value:'todos',label:'Todos ('+listaInv.length+')'},
     {value:'pendientes',label:'Pendientes ('+numPendientes+')'},
     {value:'completados',label:'Completados ('+numCompletados+')'}
   ].map(o=>'<option value="'+o.value+'"'+(controlFiltroEstado===o.value?' selected':'')+'>'+o.label+'</option>').join('')+'</select></label>';
-  const filtroInvHTML = (seccion.key==='carga' || seccion.key==='tunel') ? `
-    <div class="qc-list-inv">
-      <select onchange="${seccion.key==='carga'?'cambiarControlCargaInvFiltro':'cambiarControlTunelInvFiltro'}(this.value)" class="qc-list-select" aria-label="Filtrar invernadero">
-        <option value="">Todos los invernaderos</option>
-        <optgroup label="Sala 1">${ALL_INV_IDS_SALA1.map(id=>`<option value="${id}"${(seccion.key==='carga'?controlCargaInvFiltro:controlTunelInvFiltro)===id?' selected':''}>INV ${id}</option>`).join('')}</optgroup>
-        <optgroup label="Sala 2">${ALL_INV_IDS.map(id=>`<option value="${id}"${(seccion.key==='carga'?controlCargaInvFiltro:controlTunelInvFiltro)===id?' selected':''}>INV ${id}</option>`).join('')}</optgroup>
-        <optgroup label="Sala 3">${ALL_INV_IDS_SALA3.map(id=>`<option value="${id}"${(seccion.key==='carga'?controlCargaInvFiltro:controlTunelInvFiltro)===id?' selected':''}>INV ${id}</option>`).join('')}</optgroup>
-        <optgroup label="Sala 4">${ALL_INV_IDS_SALA4.map(id=>`<option value="${id}"${(seccion.key==='carga'?controlCargaInvFiltro:controlTunelInvFiltro)===id?' selected':''}>INV ${id}</option>`).join('')}</optgroup>
-        <optgroup label="Sala 5">${ALL_INV_IDS_SALA5.map(id=>`<option value="${id}"${(seccion.key==='carga'?controlCargaInvFiltro:controlTunelInvFiltro)===id?' selected':''}>INV ${id}</option>`).join('')}</optgroup>
-      </select>
-    </div>` : '';
+  const filtroInvHTML = renderControlFiltroInvHTML(seccion.key);
   // Líneas cuya calle real todavía no se puede resolver (Túnel: no se le ha
   // asignado calle todavía; Carga: su línea "hermana" de Túnel no existe o
   // tampoco tiene calle) muestran "Calle: —" en la tarjeta. A petición de
@@ -7015,7 +7033,7 @@ function renderControlChecklistHTML(seccion){
     if(seccion.key==='carga' || !c.partida) return renderControlCardHTML(c, seccion);
     const groupKey = seccion.key+'|'+c.partida;
     if(gruposYaPintados.has(groupKey)) return '';
-    const grupo = controlChecksData.filter(x=>x.tipo===seccion.key && x.partida===c.partida).sort((a,b)=>a.dia-b.dia);
+    const grupo = controlLineasFiltradasInv(controlChecksData.filter(x=>x.tipo===seccion.key && x.partida===c.partida),seccion.key).sort((a,b)=>a.dia-b.dia);
     if(grupo.length<=1) return renderControlCardHTML(c, seccion);
     gruposYaPintados.add(groupKey);
     return renderControlCardConGuionesHTML(grupo, seccion);
@@ -7048,6 +7066,7 @@ function renderControlChecklistHTML(seccion){
         ${addAllowed?'<button type="button" class="qc-list-add" onclick="'+addAction+'"><i class="ti ti-plus" aria-hidden="true"></i> Añadir línea</button>':''}
       </div>
       ${renderControlQCDateNav(controlQuincenaOffset,controlDiaSel,'list')}
+      ${filtroInvHTML}
        <div id="nuevo-control-form-wrap"></div>
       <div class="qc-list-tools">
         <div class="qc-list-search">
@@ -7056,7 +7075,6 @@ function renderControlChecklistHTML(seccion){
           <button type="button" onclick="buscarControlPartida('${seccion.key}')" aria-label="Buscar"><i class="ti ti-search"></i></button>
         </div>
         ${filtrosHTML}
-        ${filtroInvHTML}
       </div>
       ${syncHTML}
       ${controlVistaChecklist==='dashboard'?viewActionHTML:''}
@@ -7072,7 +7090,7 @@ function renderControlChecklistHTML(seccion){
         </div>
         ${pdfInfoHTML}
       </details>
-      ${controlVistaChecklist==='dashboard' ? renderControlDashboardDiaHTML(seccion,listaDia) : cardsHTML}
+      ${controlVistaChecklist==='dashboard' ? renderControlDashboardDiaHTML(seccion,listaInv) : cardsHTML}
     </section>`;
 
 }
