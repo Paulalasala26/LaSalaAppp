@@ -970,6 +970,14 @@ El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en int
 
 **Siguiente paso práctico**: validación conjunta **Mantenimiento + Archivo**, con ticket TEST ya existente adecuado, archivado único, comprobar desaparición de activos y presencia consultable con metadatos en Archivo; no crear/borrar masivamente ni tocar tickets reales ajenos. Después Plaguicidas Bloque C (Pistola→Tareas), Partidas y Específicos, cierre roles y puerta a PRD.
 
+## 0.88. Transición a Plaguicidas Bloque C tras Mantenimiento/Archivo (26/10/2026)
+
+**Usuario** responde «ok» al procedimiento agrupado Mantenimiento: crear ticket Filtros INV 1A sin recurrencia, verificar en Mantenimiento, Archivar y localizar en Archivo. Este «ok» manifiesta conformidad con avanzar, **sin detalle de cada comprobación, por lo que no registrar falsamente verificación real de desaparición y metadatos**; UAT visual 0.87 pendiente de evidencia específica o aceptación inequívoca. Sin incidencias adicionales comunicadas.
+
+**Nuevo bloque de trabajo:** Plaguicidas Pistola→Tareas (C), con diseño de edición, anulación y conciliación antes de pedir al usuario altas TEST imposibles de revertir. `assets/fito-series-v3.js` contiene generación automática de una tarea por jornada Pistola `serieId+jornadaId`, consulta y recuperación de tarea, pero **bloquea editar y borrar Pistola** (líneas ~668-669 y 764-765). `Cañón` no debe generar tareas de PEÓN. Los cambios/actuaciones en una jornada Pistola NO son atómicos entre nodo Fito y Tareas; contemplar incertidumbre de sincronización, protección de ejecuciones iniciadas/completadas, conservación de firmas e histórico. No experimentar creando nuevas jornadas Pistola hasta haber resuelto el mecanismo seguro de corrección/anulación o acordado datos de prueba controlados.
+
+**Criterio propuesto para aceptación antes de implementar:** si la tarea vinculada está `pendiente`, permitir editar producto/dosis/caldo/horario/calles en Plaguicidas y conciliar por ETag la única tarea enlazada sin cambiar ID ni duplicar; anulación como baja lógica en Plaguicidas y Tareas archivada/anulada, preservando toda traza. Si la tarea está `iniciada` o `completada`, proteger los hechos ejecutados y exigir rectificación administrativa trazada, no sobrescribir firmas ni inventar una segunda aplicación. Respetar fecha global de inicio y jornadas por zona, impedir alterar primera jornada mientras existan posteriores sin una operación de serie completa; proteger fallos parciales con estado pendiente de conciliación y reintento idempotente. Todas las operaciones exclusivamente TEST; PRD y datos existentes intactos hasta aceptación.
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).
