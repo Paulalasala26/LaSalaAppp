@@ -7,7 +7,7 @@
 
 ## 0. CONTINUIDAD ACTUAL — 26/10/2026 (LEER ANTES DEL RESTO)
 
-**BLOQUE ACTIVO: QC 0.108 — retirada de «No evaluada» de las cinco categorías en inspecciones QC online (Túnel/Carga) y borradores offline. IMPLEMENTADO SOLO TEST / VALIDACIÓN VISUAL PENDIENTE.** El usuario confirmó QC 0.107 y §0.106.1 en Túnel el 26/10; Carga conserva pendiente su prueba particular del editor y la réplica posterior del diseño de pantalla. Compatibilidad con registros históricos mantenida. Tareas continúa en pausa. Las referencias anteriores a Plaguicidas 0.91 son históricas, no reanudación.
+**BLOQUE ACTIVO: QC 0.109 — Editar partida, papelera roja y cierre correcto de inspección al eliminar; IMPLEMENTADO TEST / UAT PENDIENTE.** §0.108 «No evaluada» retirado del formulario online/offline, pendiente confirmación visual. QC 0.107 validado en Túnel. El usuario confirmó QC 0.107 y §0.106.1 en Túnel el 26/10; Carga conserva pendiente su prueba particular del editor y la réplica posterior del diseño de pantalla. Compatibilidad con registros históricos mantenida. Tareas continúa en pausa. Las referencias anteriores a Plaguicidas 0.91 son históricas, no reanudación.
 
 **CONTEXTO HISTÓRICO: Plaguicidas Pistola→Tareas. NUEVA INCIDENCIA / CORRECCIÓN UI 0.91**. El usuario rechaza la confusión entre «seleccionar solo Pistola», elegir un producto fitosanitario (que asigna a `PEON1`) y pulsar una desconocida «Hoja oficial» que falla por ausencia de caldo. Tras analizar código, se mantiene el significado correcto: Pistola/Cañón son **métodos de aplicación**, producto/dosis/volumen configuran el **tratamiento real**, y Pistola genera **tarea de ejecución PEÓN** automáticamente según sala; Cañón no. No inventar aplicaciones vacías ni atribuir aplicación ejecutada al mero registro. Nuevos registros requieren datos suficientes para imprimir el parte; anteriores se preservan. Formularios reordenados, responsable visible, botón «Guardar tratamiento» y «Imprimir parte» en Consulta; las jornadas guardadas incompletas muestran motivo sin diálogo frustrante. Revisar el apartado 0.91 y HEAD Vercel para UAT. **No declarar Bloque C validado hasta prueba humana integral.**
 
@@ -1275,6 +1275,23 @@ El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en int
 - **Sin modificaciones en:** `api/admin-qc-mediciones.js`, formatos persistidos, reglas, fotografías, guardado, catálogo de clientes, roles, otras pantallas ni datos históricos. No hay escrituras de datos Firebase en esta intervención.
 
 **Validación próxima (agrupada):** en TEST abrir una inspección en Túnel y otra en Carga; comprobar que en ninguna de las cinco categorías aparece «No evaluada», OK sigue primera y el resto de opciones funcionan. En Sin conexión, comprobar también el formulario de borrador después de actualizar la aplicación en línea. Si existe medición histórica con dicho estado, al editar exige una nueva selección y conserva su dato original sin guardar. **Pendiente confirmación UAT del usuario**. No tocar PRD/main; Tareas sigue en pausa.
+
+## 0.109. QC — Editar partida, papelera roja y retorno al listado después de eliminar (26/10/2026) — IMPLEMENTADO TEST / UAT PENDIENTE
+
+**Solicitud:** «cambia editar linea y eliminar linea por editar partida y un boton rojo con la papelera, tiene más sentid. Ademas, revisa al eliminar, porque se queda en la pantalla maximizada del control de calidad actual, no vuelve al listado».
+
+**Diagnóstico directo:** `eliminarControlCheckConfirmado` quitaba la línea de `controlChecksData` y reconstruía `#control-overlay` con `renderControlContent`, **pero no cerraba el editor cuantitativo `QCOperativo`** que permanecía abierto y maximizado. Su función `prepareRecordSwitch` ya gestiona guardados de observaciones y protección de cambios pendientes.
+
+**Cambios exclusivos de `test/v1.0`:**
+- `index.html` código commit `c3f16ee5acd32ef34ee446144edc110b691a8548`: tarjeta compacta de ambas secciones muestra **«Editar partida»**. El segundo botón es ahora exclusivamente icono de **papelera**, con `title` y `aria-label` «Eliminar registro de partida» (es un registro de la partida, no se borran automáticamente otras líneas con la misma partida). La confirmación habla de «registro de partida». Las dos ventanas editoras legacy también dicen «Editar partida».
+- Al confirmar borrar, `eliminarControlCheck` pasa a asíncrona, verifica que el registro existe y ejecuta `confirmarSalidaQC()` **antes** de borrar. Si el usuario cancela la salida por cambios sin guardar, NO borra. Si puede salir, cierra el editor por la vía ya probada y después llama al borrado existente; el listado de la sección se vuelve a renderizar y queda visible. Se elimina también una referencia de guión activo si apuntaba al ID borrado. La reproducción de colas offline `eliminarControlCheckConfirmado` conserva su firma y ruta histórica, sin nuevas confirmaciones ni bloqueos de navegador.
+- `assets/control-ui-cards.css`, commit `d40d019e5eaff1e43328ec5a0a7eb661df24da99`: papelera con **fondo rojo sólido** y pictograma blanco, 44 px de ancho, con `focus-visible`; en móvil el botón Editar partida ocupa el ancho restante y la papelera permanece cuadrada a su derecha.
+- `assets/qc-editar-linea-v3.js`, commit `c4b4c932f5a76f29bbd5ad3e68ddc1d5f3b541bc`: título y etiqueta accesible del editor unificado pasan a «Editar partida», sin tocar controles ni guardado.
+- `index.html`, commit `2ebc394580e40724f89f7d1e0c7f06c67ec5a45b`: nuevas versiones de recursos UI para forzar estilos y editor actualizados en la web TEST.
+
+**Alcance estricto:** no se ha cambiado la semántica de persistencia del borrado existente ni realizado escrituras Firebase o anulación de registros. La sustitución de eliminación física por **anulación auditable** continúa como requisito separado pendiente; no confundir esta mejora visual/de navegación con esa implantación. Tampoco se han alterado roles, QC cuantitativo, Tareas ni PRD/main.
+
+**UAT agrupada:** Túnel y Carga: en una tarjeta, «Editar partida» y botón pequeño de papelera rojo a su lado, sin texto «Eliminar línea». Abrir una inspección y, al eliminar su registro desde las acciones disponibles, comprobar que el formulario de inspección se cierra y reaparece el listado; si había cambios sin guardar, cancelar la advertencia debe impedir el borrado. Comprobar con un registro TEST autorizado y no generar inspecciones ficticias. **Pendiente aceptación funcional**.
 
 ## 1. Reglas innegociables
 
