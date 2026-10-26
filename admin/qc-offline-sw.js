@@ -2,11 +2,12 @@
 // Exclusivo de /admin/ de ViguerAPP TEST. Sin cambios en sw.js (push).
 // Solo sirve una pantalla genérica de captura QC cuando control.html no carga.
 // No cachea API, datos de Control, respuestas Firebase, fotos ni credenciales.
-const CACHE='viguerapp-qc-offline-shell-test-v1';
+const CACHE='viguerapp-qc-offline-shell-test-v2';
 const PREFIX='viguerapp-qc-offline-shell-test-';
 const PATH=new URL('./',self.location.href).pathname;
 const SHELL=['qc-sin-conexion.html','qc-sin-conexion.js',
-  'qc-offline-snapshot.js','qc-photo-queue.js'].map(x=>PATH+x);
+  'qc-offline-snapshot.js','qc-photo-queue.js'].map(x=>PATH+x)
+  .concat([new URL('../assets/ui-criterios-global.js',self.location.href).pathname]);
 self.addEventListener('install',event=>{
   event.waitUntil((async()=>{
     const cache=await caches.open(CACHE);

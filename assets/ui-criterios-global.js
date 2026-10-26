@@ -33,6 +33,7 @@
     const fila = document.createElement('span');
     fila.setAttribute('data-vig-buscador', '');
     fila.style.cssText = 'display:flex;align-items:center;gap:6px;width:100%;min-width:0;max-width:100%;box-sizing:border-box';
+    if (input.id === 'search' && input.closest('.controls')) fila.style.gridColumn = '1 / -1';
     input.parentNode.insertBefore(fila, input);
     fila.appendChild(input);
     input.style.flex = '1 1 auto';
