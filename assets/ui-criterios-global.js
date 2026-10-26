@@ -76,10 +76,22 @@
     const sinIconos = texto.replace(/^[^\p{L}]*/u, '').trim();
     const guardando = /^Guardar(?:\s|$)/i.test(sinIconos) && sinIconos !== 'Guardar';
     const crearUsuario = btn.id === 'save-user' && /^Crear usuario$/i.test(sinIconos);
+    const accion = btn.getAttribute('onclick') || '';
     const guardarEspecifico = /^Aplicar$/i.test(sinIconos)
-      && /aplicarEspecificoAPartidasSeleccionadas\s*\(/.test(btn.getAttribute('onclick') || '');
-    if (!guardando && !crearUsuario && !guardarEspecifico) return;
-    if (crearUsuario || guardarEspecifico) { btn.textContent = 'Guardar'; return; }
+      && /aplicarEspecificoAPartidasSeleccionadas\s*\(/.test(accion);
+    const aplicarRiego = /^Aplicar$/i.test(sinIconos) && /saveRiegoManual\s*\(/.test(accion);
+    const crearRegistro = (/^(Crear|Crear y asignar)$/i.test(sinIconos))
+      && (btn.id === 'nm-btn-crear' || /crearTarea\s*\(/.test(accion));
+    if (!guardando && !crearUsuario && !guardarEspecifico && !aplicarRiego && !crearRegistro) return;
+    if (crearUsuario || guardarEspecifico || aplicarRiego || crearRegistro) {
+      const iconoExistente = btn.querySelector('i,svg');
+      if (iconoExistente) {
+        Array.from(btn.childNodes).forEach(n => {
+          if (n.nodeType === 3 && n.textContent.trim()) n.textContent = ' Guardar';
+        });
+      } else btn.textContent = 'Guardar';
+      return;
+    }
     const walker = document.createTreeWalker(btn, NodeFilter.SHOW_TEXT);
     const nodos = [];
     while (walker.nextNode()) nodos.push(walker.currentNode);
