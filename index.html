@@ -6059,6 +6059,62 @@ function renderControlQCDateNav(offset,selected,mode){
     '<div class="qc-date-days" role="group" aria-label="Seleccionar día">'+buttons+'</div>'+
     '</section>';
 }
+/* 0.106 QC Túnel: fecha elegible, paneles e impresión; Carga usa navegador anterior. */
+function qcFechaHTML(modo){
+ const d=(modo==='wizard'?controlWizardDiaSel:controlDiaSel)??riegoDiaDeHoy();
+ const iso=fechaLocalISO(riegoDiaToDate(d));
+ return `<section class="qc-work-panel qc-work-date" aria-label="Fecha de trabajo">
+ <h3 class="qc-work-title"><i class="ti ti-calendar-event"></i> Fecha de trabajo</h3>
+ <div class="qc-work-date-controls">
+ <button type="button" class="qc-work-date-arrow" ${d<=15?'disabled':''} aria-label="Día anterior" onclick="qcMoverDia(-1,'${modo}')"><i class="ti ti-chevron-left"></i></button>
+ <input type="date" class="qc-work-date-input" min="${fechaLocalISO(riegoDiaToDate(15))}" value="${iso}" aria-label="Seleccionar día" onchange="qcSeleccionarFecha(this.value,'${modo}')">
+ <button type="button" class="qc-work-date-arrow" aria-label="Día siguiente" onclick="qcMoverDia(1,'${modo}')"><i class="ti ti-chevron-right"></i></button>
+ </div></section>`;
+}
+async function qcSeleccionarFecha(iso,modo){
+ const wizard=modo==='wizard',old=wizard?controlWizardDiaSel:controlDiaSel;
+ const restore=()=>{const input=document.querySelector('#control-overlay .qc-work-date-input');if(input)input.value=fechaLocalISO(riegoDiaToDate(old??riegoDiaDeHoy()));};
+ const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso||''));
+ if(!m){restore();return;}
+ const f=new Date(+m[1],+m[2]-1,+m[3]);
+ if(f.getFullYear()!==+m[1]||f.getMonth()!==+m[2]-1||f.getDate()!==+m[3]){restore();return;}
+ const a=new Date(RIEGO_ANCHOR_DATE);a.setHours(0,0,0,0);
+ const dia=15+Math.round((f-a)/86400000);
+ if(dia<15){restore();return;}
+ if(dia===old)return;
+ const offset=Math.floor((dia-15)/14);
+ let changed=false;
+ await navegarControlQC(async()=>{
+   const prev=wizard?controlWizardQuincenaOffset:controlQuincenaOffset;
+   if(prev!==offset){
+     if(!await loadControlSeccionSlice('tunel',offset,false)){avisarFalloCarga();return;}
+   }
+   if(wizard){controlWizardDiaSel=dia;controlWizardQuincenaOffset=offset;controlWizardNivel='partidas';controlWizardPartidaId=null;controlWizardPaso=0;controlWizardEnfermedades=false;}
+   else{controlDiaSel=dia;controlQuincenaOffset=offset;}
+   changed=true;
+   renderControlContent(document.getElementById('control-overlay'));
+ });
+ if(!changed)restore();
+}
+function qcMoverDia(delta,modo){
+ const d=(modo==='wizard'?controlWizardDiaSel:controlDiaSel)??riegoDiaDeHoy();
+ if(d+delta<15)return;
+ return qcSeleccionarFecha(fechaLocalISO(riegoDiaToDate(d+delta)),modo);
+}
+function qcImprimirDia(){
+ if(controlSeccion!=='tunel')return;
+ const wizard=CONTROL_TUNEL_WIZARD_USUARIOS.includes(currentUser);
+ const dia=wizard?controlWizardDiaSel:controlDiaSel;
+ if(!Number.isInteger(dia))return;
+ const filtradas=controlLineasFiltradasInv(controlChecksData.filter(c=>c.tipo==='tunel'&&c.dia===dia),'tunel');
+ const lista=wizard?filtradas:controlFiltroEstado==='completados'?filtradas.filter(controlLineaFinalizadaQC):controlFiltroEstado==='pendientes'?filtradas.filter(c=>!controlLineaFinalizadaQC(c)):filtradas;
+ if(!lista.length){showToast('No hay inspecciones para imprimir.');return;}
+ window.__controlListadoActual={titulo:'QC Túnel · '+riegoDiaLabelCorto(dia),lineas:lista};
+ imprimirListadoPartidasControl();
+}
+function qcPanel(title,content,cls){
+ return `<section class="qc-work-panel ${cls||''}"><h3 class="qc-work-title">${title}</h3>${content}</section>`;
+}
 // A petición de Paula (2026-08-04): una misma partida puede repartirse en
 // varios "guiones" — el mismo Nº de partida repetido en el PDF en días
 // distintos, cada uno con su propio Nº de bandejas (p.ej. la partida
