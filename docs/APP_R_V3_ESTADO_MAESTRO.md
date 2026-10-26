@@ -1156,6 +1156,16 @@ El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en int
 
 **Estado:** análisis únicamente; sin cambios de código, Firebase, despliegue funcional ni PRD. Pendiente decisión explícita del usuario para diseñar/implementar. Tareas sigue en pausa.
 
+## 0.102. QC — alta unificada de líneas Túnel/Carga desde partidas importadas (26/10/2026)
+
+**Aprobación usuario:** habilitar «Añadir línea» tanto en QC Carga como QC Túnel, sin texto libre para identidad cliente/variedad/partida/bandejas. Unificar la **pantalla de alta** ahora; análisis del resto de opciones diferentes entre las dos vistas queda expresamente **aplazado**.
+
+**Código revisado en GitHub `test/v1.0`:** commit `6472bd36b35b4f0f7d4d375c797cdeebb30affdd`, exclusivamente `index.html` respecto a la revisión documental anterior. Ya implementa en ambas vistas (incluido wizard Ginés) un formulario común `qcAltaVistaHTML` → `abrirAltaQC`; búsqueda explícita por Nº partida + lupa (sin búsqueda predictiva), selector de línea fuente de PDF importado y datos origen solo lectura (partida/cliente/variedad/bandejas). Se usan únicamente documentos identificados con `origenPdf===true` y campos de identidad/cantidad comprobados en `qcAltaOrigenes`; sin conexión directa a BD GS ni copia de maestro de clientes. El usuario selecciona invernadero/calle desde selectores existentes, con grupos Sala; se bloquean días pasados, filas repetidas de partida+fecha+ubicación y guardado sin origen/ubicación. Al guardar se crea línea diferenciada con `origenPartidaQC` de trazabilidad al registro importado y se intenta abrir su inspección cuantitativa. No se generan datos demo ni se escriben partidas inexistentes.
+
+**Verificación técnica del código:** comprobadas las rutas para Carga y Túnel, selector agrupado, condición de origen `origenPdf`, validaciones de fechas y duplicados y ausencia de los formularios libres anteriores. Vercel TEST se comprobó READY con el commit `6472bd36b35b4f0f7d4d375c797cdeebb30affdd` antes de este apunte. **UAT auténtica pendiente**: comprobar en ambas vistas apertura de «Añadir línea», búsqueda de partida que conste en PDF, precarga automática y habilitación de Guardar solo con ubicación válida; no pulsar Guardar en datos reales durante una mera comprobación visual. Los registros no presentes en PDF no se pueden dar de alta por texto libre; circuito de incidencia de origen aún NO implementado. No afirmar acceso a GS/maestro clientes ni UAT aprobada hasta aceptación explícita.
+
+**Siguiente bloque (aplazado por usuario):** comparar opciones y botones de QC Túnel y QC Carga, identificar función real de cada uno, proponer supresiones/unificación sin tocar lógica aprobada. Tareas: Operativas y Archivo permanece en pausa. PRD/main, Firebase TEST y datos reales no modificados por esta revisión documental.
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).
