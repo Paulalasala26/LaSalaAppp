@@ -70,74 +70,74 @@
   .qc-date-day{flex-basis:53px}
 }
 
-/* 0.106 — QC Túnel: paneles operativos independientes (resto QC intacto). */
-.qc-tunel-work .control-ui-nav{
+/* 0.110 — Paneles operativos compartidos por QC Túnel y QC Carga; resto de módulos sin cambios. */
+:is(.qc-tunel-work,.qc-carga-work) .control-ui-nav{
   margin:10px 12px 0;padding:8px;background:#fff;border:1px solid #c8d9ec;
   border-radius:12px;box-shadow:0 1px 5px rgba(14,68,123,.07)
 }
-.qc-tunel-work .control-ui-section-label{display:none}
-.qc-tunel-work .qc-work-print{
+:is(.qc-tunel-work,.qc-carga-work) .control-ui-section-label{display:none}
+:is(.qc-tunel-work,.qc-carga-work) .qc-work-print{
   display:inline-flex;align-items:center;justify-content:center;
   min-width:39px;height:39px;padding:0;border:1px solid #a8c4e8;border-radius:8px;
   background:#1558a0;color:#fff;font-size:20px;cursor:pointer;flex-shrink:0
 }
-.qc-tunel-work .qc-work-print:hover{background:#0d4588}
-.qc-tunel-work .qc-work-tunel{display:flex;flex-direction:column;gap:13px;max-width:980px;margin:0 auto}
-.qc-tunel-work .qc-work-panel{
+:is(.qc-tunel-work,.qc-carga-work) .qc-work-print:hover{background:#0d4588}
+:is(.qc-tunel-work,.qc-carga-work) .qc-work-tunel{display:flex;flex-direction:column;gap:13px;max-width:980px;margin:0 auto}
+:is(.qc-tunel-work,.qc-carga-work) .qc-work-panel{
   box-sizing:border-box;min-width:0;padding:0 13px 13px;border:1px solid #c4d7eb;
   border-radius:12px;background:#fff;box-shadow:0 2px 9px rgba(17,73,128,.07);
   overflow:visible
 }
-.qc-tunel-work .qc-work-title{
+:is(.qc-tunel-work,.qc-carga-work) .qc-work-title{
   display:flex;align-items:center;gap:8px;margin:0 -13px 12px;
   padding:10px 13px;background:#ebf3fc;border-bottom:1px solid #c4d7eb;
   border-radius:11px 11px 0 0;font-size:14px;line-height:1.25;
   font-weight:800;color:#1558a0
 }
-.qc-tunel-work .qc-work-title i{font-size:18px}
-.qc-tunel-work .qc-work-date-controls{
+:is(.qc-tunel-work,.qc-carga-work) .qc-work-title i{font-size:18px}
+:is(.qc-tunel-work,.qc-carga-work) .qc-work-date-controls{
   display:grid;grid-template-columns:43px minmax(0,1fr) 43px;gap:10px;align-items:center
 }
-.qc-tunel-work .qc-work-date-input{
+:is(.qc-tunel-work,.qc-carga-work) .qc-work-date-input{
   box-sizing:border-box;min-width:0;width:100%;height:44px;padding:8px 11px;
   color:#173d6b;border:1px solid #a8c4e8;border-radius:8px;background:#fff;
   font-size:15px;font-weight:800;text-align:center;color-scheme:light
 }
-.qc-tunel-work .qc-work-date-arrow{
+:is(.qc-tunel-work,.qc-carga-work) .qc-work-date-arrow{
   display:flex;align-items:center;justify-content:center;width:43px;height:43px;
   border:1px solid #a8c4e8;border-radius:8px;background:#f4f9ff;
   color:#1558a0;font-size:18px;cursor:pointer
 }
-.qc-tunel-work .qc-work-date-arrow:disabled{opacity:.35;cursor:default}
-.qc-tunel-work .qc-work-date-arrow:focus-visible,
-.qc-tunel-work .qc-work-date-input:focus-visible,
-.qc-tunel-work .qc-work-print:focus-visible{outline:3px solid #6ca6df;outline-offset:2px}
-.qc-tunel-work .qc-work-operations .qc-alta-toolbar{margin-bottom:13px!important}
-.qc-tunel-work .qc-work-operations .qc-list-tools{
+:is(.qc-tunel-work,.qc-carga-work) .qc-work-date-arrow:disabled{opacity:.35;cursor:default}
+:is(.qc-tunel-work,.qc-carga-work) .qc-work-date-arrow:focus-visible,
+:is(.qc-tunel-work,.qc-carga-work) .qc-work-date-input:focus-visible,
+:is(.qc-tunel-work,.qc-carga-work) .qc-work-print:focus-visible{outline:3px solid #6ca6df;outline-offset:2px}
+:is(.qc-tunel-work,.qc-carga-work) .qc-work-operations .qc-alta-toolbar{margin-bottom:13px!important}
+:is(.qc-tunel-work,.qc-carga-work) .qc-work-operations .qc-list-tools{
   grid-template-columns:minmax(0,1fr);
   margin:0 0 11px
 }
-.qc-tunel-work .qc-work-inspections .qc-work-list-tools{
+:is(.qc-tunel-work,.qc-carga-work) .qc-work-inspections .qc-work-list-tools{
   display:flex;align-items:flex-end;justify-content:space-between;
   flex-wrap:wrap;gap:10px;margin:0 0 12px
 }
-.qc-tunel-work .qc-work-inspections .qc-work-counter{margin:0;flex:1 1 140px}
-.qc-tunel-work .qc-work-inspections .qc-list-state{flex:0 1 210px}
+:is(.qc-tunel-work,.qc-carga-work) .qc-work-inspections .qc-work-counter{margin:0;flex:1 1 140px}
+:is(.qc-tunel-work,.qc-carga-work) .qc-work-inspections .qc-list-state{flex:0 1 210px}
 @media(max-width:390px){
-  .qc-tunel-work .qc-work-inspections .qc-list-state{flex:1 1 100%}
+  :is(.qc-tunel-work,.qc-carga-work) .qc-work-inspections .qc-list-state{flex:1 1 100%}
 }
-.qc-tunel-work .qc-work-operations .qc-list-search{grid-column:auto}
-.qc-tunel-work .qc-work-operations .qc-list-more{margin-top:5px}
-.qc-tunel-work .qc-work-counter{
+:is(.qc-tunel-work,.qc-carga-work) .qc-work-operations .qc-list-search{grid-column:auto}
+:is(.qc-tunel-work,.qc-carga-work) .qc-work-operations .qc-list-more{margin-top:5px}
+:is(.qc-tunel-work,.qc-carga-work) .qc-work-counter{
   font-size:12px;font-weight:750;color:#4b6781;margin-bottom:11px
 }
-.qc-tunel-work .qc-work-inspections .qc-list-cards{gap:12px}
+:is(.qc-tunel-work,.qc-carga-work) .qc-work-inspections .qc-list-cards{gap:12px}
 @media(max-width:640px){
-  .qc-tunel-work .control-ui-nav{margin:8px 8px 0;padding:6px}
-  .qc-tunel-work .qc-work-panel{padding:0 10px 11px}
-  .qc-tunel-work .qc-work-title{margin:0 -10px 11px;padding:9px 10px;font-size:13px}
-  .qc-tunel-work .qc-work-operations .qc-list-tools{grid-template-columns:minmax(0,1fr)}
-  .qc-tunel-work .qc-work-operations .qc-list-search{grid-column:auto}
-  .qc-tunel-work .qc-work-date-controls{gap:7px}
-  .qc-tunel-work .qc-work-date-input{font-size:14px}
+  :is(.qc-tunel-work,.qc-carga-work) .control-ui-nav{margin:8px 8px 0;padding:6px}
+  :is(.qc-tunel-work,.qc-carga-work) .qc-work-panel{padding:0 10px 11px}
+  :is(.qc-tunel-work,.qc-carga-work) .qc-work-title{margin:0 -10px 11px;padding:9px 10px;font-size:13px}
+  :is(.qc-tunel-work,.qc-carga-work) .qc-work-operations .qc-list-tools{grid-template-columns:minmax(0,1fr)}
+  :is(.qc-tunel-work,.qc-carga-work) .qc-work-operations .qc-list-search{grid-column:auto}
+  :is(.qc-tunel-work,.qc-carga-work) .qc-work-date-controls{gap:7px}
+  :is(.qc-tunel-work,.qc-carga-work) .qc-work-date-input{font-size:14px}
 }
