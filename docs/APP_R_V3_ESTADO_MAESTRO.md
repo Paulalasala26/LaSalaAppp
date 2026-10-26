@@ -7,7 +7,7 @@
 
 ## 0. CONTINUIDAD ACTUAL — 26/10/2026 (LEER ANTES DEL RESTO)
 
-**BLOQUE ACTIVO: QC 0.106 — rediseño operativo de Túnel implementado en TEST, con vista única (sin circuito Ginés); UAT visual/funcional PENDIENTE.** §0.105 aprobado por el usuario como criterio general. Se han implantado paneles diferenciados, selección directa de fecha y botón de impresión; no replicar todavía en Carga hasta validar Túnel. Tareas continúa en pausa. Las referencias anteriores a Plaguicidas 0.91 son históricas, no reanudación.
+**BLOQUE ACTIVO: QC 0.106.1 — filtro Estado trasladado a Inspecciones en Túnel, TEST implementado; validación visual del usuario PENDIENTE.** §0.105 aprobado por el usuario como criterio general. Se han implantado paneles diferenciados, selección directa de fecha y botón de impresión; no replicar todavía en Carga hasta validar Túnel. Tareas continúa en pausa. Las referencias anteriores a Plaguicidas 0.91 son históricas, no reanudación.
 
 **CONTEXTO HISTÓRICO: Plaguicidas Pistola→Tareas. NUEVA INCIDENCIA / CORRECCIÓN UI 0.91**. El usuario rechaza la confusión entre «seleccionar solo Pistola», elegir un producto fitosanitario (que asigna a `PEON1`) y pulsar una desconocida «Hoja oficial» que falla por ausencia de caldo. Tras analizar código, se mantiene el significado correcto: Pistola/Cañón son **métodos de aplicación**, producto/dosis/volumen configuran el **tratamiento real**, y Pistola genera **tarea de ejecución PEÓN** automáticamente según sala; Cañón no. No inventar aplicaciones vacías ni atribuir aplicación ejecutada al mero registro. Nuevos registros requieren datos suficientes para imprimir el parte; anteriores se preservan. Formularios reordenados, responsable visible, botón «Guardar tratamiento» y «Imprimir parte» en Consulta; las jornadas guardadas incompletas muestran motivo sin diálogo frustrante. Revisar el apartado 0.91 y HEAD Vercel para UAT. **No declarar Bloque C validado hasta prueba humana integral.**
 
@@ -1242,6 +1242,12 @@ El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en int
 **Prueba UAT a pedir de forma AGRUPADA (una sola validación común, sin circuito especial):** recargar TEST y entrar a QC Túnel; confirmar (a) pestañas y tres paneles claros sin título repetido ni dashboard/CSV; (b) fecha hoy + flechas/calendario, incluido salto a mes/partición lejana; (c) día anterior sin Añadir línea, hoy con botón; (d) impresora en cabecera y listado correcto según filtros, si hay líneas. No se requiere prueba aparte de un wizard de GINÉS, ya que deja de utilizarse como ruta visual. Evitar datos ficticios/guardar inspecciones solo para probar interfaz.
 
 **Pendiente después de aceptación:** replicar estructura en Carga y decidir vista futura **Informes**, actualizar datos de Dashboard/CSV al modelo cuantitativo; unificación de «Editar línea» y anulación auditable (§0.105) pendiente de diseño específico. Tareas sigue en pausa. PRD/main intactos.
+
+## 0.106.1. QC Túnel — filtro Estado dentro de Inspecciones (26/10/2026)
+
+**Corrección solicitada por el usuario:** «Estado dice el estado de las inspecciones y está en el bloque superior, debe ir en el listado de las inspecciones».
+
+**IMPLEMENTADO EN TEST, UAT PENDIENTE:** únicamente en la vista operativa QC Túnel común, trasladado el selector **Estado** (Todos/Pendientes/Completados) desde «Operativa del día» a **«Inspecciones»**, junto al contador y antes de las tarjetas. La sección superior mantiene el selector INV, Añadir línea, buscador, opciones PDF/extensiones y sincronización. El filtro reutiliza `controlFiltroEstado` y `cambiarControlFiltroEstado` sin modificar el cálculo ni la persistencia de estados. CSS responsive para disponer contador y selector de manera legible, incluso en móvil. Carga y las funciones futuras no se tocan. Código `index.html` + `assets/control-ui-list.css` commit `3d092cbfcdf633ec6a4fbc0c26c0c69e2f21256d`; renovación de caché CSS `v082` commit `3fab63bdcb622ad3d605abed4289120d30182629`. **Comprobación técnica:** 9 scripts inline parseados sin errores, selector presente exclusivamente en panel Inspecciones de Túnel, sin introducir escritura a Firebase. **Pendiente:** verificación visual rápida del usuario en TEST; no repetir toda la UAT de §0.106 por esta corrección. Sin afectar main/PRD. Tareas sigue en pausa.
 
 ## 1. Reglas innegociables
 
