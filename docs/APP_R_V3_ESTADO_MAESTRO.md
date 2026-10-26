@@ -12,6 +12,8 @@
 **CAMBIOS TEST conservados:** 0.82 inicia Operativas sin filtro oculto de fecha y relee tareas actualizadas. 0.83 oculta botón general Guardar inactivo de la cuadrícula de Riego, dado que el formulario Añadir riego guarda al confirmar, y recupera la conciliación después de confirmar un registro de Riego previamente encolado cuya escritura ya existe en Firebase. Estos cambios siguen implementados, con análisis estático y JS parseado; no se atribuye al usuario prueba positiva de generación o sincronización. Último commit funcional `808d34cb76371c2f06fe0aa8dcd247f1a2c8a48f`. Rama única `test/v1.0`; verificar HEAD y Vercel READY en cada intervención, sin tocar `main`/PRD.
 
 **SIGUIENTE:** UAT de Operativas con un **Trabajo reconocido**, fecha hoy o futura, sin crear tareas artificiales y sin repetir registros de agua/abono; después Mantenimiento, Archivo, Bloque C Pistola→Tareas, Partidas y Específicos y batería transversal PRD. Asignaciones por salas se revisarán durante training. QC visual de fechas validada en 0.81; las excepciones offline reales quedan pendientes de batería final.
+**Último ajuste visual (0.85):** retirada total del botón `Guardar` redundante de la barra de Control de Riego; el formulario se guarda al confirmar. Sin alteración de persistencia ni autorización para PRD. UAT visual pendiente. 
+
 ---
 ## 0. HISTÓRICO DE REANUDACIÓN — 21/10/2026 (SUPERADO POR LA SECCIÓN ANTERIOR)
 
@@ -938,6 +940,14 @@ El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en int
 **Regla acordada:** agua/abono o instrucciones ordinarias de riego siguen por Hojas de Riego/Índice Abonos del REGANTE; únicamente opciones válidas del bloque Trabajo (RO, PP, PA, etc.) crean tareas de PEÓN; Pistola crea la tarea desde Plaguicidas. La prueba de 0.83 con RO fue simulación del planificador y no reprodujo un registro real del usuario.
 
 **Código/datos:** ninguna modificación adicional. Se conservan los ajustes TEST 0.82–0.83, aún pendientes de aceptación visual de su alcance; `main`/PRD y datos de Firebase intactos. **Siguiente UAT real**: guardar un Trabajo reconocido en el bloque Trabajo, de hoy o día futuro, y comprobar alta automática en Operativas, sin exigir botón adicional de guardar cuadrícula. No declarar Operativas cerrado hasta confirmación.
+
+## 0.85. Control de Riego — retirada del botón Guardar redundante (26/10/2026)
+
+**Observación expresa del usuario:** «No entiendo lo de guardar de control de riego si cuando pulso en la celda siempre me abre el formulario». Se inspecciona el código: las celdas vacías y marcadas de la cuadrícula abren `abrirRiegoDesdeClick`/formulario; el formulario `Añadir riego` ejecuta su propio guardado inmediato al confirmar mediante `saveRiegoManual` y la persistencia central `saveRiegoData` / `saveRiegoInvPatch`. El botón separado `Guardar` de la barra superior pertenecía a edición directa anterior de la cuadrícula; quedó oculto por defecto en 0.83 y ahora se **retira del HTML** para evitar la contradicción.
+
+**Implementación mínima en TEST:** commit `7f6bd1588a4e06d1c7312370d6522d5e2a6e281e`, archivo `index.html`; solo se elimina el botón `riego-btn-guardar`. Permanecen intactas todas las funciones de persistencia, control de ediciones pendientes, validación de cambios, supervisión de Vigueras, propuesta inminente, conciliación de Tareas y guardado del formulario. Otras rutas internas que llamen `saveRiegoData` siguen utilizándola; `actualizarEstadoBotonGuardarRiego` retorna si el botón no existe. Los cinco scripts inline parsean correctamente; sin escrituras de datos Firebase durante este ajuste, y sin modificar `main`/PRD. **Aceptación visual del usuario pendiente** tras recargar TEST.
+
+**Próxima validación:** alta/edición con clic en celda y único Guardar en el formulario; confirmar que no aparece botón extra en cuadrícula ni cambian los guardados reales. No reabrir el diseño de Riego de forma genérica. Operativas continúa con la UAT de Trabajo reconocido, conforme a 0.84.
 
 ## 1. Reglas innegociables
 
