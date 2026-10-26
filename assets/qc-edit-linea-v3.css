@@ -1,0 +1,19 @@
+/* QC 0.107: editor comun Túnel/Carga, azul */
+.qc107-modal{box-sizing:border-box;max-width:540px;width:100%;max-height:88vh;overflow-y:auto;background:#fff;border-radius:12px;padding:16px;box-shadow:0 10px 35px rgba(0,0,0,.15)}
+.qc107-modal h2{font-size:18px;color:#1558a0;font-weight:850;margin:0 0 12px}
+.qc107-section{background:#f8fbff;border:1px solid #c8d9eb;border-radius:9px;padding:12px;margin:0 0 12px}
+.qc107-section h3{font-size:13px;color:#1558a0;font-weight:850;margin:0 0 11px;padding:0 0 8px;border-bottom:1px solid #d9e5f2}
+.qc107-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.qc107-field{display:flex;flex-direction:column;gap:5px;min-width:0;font-size:12px;font-weight:750;color:#365d83}
+.qc107-field select,.qc107-field input{box-sizing:border-box;width:100%;min-width:0;min-height:43px;padding:9px;border:1px solid #afc8e1;border-radius:8px;background:#fff;color:#243e5c;font-size:13px}
+.qc107-location-current{font-size:12px;color:#4c647e;font-weight:700;margin-bottom:10px}
+.qc107-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:13px}
+.qc107-save,.qc107-cancel,.qc107-advanced{min-height:43px;padding:9px 15px;font-size:13px;font-weight:800;cursor:pointer;border-radius:8px}
+.qc107-save{background:#1558a0;color:#fff;border:1px solid #1558a0}
+.qc107-cancel,.qc107-advanced{background:#edf5ff;color:#1558a0;border:1px solid #aec9e6}
+.qc107-advanced{font-size:12px;margin-top:11px}
+.qc107-save:disabled{opacity:.55;cursor:default}
+#qc107-error{color:#a54c18;font-size:12px;font-weight:700}
+.qco-inline .qco-photo-top{margin:10px 0 15px;padding:12px 13px;border:1px solid #c2d7ed;border-radius:10px;background:#f2f8ff}
+.qco-inline .qco-photo-top .qco-extras-heading{margin-bottom:8px}
+@media(max-width:460px){.qc107-modal{padding:11px}.qc107-section{padding:10px}.qc107-grid{grid-template-columns:minmax(0,1fr)}}
