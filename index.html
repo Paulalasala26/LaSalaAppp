@@ -6450,7 +6450,7 @@ function controlQCInfoVisual(c){
   return {inv:inv?'INV '+inv:'—',calles:calles||'—'};
 }
 function renderControlIdentidadQC(c,estadoWizard=false){
-  const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','"':'&quot;'}[ch]));
+  const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
   const tunel=c.tipo==='tunel';
   const principal=tunel?c.clienteVariedad:c.cliente;
   const inspeccionada=qcEstadoCuantificado(c);
