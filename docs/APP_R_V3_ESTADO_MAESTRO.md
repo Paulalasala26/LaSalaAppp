@@ -1108,6 +1108,18 @@ El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en int
 
 **Siguiente paso una vez validado:** retomar pausa de §0.96 para revisión progresiva de UI Buscar/Guardar por pantallas; el bloque Tareas (Operativas/Archivo) permanece aparcado hasta nueva indicación expresa del usuario.
 
+## 0.98. Cierre técnico incremental QC — lista, contadores y Guardar (26/10/2026)
+
+**Contexto:** el usuario dijo «siguiente» tras desplegar §0.97 (selector por INV de Carga y Túnel con encabezados Sala 1–5 no seleccionables). Se continúa primero el cierre técnico QC y la unificación local de «Guardar» sin volver a introducir código global. **Tareas sigue en pausa**. No hubo UAT visual explícita del filtro, por lo que NO considerar §0.97 validado por el usuario.
+
+**Hallazgo de revisión:** en `renderControlChecklistHTML`, el último cambio del §0.97 calculaba `listaInv` (día + INV) para contadores y Dashboard, pero seguía calculando el estado de las tarjetas partiendo de `listaDia` y aplicando un segundo filtro por INV a continuación. Funcionaba en muchos casos, pero suponía duplicación e inconsistencia potencial entre métricas y lista. Se ha simplificado a **una única secuencia**: `listaDia` (registros del día) → `listaInv` (filtro INV compartido) → `lista` (estado Todos/Pendientes/Completados) → `listaMostrada=lista` (tarjetas). Los KPIs y el Dashboard siguen basados en `listaInv`, como corresponde al alcance «día + INV». El wizard de Ginés ya usa `controlLineasFiltradasInv`; no se altera en este paso. No se alteran datos, tareas ni almacenamiento.
+
+**Aplicación del criterio «Guardar» únicamente en controles QC:** se normalizaron etiquetas, sin cambiar sus eventos o lógica de persistencia: `index.html` botón final del wizard Túnel «✓ Guardar check» → **«Guardar»**; `assets/control-qc-operativo.js` botón de evaluación cuantitativa «Guardar porcentajes» → **«Guardar»**; Backoffice `admin/qc-ficha.html` «Guardar cantidades» → **«Guardar»** y `admin/qc-criterios.html` «Guardar configuración» → **«Guardar»**. Botones de confirmar/ejecutar/consultar/archivar conservados. No se cambian los guardados de otros módulos.
+
+**Implementación:** commit `ec64d3b2997919db5c6a30af09f9fe0fa8a74f51` sobre `test/v1.0`, exclusivamente los cuatro archivos citados. Los cinco scripts inline de `index.html` y el asset `control-qc-operativo.js` pasan validación de sintaxis JS. Vercel TEST `la-sala-app-test.vercel.app` verificado READY desplegando exactamente ese commit antes de este apunte. **No se ejecutó UAT autenticada ni visual en móvil; pendiente confirmación real del usuario.** Sin escrituras a Firebase y sin cambios de PRD.
+
+**Prueba agrupada:** móvil con usuario de QC Túnel (incluido Ginés) y de QC Carga: elegir INV bajo cada Sala y comprobar que la sala es un título no clicable; tarjetas, contadores y Dashboard del mismo día muestran solo ese INV; cambiar Pendientes/Completados y restaurar «Todos los invernaderos»; comprobar botones «Guardar» en QC sin grabar datos de prueba. Si no hay partidas, el selector sigue accesible. El mantenimiento de formato del CSV de día completo está deliberadamente separado de este filtro.
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).
