@@ -8065,6 +8065,26 @@ function qcAltaOrigenes(tipo){
   });
 }
 
+function qcAltaOrigenYaUsado(source,ctx){
+  return !!source && !!ctx && controlChecksData.some(c=>c.tipo===ctx.tipo && c.dia===ctx.dia &&
+    (c.id===source.id || c.origenPartidaQC?.id===source.id));
+}
+function qcAltaActualizarGuardar(){
+  const ctx=controlAltaQCContext;
+  const save=document.getElementById('qc-alta-guardar');
+  if(!save)return;
+  const origenId=document.getElementById('qc-alta-origen')?.value||'';
+  const source=ctx?.buscadas?.includes(origenId)?
+    qcAltaOrigenes(ctx.tipo).find(c=>c.id===origenId):null;
+  const inv=document.getElementById('qc-alta-inv')?.value||'';
+  const desde=document.getElementById('qc-alta-desde')?.value||'';
+  const hasta=document.getElementById('qc-alta-hasta')?.value||'';
+  const calles=INV_LAYOUT[inv];
+  const nums=calles?[...calles.row1,...calles.row2].map(String):[];
+  save.disabled=!qcAltaFechaContextoValida(ctx)||ctx.busy||!source||
+    qcAltaOrigenYaUsado(source,ctx)||!calles||!desde||!hasta||
+    !nums.includes(desde)||!nums.includes(hasta);
+}
 function qcAltaVistaHTML(tipo){
   const invs=[
     ['Sala 1',ALL_INV_IDS_SALA1],['Sala 2',ALL_INV_IDS],
@@ -8095,9 +8115,9 @@ function qcAltaVistaHTML(tipo){
       '<option value="">— Seleccionar invernadero —</option>'+opciones+'</select>'+
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'+
         '<div><label for="qc-alta-desde" style="display:block;font-size:12px;font-weight:700;margin-bottom:5px">Calle desde</label>'+
-        '<select id="qc-alta-desde" style="width:100%;padding:11px;border:1.5px solid #b7cce1;border-radius:8px;font-size:13px"><option value="">—</option></select></div>'+
+        '<select id="qc-alta-desde" onchange="qcAltaActualizarGuardar()" style="width:100%;padding:11px;border:1.5px solid #b7cce1;border-radius:8px;font-size:13px"><option value="">—</option></select></div>'+
         '<div><label for="qc-alta-hasta" style="display:block;font-size:12px;font-weight:700;margin-bottom:5px">Calle hasta</label>'+
-        '<select id="qc-alta-hasta" style="width:100%;padding:11px;border:1.5px solid #b7cce1;border-radius:8px;font-size:13px"><option value="">—</option></select></div>'+
+        '<select id="qc-alta-hasta" onchange="qcAltaActualizarGuardar()" style="width:100%;padding:11px;border:1.5px solid #b7cce1;border-radius:8px;font-size:13px"><option value="">—</option></select></div>'+
       '</div>'+
     '</div>'+
     '<div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;margin-top:14px">'+
@@ -8164,10 +8184,11 @@ function seleccionarOrigenQCAlta(){
   const save=document.getElementById('qc-alta-guardar');
   if(!ctx||!selector||!target||!save)return;
   const source=qcAltaOrigenes(ctx.tipo).find(c=>ctx.buscadas.includes(c.id)&&c.id===selector.value);
-  save.disabled=!source;
-  if(!source){target.textContent='';return;}
+  if(!source){target.textContent='';qcAltaActualizarGuardar();return;}
   target.textContent=String(source.partida)+' · '+(ctx.tipo==='tunel'?source.clienteVariedad:
-    source.cliente+' · '+source.variedad)+' · '+source.numBandejas+' bandejas';
+    source.cliente+' · '+source.variedad)+' · '+source.numBandejas+' bandejas'+
+    (qcAltaOrigenYaUsado(source,ctx)?' · Ya incluida en este día':'');
+  qcAltaActualizarGuardar();
 }
 
 function actualizarCallesQCAlta(){
@@ -8179,6 +8200,7 @@ function actualizarCallesQCAlta(){
   const nums=layout?[...new Set([...layout.row1,...layout.row2])].sort((a,b)=>a-b):[];
   const html='<option value="">— Calle —</option>'+nums.map(n=>'<option value="'+n+'">'+n+'</option>').join('');
   desde.innerHTML=html;hasta.innerHTML=html;
+  qcAltaActualizarGuardar();
 }
 
 async function guardarNuevaLineaQCAlta(){
@@ -8190,8 +8212,7 @@ async function guardarNuevaLineaQCAlta(){
   if(!source){showToast('Ya no está disponible el registro de origen.');return;}
   // Una fila importada representa una cantidad concreta de bandejas.
   // Repetir su identidad en el mismo día duplicaría el total declarado.
-  const origenYaUsado=controlChecksData.some(c=>c.tipo===ctx.tipo && c.dia===ctx.dia &&
-    (c.id===source.id || c.origenPartidaQC?.id===source.id));
+  const origenYaUsado=qcAltaOrigenYaUsado(source,ctx);
   if(origenYaUsado){showToast('Ese registro de origen ya tiene línea en este día.');return;}
   const inv=document.getElementById('qc-alta-inv')?.value||'';
   const inicio=Number(document.getElementById('qc-alta-desde')?.value);
