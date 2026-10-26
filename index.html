@@ -162,7 +162,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 <style>.qc-card-medido{display:inline-block;font-size:11px;font-weight:800;color:#1558a0;margin-top:4px}</style>
 <script src="admin/qc-indicadores.js?v=077" defer></script>
 <script src="assets/control-qc-operativo.js?v=077" defer></script>
-<script src="assets/control-ui-empty.js?v=079" defer></script>
+<script src="assets/control-ui-empty.js?v=080" defer></script>
 <script src="assets/qc-offline-operarios-store.js" defer></script>
 </head>
 <body>
@@ -6746,7 +6746,7 @@ function renderControlFiltroInvHTML(tipo){
   // Mismo orden que QC Carga: títulos de Sala no clicables (<optgroup>).
   const salas=[['Sala 1',ALL_INV_IDS_SALA1],['Sala 2',ALL_INV_IDS],
     ['Sala 3',ALL_INV_IDS_SALA3],['Sala 4',ALL_INV_IDS_SALA4],['Sala 5',ALL_INV_IDS_SALA5]];
-  return '<div class="qc-list-inv" style="box-sizing:border-box;min-width:0;width:100%;max-width:100%;margin:9px 0 11px">'
+  return '<div class="qc-list-inv" style="box-sizing:border-box;min-width:0;width:100%;max-width:100%;margin:0">'
    +'<label for="qc-inv-filtro-'+tipo+'" style="display:block;font-size:12px;font-weight:800;color:#1558a0;margin-bottom:4px">Invernadero</label>'
    +'<select id="qc-inv-filtro-'+tipo+'" onchange="'+cambiar+'(this.value)" class="qc-list-select" aria-label="Filtrar invernadero" '
    +'style="box-sizing:border-box;width:100%;max-width:100%;min-width:0;min-height:42px;padding:8px;border:1px solid #b5c9df;border-radius:7px;background:#fff;color:#17324e;font-size:14px">'
