@@ -323,8 +323,8 @@
       if(!Array.isArray(chosen))chosen=old?Object.keys(old).filter(k=>Number(old[k])>0):['ok'];
       chosen=normalizeOptions(cat,chosen);
       let issue='';
-      if(chosen.includes('noEvaluada')&&chosen.length>1){
-        issue='La medición anterior combinaba «No evaluada» con otros estados.';chosen=[];
+      if(chosen.includes('noEvaluada')){
+        issue='Esta categoría estaba sin evaluar. Selecciona un estado para actualizarla.';chosen=[];
       }
       if(cat==='sanidad'){
         if(chosen.includes('enferma')){
@@ -576,7 +576,7 @@
     for(const [cat,name,options] of CATS){
       const wrap=node('fieldset',null,'qco-cat');wrap.dataset.qcoCat=cat;wrap.append(node('legend',name));
       const choices=node('div',null,'qco-choices');
-      for(const [value,label] of [...options.filter(x=>x[0]==='ok'),...options.filter(x=>x[0]!=='ok')]){
+      for(const [value,label] of [...options.filter(x=>x[0]==='ok'),...options.filter(x=>x[0]!=='ok'&&x[0]!=='noEvaluada')]){
         const disease=cat==='sanidad'&&isDisease(value);
         const row=node(disease?'div':'label',null,'qco-option'+(disease?' qco-health-row':''));
         row.dataset.option=value;
