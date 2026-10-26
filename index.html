@@ -6103,11 +6103,10 @@ function qcMoverDia(delta,modo){
 }
 function qcImprimirDia(){
  if(controlSeccion!=='tunel')return;
- const wizard=CONTROL_TUNEL_WIZARD_USUARIOS.includes(currentUser);
- const dia=wizard?controlWizardDiaSel:controlDiaSel;
+ const dia=controlDiaSel; // 0.106: la impresión usa la vista ordinaria para todos
  if(!Number.isInteger(dia))return;
  const filtradas=controlLineasFiltradasInv(controlChecksData.filter(c=>c.tipo==='tunel'&&c.dia===dia),'tunel');
- const lista=wizard?filtradas:controlFiltroEstado==='completados'?filtradas.filter(controlLineaFinalizadaQC):controlFiltroEstado==='pendientes'?filtradas.filter(c=>!controlLineaFinalizadaQC(c)):filtradas;
+ const lista=controlFiltroEstado==='completados'?filtradas.filter(controlLineaFinalizadaQC):controlFiltroEstado==='pendientes'?filtradas.filter(c=>!controlLineaFinalizadaQC(c)):filtradas;
  if(!lista.length){showToast('No hay inspecciones para imprimir.');return;}
  window.__controlListadoActual={titulo:'QC Túnel · '+riegoDiaLabelCorto(dia),lineas:lista};
  imprimirListadoPartidasControl();
@@ -6384,7 +6383,7 @@ function renderControlSeccionHTML(seccion){
   if(!seccion) return '';
   if(seccion.tabla) return renderControlConteoTutaHTML(seccion);
   if(seccion.key==='invernadero') return renderControlInvernaderoHTML();
-  if(seccion.key==='tunel' && CONTROL_TUNEL_WIZARD_USUARIOS.includes(currentUser)) return renderControlTunelWizardHTML();
+  if(seccion.key==='tunel') return renderControlChecklistHTML(seccion); // 0.106: misma vista para todos; wizard queda histórico inactivo
   if(!seccion.conCheck){
     return `
       <div style="margin-bottom:1.25rem">
