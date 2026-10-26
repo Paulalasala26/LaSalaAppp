@@ -6430,20 +6430,57 @@ function wizardCabeceraPartidaHTML(c){
       <div style="font-size:26px;font-weight:900;color:#1558a0">${escapar(c.partida)||'— Sin partida —'}</div>
     </div>`;
 }
+
+/* 0.99. Presentación única de metadatos QC (no altera documentos Túnel/Carga).
+ * Túnel usa invId y tramos; Carga interpreta NN-inicio-fin solo para mostrar.
+ * No deducir lados A/B si el parte de Carga no los identifica.
+ */
+function controlQCInfoVisual(c){
+  const tunel=c.tipo==='tunel';
+  const tramo=tunel?calleTramoDeTunel(c):calleTramoDeCarga(c);
+  const inv=tunel?String(c.invId||'').trim():String(tramo?.invId||'').trim();
+  const tramos=tunel
+    ?((Array.isArray(c.tramos)&&c.tramos.length)?c.tramos:[{desde:c.calleDesde,hasta:c.calleHasta}])
+    :(tramo?[{desde:tramo.desde,hasta:tramo.hasta}]:[]);
+  const calles=tramos.map(t=>{
+    const desde=Number(t.desde),hasta=t.hasta==null?desde:Number(t.hasta);
+    if(!Number.isInteger(desde)||desde<0||!Number.isInteger(hasta)||hasta<0)return '';
+    return desde===hasta?String(desde):Math.min(desde,hasta)+'–'+Math.max(desde,hasta);
+  }).filter(Boolean).join(', ');
+  return {inv:inv?'INV '+inv:'—',calles:calles||'—'};
+}
+function renderControlIdentidadQC(c,estadoWizard=false){
+  const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','"':'&quot;'}[ch]));
+  const tunel=c.tipo==='tunel';
+  const principal=tunel?c.clienteVariedad:c.cliente;
+  const inspeccionada=qcEstadoCuantificado(c);
+  const legacyCompletada=estadoWizard&&!inspeccionada&&controlLineaCompletada(c);
+  return '<div class="qc-card-ident">'
+    +'<strong class="qc-card-partida">'+(esc(c.partida)||'Sin partida')+'</strong>'
+    +(inspeccionada?'<span class="qc-card-medido">✓ Inspeccionado</span>':
+      legacyCompletada?'<span class="qc-card-medido">✓ Completado</span>':'')
+    +'<div class="qc-card-cliente">'+(esc(principal)||'Sin cliente / variedad')+'</div>'
+    +(!tunel&&c.variedad?'<div class="qc-card-variedad">'+esc(c.variedad)+'</div>':'')
+    +'</div>';
+}
+function renderControlDatosQC(c){
+  const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+  const ubicacion=controlQCInfoVisual(c);
+  return '<div class="qc-card-facts qc-card-facts-ordenado">'
+    +'<span><i class="ti ti-box" aria-hidden="true"></i> Bandejas declaradas: <strong>'+ (esc(c.numBandejas)||'—')+'</strong></span>'
+    +'<span><i class="ti ti-building-warehouse" aria-hidden="true"></i> Invernadero: <strong>'+esc(ubicacion.inv)+'</strong></span>'
+    +'<span><i class="ti ti-map-pin" aria-hidden="true"></i> Calle: <strong>'+esc(ubicacion.calles)+'</strong></span>'
+    +'</div>';
+}
 function renderControlWizardFilaHTML(c, guionInfo){
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const calleRealLabel = c.invId ? `INV ${escapar(c.invId)} — ${escapar(formatTramosLabel(c.invId, (c.tramos && c.tramos.length) ? c.tramos : [{desde:c.calleDesde, hasta:c.calleHasta}]))}` : 'Sin asignar';
   const completada = controlLineaCompletada(c);
   return `
-    <div style="border:2.5px solid ${completada?'#3fa864':'var(--border)'};border-radius:16px;background:#fff;overflow:hidden">
-      <div onclick="abrirMedicionesControl('${c.id}')" style="padding:18px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:12px">
-        <div style="min-width:0">
-          <div style="font-size:13px;font-weight:700;color:var(--muted)">${escapar(c.clienteVariedad)||'Sin cliente/variedad'}${guionInfo?` · Guión ${guionInfo.n} de ${guionInfo.total}`:''}</div>
-          <div style="font-size:23px;font-weight:900;color:#1558a0;margin-top:2px">${escapar(c.partida)||'— Sin partida —'}</div>
-          <div style="font-size:13px;font-weight:700;color:var(--muted);margin-top:5px">Bandejas: ${escapar(c.numBandejas)||'—'}</div>
-          <div style="font-size:13px;font-weight:700;color:var(--muted);margin-top:2px">Calle: ${calleRealLabel}</div>
-        </div>
-        <div style="flex-shrink:0;font-size:32px">${completada?'✅':'⬜'}</div>
+    <div class="qc-card-compact qc-wizard-ficha" style="border:2px solid ${completada?'#3fa864':'#d0dfec'}">
+      <div class="qc-card-main" onclick="abrirMedicionesControl('${c.id}')" style="cursor:pointer">
+        ${renderControlIdentidadQC(c,true)}
+        ${guionInfo?`<div class="qc-card-guion-info">Guión ${guionInfo.n} de ${guionInfo.total}</div>`:''}
+        ${renderControlDatosQC(c)}
       </div>
       ${anclaCuantificacionControlHTML(c)}
       <button onclick="event.stopPropagation();mostrarAsignarCalleControl('${c.id}')" style="width:100%;padding:14px;font-size:14px;font-weight:700;background:#e8f2fd;color:#1558a0;border:none;border-top:2px solid #d5e6f7;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px">
@@ -7767,11 +7804,7 @@ function abrirMedicionesControl(id){
 // Tarjeta compacta solo para acceso QC cuantitativo; legacy y Ginés permanecen intactos.
 function renderControlCardCompactHTML(c,seccion){
   const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
-  const tunel=c.tipo==='tunel', cliente=tunel?c.clienteVariedad:c.cliente;
-  const titulo=esc(c.partida)||'Sin partida';
-  const ubicacion=tunel
-    ? (c.invId?'INV '+esc(c.invId)+' · '+esc(formatTramosLabel(c.invId,(c.tramos&&c.tramos.length)?c.tramos:[{desde:c.calleDesde,hasta:c.calleHasta}])):'Calle sin asignar')
-    : ('Invernadero: '+(esc(c.invernadero)||'—')+' · Calle: '+(()=>{const t=calleTramoDeCarga(c);return t?esc(t.label):'—';})());
+  const tunel=c.tipo==='tunel';
   cargarFotoControlSiFalta(c.id);
   const imagen=controlFotosData[c.id], pdf=controlPdfsData[seccion.key+'|'+c.dia];
   cargarControlPdfDia(seccion.key,c.dia);
@@ -7781,16 +7814,8 @@ function renderControlCardCompactHTML(c,seccion){
   return `
     <article id="control-card-${c.id}" class="qc-card-compact">
       <div class="qc-card-main">
-        <div class="qc-card-ident">
-          <strong class="qc-card-partida">${titulo}</strong>
-          ${qcEstadoCuantificado(c)?'<span class="qc-card-medido">✓ Inspeccionado</span>':''}
-          <div class="qc-card-cliente">${esc(cliente)||'Sin cliente/variedad'}</div>
-          ${!tunel&&c.variedad?`<div class="qc-card-variedad">${esc(c.variedad)}</div>`:''}
-        </div>
-        <div class="qc-card-facts">
-          <span><i class="ti ti-box" aria-hidden="true"></i> Bandejas declaradas: <strong>${esc(c.numBandejas)||'—'}</strong></span>
-          <span><i class="ti ti-map-pin" aria-hidden="true"></i> ${ubicacion}</span>
-        </div>
+        ${renderControlIdentidadQC(c)}
+        ${renderControlDatosQC(c)}
         <button type="button" class="qc-card-inspect" onclick="abrirMedicionesControl('${c.id}')"><i class="ti ti-clipboard-check" aria-hidden="true"></i> Abrir inspección</button>
         ${anclaCuantificacionControlHTML(c)}
       </div>
@@ -7878,12 +7903,8 @@ function renderControlCardHTML(c, seccion){
     <div id="control-card-${c.id}" style="border:1.5px solid var(--border);border-radius:12px;padding:14px 16px;background:#fff;box-shadow:var(--shadow-sm);transition:outline .2s">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
         <div>
-          <div style="font-size:14px;font-weight:800;color:var(--text)">${escapar(c.clienteVariedad)||'<span style="font-style:italic;color:var(--muted)">Sin cliente/variedad</span>'}</div>
-          ${enlacePartidaCuantificadaHTML(c)}
-          <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">
-            <span style="font-size:11px;font-weight:700;background:#f0f4f8;color:#1558a0;border-radius:999px;padding:3px 10px">Nº bandejas: ${escapar(c.numBandejas)||'—'}</span>
-            <span style="font-size:11px;font-weight:700;background:#f0f4f8;color:#1558a0;border-radius:999px;padding:3px 10px">Calle real: ${calleRealLabel}</span>
-          </div>
+          ${renderControlIdentidadQC(c)}
+          ${renderControlDatosQC(c)}
           ${pdfInfoHTML}
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0">
@@ -7966,14 +7987,8 @@ function renderControlCargaCardHTML(c, seccion){
     <div id="control-card-${c.id}" style="border:1.5px solid var(--border);border-radius:12px;padding:14px 16px;background:#fff;box-shadow:var(--shadow-sm);transition:outline .2s">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
         <div>
-          <div style="font-size:14px;font-weight:800;color:var(--text)">${escapar(c.cliente)||'<span style="font-style:italic;color:var(--muted)">Sin cliente</span>'}</div>
-          ${enlacePartidaCuantificadaHTML(c)}
-          <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">
-            <span style="font-size:11px;font-weight:700;background:#f0f4f8;color:#1558a0;border-radius:999px;padding:3px 10px">Variedad: ${escapar(c.variedad)||'—'}</span>
-            <span style="font-size:11px;font-weight:700;background:#f0f4f8;color:#1558a0;border-radius:999px;padding:3px 10px">Nº bandejas: ${escapar(c.numBandejas)||'—'}</span>
-            <span style="font-size:11px;font-weight:700;background:#f0f4f8;color:#1558a0;border-radius:999px;padding:3px 10px">Invernadero: ${escapar(c.invernadero)||'—'}</span>
-            <span style="font-size:11px;font-weight:700;background:#eef9f0;color:#2e7d32;border-radius:999px;padding:3px 10px">Calle: ${(()=>{ const t=calleTramoDeCarga(c); return t ? escapar(t.label) : '—'; })()}</span>
-          </div>
+          ${renderControlIdentidadQC(c)}
+          ${renderControlDatosQC(c)}
           ${pdfInfoHTML}
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0">
