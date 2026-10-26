@@ -114,8 +114,17 @@
 .qc-tunel-work .qc-work-print:focus-visible{outline:3px solid #6ca6df;outline-offset:2px}
 .qc-tunel-work .qc-work-operations .qc-alta-toolbar{margin-bottom:13px!important}
 .qc-tunel-work .qc-work-operations .qc-list-tools{
-  grid-template-columns:minmax(0,1fr) minmax(135px,.55fr);
+  grid-template-columns:minmax(0,1fr);
   margin:0 0 11px
+}
+.qc-tunel-work .qc-work-inspections .qc-work-list-tools{
+  display:flex;align-items:flex-end;justify-content:space-between;
+  flex-wrap:wrap;gap:10px;margin:0 0 12px
+}
+.qc-tunel-work .qc-work-inspections .qc-work-counter{margin:0;flex:1 1 140px}
+.qc-tunel-work .qc-work-inspections .qc-list-state{flex:0 1 210px}
+@media(max-width:390px){
+  .qc-tunel-work .qc-work-inspections .qc-list-state{flex:1 1 100%}
 }
 .qc-tunel-work .qc-work-operations .qc-list-search{grid-column:auto}
 .qc-tunel-work .qc-work-operations .qc-list-more{margin-top:5px}

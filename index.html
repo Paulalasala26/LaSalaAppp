@@ -7147,15 +7147,16 @@ function renderControlChecklistHTML(seccion){
     const operativa=filtroInvHTML+
       '<div class="qc-list-tools"><div class="qc-list-search">'+
       '<input id="control-buscar-partida" type="search" placeholder="Buscar Nº partida" aria-label="Buscar número de partida" onkeydown="if(event.key===\'Enter\'){event.preventDefault();buscarControlPartida(\'tunel\')}" />'+
-      '<button type="button" onclick="buscarControlPartida(\'tunel\')" aria-label="Buscar"><i class="ti ti-search"></i></button></div>'+
-      filtrosHTML+'</div>'+syncHTML+
+      '<button type="button" onclick="buscarControlPartida(\'tunel\')" aria-label="Buscar"><i class="ti ti-search"></i></button></div></div>'+
+      syncHTML+
       '<details class="qc-list-more"><summary>Más opciones</summary><div class="qc-list-more-actions">'+
       pdfAction+extraTunelHTML+'</div>'+pdfInfoHTML+'</details>';
     const total='<div class="qc-work-counter">'+listaInv.length+' partida'+(listaInv.length===1?'':'s')+
       ' · '+numCompletados+' inspeccionada'+(numCompletados===1?'':'s')+'</div>';
+    const filtrosInspecciones='<div class="qc-work-list-tools">'+total+filtrosHTML+'</div>';
     return '<div class="qc-work-tunel">'+qcFechaHTML('list')+
       qcPanel('Operativa del día',operativa,'qc-work-operations')+
-      qcPanel('Inspecciones',total+cardsHTML,'qc-work-inspections')+'</div>';
+      qcPanel('Inspecciones',filtrosInspecciones+cardsHTML,'qc-work-inspections')+'</div>';
   }
   return `
     <section class="qc-list-screen" aria-label="${seccion.label}">
