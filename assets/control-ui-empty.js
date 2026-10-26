@@ -12,6 +12,8 @@
     const selected=Number(opts.selected);
     const addAction=tunel?"mostrarFormNuevoControlCheck('tunel')":"mostrarFormNuevoControlCargaCheck()";
     const canAdd=opts.canAdd===true;
+    const hideAddButton=opts.hideAddButton===true;
+    const formInToolbar=opts.formInToolbar===true;
     const pdfAction="handleControlPdfInput(this,'"+opts.tipo+"',"+selected+")";
     const more=[
       ...(canAdd?['<label class="qc-empty-secondary"><i class="ti ti-file-type-pdf"></i> Insertar PDF<input type="file" accept="application/pdf" onchange="'+pdfAction+'"></label>']:[])
@@ -33,10 +35,10 @@
       '<div class="qc-empty-panel" role="status">'+
         '<i class="ti ti-clipboard-list" aria-hidden="true"></i>'+
         '<strong>Sin partidas para este día</strong>'+
-        (canAdd?'<p>Elige otra fecha o añade una línea.</p>'+
+        (canAdd&&!hideAddButton?'<p>Elige otra fecha o añade una línea.</p>'+
         '<button type="button" class="qc-empty-primary" onclick="'+addAction+'"><i class="ti ti-plus"></i> Añadir línea</button>':'')+
       '</div>'+
-      '<div id="nuevo-control-form-wrap"></div>'+
+      (formInToolbar?'':'<div id="nuevo-control-form-wrap"></div>')+
       '<div class="qc-empty-actions">'+sync+'</div>'+
       (pending>0?'<div class="qc-empty-pending">Hay '+pending+' cambio(s) pendiente(s) de sincronizar.</div>':'')+
       '<details class="qc-empty-more"><summary>Más opciones</summary><div class="qc-empty-options">'+more.join('')+'</div>'+pdf+'</details>'+
