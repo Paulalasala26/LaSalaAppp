@@ -178,6 +178,12 @@ function editFullLinkedJournal(raw){
  // flag edit mode so the header and the protected delete action remain available.
  fmEditContextoOriginal={invId:records[0].inv,dia:day,calles:[...records[0].streets]};
  actualizarAccionesFitoManual();
+ // Una jornada Pistola se anula lógicamente, nunca se borra como un tratamiento antiguo.
+ const btnAnular=document.getElementById('fm-btn-borrar');
+ if(btnAnular&&raw.tipoTrat==='Pistola'){
+  btnAnular.title='Anular la jornada y conservar su histórico y la tarea vinculada';
+  btnAnular.innerHTML='<i class="ti ti-archive" aria-hidden="true"></i> Anular jornada';
+ }
 }
 window.editarFitoManualDesdeCelda=function(inv,day,streets){
  const raw=getFitoCellRaw(inv,day,streets[0]);
