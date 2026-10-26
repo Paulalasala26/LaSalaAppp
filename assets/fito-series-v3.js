@@ -422,11 +422,22 @@ function construirConsultaFitoV3(mod){
    ?'imprimirJornadaFitoConsultaV3(this.dataset.serie,this.dataset.jornada)'
    :'imprimirHojaResumen(\'fito\','+row.idx+')';
   const buttonStyle='box-sizing:border-box;min-height:44px;height:44px;border:1px solid #1558a0;border-radius:8px;background:#1558a0;color:#fff;font-size:13px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;justify-content:center';
+  // Impresión solo si la jornada ya contiene los datos necesarios para el parte.
+  const piezas=linkedRow?(row.items||[]):[];
+  const faltaCaldo=linkedRow&&piezas.some(x=>!Number.isFinite(Number(x.raw?.caldoLitros))||Number(x.raw.caldoLitros)<=0);
+  const faltaDosis=linkedRow&&piezas.some(x=>{
+    const p=parsearTextoFito(x.raw?.texto||''),lista=parsearProductosDosis(p.trat||'',p.dosis||'');
+    return !lista.length||lista.length>5||lista.some(y=>!y.producto?.trim()||!Number.isFinite(y.dosis)||y.dosis<=0||!y.unidad);
+  });
+  const faltaMetodo=linkedRow&&row.method!=='Pistola'&&row.method!=='Cañón';
+  const printIssue=faltaCaldo?'Falta caldo':faltaDosis?'Falta dosis':faltaMetodo?'Falta método':'';
+  const printAction=printIssue
+    ?'<span title="Edita la jornada para completar este dato" style="display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#8a5d14;background:#fff8e7;border:1px solid #e9d3a0;border-radius:8px;min-height:44px;padding:0 7px">'+printIssue+'</span>'
+    :'<button type="button"'+attrs+' onclick="'+printOnclick+'" title="Imprimir parte del tratamiento" style="'+buttonStyle+';width:100%;padding:0 7px;gap:5px"><i class="ti ti-printer" aria-hidden="true"></i> Imprimir parte</button>';
   const action=row.anulada?'<div style="padding:10px;color:#a32020;background:#fff1f1;border-radius:8px;font-size:12px;font-weight:800">Jornada anulada · histórico conservado</div>':
    '<button type="button"'+attrs+' onclick="'+editOnclick+'" style="'+buttonStyle+';width:100%;min-width:0;padding:0 12px">'
    +(linkedRow?'Editar jornada':'Editar registro')+'</button>'
-   +'<button type="button"'+attrs+' onclick="'+printOnclick+'" title="Imprimir hoja oficial" aria-label="Imprimir hoja oficial" style="'+buttonStyle+';width:46px;padding:0">'
-   +'<i class="ti ti-printer" aria-hidden="true" style="font-size:19px"></i></button>';
+   +printAction;
   const taskAction=linkedRow&&row.method==='Pistola'&&['ADMIN','TECNICO'].includes(currentUserRole)
    ?'<button type="button"'+attrs+' onclick="consultarTareaJornadaFitoV3(this.dataset.serie,this.dataset.jornada)" style="'+buttonStyle+';background:#fff;color:#1558a0;width:100%;margin-top:7px">Estado de tarea</button>'
    :'';
@@ -449,7 +460,7 @@ function construirConsultaFitoV3(mod){
    +'</div></summary>'
    +'<div style="box-sizing:border-box;width:100%;background:#f6f9fd;border-top:1px solid #dce6f2;padding:10px 12px">'
    +'<div style="display:flex;flex-direction:column;width:100%;gap:7px">'+row.detail+'</div>'
-   +'<div style="display:grid;grid-template-columns:minmax(0,1fr) 46px;gap:8px;width:100%;margin-top:10px">'+action+'</div>'
+   +'<div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(127px,auto);gap:8px;width:100%;margin-top:10px">'+action+'</div>'
    +taskAction+'</div></details>';
  }).join('');
  const shown=rows.filter(row=>!buscar||limpiarBusquedaFitoV3(row.search).includes(buscar)).length;
@@ -793,7 +804,21 @@ window.saveFitoManual=async function(){
   const time=document.getElementById('fm-horario').value||'',method=document.getElementById('fm-tipo-trat').value||'';
   const liters=+document.getElementById('fm-caldo').value||null;
   const caldoLabel=liters==null?'':(FITO_CALDO_OPCIONES.find(v=>v.litros===liters)||{}).label||'';
-  if(!product)throw Error('Indica el tratamiento');
+  if(!product)throw Error('Selecciona una mezcla o indica el producto fitosanitario.');
+  // Los registros nuevos incluyen lo necesario para imprimir un parte completo.
+  // Los históricos previos se conservan sin cambios ni migraciones.
+  if(!st.edit&&method!=='Pistola'&&method!=='Cañón')
+   throw Error('Selecciona el método: Pistola o Cañón.');
+  if(!st.edit||method==='Pistola'){
+   if(!Number.isFinite(liters)||liters<=0)
+    throw Error('Selecciona el volumen de mezcla (caldo) en litros.');
+   if(dose&&!/^\s*\d+(?:[.,]\d+)?\s*(?:cc|gr|ml|g)\s*\/\s*l\s*$/i.test(dose))
+    throw Error('Dosis incorrecta. Utiliza, por ejemplo, 1 cc/L.');
+   const productosDosis=parsearProductosDosis(product,dose);
+   if(!productosDosis.length||productosDosis.length>5||
+     productosDosis.some(p=>!p.producto?.trim()||!Number.isFinite(p.dosis)||p.dosis<=0||!p.unidad))
+    throw Error('Indica la dosis por litro de cada producto (máximo cinco).');
+  }
   const targets=gatherTargets(leerInvernaderosBulkSeleccionados('fm'));
   const total=targets.reduce((n,x)=>n+x.streets.length,0);
   if(!total)throw Error('Selecciona al menos una calle');
