@@ -79,7 +79,7 @@
     if(affected>maximum)return 'Faltan '+(affected-maximum)+' bandejas por clasificar.';
     return '';
   }
-  let active=null,sequence=0,writing=false,version=0,record=null,original='',lastTotal=null;
+  let active=null,sequence=0,writing=false,version=0,record=null,original='',initialSnapshot='',lastTotal=null;
   let savedMeasurement=null,currentRules=null,observer=null,loading=false,legacyApi=null,notesPending=null,switchingRecord=false;
   // Guardado confirmado mientras continúa abierta la ficha.
   let savedForList=null;
@@ -217,10 +217,11 @@
     return out;
   }
   function changed(){return original!==JSON.stringify(snapshot())}
+  function editedByUser(){return initialSnapshot!==JSON.stringify(snapshot())}
   function close(force=false){
     if(writing)return false;
     const quantitiesAtRequest=JSON.stringify(snapshot());
-    if(!force&&active&&changed()&&!confirm('Hay cantidades sin guardar. ¿Salir sin guardar?'))return false;
+    if(!force&&active&&editedByUser()&&!confirm('Hay cantidades sin guardar. ¿Salir sin guardar?'))return false;
     if(notesPending||notesChanged()){
       const editor=active;
       report('Guardando observaciones…','');
@@ -233,7 +234,7 @@
     }
     const previous=active,button=controlButton(),refreshRef=savedForList;
     showCardExtras(true);
-    sequence++;active=null;record=null;original='';lastTotal=null;loading=false;
+    sequence++;active=null;record=null;original='';initialSnapshot='';lastTotal=null;loading=false;
     savedMeasurement=null;currentRules=null;legacyApi=null;savedForList=null;
     if(observer){observer.disconnect();observer=null;}
     if(button)button.setAttribute('aria-expanded','false');
@@ -357,7 +358,8 @@
     restorePercentControls();
     // Históricos no poseen un global unificado: proponer el nuevo cálculo sin avisos.
     if(!savedV5)syncGlobal(true);
-    original=saved?JSON.stringify(snapshot()):'';
+    initialSnapshot=JSON.stringify(snapshot());
+    original=saved?initialSnapshot:'';
     updateIndicatorVisibility();report('','');
   }
   async function fetchRules(jwt,stage){
@@ -507,7 +509,7 @@
       }
       const data=await r.json();
       if(!data.ok||!Number.isInteger(data.version))throw Error('INVALID_RESPONSE');
-      version=data.version;original=JSON.stringify(snapshot());
+      version=data.version;original=JSON.stringify(snapshot());initialSnapshot=original;
       savedMeasurement={schemaVersion:5,version,bandejasInspeccionadas:checked.total,
         categorias:checked.categorias,porcentajeInvalidasGlobal:checked.porcentajeInvalidasGlobal};
       confirmed=true;
@@ -526,7 +528,7 @@
           await verificarGuardadoIncierto(jwt,refAtSave,checked,versionAtSave):{state:'unknown'};
         if(state.state==='confirmed'){
           version=state.value.version;
-          original=JSON.stringify(snapshot());
+          original=JSON.stringify(snapshot());initialSnapshot=original;
           savedMeasurement=state.value;
           confirmed=true;
         }else if(state.state==='absent'){
@@ -609,7 +611,7 @@
     if(legacyApi){
       // Las observaciones/fotos se editan usando su registro histórico original.
       const section=node('section',null,'qco-legacy-extras');
-      section.append(node('div','Observaciones y foto','qco-extras-heading'));
+      section.append(node('div','Observaciones','qco-extras-heading'));
       const content=node('div',null,'qco-extras-content');
       const notesField=node('label',null,'qco-notes');
       notesField.append(node('span','Observaciones'));
@@ -640,7 +642,10 @@
         catch(e){report('No se ha podido completar la carga de la foto.','error');}
         finally{if(active)refreshPhoto();upload.value='';}
       });
-      pick.append(upload);media.append(pick);content.append(media);
+      pick.append(upload);media.append(pick);
+      const photoSection=node('section',null,'qco-photo-top');
+      photoSection.append(node('div','Fotografía','qco-extras-heading'),media);
+      form.insertBefore(photoSection,form.querySelector('.qco-cat'));
       section.append(content);form.append(section);
     }
 
@@ -675,7 +680,7 @@
     savedMeasurement=null;currentRules=null;loading=true;savedForList=null;
     active=build(rec);
     mount();observeControl();
-    original=JSON.stringify(snapshot());
+    original=JSON.stringify(snapshot());initialSnapshot=original;
     const modal=active;
     // No desplegar el teclado móvil antes de recibir los datos.
     try{
