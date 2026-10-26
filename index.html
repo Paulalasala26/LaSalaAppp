@@ -6476,7 +6476,7 @@ function renderControlWizardFinalHTML(c){
         </label>
       </div>
       ${botonCuantificacionControlHTML(c)}
-      <button onclick="guardarControlWizardYVolver()" style="width:100%;padding:24px;border-radius:16px;font-size:19px;font-weight:800;background:#2e7d32;color:#fff;border:none;cursor:pointer">✓ Guardar check</button>
+      <button onclick="guardarControlWizardYVolver()" style="width:100%;padding:24px;border-radius:16px;font-size:19px;font-weight:800;background:#2e7d32;color:#fff;border:none;cursor:pointer">Guardar</button>
       ${botonAtrasWizardHTML()}
     </div>`;
 }
@@ -6970,9 +6970,9 @@ function renderControlChecklistHTML(seccion){
   const listaInv=controlLineasFiltradasInv(listaDia,seccion.key);
   const numCompletados = listaInv.filter(controlLineaFinalizadaQC).length;
   const numPendientes = listaInv.length - numCompletados;
-  const lista = controlFiltroEstado==='completados' ? listaDia.filter(controlLineaFinalizadaQC)
-    : controlFiltroEstado==='pendientes' ? listaDia.filter(c=>!controlLineaFinalizadaQC(c))
-    : listaDia;
+  const lista = controlFiltroEstado==='completados' ? listaInv.filter(controlLineaFinalizadaQC)
+    : controlFiltroEstado==='pendientes' ? listaInv.filter(c=>!controlLineaFinalizadaQC(c))
+    : listaInv;
   const pdf = controlPdfsData[seccion.key+'|'+controlDiaSel];
   // Carga bajo demanda (no bloquea este pintado): si el índice dice que hay
   // un PDF para este día pero todavía no está en memoria, se pide en segundo
@@ -7007,17 +7007,8 @@ function renderControlChecklistHTML(seccion){
   // líneas sin calle asignada siguen siendo visibles, pero solo en la vista
   // "Todos los invernaderos" (sin filtro) — ahí es donde hay que fijarse
   // para acabar de asignarles la calle, no mezcladas con otro invernadero.
-  const listaMostrada = (seccion.key==='carga' && controlCargaInvFiltro)
-    ? lista.map(c=>({c, tramo: calleTramoDeCarga(c)}))
-        .filter(x=>x.tramo && coincideInvernaderoCarga(x.tramo.invId, controlCargaInvFiltro))
-        .sort((a,b)=> a.tramo.desde - b.tramo.desde)
-        .map(x=>x.c)
-    : (seccion.key==='tunel' && controlTunelInvFiltro)
-    ? lista.map(c=>({c, tramo: calleTramoDeTunel(c)}))
-        .filter(x=>x.tramo && x.tramo.invId===controlTunelInvFiltro)
-        .sort((a,b)=> a.tramo.desde - b.tramo.desde)
-        .map(x=>x.c)
-    : lista;
+  // Misma lista para tarjetas, estados y panel de métricas, sin doble filtrado.
+  const listaMostrada = lista;
 
   // Partidas con más de un guión (mismo Nº de partida repetido en días
   // distintos) se agrupan en una sola tarjeta con flechas — ver

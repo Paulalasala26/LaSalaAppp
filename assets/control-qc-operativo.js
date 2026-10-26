@@ -649,7 +649,7 @@
     details.append(node('summary','Resumen QC'),node('div',null,'qco-indicator-list'));form.append(details);
     const foot=node('div',null,'qco-footer');
     const cancel=node('button','Cerrar','qco-secondary');cancel.type='button';cancel.addEventListener('click',()=>close());
-    const submit=node('button','Guardar porcentajes','qco-save');submit.type='submit';submit.disabled=true;
+    const submit=node('button','Guardar','qco-save');submit.type='submit';submit.disabled=true;
     foot.append(cancel,submit);form.append(foot);body.append(form);dialog.append(body);overlay.append(dialog);return overlay;
   }
   async function open(rec,context){
