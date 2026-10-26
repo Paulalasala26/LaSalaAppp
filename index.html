@@ -8045,81 +8045,74 @@ function bloquearAltaPasadaControlQC(dia){
   showToast('No se pueden añadir líneas manuales a días anteriores a hoy.');
   return true;
 }
-/* 0.102. Alta de líneas QC con origen importado y formulario común. */
+/* 0.103. Alta QC manual controlada: partida libre; catálogos de identidad
+ * derivados de partes PDF ya importados, no de un maestro de clientes.
+ * Formulario ÚNICO y completo en Túnel y Carga, sin búsqueda previa de partida.
+ */
 let controlAltaQCContext=null;
 function qcAltaEsc(v){return String(v==null?'':v).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));}
-
 function qcAltaFechaContextoValida(ctx){
   return !!ctx && (ctx.wizard ? controlWizardDiaSel : controlDiaSel)===ctx.dia &&
     controlSeccion===ctx.tipo && puedeCrearLineaControlQC(ctx.dia);
 }
-
-function qcAltaOrigenes(tipo){
-  return controlChecksData.filter(c=>{
-    if(!c || c.tipo!==tipo || c.origenPdf!==true || !c.id ||
-       !/^[A-Za-z0-9._-]{3,100}$/.test(String(c.partida||'')))return false;
-    const n=Number(String(c.numBandejas||'').replace(',','.'));
-    return Number.isSafeInteger(n)&&n>0 &&
-      (tipo==='tunel'?!!String(c.clienteVariedad||'').trim():
-        !!String(c.cliente||'').trim() && !!String(c.variedad||'').trim());
+// Obtener solamente combinaciones cliente+variedad documentadas. En Túnel,
+// los PDF antiguos guardan ambos campos en "clienteVariedad", separados por " — ".
+// No dividir texto sin separador ni inventar nombres o variedades.
+function qcAltaCatalogo(){
+  const visto=new Set(),pares=[];
+  controlChecksData.forEach(c=>{
+    if(!c || !(c.origenPdf===true ||
+      (c.origenAltaQC?.fuente==='manual' && c.origenAltaQC?.catalogoControlado===true)))return;
+    let cliente=String(c.cliente||'').trim();
+    let variedad=String(c.variedad||'').trim();
+    if((!cliente||!variedad) && c.tipo==='tunel'){
+      const combinado=String(c.clienteVariedad||'').trim();
+      const sep=combinado.lastIndexOf(' — ');
+      if(sep>0){cliente=combinado.slice(0,sep).trim();variedad=combinado.slice(sep+3).trim();}
+    }
+    if(!cliente||!variedad)return;
+    const clave=cliente.toLocaleUpperCase('es')+'\u0000'+variedad.toLocaleUpperCase('es');
+    if(visto.has(clave))return;
+    visto.add(clave);pares.push({cliente,variedad});
   });
+  return pares.sort((a,b)=>a.cliente.localeCompare(b.cliente,'es') ||
+    a.variedad.localeCompare(b.variedad,'es'));
 }
-
-function qcAltaOrigenYaUsado(source,ctx){
-  return !!source && !!ctx && controlChecksData.some(c=>c.tipo===ctx.tipo && c.dia===ctx.dia &&
-    (c.id===source.id || c.origenPartidaQC?.id===source.id));
-}
-function qcAltaActualizarGuardar(){
-  const ctx=controlAltaQCContext;
-  const save=document.getElementById('qc-alta-guardar');
-  if(!save)return;
-  const origenId=document.getElementById('qc-alta-origen')?.value||'';
-  const source=ctx?.buscadas?.includes(origenId)?
-    qcAltaOrigenes(ctx.tipo).find(c=>c.id===origenId):null;
-  const inv=document.getElementById('qc-alta-inv')?.value||'';
-  const desde=document.getElementById('qc-alta-desde')?.value||'';
-  const hasta=document.getElementById('qc-alta-hasta')?.value||'';
-  const calles=INV_LAYOUT[inv];
-  const nums=calles?[...calles.row1,...calles.row2].map(String):[];
-  save.disabled=!qcAltaFechaContextoValida(ctx)||ctx.busy||!source||
-    qcAltaOrigenYaUsado(source,ctx)||!calles||!desde||!hasta||
-    !nums.includes(desde)||!nums.includes(hasta);
-}
-function qcAltaVistaHTML(tipo){
+function qcAltaVistaHTML(ctx){
   const invs=[
     ['Sala 1',ALL_INV_IDS_SALA1],['Sala 2',ALL_INV_IDS],
     ['Sala 3',ALL_INV_IDS_SALA3],['Sala 4',ALL_INV_IDS_SALA4],['Sala 5',ALL_INV_IDS_SALA5]
   ];
-  const opciones=invs.map(([sala,ids])=>'<optgroup label="'+qcAltaEsc(sala)+'">'+
+  const invOpts=invs.map(([sala,ids])=>'<optgroup label="'+qcAltaEsc(sala)+'">'+
     ids.map(id=>'<option value="'+qcAltaEsc(id)+'">INV '+qcAltaEsc(id)+'</option>').join('')+
     '</optgroup>').join('');
+  const clientes=[...new Set(ctx.catalogo.map(p=>p.cliente))].sort((a,b)=>a.localeCompare(b,'es'));
+  const clientesOpts=clientes.map(c=>'<option value="'+qcAltaEsc(c)+'">'+qcAltaEsc(c)+'</option>').join('');
+  const css='width:100%;min-width:0;padding:11px;border:1.5px solid #b7cce1;border-radius:8px;font-size:13px;background:#fff';
   return '<section class="qc-card-compact" aria-label="Añadir línea QC" style="padding:14px;margin-bottom:14px">'+
-    '<div style="font-size:16px;font-weight:800;color:#1558a0;margin-bottom:12px">Añadir línea</div>'+
-    '<label for="qc-alta-buscar" style="display:block;font-size:12px;font-weight:700;margin-bottom:5px">Partida</label>'+
-    '<div style="display:flex;gap:7px;margin-bottom:9px">'+
-      '<input id="qc-alta-buscar" type="search" placeholder="Nº de partida" aria-label="Buscar partida de PDF importado"'+
-      ' onkeydown="if(event.key===&#39;Enter&#39;){event.preventDefault();buscarPartidaQCAlta()}"'+
-      ' style="flex:1;min-width:0;padding:11px;border:1.5px solid #b7cce1;border-radius:8px;font-size:14px">'+
-      '<button type="button" onclick="buscarPartidaQCAlta()" aria-label="Buscar partida"'+
-      ' style="background:#1558a0;color:white;border:0;border-radius:8px;padding:9px 15px;cursor:pointer">'+
-      '<i class="ti ti-search" aria-hidden="true"></i></button></div>'+
-    '<div id="qc-alta-resultados" role="status" style="font-size:12px;margin-bottom:9px"></div>'+
-    '<div id="qc-alta-seleccion" hidden>'+
-      '<label for="qc-alta-origen" style="display:block;font-size:12px;font-weight:700;margin-bottom:5px">Registro importado</label>'+
-      '<select id="qc-alta-origen" onchange="seleccionarOrigenQCAlta()"'+
-      ' style="width:100%;padding:11px;border:1.5px solid #b7cce1;border-radius:8px;font-size:13px;margin-bottom:9px"></select>'+
-      '<div id="qc-alta-datos" style="background:#edf5ff;border-radius:9px;padding:10px 12px;margin-bottom:13px;font-size:13px"></div>'+
-      '<label for="qc-alta-inv" style="display:block;font-size:12px;font-weight:700;margin-bottom:5px">Invernadero</label>'+
-      '<select id="qc-alta-inv" onchange="actualizarCallesQCAlta()"'+
-      ' style="width:100%;padding:11px;border:1.5px solid #b7cce1;border-radius:8px;font-size:13px;margin-bottom:10px">'+
-      '<option value="">— Seleccionar invernadero —</option>'+opciones+'</select>'+
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'+
-        '<div><label for="qc-alta-desde" style="display:block;font-size:12px;font-weight:700;margin-bottom:5px">Calle desde</label>'+
-        '<select id="qc-alta-desde" onchange="qcAltaActualizarGuardar()" style="width:100%;padding:11px;border:1.5px solid #b7cce1;border-radius:8px;font-size:13px"><option value="">—</option></select></div>'+
-        '<div><label for="qc-alta-hasta" style="display:block;font-size:12px;font-weight:700;margin-bottom:5px">Calle hasta</label>'+
-        '<select id="qc-alta-hasta" onchange="qcAltaActualizarGuardar()" style="width:100%;padding:11px;border:1.5px solid #b7cce1;border-radius:8px;font-size:13px"><option value="">—</option></select></div>'+
-      '</div>'+
+    '<div style="font-size:16px;font-weight:800;color:#1558a0;margin-bottom:12px">Añadir línea · '+qcAltaEsc(riegoDiaLabelCorto(ctx.dia))+'</div>'+
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:11px">'+
+      '<div><label for="qc-alta-partida" style="display:block;font-size:12px;font-weight:700;margin-bottom:5px">Nº de partida</label>'+
+      '<input id="qc-alta-partida" type="text" autocomplete="off" autocapitalize="characters" maxlength="24" placeholder="Ej. 26X02292" oninput="qcAltaActualizarGuardar()"'+
+      ' style="'+css+'"></div>'+
+      '<div><label for="qc-alta-bandejas" style="display:block;font-size:12px;font-weight:700;margin-bottom:5px">Bandejas declaradas</label>'+
+      '<input id="qc-alta-bandejas" type="number" min="1" step="1" inputmode="numeric" oninput="qcAltaActualizarGuardar()"'+
+      ' style="'+css+'"></div>'+
+      '<div><label for="qc-alta-cliente" style="display:block;font-size:12px;font-weight:700;margin-bottom:5px">Cliente</label>'+
+      '<select id="qc-alta-cliente" onchange="qcAltaActualizarVariedades()" style="'+css+'">'+
+        '<option value="">— Seleccionar cliente —</option>'+clientesOpts+'</select></div>'+
+      '<div><label for="qc-alta-variedad" style="display:block;font-size:12px;font-weight:700;margin-bottom:5px">Variedad</label>'+
+      '<select id="qc-alta-variedad" onchange="qcAltaActualizarGuardar()" style="'+css+'"><option value="">— Seleccionar variedad —</option></select></div>'+
+      '<div><label for="qc-alta-inv" style="display:block;font-size:12px;font-weight:700;margin-bottom:5px">Invernadero</label>'+
+      '<select id="qc-alta-inv" onchange="actualizarCallesQCAlta()" style="'+css+'">'+
+        '<option value="">— Seleccionar invernadero —</option>'+invOpts+'</select></div>'+
+      '<div><label for="qc-alta-desde" style="display:block;font-size:12px;font-weight:700;margin-bottom:5px">Calle desde</label>'+
+      '<select id="qc-alta-desde" onchange="qcAltaActualizarGuardar()" style="'+css+'"><option value="">—</option></select></div>'+
+      '<div><label for="qc-alta-hasta" style="display:block;font-size:12px;font-weight:700;margin-bottom:5px">Calle hasta</label>'+
+      '<select id="qc-alta-hasta" onchange="qcAltaActualizarGuardar()" style="'+css+'"><option value="">—</option></select></div>'+
     '</div>'+
+    (clientes.length?'':'<p role="alert" style="font-size:12px;color:#a55e06;margin-top:10px">No hay clientes y variedades disponibles en los partes importados.</p>')+
+    '<div id="qc-alta-aviso" role="status" style="font-size:12px;color:#a55e06;margin-top:8px"></div>'+
     '<div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;margin-top:14px">'+
       '<button type="button" onclick="cancelarQCAlta()" style="padding:11px 18px;border:1px solid #b7cce1;background:#fff;border-radius:8px;color:#1558a0;font-weight:700">Cancelar</button>'+
       '<button id="qc-alta-guardar" type="button" onclick="guardarNuevaLineaQCAlta()" disabled'+
@@ -8127,70 +8120,40 @@ function qcAltaVistaHTML(tipo){
     '</div>'+
   '</section>';
 }
-
 async function abrirAltaQC(tipo,wizard){
   const dia=wizard?controlWizardDiaSel:controlDiaSel;
-  if(!['tunel','carga'].includes(tipo) || controlSeccion!==tipo || bloquearAltaPasadaControlQC(dia))return;
+  if(!['tunel','carga'].includes(tipo)||controlSeccion!==tipo||bloquearAltaPasadaControlQC(dia))return;
   const wrap=document.getElementById('nuevo-control-form-wrap');
   if(!wrap)return;
-  const ctx={tipo,dia,wizard:!!wizard,buscadas:[],busy:false};
+  const ctx={tipo,dia,wizard:!!wizard,catalogo:[],busy:false};
   controlAltaQCContext=ctx;
-  wrap.innerHTML='<div role="status" style="padding:14px">Cargando partidas importadas…</div>';
+  wrap.innerHTML='<div role="status" style="padding:14px">Cargando opciones de los partes…</div>';
   const ok=await loadControlTipoCompleto(tipo,false);
-  if(controlAltaQCContext!==ctx || !qcAltaFechaContextoValida(ctx) || !wrap.isConnected)return;
+  if(controlAltaQCContext!==ctx||!qcAltaFechaContextoValida(ctx)||!wrap.isConnected)return;
   if(!ok){
-    wrap.innerHTML='<div role="alert" style="padding:14px">No se han podido cargar las partidas. Reintenta.</div>';
+    wrap.innerHTML='<div role="alert" style="padding:14px">No se han podido cargar las opciones. Reintenta.</div>';
     return;
   }
-  wrap.innerHTML=qcAltaVistaHTML(tipo);
-  document.getElementById('qc-alta-buscar')?.focus();
+  ctx.catalogo=qcAltaCatalogo();
+  wrap.innerHTML=qcAltaVistaHTML(ctx);
+  document.getElementById('qc-alta-partida')?.focus();
 }
-
 function cancelarQCAlta(){
   controlAltaQCContext=null;
   const wrap=document.getElementById('nuevo-control-form-wrap');
   if(wrap)wrap.innerHTML='';
 }
-
-function buscarPartidaQCAlta(){
+function qcAltaActualizarVariedades(){
   const ctx=controlAltaQCContext;
-  if(!qcAltaFechaContextoValida(ctx))return;
-  const entrada=document.getElementById('qc-alta-buscar');
-  const info=document.getElementById('qc-alta-resultados');
-  const wrap=document.getElementById('qc-alta-seleccion');
-  const save=document.getElementById('qc-alta-guardar');
-  if(!entrada||!info||!wrap||!save)return;
-  wrap.hidden=true;save.disabled=true;ctx.buscadas=[];
-  const query=String(entrada.value||'').trim().toUpperCase();
-  if(query.length<3){info.textContent='Introduce al menos 3 caracteres y pulsa la lupa.';return;}
-  const todos=qcAltaOrigenes(ctx.tipo).filter(c=>String(c.partida).toUpperCase().includes(query))
-    .sort((a,b)=>b.dia-a.dia||String(a.partida).localeCompare(String(b.partida),'es'));
-  if(!todos.length){info.textContent='Partida no encontrada en los PDF importados. Comprueba o importa el parte correspondiente.';return;}
-  if(todos.length>60){info.textContent='Hay demasiadas coincidencias. Especifica más el número de partida.';return;}
-  ctx.buscadas=todos.map(c=>c.id);
-  const selector=document.getElementById('qc-alta-origen');
-  selector.innerHTML='<option value="">— Selecciona el registro —</option>'+
-    todos.map(c=>'<option value="'+qcAltaEsc(c.id)+'">'+qcAltaEsc(c.partida)+' · '+
-      qcAltaEsc(c.numBandejas)+' bandejas · '+qcAltaEsc(riegoDiaLabelCorto(c.dia))+'</option>').join('');
-  info.textContent=todos.length+' registro(s) de origen';
-  wrap.hidden=false;
-  document.getElementById('qc-alta-datos').textContent='';
-}
-
-function seleccionarOrigenQCAlta(){
-  const ctx=controlAltaQCContext;
-  const selector=document.getElementById('qc-alta-origen');
-  const target=document.getElementById('qc-alta-datos');
-  const save=document.getElementById('qc-alta-guardar');
-  if(!ctx||!selector||!target||!save)return;
-  const source=qcAltaOrigenes(ctx.tipo).find(c=>ctx.buscadas.includes(c.id)&&c.id===selector.value);
-  if(!source){target.textContent='';qcAltaActualizarGuardar();return;}
-  target.textContent=String(source.partida)+' · '+(ctx.tipo==='tunel'?source.clienteVariedad:
-    source.cliente+' · '+source.variedad)+' · '+source.numBandejas+' bandejas'+
-    (qcAltaOrigenYaUsado(source,ctx)?' · Ya incluida en este día':'');
+  const cliente=document.getElementById('qc-alta-cliente')?.value||'';
+  const sel=document.getElementById('qc-alta-variedad');
+  if(!ctx||!sel)return;
+  const variedades=[...new Set(ctx.catalogo.filter(p=>p.cliente===cliente).map(p=>p.variedad))]
+    .sort((a,b)=>a.localeCompare(b,'es'));
+  sel.innerHTML='<option value="">— Seleccionar variedad —</option>'+
+    variedades.map(v=>'<option value="'+qcAltaEsc(v)+'">'+qcAltaEsc(v)+'</option>').join('');
   qcAltaActualizarGuardar();
 }
-
 function actualizarCallesQCAlta(){
   const inv=document.getElementById('qc-alta-inv')?.value;
   const desde=document.getElementById('qc-alta-desde');
@@ -8202,67 +8165,95 @@ function actualizarCallesQCAlta(){
   desde.innerHTML=html;hasta.innerHTML=html;
   qcAltaActualizarGuardar();
 }
-
-async function guardarNuevaLineaQCAlta(){
-  const ctx=controlAltaQCContext;
-  if(!qcAltaFechaContextoValida(ctx) || ctx.busy)return;
-  const idOrigen=document.getElementById('qc-alta-origen')?.value||'';
-  if(!ctx.buscadas.includes(idOrigen)){showToast('Selecciona una partida importada.');return;}
-  const source=qcAltaOrigenes(ctx.tipo).find(c=>c.id===idOrigen);
-  if(!source){showToast('Ya no está disponible el registro de origen.');return;}
-  // Una fila importada representa una cantidad concreta de bandejas.
-  // Repetir su identidad en el mismo día duplicaría el total declarado.
-  const origenYaUsado=qcAltaOrigenYaUsado(source,ctx);
-  if(origenYaUsado){showToast('Ese registro de origen ya tiene línea en este día.');return;}
+function qcAltaValidarFormulario(ctx){
+  if(!qcAltaFechaContextoValida(ctx))return {error:'Fecha no válida para el alta.'};
+  const partida=String(document.getElementById('qc-alta-partida')?.value||'').trim().toUpperCase();
+  // Mismo patrón de códigos de partida que admiten los partes QC vigentes.
+  if(!/^\d{2}[A-Z]{0,2}\d{4,6}$/.test(partida)||/ZE|YE/.test(partida))
+    return {error:'Introduce un número de partida válido.'};
+  const cliente=document.getElementById('qc-alta-cliente')?.value||'';
+  const variedad=document.getElementById('qc-alta-variedad')?.value||'';
+  if(!ctx.catalogo.some(p=>p.cliente===cliente&&p.variedad===variedad))
+    return {error:'Selecciona cliente y variedad de las opciones disponibles.'};
+  const numTexto=String(document.getElementById('qc-alta-bandejas')?.value||'').trim();
+  const n=Number(numTexto);
+  if(!numTexto||!Number.isSafeInteger(n)||n<=0)
+    return {error:'Indica un número entero positivo de bandejas.'};
   const inv=document.getElementById('qc-alta-inv')?.value||'';
-  const inicio=Number(document.getElementById('qc-alta-desde')?.value);
-  const fin=Number(document.getElementById('qc-alta-hasta')?.value);
+  const desdeTexto=document.getElementById('qc-alta-desde')?.value||'';
+  const hastaTexto=document.getElementById('qc-alta-hasta')?.value||'';
   const layout=INV_LAYOUT[inv];
-  const calleValida=n=>Number.isInteger(n)&&[...layout.row1,...layout.row2].includes(n);
-  if(!layout||!document.getElementById('qc-alta-desde')?.value||
-     !document.getElementById('qc-alta-hasta')?.value||!calleValida(inicio)||!calleValida(fin)){
-    showToast('Selecciona invernadero y ambas calles.');return;
-  }
+  if(!layout||!desdeTexto||!hastaTexto)return {error:'Selecciona invernadero y ambas calles.'};
+  const validas=[...layout.row1,...layout.row2];
+  const inicio=Number(desdeTexto),fin=Number(hastaTexto);
+  if(!Number.isInteger(inicio)||!Number.isInteger(fin)||
+    !validas.includes(inicio)||!validas.includes(fin))
+    return {error:'Las calles deben pertenecer al invernadero elegido.'};
   const desde=Math.min(inicio,fin),hasta=Math.max(inicio,fin);
-  const n=String(source.numBandejas).trim();
-  const compuesto=String(parseInt(inv,10))+'-'+desde+'-'+hasta;
-  const duplicate=controlChecksData.some(c=>{
-    if(c.tipo!==ctx.tipo || c.dia!==ctx.dia || c.partida!==source.partida ||
-       String(c.numBandejas)!==n)return false;
+  const repetida=controlChecksData.some(c=>{
+    if(c.tipo!==ctx.tipo||c.dia!==ctx.dia||
+      String(c.partida||'').trim().toUpperCase()!==partida)return false;
     const tramo=ctx.tipo==='tunel'?calleTramoDeTunel(c):calleTramoDeCargaDirecta(c);
     if(!tramo||!tramo.invId)return false;
-    // Historical Carga PDF has no A/B; do not duplicate the same physical range.
-    const sameInv=ctx.tipo==='tunel' ? tramo.invId===inv :
+    const mismoInv=ctx.tipo==='tunel'?String(tramo.invId)===inv:
       String(tramo.invId).replace(/[A-Za-z]+$/,'')===String(parseInt(inv,10));
-    return sameInv&&tramo.desde===desde&&tramo.hasta===hasta;
+    return mismoInv&&tramo.desde===desde&&tramo.hasta===hasta;
   });
-  if(duplicate){showToast('Ya existe esa línea para la partida, día y ubicación.');return;}
+  if(repetida)return {error:'Ya existe una línea de esta partida, día y ubicación.',duplicado:true};
+  return {datos:{partida,cliente,variedad,numBandejas:String(n),inv,desde,hasta}};
+}
+function qcAltaActualizarGuardar(){
+  const ctx=controlAltaQCContext;
+  const btn=document.getElementById('qc-alta-guardar');
+  const info=document.getElementById('qc-alta-aviso');
+  if(!btn||!ctx)return;
+  const r=qcAltaValidarFormulario(ctx);
+  btn.disabled=!!ctx.busy||!r.datos;
+  if(info)info.textContent=r.duplicado?r.error:'';
+}
+async function guardarNuevaLineaQCAlta(){
+  const ctx=controlAltaQCContext;
+  if(!qcAltaFechaContextoValida(ctx)||ctx.busy)return;
+  const r=qcAltaValidarFormulario(ctx);
+  if(!r.datos){showToast(r.error||'Completa los datos del alta.');return false;}
+  const {partida,cliente,variedad,numBandejas,inv,desde,hasta}=r.datos;
   const entry={
     id:'control_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
-    tipo:ctx.tipo,dia:ctx.dia,partida:source.partida,numBandejas:n,
+    tipo:ctx.tipo,dia:ctx.dia,partida,numBandejas,
     color:{},tamano:{},sanidad:{},flores:{},raices:{},observaciones:'',
     creadoPor:currentUser||'—',creadoEn:new Date().toLocaleString('es-ES'),
-    origenPartidaQC:{tipo:ctx.tipo,id:source.id,dia:source.dia,fuente:'pdf'}
+    origenAltaQC:{fuente:'manual',catalogoControlado:true,validacionGS:false}
   };
   if(ctx.tipo==='tunel'){
-    entry.clienteVariedad=source.clienteVariedad;
-    entry.fentrega=source.fentrega||'';
+    entry.cliente=cliente;entry.variedad=variedad;
+    entry.clienteVariedad=cliente+' — '+variedad;
     entry.invId=inv;entry.calleDesde=desde;entry.calleHasta=hasta;
     entry.tramos=[{desde,hasta}];
   }else{
-    entry.cliente=source.cliente;entry.variedad=source.variedad;
-    entry.invId=inv;entry.invernadero=compuesto;
+    entry.cliente=cliente;entry.variedad=variedad;
+    entry.invId=inv;
+    entry.invernadero=String(parseInt(inv,10))+'-'+desde+'-'+hasta;
   }
   ctx.busy=true;
-  const save=document.getElementById('qc-alta-guardar');
-  if(save)save.disabled=true;
+  qcAltaActualizarGuardar();
   try{
-    // Retains the existing per-record storage and offline queue implementation.
     const ok=ctx.tipo==='tunel'?
       await aplicarNuevaLineaControl(entry):await aplicarNuevaLineaControlCarga(entry);
-    if(ok){controlAltaQCContext=null;abrirMedicionesControl(entry.id);}
-    else{ctx.busy=false;if(save?.isConnected)save.disabled=false;}
-  }catch(err){ctx.busy=false;if(save?.isConnected)save.disabled=false;showToast('No se ha podido guardar la línea.');}
+    if(ok){
+      controlAltaQCContext=null;
+      abrirMedicionesControl(entry.id);
+    }else{
+      // El alta ya está en memoria y en cola offline; no generar otro ID.
+      cancelarQCAlta();
+      showToast('Alta pendiente de sincronización. Comprueba el aviso de pendientes.');
+    }
+    return ok;
+  }catch(_){
+    ctx.busy=false;
+    qcAltaActualizarGuardar();
+    showToast('No se ha podido guardar la línea.');
+    return false;
+  }
 }
 function mostrarFormNuevoControlCargaCheck(){return abrirAltaQC('carga',false);}
 // La identidad se obtiene exclusivamente de referencias PDF verificables.
