@@ -917,6 +917,20 @@ El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en int
 
 **Siguiente comprobación AGRUPADA:** usuario vuelve a abrir Operativas en TEST y comprueba lista `Todos` por defecto, con tareas de hoy y mañana; localizar el trabajo guardado. Si sigue faltando, pedir exactamente invernadero, día y código de trabajo del registro real y revisar su camino de conciliación sin crear ni editar datos de terceros, y distinguir la cola local de fallo remoto. **No dar por arreglada la generación automática sin aceptación de UAT.**
 
+## 0.83. Incidencia concreta en Operativas y semántica de Guardar Riego (26/10/2026)
+
+**Incidencia real del usuario, todavía ABIERTA:** «no hay tarea en operativa», incluso tras corrección de visibilidad de 0.82. Último caso comunicado: **26/10/2026, Sala 1, INV 1A, calle 10**, riego nuevo creado desde el formulario; al volver a Operativas, la tarea no aparece. El usuario no ha indicado aún cuál fue el **código de Trabajo** seleccionado; no asumirlo ni asegurar que se generó algo. Ni los filtros por defecto de 0.82 ni la nueva lectura remota resuelven por sí solos el caso.
+
+**Explicación funcional de Guardar:** `Añadir riego → Guardar` llama a `saveRiegoManual` → `aplicarTextoRiegoManual` → `saveRiegoData`/`saveRiegoInvPatch`, escribiendo al confirmar el formulario. El botón superior `Guardar` de Control de Riego es exclusivamente para ediciones de la cuadrícula aún pendientes; queda deshabilitado tras un alta confirmada. El usuario cuestiona su redundancia. La nueva UI **oculta** ese botón si no hay cambios pendientes y solo lo presenta activo cuando existen. Mantiene el guardado de edición directa.
+
+**Análisis sin tocar datos:** 26/10/2026 corresponde al **día 148** según el índice de Riego (anclado 15/06/2026). El código de INV 1A incluye la calle 10. Prueba aislada con dato **SIMULADO** `RO + NORMAL + MEDIA MAÑANA` en 1A/148/10 construye tarea `categoria:riego`, fechaISO `2026-10-26`, asignadoA `PEON1`, calle 10. Es solo una comprobación del planificador, **NO demuestra un alta real de ese trabajo ni registro del usuario en Firebase**. La lectura del dato concreto requeriría acceso autenticado no disponible en este diagnóstico.
+
+**Fallo real de recuperación offline identificado:** `procesarRiegoOffline` reconocía una entrada pendiente idéntica a la ya escrita en servidor tras respuesta perdida y la retiraba como riego, pero **no la conciliaba con Tareas**. Nueva protección: al reconocer coincidencia remota, `encolarRiegoTareasConfirmado(invId,[dia])`; tras recuperación, ADMIN/TÉCNICO procesan la conciliación ETag/idempotente. No asegurar que este escenario fue el causante del caso 1A sin evidencia.
+
+**Cambio solo TEST:** `index.html`, commit funcional `808d34cb76371c2f06fe0aa8dcd247f1a2c8a48f`. Los cinco scripts inline JS parsean sin errores. **Sin escrituras Firebase** durante implementación, sin reconstrucción masiva, ni cambios en `main`/PRD. El despliegue TEST debe verificarse READY para el commit documental final.
+
+**Continuidad:** después de recargar TEST, comprobar si aparece la tarea concreta. Si no, identificar exclusivamente el **código/selección de Trabajo exacta** de 1A/26/10/calle 10, determinar si el problema está en el parser, cola o persistencia, sin crear más datos ficticios. Operativas permanece SIN VALIDAR.
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).
