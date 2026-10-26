@@ -122,6 +122,13 @@ window.renderFmBulkPanels=function(){
 window.showFitoManualForm=function(){
  st.mode='nuevo';st.edit=null;st.uncertain=false;
  const r=originalForm.apply(this,arguments);
+ // Criterio UI local: en este formulario cualquier persistencia se llama «Guardar».
+ const guardar=document.querySelector('#fito-manual-overlay footer button[onclick="saveFitoManual()"]');
+ if(guardar){
+  const icono=guardar.querySelector('i');
+  if(icono)guardar.replaceChildren(icono,' Guardar');
+  else guardar.textContent='Guardar';
+ }
  const content=document.querySelector('#fito-manual-overlay details.fm-accordion > div');
  if(!content)return r;
  // Volumen junto al producto y la dosis, tanto en alta como al editar jornadas históricas.
@@ -540,8 +547,14 @@ function construirConsultaFitoV3(mod){
   +'<label style="min-width:0;font-size:11px;font-weight:750;color:#1558a0">Día'+filtDia+'</label>'
   +'<label style="min-width:0;font-size:11px;font-weight:750;color:#1558a0">Sala'+filtSala+'</label>'
   +'<label style="min-width:0;font-size:11px;font-weight:750;color:#1558a0">Invernadero'+filtInv+'</label>'
-  +'<label style="min-width:0;font-size:11px;font-weight:750;color:#1558a0"><i class="ti ti-search" aria-hidden="true" style="font-size:14px;margin-right:4px"></i>Buscar'
-  +'<input type="search" value="'+esc(busquedaFitoV3)+'" placeholder="Tratamiento" oninput="filtrarConsultaFitoV3(this.value)" style="'+boxSelect+'"></label>'
+  +'<label style="min-width:0;font-size:11px;font-weight:750;color:#1558a0">Buscar'
+  +'<span style="display:flex;align-items:stretch;gap:5px;max-width:100%;min-width:0;margin-top:2px">'
+  +'<input type="search" id="fito-consulta-buscar" value="'+esc(busquedaFitoV3)+'" placeholder="Tratamiento" autocomplete="off"'
+  +' onkeydown="if(event.key===\'Enter\'){event.preventDefault();filtrarConsultaFitoV3(this.value)}"'
+  +' style="box-sizing:border-box;min-width:0;flex:1;width:100%;height:40px;padding:7px 8px;border:1px solid #b5c9df;border-radius:8px;background:#fff;color:#263344;font-size:13px">'
+  +'<button type="button" aria-label="Buscar" title="Buscar" onclick="filtrarConsultaFitoV3(document.getElementById(\'fito-consulta-buscar\').value)"'
+  +' style="flex:0 0 40px;width:40px;height:40px;display:flex;align-items:center;justify-content:center;border:1px solid #1558a0;border-radius:8px;background:#1558a0;color:#fff;cursor:pointer">'
+  +'<i class="ti ti-search" aria-hidden="true" style="font-size:17px"></i></button></span></label>'
   +'</div>'
   +'<div id="fito-consulta-conteo" aria-live="polite" style="font-size:12px;font-weight:750;color:#53677d;margin:0 0 7px">'+shown+' '+(shown===1?'registro':'registros')+'</div>'
   +'<div style="display:flex;flex-direction:column;gap:8px;width:100%">'+cards+'</div>'
@@ -920,7 +933,7 @@ window.saveFitoManual=async function(){
   if(!(await confirmarFitoAccionV3({
    titulo:st.edit?'Confirmar edición de jornada':'Confirmar registro de jornada',
    detalle:iso+' · '+product+'\n'+places+'\n'+(start?'Inicio global: '+start+'\n':'')+'Registrar no confirma la aplicación física.',
-   accion:st.edit?'Guardar cambios':'Registrar jornada'
+   accion:'Guardar'
   })))return;
   let bloqueoPistola=null;
   if(edicionPistola){
