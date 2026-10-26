@@ -6620,8 +6620,7 @@ function renderControlTunelWizardHTML(){
   if(controlWizardDiaSel==null || !diasQ.includes(controlWizardDiaSel))
     controlWizardDiaSel=diasQ.includes(riegoDiaDeHoy())?riegoDiaDeHoy():diasQ[0];
 
-  const cabeceraHTML='<div class="qc-wizard-heading"><h2>QC Túnel</h2></div>'+
-    renderControlQCDateNav(controlWizardQuincenaOffset,controlWizardDiaSel,'wizard');
+  const cabeceraHTML=qcFechaHTML('wizard');
   const filtroInvHTML=renderControlFiltroYAltaHTML('tunel',controlWizardDiaSel,true);
 
   if(controlWizardDiaSel==null){
@@ -6630,7 +6629,7 @@ function renderControlTunelWizardHTML(){
 
   if(controlWizardNivel==='evaluar' && controlWizardPartidaId){
     const c = controlChecksData.find(x=>x.id===controlWizardPartidaId);
-    if(c) return cabeceraHTML + renderControlWizardEvaluarHTML(c);
+    if(c) return cabeceraHTML + qcPanel('Inspección',renderControlWizardEvaluarHTML(c),'qc-work-inspections');
     controlWizardNivel = 'partidas';
     controlWizardPartidaId = null;
   }
@@ -6653,31 +6652,14 @@ function renderControlTunelWizardHTML(){
   // Ginés: con cero partidas, ocultar Dashboard y CSV, que no aportan datos.
   // Se conserva su cinta de fechas y el wizard existente.
   if(!listaDia.length){
-    return cabeceraHTML + filtroInvHTML + '<div class="qc-empty-panel" role="status">'+
-      '<i class="ti ti-clipboard-list" aria-hidden="true"></i>'+
-      '<strong>'+(controlTunelInvFiltro?'Sin partidas para este invernadero y día':'Sin partidas para este día')+'</strong>'+
-      '<p>Selecciona otra fecha para continuar.</p></div>';
+    return cabeceraHTML+qcPanel('Operativa del día',filtroInvHTML,'qc-work-operations')+
+      qcPanel('Inspecciones','<div class="qc-list-none">Sin partidas para este invernadero y día.</div>','qc-work-inspections');
   }
 
-  // Toggle Partidas/Dashboard + exportar CSV (a petición de Vigueras,
-  // 2026-09-15) — mismo dashboard que la vista clásica
-  // (renderControlDashboardDiaHTML, sin tocarlo), botones grandes para móvil.
-  const barraSuperiorHTML = `
-    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
-      <button onclick="cambiarControlWizardVista('partidas')" style="flex:1;min-width:120px;padding:14px;border-radius:12px;font-size:13px;font-weight:800;border:none;cursor:pointer;background:${controlWizardVista==='partidas'?seccion.color:'#e8e2dc'};color:${controlWizardVista==='partidas'?'#fff':'var(--muted)'}">📋 Partidas</button>
-      <button onclick="cambiarControlWizardVista('dashboard')" style="flex:1;min-width:120px;padding:14px;border-radius:12px;font-size:13px;font-weight:800;border:none;cursor:pointer;background:${controlWizardVista==='dashboard'?seccion.color:'#e8e2dc'};color:${controlWizardVista==='dashboard'?'#fff':'var(--muted)'}">📊 Dashboard</button>
-    </div>
-    <button onclick="exportarControlCSV('tunel', controlWizardDiaSel)" style="width:100%;margin-bottom:16px;padding:16px;border-radius:12px;font-size:14px;font-weight:800;border:2px solid #2e7d32;cursor:pointer;background:#fff;color:#2e7d32;display:flex;align-items:center;justify-content:center;gap:8px"><i class="ti ti-file-spreadsheet" style="font-size:17px"></i> Exportar CSV del día</button>`;
-
-  if(controlWizardVista==='dashboard'){
-    return cabeceraHTML + filtroInvHTML + barraSuperiorHTML + renderControlDashboardDiaHTML(seccion, listaDia);
-  }
-
-  return cabeceraHTML + filtroInvHTML + barraSuperiorHTML + `
-    <div style="font-size:13px;font-weight:700;color:var(--muted);margin-bottom:14px">${listaDia.length} partida${listaDia.length===1?'':'s'} · ${numCompletados} completada${numCompletados===1?'':'s'}</div>
-    <div style="display:flex;flex-direction:column;gap:12px">
-      ${filasHTML || `<div style="text-align:center;padding:3rem 1rem;color:var(--muted);font-style:italic">No hay partidas para este día todavía.</div>`}
-    </div>`;
+  const counters='<div class="qc-work-counter">'+listaDia.length+' partida'+(listaDia.length===1?'':'s')+
+    ' · '+numCompletados+' inspeccionada'+(numCompletados===1?'':'s')+'</div>';
+  return cabeceraHTML+qcPanel('Operativa del día',filtroInvHTML,'qc-work-operations')+
+    qcPanel('Inspecciones',counters+'<div class="qc-list-cards">'+filasHTML+'</div>','qc-work-inspections');
 }
 async function cambiarControlQuincena(delta){
   const siguiente=Math.max(0,controlQuincenaOffset+delta);
