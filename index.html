@@ -1931,7 +1931,7 @@ function buildTareaGestorRow(t, conSeleccion){
       </div>
       ${detalles ? `<div style="font-size:11px;color:var(--muted);margin-top:8px;padding-top:8px;border-top:1px dashed var(--border)">${detalles}</div>` : ''}
       <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
-        ${manual&&t.estado==='pendiente' ? `<button onclick="showEditarTareaForm('${t.id}')" style="padding:7px 12px;font-size:11px;font-weight:700;background:#1558a0;color:#fff;border:0;border-radius:7px;cursor:pointer">Editar</button>
+        ${manual&&t.estado==='pendiente'&&!t.conciliacionFito ? `<button onclick="showEditarTareaForm('${t.id}')" style="padding:7px 12px;font-size:11px;font-weight:700;background:#1558a0;color:#fff;border:0;border-radius:7px;cursor:pointer">Editar</button>
           <button onclick="eliminarTarea('${t.id}')" style="padding:7px 12px;font-size:11px;background:#eef4fb;color:#1558a0;border:1px solid #a8c4e8;border-radius:7px;cursor:pointer">Anular</button>` : ''}
         ${pistola ? `<button onclick="imprimirHojaFumigacionTarea('${t.id}')" style="padding:7px 12px;font-size:11px;font-weight:700;background:#1558a0;color:#fff;border:0;border-radius:7px;cursor:pointer">Hoja oficial</button>
           ${pistolaVinculada?`<button onclick="abrirJornadaPistolaDesdeTareas('${t.id}')" style="padding:7px 12px;font-size:11px;background:#eef4fb;color:#1558a0;border:1px solid #a8c4e8;border-radius:7px;cursor:pointer">Ver jornada</button>`:''}` : ''}
@@ -2921,7 +2921,7 @@ function buildTareaCard(t){
     </div>` : ''}
     ${t.horario?`<div style="display:inline-block;margin-top:6px;font-size:12px;font-weight:800;color:#c62828;border:1.5px solid #c62828;border-radius:6px;padding:2px 9px">${t.horario}</div>`:''}
     <div style="margin-top:10px;display:flex;gap:8px">
-      ${t.estado==='pendiente' ? `<button onclick="iniciarTarea('${t.id}')" style="flex:1;padding:8px;font-size:11px;font-weight:800;background:#1558a0;color:#fff;border:none;border-radius:8px;cursor:pointer">▶ Iniciar tarea</button>` : ''}
+      ${t.estado==='pendiente'&&!t.conciliacionFito ? `<button onclick="iniciarTarea('${t.id}')" style="flex:1;padding:8px;font-size:11px;font-weight:800;background:#1558a0;color:#fff;border:none;border-radius:8px;cursor:pointer">▶ Iniciar tarea</button>` : ''}
       ${t.estado==='iniciada' ? `<button onclick="showCompletarTareaDialog('${t.id}')" style="flex:1;padding:8px;font-size:11px;font-weight:800;background:#2e7d32;color:#fff;border:none;border-radius:8px;cursor:pointer">✓ Completar y firmar</button>` : ''}
     </div>
   </div>`;
@@ -3236,7 +3236,7 @@ function buildTareaCardPeonActiva(t){
   const esFumi = t.categoria==='fumigacion';
   const gradiente = esFumi ? 'linear-gradient(135deg,#a32020,#d9432f)' : 'var(--grad-verde)';
   const subtitulo = escapar(invCallesLabelDeTarea(t)) || (t.turno ? escapar(t.turno) : '');
-  const botonesHTML = t.estado==='pendiente' ? `
+  const botonesHTML = t.conciliacionFito ? '<div style="font-size:14px;font-weight:800;padding:12px;background:#fff8e1;color:#795300;border-radius:8px">Tarea en conciliación · avisa al técnico.</div>' : t.estado==='pendiente'&&!t.conciliacionFito ? `
       ${esFumi ? `<button onclick="imprimirHojaFumigacionTarea('${t.id}')" style="padding:16px;font-size:15px;font-weight:800;background:rgba(255,255,255,.22);color:#fff;border:none;border-radius:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px"><i class="ti ti-printer" style="font-size:18px"></i> Ver hoja</button>` : ''}
       <button onclick="iniciarTarea('${t.id}')" style="flex:1;padding:16px;font-size:17px;font-weight:800;background:#fff;color:${esFumi?'#a32020':'var(--verde)'};border:none;border-radius:12px;cursor:pointer;min-height:56px">▶ Iniciar tarea</button>`
     : t.estado==='iniciada' ? `<button onclick="${esFumi?`showCompletarFumigacionDialog('${t.id}')`:`showCompletarTareaDialog('${t.id}')`}" style="flex:1;padding:16px;font-size:17px;font-weight:800;background:#fff;color:${esFumi?'#a32020':'var(--verde)'};border:none;border-radius:12px;cursor:pointer;min-height:56px">✓ Completar y firmar</button>`
@@ -3417,7 +3417,7 @@ function buildTareaCardPeonFactorial(t){
     </div>` : ''}
 
     <div style="display:flex;gap:10px;font-size:0">
-      ${t.estado==='pendiente' ? `
+      ${t.estado==='pendiente'&&!t.conciliacionFito ? `
         ${t.categoria==='fumigacion' ? `<button onclick="imprimirHojaFumigacionTarea('${t.id}')" title="Ver/imprimir la hoja" style="flex:1;padding:12px;font-size:13px;font-weight:800;background:#f2f4f0;color:${colorIcon};border:1.5px solid ${colorBorde};border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px"><i class="ti ti-printer" style="font-size:14px"></i> Hoja</button>` : ''}
         <button onclick="iniciarTarea('${t.id}')" style="flex:1;padding:12px;font-size:13px;font-weight:800;background:${colorBorde};color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px"><i class="ti ti-play" style="font-size:14px"></i> Iniciar</button>
       ` : ''}
@@ -3559,7 +3559,7 @@ function buildTareaCardFumigacion(t){
         <div><b>Aplicó:</b> ${escapar(t.firmaAplicador)}</div>
       </div>` : ''}
     <div style="margin-top:10px;display:flex;gap:8px">
-      ${t.estado==='pendiente' ? `
+      ${t.estado==='pendiente'&&!t.conciliacionFito ? `
         <button onclick="imprimirHojaFumigacionTarea('${t.id}')" title="Ver/imprimir la hoja de este tratamiento" style="padding:8px 12px;font-size:11px;font-weight:800;background:#a32020;color:#fff;border:none;border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:5px"><i class="ti ti-printer" style="font-size:13px"></i> Ver hoja</button>
         <button onclick="iniciarTarea('${t.id}')" style="flex:1;padding:8px;font-size:11px;font-weight:800;background:#1558a0;color:#fff;border:none;border-radius:8px;cursor:pointer">▶ Iniciar</button>` : ''}
       ${t.estado==='iniciada' ? `<button onclick="showCompletarFumigacionDialog('${t.id}')" style="flex:1;padding:8px;font-size:11px;font-weight:800;background:#2e7d32;color:#fff;border:none;border-radius:8px;cursor:pointer">✓ Completar</button>` : ''}
@@ -14568,6 +14568,8 @@ function getFitoCellRaw(invId,dia,calle){ return fitoData[invId]?.[dia]?.[calle]
 function getFito(invId,dia,calle){
   const raw = getFitoCellRaw(invId,dia,calle);
   if(raw==null) return '';
+  // La cancelación conserva la celda histórica pero no se muestra como tratamiento activo.
+  if(raw&&typeof raw==='object'&&raw.estadoRegistro==='anulado')return 'ANULADA';
   return typeof raw==='string' ? raw : (raw.texto||'');
 }
 

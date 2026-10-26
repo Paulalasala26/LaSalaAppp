@@ -25,6 +25,7 @@ const seriesCells=id=>allCells().filter(x=>x.raw.serieId===id);
 function listSeries(){
  const map=new Map();
  allCells().forEach(x=>{
+  if(x.raw.estadoRegistro==='anulado')return;
   const r=x.raw,date=r.fechaJornadaISO||dayISO(x.day);
   if(!map.has(r.serieId))map.set(r.serieId,{id:r.serieId,start:r.inicioSerieISO||date,last:date,text:r.texto,journals:new Set()});
   const s=map.get(r.serieId);
@@ -117,6 +118,7 @@ function setEditing(raw,records){
 }
 
 function editFullLinkedJournal(raw){
+ if(raw.estadoRegistro==='anulado'){showToast('Jornada anulada; consulta el histórico.');return;}
  const rows=seriesCells(raw.serieId).filter(x=>x.raw.jornadaId===raw.jornadaId);
  if(!rows.length){showToast('Jornada no encontrada. Recarga el listado.');return;}
  const day=rows[0].day;
@@ -333,6 +335,7 @@ function construirConsultaFitoV3(mod){
   if(filtroInv&&!invIds.includes(filtroInv))continue;
   const first=j.items[0].raw,parsed=parsearTextoFito(first.texto);
   j.title=parsed.trat||first.texto;
+  j.anulada=j.items.every(x=>x.raw.estadoRegistro==='anulado');
   j.dose=parsed.dosis||'';
   j.time=parsed.horario||'';
   j.start=first.inicioSerieISO||dayISO(j.day);
@@ -360,7 +363,7 @@ function construirConsultaFitoV3(mod){
   }
   j.detail=locations.join('');
   j.location=j.invIds.map(inv=>'INV '+inv).join(', ');
-  j.search=[j.title,j.dose,j.time,j.method,j.start,j.day,j.location,searchLocations.join(' ')].join(' ');
+  j.search=[j.title,j.dose,j.time,j.method,j.start,j.day,j.location,searchLocations.join(' '),j.anulada?'Anulada':''].join(' ');
   rows.push(j);
  }
  const cache=resumenQuincenaFilasCache.fito||[];
@@ -413,7 +416,8 @@ function construirConsultaFitoV3(mod){
    ?'imprimirJornadaFitoConsultaV3(this.dataset.serie,this.dataset.jornada)'
    :'imprimirHojaResumen(\'fito\','+row.idx+')';
   const buttonStyle='box-sizing:border-box;min-height:44px;height:44px;border:1px solid #1558a0;border-radius:8px;background:#1558a0;color:#fff;font-size:13px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;justify-content:center';
-  const action='<button type="button"'+attrs+' onclick="'+editOnclick+'" style="'+buttonStyle+';width:100%;min-width:0;padding:0 12px">'
+  const action=row.anulada?'<div style="padding:10px;color:#a32020;background:#fff1f1;border-radius:8px;font-size:12px;font-weight:800">Jornada anulada · histórico conservado</div>':
+   '<button type="button"'+attrs+' onclick="'+editOnclick+'" style="'+buttonStyle+';width:100%;min-width:0;padding:0 12px">'
    +(linkedRow?'Editar jornada':'Editar registro')+'</button>'
    +'<button type="button"'+attrs+' onclick="'+printOnclick+'" title="Imprimir hoja oficial" aria-label="Imprimir hoja oficial" style="'+buttonStyle+';width:46px;padding:0">'
    +'<i class="ti ti-printer" aria-hidden="true" style="font-size:19px"></i></button>';
@@ -524,11 +528,17 @@ async function consultarTareaJornadaFitoV3(serieId,jornadaId){
   if(iguales.length){
    const t=iguales[0];
    if(t.categoria!=='fumigacion')throw Error('La tarea vinculada tiene una categoría incompatible.');
+   if(t.conciliacionFito){
+    const r=await cRecuperar(serieId,jornadaId);
+    showToast(r.estado==='conciliada'?'✓ Jornada y tarea conciliadas.':'✓ Reserva liberada; la jornada anterior se conserva.');
+    return;
+   }
    const detalle=['Estado: '+t.estado,'Operario: '+t.asignadoA,'Zonas: '+invCallesLabelDeTarea(t),
     t.horaInicio?'Inicio: '+t.horaInicio:'',t.horaFin?'Fin: '+t.horaFin:'',
     t.caldoSobrante?'Caldo sobrante: '+t.caldoSobrante:'',
     t.firmaPreparador?'Preparó: '+t.firmaPreparador:'',
-    t.firmaAplicador?'Aplicó: '+t.firmaAplicador:''].filter(Boolean).join('\n');
+    t.firmaAplicador?'Aplicó: '+t.firmaAplicador:'',
+    ...(t.rectificacionesFito||[]).map(r=>'Rectificación '+r.fecha+' ('+r.usuario+'): '+r.accion+' · '+r.motivo)].filter(Boolean).join('\n');
    await confirmarFitoAccionV3({titulo:'Ejecución Pistola',detalle,accion:'Cerrar'});
    return;
   }
@@ -638,6 +648,133 @@ function confirmarFitoAccionV3({titulo,detalle,accion='Confirmar',destructivo=fa
  });
 }
 
+
+// Bloque C TEST: reserva ETag de Tareas y verificación del nodo Fito canónico.
+// Las escrituras no son atómicas entre colecciones; la reserva es recuperable.
+const cJornada=(data,serieId,jornadaId)=>{
+ const rows=[];
+ Object.entries(data||{}).forEach(([inv,days])=>
+  Object.entries(days||{}).forEach(([day,streets])=>
+   Object.entries(streets||{}).forEach(([street,raw])=>{
+    if(raw&&typeof raw==='object'&&raw.serieId===serieId&&raw.jornadaId===jornadaId)
+     rows.push({inv,day:+day,street:+street,raw});
+   })));
+ return rows.sort((a,b)=>a.inv.localeCompare(b.inv,'es',{numeric:true})||a.day-b.day||a.street-b.street);
+};
+const cFirma=rows=>JSON.stringify(rows.map(x=>[x.inv,x.day,x.street,x.raw]));
+const cObjetivos=rows=>{
+ const map=new Map(),out=[];
+ rows.forEach(x=>{if(!map.has(x.inv))map.set(x.inv,[]);map.get(x.inv).push(x.street);});
+ map.forEach((streets,inv)=>agruparCallesEnTramos([...new Set(streets)].sort((a,b)=>a-b))
+  .forEach(r=>out.push({inv,calles:formatRangoConInv(inv,r.desde,r.hasta)})));
+ return out;
+};
+const cObjetivosIguales=(a,b)=>JSON.stringify((a||[]).map(x=>[x.inv,x.calles]).sort())===
+ JSON.stringify((b||[]).map(x=>[x.inv,x.calles]).sort());
+async function cLeerClave(clave,defaultValue){
+ const res=await appFetch(CLOUD_DB_URL+'/'+encodeURIComponent(clave)+'.json',{cache:'no-store'});
+ if(!res.ok)throw Error('Sin acceso a '+clave+' en Firebase.');
+ let raw=await res.json();if(typeof raw==='string')raw=JSON.parse(raw);
+ return raw==null?defaultValue:raw;
+}
+function cPlan(targets,day,product,dose,time,liters,caldoLabel){
+ const rows=targets.flatMap(x=>x.streets.map(street=>({inv:x.inv,street})));
+ const objetivos=[];
+ targets.forEach(x=>agruparCallesEnTramos(x.streets).forEach(r=>objetivos.push({
+  inv:x.inv,calles:formatRangoConInv(x.inv,r.desde,r.hasta)})));
+ return {fechaISO:dayISO(day),titulo:[product,dose].filter(Boolean).join(' '),
+  producto:product,dosis:dose,horario:time||'',caldoLitros:liters??null,caldoLabel:caldoLabel||'',objetivos};
+}
+function cPlanConfirmado(rows,op){
+ if(!rows.length||rows.some(x=>x.raw.revisionFitoOp!==op.id||x.raw.tipoTrat!=='Pistola'
+    ||x.raw.estadoRegistro==='anulado'||dayISO(x.day)!==op.deseado.fechaISO
+    ||(x.raw.caldoLitros??null)!==op.deseado.caldoLitros||x.raw.caldoLabel!==op.deseado.caldoLabel))
+  return false;
+ const prefix=[op.deseado.producto,op.deseado.dosis,op.deseado.horario].filter(Boolean).join(' ');
+ return rows.every(x=>String(x.raw.texto||'').startsWith(prefix))&&
+  cObjetivosIguales(cObjetivos(rows),op.deseado.objetivos);
+}
+async function cBloquear(serieId,jornadaId,tipo,deseado){
+ if(!['ADMIN','TECNICO'].includes(currentUserRole))throw Error('Solo técnicos/ADMIN modifican Pistola.');
+ const cloud=await cLeerClave(FITO_KEY,{});
+ const remote=cJornada(cloud,serieId,jornadaId),local=cJornada(fitoData,serieId,jornadaId);
+ if(!remote.length||cFirma(remote)!==cFirma(local))throw Error('La jornada ha cambiado. Recarga Plaguicidas.');
+ if(remote.some(x=>x.raw.estadoRegistro==='anulado'||x.raw.tipoTrat!=='Pistola'))
+  throw Error('La jornada ya está anulada o tiene un método incompatible.');
+ const op={id:'fc_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
+  serieId,jornadaId,tipo,deseado,antesFirma:cFirma(remote),usuario:currentUser||'—',
+  fecha:new Date().toISOString()};
+ const tx=await actualizarStorageJsonConEtag(TAREAS_KEY,[],list=>{
+  if(!Array.isArray(list))throw Error('Tareas inválidas.');
+  const linked=list.filter(t=>t.origenFito?.serieId===serieId&&t.origenFito?.jornadaId===jornadaId);
+  if(linked.length!==1||linked[0].categoria!=='fumigacion')throw Error('Tarea no vinculada o duplicada. Consulta Estado de tarea.');
+  const t=linked[0];
+  if(t.conciliacionFito)throw Error('Existe una conciliación pendiente en la tarea.');
+  if(t.estado!=='pendiente')return undefined;
+  if(t.asignadoA!==peonDelaSala(remote[0].inv))throw Error('Asignación a peón incompatible con sala.');
+  return list.map(x=>x.id===t.id?{...x,conciliacionFito:op}:x);
+ });
+ if(!tx.ok)throw Error('No se confirmó la reserva de la tarea.');
+ if(tx.noChange)return {firmada:true};
+ tareasData=tx.value;return {op};
+}
+async function cRectificar(serieId,jornadaId,accion,propuesta){
+ if(currentUserRole!=='ADMIN')throw Error('La tarea ya está iniciada o firmada: rectificación reservada a ADMIN.');
+ const motivo=window.prompt('Motivo de rectificación administrativa (obligatorio):');
+ if(!motivo||!motivo.trim())return false;
+ const registro={id:'rect_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
+  fecha:new Date().toISOString(),usuario:currentUser,accion,motivo:motivo.trim(),propuesta};
+ const tx=await actualizarStorageJsonConEtag(TAREAS_KEY,[],list=>{
+  if(!Array.isArray(list))throw Error('Tareas inválidas.');
+  const linked=list.filter(t=>t.origenFito?.serieId===serieId&&t.origenFito?.jornadaId===jornadaId);
+  if(linked.length!==1||!['iniciada','completada'].includes(linked[0].estado)
+    ||linked[0].conciliacionFito)throw Error('La ejecución ha cambiado. Recarga la consulta.');
+  return list.map(t=>t.id===linked[0].id
+   ?{...t,rectificacionesFito:[...(t.rectificacionesFito||[]),registro]}:t);
+ });
+ if(!tx.ok||tx.noChange)throw Error('Rectificación sin confirmar.');
+ tareasData=tx.value;
+ logHistorial('Rectificación administrativa Pistola '+serieId+'/'+jornadaId);
+ showToast('✓ Rectificación registrada sin alterar ejecución ni firmas.');
+ return true;
+}
+async function cRecuperar(serieId,jornadaId){
+ const list=await cLeerClave(TAREAS_KEY,[]);
+ if(!Array.isArray(list))throw Error('Datos de Tareas inválidos.');
+ const linked=list.filter(t=>t.origenFito?.serieId===serieId&&t.origenFito?.jornadaId===jornadaId);
+ if(linked.length!==1)throw Error('No existe una tarea única vinculada.');
+ const op=linked[0].conciliacionFito;
+ if(!op)return {estado:'sin_pendientes',tarea:linked[0]};
+ if(!['ADMIN','TECNICO'].includes(currentUserRole))throw Error('Conciliación reservada a técnico/ADMIN.');
+ const cloud=await cLeerClave(FITO_KEY,{}),rows=cJornada(cloud,serieId,jornadaId);
+ const aplicado=op.tipo==='anulacion'
+  ?rows.length>0&&rows.every(x=>x.raw.estadoRegistro==='anulado'&&x.raw.revisionFitoOp===op.id)
+  :cPlanConfirmado(rows,op);
+ const intacto=cFirma(rows)===op.antesFirma;
+ if(!aplicado&&!intacto)throw Error('Jornada distinta del origen y del destino. Bloqueo conservado; requiere revisión ADMIN.');
+ // Un guardado canónico v1 puede haberse confirmado aunque fallase su espejo v2.
+ // Antes de liberar la tarea, restablecer la convergencia de esos INV.
+ if(aplicado){
+  const invs=[...new Set(rows.map(x=>x.inv))];
+  if(!(await syncFitoV2InvsDesdeCloud(cloud,invs)))
+   throw Error('La jornada está guardada; queda pendiente sincronizar sus invernaderos antes de confirmar Tareas.');
+ }
+ const tx=await actualizarStorageJsonConEtag(TAREAS_KEY,[],list=>{
+  if(!Array.isArray(list))throw Error('Tareas inválidas.');
+  const same=list.filter(t=>t.origenFito?.serieId===serieId&&t.origenFito?.jornadaId===jornadaId);
+  if(same.length!==1||same[0].conciliacionFito?.id!==op.id||same[0].estado!=='pendiente')
+   throw Error('La tarea cambió mientras se conciliaba; no se altera.');
+  const t=same[0],{conciliacionFito,...base}=t;
+  const campos=aplicado?(op.tipo==='anulacion'
+    ?{estado:'anulada',archivadaEn:new Date().toISOString(),anuladaPor:op.usuario,motivoAnulacion:'Jornada Pistola anulada'}
+    :{...op.deseado,visto:false}):{};
+  return list.map(x=>x.id===t.id?{...base,...campos}:x);
+ });
+ if(!tx.ok||tx.noChange)throw Error('Actualización de tarea no confirmada.');
+ tareasData=tx.value;refreshTareasViews();
+ return {estado:aplicado?'conciliada':'revertida',tarea:tx.value.find(t=>t.id===linked[0].id)};
+}
+
 window.saveFitoManual=async function(){
  if(st.busy||st.uncertain)return;
  st.busy=true;
@@ -665,8 +802,11 @@ window.saveFitoManual=async function(){
   if(start&&iso<start)throw Error('La nueva jornada no puede ser anterior al inicio global.');
   if(serieId&&!jornadaId)jornadaId='jornada_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,10);
   if(method==='Pistola'&&new Set(targets.map(x=>salaDeInv(x.inv))).size>1)throw Error('Pistola: las distintas salas necesitan asignación separada.');
-  if(st.edit&&(method==='Pistola'||originals.some(x=>x.streets.some(c=>getFitoCellRaw(x.inv,x.day,c)?.tipoTrat==='Pistola'))))
-   throw Error('La edición de jornadas Pistola queda protegida hasta sincronizar sus tareas (bloque C).');
+  const edicionPistola=!!st.edit&&!st.edit.legacy&&originals.some(x=>x.streets.some(c=>getFitoCellRaw(x.inv,x.day,c)?.tipoTrat==='Pistola'));
+  if(st.edit&&(edicionPistola?method!=='Pistola':method==='Pistola'))
+   throw Error('No se permite cambiar el método al editar una jornada.');
+  if(edicionPistola&&new Set(targets.map(x=>salaDeInv(x.inv))).size!==1)
+   throw Error('Una jornada Pistola debe mantenerse en una sola sala.');
   const own=new Set(originals.flatMap(x=>x.streets.map(c=>key(x.inv,x.day,c))));
   const destinations=new Set(targets.flatMap(x=>x.streets.map(c=>key(x.inv,day,c))));
   const removed=originals.flatMap(x=>x.streets.filter(c=>!destinations.has(key(x.inv,x.day,c))).map(c=>({inv:x.inv,day:x.day,street:c})));
@@ -691,6 +831,15 @@ window.saveFitoManual=async function(){
    detalle:iso+' · '+product+'\n'+places+'\n'+(start?'Inicio global: '+start+'\n':'')+'Registrar no confirma la aplicación física.',
    accion:st.edit?'Guardar cambios':'Registrar jornada'
   })))return;
+  let bloqueoPistola=null;
+  if(edicionPistola){
+   const aprobado=await cBloquear(serieId,jornadaId,'edicion',cPlan(targets,day,product,dose,time,liters,caldoLabel));
+   if(aprobado.firmada){
+    await cRectificar(serieId,jornadaId,'solicitud de cambio',cPlan(targets,day,product,dose,time,liters,caldoLabel));
+    return;
+   }
+   bloqueoPistola=aprobado.op;
+  }
   const text=[dose?product+' '+dose:product,time].filter(Boolean).join(' ');
   const byUndo=new Map();
   for(const x of expect.values()){
@@ -703,6 +852,7 @@ window.saveFitoManual=async function(){
    const note=x.notes.get(c)||'',value=note?text+' — '+note:text,cfg=fmBulkConfig[x.inv]||{};
    const extra={caldoLitros:liters,caldoLabel,tipoTrat:method,primerDia:st.edit?.legacy?!!cfg.primerDia:false,esperaCarga:!!cfg.esperaCarga,orden:cfg.orden??null};
    if(serieId)Object.assign(extra,{serieId,jornadaId,inicioSerieISO:start,fechaJornadaISO:iso,estadoRegistro:'registrado'});
+   if(bloqueoPistola)extra.revisionFitoOp=bloqueoPistola.id;
    setFito(x.inv,day,c,value,extra);
   }
   removed.forEach(x=>setFito(x.inv,x.day,x.street,''));
@@ -726,6 +876,11 @@ window.saveFitoManual=async function(){
    return;
   }
   let tareaNoConfirmada=false;
+  if(bloqueoPistola){
+   try{const resultado=await cRecuperar(serieId,jornadaId);
+     tareaNoConfirmada=resultado.estado!=='conciliada';
+   }catch(e){tareaNoConfirmada=true;console.warn('Conciliación Pistola pendiente',e);}
+  }
   if(method==='Pistola'&&!st.edit){
    try{
     const objectives=[];
@@ -761,8 +916,48 @@ window.borrarFitoManual=async function(){
     .map(x=>({inv:x.inv,day:x.day,street:x.street,raw:x.raw}))
     : originals.flatMap(x=>x.streets.map(c=>({inv:x.inv,day:x.day,street:c,raw:getFitoCellRaw(x.inv,x.day,c)})));
   if(!records.length)throw Error('Registro original vacío. Recarga y vuelve a consultar.');
-  if(records.some(x=>x.raw&&typeof x.raw==='object'&&x.raw.tipoTrat==='Pistola'))
-   throw Error('No se puede borrar esta jornada de Pistola hasta conciliar su tarea (bloque C).');
+  const pistola=records.some(x=>x.raw&&typeof x.raw==='object'&&x.raw.tipoTrat==='Pistola');
+  if(pistola){
+   if(context.legacy)throw Error('La jornada histórica Pistola necesita conciliación administrativa antes de anular.');
+   if(records.some(x=>x.raw?.estadoRegistro==='anulado'))
+    throw Error('La jornada ya está anulada.');
+   const further=seriesCells(context.id).filter(x=>x.raw.jornadaId!==context.jornadaId);
+   if(further.length&&records.some(x=>dayISO(x.day)===context.start))
+    throw Error('No se puede anular la jornada de inicio si hay jornadas posteriores.');
+   if(!(await confirmarFitoAccionV3({
+    titulo:'Anular jornada de Pistola',
+    detalle:'La jornada dejará de estar activa y su tarea pendiente pasará a Archivo.\nSe conservarán el tratamiento, sus calles y el histórico completo.',
+    accion:'Anular jornada',destructivo:true
+   })))return;
+   const lock=await cBloquear(context.id,context.jornadaId,'anulacion',null);
+   if(lock.firmada){
+    await cRectificar(context.id,context.jornadaId,'solicitud de anulación',
+     {fechaISO:dayISO(records[0].day),calles:records.map(x=>({inv:x.inv,calle:x.street}))});
+    return;
+   }
+   const afectadas=records.map(x=>({invId:x.inv,dia:x.day,calle:x.street,raw:clone(x.raw)}));
+   const fecha=new Date().toISOString();
+   registrarUndoFitoMultiInv(records.map(x=>({invId:x.inv,dia:x.day,calles:[x.street]})));
+   records.forEach(x=>setFito(x.inv,x.day,x.street,x.raw.texto,{
+    estadoRegistro:'anulado',anuladaEn:fecha,anuladoPor:currentUser||'—',
+    revisionFitoOp:lock.op.id
+   }));
+   completarUndoFitoParaTodosGrupos();
+   const result=await saveFitoPatch([] ,afectadas);
+   if(!result.ok){
+    st.uncertain=true;
+    showToast('Anulación sin confirmar. Consulta Estado de tarea antes de repetir.');
+    return;
+   }
+   let conciliado=false;
+   try{conciliado=(await cRecuperar(context.id,context.jornadaId)).estado==='conciliada';}
+   catch(e){console.warn('Anulación Pistola pendiente de conciliar',e);}
+   document.getElementById('fito-manual-overlay').style.display='none';
+   if(fitoInvSel)renderFitoGrid(fitoInvSel);
+   showToast(conciliado?'✓ Jornada anulada y tarea archivada.':
+    'Jornada anulada; tarea pendiente de conciliación. Consulta Estado de tarea.',conciliado?undefined:'warning');
+   return;
+  }
   const affected=new Map(),capture=(inv,day,street)=>{
    const k=key(inv,day,street);
    if(!affected.has(k))affected.set(k,{invId:inv,dia:day,calle:street,raw:clone(getFitoCellRaw(inv,day,street))});
