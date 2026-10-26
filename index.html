@@ -6472,20 +6472,22 @@ function renderControlDatosQC(c){
     +'<span><i class="ti ti-map-pin" aria-hidden="true"></i> Calle: <strong>'+esc(ubicacion.calles)+'</strong></span>'
     +'</div>';
 }
+/* 1.00. Mismo botón operativo de inspección en Túnel y Carga. */
+function renderControlAbrirInspeccionHTML(c){
+  return `<button type="button" class="qc-card-inspect" onclick="abrirMedicionesControl('${c.id}')"><i class="ti ti-clipboard-check" aria-hidden="true"></i> Abrir inspección</button>`;
+}
 function renderControlWizardFilaHTML(c, guionInfo){
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const completada = controlLineaCompletada(c);
   return `
     <div class="qc-card-compact qc-wizard-ficha" style="border:2px solid ${completada?'#3fa864':'#d0dfec'}">
-      <div class="qc-card-main" onclick="abrirMedicionesControl('${c.id}')" style="cursor:pointer">
+      <div class="qc-card-main">
         ${renderControlIdentidadQC(c,true)}
         ${guionInfo?`<div class="qc-card-guion-info">Guión ${guionInfo.n} de ${guionInfo.total}</div>`:''}
         ${renderControlDatosQC(c)}
+        ${renderControlAbrirInspeccionHTML(c)}
       </div>
       ${anclaCuantificacionControlHTML(c)}
-      <button onclick="event.stopPropagation();mostrarAsignarCalleControl('${c.id}')" style="width:100%;padding:14px;font-size:14px;font-weight:700;background:#e8f2fd;color:#1558a0;border:none;border-top:2px solid #d5e6f7;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px">
-        <i class="ti ti-map-pin" style="font-size:16px"></i> Asignar calle real
-      </button>
     </div>`;
 }
 function renderControlWizardFinalHTML(c){
@@ -7816,14 +7818,14 @@ function renderControlCardCompactHTML(c,seccion){
       <div class="qc-card-main">
         ${renderControlIdentidadQC(c)}
         ${renderControlDatosQC(c)}
-        <button type="button" class="qc-card-inspect" onclick="abrirMedicionesControl('${c.id}')"><i class="ti ti-clipboard-check" aria-hidden="true"></i> Abrir inspección</button>
+        ${renderControlAbrirInspeccionHTML(c)}
         ${anclaCuantificacionControlHTML(c)}
       </div>
       <details class="qc-card-more">
         <summary>Detalles y acciones</summary>
         <div class="qc-card-details">
           <div class="qc-card-actionbar">
-            ${tunel?`<button type="button" onclick="mostrarAsignarCalleControl('${c.id}')"><i class="ti ti-map-pin"></i> Asignar calle</button>`:''}
+            ${tunel?`<button type="button" onclick="mostrarAsignarCalleControl('${c.id}')"><i class="ti ti-map-pin"></i> Editar ubicación</button>`:''}
             <button type="button" onclick="${editAction}('${c.id}')"><i class="ti ti-pencil"></i> Editar línea</button>
             <button type="button" class="qc-card-danger" onclick="eliminarControlCheck('${c.id}')"><i class="ti ti-trash"></i> Eliminar línea</button>
           </div>
@@ -7908,7 +7910,7 @@ function renderControlCardHTML(c, seccion){
           ${pdfInfoHTML}
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0">
-          <button onclick="mostrarAsignarCalleControl('${c.id}')" title="Asignar calle" style="padding:5px 9px;font-size:11px;font-weight:700;background:#e8f2fd;color:#1558a0;border:1px solid #9ab8d8;border-radius:6px;cursor:pointer;white-space:nowrap">
+          <button onclick="mostrarAsignarCalleControl('${c.id}')" title="Editar ubicación" style="padding:5px 9px;font-size:11px;font-weight:700;background:#e8f2fd;color:#1558a0;border:1px solid #9ab8d8;border-radius:6px;cursor:pointer;white-space:nowrap">
             <i class="ti ti-map-pin" style="font-size:12px"></i>
           </button>
           <button onclick="mostrarEditarControlCheck('${c.id}')" title="Editar" style="padding:5px 9px;font-size:11px;font-weight:700;background:#fff8e1;color:#c47f00;border:1px solid #e0c080;border-radius:6px;cursor:pointer;white-space:nowrap">
@@ -8441,7 +8443,7 @@ function mostrarAsignarCalleControl(id){
     : [{invId:'', tramos:[]}];
   mo.innerHTML = `
     <div style="background:#fff;border-radius:14px;max-width:420px;width:100%;padding:1.5rem;box-shadow:0 8px 40px rgba(0,0,0,.3);max-height:88vh;overflow-y:auto">
-      <div style="font-size:15px;font-weight:800;margin-bottom:4px">Asignar calle real</div>
+      <div style="font-size:15px;font-weight:800;margin-bottom:4px">Editar ubicación</div>
       <div style="font-size:11px;color:var(--muted);margin-bottom:12px">Si la partida está repartida en varios invernaderos, añade uno por cada uno con sus propias calles.</div>
       <div id="ac-grupos-wrap"></div>
       <button type="button" onclick="agregarGrupoInvAC()" style="width:100%;padding:8px;font-size:11px;font-weight:700;background:#f0f4f8;border:1.5px dashed #1558a0;border-radius:6px;cursor:pointer;color:#1558a0;margin-bottom:14px">+ Añadir invernadero</button>
@@ -9978,7 +9980,7 @@ async function mostrarHistorialPartida(id){
         ${eventosHTML}
       </div>
       <div style="padding:1rem 1.5rem;text-align:right;display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap">
-        <button onclick="mostrarAsignarCalleControl('${c.id}')" style="padding:9px 18px;font-size:12px;font-weight:800;background:#e8f2fd;color:#1558a0;border:1px solid #9ab8d8;border-radius:7px;cursor:pointer;display:flex;align-items:center;gap:5px"><i class="ti ti-map-pin" style="font-size:14px"></i> Editar calle</button>
+        <button onclick="mostrarAsignarCalleControl('${c.id}')" style="padding:9px 18px;font-size:12px;font-weight:800;background:#e8f2fd;color:#1558a0;border:1px solid #9ab8d8;border-radius:7px;cursor:pointer;display:flex;align-items:center;gap:5px"><i class="ti ti-map-pin" style="font-size:14px"></i> Editar ubicación</button>
         <button onclick="imprimirHistorialPartida()" style="padding:9px 18px;font-size:12px;font-weight:800;background:#1558a0;color:#fff;border:none;border-radius:7px;cursor:pointer;display:flex;align-items:center;gap:5px"><i class="ti ti-printer" style="font-size:14px"></i> Imprimir</button>
         <button onclick="document.getElementById('partidas-historial-overlay').style.display='none'" style="padding:9px 18px;font-size:12px;font-weight:700;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:7px;cursor:pointer">Cerrar</button>
       </div>
