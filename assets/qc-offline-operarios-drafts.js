@@ -223,8 +223,8 @@
    let selected=findSelected(cat);
    selected=[...new Set(selected.map(k=>cat==='flores'&&k==='no'?'ok':k))];
    let warning='';
-   if(selected.includes('noEvaluada')&&selected.length>1){
-    warning='El registro anterior mezclaba estados incompatibles.';selected=[];
+   if(selected.includes('noEvaluada')){
+    warning='Esta categoría estaba sin evaluar. Selecciona un estado para actualizarla.';selected=[];
    }else if(cat==='sanidad'){
     if(selected.includes('enferma')){
      warning='Sanidad antigua sin diagnóstico; selecciona enfermedades reales.';selected=[];
@@ -235,7 +235,7 @@
     warning='Medición anterior con múltiples estados. Selecciona solo uno.';selected=[];
    }
     field.dataset.legacyUnresolved=warning?'1':'0';
-   for(const [opt,desc] of [...opts.filter(x=>x[0]==='ok'),...opts.filter(x=>x[0]!=='ok')]){
+   for(const [opt,desc] of [...opts.filter(x=>x[0]==='ok'),...opts.filter(x=>x[0]!=='ok'&&x[0]!=='noEvaluada')]){
     const disease=cat==='sanidad'&&HEALTH.includes(opt);
     const row=el(disease?'div':'label');
     row.style.cssText='box-sizing:border-box;display:flex;width:100%;align-items:center;gap:9px;min-height:43px;border:1px solid #cadcec;border-radius:8px;padding:7px 11px;background:#f6f9fd;color:#294968;font-size:13px;font-weight:750';
