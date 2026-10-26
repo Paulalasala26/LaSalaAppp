@@ -7,7 +7,7 @@
 
 ## 0. CONTINUIDAD ACTUAL — 26/10/2026 (LEER ANTES DEL RESTO)
 
-**BLOQUE ACTIVO: QC 0.107 — editor compartido Túnel/Carga con ubicación, cliente/variedad controlados, foto en inspección, corrección de falso aviso de cambios y botones azules. IMPLEMENTADO TEST / UAT AGRUPADA PENDIENTE.** §0.106.1 filtro Estado dentro de Inspecciones implementado, también pendiente de confirmación visual. Antes de extender rediseño de pantalla a Carga, validar QC Túnel. Tareas continúa en pausa. Las referencias anteriores a Plaguicidas 0.91 son históricas, no reanudación.
+**BLOQUE ACTIVO: QC 0.108 — retirada de «No evaluada» de las cinco categorías en inspecciones QC online (Túnel/Carga) y borradores offline. IMPLEMENTADO SOLO TEST / VALIDACIÓN VISUAL PENDIENTE.** El usuario confirmó QC 0.107 y §0.106.1 en Túnel el 26/10; Carga conserva pendiente su prueba particular del editor y la réplica posterior del diseño de pantalla. Compatibilidad con registros históricos mantenida. Tareas continúa en pausa. Las referencias anteriores a Plaguicidas 0.91 son históricas, no reanudación.
 
 **CONTEXTO HISTÓRICO: Plaguicidas Pistola→Tareas. NUEVA INCIDENCIA / CORRECCIÓN UI 0.91**. El usuario rechaza la confusión entre «seleccionar solo Pistola», elegir un producto fitosanitario (que asigna a `PEON1`) y pulsar una desconocida «Hoja oficial» que falla por ausencia de caldo. Tras analizar código, se mantiene el significado correcto: Pistola/Cañón son **métodos de aplicación**, producto/dosis/volumen configuran el **tratamiento real**, y Pistola genera **tarea de ejecución PEÓN** automáticamente según sala; Cañón no. No inventar aplicaciones vacías ni atribuir aplicación ejecutada al mero registro. Nuevos registros requieren datos suficientes para imprimir el parte; anteriores se preservan. Formularios reordenados, responsable visible, botón «Guardar tratamiento» y «Imprimir parte» en Consulta; las jornadas guardadas incompletas muestran motivo sin diálogo frustrante. Revisar el apartado 0.91 y HEAD Vercel para UAT. **No declarar Bloque C validado hasta prueba humana integral.**
 
@@ -1243,13 +1243,13 @@ El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en int
 
 **Pendiente después de aceptación:** replicar estructura en Carga y decidir vista futura **Informes**, actualizar datos de Dashboard/CSV al modelo cuantitativo; unificación de «Editar línea» y anulación auditable (§0.105) pendiente de diseño específico. Tareas sigue en pausa. PRD/main intactos.
 
-## 0.106.1. QC Túnel — filtro Estado dentro de Inspecciones (26/10/2026)
+## 0.106.1. QC Túnel — filtro Estado dentro de Inspecciones (26/10/2026) — VALIDADO USUARIO
 
 **Corrección solicitada por el usuario:** «Estado dice el estado de las inspecciones y está en el bloque superior, debe ir en el listado de las inspecciones».
 
 **IMPLEMENTADO EN TEST, UAT PENDIENTE:** únicamente en la vista operativa QC Túnel común, trasladado el selector **Estado** (Todos/Pendientes/Completados) desde «Operativa del día» a **«Inspecciones»**, junto al contador y antes de las tarjetas. La sección superior mantiene el selector INV, Añadir línea, buscador, opciones PDF/extensiones y sincronización. El filtro reutiliza `controlFiltroEstado` y `cambiarControlFiltroEstado` sin modificar el cálculo ni la persistencia de estados. CSS responsive para disponer contador y selector de manera legible, incluso en móvil. Carga y las funciones futuras no se tocan. Código `index.html` + `assets/control-ui-list.css` commit `3d092cbfcdf633ec6a4fbc0c26c0c69e2f21256d`; renovación de caché CSS `v082` commit `3fab63bdcb622ad3d605abed4289120d30182629`. **Comprobación técnica:** 9 scripts inline parseados sin errores, selector presente exclusivamente en panel Inspecciones de Túnel, sin introducir escritura a Firebase. **Pendiente:** verificación visual rápida del usuario en TEST; no repetir toda la UAT de §0.106 por esta corrección. Sin afectar main/PRD. Tareas sigue en pausa.
 
-## 0.107. QC — edición de línea, fotografía, falso aviso de cambios y botones azules (26/10/2026) — IMPLEMENTADO TEST / UAT PENDIENTE
+## 0.107. QC — edición de línea, fotografía, falso aviso de cambios y botones azules (26/10/2026) — VALIDADO USUARIO EN TÚNEL
 
 **Nueva instrucción del usuario:** «Editar línea debe poder editar también la ubicación; añadir foto debe estar al abrir la inspección. Si la abro y pulso abrir otra vez sin modificar nada, avisa de cambios sin guardar. Editar línea tiene cliente con texto libre. Botones verdes. Revisa». Se aborda como conjunto y sin reabrir QC 0.104. El filtro Estado ya se reubicó en §0.106.1.
 
@@ -1262,6 +1262,19 @@ El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en int
 **Comprobaciones técnicas:** `assets/control-qc-operativo.js` y nuevo JS de edición compilados correctamente. Simulación sin datos reales: panel de edición con Cliente/Variedad selectores y ubicación visible; guardar otros campos sin loc deja `loc=null`; cambio de INV/calles entrega localización validada; pareja cliente/variedad ajena al catálogo rechazable sin escritura; protección al no modificar se basa en instantánea inicial y no en la existencia de medición guardada. GitHub `test/v1.0` y despliegue Vercel TEST del commit `f8293393` verificados `READY`. **Todavía NO hay UAT humana autenticada ni prueba real de persistencia/cola:** no declarar bloque cerrado.
 
 **Siguiente validación agrupada con usuario:** en TEST, Túnel, abrir una inspección y cerrar/reabrir sin tocar nada (sin aviso); abrir otra vez, modificar un valor y comprobar que protege salida; ver «Añadir foto» al principio; Editar línea debe mostrar Cliente/Variedad como selectores e INV/calles en la misma pantalla, botones azules. Si se autoriza un cambio real en TEST, probar guardado y relectura; no modificar datos por una mera prueba visual. Revisar Carga en el mismo lote cuando haya usuario autorizado. Registrar resultado antes de reanudar la propagación de layout a Carga. **Tareas en pausa**.
+
+**26/10/2026 | CONFIRMACIÓN QC 0.106.1 y 0.107 (TÚNEL):** tras la batería agrupada propuesta (Estado en Inspecciones; abrir/cerrar sin falso aviso; protección de cambios; fotografía dentro; Editar línea con selectores, ubicación y botones azules, guardado/reapertura cuando proceda), el usuario respondió expresamente «ok, validado». Se cierra la aceptación UAT agrupada de **QC Túnel**, sin reabrir correcciones resueltas. La comprobación separada del editor en **QC Carga** y el futuro rediseño visual de Carga no deben darse por aprobados por extrapolación.
+
+## 0.108. QC — eliminar «No evaluada» de las opciones de inspección (26/10/2026) — IMPLEMENTADO TEST / UAT PENDIENTE
+
+**Solicitud literal:** «Elimina la opcion no evaluado de las inspecciones». Alcance: cinco categorías (Color, Tamaño, Sanidad, Flores, Raíces), tanto en controles online Túnel/Carga como en borradores cuantitativos offline. No cambiar otros criterios QC ni abrir nuevos desarrollos.
+
+- **Interfaz online:** `assets/control-qc-operativo.js`, commit `ed816eb100c6b4db38edb2cf8e02dfe3089be4ca`: se excluye la opción `noEvaluada` del bucle de renderizado, conservando OK primero y el resto de estados. El catálogo interno conserva la clave exclusivamente para compatibilidad de lectura/validación. Si se abre una evaluación histórica que incluía `noEvaluada`, se presenta esa categoría sin opción marcada y se exige una elección explícita antes de guardar una edición, **sin convertirla automáticamente a OK ni alterar Firebase al abrir**.
+- **Interfaz offline:** `assets/qc-offline-operarios-drafts.js`, commit `d3ee98e8e22c9a19efbdbd7a0571d0012aa8a3eb`: mismo filtro visual, misma exigencia de reevaluar explícitamente el estado antiguo al editar. Mantiene clave heredada en `CATS` para que las validaciones, lecturas y posibles borradores históricos conservados sean compatibles. No se descartan ni sobrescriben borradores por abrirlos.
+- **Actualización PWA offline:** `sw.js`, commit `d6b5f8c56306d82c48615072df59fbb103bf4e2e`: caché de shell QC de v22 a **v23**, para que al actualizar el service worker se descargue el nuevo editor sin conexión.
+- **Sin modificaciones en:** `api/admin-qc-mediciones.js`, formatos persistidos, reglas, fotografías, guardado, catálogo de clientes, roles, otras pantallas ni datos históricos. No hay escrituras de datos Firebase en esta intervención.
+
+**Validación próxima (agrupada):** en TEST abrir una inspección en Túnel y otra en Carga; comprobar que en ninguna de las cinco categorías aparece «No evaluada», OK sigue primera y el resto de opciones funcionan. En Sin conexión, comprobar también el formulario de borrador después de actualizar la aplicación en línea. Si existe medición histórica con dicho estado, al editar exige una nueva selección y conserva su dato original sin guardar. **Pendiente confirmación UAT del usuario**. No tocar PRD/main; Tareas sigue en pausa.
 
 ## 1. Reglas innegociables
 
