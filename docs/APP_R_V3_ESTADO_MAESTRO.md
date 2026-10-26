@@ -7,7 +7,7 @@
 
 ## 0. CONTINUIDAD ACTUAL — 26/10/2026 (LEER ANTES DEL RESTO)
 
-**BLOQUE ACTIVO: QC 0.105 — auditoría de opciones QC Túnel/Carga, propuesta pendiente de aprobación.** §0.104 validado por usuario; Tareas se mantiene en pausa. La referencia a Plaguicidas §0.91 y otros bloques anteriores es histórica, no indica que haya que reanudarla ahora.
+**BLOQUE ACTIVO: QC 0.106 — rediseño operativo de Túnel implementado en TEST; validación visual/funcional del usuario PENDIENTE.** §0.105 aprobado por el usuario como criterio general. Se han implantado paneles diferenciados, selección directa de fecha y botón de impresión; no replicar todavía en Carga hasta validar Túnel. Tareas continúa en pausa. Las referencias anteriores a Plaguicidas 0.91 son históricas, no reanudación.
 
 **CONTEXTO HISTÓRICO: Plaguicidas Pistola→Tareas. NUEVA INCIDENCIA / CORRECCIÓN UI 0.91**. El usuario rechaza la confusión entre «seleccionar solo Pistola», elegir un producto fitosanitario (que asigna a `PEON1`) y pulsar una desconocida «Hoja oficial» que falla por ausencia de caldo. Tras analizar código, se mantiene el significado correcto: Pistola/Cañón son **métodos de aplicación**, producto/dosis/volumen configuran el **tratamiento real**, y Pistola genera **tarea de ejecución PEÓN** automáticamente según sala; Cañón no. No inventar aplicaciones vacías ni atribuir aplicación ejecutada al mero registro. Nuevos registros requieren datos suficientes para imprimir el parte; anteriores se preservan. Formularios reordenados, responsable visible, botón «Guardar tratamiento» y «Imprimir parte» en Consulta; las jornadas guardadas incompletas muestran motivo sin diálogo frustrante. Revisar el apartado 0.91 y HEAD Vercel para UAT. **No declarar Bloque C validado hasta prueba humana integral.**
 
@@ -1223,6 +1223,23 @@ El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en int
 7. No tocar wizard GINÉS ni roles en esta pasada salvo decisión específica del usuario.
 
 **Estado:** AUDITORÍA Y PROPUESTA. **No cambiar funciones hasta validación expresa del usuario.** PRD/main intactas. §0.104 cerrado; Tareas en pausa. Próxima acción: decisión del usuario sobre propuesta y, después, implementación TEST por bloques agrupados con UAT compacta.
+
+## 0.106. QC — pantalla operativa Túnel seccionada y fecha directa (26/10/2026) — IMPLEMENTADO TEST / UAT PENDIENTE
+
+**Decisión del usuario:** aprueba §0.105, pide sacar dashboard, CSV y reporting de la vista operativa hacia futura vista aislada de Informes; prescindir del título QC Túnel repetido bajo las pestañas, del botón Partidas/Dashboard y de la cinta/quincenas. Hoy seleccionado por defecto; cambiar directamente de fecha con flechas y calendario; mover impresión con icono a cabecera al lado de cerrar. Separar **claramente** el contenido en bloques visuales, no de corrido. Validar primero Túnel y después trasladar patrón a Carga y siguientes controles.
+
+**Código implantado en `test/v1.0` exclusivamente:**
+- `index.html`: clase `qc-tunel-work` solo cuando sección activa = Túnel; botón único de impresora en cabecera `qcImprimirDia`, que llama al listado imprimible **ya existente**, respeta día, invernadero y estado; no convierte ni imprime CSV, no ofrece impresión de mediciones cuantitativas detalladas.
+- `qcFechaHTML` y `qcSeleccionarFecha`: **fecha nativa directa** (hoy al abrir), flechas de día anterior/siguiente; conversión de fecha a día interno con validación, min fecha ancla; cuando se cruza una partición, carga `loadControlSeccionSlice('tunel',offset,false)` antes de cambiar, y al navegar respeta `navegarControlQC/confirmarSalidaQC` para no perder modificaciones sin confirmar. Quincenas permanecen solo como mecanismo de almacenamiento/consulta, no como selector visual en Túnel. Carga sigue intacta.
+- Lista Túnel ordinaria y ruta especial GINÉS: paneles independientes con cabeceras azules **Fecha de trabajo**, **Operativa del día** (INV + Añadir línea; filtro de estado/búsqueda y «Más opciones» en vista ordinaria) e **Inspecciones** (listado directo). El título grande QC Túnel ya no se repite. Sin botones Partidas/Dashboard ni CSV en el cuerpo. En días pasados no aparece «Añadir línea»; sigue regla de §0.103/0.104. Se preservan importación PDF, «Añadir extensiones», «Comprobar extensiones», cola pendiente y guiones de Túnel.
+- `assets/control-ui-list.css`: paneles con bordes, fondo diferenciado, títulos y separación física; pestañas en bloque independiente; estilo táctil responsive de fecha e impresora. `index.html` invoca CSS `v081`.
+- Existió una implementación concurrente adicional en `assets/control-ui-empty.js`/CSS que añadía otra impresora y anulaba el wizard Ginés. Se detectó en la auditoría, se retiró íntegramente el envoltorio duplicado mediante commits `94737cd7` y `07345782`, **conservando `QCEmptyState` original**. Solo queda la implementación única de `index.html`/CSS.
+
+**Evidencia técnica (sin iniciar sesión ni escribir datos):** cinco scripts inline de `index.html` compilados sin errores; ambas rutas de Túnel contienen tres paneles y no llaman a dashboard/CSV; navegación actual de Carga se conserva; el cambio de fecha carga la partición necesaria; una sola impresora; CSS específico Túnel. GitHub main sigue en `84c67fe934d2c34e57ce6b65cf9dca14246fec90`. Último commit de código/estilos al documentar `073457826c7d2be41666e783fc63990311b9e6f3`; comprobar despliegue READY en Vercel y hacer UAT humana antes de considerar cerrado.
+
+**Prueba UAT a pedir de forma AGRUPADA:** recargar TEST y entrar a QC Túnel; confirmar (a) pestañas y tres paneles claros sin título repetido ni dashboard/CSV; (b) fecha hoy + flechas/calendario, incluido salto a mes/partición lejana; (c) día anterior sin Añadir línea, hoy con botón; (d) impresora en cabecera y listado correcto según filtros, si hay líneas. GINÉS probar más adelante si no disponible en la sesión actual. Evitar datos ficticios/guardar inspecciones solo para probar interfaz.
+
+**Pendiente después de aceptación:** replicar estructura en Carga y decidir vista futura **Informes**, actualizar datos de Dashboard/CSV al modelo cuantitativo; unificación de «Editar línea» y anulación auditable (§0.105) pendiente de diseño específico. Tareas sigue en pausa. PRD/main intactos.
 
 ## 1. Reglas innegociables
 
