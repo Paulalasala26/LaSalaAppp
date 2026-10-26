@@ -11990,6 +11990,9 @@ async function procesarRiegoOffline(){
         const remoto=cloud?.[String(x.dia)]?.[String(x.calle)] ?? null;
         if(riegoValorIgual(remoto, x.deseado)){
           quitarRiegoOfflineClaves([x.clave]);
+          // La escritura ya coincide en Firebase aunque la respuesta original se perdiese.
+          // Reconciliar también el trabajo de ese día sin duplicar tareas.
+          encolarRiegoTareasConfirmado(invId,[String(x.dia)]);
           continue;
         }
         aAplicar.push(x);
@@ -12012,6 +12015,7 @@ async function procesarRiegoOffline(){
         if(!ok) throw new Error('Sincronización pendiente INV '+invId);
       }
     }
+    if(['ADMIN','TECNICO'].includes(currentUserRole)) await procesarColaRiegoTareas();
 
     if(riegoInvSel && riegoData[String(riegoInvSel)]) renderRiegoGrid(String(riegoInvSel));
     actualizarAvisoRiegoOffline();
@@ -13374,8 +13378,8 @@ function showRiegoModule(soloLectura){
             style="padding:7px 14px;background:#1558a0;border:1px solid #1558a0;color:#fff;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">
             <i class="ti ti-plus" style="font-size:14px;vertical-align:-2px"></i> Añadir riego
           </button>
-          <button id="riego-btn-guardar" onclick="saveRiegoData()" disabled title="Guardar cambios"
-            style="padding:7px 14px;background:#d6dbe1;border:1px solid #b8c0ca;color:#68727d;border-radius:7px;font-size:12px;font-weight:700;cursor:default;opacity:1;white-space:nowrap">
+          <button id="riego-btn-guardar" onclick="saveRiegoData()" disabled title="Guardar cambios pendientes de la cuadrícula"
+            style="display:none;padding:7px 14px;background:#d6dbe1;border:1px solid #b8c0ca;color:#68727d;border-radius:7px;font-size:12px;font-weight:700;cursor:default;opacity:1;white-space:nowrap">
             <i class="ti ti-device-floppy" style="font-size:14px;vertical-align:-2px"></i> Guardar
           </button>
         </div>
@@ -13404,6 +13408,8 @@ function actualizarEstadoBotonGuardarRiego(){
   if(!btn) return;
   const dirty = !!riegoInvSel && Array.from(riegoDirtyCells.values()).some(x=>String(x.invId)===String(riegoInvSel));
   btn.disabled = !dirty;
+  // El formulario Añadir riego guarda al confirmar; el botón general solo sirve para ediciones pendientes.
+  btn.style.display = dirty ? 'inline-flex' : 'none';
   btn.style.opacity = '1';
   btn.style.cursor = dirty ? 'pointer' : 'default';
   btn.style.background = dirty ? '#1558a0' : '#d6dbe1';
