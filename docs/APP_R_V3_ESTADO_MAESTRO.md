@@ -1030,6 +1030,18 @@ El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en int
 
 **Alcance de esta anotación:** solo documentación `docs/APP_R_V3_ESTADO_MAESTRO.md` en rama TEST; **sin cambio de código, sin escrituras Firebase y sin tocar PRD**.
 
+## 0.93. Plaguicidas — bloqueo de celdas anteriores, buscador, Estado de tarea y caldo (26/10/2026)
+
+**Incidencias reportadas en UAT visual por el usuario:** (1) Registrar dejaba abrir el formulario al tocar celdas anteriores a hoy y solo avisaba después; (2) Consulta tenía búsqueda dinámica sin icono identificable; (3) Estado de tarea mostraba simultáneamente «Cancelar» y «Cerrar» aunque en el caso consultado solo había información; (4) la jornada ORTIVA TOP del **28/10/2026** aparece con «Falta caldo», pero al editar no se encontraba el selector de litros. Son incidencias concretas de diseño/operación; no son validación del bloque entero.
+
+**Correcciones de código 0.93 implementadas SOLO en `test/v1.0`:** commit funcional `a6377087c7b806bbc40c5a1db4f65913de2d1f30`, únicamente `assets/fito-series-v3.js`. Se han preservado los textos/valores guardados; **no se ha escrito ningún dato Firebase** durante la intervención ni se ha tocado PRD.
+- **Registrar:** se aplica bloqueo de acceso al formulario para celdas de días anteriores al calendario local actual en `abrirFitoManualCelda`, `abrirFitoManualDia` y arrastre `dragCalleStart` / `abrirFitoManualDiaConTramo`; al pintar `renderFitoGrid` las celdas pasadas quedan atenuadas, sin acción `onclick` ni controles táctiles activos; los tratamientos históricos continúan legibles y siguen accesibles desde `Consulta tratamientos`. El selector de fecha del formulario general deshabilita fechas pasadas. La acción de alta nueva verifica de nuevo la fecha antes de escribir, aunque el DOM fuese manipulado. No se altera el flujo de corrección histórica vinculado a Consulta/ADMIN; no crear nuevas altas retroactivas.
+- **Consulta:** búsqueda sigue filtrando al escribir y añade icono visible de lupa junto a «Buscar», sin añadir un segundo botón inútil.
+- **Estado de tarea:** el diálogo de una tarea ya existente usa modo `soloConsulta`, mostrando **solo «Cerrar»** y conservando su detalle de ejecución, horas, firmas y rectificaciones. Los diálogos que realmente confirman edición, anulación o conciliación conservan sus dos acciones.
+- **Caldo:** en el alta y edición se mueve físicamente el único selector `#fm-caldo` al bloque «Método y tratamiento», inmediatamente después de «Dosis por litro»; etiqueta explícita «Caldo (litros) · necesario para imprimir». El tercer bloque queda «Horario». Se mantiene el mismo campo, las mismas opciones y la misma persistencia/impresión: no se modifica ni inventa el valor de ORTIVA TOP u otra jornada. La corrección de ese registro exige edición explícita del usuario con litros reales.
+
+**Verificación:** JavaScript de `assets/fito-series-v3.js` parseado antes del commit sin errores. Vercel TEST alias READY contrastado con el SHA funcional `a6377087c7b806bbc40c5a1db4f65913de2d1f30` antes de añadir esta anotación. Prueba con sesión autenticada y datos reales **todavía pendiente**: recargar TEST, intentar pulsar y arrastrar una celda pasada (sin abrir formulario), localizar lupa de búsqueda y comprobar filtrado, abrir Estado de tarea y ver un solo «Cerrar», editar ORTIVA TOP 28/10 y comprobar «Caldo» junto a dosis (sin guardar hasta que el usuario confirme litros correctos). No declarar validado hasta aceptación explícita del usuario.
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).
