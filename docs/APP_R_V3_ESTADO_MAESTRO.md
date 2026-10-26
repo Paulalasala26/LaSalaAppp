@@ -1059,6 +1059,19 @@ El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en int
 
 **Estado:** CRITERIO IMPLEMENTADO EN TEST / UAT VISUAL Y FUNCIONAL PENDIENTE. Prueba agrupada: (a) escribir en búsqueda de Operativas/Archivo, Consulta Plaguicidas, Partidas y Backoffice (Usuarios/Historico), confirmar que resultados no cambian hasta pulsar lupa, comprobar Intro y búsqueda vacía; (b) ver botones «Guardar» en Plaguicidas, Riego, QC, edición de Tareas, Mantenimiento y Backoffice y confirmar que no se han cambiado procesos; (c) inspeccionar el buscador offline QC sin conexión una vez instalada su nueva versión de caché. Registrar incidencias puntuales sin reabrir otras funciones validadas. No declarar aceptación por el simple despliegue.
 
+## 0.95. Unificación progresiva segura tras rollback móvil: Consulta Plaguicidas (26/10/2026)
+
+**Entrada:** el usuario comprobó que el acceso a TEST desde móvil volvió a funcionar tras revertir la implementación global 0.94 y autorizó continuar («correcto. Siguiente»). **El criterio de lupa y «Guardar» sigue aprobado**, pero se ejecuta de forma incremental por pantalla y se exige la preservación del login móvil.
+
+**Alcance de esta intervención (SOLO `assets/fito-series-v3.js` en `test/v1.0`):**
+- En **Plaguicidas → Consulta tratamientos** el campo «Buscar tratamiento» se acompaña de botón azul con icono de lupa (40×40, layout `min-width:0`, estructura `label for` + `input` + `button` en contenedor local). Escribir texto por sí solo NO ejecuta filtrado; pulsa lupa o tecla Enter para aplicar `filtrarConsultaFitoV3` y actualizar lista/conteo. El texto aplicado se conserva al redibujar la consulta. Los filtros de día/sala/invernadero permanecen inmediatos: no son búsquedas textuales.
+- En el **formulario Añadir/Editar tratamiento**, la acción de persistir se muestra exclusivamente como **«Guardar»** (mantiene icono y el mismo `onclick=saveFitoManual()`).
+- El diálogo final de confirmación de guardado (`confirmarFitoAccionV3`) muestra también **«Guardar»** en lugar de «Registrar jornada»/«Guardar cambios». Permanecen las validaciones, bloqueos históricos, ETag, prevención de duplicados, tratamiento Pistola→Tarea y guardado remoto inalterados.
+- **Ningún cambio** en `index.html`, login, menús, otras pantallas de Riego/QC/Tareas/Partidas, estilos globales, service workers, backend ni Firebase. No se reintroduce `assets/ui-criterios-global.js`.
+- Commits funcionales: `be72c536dbc8e8f87dd08767f7906515d64334bc` (cambio del buscador y botones), `404e6dae8507c9d161825ee58b41eb2490048344` (marcado semántico sin botón dentro de etiqueta, móvil). JS parseado sin errores. **UAT con usuario autenticado y presentación móvil todavía pendiente**; no confundir despliegue READY con aprobación del usuario.
+
+**Prueba agrupada recomendada:** abrir TEST en móvil y desktop y confirmar que login/menús siguen accesibles, entrar en Consulta tratamientos, escribir «Ortiva» y comprobar que NO desaparecen otras tarjetas al teclear; pulsar lupa y comprobar la búsqueda, borrar campo + lupa para restituir todo; abrir edición sin guardar, comprobar botón «Guardar» y cerrar. **No modificar la jornada de Ortiva Top del 28/10 para esta prueba** ni crear datos de ejemplo. Tras aceptación, avanzar con siguiente módulo local, no con observadores globales.
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).
