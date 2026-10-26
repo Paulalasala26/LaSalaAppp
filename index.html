@@ -157,7 +157,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 <script src="assets/firebase-diagnostics.js"></script>
 <link rel="stylesheet" href="assets/control-qc-operativo.css?v=077">
 <link rel="stylesheet" href="assets/control-ui-empty.css?v=078">
-<link rel="stylesheet" href="assets/control-ui-list.css?v=082">
+<link rel="stylesheet" href="assets/control-ui-list.css?v=083">
 <link rel="stylesheet" href="assets/qc-edit-linea-v3.css?v=107">
 <link rel="stylesheet" href="assets/control-ui-cards.css?v=109">
 <style>.qc-card-medido{display:inline-block;font-size:11px;font-weight:800;color:#1558a0;margin-top:4px}</style>
@@ -6088,7 +6088,7 @@ async function qcSeleccionarFecha(iso,modo){
  await navegarControlQC(async()=>{
    const prev=wizard?controlWizardQuincenaOffset:controlQuincenaOffset;
    if(prev!==offset){
-     if(!await loadControlSeccionSlice('tunel',offset,false)){avisarFalloCarga();return;}
+     if(!await loadControlSeccionSlice(wizard?'tunel':controlSeccion,offset,false)){avisarFalloCarga();return;}
    }
    if(wizard){controlWizardDiaSel=dia;controlWizardQuincenaOffset=offset;controlWizardNivel='partidas';controlWizardPartidaId=null;controlWizardPaso=0;controlWizardEnfermedades=false;}
    else{controlDiaSel=dia;controlQuincenaOffset=offset;}
@@ -6103,13 +6103,14 @@ function qcMoverDia(delta,modo){
  return qcSeleccionarFecha(fechaLocalISO(riegoDiaToDate(d+delta)),modo);
 }
 function qcImprimirDia(){
- if(controlSeccion!=='tunel')return;
- const dia=controlDiaSel; // 0.106: la impresión usa la vista ordinaria para todos
+ const tipo=controlSeccion;
+ if(tipo!=='tunel'&&tipo!=='carga')return;
+ const dia=controlDiaSel;
  if(!Number.isInteger(dia))return;
- const filtradas=controlLineasFiltradasInv(controlChecksData.filter(c=>c.tipo==='tunel'&&c.dia===dia),'tunel');
+ const filtradas=controlLineasFiltradasInv(controlChecksData.filter(c=>c.tipo===tipo&&c.dia===dia),tipo);
  const lista=controlFiltroEstado==='completados'?filtradas.filter(controlLineaFinalizadaQC):controlFiltroEstado==='pendientes'?filtradas.filter(c=>!controlLineaFinalizadaQC(c)):filtradas;
  if(!lista.length){showToast('No hay inspecciones para imprimir.');return;}
- window.__controlListadoActual={titulo:'QC Túnel · '+riegoDiaLabelCorto(dia),lineas:lista};
+ window.__controlListadoActual={titulo:(tipo==='tunel'?'QC Túnel':'QC Carga')+' · '+riegoDiaLabelCorto(dia),lineas:lista};
  imprimirListadoPartidasControl();
 }
 function qcPanel(title,content,cls){
@@ -6298,7 +6299,7 @@ function renderControlContent(overlay){
         ${CONTROL_SECCIONES.filter(s=>currentUserRole!=='CARGADOR'||s.key==='carga').map(navBtn).join('')}
       </nav>`;
   overlay.innerHTML=`
-    <div class="control-ui-shell${controlSeccion==='tunel'?' qc-tunel-work':''}">
+    <div class="control-ui-shell${controlSeccion==='tunel'?' qc-tunel-work':controlSeccion==='carga'?' qc-carga-work':''}">
       <header class="control-ui-header">
         <button type="button" class="control-ui-home" onclick="seleccionarSeccionControl(null)"
           aria-label="Volver al resumen de Control de Calidad" title="Volver al resumen">
@@ -6312,7 +6313,7 @@ function renderControlContent(overlay){
           ${controlDesdeBackoffice ? `<button type="button" onclick="volverAlListadoControlBackoffice()"
             style="background:#1558a0;border:1px solid #a8c4e8;color:#fff;border-radius:7px;font-size:12px;font-weight:800;padding:7px 11px;cursor:pointer;white-space:nowrap"
             title="Volver al listado de Control del Backoffice">← Backoffice</button>` : ''}
-          ${controlSeccion==='tunel'?'<button type="button" class="qc-work-print" onclick="qcImprimirDia()" aria-label="Imprimir listado del día" title="Imprimir listado del día"><i class="ti ti-printer" aria-hidden="true"></i></button>':''}
+          ${(controlSeccion==='tunel'||controlSeccion==='carga')?'<button type="button" class="qc-work-print" onclick="qcImprimirDia()" aria-label="Imprimir listado del día" title="Imprimir listado del día"><i class="ti ti-printer" aria-hidden="true"></i></button>':''}
           <span class="control-ui-section-label" aria-live="polite">${controlSeccion ? (CONTROL_SECCIONES.find(s=>s.key===controlSeccion)?.label || '') : 'Resumen'}</span>
           <button type="button" class="control-ui-close" onclick="cerrarControlModule()"
             title="Cerrar Control de Calidad" aria-label="Cerrar Control de Calidad">&times;</button>
@@ -7070,19 +7071,7 @@ function renderControlChecklistHTML(seccion){
   // un PDF para este día pero todavía no está en memoria, se pide en segundo
   // plano y se repinta cuando llegue (ver cargarControlPdfDia).
   cargarControlPdfDia(seccion.key, controlDiaSel);
-  // TEST: solo en días sin partidas, no mostrar herramientas sin contexto.
-  // La creación manual, PDFs y extensiones siguen disponibles.
-  if(listaDia.length===0 && seccion.key!=='tunel' && window.QCEmptyState){
-    return window.QCEmptyState.render({
-      tipo:seccion.key,titulo:seccion.label,selected:controlDiaSel,
-      dateNavHTML:renderControlQCDateNav(controlQuincenaOffset,controlDiaSel,'list')+
-         renderControlFiltroYAltaHTML(seccion.key,controlDiaSel,false),
-      canAdd:puedeCrearLineaControlQC(controlDiaSel),
-      hideAddButton:true,formInToolbar:true,
-      pending:leerColaOffline().length,
-      pdfNombre:pdf?.nombre||'',pdfUrl:pdf?.pdfB64||''
-    });
-  }
+  // La misma estructura operativa se mantiene incluso si el día no tiene partidas.
 
   const filtrosHTML = '<label class="qc-list-state"><span>Estado</span><select class="qc-list-select" onchange="cambiarControlFiltroEstado(this.value)" aria-label="Filtrar por estado">'+[
     {value:'todos',label:'Todos ('+listaInv.length+')'},
@@ -7136,19 +7125,16 @@ function renderControlChecklistHTML(seccion){
   const extraTunelHTML = seccion.key==='tunel' ? `
     <label class="qc-list-option"><i class="ti ti-file-upload"></i> Añadir extensiones<input type="file" accept="application/pdf" onchange="handleExtensionesPdfInput(this)"></label>
     <button type="button" class="qc-list-option" onclick="mostrarComprobarExtensiones()"><i class="ti ti-list-check"></i> Comprobar extensiones</button>` : '';
-  const viewActionHTML = controlVistaChecklist==='dashboard'
-    ? '<button type="button" class="qc-list-back" onclick="cambiarControlVistaChecklist(\'lineas\')">← Volver a partidas</button>'
-    : '<button type="button" class="qc-list-option" onclick="cambiarControlVistaChecklist(\'dashboard\')"><i class="ti ti-chart-bar"></i> Dashboard del día</button>';
   const cardsHTML = listaMostrada.length===0
-    ? `<div class="qc-list-none">${(seccion.key==='carga'?controlCargaInvFiltro:controlTunelInvFiltro)?'No hay partidas para ese invernadero y día.':'No hay líneas con el estado seleccionado.'}</div>`
+    ? `<div class="qc-list-none">${listaDia.length===0?'Sin partidas para este día.':((seccion.key==='carga'?controlCargaInvFiltro:controlTunelInvFiltro)?'No hay partidas para ese invernadero y día.':'No hay líneas con el estado seleccionado.')}</div>`
     : `<div class="qc-list-cards">${filas}</div>`;
-  if(seccion.key==='tunel'){
+  if(seccion.key==='tunel'||seccion.key==='carga'){
     const pdfAction=addAllowed ? '<label class="qc-list-option"><i class="ti ti-file-type-pdf"></i> '+(pdf?'Sustituir PDF':'Insertar PDF')+
-      '<input type="file" accept="application/pdf" onchange="handleControlPdfInput(this,\'tunel\','+controlDiaSel+')"></label>' : '';
+      '<input type="file" accept="application/pdf" onchange="handleControlPdfInput(this,\''+seccion.key+'\','+controlDiaSel+')"></label>' : '';
     const operativa=filtroInvHTML+
       '<div class="qc-list-tools"><div class="qc-list-search">'+
-      '<input id="control-buscar-partida" type="search" placeholder="Buscar Nº partida" aria-label="Buscar número de partida" onkeydown="if(event.key===\'Enter\'){event.preventDefault();buscarControlPartida(\'tunel\')}" />'+
-      '<button type="button" onclick="buscarControlPartida(\'tunel\')" aria-label="Buscar"><i class="ti ti-search"></i></button></div></div>'+
+      '<input id="control-buscar-partida" type="search" placeholder="Buscar Nº partida" aria-label="Buscar número de partida" onkeydown="if(event.key===\'Enter\'){event.preventDefault();buscarControlPartida(\''+seccion.key+'\')}" />'+
+      '<button type="button" onclick="buscarControlPartida(\''+seccion.key+'\')" aria-label="Buscar"><i class="ti ti-search"></i></button></div></div>'+
       syncHTML+
       '<details class="qc-list-more"><summary>Más opciones</summary><div class="qc-list-more-actions">'+
       pdfAction+extraTunelHTML+'</div>'+pdfInfoHTML+'</details>';
@@ -7159,37 +7145,6 @@ function renderControlChecklistHTML(seccion){
       qcPanel('Operativa del día',operativa,'qc-work-operations')+
       qcPanel('Inspecciones',filtrosInspecciones+cardsHTML,'qc-work-inspections')+'</div>';
   }
-  return `
-    <section class="qc-list-screen" aria-label="${seccion.label}">
-      <div class="qc-list-head">
-        <h2>${seccion.label}</h2>
-      </div>
-      ${renderControlQCDateNav(controlQuincenaOffset,controlDiaSel,'list')}
-      ${filtroInvHTML}
-      <div class="qc-list-tools">
-        <div class="qc-list-search">
-          <input id="control-buscar-partida" type="search" placeholder="Buscar Nº partida" aria-label="Buscar número de partida"
-            onkeydown="if(event.key==='Enter'){event.preventDefault();buscarControlPartida('${seccion.key}')}" />
-          <button type="button" onclick="buscarControlPartida('${seccion.key}')" aria-label="Buscar"><i class="ti ti-search"></i></button>
-        </div>
-        ${filtrosHTML}
-      </div>
-      ${syncHTML}
-      ${controlVistaChecklist==='dashboard'?viewActionHTML:''}
-      <details class="qc-list-more" ${controlVistaChecklist==='dashboard'?'open':''}>
-        <summary>Más opciones</summary>
-        <div class="qc-list-more-actions">
-          ${controlVistaChecklist==='dashboard'?'':viewActionHTML}
-          ${addAllowed?`<label class="qc-list-option"><i class="ti ti-file-type-pdf"></i> ${pdf?'Sustituir PDF':'Insertar PDF'}
-            <input type="file" accept="application/pdf" onchange="handleControlPdfInput(this,'${seccion.key}',${controlDiaSel})">
-          </label>`:''}
-          ${extraTunelHTML}
-          ${pendientesGlobal===0?'<button type="button" class="qc-list-option" onclick="sincronizarControlManual()"><i class="ti ti-refresh"></i> Sincronizar</button>':''}
-        </div>
-        ${pdfInfoHTML}
-      </details>
-      ${controlVistaChecklist==='dashboard' ? renderControlDashboardDiaHTML(seccion,listaInv) : cardsHTML}
-    </section>`;
 
 }
 function handleControlPdfInput(input, tipo, dia){
