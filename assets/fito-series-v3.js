@@ -10,6 +10,45 @@ const originalSummary=window.renderResumenQuincenaTratamientos;
 const originalDelete=window.borrarFitoManual;
 if(!originalForm||!window.saveFitoPatch)return;
 const st={mode:'nuevo',edit:null,busy:false,uncertain:false};
+// 0.93: fecha pasada = consulta visual; nunca abrir registro desde la cuadrícula.
+const fitoDiaPasado=dia=>Number(dia)<riegoDiaDeHoy();
+const previoAbrirCelda=window.abrirFitoManualCelda;
+window.abrirFitoManualCelda=function(inv,dia,calles){
+ if(fitoDiaPasado(dia))return;
+ return previoAbrirCelda.apply(this,arguments);
+};
+for(const nombre of ['abrirFitoManualDia','abrirFitoManualDiaConTramo']){
+ const previo=window[nombre];
+ if(typeof previo==='function')window[nombre]=function(inv,dia){
+  if(fitoDiaPasado(dia))return;
+  return previo.apply(this,arguments);
+ };
+}
+const previoDrag=window.dragCalleStart;
+window.dragCalleStart=function(tipo,inv,dia){
+ if(tipo==='fito'&&fitoDiaPasado(dia))return;
+ return previoDrag.apply(this,arguments);
+};
+const previoGrid=window.renderFitoGrid;
+window.renderFitoGrid=function(){
+ const resultado=previoGrid.apply(this,arguments);
+ const dias=riegoQuincenaDias(fitoQuincenaOffset);
+ document.querySelectorAll('#fito-grid-wrap table').forEach(tabla=>{
+  Array.from(tabla.querySelectorAll('tr')).slice(1).forEach((fila,i)=>{
+   if(!fitoDiaPasado(dias[i]))return;
+   Array.from(fila.cells).slice(1,-1).forEach(celda=>{
+    celda.removeAttribute('onclick');
+    celda.style.cursor='default';celda.style.opacity='0.7';
+    celda.title='Fecha anterior a hoy. Consulta el histórico en Consulta tratamientos.';
+    celda.querySelectorAll('button').forEach(boton=>{
+     boton.removeAttribute('onmousedown');boton.removeAttribute('onmouseenter');
+     boton.disabled=true;boton.style.cursor='default';
+    });
+   });
+  });
+ });
+ return resultado;
+};
 const esc=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const clone=x=>x==null?null:JSON.parse(JSON.stringify(x));
 const key=(inv,d,c)=>inv+'|'+d+'|'+c;
@@ -85,6 +124,26 @@ window.showFitoManualForm=function(){
  const r=originalForm.apply(this,arguments);
  const content=document.querySelector('#fito-manual-overlay details.fm-accordion > div');
  if(!content)return r;
+ // Volumen junto al producto y la dosis, tanto en alta como al editar jornadas históricas.
+ const selectorCaldo=document.getElementById('fm-caldo');
+ const bloqueDosis=document.getElementById('fm-dosis')?.parentElement;
+ const bloqueCaldo=selectorCaldo?.parentElement?.parentElement;
+ if(bloqueCaldo&&bloqueDosis){
+  bloqueDosis.insertAdjacentElement('afterend',bloqueCaldo);
+  const label=bloqueCaldo.querySelector('label');
+  if(label)label.textContent='Caldo (litros) · necesario para imprimir';
+  const horario=Array.from(document.querySelectorAll('#fito-manual-overlay .fm-accordion > summary'))
+   .find(x=>x.textContent.trim().startsWith('3. Hora y volumen'));
+  if(horario)horario.textContent='3. Horario';
+ }
+ const dias=document.getElementById('fm-dia');
+ if(dias){
+  Array.from(dias.options).forEach(op=>{op.disabled=fitoDiaPasado(op.value);});
+  if(fitoDiaPasado(dias.value)){
+   const primera=Array.from(dias.options).find(op=>!op.disabled);
+   if(primera)dias.value=primera.value;
+  }
+ }
  const options=listSeries().map(s=>'<option value="'+esc(s.id)+'">'+esc(s.start+' · '+parsearTextoFito(s.text).trat.slice(0,65)+' · '+s.journals.size+' días')+'</option>').join('');
  const card=document.createElement('div');card.id='fm-serie-v3';
  card.style.cssText='padding:10px;background:#f6f9fe;border:1px solid #c6d9ee;border-radius:8px;display:flex;flex-direction:column;gap:8px';
@@ -481,7 +540,7 @@ function construirConsultaFitoV3(mod){
   +'<label style="min-width:0;font-size:11px;font-weight:750;color:#1558a0">Día'+filtDia+'</label>'
   +'<label style="min-width:0;font-size:11px;font-weight:750;color:#1558a0">Sala'+filtSala+'</label>'
   +'<label style="min-width:0;font-size:11px;font-weight:750;color:#1558a0">Invernadero'+filtInv+'</label>'
-  +'<label style="min-width:0;font-size:11px;font-weight:750;color:#1558a0">Buscar'
+  +'<label style="min-width:0;font-size:11px;font-weight:750;color:#1558a0"><i class="ti ti-search" aria-hidden="true" style="font-size:14px;margin-right:4px"></i>Buscar'
   +'<input type="search" value="'+esc(busquedaFitoV3)+'" placeholder="Tratamiento" oninput="filtrarConsultaFitoV3(this.value)" style="'+boxSelect+'"></label>'
   +'</div>'
   +'<div id="fito-consulta-conteo" aria-live="polite" style="font-size:12px;font-weight:750;color:#53677d;margin:0 0 7px">'+shown+' '+(shown===1?'registro':'registros')+'</div>'
@@ -556,7 +615,7 @@ async function consultarTareaJornadaFitoV3(serieId,jornadaId){
     t.firmaPreparador?'Preparó: '+t.firmaPreparador:'',
     t.firmaAplicador?'Aplicó: '+t.firmaAplicador:'',
     ...(t.rectificacionesFito||[]).map(r=>'Rectificación '+r.fecha+' ('+r.usuario+'): '+r.accion+' · '+r.motivo)].filter(Boolean).join('\n');
-   await confirmarFitoAccionV3({titulo:'Ejecución Pistola',detalle,accion:'Cerrar'});
+   await confirmarFitoAccionV3({titulo:'Ejecución Pistola',detalle,accion:'Cerrar',soloConsulta:true});
    return;
   }
   if(!(await confirmarFitoAccionV3({titulo:'Tarea Pistola sin confirmar',
@@ -628,7 +687,7 @@ function gatherTargets(ids){
 
 // In-form confirmation for pesticide writes: native confirm() cannot reliably
 // wrap greenhouse / street lists on small screens. No data mutation before OK.
-function confirmarFitoAccionV3({titulo,detalle,accion='Confirmar',destructivo=false}){
+function confirmarFitoAccionV3({titulo,detalle,accion='Confirmar',destructivo=false,soloConsulta=false}){
  return new Promise(resolve=>{
   const modal=getOrCreateOverlay('fito-v3-confirmacion');
   if(modal.dataset.enCurso==='1'){resolve(false);return;}
@@ -639,7 +698,7 @@ function confirmarFitoAccionV3({titulo,detalle,accion='Confirmar',destructivo=fa
    +'<div id="fito-v3-confirmar-titulo" style="font-size:16px;font-weight:800;color:#1558a0;overflow-wrap:anywhere"></div>'
    +'<div id="fito-v3-confirmar-detalle" style="font-size:13px;line-height:1.55;color:#263344;white-space:pre-wrap;overflow-wrap:anywhere;word-break:normal;margin:12px 0 18px"></div>'
    +'<div style="display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px">'
-   +'<button type="button" id="fito-v3-cancelar" style="padding:10px 14px;min-height:40px;border:1px solid #b5c5d6;background:#fff;color:#1558a0;border-radius:8px;font-weight:700">Cancelar</button>'
+   +(soloConsulta?'':'<button type="button" id="fito-v3-cancelar" style="padding:10px 14px;min-height:40px;border:1px solid #b5c5d6;background:#fff;color:#1558a0;border-radius:8px;font-weight:700">Cancelar</button>')
    +'<button type="button" id="fito-v3-aceptar" style="padding:10px 14px;min-height:40px;border:0;border-radius:8px;font-weight:800;color:#fff"></button>'
    +'</div></div>';
   modal.querySelector('#fito-v3-confirmar-titulo').textContent=titulo;
@@ -658,10 +717,10 @@ function confirmarFitoAccionV3({titulo,detalle,accion='Confirmar',destructivo=fa
   };
   const keyboard=e=>{if(e.key==='Escape'){e.preventDefault();done(false);}};
   modal.onclick=e=>{if(e.target===modal)done(false);};
-  modal.querySelector('#fito-v3-cancelar').addEventListener('click',()=>done(false));
+  if(!soloConsulta)modal.querySelector('#fito-v3-cancelar').addEventListener('click',()=>done(false));
   yes.addEventListener('click',()=>done(true));
   document.addEventListener('keydown',keyboard,true);
-  modal.querySelector('#fito-v3-cancelar').focus();
+  modal.querySelector(soloConsulta?'#fito-v3-aceptar':'#fito-v3-cancelar').focus();
  });
 }
 
@@ -800,6 +859,7 @@ window.saveFitoManual=async function(){
  try{
   if(fitoDirtyCells.size)throw Error('Hay cambios pendientes de sincronizar. No se puede iniciar otro guardado.');
   const day=+document.getElementById('fm-dia').value,iso=dayISO(day);
+  if(!st.edit&&fitoDiaPasado(day))throw Error('No se permite registrar tratamientos en fechas anteriores a hoy.');
   const product=document.getElementById('fm-trat').value.trim(),dose=document.getElementById('fm-dosis').value.trim();
   const time=document.getElementById('fm-horario').value||'',method=document.getElementById('fm-tipo-trat').value||'';
   const liters=+document.getElementById('fm-caldo').value||null;
