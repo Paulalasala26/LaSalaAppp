@@ -1933,7 +1933,7 @@ function buildTareaGestorRow(t, conSeleccion){
       <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
         ${manual&&t.estado==='pendiente'&&!t.conciliacionFito ? `<button onclick="showEditarTareaForm('${t.id}')" style="padding:7px 12px;font-size:11px;font-weight:700;background:#1558a0;color:#fff;border:0;border-radius:7px;cursor:pointer">Editar</button>
           <button onclick="eliminarTarea('${t.id}')" style="padding:7px 12px;font-size:11px;background:#eef4fb;color:#1558a0;border:1px solid #a8c4e8;border-radius:7px;cursor:pointer">Anular</button>` : ''}
-        ${pistola ? `<button onclick="imprimirHojaFumigacionTarea('${t.id}')" style="padding:7px 12px;font-size:11px;font-weight:700;background:#1558a0;color:#fff;border:0;border-radius:7px;cursor:pointer">Hoja oficial</button>
+        ${pistola ? `<button onclick="imprimirHojaFumigacionTarea('${t.id}')" style="padding:7px 12px;font-size:11px;font-weight:700;background:#1558a0;color:#fff;border:0;border-radius:7px;cursor:pointer">Imprimir parte</button>
           ${pistolaVinculada?`<button onclick="abrirJornadaPistolaDesdeTareas('${t.id}')" style="padding:7px 12px;font-size:11px;background:#eef4fb;color:#1558a0;border:1px solid #a8c4e8;border-radius:7px;cursor:pointer">Ver jornada</button>`:''}` : ''}
         ${!pistola ? `<button onclick="imprimirTareaSuelta('${t.id}')" style="padding:7px 12px;font-size:11px;background:#eef4fb;color:#1558a0;border:1px solid #a8c4e8;border-radius:7px;cursor:pointer">Imprimir</button>` : ''}
       </div>
@@ -19176,7 +19176,16 @@ function actualizarResumenSeleccionFitoManual(){
     try{calles+=calcularCallesFmBulk(id).calles.length;}catch(e){}
   });
   const resumen=document.getElementById('fm-resumen-aplicacion');
-  if(resumen) resumen.textContent=total ? texto+': '+ids.join(', ')+' · '+calles+' calles seleccionadas' : 'Selecciona al menos un invernadero';
+  if(resumen){
+    const metodo=document.getElementById('fm-tipo-trat')?.value||'';
+    const salas=[...new Set(ids.map(id=>salaDeInv(id)))];
+    let asignacion='';
+    if(metodo==='Pistola'&&total){
+      asignacion=salas.length===1?' · Pistola → '+peonDelaSala(ids[0])+' (automático)'
+        :' · Pistola: registra cada sala por separado';
+    }else if(metodo==='Cañón')asignacion=' · Cañón: sin tarea de peón';
+    resumen.textContent=total?texto+' · '+calles+' calles'+asignacion:'Selecciona un invernadero';
+  }
   [1,2,3,4,5].forEach(n=>{
     const sala='sala'+n;
     const chks=Array.from(document.querySelectorAll('.fm-inv-chk[data-sala="'+sala+'"]'));
