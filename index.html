@@ -1677,6 +1677,7 @@ function categoriaFechaTarea(t){
 // un desplegable de una sola), igual que describe la guía de referencia.
 // ════════════════════════════════════════════════════════════════
 const MANTENIMIENTO_KEY = 'lasala-mantenimiento-v1';
+function ticketMantenimientoArchivado(t){return !!(t&&t.archivadaEn);}
 let mantenimientoData = [];
 let mantSeleccionadas = new Set();
 const MANT_ESTADOS = [
@@ -1723,12 +1724,12 @@ async function loadMantenimientoData(){
 // se dispara la próxima vez que alguien abra el tablero.
 async function revisarTicketsMantenimientoProgramados(){
   const hoyISO=fechaLocalISO(new Date());
-  if(!mantenimientoData.some(t=>t.recurrencia&&t.estado==='cerrado'&&t.proximaFecha&&t.proximaFecha<=hoyISO))return;
+  if(!mantenimientoData.some(t=>!ticketMantenimientoArchivado(t)&&t.recurrencia&&t.estado==='cerrado'&&t.proximaFecha&&t.proximaFecha<=hoyISO))return;
   const tx=await actualizarStorageJsonConEtag(MANTENIMIENTO_KEY,[],cloud=>{
     if(!Array.isArray(cloud))throw Error('Mantenimiento: formato inválido');
     let cambios=0;
     const actualizado=cloud.map(t=>{
-      if(!t.recurrencia||t.estado!=='cerrado'||!t.proximaFecha||t.proximaFecha>hoyISO)return t;
+      if(ticketMantenimientoArchivado(t)||!t.recurrencia||t.estado!=='cerrado'||!t.proximaFecha||t.proximaFecha>hoyISO)return t;
       const ejecucion={
         id:'ejecucion_'+(t.horaFinTs||t.completadoISO||t.proximaFecha),
         completadoISO:t.completadoISO||parseFechaHoraToISO(t.horaFin)||null,
@@ -1758,7 +1759,8 @@ async function persistMantenimientoData(){
       if(!Array.isArray(cloud)) cloud=[];
       const map={};
       cloud.forEach(t=>map[t.id]=t);
-      locales.forEach(t=>map[t.id]=t);
+      // Una sesión obsoleta no puede reactivar un ticket archivado.
+      locales.forEach(t=>{if(!ticketMantenimientoArchivado(map[t.id]))map[t.id]=t;});
       return Object.values(map);
     });
     if(!tx.ok){ avisarFalloGuardado(); return; }
@@ -1770,7 +1772,7 @@ async function transicionarMantenimientoPeonSeguro(id,estadoAnterior,campos){
   const tx=await actualizarStorageJsonConEtag(MANTENIMIENTO_KEY,[],cloud=>{
     if(!Array.isArray(cloud))throw Error('Mantenimiento: formato inválido');
     const t=cloud.find(x=>x.id===id);
-    if(!t||t.estado!==estadoAnterior||!(t.asignados||[]).includes(currentUser))return undefined;
+    if(!t||ticketMantenimientoArchivado(t)||t.estado!==estadoAnterior||!(t.asignados||[]).includes(currentUser))return undefined;
     return cloud.map(x=>x.id===id?{...x,...campos}:x);
   });
   if(!tx.ok||tx.noChange){
@@ -2007,7 +2009,7 @@ const MANT_NIVELES_COLGANDO = [
 ];
 function renderMantenimientoColgandoHTML(){
   const bloques = MANT_NIVELES_COLGANDO.map(nivel=>{
-    const tickets = mantenimientoData.filter(t=>nivel.estados.includes(t.estado));
+    const tickets = mantenimientoData.filter(t=>!ticketMantenimientoArchivado(t)&&nivel.estados.includes(t.estado));
     if(!tickets.length) return '';
     const conAsignar = nivel.key==='pendiente';
     const sinAsignarTickets = tickets.filter(t=>t.estado==='sin_asignar');
@@ -2093,7 +2095,7 @@ function buildTarjetaMantenimiento(t, mostrarAsignarPersonas){
       ${asignarPersonasHTML}
       <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
         ${moverSelect}
-        <button onclick="eliminarTicketMantenimiento('${t.id}')" title="Eliminar" style="padding:5px 10px;font-size:10.5px;font-weight:700;background:#fdecea;color:#c62828;border:1px solid #f0b0b0;border-radius:6px;cursor:pointer">🗑️ Eliminar</button>
+        <button onclick="archivarTicketMantenimiento('${t.id}')" title="Retirar de Mantenimiento y conservar en Archivo" style="padding:5px 10px;font-size:10.5px;font-weight:700;background:#eef4fb;color:#1558a0;border:1px solid #a8c4e8;border-radius:6px;cursor:pointer"><i class="ti ti-archive"></i> Archivar</button>
       </div>
     </div>`;
 }
@@ -2116,7 +2118,7 @@ async function soltarTicketMantenimiento(ev, nuevoEstado){
   await loadMantenimientoData();
   ids.forEach(id=>{
     const t = mantenimientoData.find(x=>x.id===id);
-    if(t) t.estado = nuevoEstado;
+    if(t&&!ticketMantenimientoArchivado(t)) t.estado = nuevoEstado;
   });
   await persistMantenimientoData();
   mantSeleccionadas.clear();
@@ -2127,7 +2129,8 @@ async function moverTicketMantenimientoDesdeSelect(id, nuevoEstado){
   if(!nuevoEstado) return;
   await loadMantenimientoData();
   const t = mantenimientoData.find(x=>x.id===id);
-  if(t) t.estado = nuevoEstado;
+  if(!t||ticketMantenimientoArchivado(t)){showToast('El ticket ya no está activo.');return;}
+  t.estado = nuevoEstado;
   await persistMantenimientoData();
   logHistorial(`Movió un ticket de mantenimiento a "${nuevoEstado}"`);
   renderTareasContent(document.getElementById('tareas-overlay'), true);
@@ -2163,7 +2166,7 @@ async function confirmarAsignacionesMantenimiento(){
   const personasConAlgoNuevo = new Set();
   ticketIds.forEach(id=>{
     const t = mantenimientoData.find(x=>x.id===id);
-    if(!t) return;
+    if(!t||ticketMantenimientoArchivado(t)) return;
     const nuevos = porTicket[id].filter(p=>!(t.asignados||[]).includes(p));
     t.asignados = porTicket[id];
     t.estado = 'asignado';
@@ -2286,27 +2289,37 @@ async function crearTicketMantenimientoConTrabajo(){
 // alguien la hubiera vuelto a enganchar habría dado siempre "Indica un
 // título". El alta real de tickets es crearTicketMantenimientoConTrabajo,
 // justo aquí arriba.)
-function eliminarTicketMantenimiento(id){
-  const t = mantenimientoData.find(x=>x.id===id);
-  if(!confirm(`¿Eliminar el ticket "${t?.titulo||''}"? Esta acción no se puede deshacer.`)) return;
-  eliminarTicketMantenimientoConfirmado(id, t?.titulo);
+function archivarTicketMantenimiento(id){
+  if(!['ADMIN','TECNICO'].includes(currentUserRole))return;
+  const ticket=mantenimientoData.find(t=>t.id===id&&!ticketMantenimientoArchivado(t));
+  if(!ticket){showToast('El ticket ya no está activo.');return;}
+  if(!confirm('¿Archivar el ticket "'+ticket.titulo+'"?\n\nSe retirará de Mantenimiento y de las asignaciones activas. Sus datos y ejecuciones seguirán disponibles en Archivo.'))return;
+  archivarTicketMantenimientoConfirmado(id,ticket.titulo);
 }
-// persistMantenimientoData() fusiona con la nube por id (para no pisar
-// cambios de otra persona al guardar) — eso significa que NUNCA borra nada
-// de verdad, solo añade/actualiza. Para borrar hay que leer la nube, quitar
-// el ticket ahí directamente, y escribir sin pasar por la fusión (mismo
-// patrón que eliminarTarea).
-async function eliminarTicketMantenimientoConfirmado(id,titulo){
+// Baja lógica ETag idempotente; ningún ticket se elimina físicamente.
+async function archivarTicketMantenimientoConfirmado(id,titulo){
+  if(!['ADMIN','TECNICO'].includes(currentUserRole))return false;
+  const fecha=new Date();
   const tx=await actualizarStorageJsonConEtag(MANTENIMIENTO_KEY,[],cloud=>{
-    if(!Array.isArray(cloud)) cloud=[];
-    return cloud.filter(x=>x.id!==id);
+    if(!Array.isArray(cloud))throw Error('Mantenimiento: formato inválido');
+    const idx=cloud.findIndex(t=>t.id===id);
+    if(idx<0||ticketMantenimientoArchivado(cloud[idx]))return undefined;
+    return cloud.map((t,i)=>i!==idx?t:{...t,archivadaEn:fecha.toISOString(),
+      fechaArchivoISO:fechaLocalISO(fecha),archivadoPor:currentUser||'—',
+      estadoAntesArchivo:t.estado,motivoArchivo:'Retirado de Mantenimiento'});
   });
-  if(!tx.ok){ avisarFalloGuardado(); return; }
+  if(!tx.ok){avisarFalloGuardado();return false;}
   mantenimientoData=tx.value;
   mantSeleccionadas.delete(id);
-  logHistorial(`Eliminó el ticket de mantenimiento "${titulo||''}"`);
-  showToast('✓ Ticket eliminado');
+  if(tx.noChange){
+    showToast('El ticket ya no está activo.');
+    renderTareasContent(document.getElementById('tareas-overlay'),true);
+    return false;
+  }
+  logHistorial('Archivó el ticket de mantenimiento "'+(titulo||'')+'"');
+  showToast('✓ Ticket archivado');
   renderTareasContent(document.getElementById('tareas-overlay'),true);
+  return true;
 }
 // Secciones del menú lateral de la vista de gestión (ADMIN/TÉCNICO) — 3 por
 // fecha (ver categoriaFechaTarea) + Mantenimiento de Parcelas (tablero
@@ -2377,9 +2390,20 @@ function archivoMantenimientoRegistros(){
       inv,horario:'',estado:'completada',
       horaInicio:h.horaInicio||null,horaFin:h.horaFin||null,firmante:h.firmante||null
     });
-    const historicas=(t.historialEjecuciones||[]).map(convertir);
-    if(t.estado==='cerrado')historicas.push(convertir(t));
-    return historicas;
+    const registros=(t.historialEjecuciones||[]).map(convertir);
+    if(t.estado==='cerrado')registros.push(convertir(t));
+    if(ticketMantenimientoArchivado(t))registros.push({
+      id:String(t.id)+'@archivo',categoria:'mantenimiento',titulo:t.titulo,
+      descripcion:[t.descripcion,'Archivado por: '+(t.archivadoPor||'—'),
+        'Estado anterior: '+(t.estadoAntesArchivo||t.estado),
+        t.fechaProgramada?'Programado: '+t.fechaProgramada:'',
+        t.recurrencia?'Recurrencia: '+t.recurrencia.cada+' '+t.recurrencia.unidad:''].filter(Boolean).join(' · '),
+      fechaISO:t.fechaArchivoISO||fechaLocalISO(new Date(t.archivadaEn)),
+      asignadoA:(t.asignados||[]).join(', '),inv,horario:'',estado:'anulada',
+      archivadoEn:t.archivadaEn,motivoAnulacion:'Ticket retirado de Mantenimiento',
+      horaInicio:t.horaInicio||null,horaFin:t.horaFin||null,firmante:t.firmante||null
+    });
+    return registros;
   });
 }
 function renderTareaArchivoConsultable(t){
@@ -2388,7 +2412,7 @@ function renderTareaArchivoConsultable(t){
  const lugar=invCallesLabelDeTarea(t);
  return `<div style="border:1px solid #aec4de;border-radius:9px;padding:12px;background:#fff;display:flex;flex-direction:column;gap:5px">
    <div style="display:flex;justify-content:space-between;gap:8px"><strong style="font-size:13px;color:#1558a0;overflow-wrap:anywhere">${esc(t.titulo)}</strong>
-     <span style="font-size:10px;font-weight:800;color:${t.estado==='anulada'?'#a32020':'#2e7d32'}">${t.estado==='anulada'?'Anulada':'Completada'}</span></div>
+     <span style="font-size:10px;font-weight:800;color:${t.estado==='anulada'?'#a32020':'#2e7d32'}">${t.archivadoEn?'Archivado':t.estado==='anulada'?'Anulada':'Completada'}</span></div>
    <div style="font-size:11px;color:#55697e">${esc(t.fechaISO||'Sin fecha')} · ${esc(origen)} · ${esc(t.asignadoA||'Sin asignar')}${lugar?' · '+esc(lugar):''}</div>
    ${t.descripcion?`<div style="font-size:11px">${esc(t.descripcion)}</div>`:''}
    ${t.horario?`<div style="font-size:11px;color:#1558a0">Horario: ${esc(t.horario)}</div>`:''}
@@ -2503,7 +2527,7 @@ function renderTareasGestorFullScreen(overlay){
    </div>
    <div style="padding:9px 12px;background:#1558a0;display:flex;gap:7px;box-sizing:border-box;width:100%">
      ${nav('operativas','Operativas',vista==='operativas'?filtered.length:tareasData.filter(t=>!esTareaArchivada(t)).length,'ti-list-check')}
-     ${nav('mantenimiento','Mantenimiento',mantenimientoData.filter(t=>t.estado!=='cerrado').length,'ti-tool')}
+     ${nav('mantenimiento','Mantenimiento',mantenimientoData.filter(t=>!ticketMantenimientoArchivado(t)&&t.estado!=='cerrado').length,'ti-tool')}
      ${nav('archivo','Archivo',tareasData.filter(esTareaArchivada).length+archivoMantenimientoRegistros().length,'ti-archive')}
         </div>
    ${fechaBar}
@@ -2547,7 +2571,7 @@ function renderTareasGestorVistaHTML(vista, porFecha){
     return `
       <div style="margin-bottom:1rem">
         <h2 style="font-size:22px;font-weight:800;color:var(--text)">🌱 Mantenimiento de Parcelas</h2>
-        <p style="font-size:13px;color:var(--muted)">${mantenimientoData.filter(t=>t.estado!=='cerrado').length} tickets abiertos.</p>
+        <p style="font-size:13px;color:var(--muted)">${mantenimientoData.filter(t=>!ticketMantenimientoArchivado(t)&&t.estado!=='cerrado').length} tickets abiertos.</p>
       </div>
       ${renderMantenimientoColgandoHTML()}`;
   }
@@ -3136,7 +3160,7 @@ function continuarConMantenimientoPeon(){
   renderPeonTareasInline();
 }
 function renderMantenimientoPeonHTML(){
-  const misTickets = mantenimientoData.filter(t => (t.asignados||[]).includes(currentUser) && t.estado!=='cerrado');
+  const misTickets = mantenimientoData.filter(t => !ticketMantenimientoArchivado(t) && (t.asignados||[]).includes(currentUser) && t.estado!=='cerrado');
   if(!misTickets.length){
     return `<div style="text-align:center;padding:2.5rem;color:var(--muted);font-style:italic">No tienes tareas de mantenimiento asignadas todavía.</div>`;
   }
