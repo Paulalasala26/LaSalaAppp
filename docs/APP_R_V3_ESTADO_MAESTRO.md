@@ -1,6 +1,6 @@
 # VIGUERAPP / APP R v3 — ESTADO MAESTRO CANÓNICO
 
-**Revisión:** 23/10/2026 (España) · **Responsable del estado:** esta conversación, con verificaciones GitHub/Vercel y confirmaciones expresas del usuario.
+**Revisión:** 26/10/2026 (España) · **Responsable del estado:** esta conversación, con verificaciones GitHub/Vercel y confirmaciones expresas del usuario.
 
 > **LEE ESTO ANTES DE PLANIFICAR O MODIFICAR APP R EN CUALQUIER CHAT O CHATGPT PROJECT.**
 > Este es el **único inventario vivo** de trabajo terminado y pendiente. Los handovers DOCX y otros `docs/*.md` con fechas anteriores son **histórico**, no una nueva lista de tareas. El repositorio es la fuente de código; la confirmación funcional del usuario es la fuente de la prueba de aceptación. **Nunca conviertas un pendiente histórico en pendiente actual sin contrastarlo.**
@@ -11,8 +11,10 @@
 
 **CAMBIOS TEST conservados:** 0.82 inicia Operativas sin filtro oculto de fecha y relee tareas actualizadas. 0.83 oculta botón general Guardar inactivo de la cuadrícula de Riego, dado que el formulario Añadir riego guarda al confirmar, y recupera la conciliación después de confirmar un registro de Riego previamente encolado cuya escritura ya existe en Firebase. Estos cambios siguen implementados, con análisis estático y JS parseado; no se atribuye al usuario prueba positiva de generación o sincronización. Último commit funcional `808d34cb76371c2f06fe0aa8dcd247f1a2c8a48f`. Rama única `test/v1.0`; verificar HEAD y Vercel READY en cada intervención, sin tocar `main`/PRD.
 
-**SIGUIENTE:** UAT de Operativas con un **Trabajo reconocido**, fecha hoy o futura, sin crear tareas artificiales y sin repetir registros de agua/abono; después Mantenimiento, Archivo, Bloque C Pistola→Tareas, Partidas y Específicos y batería transversal PRD. Asignaciones por salas se revisarán durante training. QC visual de fechas validada en 0.81; las excepciones offline reales quedan pendientes de batería final.
+**SIGUIENTE:** pasar a una batería agrupada de **Mantenimiento y Archivo**, sin seguir modificando el registro de Riego 1A. Riego→Operativas: **presencia de tarea con Trabajo reconocida visualmente, validada en captura de usuario; actualización tras cambios y no duplicados no comprobadas** (0.86), diferidas a regresión final. Después Plaguicidas bloque C Pistola→Tareas, Partidas y Específicos y batería transversal PRD. Asignaciones por salas se revisarán durante training. QC visual de fechas validada en 0.81; las excepciones offline reales quedan pendientes de batería final.
 **Último ajuste visual (0.85):** retirada total del botón `Guardar` redundante de la barra de Control de Riego; el formulario se guarda al confirmar. Sin alteración de persistencia ni autorización para PRD. UAT visual pendiente. 
+
+**UAT de Operativas (0.86, 26/10):** el usuario adjunta captura de Tareas→Operativas que muestra «Orillas con abono foliar (0.15) + Puntas de pasillo», estado **Pendiente**, ubicación **INV 1A · C/110**, categoría **Riego** y asignado **PEON1**. Esto acredita **visualización de una tarea procedente de Trabajo**, no de agua/abono solos. El usuario señala que **PP ya estaba seleccionada** y se confunde con nuestra instrucción de sustituir RO por PP; **NO declarar comprobada esa sustitución, actualización de una tarea existente ni idempotencia**. C/110 es la representación con prefijo de INV 1 de la calle 10, según `formatCalleConInv`. No insistir en alterar el mismo registro. 
 
 ---
 ## 0. HISTÓRICO DE REANUDACIÓN — 21/10/2026 (SUPERADO POR LA SECCIÓN ANTERIOR)
@@ -948,6 +950,14 @@ El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en int
 **Implementación mínima en TEST:** commit `7f6bd1588a4e06d1c7312370d6522d5e2a6e281e`, archivo `index.html`; solo se elimina el botón `riego-btn-guardar`. Permanecen intactas todas las funciones de persistencia, control de ediciones pendientes, validación de cambios, supervisión de Vigueras, propuesta inminente, conciliación de Tareas y guardado del formulario. Otras rutas internas que llamen `saveRiegoData` siguen utilizándola; `actualizarEstadoBotonGuardarRiego` retorna si el botón no existe. Los cinco scripts inline parsean correctamente; sin escrituras de datos Firebase durante este ajuste, y sin modificar `main`/PRD. **Aceptación visual del usuario pendiente** tras recargar TEST.
 
 **Próxima validación:** alta/edición con clic en celda y único Guardar en el formulario; confirmar que no aparece botón extra en cuadrícula ni cambian los guardados reales. No reabrir el diseño de Riego de forma genérica. Operativas continúa con la UAT de Trabajo reconocido, conforme a 0.84.
+
+## 0.86. Operativas — tarea reconocida visible en UAT, sin prueba de sustitución (26/10/2026)
+
+**Evidencia de usuario:** captura de pantalla en TEST tras prueba sobre riego del 26/10/2026, Sala 1, INV 1A, calle 10. Tarjeta de Operativas visible con **«Orillas con abono foliar (0.15) + Puntas de pasillo»**, estado **«Pendiente»**, **«INV 1A · C/110»**, etiquetas **«Riego»** y **«PEON1»**, acción **«Imprimir»**. La numeración C/110 es el formato con prefijo de INV (1 + calle 10); no significa calle 110 distinta de la 10. Evidencia sólida de presencia de tarea vinculada a un Trabajo en la pantalla. No consta alta/cambio preciso en Firebase por observación directa.
+
+**Rectificación a instrucción previa:** se había pedido cambiar RO por PP para verificar actualización sin duplicados, pero el usuario responde «PP ya estaba seleccionada». Aquella instrucción partía de una premisa falsa. **No pedir que modifique nuevamente el registro ni señalar fallo de usuario**. El usuario pregunta «no sé qué quieres que vea»; indicar que lo esperado era precisamente la aparición de la tarjeta, ya constatada. Puede darse por **validado visualmente** el camino de consulta de tarea de Riego; permanecen **SIN validación UAT** la sustitución de trabajo existente, actualización idempotente, cola offline y regresión de roles.
+
+**Continuidad:** dejar esta prueba cerrada con el alcance indicado y pasar a validación agrupada Mantenimiento + Archivo. Evitar pruebas microscópicas y acciones destructivas (especialmente el botón eliminar ticket). No tocar `main`/PRD ni regenerar datos por este asunto.
 
 ## 1. Reglas innegociables
 
