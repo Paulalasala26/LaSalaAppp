@@ -19045,8 +19045,16 @@ function showFitoManualForm(){
             </div>
           </details>
           <details class="fm-accordion" open style="background:#fff;border:1px solid #c6d9ee;border-radius:9px;overflow:hidden">
-            <summary style="padding:13px 14px;font-size:14px;font-weight:800;color:#1558a0;cursor:pointer;background:#e8f0fb">2. Producto y mezcla</summary>
+            <summary style="padding:13px 14px;font-size:14px;font-weight:800;color:#1558a0;cursor:pointer;background:#e8f0fb">2. Método y tratamiento</summary>
             <div style="padding:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:12px">
+        <div style="grid-column:1/-1">
+          <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Cómo se aplica</label>
+          <select id="fm-tipo-trat" onchange="actualizarResumenSeleccionFitoManual()" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:7px;background:#f2f4f0;color:var(--text);font-size:13px;font-weight:700">
+            <option value="">Seleccionar método</option>
+            <option value="Pistola">Pistola · tarea para peón</option>
+            <option value="Cañón">Cañón · sin tarea de peón</option>
+          </select>
+        </div>
         <!-- TIPO DE MEZCLA (Normal/Preinjerto/Postinjerto) -->
         <div style="display:${tiposFitoConMezclas.length>1?'block':'none'}">
           <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Tipo de mezcla</label>
@@ -19073,14 +19081,14 @@ function showFitoManualForm(){
 
         <!-- TRATAMIENTO -->
         <div>
-          <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Tratamiento</label>
+          <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Producto fitosanitario</label>
           <input id="fm-trat" type="text" placeholder="ej. Switch, Previcur, Amistar..." oninput="desmarcarMezclaFitoAlEditar()"
             style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:#f2f4f0;outline:none;color:var(--text)">
         </div>
 
         <!-- DOSIS -->
         <div>
-          <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Dosis</label>
+          <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Dosis por litro</label>
           <input id="fm-dosis" type="text" placeholder="ej. 1 cc/l, 2 g/l..." oninput="desmarcarMezclaFitoAlEditar()"
             style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:#f2f4f0;outline:none;color:var(--text)">
         </div>
@@ -19088,7 +19096,7 @@ function showFitoManualForm(){
             </div>
           </details>
           <details class="fm-accordion" open style="background:#fff;border:1px solid #c6d9ee;border-radius:9px;overflow:hidden">
-            <summary style="padding:13px 14px;font-size:14px;font-weight:800;color:#1558a0;cursor:pointer;background:#e8f0fb">3. Aplicación</summary>
+            <summary style="padding:13px 14px;font-size:14px;font-weight:800;color:#1558a0;cursor:pointer;background:#e8f0fb">3. Hora y volumen</summary>
             <div style="padding:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:12px">
         <!-- HORARIO -->
         <div>
@@ -19102,29 +19110,19 @@ function showFitoManualForm(){
           </div>
         </div>
 
-        <!-- CALDO INICIAL / TIPO DE TRATAMIENTO -->
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:10px;min-width:0">
+        <!-- VOLUMEN PARA EL PARTE -->
+        <div style="min-width:0">
           <div>
-            <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Caldo inicial</label>
+            <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Volumen de mezcla (caldo)</label>
             <div style="position:relative">
               <select id="fm-caldo" style="width:100%;padding:9px 28px 9px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px;font-weight:600;background:#f2f4f0;outline:none;cursor:pointer;-webkit-appearance:none">
-                <option value="">— Caldo —</option>
+                <option value="">Seleccionar litros</option>
                 ${FITO_CALDO_OPCIONES.map(o=>`<option value="${o.litros}">${o.label}</option>`).join('')}
               </select>
               <i class="ti ti-chevron-down" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);pointer-events:none;color:#a32020;font-size:13px"></i>
             </div>
           </div>
-          <div>
-            <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Tratamiento con</label>
-            <div style="position:relative">
-              <select id="fm-tipo-trat" style="width:100%;padding:9px 28px 9px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px;font-weight:600;background:#f2f4f0;outline:none;cursor:pointer;-webkit-appearance:none">
-                <option value="">— Pistola / Cañón —</option>
-                <option value="Pistola">Pistola</option>
-                <option value="Cañón">Cañón</option>
-              </select>
-              <i class="ti ti-chevron-down" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);pointer-events:none;color:#a32020;font-size:13px"></i>
-            </div>
-          </div>
+
         </div>
 
             </div>
@@ -19149,7 +19147,7 @@ function showFitoManualForm(){
           style="padding:9px 12px;border:1px solid #b8c0ca;border-radius:7px;background:#fff;color:#44576a;font-size:13px;font-weight:700;cursor:pointer">Cancelar</button>
         <button type="button" onclick="saveFitoManual()"
           style="padding:9px 14px;background:#1558a0;border:1px solid #1558a0;border-radius:7px;color:#fff;font-size:13px;font-weight:800;cursor:pointer">
-          <i class="ti ti-check" aria-hidden="true"></i> Aplicar y guardar
+          <i class="ti ti-check" aria-hidden="true"></i> Guardar tratamiento
         </button>
       </footer>
     </div>`;
