@@ -64,8 +64,8 @@
     const loc=chosenLocation(line);
     state.originalLoc=loc;
     const locationDisplay=controlQCInfoVisual(line);
-    overlay.innerHTML='<div class="qc107-modal" role="dialog" aria-label="Editar línea">'+
-      '<h2>Editar línea</h2>'+
+    overlay.innerHTML='<div class="qc107-modal" role="dialog" aria-label="Editar partida">'+
+      '<h2>Editar partida</h2>'+
       '<section class="qc107-section"><h3>Datos de la partida</h3><div class="qc107-grid">'+
       field('Día','<select id="qc107-day">'+generarOpcionesDiaControl(line.dia)+'</select>')+
       field('Nº de partida','<input id="qc107-partida" type="text" maxlength="24" value="'+esc(line.partida)+'">')+
