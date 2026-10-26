@@ -1166,6 +1166,8 @@ El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en int
 
 **Siguiente bloque (aplazado por usuario):** comparar opciones y botones de QC Túnel y QC Carga, identificar función real de cada uno, proponer supresiones/unificación sin tocar lógica aprobada. Tareas: Operativas y Archivo permanece en pausa. PRD/main, Firebase TEST y datos reales no modificados por esta revisión documental.
 
+**Cierre técnico incremental de 0.102 (26/10/2026):** adicionalmente, en `index.html` se introdujo protección explícita contra reutilizar el mismo ID de línea PDF en el mismo día (`acee717200b619165355cd71ee84f6fcf6006b2e`), evitando sumar de nuevo la cantidad total declarada aunque se elija otro invernadero. El botón **Guardar** permanece deshabilitado hasta que se haya elegido una fila de origen válida (y no usada en el día), un invernadero y dos calles reconocidas por `INV_LAYOUT` (`2147b407d88ec08431ab2486d2c6d00358e29321`). Al elegir un origen ya utilizado aparece «Ya incluida en este día». Verificación técnica posterior: cinco scripts inline parseados correctamente; 5/5 ensayos aislados de guardado permitido/prohibido; simulación de creación Túnel y Carga, duplicado y mantenimiento de A/B completada sobre datos solo en memoria. **NO son comprobaciones UAT autenticadas, todavía debe validar el usuario.** Ninguna modificación funcional en `main` o Firebase real. Las opciones «Editar línea» y el resto de diferencias entre pantallas quedan fuera de este bloque según solicitud del usuario.
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).
