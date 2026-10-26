@@ -6565,7 +6565,7 @@ function renderControlTunelWizardHTML(){
 
   const cabeceraHTML='<div class="qc-wizard-heading"><h2>QC Túnel</h2></div>'+
     renderControlQCDateNav(controlWizardQuincenaOffset,controlWizardDiaSel,'wizard');
-  const filtroInvHTML=renderControlFiltroInvHTML('tunel');
+  const filtroInvHTML=renderControlFiltroYAltaHTML('tunel',controlWizardDiaSel,true);
 
   if(controlWizardDiaSel==null){
     return cabeceraHTML + filtroInvHTML + `<div style="text-align:center;padding:2.5rem 1rem;color:var(--muted);font-style:italic">Elige un día para ver sus partidas.</div>`;
@@ -6593,13 +6593,10 @@ function renderControlTunelWizardHTML(){
     return renderControlWizardFilaHTML(c, guionInfo);
   }).join('');
   const numCompletados = listaDia.filter(controlLineaCompletada).length;
-  const altaWizardHTML=puedeCrearLineaControlQC(controlWizardDiaSel)?
-    '<div style="margin-bottom:12px"><button type="button" class="qc-list-add" onclick="mostrarFormNuevoControlCheck(&#39;tunel&#39;,true)">'+
-    '<i class="ti ti-plus" aria-hidden="true"></i> Añadir línea</button></div><div id="nuevo-control-form-wrap"></div>':'';
   // Ginés: con cero partidas, ocultar Dashboard y CSV, que no aportan datos.
   // Se conserva su cinta de fechas y el wizard existente.
   if(!listaDia.length){
-    return cabeceraHTML + filtroInvHTML + altaWizardHTML + '<div class="qc-empty-panel" role="status">'+
+    return cabeceraHTML + filtroInvHTML + '<div class="qc-empty-panel" role="status">'+
       '<i class="ti ti-clipboard-list" aria-hidden="true"></i>'+
       '<strong>'+(controlTunelInvFiltro?'Sin partidas para este invernadero y día':'Sin partidas para este día')+'</strong>'+
       '<p>Selecciona otra fecha para continuar.</p></div>';
@@ -6619,7 +6616,7 @@ function renderControlTunelWizardHTML(){
     return cabeceraHTML + filtroInvHTML + barraSuperiorHTML + renderControlDashboardDiaHTML(seccion, listaDia);
   }
 
-  return cabeceraHTML + filtroInvHTML + barraSuperiorHTML + altaWizardHTML + `
+  return cabeceraHTML + filtroInvHTML + barraSuperiorHTML + `
     <div style="font-size:13px;font-weight:700;color:var(--muted);margin-bottom:14px">${listaDia.length} partida${listaDia.length===1?'':'s'} · ${numCompletados} completada${numCompletados===1?'':'s'}</div>
     <div style="display:flex;flex-direction:column;gap:12px">
       ${filasHTML || `<div style="text-align:center;padding:3rem 1rem;color:var(--muted);font-style:italic">No hay partidas para este día todavía.</div>`}
@@ -6757,6 +6754,19 @@ function renderControlFiltroInvHTML(tipo){
    +salas.map(([sala,ids])=>'<optgroup label="'+sala+'">'+ids.map(id=>
      '<option value="'+id+'"'+(actual===id?' selected':'')+'>INV '+id+'</option>').join('')+'</optgroup>').join('')
    +'</select></div>';
+}
+/* 0.104. CTA común junto al filtro INV, una única línea compacta. */
+function renderControlFiltroYAltaHTML(tipo,dia,wizard=false){
+  const accion=tipo==='tunel' ? "mostrarFormNuevoControlCheck('tunel',"+(wizard?'true':'false')+")" :
+    'mostrarFormNuevoControlCargaCheck()';
+  const alta=puedeCrearLineaControlQC(dia)
+    ? '<button type="button" class="qc-list-add" onclick="'+accion+'" '+
+      'style="flex:0 0 auto;width:auto;min-height:42px;padding:9px 11px;font-size:12px;white-space:nowrap;background:#1558a0;color:#fff;border:0;border-radius:8px;cursor:pointer;align-self:flex-end">'+
+      '<i class="ti ti-plus" aria-hidden="true"></i> Añadir línea</button>'
+    : '';
+  return '<div class="qc-alta-toolbar" style="display:flex;flex-wrap:nowrap;align-items:flex-end;gap:8px;min-width:0;margin-bottom:11px">'+
+    '<div style="flex:1 1 0;min-width:0">'+renderControlFiltroInvHTML(tipo)+'</div>'+alta+'</div>'+
+    '<div id="nuevo-control-form-wrap"></div>';
 }
 function controlLineasFiltradasInv(lista,tipo){
   const selected=tipo==='carga'?controlCargaInvFiltro:controlTunelInvFiltro;
@@ -7026,8 +7036,10 @@ function renderControlChecklistHTML(seccion){
   if(listaDia.length===0 && window.QCEmptyState){
     return window.QCEmptyState.render({
       tipo:seccion.key,titulo:seccion.label,selected:controlDiaSel,
-      dateNavHTML:renderControlQCDateNav(controlQuincenaOffset,controlDiaSel,'list')+renderControlFiltroInvHTML(seccion.key),
+      dateNavHTML:renderControlQCDateNav(controlQuincenaOffset,controlDiaSel,'list')+
+         renderControlFiltroYAltaHTML(seccion.key,controlDiaSel,false),
       canAdd:puedeCrearLineaControlQC(controlDiaSel),
+      hideAddButton:true,formInToolbar:true,
       pending:leerColaOffline().length,
       pdfNombre:pdf?.nombre||'',pdfUrl:pdf?.pdfB64||''
     });
@@ -7038,7 +7050,7 @@ function renderControlChecklistHTML(seccion){
     {value:'pendientes',label:'Pendientes ('+numPendientes+')'},
     {value:'completados',label:'Completados ('+numCompletados+')'}
   ].map(o=>'<option value="'+o.value+'"'+(controlFiltroEstado===o.value?' selected':'')+'>'+o.label+'</option>').join('')+'</select></label>';
-  const filtroInvHTML = renderControlFiltroInvHTML(seccion.key);
+  const filtroInvHTML = renderControlFiltroYAltaHTML(seccion.key,controlDiaSel,false);
   // Líneas cuya calle real todavía no se puede resolver (Túnel: no se le ha
   // asignado calle todavía; Carga: su línea "hermana" de Túnel no existe o
   // tampoco tiene calle) muestran "Calle: —" en la tarjeta. A petición de
@@ -7079,7 +7091,6 @@ function renderControlChecklistHTML(seccion){
   // para forzar un reintento como para comprobar de un vistazo que no queda
   // nada pendiente sin tener que fiarse solo del aviso naranja automático.
   const pendientesGlobal = leerColaOffline().length;
-  const addAction = seccion.key==='carga' ? 'mostrarFormNuevoControlCargaCheck()' : "mostrarFormNuevoControlCheck('tunel')";
   const addAllowed=puedeCrearLineaControlQC(controlDiaSel);
   const pdfInfoHTML = pdf ? `<div class="qc-list-pdf-existing"><i class="ti ti-file-check" aria-hidden="true"></i> ${escapar(pdf.nombre)} · <a href="${pdf.pdfB64}" target="_blank" rel="noopener noreferrer">Ver PDF</a></div>` : '';
   const syncHTML = pendientesGlobal>0 ? `<button type="button" class="qc-list-sync" onclick="sincronizarControlManual()"><i class="ti ti-refresh"></i> ${pendientesGlobal} pendiente${pendientesGlobal===1?'':'s'} · Sincronizar</button>` : '';
@@ -7097,11 +7108,9 @@ function renderControlChecklistHTML(seccion){
     <section class="qc-list-screen" aria-label="${seccion.label}">
       <div class="qc-list-head">
         <h2>${seccion.label}</h2>
-        ${addAllowed?'<button type="button" class="qc-list-add" onclick="'+addAction+'"><i class="ti ti-plus" aria-hidden="true"></i> Añadir línea</button>':''}
       </div>
       ${renderControlQCDateNav(controlQuincenaOffset,controlDiaSel,'list')}
       ${filtroInvHTML}
-       <div id="nuevo-control-form-wrap"></div>
       <div class="qc-list-tools">
         <div class="qc-list-search">
           <input id="control-buscar-partida" type="search" placeholder="Buscar Nº partida" aria-label="Buscar número de partida"
@@ -8129,6 +8138,11 @@ async function abrirAltaQC(tipo,wizard){
   controlAltaQCContext=ctx;
   wrap.innerHTML='<div role="status" style="padding:14px">Cargando opciones de los partes…</div>';
   const ok=await loadControlTipoCompleto(tipo,false);
+  // Túnel puede tener el nombre combinado o incompleto; ampliar el catálogo
+  // con pares cliente-variedad expresos de Carga, sin copiar maestro GS.
+  if(ok&&tipo==='tunel'&&(currentUserRole==='ADMIN'||currentUserRole==='TECNICO')){
+    await loadControlTipoCompleto('carga',false);
+  }
   if(controlAltaQCContext!==ctx||!qcAltaFechaContextoValida(ctx)||!wrap.isConnected)return;
   if(!ok){
     wrap.innerHTML='<div role="alert" style="padding:14px">No se han podido cargar las opciones. Reintenta.</div>';
@@ -8209,7 +8223,8 @@ function qcAltaActualizarGuardar(){
   if(!btn||!ctx)return;
   const r=qcAltaValidarFormulario(ctx);
   btn.disabled=!!ctx.busy||!r.datos;
-  if(info)info.textContent=r.duplicado?r.error:'';
+  const tocada=!!String(document.getElementById('qc-alta-partida')?.value||'').trim();
+  if(info)info.textContent=(r.duplicado||tocada)&&!r.datos?r.error:'';
 }
 async function guardarNuevaLineaQCAlta(){
   const ctx=controlAltaQCContext;
@@ -8236,6 +8251,13 @@ async function guardarNuevaLineaQCAlta(){
   }
   ctx.busy=true;
   qcAltaActualizarGuardar();
+  // Mostrar la nueva línea tras guardar, aunque el listado se encontrase
+  // filtrado por otra ubicación o solo por partidas completadas.
+  if(ctx.tipo==='tunel')controlTunelInvFiltro=inv;
+  else controlCargaInvFiltro=inv;
+  controlFiltroEstado='todos';
+  controlVistaChecklist='lineas';
+  controlWizardVista='partidas';
   try{
     const ok=ctx.tipo==='tunel'?
       await aplicarNuevaLineaControl(entry):await aplicarNuevaLineaControlCarga(entry);
@@ -8256,7 +8278,7 @@ async function guardarNuevaLineaQCAlta(){
   }
 }
 function mostrarFormNuevoControlCargaCheck(){return abrirAltaQC('carga',false);}
-// La identidad se obtiene exclusivamente de referencias PDF verificables.
+// Las altas manuales quedan etiquetadas y los PDF aportan catálogos controlados.
 async function aplicarNuevaLineaControlCarga(entry,replay){
   if(!entry||entry.tipo!=='carga')return false;
   const reentry=!!replay?.qcReplayCreatedAt;
