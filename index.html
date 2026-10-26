@@ -4431,7 +4431,8 @@ function calleTramoDeCargaDirecta(c){
   const invNum = m[1].replace(/^0+(?=\d)/, ''); // quita el cero a la izquierda ("03" -> "3")
   const desde = Math.min(parseInt(m[2],10), parseInt(m[3],10));
   const hasta = Math.max(parseInt(m[2],10), parseInt(m[3],10));
-  return { invId: invNum, desde, hasta, label: `${desde===hasta?desde:desde+'-'+hasta}` };
+  const invId=(c.invId && INV_LAYOUT[c.invId] && String(parseInt(c.invId,10))===invNum) ? c.invId : invNum;
+  return { invId, desde, hasta, label: `${desde===hasta?desde:desde+'-'+hasta}` };
 }
 function calleTramoDeCarga(c){
   const directa = calleTramoDeCargaDirecta(c);
@@ -6592,10 +6593,13 @@ function renderControlTunelWizardHTML(){
     return renderControlWizardFilaHTML(c, guionInfo);
   }).join('');
   const numCompletados = listaDia.filter(controlLineaCompletada).length;
+  const altaWizardHTML=puedeCrearLineaControlQC(controlWizardDiaSel)?
+    '<div style="margin-bottom:12px"><button type="button" class="qc-list-add" onclick="mostrarFormNuevoControlCheck(&#39;tunel&#39;,true)">'+
+    '<i class="ti ti-plus" aria-hidden="true"></i> Añadir línea</button></div><div id="nuevo-control-form-wrap"></div>':'';
   // Ginés: con cero partidas, ocultar Dashboard y CSV, que no aportan datos.
   // Se conserva su cinta de fechas y el wizard existente.
   if(!listaDia.length){
-    return cabeceraHTML + filtroInvHTML + '<div class="qc-empty-panel" role="status">'+
+    return cabeceraHTML + filtroInvHTML + altaWizardHTML + '<div class="qc-empty-panel" role="status">'+
       '<i class="ti ti-clipboard-list" aria-hidden="true"></i>'+
       '<strong>'+(controlTunelInvFiltro?'Sin partidas para este invernadero y día':'Sin partidas para este día')+'</strong>'+
       '<p>Selecciona otra fecha para continuar.</p></div>';
@@ -6615,7 +6619,7 @@ function renderControlTunelWizardHTML(){
     return cabeceraHTML + filtroInvHTML + barraSuperiorHTML + renderControlDashboardDiaHTML(seccion, listaDia);
   }
 
-  return cabeceraHTML + filtroInvHTML + barraSuperiorHTML + `
+  return cabeceraHTML + filtroInvHTML + barraSuperiorHTML + altaWizardHTML + `
     <div style="font-size:13px;font-weight:700;color:var(--muted);margin-bottom:14px">${listaDia.length} partida${listaDia.length===1?'':'s'} · ${numCompletados} completada${numCompletados===1?'':'s'}</div>
     <div style="display:flex;flex-direction:column;gap:12px">
       ${filasHTML || `<div style="text-align:center;padding:3rem 1rem;color:var(--muted);font-style:italic">No hay partidas para este día todavía.</div>`}
@@ -8041,72 +8045,201 @@ function bloquearAltaPasadaControlQC(dia){
   showToast('No se pueden añadir líneas manuales a días anteriores a hoy.');
   return true;
 }
-function mostrarFormNuevoControlCargaCheck(){
-  if(bloquearAltaPasadaControlQC(controlDiaSel))return;
-  const wrap = document.getElementById('nuevo-control-form-wrap');
-  if(!wrap) return;
-  wrap.innerHTML = `
-    <div style="border:1.5px solid var(--border);border-radius:10px;padding:14px;background:#f8f9fa;margin-bottom:14px">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-        <div>
-          <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Cliente</label>
-          <input id="ncc-cliente" type="text" placeholder="Ej. AGRICOLA EL CASON, S.L." style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px">
-        </div>
-        <div>
-          <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Partida</label>
-          <input id="ncc-partida" type="text" placeholder="Ej. 26X00322" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px">
-        </div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-        <div>
-          <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Variedad</label>
-          <input id="ncc-variedad" type="text" placeholder="Ej. TINJ PRUEBA BRA" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px">
-        </div>
-        <div>
-          <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Nº bandejas</label>
-          <input id="ncc-bandejas" type="number" placeholder="Ej. 221" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px">
-        </div>
-      </div>
-      <div style="margin-bottom:12px">
-        <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Invernadero</label>
-        <select id="ncc-inv" style="width:100%;padding:8px 6px;border:1.5px solid var(--border);border-radius:7px;font-size:12px">
-          <option value="">— Invernadero —</option>
-          <optgroup label="Sala 1">${ALL_INV_IDS_SALA1.map(id=>`<option value="${id}">INV ${id}</option>`).join('')}</optgroup>
-          <optgroup label="Sala 2">${ALL_INV_IDS.map(id=>`<option value="${id}">INV ${id}</option>`).join('')}</optgroup>
-          <optgroup label="Sala 3">${ALL_INV_IDS_SALA3.map(id=>`<option value="${id}">INV ${id}</option>`).join('')}</optgroup>
-          <optgroup label="Sala 4">${ALL_INV_IDS_SALA4.map(id=>`<option value="${id}">INV ${id}</option>`).join('')}</optgroup>
-          <optgroup label="Sala 5">${ALL_INV_IDS_SALA5.map(id=>`<option value="${id}">INV ${id}</option>`).join('')}</optgroup>
-        </select>
-      </div>
-      <div style="display:flex;justify-content:flex-end;gap:8px">
-        <button onclick="document.getElementById('nuevo-control-form-wrap').innerHTML=''" style="padding:8px 14px;font-size:11px;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:7px;cursor:pointer">Cancelar</button>
-        <button onclick="guardarNuevoControlCargaCheck()" style="padding:8px 16px;font-size:11px;font-weight:800;background:#2e7d32;color:#fff;border:none;border-radius:7px;cursor:pointer">Guardar</button>
-      </div>
-    </div>`;
+/* 0.102. Alta de líneas QC con origen importado y formulario común. */
+let controlAltaQCContext=null;
+function qcAltaEsc(v){return String(v==null?'':v).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));}
+
+function qcAltaFechaContextoValida(ctx){
+  return !!ctx && (ctx.wizard ? controlWizardDiaSel : controlDiaSel)===ctx.dia &&
+    controlSeccion===ctx.tipo && puedeCrearLineaControlQC(ctx.dia);
 }
-async function guardarNuevoControlCargaCheck(){
-  if(bloquearAltaPasadaControlQC(controlDiaSel))return false;
-  const cliente = document.getElementById('ncc-cliente')?.value?.trim() || '';
-  const partida = document.getElementById('ncc-partida')?.value?.trim() || '';
-  const variedad = document.getElementById('ncc-variedad')?.value?.trim() || '';
-  const numBandejas = document.getElementById('ncc-bandejas')?.value?.trim() || '';
-  const invernadero = document.getElementById('ncc-inv')?.value || '';
-  if(!cliente){ showToast('Indica el cliente'); return; }
-  const entry = {
-    id: 'control_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
-    tipo:'carga', dia: controlDiaSel,
-    cliente, partida, variedad, numBandejas, invernadero,
-    color:{}, tamano:{}, sanidad:{}, flores:{}, raices:{}, observaciones:'',
-    creadoPor: currentUser||'—', creadoEn: new Date().toLocaleString('es-ES')
+
+function qcAltaOrigenes(tipo){
+  return controlChecksData.filter(c=>{
+    if(!c || c.tipo!==tipo || c.origenPdf!==true || !c.id ||
+       !/^[A-Za-z0-9._-]{3,100}$/.test(String(c.partida||'')))return false;
+    const n=Number(String(c.numBandejas||'').replace(',','.'));
+    return Number.isSafeInteger(n)&&n>0 &&
+      (tipo==='tunel'?!!String(c.clienteVariedad||'').trim():
+        !!String(c.cliente||'').trim() && !!String(c.variedad||'').trim());
+  });
+}
+
+function qcAltaVistaHTML(tipo){
+  const invs=[
+    ['Sala 1',ALL_INV_IDS_SALA1],['Sala 2',ALL_INV_IDS],
+    ['Sala 3',ALL_INV_IDS_SALA3],['Sala 4',ALL_INV_IDS_SALA4],['Sala 5',ALL_INV_IDS_SALA5]
+  ];
+  const opciones=invs.map(([sala,ids])=>'<optgroup label="'+qcAltaEsc(sala)+'">'+
+    ids.map(id=>'<option value="'+qcAltaEsc(id)+'">INV '+qcAltaEsc(id)+'</option>').join('')+
+    '</optgroup>').join('');
+  return '<section class="qc-card-compact" aria-label="Añadir línea QC" style="padding:14px;margin-bottom:14px">'+
+    '<div style="font-size:16px;font-weight:800;color:#1558a0;margin-bottom:12px">Añadir línea</div>'+
+    '<label for="qc-alta-buscar" style="display:block;font-size:12px;font-weight:700;margin-bottom:5px">Partida</label>'+
+    '<div style="display:flex;gap:7px;margin-bottom:9px">'+
+      '<input id="qc-alta-buscar" type="search" placeholder="Nº de partida" aria-label="Buscar partida de PDF importado"'+
+      ' onkeydown="if(event.key===&#39;Enter&#39;){event.preventDefault();buscarPartidaQCAlta()}"'+
+      ' style="flex:1;min-width:0;padding:11px;border:1.5px solid #b7cce1;border-radius:8px;font-size:14px">'+
+      '<button type="button" onclick="buscarPartidaQCAlta()" aria-label="Buscar partida"'+
+      ' style="background:#1558a0;color:white;border:0;border-radius:8px;padding:9px 15px;cursor:pointer">'+
+      '<i class="ti ti-search" aria-hidden="true"></i></button></div>'+
+    '<div id="qc-alta-resultados" role="status" style="font-size:12px;margin-bottom:9px"></div>'+
+    '<div id="qc-alta-seleccion" hidden>'+
+      '<label for="qc-alta-origen" style="display:block;font-size:12px;font-weight:700;margin-bottom:5px">Registro importado</label>'+
+      '<select id="qc-alta-origen" onchange="seleccionarOrigenQCAlta()"'+
+      ' style="width:100%;padding:11px;border:1.5px solid #b7cce1;border-radius:8px;font-size:13px;margin-bottom:9px"></select>'+
+      '<div id="qc-alta-datos" style="background:#edf5ff;border-radius:9px;padding:10px 12px;margin-bottom:13px;font-size:13px"></div>'+
+      '<label for="qc-alta-inv" style="display:block;font-size:12px;font-weight:700;margin-bottom:5px">Invernadero</label>'+
+      '<select id="qc-alta-inv" onchange="actualizarCallesQCAlta()"'+
+      ' style="width:100%;padding:11px;border:1.5px solid #b7cce1;border-radius:8px;font-size:13px;margin-bottom:10px">'+
+      '<option value="">— Seleccionar invernadero —</option>'+opciones+'</select>'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'+
+        '<div><label for="qc-alta-desde" style="display:block;font-size:12px;font-weight:700;margin-bottom:5px">Calle desde</label>'+
+        '<select id="qc-alta-desde" style="width:100%;padding:11px;border:1.5px solid #b7cce1;border-radius:8px;font-size:13px"><option value="">—</option></select></div>'+
+        '<div><label for="qc-alta-hasta" style="display:block;font-size:12px;font-weight:700;margin-bottom:5px">Calle hasta</label>'+
+        '<select id="qc-alta-hasta" style="width:100%;padding:11px;border:1.5px solid #b7cce1;border-radius:8px;font-size:13px"><option value="">—</option></select></div>'+
+      '</div>'+
+    '</div>'+
+    '<div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;margin-top:14px">'+
+      '<button type="button" onclick="cancelarQCAlta()" style="padding:11px 18px;border:1px solid #b7cce1;background:#fff;border-radius:8px;color:#1558a0;font-weight:700">Cancelar</button>'+
+      '<button id="qc-alta-guardar" type="button" onclick="guardarNuevaLineaQCAlta()" disabled'+
+      ' style="padding:11px 18px;border:0;background:#1558a0;color:#fff;border-radius:8px;font-weight:800;cursor:pointer">Guardar</button>'+
+    '</div>'+
+  '</section>';
+}
+
+async function abrirAltaQC(tipo,wizard){
+  const dia=wizard?controlWizardDiaSel:controlDiaSel;
+  if(!['tunel','carga'].includes(tipo) || controlSeccion!==tipo || bloquearAltaPasadaControlQC(dia))return;
+  const wrap=document.getElementById('nuevo-control-form-wrap');
+  if(!wrap)return;
+  const ctx={tipo,dia,wizard:!!wizard,buscadas:[],busy:false};
+  controlAltaQCContext=ctx;
+  wrap.innerHTML='<div role="status" style="padding:14px">Cargando partidas importadas…</div>';
+  const ok=await loadControlTipoCompleto(tipo,false);
+  if(controlAltaQCContext!==ctx || !qcAltaFechaContextoValida(ctx) || !wrap.isConnected)return;
+  if(!ok){
+    wrap.innerHTML='<div role="alert" style="padding:14px">No se han podido cargar las partidas. Reintenta.</div>';
+    return;
+  }
+  wrap.innerHTML=qcAltaVistaHTML(tipo);
+  document.getElementById('qc-alta-buscar')?.focus();
+}
+
+function cancelarQCAlta(){
+  controlAltaQCContext=null;
+  const wrap=document.getElementById('nuevo-control-form-wrap');
+  if(wrap)wrap.innerHTML='';
+}
+
+function buscarPartidaQCAlta(){
+  const ctx=controlAltaQCContext;
+  if(!qcAltaFechaContextoValida(ctx))return;
+  const entrada=document.getElementById('qc-alta-buscar');
+  const info=document.getElementById('qc-alta-resultados');
+  const wrap=document.getElementById('qc-alta-seleccion');
+  const save=document.getElementById('qc-alta-guardar');
+  if(!entrada||!info||!wrap||!save)return;
+  wrap.hidden=true;save.disabled=true;ctx.buscadas=[];
+  const query=String(entrada.value||'').trim().toUpperCase();
+  if(query.length<3){info.textContent='Introduce al menos 3 caracteres y pulsa la lupa.';return;}
+  const todos=qcAltaOrigenes(ctx.tipo).filter(c=>String(c.partida).toUpperCase().includes(query))
+    .sort((a,b)=>b.dia-a.dia||String(a.partida).localeCompare(String(b.partida),'es'));
+  if(!todos.length){info.textContent='Partida no encontrada en los PDF importados. Comprueba o importa el parte correspondiente.';return;}
+  if(todos.length>60){info.textContent='Hay demasiadas coincidencias. Especifica más el número de partida.';return;}
+  ctx.buscadas=todos.map(c=>c.id);
+  const selector=document.getElementById('qc-alta-origen');
+  selector.innerHTML='<option value="">— Selecciona el registro —</option>'+
+    todos.map(c=>'<option value="'+qcAltaEsc(c.id)+'">'+qcAltaEsc(c.partida)+' · '+
+      qcAltaEsc(c.numBandejas)+' bandejas · '+qcAltaEsc(riegoDiaLabelCorto(c.dia))+'</option>').join('');
+  info.textContent=todos.length+' registro(s) de origen';
+  wrap.hidden=false;
+  document.getElementById('qc-alta-datos').textContent='';
+}
+
+function seleccionarOrigenQCAlta(){
+  const ctx=controlAltaQCContext;
+  const selector=document.getElementById('qc-alta-origen');
+  const target=document.getElementById('qc-alta-datos');
+  const save=document.getElementById('qc-alta-guardar');
+  if(!ctx||!selector||!target||!save)return;
+  const source=qcAltaOrigenes(ctx.tipo).find(c=>ctx.buscadas.includes(c.id)&&c.id===selector.value);
+  save.disabled=!source;
+  if(!source){target.textContent='';return;}
+  target.textContent=String(source.partida)+' · '+(ctx.tipo==='tunel'?source.clienteVariedad:
+    source.cliente+' · '+source.variedad)+' · '+source.numBandejas+' bandejas';
+}
+
+function actualizarCallesQCAlta(){
+  const inv=document.getElementById('qc-alta-inv')?.value;
+  const desde=document.getElementById('qc-alta-desde');
+  const hasta=document.getElementById('qc-alta-hasta');
+  if(!desde||!hasta)return;
+  const layout=inv&&INV_LAYOUT[inv];
+  const nums=layout?[...new Set([...layout.row1,...layout.row2])].sort((a,b)=>a-b):[];
+  const html='<option value="">— Calle —</option>'+nums.map(n=>'<option value="'+n+'">'+n+'</option>').join('');
+  desde.innerHTML=html;hasta.innerHTML=html;
+}
+
+async function guardarNuevaLineaQCAlta(){
+  const ctx=controlAltaQCContext;
+  if(!qcAltaFechaContextoValida(ctx) || ctx.busy)return;
+  const idOrigen=document.getElementById('qc-alta-origen')?.value||'';
+  if(!ctx.buscadas.includes(idOrigen)){showToast('Selecciona una partida importada.');return;}
+  const source=qcAltaOrigenes(ctx.tipo).find(c=>c.id===idOrigen);
+  if(!source){showToast('Ya no está disponible el registro de origen.');return;}
+  const inv=document.getElementById('qc-alta-inv')?.value||'';
+  const inicio=Number(document.getElementById('qc-alta-desde')?.value);
+  const fin=Number(document.getElementById('qc-alta-hasta')?.value);
+  const layout=INV_LAYOUT[inv];
+  const calleValida=n=>Number.isInteger(n)&&[...layout.row1,...layout.row2].includes(n);
+  if(!layout||!document.getElementById('qc-alta-desde')?.value||
+     !document.getElementById('qc-alta-hasta')?.value||!calleValida(inicio)||!calleValida(fin)){
+    showToast('Selecciona invernadero y ambas calles.');return;
+  }
+  const desde=Math.min(inicio,fin),hasta=Math.max(inicio,fin);
+  const n=String(source.numBandejas).trim();
+  const compuesto=String(parseInt(inv,10))+'-'+desde+'-'+hasta;
+  const duplicate=controlChecksData.some(c=>{
+    if(c.tipo!==ctx.tipo || c.dia!==ctx.dia || c.partida!==source.partida ||
+       String(c.numBandejas)!==n)return false;
+    const tramo=ctx.tipo==='tunel'?calleTramoDeTunel(c):calleTramoDeCargaDirecta(c);
+    if(!tramo||!tramo.invId)return false;
+    // Historical Carga PDF has no A/B; do not duplicate the same physical range.
+    const sameInv=ctx.tipo==='tunel' ? tramo.invId===inv :
+      String(tramo.invId).replace(/[A-Za-z]+$/,'')===String(parseInt(inv,10));
+    return sameInv&&tramo.desde===desde&&tramo.hasta===hasta;
+  });
+  if(duplicate){showToast('Ya existe esa línea para la partida, día y ubicación.');return;}
+  const entry={
+    id:'control_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
+    tipo:ctx.tipo,dia:ctx.dia,partida:source.partida,numBandejas:n,
+    color:{},tamano:{},sanidad:{},flores:{},raices:{},observaciones:'',
+    creadoPor:currentUser||'—',creadoEn:new Date().toLocaleString('es-ES'),
+    origenPartidaQC:{tipo:ctx.tipo,id:source.id,dia:source.dia,fuente:'pdf'}
   };
-  aplicarNuevaLineaControlCarga(entry);
+  if(ctx.tipo==='tunel'){
+    entry.clienteVariedad=source.clienteVariedad;
+    entry.fentrega=source.fentrega||'';
+    entry.invId=inv;entry.calleDesde=desde;entry.calleHasta=hasta;
+    entry.tramos=[{desde,hasta}];
+  }else{
+    entry.cliente=source.cliente;entry.variedad=source.variedad;
+    entry.invId=inv;entry.invernadero=compuesto;
+  }
+  ctx.busy=true;
+  const save=document.getElementById('qc-alta-guardar');
+  if(save)save.disabled=true;
+  try{
+    // Retains the existing per-record storage and offline queue implementation.
+    const ok=ctx.tipo==='tunel'?
+      await aplicarNuevaLineaControl(entry):await aplicarNuevaLineaControlCarga(entry);
+    if(ok){controlAltaQCContext=null;abrirMedicionesControl(entry.id);}
+    else{ctx.busy=false;if(save?.isConnected)save.disabled=false;}
+  }catch(err){ctx.busy=false;if(save?.isConnected)save.disabled=false;showToast('No se ha podido guardar la línea.');}
 }
-// El id se genera ANTES de intentar guardar (arriba, en guardarNuevoControlCargaCheck)
-// para que la acción sea idempotente al reproducirla desde la cola offline: si ya
-// existe una línea con ese id (por ejemplo porque un intento anterior sí llegó a la
-// nube pero el aviso de éxito no llegó al dispositivo), no se vuelve a añadir — si no,
-// una reconexión podría duplicar la línea. El toast/repintado se hacen ANTES de
-// esperar la red (mismo motivo que aplicarSanidadEnfermedad).
+function mostrarFormNuevoControlCargaCheck(){return abrirAltaQC('carga',false);}
+// La identidad se obtiene exclusivamente de referencias PDF verificables.
 async function aplicarNuevaLineaControlCarga(entry,replay){
   if(!entry||entry.tipo!=='carga')return false;
   const reentry=!!replay?.qcReplayCreatedAt;
@@ -8725,81 +8858,10 @@ async function guardarControlObservaciones(id, valor){
   } else avisarGuardadoLocalPendiente(leerColaOffline().length);
   return ok; // Permite a QC distinguir guardado remoto de cola pendiente.
 }
-function mostrarFormNuevoControlCheck(tipo){
-  if(tipo!=='tunel'||bloquearAltaPasadaControlQC(controlDiaSel))return;
-  const wrap = document.getElementById('nuevo-control-form-wrap');
-  if(!wrap) return;
-  wrap.innerHTML = `
-    <div style="border:1.5px solid var(--border);border-radius:10px;padding:14px;background:#f8f9fa;margin-bottom:14px">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-        <div>
-          <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Cliente y variedad</label>
-          <input id="nc-cliente-variedad" type="text" placeholder="Ej. AGRICOLA EL CASON — TINJ PRUEBA BRA" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px">
-        </div>
-        <div>
-          <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Partida</label>
-          <input id="nc-partida" type="text" placeholder="Ej. 26X00322" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px">
-        </div>
-      </div>
-      <div style="margin-bottom:8px">
-        <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Nº bandejas</label>
-        <input id="nc-bandejas" type="number" placeholder="Ej. 221" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px">
-      </div>
-      <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Calle real</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">
-        <select id="nc-inv" onchange="actualizarCallesControl()" style="padding:8px 6px;border:1.5px solid var(--border);border-radius:7px;font-size:12px">
-          <option value="">— Invernadero —</option>
-          <optgroup label="Sala 1">${ALL_INV_IDS_SALA1.map(id=>`<option value="${id}">INV ${id}</option>`).join('')}</optgroup>
-          <optgroup label="Sala 2">${ALL_INV_IDS.map(id=>`<option value="${id}">INV ${id}</option>`).join('')}</optgroup>
-          <optgroup label="Sala 3">${ALL_INV_IDS_SALA3.map(id=>`<option value="${id}">INV ${id}</option>`).join('')}</optgroup>
-          <optgroup label="Sala 4">${ALL_INV_IDS_SALA4.map(id=>`<option value="${id}">INV ${id}</option>`).join('')}</optgroup>
-          <optgroup label="Sala 5">${ALL_INV_IDS_SALA5.map(id=>`<option value="${id}">INV ${id}</option>`).join('')}</optgroup>
-        </select>
-        <select id="nc-calle-desde" style="padding:8px 6px;border:1.5px solid var(--border);border-radius:7px;font-size:12px"><option value="">Desde</option></select>
-        <select id="nc-calle-hasta" style="padding:8px 6px;border:1.5px solid var(--border);border-radius:7px;font-size:12px"><option value="">Hasta</option></select>
-      </div>
-      <div style="display:flex;justify-content:flex-end;gap:8px">
-        <button onclick="document.getElementById('nuevo-control-form-wrap').innerHTML=''" style="padding:8px 14px;font-size:11px;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:7px;cursor:pointer">Cancelar</button>
-        <button onclick="guardarNuevoControlCheck('${tipo}')" style="padding:8px 16px;font-size:11px;font-weight:800;background:#2e7d32;color:#fff;border:none;border-radius:7px;cursor:pointer">Guardar</button>
-      </div>
-    </div>`;
+function mostrarFormNuevoControlCheck(tipo,wizard=false){
+  if(tipo!=='tunel')return;
+  return abrirAltaQC('tunel',wizard);
 }
-function actualizarCallesControl(){
-  const invId = document.getElementById('nc-inv')?.value;
-  const desdeSel = document.getElementById('nc-calle-desde');
-  const hastaSel = document.getElementById('nc-calle-hasta');
-  if(!desdeSel || !hastaSel) return;
-  if(!invId || !INV_LAYOUT[invId]){
-    desdeSel.innerHTML = '<option value="">Desde</option>';
-    hastaSel.innerHTML = '<option value="">Hasta</option>';
-    return;
-  }
-  const calles = [...INV_LAYOUT[invId].row1, ...INV_LAYOUT[invId].row2].sort((a,b)=>a-b);
-  const opts = calles.map(c=>`<option value="${c}">${c}</option>`).join('');
-  desdeSel.innerHTML = opts;
-  hastaSel.innerHTML = opts;
-}
-async function guardarNuevoControlCheck(tipo){
-  if(tipo!=='tunel'||bloquearAltaPasadaControlQC(controlDiaSel))return false;
-  const clienteVariedad = document.getElementById('nc-cliente-variedad')?.value?.trim() || '';
-  const partida = document.getElementById('nc-partida')?.value?.trim() || '';
-  const numBandejas = document.getElementById('nc-bandejas')?.value?.trim() || '';
-  const invId = document.getElementById('nc-inv')?.value || null;
-  const desde = parseInt(document.getElementById('nc-calle-desde')?.value, 10);
-  const hasta = parseInt(document.getElementById('nc-calle-hasta')?.value, 10);
-  if(!clienteVariedad){ showToast('Indica el cliente y variedad'); return; }
-  const entry = {
-    id: 'control_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
-    tipo, dia: controlDiaSel,
-    clienteVariedad, partida, numBandejas,
-    invId, calleDesde: isNaN(desde)?null:Math.min(desde,isNaN(hasta)?desde:hasta), calleHasta: isNaN(hasta)?(isNaN(desde)?null:desde):Math.max(desde,hasta),
-    color:{}, tamano:{}, sanidad:{}, flores:{}, raices:{}, observaciones:'',
-    creadoPor: currentUser||'—', creadoEn: new Date().toLocaleString('es-ES')
-  };
-  aplicarNuevaLineaControl(entry);
-}
-// Mismo motivo que aplicarNuevaLineaControlCarga: el id se genera antes de intentar
-// guardar, así reproducir esta acción desde la cola offline nunca duplica la línea.
 async function aplicarNuevaLineaControl(entry,replay){
   if(!entry||entry.tipo!=='tunel')return false;
   const reentry=!!replay?.qcReplayCreatedAt;
