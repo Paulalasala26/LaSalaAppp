@@ -7160,6 +7160,22 @@ function renderControlChecklistHTML(seccion){
   const cardsHTML = listaMostrada.length===0
     ? `<div class="qc-list-none">${(seccion.key==='carga'?controlCargaInvFiltro:controlTunelInvFiltro)?'No hay partidas para ese invernadero y día.':'No hay líneas con el estado seleccionado.'}</div>`
     : `<div class="qc-list-cards">${filas}</div>`;
+  if(seccion.key==='tunel'){
+    const pdfAction=addAllowed ? '<label class="qc-list-option"><i class="ti ti-file-type-pdf"></i> '+(pdf?'Sustituir PDF':'Insertar PDF')+
+      '<input type="file" accept="application/pdf" onchange="handleControlPdfInput(this,\'tunel\','+controlDiaSel+')"></label>' : '';
+    const operativa=filtroInvHTML+
+      '<div class="qc-list-tools"><div class="qc-list-search">'+
+      '<input id="control-buscar-partida" type="search" placeholder="Buscar Nº partida" aria-label="Buscar número de partida" onkeydown="if(event.key===\'Enter\'){event.preventDefault();buscarControlPartida(\'tunel\')}" />'+
+      '<button type="button" onclick="buscarControlPartida(\'tunel\')" aria-label="Buscar"><i class="ti ti-search"></i></button></div>'+
+      filtrosHTML+'</div>'+syncHTML+
+      '<details class="qc-list-more"><summary>Más opciones</summary><div class="qc-list-more-actions">'+
+      pdfAction+extraTunelHTML+'</div>'+pdfInfoHTML+'</details>';
+    const total='<div class="qc-work-counter">'+listaInv.length+' partida'+(listaInv.length===1?'':'s')+
+      ' · '+numCompletados+' inspeccionada'+(numCompletados===1?'':'s')+'</div>';
+    return '<div class="qc-work-tunel">'+qcFechaHTML('list')+
+      qcPanel('Operativa del día',operativa,'qc-work-operations')+
+      qcPanel('Inspecciones',total+cardsHTML,'qc-work-inspections')+'</div>';
+  }
   return `
     <section class="qc-list-screen" aria-label="${seccion.label}">
       <div class="qc-list-head">
