@@ -8188,6 +8188,11 @@ async function guardarNuevaLineaQCAlta(){
   if(!ctx.buscadas.includes(idOrigen)){showToast('Selecciona una partida importada.');return;}
   const source=qcAltaOrigenes(ctx.tipo).find(c=>c.id===idOrigen);
   if(!source){showToast('Ya no está disponible el registro de origen.');return;}
+  // Una fila importada representa una cantidad concreta de bandejas.
+  // Repetir su identidad en el mismo día duplicaría el total declarado.
+  const origenYaUsado=controlChecksData.some(c=>c.tipo===ctx.tipo && c.dia===ctx.dia &&
+    (c.id===source.id || c.origenPartidaQC?.id===source.id));
+  if(origenYaUsado){showToast('Ese registro de origen ya tiene línea en este día.');return;}
   const inv=document.getElementById('qc-alta-inv')?.value||'';
   const inicio=Number(document.getElementById('qc-alta-desde')?.value);
   const fin=Number(document.getElementById('qc-alta-hasta')?.value);
