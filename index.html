@@ -2893,8 +2893,7 @@ function imprimirTareas(tareasConPosiblesDuplicados){
       .p-inv-box { border: 4px solid #1a1e18; border-radius: 12px; padding: 14px 26px; }
       .p-arrow { font-size: 52px; font-weight:800; }
       .p-horario { font-size: 54px; font-weight: 800; color:#c62828; text-align:center; border:4px solid #c62828; border-radius:14px; padding:10px 26px; }
-    </style></head><body>${paginas}<script src="assets/ui-criterios-global.js"></script>
-</body></html>`);
+    </style></head><body>${paginas}</body></html>`);
   doc.close();
   setTimeout(()=>{ iframe.contentWindow.focus(); iframe.contentWindow.print(); }, 200);
 }
