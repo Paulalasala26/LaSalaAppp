@@ -7893,8 +7893,8 @@ function renderControlCardCompactHTML(c,seccion){
         <summary>Detalles y acciones</summary>
         <div class="qc-card-details">
           <div class="qc-card-actionbar">
-            <button type="button" onclick="${editAction}('${c.id}')"><i class="ti ti-pencil"></i> Editar línea</button>
-            <button type="button" class="qc-card-danger" onclick="eliminarControlCheck('${c.id}')"><i class="ti ti-trash"></i> Eliminar línea</button>
+            <button type="button" onclick="${editAction}('${c.id}')"><i class="ti ti-pencil" aria-hidden="true"></i> Editar partida</button>
+            <button type="button" class="qc-card-danger qc-card-trash" onclick="eliminarControlCheck('${c.id}')" title="Eliminar registro de partida" aria-label="Eliminar registro de partida"><i class="ti ti-trash" aria-hidden="true"></i></button>
           </div>
           ${pdfHTML}
           <div data-qc-legacy-extras="${c.id}" class="qc-card-evidence">
@@ -8366,7 +8366,7 @@ function mostrarEditarControlCargaCheck(id){
   const escapar = s => String(s==null?'':s).replace(/"/g,'&quot;');
   mo.innerHTML = `
     <div style="background:#fff;border-radius:14px;max-width:420px;width:100%;padding:1.5rem;box-shadow:0 8px 40px rgba(0,0,0,.3)">
-      <div style="font-size:15px;font-weight:800;margin-bottom:12px">Editar línea</div>
+      <div style="font-size:15px;font-weight:800;margin-bottom:12px">Editar partida</div>
       <div style="margin-bottom:10px">
         <label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">Día</label>
         <select id="ecc-dia" style="width:100%;padding:9px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px">${generarOpcionesDiaControl(c.dia)}</select>
@@ -8853,7 +8853,7 @@ function mostrarEditarControlCheck(id){
   const escapar = s => String(s==null?'':s).replace(/"/g,'&quot;');
   mo.innerHTML = `
     <div style="background:#fff;border-radius:14px;max-width:420px;width:100%;padding:1.5rem;box-shadow:0 8px 40px rgba(0,0,0,.3)">
-      <div style="font-size:15px;font-weight:800;margin-bottom:12px">Editar línea</div>
+      <div style="font-size:15px;font-weight:800;margin-bottom:12px">Editar partida</div>
       <div style="margin-bottom:10px">
         <label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">Día</label>
         <select id="ec-dia" style="width:100%;padding:9px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px">${generarOpcionesDiaControl(c.dia)}</select>
@@ -8975,11 +8975,16 @@ async function aplicarNuevaLineaControl(entry,replay){
   else if(!reentry) avisarGuardadoLocalPendiente(leerColaOffline().length);
   return ok;
 }
-function eliminarControlCheck(id){
+async function eliminarControlCheck(id){
   const c = controlChecksData.find(x=>x.id===id);
-  const nombre = c ? clienteVariedadDeCheckControl(c) : '';
-  if(!confirm(`¿Eliminar esta línea${nombre?' ("'+nombre+'")':''}? Esta acción no se puede deshacer.`)) return;
-  eliminarControlCheckConfirmado(id);
+  if(!c){showToast('No se ha encontrado el registro. Actualiza la lista.');return false;}
+  const nombre = clienteVariedadDeCheckControl(c);
+  if(!confirm(`¿Eliminar este registro de partida${nombre?' ("'+nombre+'")':''}? Esta acción no se puede deshacer.`)) return false;
+  // Antes de actualizar el listado, cerrar la inspección cuantitativa abierta.
+  // Respetar su protección de cambios y no eliminar si el usuario cancela la salida.
+  if(!(await confirmarSalidaQC()))return false;
+  await eliminarControlCheckConfirmado(id);
+  return true;
 }
 async function eliminarControlCheckConfirmado(id){
   // Borrar SIEMPRE se aplica también en local, aunque la nube no responda —
@@ -8987,7 +8992,9 @@ async function eliminarControlCheckConfirmado(id){
   // encola para reintentarlo en vez de dejar la línea "medio borrada" solo
   // en pantalla pero viva en la nube.
   controlChecksData = controlChecksData.filter(x=>x.id!==id);
-  showToast('✓ Línea eliminada');
+  // No conservar como activo un guión cuya línea ya no existe.
+  Object.keys(controlGuionActivo).forEach(key=>{if(controlGuionActivo[key]===id)delete controlGuionActivo[key];});
+  showToast('✓ Registro de partida eliminado');
   renderControlContent(document.getElementById('control-overlay'));
   const qid = encolarAccionOffline('eliminarControlCheckConfirmado', [id]);
   // Documento atómico propio (ver persistControlChecksData): al no
