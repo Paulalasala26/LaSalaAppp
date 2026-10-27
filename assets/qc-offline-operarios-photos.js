@@ -6,6 +6,7 @@
  const LIMIT=30,MAX_BYTES=2450000,RE_ID=/^[A-Za-z0-9_-]{1,180}$/,RE_PART=/^[A-Za-z0-9._-]{1,100}$/;
  const TYPES=['image/jpeg','image/png','image/webp','image/heic','image/heif'];
  let owner='',role='',items=[],sending=false,previewClose=null;
+ let galleryTokenValue='',galleryTokenExpires=0,galleryTokenPending=null;
  function requireSession(){
   if(window.QCPhotoMainSession){
    const current=window.QCPhotoMainSession();
@@ -321,6 +322,7 @@
  async function init(user,userRole){
   if(typeof user!=='string'||!user||!['ADMIN','TECNICO','CARGADOR'].includes(userRole))
    throw Error('Sesión de fotos no autorizada.');
+  if(owner!==user||role!==userRole){galleryTokenValue='';galleryTokenExpires=0;}
   owner=user;role=userRole;
   const all=await operation('readonly',s=>s.getAll());
   if(!Array.isArray(all))throw Error('No se pudieron leer las fotos locales.');
@@ -441,6 +443,7 @@
  }
  async function galleryDeleteLocal(ref,id){
   requireSession();
+  if(sending)throw Error('Hay un envío en curso. No borres fotografías hasta verificarlo.');
   if(!refValid(ref))throw Error('Registro no válido.');
   const found=listFor(ref).find(x=>x.photoId===id);
   if(!found)throw Error('Fotografía no encontrada.');
@@ -450,9 +453,18 @@
   items=items.filter(x=>x.photoId!==id);summary();
   return true;
  }
+ async function galleryAccessToken(){
+  requireSession();
+  if(galleryTokenValue&&Date.now()<galleryTokenExpires)return galleryTokenValue;
+  if(!galleryTokenPending)galleryTokenPending=userToken().then(jwt=>{
+    galleryTokenValue=jwt;galleryTokenExpires=Date.now()+4*60*1000;
+    return jwt;
+  }).finally(()=>{galleryTokenPending=null;});
+  return galleryTokenPending;
+ }
  async function galleryRemote(ref){
   requireSession();if(!refValid(ref)||!navigator.onLine)return [];
-  const token=await userToken();
+  const token=await galleryAccessToken();
   const q=new URLSearchParams({action:'photo-list',id:ref.id,tipo:ref.tipo,dia:String(ref.dia)});
   const r=await fetch('/api/qc-fotos-sharepoint?'+q.toString(),{
    headers:{Authorization:'Bearer '+token},cache:'no-store'});
@@ -463,7 +475,7 @@
  }
  async function galleryRemoteBlob(ref,id){
   requireSession();if(!refValid(ref))throw Error('Registro no válido.');
-  const token=await userToken();
+  const token=await galleryAccessToken();
   const q=new URLSearchParams({action:'photo-image',id:ref.id,tipo:ref.tipo,dia:String(ref.dia),photoId:id});
   const r=await fetch('/api/qc-fotos-sharepoint?'+q.toString(),{
     headers:{Authorization:'Bearer '+token},cache:'no-store'});
@@ -478,7 +490,7 @@
  }
  async function galleryRemoveRemote(ref,id){
   requireSession();if(!refValid(ref))throw Error('Registro no válido.');
-  const token=await userToken();
+  const token=await galleryAccessToken();
   const q=new URLSearchParams({action:'photo-hide',id:ref.id,tipo:ref.tipo,dia:String(ref.dia),photoId:id});
   const r=await fetch('/api/qc-fotos-sharepoint?'+q.toString(),{
     method:'DELETE',headers:{Authorization:'Bearer '+token},cache:'no-store'});
