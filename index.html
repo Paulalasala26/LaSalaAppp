@@ -206,9 +206,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .mant-fecha{flex-direction:column;align-items:flex-start;gap:4px}
 .mant-fecha input{border:1px solid var(--mant-borde);padding:7px;border-radius:7px;max-width:165px}
 .mant-recur{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
-#nm-recurrencia-campos{align-items:center;gap:7px;font-size:12px;flex-wrap:wrap}
-#nm-recur-cada{width:54px}#nm-recur-unidad{max-width:135px}
-#nm-recurrencia-campos input,#nm-recurrencia-campos select{border:1px solid #cddced;border-radius:7px;padding:7px;background:#fff}
+.mant-ui #nm-recurrencia-campos{align-items:center;gap:7px;font-size:12px;flex-wrap:wrap}
+.mant-ui #nm-recur-cada{width:54px}.mant-ui #nm-recur-unidad{max-width:135px}
+.mant-ui #nm-recurrencia-campos input,.mant-ui #nm-recurrencia-campos select{border:1px solid #cddced;border-radius:7px;padding:7px;background:#fff}
 .mant-form-acciones{display:flex;gap:8px;justify-content:flex-end;border-top:1px solid #d6e3f1;padding-top:10px;margin-top:12px}
 @media(max-width:510px){.mant-cabecera{align-items:center}.mant-cabecera h2{font-size:15px}.mant-cabecera .mant-btn{padding:7px 9px}.mant-grid{grid-template-columns:1fr}.mant-herramientas select{max-width:132px}.mant-form{padding:10px}.mant-ticket{padding:10px}}
 
@@ -2362,46 +2362,56 @@ function seleccionarTrabajoMant(trabajoId){
   actualizarNuevoTicketMantenimiento();
 }
 async function crearTicketMantenimientoConTrabajo(){
-  if(!nmTrabajoBulkSel){ showToast('Elige un tipo de trabajo'); return; }
-  const invSeleccionados = Array.from(document.querySelectorAll('.nm-inv-chk:checked')).map(c=>c.value);
-  if(!invSeleccionados.length){ showToast('Selecciona al menos un invernadero'); return; }
-
-  const trabajo = MANT_TRABAJOS_PREDETERMINADOS.find(t=>t.id===nmTrabajoBulkSel);
-  const titulo = trabajo.label;
-  const prioridad = document.getElementById('nm-prioridad')?.checked ? 'alta' : 'normal';
-  const fechaProgramada = document.getElementById('nm-fecha-programada')?.value || null;
-  const esRecurrente = document.getElementById('nm-recurrente')?.checked;
-
-  let recurrencia = null, proximaFecha = null;
-  if(esRecurrente){
-    const cada = parseInt(document.getElementById('nm-recur-cada')?.value) || 1;
-    const unidad = document.getElementById('nm-recur-unidad')?.value || 'anos';
-    recurrencia = {cada, unidad};
-    proximaFecha = calcularProximaFechaMant(cada, unidad);
-  }
-
-  await loadMantenimientoData();
-  invSeleccionados.forEach(invId=>{
-    mantenimientoData.push({
-      id: 'mant_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
-      titulo: `${titulo} (INV ${invId})`,
-      descripcion: '',
-      prioridad,
-      estado: 'sin_asignar',
-      asignados: [],
-      fechaProgramada,
-      asignadoPor: currentUser||'—',
-      visto: {},
-      creadoEn: new Date().toLocaleString('es-ES'),
-      recurrencia,
-      proximaFecha
+  if(!['ADMIN','TECNICO'].includes(currentUserRole))return;
+  if(!nmTrabajoBulkSel){showToast('Elige un tipo de trabajo');return;}
+  const invSeleccionados=[...new Set(Array.from(document.querySelectorAll('.nm-inv-chk:checked')).map(el=>el.value))];
+  if(!invSeleccionados.length){showToast('Selecciona al menos un invernadero');return;}
+  const trabajo=MANT_TRABAJOS_PREDETERMINADOS.find(t=>t.id===nmTrabajoBulkSel);
+  if(!trabajo){showToast('El trabajo seleccionado no es válido');return;}
+  const btn=document.getElementById('nm-btn-crear');
+  if(btn&&btn.disabled)return;
+  if(btn)btn.disabled=true;
+  try{
+    const fecha=new Date(), momento=fecha.getTime();
+    const prioridad=document.getElementById('nm-prioridad')?.checked?'alta':'normal';
+    const fechaProgramada=document.getElementById('nm-fecha-programada')?.value||null;
+    const esRecurrente=!!document.getElementById('nm-recurrente')?.checked;
+    let recurrencia=null,proximaFecha=null;
+    if(esRecurrente){
+      const cada=Number(document.getElementById('nm-recur-cada')?.value);
+      const unidad=document.getElementById('nm-recur-unidad')?.value||'anos';
+      if(!Number.isSafeInteger(cada)||cada<1||!MANT_RECUR_UNIDADES.some(u=>u.key===unidad)){
+        showToast('Revisa el intervalo de repetición.');return;
+      }
+      recurrencia={cada,unidad};
+      proximaFecha=calcularProximaFechaMant(cada,unidad);
+    }
+    const registros=invSeleccionados.map((invId,i)=>({
+      id:'mant_'+momento+'_'+i+'_'+Math.random().toString(36).slice(2,8),
+      titulo:`${trabajo.label} (INV ${invId})`,descripcion:'',prioridad,
+      estado:'sin_asignar',asignados:[],fechaProgramada,
+      asignadoPor:currentUser||'—',visto:{},creadoEn:fecha.toLocaleString('es-ES'),
+      recurrencia,proximaFecha
+    }));
+    const tx=await actualizarStorageJsonConEtag(MANTENIMIENTO_KEY,[],cloud=>{
+      if(!Array.isArray(cloud))throw Error('Mantenimiento: formato inválido');
+      const conocidos=new Set(cloud.map(t=>t.id));
+      const nuevos=registros.filter(t=>!conocidos.has(t.id));
+      return nuevos.length?cloud.concat(nuevos):undefined;
     });
-  });
-
-  await persistMantenimientoData();
-  logHistorial(`Creó ${invSeleccionados.length} ticket(s) de mantenimiento "${titulo.split(' (')[0]}"`);
-  showToast(`✓ ${invSeleccionados.length} ticket(s) creado(s)`);
-  renderTareasContent(document.getElementById('tareas-overlay'), true);
+    if(!tx.ok){
+      showToast('No se ha confirmado el guardado. El formulario conserva los datos.');
+      return;
+    }
+    mantenimientoData=tx.value;
+    logHistorial(`Creó ${registros.length} ticket(s) de mantenimiento "${trabajo.label}"`);
+    showToast(`✓ ${registros.length} ticket(s) creado(s)`);
+    renderTareasContent(document.getElementById('tareas-overlay'),true);
+  }catch(e){
+    showToast('No se pudo guardar el ticket: '+(e?.message||'Error desconocido'));
+  }finally{
+    if(btn&&btn.isConnected)btn.disabled=false;
+  }
 }
 // (Aquí vivía crearTicketMantenimiento, eliminada en la auditoría del
 // 2026-09-11: era código muerto — no se llamaba desde ningún sitio y leía
