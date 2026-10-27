@@ -68,7 +68,7 @@
   if(state.uncertain)panel.append(text('p',
     state.uncertain+' envío(s) anterior(es) por verificar. No se repetirán sin revisión.','qc-sync-warning'));
   const action=text('button','Sincronizar todo','qc-sync-action');
-  action.type='button';action.disabled=busy||navigator.onLine===false||!state.total||!!lastErrors.length;
+  action.type='button';action.disabled=busy||navigator.onLine===false||!state.total;
   action.addEventListener('click',()=>{void synchronize();});
   panel.append(action);
   const status=text('p','Orden: inspecciones → fotos a SharePoint. Cada elemento se verifica antes de retirarlo del dispositivo.','qc-sync-status');
