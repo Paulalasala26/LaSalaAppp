@@ -217,3 +217,21 @@
   .qco-inline .qco-disease-select{width:104px;min-width:104px;min-height:44px;padding:6px 7px}
   .qco-inline .qco-global-result{padding:14px 11px;margin:14px 0 9px}
 }
+
+
+/* QC 0.111 — miniaturas independientes por inspección Túnel/Carga. */
+.qco-inline .qco-photo-area{display:flex;flex-direction:column;align-items:flex-start;gap:10px;min-width:0}
+.qco-inline .qco-photo-gallery{box-sizing:border-box;display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:10px;width:100%;min-width:0}
+.qco-inline .qco-photo-tile{position:relative;min-width:0;aspect-ratio:1;border:1px solid #c4d7ea;border-radius:9px;overflow:hidden;background:#edf5ff}
+.qco-inline .qco-photo-open{display:block;width:100%;height:100%;border:0;padding:0;background:transparent;cursor:zoom-in}
+.qco-inline .qco-photo-tile .qco-photo-open img{display:block;width:100%;height:100%;max-width:none;max-height:none;object-fit:cover;border:0;border-radius:0}
+.qco-inline .qco-photo-delete{position:absolute;right:4px;top:4px;display:flex;align-items:center;justify-content:center;width:34px;height:34px;border:1px solid #991b1b;border-radius:7px;background:#c62828;color:#fff;font-size:17px;cursor:pointer}
+.qco-inline .qco-photo-delete:disabled{opacity:.55;cursor:wait}
+.qco-inline .qco-photo-open:focus-visible,.qco-inline .qco-photo-delete:focus-visible{outline:3px solid #5f9dd7;outline-offset:-3px}
+.qco-inline .qco-photo-empty{font-size:12px;color:#647b90;grid-column:1/-1}
+.qco-inline .qco-photo-error{font-size:12px;color:#a12525;grid-column:1/-1}
+.qco-inline .qco-photo-top{padding:12px;border:1px solid #c5d9ed;border-radius:10px;background:#f8fbff;margin:10px 0}
+@media(max-width:560px){
+  .qco-inline .qco-photo-gallery{grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:8px}
+  .qco-inline .qco-photo-top{padding:10px}
+}
