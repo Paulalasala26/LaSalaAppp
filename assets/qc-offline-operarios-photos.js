@@ -290,14 +290,14 @@
   items=items.filter(x=>x.photoId!==original.photoId);
   summary();
  }
- async function syncFor(ref,button,status,repaint){
+ async function syncFor(ref,button,status,repaint,globalConfirmed=false){
   if(sending||!refValid(ref))return;
   const chosen=listFor(ref).slice();
   if(!chosen.length)return;
   requireSession();
   if(!navigator.onLine){status.textContent='No hay Internet. Fotos conservadas localmente.';return;}
   const revisar=chosen.some(photo=>photo.status==='ENVIO_INCIERTO');
-  if(!confirm(revisar?
+  if(!globalConfirmed&&!confirm(revisar?
    '¿Revisar '+chosen.length+' fotografía(s) de '+ref.partida+'? '+
    'Se comprobará primero SharePoint. Si un envío anterior sigue sin confirmar, '+
    'se pedirá permiso aparte antes de reintentarlo con el mismo identificador.':
@@ -498,7 +498,41 @@
   return true;
  }
 
+
+ // 0.113: todas las fotos de QC pasan por el MISMO sendOne,
+ // incluido el GET de verificación y la prueba del hash antes de borrar IDB.
+ function pendingGlobal(){
+  return items.filter(x=>owned(x)).map(x=>({ref:{...x.ref},photoId:x.photoId,status:x.status}));
+ }
+ async function syncGlobal(skipIds,onProgress){
+  requireSession();
+  if(sending)throw Error('Ya hay una sincronización de fotografías en curso.');
+  if(!navigator.onLine)throw Error('Sin conexión. Fotografías conservadas en IndexedDB.');
+  const skip=new Set(skipIds||[]);
+  const queue=pendingGlobal().filter(x=>!skip.has(x.ref.id));
+  const pendingBefore=queue.length,errors=[];
+  let done=0;
+  sending=true;
+  try{
+   const jwt=await userToken();
+   for(let i=0;i<queue.length;i++){
+    requireSession();
+    if(!navigator.onLine)break;
+    const it=queue[i];
+    const photo=items.find(x=>x.photoId===it.photoId);
+    if(!photo)continue; // Ya validada desde otra pantalla.
+    try{
+      onProgress?.('Fotografía '+(i+1)+'/'+queue.length+' · '+photo.ref.partida);
+      await sendOne(photo,jwt);
+      done++;
+    }catch(e){errors.push(photo.ref.partida+': '+(e?.message||'Error de envío'));}
+   }
+  }finally{sending=false;summary();}
+  return {total:pendingBefore,verified:done,
+    remaining:pendingGlobal().length,errors};
+ }
+
  window.QCOfflinePhotos=Object.freeze({init,decorate,renderSaved,lock,
   galleryCapture,galleryLocal,galleryDeleteLocal,galleryRemote,galleryRemoteBlob,
-  gallerySend,galleryRemoveRemote,count:()=>items.length});
+  gallerySend,galleryRemoveRemote,pendingGlobal,syncGlobal,count:()=>items.length});
 })();
