@@ -1991,7 +1991,7 @@ function actualizarBotonAsignarLote(){
 async function asignarTareasEnLote(){
   if(!['ADMIN','TECNICO'].includes(currentUserRole)){showToast('Solo ADMIN y TÉCNICO pueden gestionar Tareas.');return;}
   const persona = document.getElementById('lote-asignado-select')?.value;
-  if(!persona){ showToast('Elige a quién asignar'); return; }
+  if(!persona||!usuariosAsignablesOperativas('manual').includes(persona)){ showToast('Elige un operario válido'); return; }
   if(!tareasSeleccionadas.size){ showToast('Selecciona al menos una tarea'); return; }
   const ids=new Set(tareasSeleccionadas);
   const tx=await actualizarStorageJsonConEtag(TAREAS_KEY,[],cloud=>{
@@ -2048,12 +2048,13 @@ function buildTareaGestorRow(t, conSeleccion){
     ${t.descripcion?`<div class="op-descripcion">${esc(t.descripcion)}</div>`:''}
     <div class="op-metadatos">
       <span class="op-origen">${esc(origenLabel)}</span>
-      <span><i class="ti ti-user"></i> ${esc(t.asignadoA||'Sin asignar')}</span>
+      <span><i class="ti ti-user"></i> ${esc(t.asignadoA||'Sin asignar')}${t.asignacionManualRiego===true?' · Reasignada':''}</span>
       ${t.horario?`<span><i class="ti ti-clock"></i> ${esc(t.horario)}</span>`:''}
       ${t.fechaISO?`<span><i class="ti ti-calendar"></i> ${esc(t.fechaISO)}</span>`:''}
     </div>
     ${detalles.length?`<div class="op-ejecucion">${detalles.join(' · ')}</div>`:''}
     <div class="op-acciones">
+      ${tareaPuedeReasignarseEnOperativas(t)?`<button type="button" class="op-btn" onclick="mostrarReasignacionOperativa('${t.id}')"><i class="ti ti-user-share"></i> Reasignar</button>`:''}
       ${manual&&t.estado==='pendiente'&&!t.conciliacionFito?`
         <button type="button" class="op-btn" onclick="showEditarTareaForm('${t.id}')"><i class="ti ti-pencil"></i> Editar</button>
         <button type="button" class="op-btn" onclick="eliminarTarea('${t.id}')"><i class="ti ti-ban"></i> Anular</button>`:''}
@@ -2062,6 +2063,7 @@ function buildTareaGestorRow(t, conSeleccion){
         ${pistolaVinculada?`<button type="button" class="op-btn" onclick="abrirJornadaPistolaDesdeTareas('${t.id}')"><i class="ti ti-eye"></i> Ver jornada</button>`:''}`:
         `<button type="button" class="op-btn" onclick="imprimirTareaSuelta('${t.id}')"><i class="ti ti-printer"></i> Imprimir</button>`}
     </div>
+    ${tareaPuedeReasignarseEnOperativas(t)?`<div id="op-reasignacion-${esc(t.id)}" class="op-reasignacion-inline" style="display:none;align-items:center;flex-wrap:wrap;gap:7px;padding-top:9px;border-top:1px solid #e1ebf6;margin-top:9px"></div>`:''}
   </article>`;
 }
 function tareaTableHead(conSeleccion){
@@ -2556,6 +2558,67 @@ function abrirFiltrosTareasGestor(){
  tareasGestorFiltrosAbiertos=!tareasGestorFiltrosAbiertos;
  renderTareasContent(document.getElementById('tareas-overlay'),true);
 }
+function usuariosAsignablesOperativas(origen){
+ const roles=origen==='riego'?['PEON']:['PEON','REGANTE'];
+ return Object.keys(USER_ROLES).filter(u=>roles.includes(USER_ROLES[u]));
+}
+function tareaPuedeReasignarseEnOperativas(t){
+ return !!t&&!esTareaArchivada(t)&&t.estado==='pendiente'&&
+   ['riego','manual'].includes(tareaOrigenGestion(t))&&!t.conciliacionFito;
+}
+function mostrarReasignacionOperativa(id){
+ if(!['ADMIN','TECNICO'].includes(currentUserRole))return;
+ const t=tareasData.find(x=>x.id===id);
+ if(!tareaPuedeReasignarseEnOperativas(t)){showToast('Solo se reasignan tareas pendientes de Riego o Manual');return;}
+ const wrap=document.getElementById('op-reasignacion-'+id);
+ if(!wrap)return;
+ if(wrap.style.display!=='none'){wrap.style.display='none';wrap.innerHTML='';return;}
+ // Un único formulario abierto: no dejar estados viejos en otras tarjetas.
+ document.querySelectorAll('.op-reasignacion-inline').forEach(w=>{w.style.display='none';w.innerHTML='';});
+ const users=usuariosAsignablesOperativas(tareaOrigenGestion(t));
+ const esc=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+ wrap.dataset.asignadoActual=t.asignadoA||'';
+ wrap.innerHTML=`<label style="font-size:12px;font-weight:700;color:#1558a0" for="op-asignado-${esc(t.id)}">Asignar a</label>
+   <select id="op-asignado-${esc(t.id)}" style="flex:1;min-width:130px;padding:8px;border:1px solid #a8c4e8;border-radius:7px;color:#1558a0;background:#fff" aria-label="Destinatario de la tarea">
+     ${users.map(u=>`<option value="${esc(u)}" ${u===t.asignadoA?'selected':''}>${esc(u)}</option>`).join('')}
+   </select>
+   <button type="button" class="op-btn" onclick="confirmarReasignacionOperativa('${esc(t.id)}')">Confirmar</button>
+   <button type="button" class="op-btn" onclick="mostrarReasignacionOperativa('${esc(t.id)}')">Cancelar</button>`;
+ wrap.style.display='flex';
+}
+async function confirmarReasignacionOperativa(id){
+ if(!['ADMIN','TECNICO'].includes(currentUserRole))return;
+ const wrap=document.getElementById('op-reasignacion-'+id);
+ if(!wrap)return;
+ const destino=document.getElementById('op-asignado-'+id)?.value;
+ const previo=wrap.dataset.asignadoActual||'';
+ const local=tareasData.find(t=>t.id===id);
+ if(!tareaPuedeReasignarseEnOperativas(local)){showToast('La tarea ya no se puede reasignar');return;}
+ const origen=tareaOrigenGestion(local);
+ if(!usuariosAsignablesOperativas(origen).includes(destino)){showToast('Selecciona un operario válido');return;}
+ if(destino===previo){wrap.style.display='none';wrap.innerHTML='';return;}
+ // Proteger la tarea en nube contra ejecución, ediciones o cambio de dueño
+ // concurrentes: ETag más comparación con el destinatario visto en pantalla.
+ const tx=await actualizarStorageJsonConEtag(TAREAS_KEY,[],cloud=>{
+   if(!Array.isArray(cloud))throw Error('Tareas: formato inválido');
+   const vigente=cloud.find(t=>t.id===id);
+   if(!tareaPuedeReasignarseEnOperativas(vigente)||vigente.asignadoA!==previo||tareaOrigenGestion(vigente)!==origen)return undefined;
+   const manualRiego=origen==='riego';
+   const defecto=manualRiego?peonDelaSala(vigente.inv):null;
+   return cloud.map(t=>t.id===id?{
+     ...t,asignadoA:destino,visto:false,
+     ...(manualRiego?{asignacionManualRiego:destino!==defecto}:{}),
+     reasignadoPor:currentUser||'—',reasignadoEn:new Date().toISOString(),
+     asignadoAnterior:previo
+   }:t);
+ });
+ if(!tx.ok||tx.noChange){showToast('No se confirmó: la tarea ha cambiado. Actualiza la pantalla.');await loadTareasData(true);refreshTareasViews();return;}
+ tareasData=tx.value;
+ logHistorial('Reasignó tarea '+(local.titulo||id)+' de '+previo+' a '+destino);
+ showToast('✓ Tarea reasignada a '+destino);
+ tareasSeleccionadas.clear();
+ refreshTareasViews();
+}
 function tareaOrigenGestion(t){
  if(t.categoria==='mantenimiento')return 'mantenimiento';
  if(t.origenFito?.serieId||t.categoria==='fumigacion')return 'pistola';
@@ -2731,7 +2794,7 @@ function renderTareasGestorFullScreen(overlay){
  </div><div id="nueva-tarea-form-wrap"></div>`:'';
  const batch=vista==='operativas'&&active.some(t=>t.estado==='pendiente'&&tareaOrigenGestion(t)==='manual')?`<div class="op-batch">
    <span style="font-weight:700;color:#1558a0">Reasignar marcadas</span>
-   <select id="lote-asignado-select" aria-label="Operario destino"><option value="">Elegir usuario</option>${Object.keys(USER_ROLES).map(u=>`<option value="${u}">${u}</option>`).join('')}</select>
+   <select id="lote-asignado-select" aria-label="Operario destino"><option value="">Elegir usuario</option>${usuariosAsignablesOperativas('manual').map(u=>`<option value="${u}">${u}</option>`).join('')}</select>
    <button type="button" id="btn-asignar-lote" class="op-btn" onclick="asignarTareasEnLote()" disabled>Asignar (<span id="lote-contador">0</span>)</button>
  </div>`:'';
  const cards=(list,selectable)=>`<div class="op-lista">${list.map(t=>buildTareaGestorRow(t,selectable&&t.estado==='pendiente'&&tareaOrigenGestion(t)==='manual')).join('')||'<div style="font-size:12px;color:#667">Sin tareas.</div>'}</div>`;
@@ -3160,7 +3223,7 @@ function showNuevaTareaForm(){
   if(!['ADMIN','TECNICO'].includes(currentUserRole)){showToast('Solo ADMIN y TÉCNICO pueden gestionar Tareas.');return;}
   const wrap=document.getElementById('nueva-tarea-form-wrap');
   if(!wrap)return;
-  const asignables=Object.keys(USER_ROLES);
+  const asignables=usuariosAsignablesOperativas('manual');
   const hoyISO=fechaLocalISO(new Date());
   const invOptions='<option value="">Invernadero (opcional)</option>'+
     '<optgroup label="Sala 1">'+ALL_INV_IDS_SALA1.map(id=>`<option value="${id}">${id}</option>`).join('')+'</optgroup>'+
@@ -3211,7 +3274,7 @@ async function crearTarea(){
   const turno = document.getElementById('nt-turno')?.value||'';
   const fechaRaw = document.getElementById('nt-fecha')?.value;
   const fecha = fechaRaw ? new Date(fechaRaw+'T00:00:00').toLocaleDateString('es-ES',{day:'2-digit',month:'short'}).replace('.','') : '';
-  if(!titulo||!asignados.length){ showToast('Indica al menos un título y a quién se asigna'); return; }
+  if(!titulo||!asignados.length||asignados.some(u=>!usuariosAsignablesOperativas('manual').includes(u))){ showToast('Indica título y operarios válidos'); return; }
   const nuevasTareas=[];
   asignados.forEach(asignadoA=>{
     nuevasTareas.push({
@@ -3249,7 +3312,7 @@ function showEditarTareaForm(id){
   const wrap=document.getElementById('nueva-tarea-form-wrap');
   if(!wrap)return;
   const esc=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  const asignables=Object.keys(USER_ROLES);
+  const asignables=usuariosAsignablesOperativas('manual');
   const invOptions='<option value="">Invernadero (opcional)</option>'+
     '<optgroup label="Sala 1">'+ALL_INV_IDS_SALA1.map(x=>`<option value="${esc(x)}" ${t.inv===x?'selected':''}>${esc(x)}</option>`).join('')+'</optgroup>'+
     '<optgroup label="Sala 2">'+ALL_INV_IDS.map(x=>`<option value="${esc(x)}" ${t.inv===x?'selected':''}>${esc(x)}</option>`).join('')+'</optgroup>'+
@@ -3293,7 +3356,7 @@ async function guardarEdicionTarea(id){
   const asignadosMarcados=Array.from(document.querySelectorAll('#et-asignado-chips .chip-asignado-on')).map(b=>b.dataset.etAsignadoChip);
   const asignadoA=asignadosMarcados[0];
   const extraAsignados=asignadosMarcados.slice(1);
-  if(!titulo||!asignadoA){ showToast('Indica al menos un título y a quién se asigna'); return; }
+  if(!titulo||!asignadoA||asignadosMarcados.some(u=>!usuariosAsignablesOperativas('manual').includes(u))){ showToast('Indica título y operarios válidos'); return; }
   const nuevoEstado='pendiente'; // La ejecución/cierre se realiza exclusivamente desde el operario
   const fechaRaw=document.getElementById('et-fecha')?.value||'';
   const fechaLabel=fechaRaw ? new Date(fechaRaw+'T00:00:00').toLocaleDateString('es-ES',{day:'2-digit',month:'short'}).replace('.','') : '';
@@ -17360,7 +17423,12 @@ function encolarRiegoTareasConfirmado(invId,dias){
   return escribirColaRiegoTareas(cola);
 }
 function claveTareaPlanRiego(t){
-  return [t.asignadoA,t.inv,t.fechaISO,t.titulo,t.horario||''].map(v=>String(v||'')).join('||');
+  // Identidad del TRABAJO, no del PEÓN: una excepción autorizada de
+  // asignación no debe crear una segunda orden al conciliar Riego.
+  const asignadoClave=t.asignacionManualRiego===true&&
+    (t.categoria==='riego'||t.origenTarea==='riego')
+      ?peonDelaSala(t.inv):t.asignadoA;
+  return [asignadoClave,t.inv,t.fechaISO,t.titulo,t.horario||''].map(v=>String(v||'')).join('||');
 }
 function planTareasRiegoParaDias(invId,dias){
   invId=String(invId);
@@ -17413,9 +17481,12 @@ async function conciliarRiegoTareasConfirmadas(invId,dias){
     const delDia=t=>t&&String(t.inv)===String(invId)&&days.has(t.fechaISO)&&
       (t.categoria==='riego'||t.origenTarea==='riego')&&!esTareaArchivada(t);
     const actuales=cloud.filter(delDia);
-    // No sustituir trabajos ya iniciados, completados ni reasignados manualmente.
+    // Una reasignación protegida sigue siendo la misma orden de Riego.
+    // La anomalía antigua (destinatario distinto sin marca de excepción)
+    // sigue bloqueando para no normalizar datos inesperados en silencio.
     for(const t of actuales){
-      if(t.asignadoA!==peonDelaSala(invId) ||
+      const destinoValido=!!t.asignacionManualRiego&&USER_ROLES[t.asignadoA]==='PEON';
+      if((t.asignadoA!==peonDelaSala(invId)&&!destinoValido) ||
         (t.estado==='iniciada' && !aComparar.some(p=>claveTareaPlanRiego(p)===claveTareaPlanRiego(t)&&p.calles===t.calles))){
         conflicto=true;return undefined;
       }
@@ -17660,7 +17731,7 @@ async function generarTareasDesdeRiego(){
   const generadasRiego=tareasData.filter(t=>t.categoria==='riego'&&t.estado==='pendiente'&&!esTareaArchivada(t));
   const txTareas=await actualizarStorageJsonConEtag(TAREAS_KEY,[],fresh=>{
     if(!Array.isArray(fresh))throw Error('Tareas: formato de servidor inválido');
-    const key=t=>[String(t.asignadoA||''),String(t.inv||''),String(t.fechaISO||''),String(t.titulo||''),String(t.horario||'')].join('||');
+    const key=t=>claveTareaPlanRiego(t);
     const nuevasMap=new Map(generadasRiego.map(t=>[key(t),t]));
     const iniciadas=new Set(fresh.filter(t=>(t.categoria==='riego'||t.origenTarea==='riego')&&t.estado==='iniciada').map(key));
     const ahora=new Date().toISOString();
@@ -17669,7 +17740,10 @@ async function generarTareasDesdeRiego(){
       if(nuevasMap.has(key(t))){
         const nueva=nuevasMap.get(key(t));
         nuevasMap.delete(key(t));
-        return {...t,...nueva,id:t.id,visto:t.calles===nueva.calles?t.visto:false,creadoEn:t.creadoEn};
+        return {...t,...nueva,id:t.id,
+          asignadoA:t.asignacionManualRiego===true?t.asignadoA:nueva.asignadoA,
+          asignacionManualRiego:t.asignacionManualRiego===true,
+          visto:t.calles===nueva.calles?t.visto:false,creadoEn:t.creadoEn};
       }
       // Anular y archivar; nunca suprimir un registro o su trazabilidad.
       return {...t,estado:'anulada',archivadaEn:ahora,motivoAnulacion:'Sustituida al regenerar Riego'};
