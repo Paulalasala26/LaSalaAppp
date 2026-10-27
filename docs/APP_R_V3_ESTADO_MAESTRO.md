@@ -1584,6 +1584,20 @@ El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en int
 
 **Pendiente:** validación visual/funcional del usuario en TEST a tamaño habitual y móvil. Entrar directamente en Partidas, comprobar que se ve el mapa y el selector, navegar sala/INV/semana y abrir ficha. No dar UAT por validada antes de confirmación. `main` y PRD intactos.
 
+## 0.129. Partidas — selector Sala/INV independiente, patrón Control de Riego (27/10/2026) — IMPLEMENTADO TEST / UAT PENDIENTE
+
+**Petición literal:** «Cerrar debe ser el icono en la cabecera. Localizacion e invernadero pueden ser un combo box simplificado, como en riego y estar en una pantalla anterior. No tiene por qué estar ahí. Empieza copiando la pantalla de riego de seleccion de sala e invernadero y luego nos vamos a la siguiente, la actual».
+
+**Implementado:** `index.html` commit `b89e8691aa3aaf1ddf5414347c29768fe3af8424`, rama exclusiva `test/v1.0`. Se toma el diseño funcional real de `showRiegoModule`: pantalla inicial con cinco filas Sala 1..5, un desplegable nativo «Elegir invernadero…» por sala, mismos tamaños, fondos y colores del selector de Riego; IDs de los invernaderos existentes ordenados numéricamente dentro de su sala. Ningún INV seleccionado automáticamente al abrir Partidas.
+
+**Flujo:** Entrada Partidas → `renderPartidasSelectorContent` → usuario selecciona exactamente un INV → `seleccionarInvPartidas` verifica que pertenece a una de las cinco salas, carga banners solo del INV y muestra `renderPartidasMapaContent`. En el mapa **no aparecen** selectores ni botones de Sala/INV: una barra compacta «Sala N · INV. X» + botón azul **Cambiar** regresa a pantalla anterior de selección. Volver no escribe nada ni elimina registros; cancela únicamente selecciones de movimientos/específicos de la UI. Semana, mapa de calles, movimientos, búsqueda, sincronización, deshacer/rehacer, recuperación, ficha/historial y acceso contextual Específicos se conservan sin alterar lógica.
+
+**Cerrar:** botón de texto sustituido en selector y mapa por icono de cruz **×** en cabecera, exactamente en el patrón visual de Riego, `title` y `aria-label`. Acción cierra overlay; **Cambiar** vuelve una pantalla, no cierra módulo.
+
+**Pruebas técnicas:** 5 scripts inline compilan, simulación HTML genera 5 filas y 5 selectores del patrón Riego, selector sin mapa, mapa sin controles redundantes de Sala/INV, barra Cambiar operativa por callback, X exclusiva en cabecera, buscador y botones existentes presentes, 11 `div` abiertos/cerrados equilibrados en maqueta de mapa. GitHub y Vercel TEST READY confirmados para SHA de código antes de escribir esta nota. **UAT visual/funcional real del usuario pendiente.**
+
+**Resguardos:** solo se modificó `index.html`. Sin cambios en `main`, PRD, Firebase, QC, Riego, Plaguicidas, Tareas, Específicos, datos ni persistencia. No reabrir módulos cerrados. Próximo paso: **validar pantalla inicial de Partidas como Riego; después continuar con el mapa** según instrucciones del usuario.
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).
