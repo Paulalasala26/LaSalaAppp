@@ -6159,8 +6159,8 @@ async function sincronizarControlManual(){
 function sincronizarPartidasBtnHTML(){
   const pendientes = leerColaOffline().length;
   return `
-    <button onclick="sincronizarPartidasManual()" title="Guardar/forzar sincronización con la nube" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:800;border:1.5px solid ${pendientes>0?'transparent':'rgba(255,255,255,.4)'};cursor:pointer;background:${pendientes>0?'#c47f00':'transparent'};color:#fff;display:flex;align-items:center;gap:6px">
-      <i class="ti ti-device-floppy" style="font-size:14px"></i> Guardar${pendientes>0?` (${pendientes})`:''}
+    <button onclick="sincronizarPartidasManual()" title="Reintentar sincronización de cambios pendientes" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:800;border:1.5px solid ${pendientes>0?'transparent':'rgba(255,255,255,.4)'};cursor:pointer;background:${pendientes>0?'#c47f00':'transparent'};color:#fff;display:flex;align-items:center;gap:6px">
+      <i class="ti ti-refresh" style="font-size:14px"></i> Sincronizar${pendientes>0?` (${pendientes})`:''}
     </button>`;
 }
 async function sincronizarPartidasManual(){
@@ -9588,46 +9588,52 @@ function renderPartidasMapaContent(overlay){
   const scrollTopAnterior = wrapAnterior ? wrapAnterior.scrollTop : 0;
   const invIds = {sala1:ALL_INV_IDS_SALA1, sala2:ALL_INV_IDS, sala3:ALL_INV_IDS_SALA3, sala4:ALL_INV_IDS_SALA4, sala5:ALL_INV_IDS_SALA5}[partidasSalaSel] || ALL_INV_IDS_SALA1;
   const invBotonesHTML = invIds.map(id=>`
-    <button onclick="seleccionarInvPartidas('${id}')" style="padding:6px 13px;font-size:12px;font-weight:700;border-radius:7px;cursor:pointer;border:1.5px solid #a8c4e8;background:${partidasInvSel===id?'#0f5c4a':'#fff'};color:${partidasInvSel===id?'#fff':'#0f5c4a'}">
+    <button onclick="seleccionarInvPartidas('${id}')" style="padding:6px 13px;font-size:12px;flex-shrink:0;white-space:nowrap;font-weight:700;border-radius:7px;cursor:pointer;border:1.5px solid #a8c4e8;background:${partidasInvSel===id?'#1558a0':'#fff'};color:${partidasInvSel===id?'#fff':'#1558a0'}">
       ${id}
     </button>`).join('');
   overlay.innerHTML = `
-    <div style="background:#f2f4f0;width:100vw;height:100vh;max-width:100vw;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.3)">
-      <div style="background:linear-gradient(135deg,#0f5c4a,#1a9c78);color:#fff;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;flex-wrap:wrap;gap:10px">
-        <div style="font-size:17px;font-weight:800;display:flex;align-items:center;gap:8px">
-          <i class="ti ti-layout-grid" style="font-size:20px"></i> Partidas
+    <div style="background:#f5f7fb;width:100vw;height:100vh;max-width:100vw;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.3)">
+      <div style="background:linear-gradient(120deg,#1558a0,#2678bc);color:#fff;padding:9px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-shrink:0">
+        <div style="font-size:16px;font-weight:800;display:flex;align-items:center;gap:8px"><i class="ti ti-layout-grid" style="font-size:19px"></i> Partidas</div>
+        <button onclick="document.getElementById('partidas-overlay').style.display='none'" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700;background:rgba(255,255,255,.15);color:#fff;border:none;cursor:pointer">✕ Cerrar</button>
+      </div>
+      <div style="background:#eff5fc;border-bottom:1px solid #c7d8ee;flex-shrink:0">
+        <div style="padding:7px 12px 5px;font-size:12px;font-weight:800;color:#1558a0">Localización</div>
+        <div style="padding:5px 12px;background:#2169a9;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          <span style="font-size:11px;font-weight:700;color:#fff;margin-right:2px">Sala</span>
+          <button onclick="seleccionarSalaPartidas('sala1')" style="padding:6px 11px;border-radius:8px;font-size:12px;font-weight:800;border:1.5px solid rgba(255,255,255,.4);cursor:pointer;background:${partidasSalaSel==='sala1'?'#fff':'transparent'};color:${partidasSalaSel==='sala1'?'#1558a0':'#fff'}">Sala 1</button>
+          <button onclick="seleccionarSalaPartidas('sala2')" style="padding:6px 11px;border-radius:8px;font-size:12px;font-weight:800;border:1.5px solid rgba(255,255,255,.4);cursor:pointer;background:${partidasSalaSel==='sala2'?'#fff':'transparent'};color:${partidasSalaSel==='sala2'?'#1558a0':'#fff'}">Sala 2</button>
+          <button onclick="seleccionarSalaPartidas('sala3')" style="padding:6px 11px;border-radius:8px;font-size:12px;font-weight:800;border:1.5px solid rgba(255,255,255,.4);cursor:pointer;background:${partidasSalaSel==='sala3'?'#fff':'transparent'};color:${partidasSalaSel==='sala3'?'#1558a0':'#fff'}">Sala 3</button>
+          <button onclick="seleccionarSalaPartidas('sala4')" style="padding:6px 11px;border-radius:8px;font-size:12px;font-weight:800;border:1.5px solid rgba(255,255,255,.4);cursor:pointer;background:${partidasSalaSel==='sala4'?'#fff':'transparent'};color:${partidasSalaSel==='sala4'?'#1558a0':'#fff'}">Sala 4</button>
+          <button onclick="seleccionarSalaPartidas('sala5')" style="padding:6px 11px;border-radius:8px;font-size:12px;font-weight:800;border:1.5px solid rgba(255,255,255,.4);cursor:pointer;background:${partidasSalaSel==='sala5'?'#fff':'transparent'};color:${partidasSalaSel==='sala5'?'#1558a0':'#fff'}">Sala 5</button>
         </div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <button onclick="seleccionarSalaPartidas('sala1')" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:800;border:1.5px solid rgba(255,255,255,.4);cursor:pointer;background:${partidasSalaSel==='sala1'?'#fff':'transparent'};color:${partidasSalaSel==='sala1'?'#0f5c4a':'#fff'}">Sala 1</button>
-          <button onclick="seleccionarSalaPartidas('sala2')" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:800;border:1.5px solid rgba(255,255,255,.4);cursor:pointer;background:${partidasSalaSel==='sala2'?'#fff':'transparent'};color:${partidasSalaSel==='sala2'?'#0f5c4a':'#fff'}">Sala 2</button>
-          <button onclick="seleccionarSalaPartidas('sala3')" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:800;border:1.5px solid rgba(255,255,255,.4);cursor:pointer;background:${partidasSalaSel==='sala3'?'#fff':'transparent'};color:${partidasSalaSel==='sala3'?'#0f5c4a':'#fff'}">Sala 3</button>
-          <button onclick="seleccionarSalaPartidas('sala4')" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:800;border:1.5px solid rgba(255,255,255,.4);cursor:pointer;background:${partidasSalaSel==='sala4'?'#fff':'transparent'};color:${partidasSalaSel==='sala4'?'#0f5c4a':'#fff'}">Sala 4</button>
-          <button onclick="seleccionarSalaPartidas('sala5')" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:800;border:1.5px solid rgba(255,255,255,.4);cursor:pointer;background:${partidasSalaSel==='sala5'?'#fff':'transparent'};color:${partidasSalaSel==='sala5'?'#0f5c4a':'#fff'}">Sala 5</button>
-          <div style="display:flex">
+        <div style="padding:7px 12px;display:flex;align-items:center;gap:9px">
+          <span style="font-size:11px;font-weight:800;color:#1558a0;flex-shrink:0">Invernadero</span>
+          <div style="display:flex;align-items:center;gap:5px;overflow-x:auto;min-width:0;padding-bottom:2px;flex:1">
+            ${invBotonesHTML}
+          </div>
+        </div>
+        <div style="padding:6px 12px;background:#1558a0;display:flex;align-items:center;justify-content:center;gap:10px">
+          <button onclick="changePartidasSemana(-1)" ${partidasSemanaOffset<=0?'disabled style="opacity:.35;cursor:default"':''}
+          style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:14px;line-height:1">&#8249;</button>
+          <span style="font-size:12px;font-weight:700;color:#fff">Semana ${partidasSemanaOffset+1} &middot; ${partidasSemanaLabel(partidasSemanaOffset)}</span>
+          <button onclick="changePartidasSemana(1)"
+          style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:14px;line-height:1">&#8250;</button>
+        </div>
+      </div>
+      <div style="padding:8px 12px;background:#1558a0;border-top:1px solid rgba(255,255,255,.18);display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex-shrink:0">
+        <div style="font-size:12px;font-weight:800;color:#fff;margin-right:auto">Mapa de ocupación</div>
+        <div style="display:flex">
             <input id="partidas-buscar-partida" type="text" placeholder="Buscar Nº partida..." onkeydown="if(event.key==='Enter') buscarPartidaGlobal()"
               style="padding:8px 12px;border:1.5px solid rgba(255,255,255,.4);border-right:none;border-radius:8px 0 0 8px;font-size:12px;width:150px;background:rgba(255,255,255,.15);color:#fff">
             <button onclick="buscarPartidaGlobal()" title="Buscar en todas las semanas" style="padding:8px 12px;background:#fff;color:#0f5c4a;border:none;border-radius:0 8px 8px 0;cursor:pointer"><i class="ti ti-search" style="font-size:14px"></i></button>
           </div>
-          ${sincronizarPartidasBtnHTML()}
-          <button onclick="deshacerMovimientoPartida()" ${partidasHistorialDeshacer.length?'':'disabled style="opacity:.35;cursor:default"'} title="Deshacer el último movimiento" style="padding:8px 12px;border-radius:8px;font-size:14px;font-weight:800;background:rgba(255,255,255,.2);color:#fff;border:none;cursor:pointer">←</button>
-          <button onclick="rehacerMovimientoPartida()" ${partidasHistorialRehacer.length?'':'disabled style="opacity:.35;cursor:default"'} title="Rehacer el movimiento deshecho" style="padding:8px 12px;border-radius:8px;font-size:14px;font-weight:800;background:rgba(255,255,255,.2);color:#fff;border:none;cursor:pointer">→</button>
-          <button onclick="showEspecificoManualForm()" title="Añadir un específico sin entrar a un invernadero" style="padding:8px 14px;border-radius:8px;font-size:12px;font-weight:800;background:rgba(255,255,255,.2);color:#fff;border:none;cursor:pointer;display:flex;align-items:center;gap:5px"><i class="ti ti-plus" style="font-size:14px"></i> Añadir Específico</button>
-          <button onclick="showEspecificoResumenModule()" title="Resumen de lo aplicado en la quincena" style="padding:8px 14px;border-radius:8px;font-size:12px;font-weight:800;background:rgba(255,255,255,.2);color:#fff;border:none;cursor:pointer;display:flex;align-items:center;gap:5px"><i class="ti ti-table" style="font-size:14px"></i> Resumen</button>
-          <button onclick="showEspecificosModule()" title="Cuadrícula día×calle por invernadero" style="padding:8px 14px;border-radius:8px;font-size:12px;font-weight:800;background:rgba(255,255,255,.2);color:#fff;border:none;cursor:pointer;display:flex;align-items:center;gap:5px"><i class="ti ti-grid-dots" style="font-size:14px"></i> Cuadrícula</button>
-          <button onclick="recuperarPartidaPorId()" title="Recuperar partida marcada como salida" style="padding:8px 14px;border-radius:8px;font-size:12px;font-weight:800;background:rgba(255,255,255,.2);color:#fff;border:none;cursor:pointer;display:flex;align-items:center;gap:5px"><i class="ti ti-refresh" style="font-size:14px"></i> Recuperar</button>
-          <button onclick="document.getElementById('partidas-overlay').style.display='none'" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700;background:rgba(255,255,255,.15);color:#fff;border:none;cursor:pointer">✕ Cerrar</button>
-        </div>
+        ${sincronizarPartidasBtnHTML()}
+        <button onclick="deshacerMovimientoPartida()" ${partidasHistorialDeshacer.length?'':'disabled style="opacity:.35;cursor:default"'} title="Deshacer el último movimiento" style="padding:8px 12px;border-radius:8px;font-size:14px;font-weight:800;background:rgba(255,255,255,.2);color:#fff;border:none;cursor:pointer">←</button>
+        <button onclick="rehacerMovimientoPartida()" ${partidasHistorialRehacer.length?'':'disabled style="opacity:.35;cursor:default"'} title="Rehacer el movimiento deshecho" style="padding:8px 12px;border-radius:8px;font-size:14px;font-weight:800;background:rgba(255,255,255,.2);color:#fff;border:none;cursor:pointer">→</button>
+        <button onclick="recuperarPartidaPorId()" title="Recuperar partida marcada como salida" style="padding:8px 14px;border-radius:8px;font-size:12px;font-weight:800;background:rgba(255,255,255,.2);color:#fff;border:none;cursor:pointer;display:flex;align-items:center;gap:5px"><i class="ti ti-refresh" style="font-size:14px"></i> Recuperar</button>
       </div>
-      <div style="padding:.6rem 1.25rem;background:#0d4d3f;display:flex;align-items:center;justify-content:center;gap:14px;flex-shrink:0">
-        <button onclick="changePartidasSemana(-1)" ${partidasSemanaOffset<=0?'disabled style="opacity:.35;cursor:default"':''}
-          style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:14px;line-height:1">&#8249;</button>
-        <span style="font-size:12px;font-weight:700;color:#fff">Semana ${partidasSemanaOffset+1} &middot; ${partidasSemanaLabel(partidasSemanaOffset)}</span>
-        <button onclick="changePartidasSemana(1)"
-          style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:14px;line-height:1">&#8250;</button>
-      </div>
-      <div style="padding:.75rem 1.25rem;background:#e8f5ef;border-bottom:1px solid #a5d6c2;display:flex;gap:6px;flex-wrap:wrap;align-items:center;flex-shrink:0">
-        ${invBotonesHTML}
-      </div>
+      <div style="padding:5px 12px;background:#e8f2fd;border-bottom:1px solid #c7d8ee;color:#34577f;font-size:11px;flex-shrink:0">Toca una partida para abrir su ficha e historial. Arrástrala para moverla o utiliza las acciones de su tarjeta.</div>
       ${partidaSeleccionadaParaMover ? (()=>{
         // Aviso visible de qué hay seleccionado (a petición de Paula,
         // 2026-08-06: "se intercambian otras distintas") — antes la
@@ -9640,7 +9646,7 @@ function renderPartidasMapaContent(overlay){
           <button onclick="partidaSeleccionadaParaMover=null;renderPartidasMapaContent(document.getElementById('partidas-overlay'))" style="padding:5px 12px;font-size:11px;font-weight:800;background:#c47f00;color:#fff;border:none;border-radius:6px;cursor:pointer">Cancelar</button>
         </div>`;
       })() : ''}
-      <div id="partidas-content-wrap" style="flex:1;overflow:auto;padding:1.25rem">
+      <div id="partidas-content-wrap" style="flex:1;overflow:auto;padding:12px">
         ${partidasInvSel ? renderPartidasInvHTML(partidasInvSel) : `<div style="text-align:center;padding:3rem;color:var(--muted);font-style:italic;font-size:13px">Elige un invernadero arriba para ver sus partidas.</div>`}
       </div>
     </div>`;
@@ -10124,7 +10130,7 @@ function abrirAplicarEspecificoAPartidas(){
       </select>
       <div style="display:flex;justify-content:flex-end;gap:10px">
         <button onclick="document.getElementById('especifico-por-partidas-overlay').style.display='none'" style="padding:9px 16px;font-size:12px;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:7px;cursor:pointer">Cancelar</button>
-        <button onclick="aplicarEspecificoAPartidasSeleccionadas()" style="padding:9px 18px;font-size:12px;font-weight:800;background:#2e7d32;color:#fff;border:none;border-radius:7px;cursor:pointer">Aplicar</button>
+        <button onclick="aplicarEspecificoAPartidasSeleccionadas()" style="padding:9px 18px;font-size:12px;font-weight:800;background:#1558a0;color:#fff;border:none;border-radius:7px;cursor:pointer">Aplicar</button>
       </div>
     </div>`;
   overlay.style.display = 'flex';
@@ -10380,7 +10386,7 @@ function renderPartidasInvHTML(invId){
     <div style="margin-bottom:2rem">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;flex-wrap:wrap">
         <div style="font-size:14px;font-weight:800;color:var(--text)">${layout.label}</div>
-        <button onclick="toggleModoEspecificoPartidas()" style="padding:6px 12px;font-size:11px;font-weight:800;border-radius:7px;cursor:pointer;border:1.5px solid ${partidasEspecificoModo?'#a32020':'#3fa864'};background:${partidasEspecificoModo?'#fdecea':'#eafaf0'};color:${partidasEspecificoModo?'#a32020':'#1a5c2e'}">
+        <button onclick="toggleModoEspecificoPartidas()" style="padding:6px 12px;font-size:11px;font-weight:800;border-radius:7px;cursor:pointer;border:1.5px solid ${partidasEspecificoModo?'#adc2db':'#1558a0'};background:${partidasEspecificoModo?'#fff':'#1558a0'};color:${partidasEspecificoModo?'#1558a0':'#fff'}">
           ${partidasEspecificoModo ? '✕ Cancelar selección' : '🧪 Añadir Específico aquí'}
         </button>
       </div>
@@ -10394,9 +10400,9 @@ function renderPartidasInvHTML(invId){
       </div>
     </div>
     ${partidasEspecificoModo && partidasEspecificoSeleccion.size>0 ? `
-      <div style="position:fixed;left:0;right:0;bottom:0;background:#0f5c4a;color:#fff;padding:.8rem 1.25rem;display:flex;justify-content:space-between;align-items:center;gap:10px;box-shadow:0 -4px 20px rgba(0,0,0,.25);z-index:50">
+      <div style="position:fixed;left:0;right:0;bottom:0;background:#1558a0;color:#fff;padding:.8rem 1.25rem;display:flex;justify-content:space-between;align-items:center;gap:10px;box-shadow:0 -4px 20px rgba(0,0,0,.25);z-index:50">
         <span style="font-size:13px;font-weight:800">${partidasEspecificoSeleccion.size} partida${partidasEspecificoSeleccion.size===1?'':'s'} seleccionada${partidasEspecificoSeleccion.size===1?'':'s'}</span>
-        <button onclick="abrirAplicarEspecificoAPartidas()" style="padding:9px 18px;font-size:12px;font-weight:800;background:#fff;color:#0f5c4a;border:none;border-radius:8px;cursor:pointer">Aplicar específico →</button>
+        <button onclick="abrirAplicarEspecificoAPartidas()" style="padding:9px 18px;font-size:12px;font-weight:800;background:#fff;color:#1558a0;border:none;border-radius:8px;cursor:pointer">Aplicar específico →</button>
       </div>` : ''}`;
 }
 function toggleModoEspecificoPartidas(){
@@ -10533,7 +10539,8 @@ async function mostrarHistorialPartida(id){
   const mo = getOrCreateOverlay('partidas-historial-overlay');
   mo.innerHTML = `
     <div style="background:#fff;border-radius:14px;max-width:640px;width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.3)">
-      <div style="background:linear-gradient(135deg,#0f5c4a,#1a9c78);color:#fff;padding:1.1rem 1.5rem;border-radius:14px 14px 0 0;position:sticky;top:0">
+      <div style="background:linear-gradient(120deg,#1558a0,#2678bc);color:#fff;padding:1rem 1.25rem;border-radius:14px 14px 0 0;position:sticky;top:0">
+        <div style="font-size:11px;font-weight:700;opacity:.9;margin-bottom:4px">Ficha e historial de partida</div>
         <div style="font-size:17px;font-weight:800">${escapar(c.partida)||'— Sin partida —'}</div>
         <div style="font-size:12px;opacity:.9;margin-top:2px">${escapar(c.clienteVariedad)||''}${tipoPlanta?' · '+escapar(tipoPlanta):''}</div>
         <div style="font-size:11px;opacity:.85;margin-top:2px">${c.fentrega?`📅 Entrega ${escapar(c.fentrega)} · `:''}INV ${escapar(c.invId)||'—'} · Día 1 (salida de Túnel): ${escapar(riegoDiaLabelCorto(diaDesde))}</div>
