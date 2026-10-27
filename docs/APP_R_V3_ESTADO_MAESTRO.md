@@ -1478,6 +1478,8 @@ El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en int
 
 **Siguiente paso ÚNICO:** usuario recarga `https://la-sala-app-test.vercel.app`, entra Tareas→Operativas y revisa VISUALMENTE en una tanda tarjeta de tarea ya existente, barra compacta de fecha/búsqueda/filtros, Nueva tarea (abrir sin crear) y Editar (abrir sin guardar), botones azules, aspecto móvil/escritorio. Si señala incidencia, corregirla sin volver a analizar circuitos cerrados. **PRD pendiente de autorización expresa.**
 
+**CIERRE EXPRESO DEL CHAT 27/10/2026:** el usuario solicita «fin de chat. recoge loq ue has hecho y seguimos». Se cierra en este punto, SIN aceptación funcional adicional de Operativas y SIN pedir más pruebas en este mismo chat. La siguiente conversación **empieza directamente por Operativas §0.120**, mostrando el enlace TEST para validación visual agrupada, no por Mantenimiento, QC o Plaguicidas. Último HEAD Vercel TEST constatado al cierre: `1a45a2cb3a5e9f4a70fecd67bc7ccebe910d3e12`, estado **READY**, rama `test/v1.0`. Último código funcional declarado en §0.120: `9a478e3a`; el MD y commits posteriores no autorizan PRD/main. No se han modificado datos en TEST. No realizar trabajo ni compromisos nuevos hasta que el usuario retome.
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).
