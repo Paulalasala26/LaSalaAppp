@@ -13,6 +13,11 @@
  // El detalle por enfermedad v3 persiste solo en los borradores históricos.
  let owner='',role='',drafts=new Map(),editor=null,active=null,startValue='',syncing=false;
  function requireSession(){
+  if(window.QCPhotoMainSession){
+   const state=window.QCPhotoMainSession();
+   if(!state||state.user!==owner||state.role!==role)
+    throw Error('La sesión ha cambiado. Borrador conservado en IndexedDB.');
+  }
   if(window.QCOfflineSessionGuard&&!window.QCOfflineSessionGuard.active())
    throw Error('La sesión ha cambiado. Borrador conservado; vuelve a iniciar sesión.');
  }
@@ -406,7 +411,8 @@
    auth=JSON.parse(localStorage.getItem('lasala-firebase-auth-v1')||'null');
    session=JSON.parse(localStorage.getItem('lasala-sesion-v1')||'null');
   }catch(_){throw Error('No hay una sesión válida. Inicia sesión de nuevo.');}
-  const sessionRole=localStorage.getItem('viguerapp-qc-offline-role-test-v1');
+  const sessionRole=window.QCPhotoMainSession?
+    window.QCPhotoMainSession()?.role:localStorage.getItem('viguerapp-qc-offline-role-test-v1');
   if(!auth?.refreshToken||auth.user!==owner||session?.user!==owner||sessionRole!==role)
    throw Error('La sesión ha cambiado. Conéctate y vuelve a iniciar sesión.');
   let token;
@@ -545,13 +551,13 @@
   const top=document.getElementById('status');
   if(top)top.textContent='✓ Sincronización QC confirmada; cantidades verificadas en servidor.';
  }
- async function syncDraft(ref,label,button,status){
+ async function syncDraft(ref,label,button,status,globalConfirmed=false){
   requireSession();
   if(syncing||editor)return;
   if(!refValid(ref)||!drafts.has(key(ref)))return;
   const d=drafts.get(key(ref));
   const review=d.status==='ENVIO_INCIERTO';
-  if(!confirm(review?
+  if(!globalConfirmed&&!confirm(review?
    'Este borrador tiene un envío anterior sin confirmar. ¿Consultar primero '+
    'el servidor? No se reenviará nada sin tu permiso.':
    '¿Enviar las cantidades del borrador de la partida '+ref.partida+
@@ -717,5 +723,39 @@
   if(editor){editor.remove();editor=null;}
   active=null;
  }
- window.QCOfflineDraftEditor=Object.freeze({init,decorate,renderSaved,lock});
+
+ // 0.113: lote centralizado, reusa los mismos GET/ETag/version/POST
+ // y el protocolo de intento incierto de syncDraft; nunca escribe directo.
+ function pendingGlobal(){return [...drafts.values()].filter(d=>
+   d&&d.key===key(d.ref)&&refValid(d.ref)&&
+   (d.status==='PENDIENTE_LOCAL'||d.status==='ENVIO_INCIERTO'))
+  .map(d=>({ref:{...d.ref},status:d.status}));}
+ async function syncGlobal(onProgress){
+  requireSession();
+  if(syncing||editor)throw Error('Cierra la edición QC antes de sincronizar.');
+  const queue=pendingGlobal();
+  let verified=0;const errors=[],blocked=[];
+  for(let i=0;i<queue.length;i++){
+    requireSession();
+    if(!navigator.onLine)break;
+    const item=queue[i];
+    const label=el('span'),button=el('button'),status=el('span');
+    const wrapper=el('div');const parent=el('div');parent.append(wrapper);wrapper.append(button);
+    onProgress?.('Inspección '+(i+1)+'/'+queue.length+' · '+item.ref.partida);
+    try{
+      await syncDraft(item.ref,label,button,status,true);
+      if(!drafts.has(key(item.ref)))verified++;
+      else{
+        blocked.push(item.ref.id);
+        errors.push(item.ref.partida+': '+(status.textContent||'Pendiente de revisión'));
+      }
+    }catch(e){
+      blocked.push(item.ref.id);
+      errors.push(item.ref.partida+': '+(e?.message||'Error de sincronización'));
+    }
+  }
+  return {total:queue.length,verified,blocked,errors,remaining:pendingGlobal().length};
+ }
+
+ window.QCOfflineDraftEditor=Object.freeze({init,decorate,renderSaved,lock,pendingGlobal,syncGlobal});
 })();
