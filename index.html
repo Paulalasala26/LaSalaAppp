@@ -2692,7 +2692,8 @@ function archivoMantenimientoRegistros(){
 function renderTareaArchivoConsultable(t){
  const esc=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
  const origen={manual:'Manual',riego:'Riego',especificos:'Específicos',pistola:'Pistola',mantenimiento:'Mantenimiento',sin_origen:'Antiguo'}[tareaOrigenGestion(t)]||'Antiguo';
- const completada=t.estado==='completada',estado=completada?'Completada':t.estado==='anulada'?'Anulada':'Archivada';
+ const completada=t.estado==='completada';
+ const estado=completada?'Completada':tareaOrigenGestion(t)==='mantenimiento'&&t.archivadoEn?'Archivada':t.estado==='anulada'?'Anulada':'Archivada';
  const lugar=invCallesLabelDeTarea(t);
  const meta=['<span class="op-origen">'+esc(origen)+'</span>',
    '<span><i class="ti ti-calendar"></i> '+esc(t.fechaISO||'Sin fecha')+'</span>',
