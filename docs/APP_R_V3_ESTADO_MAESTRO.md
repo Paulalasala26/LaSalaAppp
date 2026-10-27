@@ -1570,6 +1570,20 @@ El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en int
 
 **Pendiente:** UAT visual y funcional del usuario en TEST en escritorio y móvil: navegación Sala→INV→Semana, desplazamiento horizontal INV, apertura de ficha e historial, botones de mapa, desplazamiento tras seleccionar/mover y contextual Específico. No declarar aceptación humana antes de confirmación. Siguiente fase de rediseño, si se autoriza, consolidar acciones en ficha **sin** reescribir modelo QC.
 
+## 0.128. Partidas — corrección de apertura vacía y cabecera recortada (27/10/2026) — IMPLEMENTADO TEST, UAT PENDIENTE
+
+**Incidencia observada por usuario (captura 675×449):** en vista Partidas se veía «Mapa de ocupación», búsqueda, Sincronizar/Deshacer/Rehacer/Recuperar y el mensaje «Elige un invernadero arriba», sin ocupación en pantalla; solicita corregir el «mejunje».
+
+**Diagnóstico:** `partidasInvSel` se inicializaba `null` y abrir `showPartidasModule` no seleccionaba ningún INV automáticamente. Con la reordenación §0.127 la cabecera también podía consumir demasiada altura y quedar parcialmente fuera de la zona visible en ventanas pequeñas.
+
+**Corrección en `index.html` TEST:** commit `e951ec389dec07fa528aed799caa4f8b7559b235`. `partidasIdsInvDeSala` mantiene el catálogo real de cada sala; `partidasInvInicialDeSala` selecciona el primer INV de la sala que tenga partidas Túnel visibles en la semana seleccionada y, si ninguno las tiene, el primer INV configurado. Se aplica al entrar (conserva selección anterior si es válida) y al cambiar de sala; los banners de Específicos de ese INV se cargan por la ruta preexistente. **No se modifica automáticamente la semana actual.**
+
+**Interfaz:** overlay Partidas alineado a toda la superficie disponible (100% de alto/ancho, sin centrar un panel de 100vh); cabecera y selectores agrupados en zona superior desplazable con altura máxima 62% para proteger el área de mapa en ventanas bajas; salas en una sola tira horizontal desplazable; zona de mapa con `min-height:0` y scroll propio; contador de partidas únicas del INV visible. Si un INV seleccionado no tiene partidas en la semana, muestra mensaje específico y mantiene el mapa/calles disponible. Eliminado el mensaje genérico inicial de no haber seleccionado INV.
+
+**Verificaciones sin escribir datos:** cinco scripts inline sintácticamente válidos; ejecución simulada de `renderPartidasMapaContent` generó HTML con 16 apertura/cierre `div` balanceadas, selección Sala/INV, barra desplazable, mapa y contador de 2 partidas en fixture; selección inicial eligió INV 2a con ocupación y el primero sin ocupación en escenario separado. Commit GitHub y alias Vercel TEST READY confirmados antes de este asiento. Persistencia, Riego, QC, Carga, Plaguicidas, Tareas, fichas, operaciones de movimientos y Específicos **no modificados**.
+
+**Pendiente:** validación visual/funcional del usuario en TEST a tamaño habitual y móvil. Entrar directamente en Partidas, comprobar que se ve el mapa y el selector, navegar sala/INV/semana y abrir ficha. No dar UAT por validada antes de confirmación. `main` y PRD intactos.
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).
