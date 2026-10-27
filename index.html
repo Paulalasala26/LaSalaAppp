@@ -153,6 +153,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .avisos-modulo-grupo{width:100%;max-width:540px;margin:0 auto;display:flex;flex-direction:column;gap:26px;}
 .avisos-modulo-titulo{font-size:14px;font-weight:800;color:#173d6b;margin-bottom:2px;}
 </style>
+<link rel="stylesheet" href="assets/qc-sync-global.css?v=113">
 <!-- Diagnóstico RTDB opcional: activo únicamente con ?fbdiag=1 en TEST -->
 <script src="assets/firebase-diagnostics.js"></script>
 <link rel="stylesheet" href="assets/control-qc-operativo.css?v=112">
@@ -165,7 +166,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 <script src="assets/control-qc-operativo.js?v=112" defer></script>
 <script src="assets/control-ui-empty.js?v=080" defer></script>
 <script src="assets/qc-offline-operarios-store.js" defer></script>
-<script src="assets/qc-offline-operarios-photos.js?v=111s" defer></script>
+<script src="assets/qc-offline-operarios-photos.js?v=113" defer></script>
+<script src="assets/qc-offline-operarios-drafts.js?v=113" defer></script>
+<script src="assets/qc-sync-global.js?v=113" defer></script>
 </head>
 <body>
 
@@ -221,10 +224,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
   <div class="topbar">
     <div class="topbar-brand">ViguerAPP</div>
     <div class="topbar-right">
+      <div id="qc-global-sync-anchor"></div>
       <a id="admin-settings-link" class="logout-btn" href="/admin/" style="display:none" aria-label="Abrir Backoffice de usuarios" title="Administración de usuarios"><i class="ti ti-settings" style="font-size:22px" aria-hidden="true"></i></a>
       <button type="button" class="logout-btn" onclick="doLogout()" aria-label="Cerrar sesión" title="Cerrar sesión"><i class="ti ti-door-exit" style="font-size:23px" aria-hidden="true"></i></button>
     </div>
   </div>
+  <div id="qc-global-sync-panel"></div>
   <!-- HOME -->
   <div id="page-home" class="pg" style="display:block">
     <div id="page-home-inner" style="max-width:none;width:100%;margin:0 auto;padding:2rem clamp(1.25rem,4vw,3rem)">
@@ -692,6 +697,7 @@ async function entrarApp(user, roleHint){
   const name=user[0]+user.slice(1).toLowerCase();
 
   applyRoleHomeUI();
+  window.QCGlobalSync?.start?.(currentUser,currentUserRole);
   if(currentUserRole==='ADMIN'){
     void abrirRegistroRiegoDesdeBackoffice();
     void abrirControlDesdeBackoffice();
@@ -757,6 +763,7 @@ function showLoginAlert(msg,type){
   el.style.border='1px solid';el.style.display='block';
 }
 function doLogout(){
+  window.QCGlobalSync?.stop?.();
   // No dejar conexiones con el token de la sesión anterior.
   cerrarRiegoSync();
   currentUser=null;currentUserRole=null;
@@ -7898,18 +7905,10 @@ async function listarFotosInspeccionQC(id){
 }
 async function agregarFotosInspeccionQC(input,id){
   await qcPhotoReady();
-  const ref=qcPhotoRef(id);
-  const count=await window.QCOfflinePhotos.galleryCapture(ref,input.files);
+  const count=await window.QCOfflinePhotos.galleryCapture(qcPhotoRef(id),input.files);
   showToast('✓ '+count+' foto(s) guardadas en este dispositivo');
-  let sent=false;
-  if(navigator.onLine!==false){
-    // Conservar el contrato anterior: requiere confirmación explícita
-    // antes del POST real a SharePoint; no sincronizar a escondidas.
-    const report=await window.QCOfflinePhotos.gallerySend(ref);
-    sent=report.includes('verificada(s) en SharePoint');
-    if(report&&!sent)showToast(report);
-  }
-  return {count,sent};
+  window.dispatchEvent(new Event('qc-local-updated'));
+  return {count,sent:false};
 }
 async function enviarFotosPendientesQC(id){
   await qcPhotoReady();
@@ -7957,7 +7956,6 @@ function abrirMedicionesControl(id){
     listPhotos:()=>listarFotosInspeccionQC(c.id),
     openPhoto:photo=>ampliarFotoInspeccionQC(photo),
     uploadPhoto:input=>agregarFotosInspeccionQC(input,c.id),
-    sendPhotos:()=>enviarFotosPendientesQC(c.id),
     deletePhoto:photoId=>eliminarFotoInspeccionQC(c.id,photoId)
   });
 }
