@@ -154,6 +154,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .avisos-modulo-titulo{font-size:14px;font-weight:800;color:#173d6b;margin-bottom:2px;}
 
 /* Mantenimiento compacto: estilos limitados a este módulo, sin modificar QC, login ni otras pantallas */
+/* Selector único para asignación operativa; sin multiselección. */
+.mant-asignacion-simple{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+.mant-asignacion-simple select{flex:1;min-width:125px;min-height:36px;max-width:100%;padding:7px 9px;border:1px solid #cddced;border-radius:8px;background:#fff;color:#1558a0;font-size:12px}
+.mant-asignacion-simple .mant-btn{flex:0 0 auto}
+
 .mant-ui{--mant-azul:#1558a0;--mant-borde:#cddced;--mant-fondo:#f6f9fe;color:#243449;font-size:13px}
 .mant-ui button,.mant-ui input,.mant-ui select{font:inherit}
 .mant-cabecera,.mant-form-titulo{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
@@ -1748,7 +1753,7 @@ function categoriaFechaTarea(t){
 const MANTENIMIENTO_KEY = 'lasala-mantenimiento-v1';
 function ticketMantenimientoArchivado(t){return !!(t&&t.archivadaEn);}
 let mantenimientoData = [];
-let mantSeleccionadas = new Set();
+
 const MANT_ESTADOS = [
   {key:'sin_asignar', label:'Sin asignar', color:'#a32020', bg:'#fdf0f0', borde:'#e8b0b0'},
   {key:'asignado', label:'Asignado', color:'#a35d00', bg:'#fff8e1', borde:'#f5c976'},
@@ -2088,7 +2093,7 @@ function cambiarBusquedaMantenimiento(input){
   if(nuevo){nuevo.focus();try{nuevo.setSelectionRange(pos,pos)}catch(e){}}
 }
 function filtrarEstadoMantenimiento(valor){
-  mantEstadoActual=['todos','pendiente','en_proceso','cerrado'].includes(valor)?valor:'todos';
+  mantEstadoActual=['todos','pendiente','en_proceso'].includes(valor)?valor:'todos';
   renderTareasContent(document.getElementById('tareas-overlay'),true);
 }
 function actualizarNuevoTicketMantenimiento(){
@@ -2103,7 +2108,7 @@ function actualizarNuevoTicketMantenimiento(){
   if(btn)btn.disabled=!nmTrabajoBulkSel||marcados.length===0;
 }
 function renderMantenimientoColgandoHTML(){
-  const activos=mantenimientoData.filter(t=>!ticketMantenimientoArchivado(t));
+  const activos=mantenimientoData.filter(t=>!ticketMantenimientoArchivado(t)&&t.estado!=='cerrado');
   const cuenta=(estados)=>activos.filter(t=>estados.includes(t.estado)).length;
   const buscar=mantBusquedaActual.toLocaleLowerCase('es').trim();
   const visibles=activos.filter(t=>{
@@ -2116,8 +2121,7 @@ function renderMantenimientoColgandoHTML(){
   });
   const grupos=[
     {estados:['sin_asignar','asignado'],titulo:'Pendientes',nombre:'pendiente',icon:'ti-clock'},
-    {estados:['en_proceso'],titulo:'En curso',nombre:'curso',icon:'ti-player-play'},
-    {estados:['cerrado'],titulo:'Completados',nombre:'completo',icon:'ti-check'}
+    {estados:['en_proceso'],titulo:'En curso',nombre:'curso',icon:'ti-player-play'}
   ];
   const bloques=grupos.map(g=>{
     const items=visibles.filter(t=>g.estados.includes(t.estado));
@@ -2127,17 +2131,7 @@ function renderMantenimientoColgandoHTML(){
       <div class="mant-grid">${items.map(t=>buildTarjetaMantenimiento(t,t.estado==='sin_asignar')).join('')}</div>
     </section>`;
   }).join('');
-  const haySinAsignar=visibles.some(t=>t.estado==='sin_asignar');
-  const bulk=haySinAsignar&&visibles.filter(t=>t.estado==='sin_asignar').length>1?`
-    <details class="mant-masivo"><summary><i class="ti ti-users"></i> Asignación masiva</summary>
-      <div class="mant-masivo-interior">
-        <p>Selecciona las personas que se aplicarán a los tickets sin asignar visibles.</p>
-        <div class="mant-personas">
-          ${Object.keys(USER_ROLES).map(u=>`<label><input type="checkbox" class="mant-persona-todas-chk" onchange="marcarPersonaEnTodas(this.value,this.checked)" value="${mantHTML(u)}"> ${mantHTML(u)}</label>`).join('')}
-        </div>
-        <button id="mant-btn-confirmar-todas" class="mant-btn mant-btn-principal" onclick="confirmarAsignacionesMantenimiento()" disabled>Guardar asignaciones</button>
-      </div>
-    </details>`:'';
+
   return `<div class="mant-ui">
     <div class="mant-cabecera">
       <div><h2>Mantenimiento</h2><div class="mant-resumen">${activos.length} tickets activos</div></div>
@@ -2150,11 +2144,9 @@ function renderMantenimientoColgandoHTML(){
         <option value="todos" ${mantEstadoActual==='todos'?'selected':''}>Todos (${activos.length})</option>
         <option value="pendiente" ${mantEstadoActual==='pendiente'?'selected':''}>Pendientes (${cuenta(['sin_asignar','asignado'])})</option>
         <option value="en_proceso" ${mantEstadoActual==='en_proceso'?'selected':''}>En curso (${cuenta(['en_proceso'])})</option>
-        <option value="cerrado" ${mantEstadoActual==='cerrado'?'selected':''}>Completados (${cuenta(['cerrado'])})</option>
       </select>
     </div>
-    ${bulk}
-    ${bloques||'<div class="mant-vacio">No hay tickets para este filtro.</div>'}
+    ${bloques||'<div class="mant-vacio">No hay tickets activos para este filtro.</div>'}
   </div>`;
 }
 // Tarjeta de un ticket: arrastrable (ratón, escritorio) + un desplegable
@@ -2177,18 +2169,14 @@ function buildTarjetaMantenimiento(t, mostrarAsignarPersonas){
   const badgeClass={sin_asignar:'pendiente',asignado:'asignado',en_proceso:'curso',cerrado:'completo'}[t.estado]||'pendiente';
   const personas=(t.asignados||[]).length?mantHTML(t.asignados.join(', ')):'Sin asignar';
   const selector=mostrarAsignarPersonas?`
-    <details class="mant-asignacion">
-      <summary><i class="ti ti-user-plus"></i> Asignar personal</summary>
-      <div class="mant-asignacion-contenido">
-        <div class="mant-personas">
-          ${Object.keys(USER_ROLES).map(u=>`<label><input class="mant-persona-chk" type="checkbox" data-ticket="${id}" value="${mantHTML(u)}" onchange="actualizarBotonConfirmarMantenimiento()"> ${mantHTML(u)}</label>`).join('')}
-        </div>
-        <div class="mant-asignacion-pie">
-          <span data-mant-selected-for="${id}">0 personas</span>
-          <button type="button" class="mant-btn mant-btn-principal mant-asignar-individual" data-ticket="${id}" onclick="confirmarAsignacionesMantenimiento('${id}')" disabled>Asignar</button>
-        </div>
-      </div>
-    </details>`:'';
+    <div class="mant-asignacion-simple">
+      <select aria-label="Operario para ${mantHTML(t.titulo)}" class="mant-asignado-select" data-ticket="${id}">
+        <option value="">Seleccionar operario…</option>
+        ${Object.keys(USER_ROLES).filter(u=>USER_ROLES[u]==='PEON').map(u=>`<option value="${mantHTML(u)}">${mantHTML(u)}</option>`).join('')}
+      </select>
+      <button type="button" class="mant-btn mant-btn-principal" onclick="confirmarAsignacionesMantenimiento('${id}')"><i class="ti ti-user-check"></i> Asignar</button>
+    </div>`:'';
+
   const devolver=t.estado==='asignado'?`<button type="button" class="mant-btn mant-btn-secundario" onclick="moverTicketMantenimientoDesdeSelect('${id}','sin_asignar')"><i class="ti ti-rotate-ccw"></i> Devolver</button>`:'';
   return `<article class="mant-ticket">
     <div class="mant-ticket-superior">
@@ -2210,18 +2198,7 @@ function buildTarjetaMantenimiento(t, mostrarAsignarPersonas){
     </div>
   </article>`;
 }
-function toggleSeleccionMantenimiento(id, checked, el){
-  if(checked) mantSeleccionadas.add(id); else mantSeleccionadas.delete(id);
-  const card = el.closest('.mant-tarjeta');
-  if(card) card.style.borderColor = checked ? '#1558a0' : '#ddd';
-}
-// Arrastrar una tarjeta que forma parte de una selección de 2 o más mueve
-// TODAS las seleccionadas juntas; si no, se mueve solo esa — igual que
-// describe la guía de referencia.
-function arrastrarTicketMantenimiento(ev, id){
-  const idsAMover = (mantSeleccionadas.has(id) && mantSeleccionadas.size>1) ? Array.from(mantSeleccionadas) : [id];
-  ev.dataTransfer.setData('text/plain', idsAMover.join(','));
-}
+
 // Coordinación solo puede devolver una asignación a la cola; no puede simular un inicio ni un cierre firmado.
 async function devolverMantenimientoASinAsignar(ids){
   if(!['ADMIN','TECNICO'].includes(currentUserRole))return false;
@@ -2240,78 +2217,57 @@ async function devolverMantenimientoASinAsignar(ids){
     return false;
   }
   mantenimientoData=tx.value;
-  unicos.forEach(id=>mantSeleccionadas.delete(id));
   logHistorial(`Devolvió ${unicos.length} ticket(s) de mantenimiento a Sin asignar`);
   showToast(`✓ ${unicos.length} ticket(s) sin asignar`);
   renderTareasContent(document.getElementById('tareas-overlay'),true);
   return true;
 }
-async function soltarTicketMantenimiento(ev, nuevoEstado){
-  ev.preventDefault();
-  if(nuevoEstado!=='sin_asignar'){showToast('Inicio y cierre de mantenimiento requieren ejecución del peón.');return;}
-  const ids=(ev.dataTransfer.getData('text/plain')||'').split(',').filter(Boolean);
-  return devolverMantenimientoASinAsignar(ids);
-}
+
 async function moverTicketMantenimientoDesdeSelect(id,nuevoEstado){
   if(!nuevoEstado)return;
   if(nuevoEstado!=='sin_asignar'){showToast('Inicio y cierre de mantenimiento requieren ejecución del peón.');return;}
   return devolverMantenimientoASinAsignar([id]);
 }
-// "Marcar en todas" premarca la misma persona en TODAS las tarjetas visibles
-// de "Sin asignar" (el coordinador puede corregir alguna a mano antes de
-// confirmar); "Confirmar todas" empieza desactivado y solo se activa cuando
-// hay algo marcado de verdad en alguna tarjeta.
-function marcarPersonaEnTodas(persona, checked){
-  document.querySelectorAll(`.mant-persona-chk[value="${persona}"]`).forEach(chk=>{ chk.checked = checked; });
-  actualizarBotonConfirmarMantenimiento();
-}
-function actualizarBotonConfirmarMantenimiento(){
-  const checked=Array.from(document.querySelectorAll('.mant-persona-chk:checked'));
-  const bulk=document.getElementById('mant-btn-confirmar-todas');
-  if(bulk)bulk.disabled=!checked.length;
-  document.querySelectorAll('.mant-asignar-individual').forEach(btn=>{
-    const cuenta=checked.filter(el=>el.dataset.ticket===btn.dataset.ticket).length;
-    btn.disabled=!cuenta;
-  });
-  document.querySelectorAll('[data-mant-selected-for]').forEach(label=>{
-    const cuenta=checked.filter(el=>el.dataset.ticket===label.dataset.mantSelectedFor).length;
-    label.textContent=cuenta+' persona'+(cuenta===1?'':'s');
-  });
-}
-// Asigna en un solo guardado todos los tickets que tengan alguna persona
-// marcada, y pasa cada uno a "Asignado" — cada persona que reciba algo
-// nuevo se marca visto:false una sola vez (aunque le toquen varios tickets
-// del lote), para un aviso agrupado en vez de uno por ticket.
-async function confirmarAsignacionesMantenimiento(soloId){
-  if(!['ADMIN','TECNICO'].includes(currentUserRole))return;
-  const porTicket={};
-  document.querySelectorAll('.mant-persona-chk:checked').forEach(chk=>{
-    if(soloId&&chk.dataset.ticket!==soloId)return;
-    (porTicket[chk.dataset.ticket]=porTicket[chk.dataset.ticket]||[]).push(chk.value);
-  });
-  const ids=Object.keys(porTicket);
-  if(!ids.length){showToast('Selecciona al menos una persona.');return;}
-  const tx=await actualizarStorageJsonConEtag(MANTENIMIENTO_KEY,[],cloud=>{
-    if(!Array.isArray(cloud))throw Error('Mantenimiento: formato inválido');
-    const encontrados=cloud.filter(t=>ids.includes(t.id));
-    if(encontrados.length!==ids.length||encontrados.some(t=>ticketMantenimientoArchivado(t)||t.estado!=='sin_asignar'))return undefined;
-    return cloud.map(t=>{
-      if(!ids.includes(t.id))return t;
-      const personas=[...new Set(porTicket[t.id])];
-      return {...t,estado:'asignado',asignados:personas,visto:Object.fromEntries(personas.map(u=>[u,false]))};
-    });
-  });
-  if(!tx.ok||tx.noChange){
-    await loadMantenimientoData();
-    showToast('Asignación no confirmada. Revisa el estado del ticket.');
-    renderTareasContent(document.getElementById('tareas-overlay'),true);
-    return;
+// Asignación individual de mantenimiento: un único PEÓN por ticket, con ETag.
+async function confirmarAsignacionesMantenimiento(id){
+  if(!['ADMIN','TECNICO'].includes(currentUserRole))return false;
+  const selector=Array.from(document.querySelectorAll('.mant-asignado-select')).find(el=>el.dataset.ticket===id);
+  const operario=selector?.value||'';
+  if(!operario||USER_ROLES[operario]!=='PEON'){
+    showToast('Selecciona un operario válido.');
+    return false;
   }
-  mantenimientoData=tx.value;
-  logHistorial(`Asignó ${ids.length} ticket(s) de mantenimiento`);
-  showToast(ids.length===1?'✓ Ticket asignado':`✓ ${ids.length} tickets asignados`);
-  renderTareasContent(document.getElementById('tareas-overlay'),true);
+  const btn=selector?.nextElementSibling;
+  if(btn?.disabled)return false;
+  if(btn)btn.disabled=true;
+  try{
+    const tx=await actualizarStorageJsonConEtag(MANTENIMIENTO_KEY,[],cloud=>{
+      if(!Array.isArray(cloud))throw Error('Mantenimiento: formato inválido');
+      const ticket=cloud.find(t=>String(t.id)===String(id));
+      if(!ticket||ticketMantenimientoArchivado(ticket)||ticket.estado!=='sin_asignar')return undefined;
+      return cloud.map(t=>String(t.id)===String(id)
+        ?{...t,estado:'asignado',asignados:[operario],visto:{[operario]:false}}
+        :t);
+    });
+    if(!tx.ok||tx.noChange){
+      await loadMantenimientoData();
+      showToast('Asignación no confirmada. Revisa el estado del ticket.');
+      renderTareasContent(document.getElementById('tareas-overlay'),true);
+      return false;
+    }
+    mantenimientoData=tx.value;
+    logHistorial('Asignó mantenimiento a '+operario);
+    showToast('✓ Ticket asignado a '+operario);
+    renderTareasContent(document.getElementById('tareas-overlay'),true);
+    return true;
+  }catch(e){
+    showToast('No se ha podido asignar el ticket.');
+    return false;
+  }finally{
+    if(btn?.isConnected)btn.disabled=false;
+  }
 }
+
 let nmTrabajoBulkSel = null;
 function showNuevoTicketMantenimientoForm(){
   const wrap=document.getElementById('nuevo-ticket-mant-wrap');
@@ -2440,7 +2396,6 @@ async function archivarTicketMantenimientoConfirmado(id,titulo){
   });
   if(!tx.ok){avisarFalloGuardado();return false;}
   mantenimientoData=tx.value;
-  mantSeleccionadas.delete(id);
   if(tx.noChange){
     showToast('El ticket ya no está activo.');
     renderTareasContent(document.getElementById('tareas-overlay'),true);
