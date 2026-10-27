@@ -30,6 +30,7 @@
     sessionLocked=true;
     window.QCOfflineDraftEditor?.lock?.();
     window.QCOfflinePhotos?.lock?.();
+    window.QCGlobalSync?.stop?.();
     slices=[];
     for(const id of ['area','draft-rescue','photo-rescue','photo-pending']){
       const node=$(id);
@@ -109,6 +110,8 @@
         await window.QCOfflineDraftEditor.init(auth.user,role):0;
       const localPhotoCount=window.QCOfflinePhotos?
         await window.QCOfflinePhotos.init(auth.user,role):0;
+      if(!ensureSession())return;
+      await window.QCGlobalSync?.start?.(auth.user,role);
       if(!ensureSession())return;
       // La copia de partidas caduca a las 24 h, NO los borradores: si el
       // registro exacto ya no está en ninguna copia disponible, mostrar
