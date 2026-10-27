@@ -2639,7 +2639,23 @@ function abrirJornadaPistolaDesdeTareas(id){
   overlay.style.display='flex';
 }
 function imprimirTareasGestorActivas(){
- showImprimirTareasSelector(tareasData.filter(t=>USER_ROLES[t.asignadoA]==='PEON'&&!esTareaArchivada(t)&&t.estado!=='completada'&&!t.origenFito?.serieId&&t.categoria!=='fumigacion'&&t.categoria!=='especifico'));
+ // Se imprimen únicamente partes operativos activos de PEÓN; los partes de
+ // Pistola y Específicos mantienen su propio circuito e impresión.
+ const f=tareasGestorFiltros;
+ const buscar=String(f.busqueda||'').toLocaleLowerCase('es').trim();
+ const tareas=tareasData.filter(t=>{
+   if(USER_ROLES[t.asignadoA]!=='PEON'||esTareaArchivada(t)||['completada','anulada'].includes(t.estado))return false;
+   if(t.origenFito?.serieId||t.categoria==='fumigacion'||t.categoria==='especifico')return false;
+   // Lo impreso respeta los filtros visibles de Operativas.
+   if(buscar&&![t.titulo,t.descripcion,t.inv,t.calles,t.fechaISO,t.asignadoA,t.horario,tareaOrigenGestion(t)].join(' ').toLocaleLowerCase('es').includes(buscar))return false;
+   if(f.estado!=='todas'&&t.estado!==f.estado)return false;
+   if(f.origen!=='todos'&&tareaOrigenGestion(t)!==f.origen)return false;
+   if(f.sala!=='todas'&&salaDeInv(t.inv)!==f.sala)return false;
+   if(f.asignado!=='todos'&&t.asignadoA!==f.asignado)return false;
+   return !f.fecha||t.fechaISO===f.fecha;
+ });
+ if(!tareas.length){showToast('No hay partes operativos imprimibles con estos filtros');return;}
+ showImprimirTareasSelector(tareas,'operativas');
 }
 async function descargarRespaldoTareas(){
  if(currentUserRole!=='ADMIN')return;
@@ -2712,7 +2728,6 @@ function renderTareasGestorFullScreen(overlay){
  </div>`:'';
  const toolbar=vista==='operativas'?`<div class="op-toolbar">
    ${action('showNuevaTareaForm','ti-plus','Nueva tarea')}
-   ${action('imprimirTareasGestorActivas','ti-printer','Imprimir tareas')}
  </div><div id="nueva-tarea-form-wrap"></div>`:'';
  const batch=vista==='operativas'&&active.some(t=>t.estado==='pendiente'&&tareaOrigenGestion(t)==='manual')?`<div class="op-batch">
    <span style="font-weight:700;color:#1558a0">Reasignar marcadas</span>
@@ -2731,7 +2746,10 @@ function renderTareasGestorFullScreen(overlay){
  overlay.innerHTML=`<div style="background:#f7faff;width:100vw;height:100vh;max-width:100vw;overflow:hidden;display:flex;flex-direction:column">
    <div style="background:var(--grad-blue);padding:7px 11px;color:#fff;display:flex;align-items:center;justify-content:space-between">
      <strong style="font-size:16px"><i class="ti ti-clipboard-list"></i> Tareas</strong>
-     <button onclick="document.getElementById('tareas-overlay').style.display='none'" style="background:#1558a0;color:#fff;border:0;border-radius:6px;width:34px;height:34px;cursor:pointer" aria-label="Cerrar"><i class="ti ti-x"></i></button>
+     <div style="display:flex;align-items:center;gap:6px">
+       ${vista==='operativas'?'<button type="button" onclick="imprimirTareasGestorActivas()" style="background:#1558a0;color:#fff;border:1px solid #8eb1d5;border-radius:7px;width:34px;height:34px;cursor:pointer" title="Imprimir partes de Operativas con los filtros actuales" aria-label="Imprimir tareas"><i class="ti ti-printer" style="font-size:18px"></i></button>':''}
+       <button type="button" onclick="document.getElementById('tareas-overlay').style.display='none'" style="background:#1558a0;color:#fff;border:0;border-radius:6px;width:34px;height:34px;cursor:pointer" aria-label="Cerrar"><i class="ti ti-x"></i></button>
+     </div>
    </div>
    <div style="padding:6px 9px;background:#1558a0;display:flex;gap:6px;box-sizing:border-box;width:100%">
      ${nav('operativas','Operativas',vista==='operativas'?filtered.length:tareasData.filter(t=>!esTareaArchivada(t)).length,'ti-list-check')}
@@ -2937,10 +2955,13 @@ function fechaCompletaImprimir(t){
 // las fechas que de verdad tengan las tareas pasadas (no hay un calendario
 // fijo como en Riego/Plaguicidas). Guarda los ids en el propio overlay para
 // no depender de variables globales que puedan cambiar mientras está abierto.
-function showImprimirTareasSelector(tareas){
+function showImprimirTareasSelector(tareas,origen='peon'){
   if(!tareas.length){ showToast('No hay tareas para imprimir'); return; }
+  const esOperativas=origen==='operativas';
   const fechas = [...new Set(tareas.map(t=>t.fechaISO).filter(Boolean))].sort();
   const hoyISO = fechaLocalISO(new Date());
+  const fechaInicial=fechas.includes(hoyISO)?hoyISO:fechas[0];
+  const salasDisponibles=[...new Set(tareas.map(t=>t.inv?salaDeInv(t.inv):null).filter(Boolean))].sort();
   const mo = getOrCreateOverlay('imprimir-tareas-selector-overlay');
   mo.dataset.itIds = JSON.stringify(tareas.map(t=>t.id));
   const labelFecha = f => {
@@ -2949,64 +2970,60 @@ function showImprimirTareasSelector(tareas){
     return s.charAt(0).toUpperCase()+s.slice(1);
   };
   mo.innerHTML = `
-    <div style="background:#fff;border-radius:14px;max-width:380px;width:100%;padding:1.5rem;box-shadow:0 8px 40px rgba(0,0,0,.3)">
-      <div style="font-size:15px;font-weight:800;margin-bottom:12px">Imprimir tareas</div>
+    <div style="background:#fff;border-radius:12px;max-width:420px;width:100%;padding:16px;box-shadow:0 8px 40px rgba(0,0,0,.3)">
+      <div style="font-size:15px;font-weight:800;margin-bottom:5px;color:#1558a0">Imprimir tareas · ${tareas.length}</div>
+      ${esOperativas?'<div style="font-size:11px;color:#55687e;line-height:1.4;margin-bottom:12px">Partes activos asignados a PEÓN según los filtros. Pistola y Específicos tienen impresión propia.</div>':''}
       ${fechas.length ? `
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
         <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Día a imprimir</label>
         <label style="font-size:11px;font-weight:600;display:flex;align-items:center;gap:4px;cursor:pointer">
-          <input type="checkbox" onchange="document.querySelectorAll('.it-dia-chk').forEach(c=>c.checked=this.checked)"> Todos
+          <input type="checkbox" onchange="document.querySelectorAll('#imprimir-tareas-selector-overlay .it-dia-chk').forEach(c=>c.checked=this.checked);actualizarConteoImprimirTareas()"> Todos
         </label>
       </div>
-      <div style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:7px;padding:8px;margin-bottom:14px">
+      <div style="display:flex;flex-direction:column;gap:6px;max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:7px;padding:8px;margin-bottom:14px">
         ${fechas.map(f=>`
           <label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer">
-            <input type="checkbox" class="it-dia-chk" value="${f}" ${f===hoyISO?'checked':''}> ${labelFecha(f)}
+            <input type="checkbox" class="it-dia-chk" value="${f}" onchange="actualizarConteoImprimirTareas()" ${f===fechaInicial?'checked':''}> ${labelFecha(f)}
           </label>`).join('')}
       </div>` : `
       <div style="font-size:12px;color:var(--muted);font-style:italic;margin-bottom:14px">Estas tareas no tienen fecha asignada — se imprimirán todas.</div>`}
-      <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Sala</label>
-      <div style="display:flex;gap:14px;margin-bottom:14px">
-        <label style="font-size:12px;font-weight:600;display:flex;align-items:center;gap:5px;cursor:pointer">
-          <input type="checkbox" class="it-sala-chk" value="sala1" checked> Sala 1
-        </label>
-        <label style="font-size:12px;font-weight:600;display:flex;align-items:center;gap:5px;cursor:pointer">
-          <input type="checkbox" class="it-sala-chk" value="sala2" checked> Sala 2
-        </label>
-        <label style="font-size:12px;font-weight:600;display:flex;align-items:center;gap:5px;cursor:pointer">
-          <input type="checkbox" class="it-sala-chk" value="sala3" checked> Sala 3
-        </label>
-        <label style="font-size:12px;font-weight:600;display:flex;align-items:center;gap:5px;cursor:pointer">
-          <input type="checkbox" class="it-sala-chk" value="sala4" checked> Sala 4
-        </label>
-        <label style="font-size:12px;font-weight:600;display:flex;align-items:center;gap:5px;cursor:pointer">
-          <input type="checkbox" class="it-sala-chk" value="sala5" checked> Sala 5
-        </label>
-      </div>
+      ${salasDisponibles.length?'<label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:5px">Salas</label><div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">'+salasDisponibles.map(sala=>'<label style="font-size:12px;display:flex;align-items:center;gap:4px;border:1px solid #cbd9e9;border-radius:6px;padding:5px 8px;cursor:pointer"><input type="checkbox" class="it-sala-chk" value="'+sala+'" onchange="actualizarConteoImprimirTareas()" checked> Sala '+sala.slice(-1)+'</label>').join('')+'</div>':''}
       <div style="display:flex;justify-content:flex-end;gap:10px">
-        <button onclick="this.closest('.modal-overlay-dyn').style.display='none'" style="padding:9px 16px;font-size:12px;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:7px;cursor:pointer">Cancelar</button>
-        <button onclick="confirmarImprimirTareasSeleccionadas()" style="padding:9px 18px;font-size:12px;font-weight:800;background:#1558a0;color:#fff;border:none;border-radius:7px;cursor:pointer">Imprimir</button>
+        <button type="button" onclick="this.closest('.modal-overlay-dyn').style.display='none'" style="padding:8px 12px;font-size:12px;background:#1558a0;color:#fff;border:0;border-radius:7px;cursor:pointer">Cancelar</button>
+        <button type="button" id="it-imprimir-confirmar" onclick="confirmarImprimirTareasSeleccionadas()" style="padding:8px 12px;font-size:12px;font-weight:800;background:#1558a0;color:#fff;border:0;border-radius:7px;cursor:pointer">Imprimir (<span id="it-contador">0</span>)</button>
       </div>
     </div>`;
   mo.style.display='flex';
+  actualizarConteoImprimirTareas();
+}
+function tareasElegidasParaImprimir(){
+  const mo=document.getElementById('imprimir-tareas-selector-overlay');
+  if(!mo)return [];
+  const ids=JSON.parse(mo.dataset.itIds||'[]');
+  const diasChk=Array.from(mo.querySelectorAll('.it-dia-chk'));
+  const dias=diasChk.filter(c=>c.checked).map(c=>c.value);
+  const salasChk=Array.from(mo.querySelectorAll('.it-sala-chk'));
+  const salas=salasChk.filter(c=>c.checked).map(c=>c.value);
+  if((diasChk.length&&!dias.length)||(salasChk.length&&!salas.length))return [];
+  return tareasData.filter(t=>{
+    if(!ids.includes(t.id))return false;
+    if(diasChk.length&&!dias.includes(t.fechaISO))return false;
+    const sala=t.inv?salaDeInv(t.inv):null;
+    return !sala||salas.includes(sala);
+  });
+}
+function actualizarConteoImprimirTareas(){
+  const mo=document.getElementById('imprimir-tareas-selector-overlay');
+  if(!mo)return;
+  const tareas=tareasElegidasParaImprimir();
+  const contador=mo.querySelector('#it-contador'),boton=mo.querySelector('#it-imprimir-confirmar');
+  if(contador)contador.textContent=tareas.length;
+  if(boton){boton.disabled=!tareas.length;boton.style.opacity=tareas.length?'1':'.5';}
 }
 function confirmarImprimirTareasSeleccionadas(){
-  const mo = document.getElementById('imprimir-tareas-selector-overlay');
-  const ids = JSON.parse(mo.dataset.itIds || '[]');
-  const diasChk = Array.from(document.querySelectorAll('.it-dia-chk'));
-  const diasSeleccionados = diasChk.filter(c=>c.checked).map(c=>c.value);
-  if(diasChk.length && !diasSeleccionados.length){ showToast('Elige al menos un día'); return; }
-  const salasChk = Array.from(document.querySelectorAll('.it-sala-chk'));
-  const salasSeleccionadas = salasChk.filter(c=>c.checked).map(c=>c.value);
-  if(!salasSeleccionadas.length){ showToast('Elige al menos una sala'); return; }
-  const tareas = tareasData.filter(t => {
-    if(!ids.includes(t.id)) return false;
-    if(diasChk.length && !diasSeleccionados.includes(t.fechaISO)) return false;
-    const sala = t.inv ? salaDeInv(t.inv) : null;
-    if(sala && !salasSeleccionadas.includes(sala)) return false;
-    return true;
-  });
-  mo.style.display='none';
+  const tareas=tareasElegidasParaImprimir();
+  if(!tareas.length){showToast('Selecciona al menos un día y sala con tareas');return;}
+  document.getElementById('imprimir-tareas-selector-overlay').style.display='none';
   imprimirTareas(tareas);
 }
 // Botón "Imprimir" junto a Editar/Eliminar en la tabla de gestión — imprime
