@@ -38,7 +38,7 @@ self.addEventListener('notificationclick', (event) => {
 // QC operarios TEST: copia estática para abrir SOLO la consulta de partidas
 // previamente leídas. No almacenar API, Firebase, datos QC ni credenciales en CacheStorage.
 // Se integra en el SW existente para NO interferir en las suscripciones PUSH.
-const QC_SHELL_CACHE='viguerapp-qc-operarios-shell-test-v23';
+const QC_SHELL_CACHE='viguerapp-qc-operarios-shell-test-v24';
 const QC_SHELL_PREFIX='viguerapp-qc-operarios-shell-test-';
 const QC_BASE=new URL('./',self.location.href).pathname;
 const QC_FILES=['qc-offline.html','assets/qc-offline-operarios-store.js',
