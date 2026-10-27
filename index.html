@@ -161,6 +161,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .op-btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;background:var(--op-azul);color:#fff;border:1px solid var(--op-azul);border-radius:7px;min-height:32px;padding:6px 10px;font-size:11px!important;font-weight:700;white-space:nowrap}
 .op-btn:hover:not(:disabled){background:#10477f;border-color:#10477f}
 .op-btn:disabled{opacity:.45;cursor:not-allowed}
+/* Impresión: icono compacto, misma acción, tooltip y accesibilidad. */
+.op-acciones .op-btn-print{width:36px;min-width:36px;height:34px;min-height:34px;padding:0;flex:0 0 36px}
+.op-acciones .op-btn-print .ti{font-size:18px;line-height:1}
 .op-lista{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,305px),1fr));gap:8px}
 .op-tarjeta{background:#fff;border:1px solid var(--op-borde);border-radius:9px;padding:10px 11px;display:flex;flex-direction:column;gap:6px;min-width:0;box-shadow:none;margin:0}
 .op-tarjeta-cab{display:flex;align-items:flex-start;gap:8px}
@@ -2059,9 +2062,9 @@ function buildTareaGestorRow(t, conSeleccion){
         <button type="button" class="op-btn" onclick="showEditarTareaForm('${t.id}')"><i class="ti ti-pencil"></i> Editar</button>
         <button type="button" class="op-btn" onclick="eliminarTarea('${t.id}')"><i class="ti ti-ban"></i> Anular</button>`:''}
       ${pistola?`
-        <button type="button" class="op-btn" onclick="imprimirHojaFumigacionTarea('${t.id}')"><i class="ti ti-printer"></i> Imprimir parte</button>
+        <button type="button" class="op-btn op-btn-print" onclick="imprimirHojaFumigacionTarea('${t.id}')" aria-label="Imprimir parte de Pistola" title="Imprimir parte de Pistola"><i class="ti ti-printer" aria-hidden="true"></i></button>
         ${pistolaVinculada?`<button type="button" class="op-btn" onclick="abrirJornadaPistolaDesdeTareas('${t.id}')"><i class="ti ti-eye"></i> Ver jornada</button>`:''}`:
-        `<button type="button" class="op-btn" onclick="imprimirTareaSuelta('${t.id}')"><i class="ti ti-printer"></i> Imprimir</button>`}
+        `<button type="button" class="op-btn op-btn-print" onclick="imprimirTareaSuelta('${t.id}')" aria-label="Imprimir tarea" title="Imprimir tarea"><i class="ti ti-printer" aria-hidden="true"></i></button>`}
     </div>
     ${tareaPuedeReasignarseEnOperativas(t)?`<div id="op-reasignacion-${esc(t.id)}" class="op-reasignacion-inline" style="display:none;align-items:center;flex-wrap:wrap;gap:7px;padding-top:9px;border-top:1px solid #e1ebf6;margin-top:9px"></div>`:''}
   </article>`;
