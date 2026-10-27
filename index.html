@@ -155,14 +155,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 </style>
 <!-- Diagnóstico RTDB opcional: activo únicamente con ?fbdiag=1 en TEST -->
 <script src="assets/firebase-diagnostics.js"></script>
-<link rel="stylesheet" href="assets/control-qc-operativo.css?v=077">
+<link rel="stylesheet" href="assets/control-qc-operativo.css?v=111">
 <link rel="stylesheet" href="assets/control-ui-empty.css?v=078">
 <link rel="stylesheet" href="assets/control-ui-list.css?v=083">
 <link rel="stylesheet" href="assets/qc-edit-linea-v3.css?v=107">
 <link rel="stylesheet" href="assets/control-ui-cards.css?v=109">
 <style>.qc-card-medido{display:inline-block;font-size:11px;font-weight:800;color:#1558a0;margin-top:4px}</style>
 <script src="admin/qc-indicadores.js?v=077" defer></script>
-<script src="assets/control-qc-operativo.js?v=077" defer></script>
+<script src="assets/control-qc-operativo.js?v=111" defer></script>
 <script src="assets/control-ui-empty.js?v=080" defer></script>
 <script src="assets/qc-offline-operarios-store.js" defer></script>
 </head>
@@ -7813,6 +7813,123 @@ function botonCuantificacionControlHTML(c){
       <i class="ti ti-clipboard-check" aria-hidden="true"></i> Medir bandejas QC</button>
     </div>`;
 }
+
+/* QC 0.111 · Galería aditiva por inspección (solo TEST).
+ * Conserva intacta la foto histórica por id. Cada nueva foto tiene su propia
+ * ruta RTDB, de forma que subir/borrar otra nunca reescribe fotos anteriores.
+ */
+const QC_MULTIFOTO_KEY='lasala-qc-multifotos-v1';
+function qcFotoRef(id){
+  const c=controlChecksData.find(x=>x.id===id);
+  if(!c||!['tunel','carga'].includes(c.tipo)||!/^[A-Za-z0-9_-]{1,180}$/.test(id))
+    throw Error('Inspección no disponible.');
+  return c;
+}
+function qcFotoUrl(c,subpath=''){
+  return CLOUD_DB_URL+'/'+QC_MULTIFOTO_KEY+'/'+c.tipo+'/'+encodeURIComponent(c.id)+
+    (subpath?'/'+subpath:'')+'.json';
+}
+async function qcLeerGaleriaNueva(c){
+  const response=await appFetch(qcFotoUrl(c),{cache:'no-store'});
+  if(!response.ok)throw Error('No se han podido consultar las fotografías.');
+  const obj=await response.json();
+  return obj&&typeof obj==='object'&&!Array.isArray(obj)?obj:{};
+}
+async function listarFotosInspeccionQC(id){
+  const c=qcFotoRef(id);
+  const [datos]=await Promise.all([
+    qcLeerGaleriaNueva(c),
+    !controlFotosData[id] ? fetchFotoPartidaPorId(id) : Promise.resolve()
+  ]);
+  const items=[];
+  const legacy=controlFotosData[id];
+  if(legacy&&!datos.ocultarLegacy){
+    const f=fotoSrcCompleta(legacy),t=fotoSrcMiniatura(legacy);
+    if(f)items.push({id:'legacy',f,t:t||f,legacy:true});
+  }
+  const fotos=datos.fotos&&typeof datos.fotos==='object'?datos.fotos:{};
+  Object.entries(fotos).forEach(([key,val])=>{
+    if(val&&typeof val==='object'&&typeof val.f==='string'&&val.f)
+      items.push({id:key,f:val.f,t:val.t||val.f,fecha:val.fecha||0});
+  });
+  return items.sort((a,b)=>a.legacy?-1:b.legacy?1:(a.fecha||0)-(b.fecha||0));
+}
+async function qcFotoEscribirNueva(c,photoId,entry){
+  const url=qcFotoUrl(c,'fotos/'+photoId);
+  try{
+    const r=await appFetch(url,{
+      method:'PUT',headers:{'Content-Type':'application/json','if-match':'null_etag'},
+      body:JSON.stringify(entry)
+    });
+    if(r.ok)return true;
+  }catch(_){}
+  // Confirmación exclusivamente de lectura después de un fallo de red incierto.
+  try{
+    const r=await appFetch(url,{cache:'no-store'});
+    if(r.ok){
+      const found=await r.json();
+      if(found&&found.f===entry.f&&found.t===entry.t)return true;
+    }
+  }catch(_){}
+  return false;
+}
+async function agregarFotosInspeccionQC(input,id){
+  const c=qcFotoRef(id),files=Array.from(input?.files||[]);
+  if(!files.length)return 0;
+  if(navigator.onLine===false)throw Error('Sin conexión. Las fotos no se han enviado; utiliza la captura QC sin conexión.');
+  let saved=0;
+  for(const file of files){
+    const compressed=await comprimirImagenParaControl(file);
+    if(!compressed?.data?.f)break;
+    const photoId='f'+Date.now().toString(36)+'_'+
+      (typeof crypto!=='undefined'&&crypto.randomUUID?
+        crypto.randomUUID().replace(/-/g,'') : Math.random().toString(36).slice(2));
+    const ok=await qcFotoEscribirNueva(c,photoId,{
+      f:compressed.data.f,t:compressed.data.t||compressed.data.f,fecha:Date.now()
+    });
+    if(!ok)break;
+    saved++;
+  }
+  if(saved!==files.length)
+    throw Error(saved?('Se han guardado '+saved+' de '+files.length+' fotos. Comprueba la galería antes de repetir.'):
+      'No se ha confirmado el guardado de la foto. Comprueba la conexión.');
+  showToast(saved===1?'✓ Foto añadida':'✓ '+saved+' fotos añadidas');
+  return saved;
+}
+async function eliminarFotoInspeccionQC(id,photoId){
+  const c=qcFotoRef(id);
+  let r;
+  if(photoId==='legacy'){
+    // Ocultar sin borrar el fichero histórico, utilizado en otras pantallas.
+    r=await appFetch(qcFotoUrl(c,'ocultarLegacy'),{
+      method:'PUT',headers:{'Content-Type':'application/json'},body:'true'
+    });
+  }else{
+    if(!/^f[a-z0-9_]{8,100}$/i.test(photoId))throw Error('Foto no válida.');
+    r=await appFetch(qcFotoUrl(c,'fotos/'+photoId),{method:'DELETE'});
+  }
+  if(!r.ok)throw Error('No se ha podido confirmar la eliminación.');
+  return true;
+}
+function ampliarFotoInspeccionQC(photo){
+  if(!photo||typeof photo.f!=='string'||!/^data:image\//i.test(photo.f))return;
+  const mo=getOrCreateOverlay('control-foto-ampliada-overlay');
+  mo.style.padding='0';
+  mo.replaceChildren();
+  const shade=document.createElement('div');
+  shade.style.cssText='position:relative;width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.88)';
+  const picture=document.createElement('img');
+  picture.src=photo.f;picture.alt='Fotografía de inspección ampliada';
+  picture.style.cssText='max-width:94vw;max-height:94vh;object-fit:contain;border-radius:8px';
+  const close=document.createElement('button');
+  close.type='button';close.textContent='✕';close.setAttribute('aria-label','Cerrar fotografía');
+  close.style.cssText='position:absolute;top:14px;right:14px;border:0;border-radius:9px;background:#fff;color:#17324e;min-height:43px;min-width:43px;cursor:pointer';
+  close.addEventListener('click',ev=>{ev.stopPropagation();mo.style.display='none'});
+  shade.addEventListener('click',()=>{mo.style.display='none'});
+  picture.addEventListener('click',ev=>ev.stopPropagation());
+  shade.append(picture,close);mo.append(shade);mo.style.display='flex';
+}
+
 function abrirMedicionesControl(id){
   const c=controlChecksData.find(item=>item.id===id);
   if(!c){showToast('No se ha encontrado el control. Actualiza la lista.');return;}
@@ -7821,9 +7938,10 @@ function abrirMedicionesControl(id){
   window.QCOperativo.open(c,{
     getObservations:()=>c.observaciones||'',
     saveObservations:value=>guardarControlObservaciones(c.id,value),
-    photoPreview:()=>controlFotosData[c.id]?fotoSrcMiniatura(controlFotosData[c.id]):'',
-    openPhoto:()=>mostrarFotoControlAmpliada(c.id),
-    uploadPhoto:input=>handleControlFotoInput(input,c.id)
+    listPhotos:()=>listarFotosInspeccionQC(c.id),
+    openPhoto:photo=>ampliarFotoInspeccionQC(photo),
+    uploadPhoto:input=>agregarFotosInspeccionQC(input,c.id),
+    deletePhoto:photoId=>eliminarFotoInspeccionQC(c.id,photoId)
   });
 }
 // Tarjeta compacta solo para acceso QC cuantitativo; legacy y Ginés permanecen intactos.
