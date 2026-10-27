@@ -1370,6 +1370,8 @@ El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en int
 
 **Pruebas técnicas sin datos reales:** sintaxis JS verificada para los nuevos assets, cinco scripts inline de index sin errores; prueba simulada del controlador: se detectaron 3 pendientes iniciales, una confirmación manual, se sincronizó la inspección primero y luego foto, se conservó borrador con conflicto, y la insignia quedó en 1; sin mezcla de usuarios. **UAT REAL PENDIENTE:** generar en TEST una inspección y fotos offline, comprobar aviso inmediato en cabecera y en consulta offline; al recuperar señal, pulsar «Sincronizar todo» y confirmar, verificar metadatos y archivo en SharePoint y registro de medición en API, no duplicados ni borrado de pendientes ante error; cambiar usuario y confirmar aislamiento. Revisión posterior en móvil/iOS para persistencia IndexedDB y service worker.
 
+**CIERRE DE CHAT — 27/10/2026 (11:17, España):** el usuario solicita dejar constancia de que **QC 0.113 está IMPLEMENTADO EN TEST, con SU VALIDACIÓN FUNCIONAL PENDIENTE**. Se ha vuelto a comprobar que existen `assets/qc-sync-global.js` y `.css`, los `syncGlobal` de borradores y fotografías, la integración offline, y que GitHub `test/v1.0` HEAD `ea54bfe69f792554a283288f85a99d0aa6f39bb4` coincide con Vercel TEST READY. **NO confundir esta constancia de implantación con una aceptación UAT del usuario.** Próximo chat: leer este maestro primero; solicitar una prueba agrupada de pendientes/botón/orden/sincronización/SharePoint/aislamiento por usuario, sin reconstruir QC 0.113 ni pasar a PRD.
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).
