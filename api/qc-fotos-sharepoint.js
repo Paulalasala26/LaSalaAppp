@@ -713,15 +713,64 @@ async function storePhoto(session,photo,source){
   return {created:true,record};
 }
 
+
+// Vista QC en línea: solo metadatos confirmados de SharePoint. Los bytes de
+// imagen NUNCA se almacenan en las rutas RTDB multifoto experimentales.
+async function photoIndexFor(ref,token){
+  const uri=DB+'/'+PHOTO_INDEX+'/'+encodeURIComponent(ref.id)+'.json';
+  const result=await firebaseGet(uri,token,false);
+  return result.value&&typeof result.value==='object'&&!Array.isArray(result.value)?
+    result.value:{};
+}
+function galleryRecord(record,ref,photoId){
+  return !!record&&record.schemaVersion===1&&record.registroId===ref.id&&
+    record.tipo===ref.tipo&&record.dia===ref.dia&&record.photoId===photoId&&
+    /^[0-9a-f]{64}$/.test(record.sha256||'')&&record.sharepoint&&
+    [DRIVE_ID,QC_LIBRARY_DRIVE].includes(record.sharepoint.driveId)&&
+    /^[A-Za-z0-9_-]+$/.test(record.sharepoint.itemId||'');
+}
+async function galleryFile(ref,photoId,session,res){
+  const entry=(await photoIndexFor(ref,session.firebaseToken))[photoId];
+  if(!galleryRecord(entry,ref,photoId)||entry.galleryHidden===true)
+    throw httpError(404,'PHOTO_NOT_FOUND');
+  const accessToken=await graphToken();
+  const url=GRAPH+'/drives/'+encodeURIComponent(entry.sharepoint.driveId)+
+    '/items/'+encodeURIComponent(entry.sharepoint.itemId)+'/content';
+  const response=await fetch(url,{headers:{Authorization:'Bearer '+accessToken},
+    cache:'no-store',signal:AbortSignal.timeout(18000)});
+  if(!response.ok)throw httpError(502,'GRAPH_PHOTO_READ_FAILED');
+  const bytes=Buffer.from(await response.arrayBuffer());
+  if(bytes.length<100||bytes.length>2700000)throw httpError(502,'GRAPH_PHOTO_SIZE_INVALID');
+  const name=entry.sharepoint.name||'';
+  const type=/\.png$/i.test(name)?'image/png':/\.webp$/i.test(name)?'image/webp':
+    /\.heic$/i.test(name)?'image/heic':/\.heif$/i.test(name)?'image/heif':'image/jpeg';
+  res.setHeader('Content-Type',type);
+  return res.status(200).send(bytes);
+}
+async function galleryHide(ref,photoId,session){
+  const uri=photoUrl(ref,photoId);
+  const found=await firebaseGet(uri,session.firebaseToken,true);
+  if(!galleryRecord(found.value,ref,photoId))throw httpError(404,'PHOTO_NOT_FOUND');
+  if(found.value.galleryHidden===true)return;
+  // Retirada lógica de la galería para conservar evidencia/metadata en SP.
+  const updated={...found.value,galleryHidden:true,galleryHiddenAt:new Date().toISOString(),
+    galleryHiddenBy:session.actor};
+  const r=await fetch(uri,{method:'PUT',headers:{Authorization:'Bearer '+session.firebaseToken,
+    'Content-Type':'application/json','if-match':found.etag},body:JSON.stringify(updated),
+    signal:AbortSignal.timeout(12000)});
+  if(r.status===412)throw httpError(409,'PHOTO_GALLERY_CHANGED');
+  if(!r.ok)throw httpError(503,'PHOTO_GALLERY_UPDATE_FAILED');
+}
+
 module.exports=async function handler(req,res){
   res.setHeader('Cache-Control','no-store');
   res.setHeader('X-Content-Type-Options','nosniff');
-  if(req.method!=='GET'&&req.method!=='POST'){
-    res.setHeader('Allow','GET, POST');
+  if(req.method!=='GET'&&req.method!=='POST'&&req.method!=='DELETE'){
+    res.setHeader('Allow','GET, POST, DELETE');
     return res.status(405).json({error:'METHOD_NOT_ALLOWED'});
   }
   // Nunca escribir si la bandera explícita de TEST no está activada.
-  if(req.method==='POST'&&!UPLOAD_ENABLED())
+  if((req.method==='POST'||req.method==='DELETE')&&!UPLOAD_ENABLED())
     return res.status(423).json({error:'SHAREPOINT_UPLOAD_NOT_ENABLED'});
   try{
     const body=req.method==='POST'?bodyOf(req):null;
@@ -734,6 +783,29 @@ module.exports=async function handler(req,res){
     if(diagnostic&&session.role!=='ADMIN')throw httpError(403,'FORBIDDEN');
     if(candidatesRequested&&session.role!=='ADMIN')throw httpError(403,'FORBIDDEN');
     const source=ref?await sourceFor(ref,session.firebaseToken):null;
+    // Acciones verificadas por usuario/rol y partida original.
+    if(req.method==='GET'&&req.query?.action==='photo-list'){
+      const index=await photoIndexFor(ref,session.firebaseToken);
+      const photos=Object.entries(index).filter(([id,entry])=>
+        PHOTO_RE.test(id)&&galleryRecord(entry,ref,id)&&entry.galleryHidden!==true)
+        .map(([id,entry])=>({id,fecha:entry.capturedAt||entry.uploadedAt||'',
+          name:entry.sharepoint.name||''}))
+        .sort((a,b)=>a.fecha.localeCompare(b.fecha)).slice(0,250);
+      return res.status(200).json({ok:true,photos});
+    }
+    if(req.method==='GET'&&req.query?.action==='photo-image'){
+      const photoId=req.query?.photoId;
+      if(typeof photoId!=='string'||!PHOTO_RE.test(photoId))
+        throw httpError(400,'INVALID_PHOTO_ID');
+      return galleryFile(ref,photoId,session,res);
+    }
+    if(req.method==='DELETE'&&req.query?.action==='photo-hide'){
+      const photoId=req.query?.photoId;
+      if(typeof photoId!=='string'||!PHOTO_RE.test(photoId))
+        throw httpError(400,'INVALID_PHOTO_ID');
+      await galleryHide(ref,photoId,session);
+      return res.status(200).json({ok:true,hidden:true,sharepointFileRetained:true});
+    }
     // Consulta puntual por foto: sirve para resolver cortes/red sin reenviar
     // bytes o duplicar escrituras en SharePoint. No devuelve datos sensibles.
     if(req.method==='GET'&&req.query?.action==='photo-status'){
