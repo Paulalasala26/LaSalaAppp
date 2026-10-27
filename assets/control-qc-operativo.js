@@ -119,9 +119,6 @@
       const photos=await context.listPhotos();
       if(editor!==active||context!==legacyApi||seq!==photoRefreshToken)return;
       gallery.replaceChildren();
-      const sync=editor.querySelector('.qco-photo-sync');
-      const pending=photos.filter(p=>p.pending).length;
-      if(sync){sync.hidden=!pending;sync.textContent=pending?'Enviar a SharePoint ('+pending+')':'';sync.disabled=photoBusy||navigator.onLine===false;}
       if(!photos.length){
         gallery.append(node('span','Sin fotografías','qco-photo-empty'));
         return;
@@ -806,21 +803,7 @@
       });
       actions.append(cameraButton,galleryButton,cameraInput,galleryInput);
       media.append(actions);
-      const sync=node('button','Enviar a SharePoint','qco-photo-sync');
-      sync.type='button';sync.hidden=true;
-      sync.addEventListener('click',async()=>{
-        if(photoBusy)return;
-        photoBusy=true;sync.disabled=true;
-        try{
-          const message=await legacyApi?.sendPhotos?.();
-          report(message||'Las fotos siguen guardadas en este dispositivo.','');
-        }catch(e){report(e?.message||'Envío no confirmado. Fotos conservadas localmente.','error');}
-        finally{
-          photoBusy=false;
-          if(active)void refreshPhoto();
-        }
-      });
-      media.append(sync,node('div',null,'qco-photo-gallery'));
+      media.append(node('div',null,'qco-photo-gallery'));
       const photoSection=node('section',null,'qco-photo-top');
       photoSection.append(node('div','Fotografías','qco-extras-heading'),media);
       form.insertBefore(photoSection,form.querySelector('.qco-cat'));
