@@ -165,6 +165,26 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .op-acciones .op-btn-print{width:36px;min-width:36px;height:34px;min-height:34px;padding:0;flex:0 0 36px}
 .op-acciones .op-btn-print .ti{font-size:18px;line-height:1}
 .op-lista{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,305px),1fr));gap:8px}
+.op-archivo-tarjeta{background:#fff;border:1px solid #d0deed;border-radius:9px;padding:10px 11px;display:flex;flex-direction:column;gap:6px;min-width:0;color:#263c53}
+.op-archivo-cab{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.op-archivo-cab strong{font-size:13px;color:#263c53;line-height:1.25;overflow-wrap:anywhere}
+.op-archivo-estado{font-size:10px;line-height:1.2;padding:4px 7px;border-radius:7px;font-weight:800;white-space:nowrap}
+.op-archivo-ok{background:#eafaf0;color:#1a5c2e}
+.op-archivo-anulada{background:#f1f4f8;color:#566575}
+.op-archivo-meta{display:flex;align-items:center;gap:6px 10px;flex-wrap:wrap;font-size:11px;color:#566b81}
+.op-archivo-meta .op-origen{font-weight:800;color:#1558a0}
+.op-archivo-lugar{font-size:11px;font-weight:700;color:#365a7d;overflow-wrap:anywhere}
+.op-archivo-desc{font-size:11px;line-height:1.35;color:#46596d;overflow-wrap:anywhere}
+.op-archivo-nota{font-size:11px;color:#7e4e2b;overflow-wrap:anywhere}
+.op-archivo-ejec{border-top:1px solid #e9f0f7;padding-top:6px;font-size:10.5px;color:#62758a;overflow-wrap:anywhere}
+.op-archivo-seccion{margin-bottom:14px}
+.op-archivo-seccion-cab{display:flex;align-items:center;gap:8px;margin:4px 1px 8px;color:#1558a0}
+.op-archivo-seccion-cab h3{font-size:12px;margin:0;font-weight:800}
+.op-archivo-contador{background:#e8f1fc;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:800}
+.op-archivo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:8px}
+.op-archivo-toolbar{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:3px 1px 12px}
+.op-archivo-toolbar strong{font-size:13px;color:#1558a0}
+.op-archivo-empty{color:#60758b;font-size:12px;padding:12px;border:1px dashed #c9d8e9;border-radius:8px;background:#fff}
 .op-tarjeta{background:#fff;border:1px solid var(--op-borde);border-radius:9px;padding:10px 11px;display:flex;flex-direction:column;gap:6px;min-width:0;box-shadow:none;margin:0}
 .op-tarjeta-cab{display:flex;align-items:flex-start;gap:8px}
 .op-tarjeta-cab strong{flex:1;min-width:0;font-size:12.5px;line-height:1.3;overflow-wrap:anywhere;font-weight:800}
@@ -2637,7 +2657,7 @@ function cambiarFiltroTareasGestor(campo,valor){
  renderTareasContent(document.getElementById('tareas-overlay'),true);
 }
 function resetFiltrosTareasGestor(){
- tareasGestorFiltros={estado:'todas',origen:'todos',sala:'todas',asignado:'todos',fecha:''};
+ tareasGestorFiltros={estado:'todas',origen:'todos',sala:'todas',asignado:'todos',fecha:'',busqueda:''};
  tareasSeleccionadas.clear();
  renderTareasContent(document.getElementById('tareas-overlay'),true);
 }
@@ -2671,18 +2691,40 @@ function archivoMantenimientoRegistros(){
 }
 function renderTareaArchivoConsultable(t){
  const esc=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
- const origen={manual:'Manual',riego:'Riego',especificos:'Específicos',pistola:'Pistola',mantenimiento:'Mantenimiento',sin_origen:'Origen antiguo'}[tareaOrigenGestion(t)];
+ const origen={manual:'Manual',riego:'Riego',especificos:'Específicos',pistola:'Pistola',mantenimiento:'Mantenimiento',sin_origen:'Antiguo'}[tareaOrigenGestion(t)]||'Antiguo';
+ const completada=t.estado==='completada',estado=completada?'Completada':t.estado==='anulada'?'Anulada':'Archivada';
  const lugar=invCallesLabelDeTarea(t);
- return `<div style="border:1px solid #aec4de;border-radius:9px;padding:12px;background:#fff;display:flex;flex-direction:column;gap:5px">
-   <div style="display:flex;justify-content:space-between;gap:8px"><strong style="font-size:13px;color:#1558a0;overflow-wrap:anywhere">${esc(t.titulo)}</strong>
-     <span style="font-size:10px;font-weight:800;color:${t.estado==='anulada'?'#a32020':'#2e7d32'}">${t.archivadoEn?'Archivado':t.estado==='anulada'?'Anulada':'Completada'}</span></div>
-   <div style="font-size:11px;color:#55697e">${esc(t.fechaISO||'Sin fecha')} · ${esc(origen)} · ${esc(t.asignadoA||'Sin asignar')}${lugar?' · '+esc(lugar):''}</div>
-   ${t.descripcion?`<div style="font-size:11px">${esc(t.descripcion)}</div>`:''}
-   ${t.horario?`<div style="font-size:11px;color:#1558a0">Horario: ${esc(t.horario)}</div>`:''}
-   ${t.horaInicio||t.horaFin?`<div style="font-size:11px">Inicio: ${esc(t.horaInicio||'—')} · Fin: ${esc(t.horaFin||'—')}</div>`:''}
-   ${t.firmante||t.firmaPreparador||t.firmaAplicador?`<div style="font-size:11px">Firma: ${esc(t.firmante||'—')}${t.firmaPreparador?' · Preparó: '+esc(t.firmaPreparador):''}${t.firmaAplicador?' · Aplicó: '+esc(t.firmaAplicador):''}</div>`:''}
-   ${t.motivoAnulacion?`<div style="font-size:11px;color:#a32020">Motivo: ${esc(t.motivoAnulacion)}</div>`:''}
- </div>`;
+ const meta=['<span class="op-origen">'+esc(origen)+'</span>',
+   '<span><i class="ti ti-calendar"></i> '+esc(t.fechaISO||'Sin fecha')+'</span>',
+   '<span><i class="ti ti-user"></i> '+esc(t.asignadoA||'Sin asignar')+'</span>'];
+ if(t.horario)meta.push('<span><i class="ti ti-clock"></i> '+esc(t.horario)+'</span>');
+ const detalles=[];
+ if(t.horaInicio)detalles.push('Inicio: '+esc(t.horaInicio));
+ if(t.horaFin)detalles.push('Fin: '+esc(t.horaFin));
+ if(t.firmante)detalles.push('Firma: '+esc(t.firmante));
+ if(t.firmaPreparador)detalles.push('Preparó: '+esc(t.firmaPreparador));
+ if(t.firmaAplicador)detalles.push('Aplicó: '+esc(t.firmaAplicador));
+ return `<article class="op-archivo-tarjeta">
+   <div class="op-archivo-cab"><strong>${esc(t.titulo||'Tarea sin título')}</strong><span class="op-archivo-estado ${completada?'op-archivo-ok':'op-archivo-anulada'}">${estado}</span></div>
+   <div class="op-archivo-meta">${meta.join('')}</div>
+   ${lugar?'<div class="op-archivo-lugar"><i class="ti ti-map-pin"></i> '+esc(lugar)+'</div>':''}
+   ${t.descripcion?'<div class="op-archivo-desc">'+esc(t.descripcion)+'</div>':''}
+   ${t.motivoAnulacion?'<div class="op-archivo-nota"><b>Motivo:</b> '+esc(t.motivoAnulacion)+'</div>':''}
+   ${detalles.length?'<div class="op-archivo-ejec">'+detalles.join(' · ')+'</div>':''}
+ </article>`;
+}
+function ordenarArchivoTareas(lista){
+ const fecha=t=>t.estado==='completada'
+   ?(fechaEjecucionTareaISO(t)||t.fechaISO||'')
+   :String(t.archivadoEn||t.fechaISO||'').slice(0,10);
+ return lista.slice().sort((a,b)=>fecha(b).localeCompare(fecha(a))||String(b.id||'').localeCompare(String(a.id||'')));
+}
+function renderGrupoArchivoTareas(nombre,lista){
+ if(!lista.length)return '';
+ return '<section class="op-archivo-seccion"><div class="op-archivo-seccion-cab"><h3>'+nombre+
+   '</h3><span class="op-archivo-contador">'+lista.length+'</span></div>'+
+   '<div class="op-archivo-grid">'+ordenarArchivoTareas(lista).map(renderTareaArchivoConsultable).join('')+
+   '</div></section>';
 }
 function abrirJornadaPistolaDesdeTareas(id){
   const t=tareasData.find(x=>x.id===id);
@@ -2746,11 +2788,11 @@ function renderTareasGestorFullScreen(overlay){
     .concat(vista==='archivo'?archivoMantenimientoRegistros():[]);
  const filtered=all.filter(t=>{
    const buscar=String(f.busqueda||'').toLocaleLowerCase('es').trim();
-   if(buscar&&![t.titulo,t.descripcion,t.inv,t.calles,t.fechaISO,t.asignadoA,t.horario,tareaOrigenGestion(t)].join(' ').toLocaleLowerCase('es').includes(buscar))return false;
+   if(buscar&&![t.titulo,t.descripcion,t.inv,t.calles,t.fechaISO,t.asignadoA,t.horario,tareaOrigenGestion(t),t.motivoAnulacion,t.firmante,t.firmaPreparador,t.firmaAplicador].join(' ').toLocaleLowerCase('es').includes(buscar))return false;
    if(f.estado!=='todas'&&t.estado!==f.estado)return false;
    if(f.origen!=='todos'&&tareaOrigenGestion(t)!==f.origen)return false;
    if(f.sala!=='todas'&&salaDeInv(t.inv)!==f.sala)return false;
-   if(f.asignado!=='todos'&&t.asignadoA!==f.asignado)return false;
+   if(f.asignado!=='todos'&&(vista==='archivo'?!String(t.asignadoA||'').split(/\s*,\s*/).includes(f.asignado):t.asignadoA!==f.asignado))return false;
    return !f.fecha||t.fechaISO===f.fecha;
  });
  const active=filtered.filter(t=>t.estado!=='completada'&&t.estado!=='anulada'),done=filtered.filter(t=>t.estado==='completada');
@@ -2779,11 +2821,12 @@ function renderTareasGestorFullScreen(overlay){
    </div>`:
    `<div class="op-ui op-buscador">
      <input id="tareas-gestor-buscar" type="search" aria-label="Buscar archivo" value="${qSafe}" placeholder="Buscar en archivo…" oninput="cambiarBusquedaTareasGestor(this)">
-     <button class="op-btn" onclick="abrirFiltrosTareasGestor()" aria-expanded="${tareasGestorFiltrosAbiertos}"><i class="ti ti-filter"></i> Filtros</button>
+     <button type="button" class="op-btn" onclick="abrirFiltrosTareasGestor()" aria-expanded="${tareasGestorFiltrosAbiertos}"><i class="ti ti-filter"></i> Filtros${tareasGestorFiltrosAbiertos?' −':' +'}</button>
      ${tareasGestorFiltrosAbiertos?`<div class="op-filtros-extra">
+       ${select('estado',[['todas','Todos los estados'],['completada','Completadas'],['anulada','Anuladas / archivadas']])}
        ${select('origen',origen)}${select('sala',salas)}${select('asignado',personal)}
-       <input type="date" value="${f.fecha}" onchange="cambiarFiltroTareasGestor('fecha',this.value)">
-       <button class="op-btn" onclick="resetFiltrosTareasGestor()">Limpiar</button>
+       <input type="date" aria-label="Fecha de tarea" title="Fecha programada de la tarea" value="${f.fecha}" onchange="cambiarFiltroTareasGestor('fecha',this.value)">
+       <button type="button" class="op-btn" onclick="resetFiltrosTareasGestor()"><i class="ti ti-x"></i> Limpiar</button>
      </div>`:''}
    </div>`;
  const action=(fn,icon,label)=>`<button type="button" class="op-btn" onclick="${fn}()"><i class="ti ${icon}"></i> ${label}</button>`;
@@ -2802,7 +2845,15 @@ function renderTareasGestorFullScreen(overlay){
  </div>`:'';
  const cards=(list,selectable)=>`<div class="op-lista">${list.map(t=>buildTareaGestorRow(t,selectable&&t.estado==='pendiente'&&tareaOrigenGestion(t)==='manual')).join('')||'<div style="font-size:12px;color:#667">Sin tareas.</div>'}</div>`;
  const body=vista==='mantenimiento'?renderMantenimientoColgandoHTML()
-   :vista==='archivo'?`<div style="font-size:13px;font-weight:800;color:#1558a0;margin-bottom:12px">Archivo · ${filtered.length} registros ${currentUserRole==='ADMIN'?action('descargarRespaldoTareas','ti-download','Respaldo JSON'):''}</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(275px,1fr));gap:10px">${filtered.map(renderTareaArchivoConsultable).join('')||'<div>Sin registros.</div>'}</div>`
+   :vista==='archivo'?`<div class="op-ui">
+     <div class="op-archivo-toolbar"><strong>Archivo · ${filtered.length} registros</strong>
+       ${currentUserRole==='ADMIN'?action('descargarRespaldoTareas','ti-download','Respaldo JSON'):''}
+     </div>
+     ${filtered.length?
+       renderGrupoArchivoTareas('Completadas',filtered.filter(t=>t.estado==='completada'))+
+       renderGrupoArchivoTareas('Anuladas y archivadas',filtered.filter(t=>t.estado!=='completada')):
+       '<div class="op-archivo-empty">No hay registros para los filtros seleccionados.</div>'}
+   </div>`
    :`<div class="op-ui">${toolbar}${batch}
        <div class="op-seccion-cab"><h3>Pendientes y en curso</h3><span class="op-count">${active.length}</span></div>
        ${cards(ordenarTareasPorHorario(active),true)}
