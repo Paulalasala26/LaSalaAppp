@@ -2168,16 +2168,23 @@ function buildTarjetaMantenimiento(t, mostrarAsignarPersonas){
   const estado={sin_asignar:'Sin asignar',asignado:'Asignado',en_proceso:'En curso',cerrado:'Completado'}[t.estado]||t.estado;
   const badgeClass={sin_asignar:'pendiente',asignado:'asignado',en_proceso:'curso',cerrado:'completo'}[t.estado]||'pendiente';
   const personas=(t.asignados||[]).length?mantHTML(t.asignados.join(', ')):'Sin asignar';
-  const selector=mostrarAsignarPersonas?`
+  // Listbox único para asignar o reasignar un ticket, según su estado. Solo PEÓN puede ejecutarlo.
+  const puedeAsignar=t.estado==='sin_asignar', puedeReasignar=t.estado==='asignado';
+  const responsableActual=(t.asignados||[])[0]||'';
+  const personalElegible=Object.keys(USER_ROLES).filter(u=>USER_ROLES[u]==='PEON');
+  const selector=(puedeAsignar||puedeReasignar)?`
     <div class="mant-asignacion-simple">
-      <select aria-label="Operario para ${mantHTML(t.titulo)}" class="mant-asignado-select" data-ticket="${id}">
-        <option value="">Seleccionar operario…</option>
-        ${Object.keys(USER_ROLES).filter(u=>USER_ROLES[u]==='PEON').map(u=>`<option value="${mantHTML(u)}">${mantHTML(u)}</option>`).join('')}
+      <select aria-label="${puedeReasignar?'Nuevo responsable':'Operario'} para ${mantHTML(t.titulo)}"
+        class="mant-asignado-select" data-ticket="${id}">
+        <option value="" ${!puedeReasignar?'selected':''}>${puedeReasignar?'Sin asignar':'Seleccionar operario…'}</option>
+        ${personalElegible.map(u=>`<option value="${mantHTML(u)}" ${responsableActual===u?'selected':''}>${mantHTML(u)}</option>`).join('')}
+        ${puedeReasignar&&responsableActual&&!personalElegible.includes(responsableActual)?`<option value="${mantHTML(responsableActual)}" selected>${mantHTML(responsableActual)} · anterior</option>`:''}
       </select>
-      <button type="button" class="mant-btn mant-btn-principal" onclick="confirmarAsignacionesMantenimiento('${id}')"><i class="ti ti-user-check"></i> Asignar</button>
+      <button type="button" class="mant-btn ${puedeReasignar?'mant-btn-secundario':'mant-btn-principal'}"
+        onclick="${puedeReasignar?'reasignarTicketMantenimiento':'confirmarAsignacionesMantenimiento'}('${id}')">
+        <i class="ti ${puedeReasignar?'ti-user-edit':'ti-user-check'}"></i> ${puedeReasignar?'Reasignar':'Asignar'}
+      </button>
     </div>`:'';
-
-  const devolver=t.estado==='asignado'?`<button type="button" class="mant-btn mant-btn-secundario" onclick="moverTicketMantenimientoDesdeSelect('${id}','sin_asignar')"><i class="ti ti-rotate-ccw"></i> Devolver</button>`:'';
   return `<article class="mant-ticket">
     <div class="mant-ticket-superior">
       <strong>${mantHTML(t.titulo)} ${t.prioridad==='alta'?'<span class="mant-prioridad">Prioridad alta</span>':''}</strong>
@@ -2193,7 +2200,6 @@ function buildTarjetaMantenimiento(t, mostrarAsignarPersonas){
     <div class="mant-ticket-responsable"><i class="ti ti-user"></i> ${personas}</div>
     ${selector}
     <div class="mant-ticket-acciones">
-      ${devolver}
       <button type="button" class="mant-btn mant-btn-archivo" onclick="archivarTicketMantenimiento('${id}')" title="Conservar ticket y ejecuciones en Archivo"><i class="ti ti-archive"></i> Archivar</button>
     </div>
   </article>`;
@@ -2228,6 +2234,61 @@ async function moverTicketMantenimientoDesdeSelect(id,nuevoEstado){
   if(nuevoEstado!=='sin_asignar'){showToast('Inicio y cierre de mantenimiento requieren ejecución del peón.');return;}
   return devolverMantenimientoASinAsignar([id]);
 }
+// Reasigna un ticket aún no iniciado sin anularlo ni borrar su trazabilidad.
+// No permite mover tickets iniciados, cerrados ni archivados.
+async function reasignarTicketMantenimiento(id){
+  if(!['ADMIN','TECNICO'].includes(currentUserRole))return false;
+  const selector=Array.from(document.querySelectorAll('.mant-asignado-select'))
+    .find(el=>el.dataset.ticket===id);
+  if(!selector)return false;
+  const nuevo=selector.value||'';
+  if(nuevo&&USER_ROLES[nuevo]!=='PEON'){
+    showToast('Selecciona un peón válido o Sin asignar.');
+    return false;
+  }
+  const btn=selector.nextElementSibling;
+  if(btn?.disabled)return false;
+  if(btn)btn.disabled=true;
+  try{
+    const ahora=new Date().toISOString();
+    let anterior='';
+    const tx=await actualizarStorageJsonConEtag(MANTENIMIENTO_KEY,[],cloud=>{
+      if(!Array.isArray(cloud))throw Error('Mantenimiento: formato inválido');
+      const t=cloud.find(x=>String(x.id)===String(id));
+      if(!t||ticketMantenimientoArchivado(t)||t.estado!=='asignado')return undefined;
+      const prev=(t.asignados||[]).slice();
+      anterior=prev.join(', ')||'Sin asignar';
+      if(prev.length===1&&prev[0]===nuevo)return undefined;
+      if(!nuevo&&prev.length===0)return undefined;
+      const evento={
+        fecha:ahora,por:currentUser||'—',anterior:prev,
+        nuevo:nuevo?[nuevo]:[],accion:'reasignacion'
+      };
+      return cloud.map(x=>String(x.id)!==String(id)?x:{
+        ...x,estado:nuevo?'asignado':'sin_asignar',
+        asignados:nuevo?[nuevo]:[],visto:nuevo?{[nuevo]:false}:{},
+        historialAsignaciones:[...(Array.isArray(x.historialAsignaciones)?x.historialAsignaciones:[]),evento]
+      });
+    });
+    if(!tx.ok||tx.noChange){
+      await loadMantenimientoData();
+      showToast('No se ha reasignado: el ticket cambió o el responsable sigue igual.');
+      renderTareasContent(document.getElementById('tareas-overlay'),true);
+      return false;
+    }
+    mantenimientoData=tx.value;
+    logHistorial('Reasignó mantenimiento de '+anterior+' a '+(nuevo||'Sin asignar'));
+    showToast(nuevo?'✓ Ticket reasignado a '+nuevo:'✓ Ticket sin asignar');
+    renderTareasContent(document.getElementById('tareas-overlay'),true);
+    return true;
+  }catch(e){
+    showToast('No se ha podido reasignar el ticket.');
+    return false;
+  }finally{
+    if(btn?.isConnected)btn.disabled=false;
+  }
+}
+
 // Asignación individual de mantenimiento: un único PEÓN por ticket, con ETag.
 async function confirmarAsignacionesMantenimiento(id){
   if(!['ADMIN','TECNICO'].includes(currentUserRole))return false;
