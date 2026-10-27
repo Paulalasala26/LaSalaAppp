@@ -9521,18 +9521,35 @@ let partidasSalaSel = 'sala1';
 // un invernadero concreto primero (mismo patrón de botones que ya usa Riego,
 // selectRiegoInv/data-rinv) y solo se pinta el mapa de ESE invernadero.
 let partidasInvSel = null;
-// Selección inicial: priorizar un invernadero con partidas visibles en la semana.
 function partidasIdsInvDeSala(sala){
-  return ({sala1:ALL_INV_IDS_SALA1,sala2:ALL_INV_IDS,sala3:ALL_INV_IDS_SALA3,sala4:ALL_INV_IDS_SALA4,sala5:ALL_INV_IDS_SALA5})[sala]||ALL_INV_IDS_SALA1;
+  return ({sala1:ALL_INV_IDS_SALA1,sala2:ALL_INV_IDS,sala3:ALL_INV_IDS_SALA3,sala4:ALL_INV_IDS_SALA4,sala5:ALL_INV_IDS_SALA5})[sala] || [];
 }
-function partidasInvInicialDeSala(sala){
-  const ids=partidasIdsInvDeSala(sala);
-  return ids.find(id=>calcularBloquesPartidasInvBase(id,partidasSemanaOffset).length>0)||ids[0]||null;
+// Pantalla anterior al mapa: idéntico patrón de selectores por Sala que Riego.
+function renderPartidasSelectorContent(overlay){
+  const salas = ['sala1','sala2','sala3','sala4','sala5'];
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:0;width:100%;height:100%;min-height:0;max-width:100%;overflow:hidden;display:flex;flex-direction:column">
+      <div style="background:linear-gradient(120deg,#2b6fae 0%,#3c80c2 55%,#5b9bd5 100%);color:#fff;padding:.45rem .75rem;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;gap:8px">
+        <div style="font-size:14px;line-height:1.15;font-weight:800"><i class="ti ti-layout-grid" aria-hidden="true"></i> Partidas</div>
+        <button type="button" onclick="document.getElementById('partidas-overlay').style.display='none'"
+          title="Cerrar Partidas" aria-label="Cerrar Partidas"
+          style="width:30px;height:30px;padding:0;background:#1558a0;border:1px solid #1558a0;color:#fff;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:21px;line-height:1">&times;</button>
+      </div>
+      <div id="partidas-inv-selector-wrap" style="flex:1;min-height:0;overflow-y:auto;background:#fff">
+        ${salas.map((s,i)=>`
+        <div style="padding:.5rem 1.25rem;background:#e8f0fb;border-bottom:1px solid #b0c8e0;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          <label for="partidas-sala-${i+1}" style="font-size:14px;font-weight:700;color:#1558a0;min-width:64px">Sala ${i+1}</label>
+          <select id="partidas-sala-${i+1}" data-partidas-sala="${i+1}" onchange="if(this.value) seleccionarInvPartidas(this.value)"
+            style="flex:1;min-width:0;min-height:44px;padding:8px 10px;font-size:16px;border-radius:7px;border:1.5px solid #a8c4e8;background:#fff;color:#1558a0">
+            <option value="" disabled selected>Elegir invernadero…</option>
+            ${partidasIdsInvDeSala(s).slice().sort((a,b)=>a.localeCompare(b,'es',{numeric:true})).map(id=>`<option value="${id}">${id}</option>`).join('')}
+          </select>
+        </div>`).join('')}
+      </div>
+    </div>`;
 }
 async function showPartidasModule(){
-  // El mapa necesita Túnel + Carga completos para ubicar/retirar partidas.
-  // Los banners de Específicos-Partida NO se descargan globalmente: se cargan
-  // por bucket únicamente cuando hay un INV concreto que pintar.
+  // Mantener carga Túnel + Carga para el mapa y el historial.
   const controlOk = await loadControlCompletoV2(false);
   if(!controlOk){ avisarFalloCarga(); return; }
   const overlay = getOrCreateOverlay('partidas-overlay');
@@ -9543,40 +9560,33 @@ async function showPartidasModule(){
   partidaSeleccionadaParaMover = null;
   partidasHistorialDeshacer = [];
   partidasHistorialRehacer = [];
+  partidasEspecificoModo = false;
+  partidasEspecificoSeleccion = new Set();
   partidasSemanaOffset = partidasSemanaOffsetActual();
-  if(!partidasIdsInvDeSala(partidasSalaSel).includes(partidasInvSel)) partidasInvSel = partidasInvInicialDeSala(partidasSalaSel);
-  if(partidasInvSel){
-    const ok=await cargarBannersPartidasVisibles(partidasInvSel,false);
-    if(!ok) return;
-  }
-  renderPartidasMapaContent(overlay);
+  partidasInvSel = null;
+  renderPartidasSelectorContent(overlay);
   overlay.style.display = 'flex';
 }
-// A petición de Paula (2026-08-06): "no se cambian las que yo quiero... se
-// intercambian otras distintas" — fallo real: partidaSeleccionadaParaMover
-// es una variable global que NO se borraba al cambiar de sala o de
-// invernadero. Si se seleccionaba una partida en un invernadero y luego se
-// cambiaba de pantalla sin completar el intercambio (o sin darse cuenta de
-// que seguía "marcada"), el siguiente toque en CUALQUIER otra partida —
-// aunque fuera de otro invernadero — la intercambiaba con aquella
-// seleccionada y ya olvidada, dando la sensación de que se cambiaban
-// partidas al azar. Ahora la selección se borra siempre al cambiar de sala
-// o de invernadero.
-async function seleccionarSalaPartidas(sala){
-  partidasSalaSel = sala;
-  partidasInvSel = partidasInvInicialDeSala(sala);
+function volverSeleccionPartidas(){
+  partidasInvSel = null;
   partidaSeleccionadaParaMover = null;
-  if(partidasInvSel){
-    const ok=await cargarBannersPartidasVisibles(partidasInvSel,false);
-    if(!ok) return;
-  }
-  renderPartidasMapaContent(document.getElementById('partidas-overlay'));
+  partidasEspecificoModo = false;
+  partidasEspecificoSeleccion = new Set();
+  renderPartidasSelectorContent(document.getElementById('partidas-overlay'));
 }
 async function seleccionarInvPartidas(invId){
+  const sala = ['sala1','sala2','sala3','sala4','sala5'].find(s=>partidasIdsInvDeSala(s).includes(String(invId)));
+  if(!sala) return;
+  const selector = document.getElementById('partidas-inv-selector-wrap');
+  if(selector) selector.querySelectorAll('select').forEach(el=>{ el.disabled = true; });
+  const ok=await cargarBannersPartidasVisibles(invId,false);
+  if(!ok){
+    renderPartidasSelectorContent(document.getElementById('partidas-overlay'));
+    return;
+  }
+  partidasSalaSel = sala;
   partidasInvSel = invId;
   partidaSeleccionadaParaMover = null;
-  const ok=await cargarBannersPartidasVisibles(invId,false);
-  if(!ok) return;
   renderPartidasMapaContent(document.getElementById('partidas-overlay'));
 }
 function idsBannersPartidasVisibles(invId){
@@ -9602,57 +9612,41 @@ function renderPartidasMapaContent(overlay){
   // scrollTop del panel con scroll antes/después de repintar).
   const wrapAnterior = overlay.querySelector('#partidas-content-wrap');
   const scrollTopAnterior = wrapAnterior ? wrapAnterior.scrollTop : 0;
-  const invIds = partidasIdsInvDeSala(partidasSalaSel);
   const partidasVisibles = partidasInvSel ? new Set(calcularBloquesPartidasInvBase(partidasInvSel, partidasSemanaOffset).map(b=>b.entry.id)).size : 0;
-  const invBotonesHTML = invIds.map(id=>`
-    <button onclick="seleccionarInvPartidas('${id}')" style="padding:6px 13px;font-size:12px;flex-shrink:0;white-space:nowrap;font-weight:700;border-radius:7px;cursor:pointer;border:1.5px solid #a8c4e8;background:${partidasInvSel===id?'#1558a0':'#fff'};color:${partidasInvSel===id?'#fff':'#1558a0'}">
-      ${id}
-    </button>`).join('');
   overlay.innerHTML = `
-    <div style="background:#f5f7fb;width:100%;height:100%;max-width:100%;min-height:0;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.3)">
-      <div id="partidas-panel-controles" style="flex:0 1 auto;max-height:62%;min-height:0;overflow-y:auto;overscroll-behavior:contain">
-      <div style="background:linear-gradient(120deg,#1558a0,#2678bc);color:#fff;padding:9px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-shrink:0">
-        <div style="font-size:16px;font-weight:800;display:flex;align-items:center;gap:8px"><i class="ti ti-layout-grid" style="font-size:19px"></i> Partidas</div>
-        <button onclick="document.getElementById('partidas-overlay').style.display='none'" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700;background:rgba(255,255,255,.15);color:#fff;border:none;cursor:pointer">✕ Cerrar</button>
+    <div style="background:#f5f7fb;width:100%;height:100%;min-height:0;max-width:100%;overflow:hidden;display:flex;flex-direction:column">
+      <div style="background:linear-gradient(120deg,#2b6fae 0%,#3c80c2 55%,#5b9bd5 100%);color:#fff;padding:.45rem .75rem;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;gap:8px">
+        <div style="font-size:14px;font-weight:800"><i class="ti ti-layout-grid" aria-hidden="true"></i> Partidas</div>
+        <button type="button" onclick="document.getElementById('partidas-overlay').style.display='none'"
+          title="Cerrar Partidas" aria-label="Cerrar Partidas"
+          style="width:30px;height:30px;padding:0;background:#1558a0;border:1px solid #1558a0;color:#fff;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:21px;line-height:1">&times;</button>
       </div>
-      <div style="background:#eff5fc;border-bottom:1px solid #c7d8ee;flex-shrink:0">
-        <div style="padding:7px 12px 5px;font-size:12px;font-weight:800;color:#1558a0">Localización</div>
-        <div style="padding:5px 12px;background:#2169a9;display:flex;align-items:center;gap:6px;overflow-x:auto;white-space:nowrap;max-width:100%">
-          <span style="font-size:11px;font-weight:700;color:#fff;margin-right:2px">Sala</span>
-          <button onclick="seleccionarSalaPartidas('sala1')" style="padding:6px 11px;flex-shrink:0;white-space:nowrap;border-radius:8px;font-size:12px;font-weight:800;border:1.5px solid rgba(255,255,255,.4);cursor:pointer;background:${partidasSalaSel==='sala1'?'#fff':'transparent'};color:${partidasSalaSel==='sala1'?'#1558a0':'#fff'}">Sala 1</button>
-          <button onclick="seleccionarSalaPartidas('sala2')" style="padding:6px 11px;flex-shrink:0;white-space:nowrap;border-radius:8px;font-size:12px;font-weight:800;border:1.5px solid rgba(255,255,255,.4);cursor:pointer;background:${partidasSalaSel==='sala2'?'#fff':'transparent'};color:${partidasSalaSel==='sala2'?'#1558a0':'#fff'}">Sala 2</button>
-          <button onclick="seleccionarSalaPartidas('sala3')" style="padding:6px 11px;flex-shrink:0;white-space:nowrap;border-radius:8px;font-size:12px;font-weight:800;border:1.5px solid rgba(255,255,255,.4);cursor:pointer;background:${partidasSalaSel==='sala3'?'#fff':'transparent'};color:${partidasSalaSel==='sala3'?'#1558a0':'#fff'}">Sala 3</button>
-          <button onclick="seleccionarSalaPartidas('sala4')" style="padding:6px 11px;flex-shrink:0;white-space:nowrap;border-radius:8px;font-size:12px;font-weight:800;border:1.5px solid rgba(255,255,255,.4);cursor:pointer;background:${partidasSalaSel==='sala4'?'#fff':'transparent'};color:${partidasSalaSel==='sala4'?'#1558a0':'#fff'}">Sala 4</button>
-          <button onclick="seleccionarSalaPartidas('sala5')" style="padding:6px 11px;flex-shrink:0;white-space:nowrap;border-radius:8px;font-size:12px;font-weight:800;border:1.5px solid rgba(255,255,255,.4);cursor:pointer;background:${partidasSalaSel==='sala5'?'#fff':'transparent'};color:${partidasSalaSel==='sala5'?'#1558a0':'#fff'}">Sala 5</button>
-        </div>
-        <div style="padding:7px 12px;display:flex;align-items:center;gap:9px">
-          <span style="font-size:11px;font-weight:800;color:#1558a0;flex-shrink:0">Invernadero</span>
-          <div style="display:flex;align-items:center;gap:5px;overflow-x:auto;min-width:0;padding-bottom:2px;flex:1">
-            ${invBotonesHTML}
-          </div>
-        </div>
-        <div style="padding:6px 12px;background:#1558a0;display:flex;align-items:center;justify-content:center;gap:10px">
+      <div style="padding:.55rem .75rem;background:#dce8f8;border-bottom:1px solid #b0c8e0;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-shrink:0">
+        <span style="font-size:13px;font-weight:800;color:#1558a0">Sala ${partidasSalaSel.slice(-1)} · INV. ${partidasInvSel}</span>
+        <button type="button" onclick="volverSeleccionPartidas()" title="Cambiar invernadero"
+          style="padding:6px 12px;background:#1558a0;border:1px solid #1558a0;color:#fff;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">Cambiar</button>
+      </div>
+      <div id="partidas-panel-controles" style="flex:0 1 auto;min-height:0;max-height:45%;overflow-y:auto;overscroll-behavior:contain">
+        <div style="padding:6px 12px;background:#e8f0fb;border-bottom:1px solid #b0c8e0;display:flex;align-items:center;justify-content:center;gap:12px">
           <button onclick="changePartidasSemana(-1)" ${partidasSemanaOffset<=0?'disabled style="opacity:.35;cursor:default"':''}
-          style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:14px;line-height:1">&#8249;</button>
-          <span style="font-size:12px;font-weight:700;color:#fff">Semana ${partidasSemanaOffset+1} &middot; ${partidasSemanaLabel(partidasSemanaOffset)}</span>
+          style="background:#1558a0;border:1px solid #1558a0;color:#fff;border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:14px;line-height:1">&#8249;</button>
+          <span style="font-size:12px;font-weight:800;color:#1558a0">Semana ${partidasSemanaOffset+1} · ${partidasSemanaLabel(partidasSemanaOffset)}</span>
           <button onclick="changePartidasSemana(1)"
-          style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:14px;line-height:1">&#8250;</button>
+          style="background:#1558a0;border:1px solid #1558a0;color:#fff;border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:14px;line-height:1">&#8250;</button>
         </div>
-      </div>
-      <div style="padding:8px 12px;background:#1558a0;border-top:1px solid rgba(255,255,255,.18);display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex-shrink:0">
-        <div style="font-size:12px;font-weight:800;color:#fff;margin-right:auto">Mapa de ocupación · ${partidasInvSel||'—'} · ${partidasVisibles} partida${partidasVisibles===1?'':'s'}</div>
-        <div style="display:flex">
+        <div style="padding:7px 10px;background:#1558a0;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          <div style="font-size:12px;font-weight:800;color:#fff;margin-right:auto">Mapa de ocupación · ${partidasVisibles} partida${partidasVisibles===1?'':'s'}</div>
+          <div style="display:flex">
             <input id="partidas-buscar-partida" type="text" placeholder="Buscar Nº partida..." onkeydown="if(event.key==='Enter') buscarPartidaGlobal()"
               style="padding:8px 12px;border:1.5px solid rgba(255,255,255,.4);border-right:none;border-radius:8px 0 0 8px;font-size:12px;width:150px;background:rgba(255,255,255,.15);color:#fff">
             <button onclick="buscarPartidaGlobal()" title="Buscar en todas las semanas" style="padding:8px 12px;background:#fff;color:#0f5c4a;border:none;border-radius:0 8px 8px 0;cursor:pointer"><i class="ti ti-search" style="font-size:14px"></i></button>
           </div>
-        ${sincronizarPartidasBtnHTML()}
-        <button onclick="deshacerMovimientoPartida()" ${partidasHistorialDeshacer.length?'':'disabled style="opacity:.35;cursor:default"'} title="Deshacer el último movimiento" style="padding:8px 12px;border-radius:8px;font-size:14px;font-weight:800;background:rgba(255,255,255,.2);color:#fff;border:none;cursor:pointer">←</button>
-        <button onclick="rehacerMovimientoPartida()" ${partidasHistorialRehacer.length?'':'disabled style="opacity:.35;cursor:default"'} title="Rehacer el movimiento deshecho" style="padding:8px 12px;border-radius:8px;font-size:14px;font-weight:800;background:rgba(255,255,255,.2);color:#fff;border:none;cursor:pointer">→</button>
-        <button onclick="recuperarPartidaPorId()" title="Recuperar partida marcada como salida" style="padding:8px 14px;border-radius:8px;font-size:12px;font-weight:800;background:rgba(255,255,255,.2);color:#fff;border:none;cursor:pointer;display:flex;align-items:center;gap:5px"><i class="ti ti-refresh" style="font-size:14px"></i> Recuperar</button>
-      </div>
-      <div style="padding:4px 12px;background:#e8f2fd;border-bottom:1px solid #c7d8ee;color:#34577f;font-size:11px">Toca una partida para consultar su ficha; utiliza las acciones para moverla.</div>
-      ${partidaSeleccionadaParaMover ? (()=>{
+          ${sincronizarPartidasBtnHTML()}
+          <button onclick="deshacerMovimientoPartida()" ${partidasHistorialDeshacer.length?'':'disabled style="opacity:.35;cursor:default"'} title="Deshacer el último movimiento" style="padding:8px 12px;border-radius:8px;font-size:14px;font-weight:800;background:rgba(255,255,255,.2);color:#fff;border:none;cursor:pointer">←</button>
+          <button onclick="rehacerMovimientoPartida()" ${partidasHistorialRehacer.length?'':'disabled style="opacity:.35;cursor:default"'} title="Rehacer el movimiento deshecho" style="padding:8px 12px;border-radius:8px;font-size:14px;font-weight:800;background:rgba(255,255,255,.2);color:#fff;border:none;cursor:pointer">→</button>
+          <button onclick="recuperarPartidaPorId()" title="Recuperar partida marcada como salida" style="padding:8px 14px;border-radius:8px;font-size:12px;font-weight:800;background:rgba(255,255,255,.2);color:#fff;border:none;cursor:pointer;display:flex;align-items:center;gap:5px"><i class="ti ti-refresh" style="font-size:14px"></i> Recuperar</button>
+        </div>
+        ${partidaSeleccionadaParaMover ? (()=>{
         // Aviso visible de qué hay seleccionado (a petición de Paula,
         // 2026-08-06: "se intercambian otras distintas") — antes la
         // selección era invisible salvo por el resaltado de la propia
@@ -9666,7 +9660,8 @@ function renderPartidasMapaContent(overlay){
       })() : ''}
       </div>
       <div id="partidas-content-wrap" style="flex:1;min-height:0;overflow:auto;padding:12px">
-        ${partidasInvSel ? `${partidasVisibles===0?'<div style="font-size:12px;color:#34577f;background:#e8f2fd;padding:10px 12px;border-radius:7px;margin-bottom:10px">Sin partidas en este invernadero durante esta semana. Cambia de invernadero o de semana.</div>':''}${renderPartidasInvHTML(partidasInvSel)}` : '<div style="padding:20px;text-align:center;font-size:13px">Esta sala no tiene invernaderos configurados.</div>'}
+        ${partidasVisibles===0?'<div style="font-size:12px;color:#34577f;background:#e8f2fd;padding:10px 12px;border-radius:7px;margin-bottom:10px">Sin partidas en este invernadero durante esta semana. Cambia de semana o vuelve a elegir invernadero.</div>':''}
+        ${renderPartidasInvHTML(partidasInvSel)}
       </div>
     </div>`;
   const wrapNuevo = overlay.querySelector('#partidas-content-wrap');
