@@ -2075,11 +2075,12 @@ function buildTarjetaMantenimiento(t, mostrarAsignarPersonas){
           <input type="checkbox" class="mant-persona-chk" data-ticket="${t.id}" value="${u}" onchange="actualizarBotonConfirmarMantenimiento()" style="width:10px;height:10px"> ${u}
         </label>`).join('')}
     </div>` : '';
-  const moverSelect = `
-    <select onchange="moverTicketMantenimientoDesdeSelect('${t.id}', this.value); this.value=''" style="font-size:10.5px;padding:5px 7px;border:1.5px solid var(--border);border-radius:6px;background:#fff;cursor:pointer">
-      <option value="">Mover a...</option>
-      ${MANT_ESTADOS.filter(e=>e.key!==t.estado).map(e=>`<option value="${e.key}">${e.label}</option>`).join('')}
-    </select>`;
+  // La asignación puede devolverse a la cola. El inicio y cierre requieren el circuito PEÓN, con firma.
+  const moverSelect = t.estado==='asignado' ? `
+    <select aria-label="Cambiar asignación" onchange="moverTicketMantenimientoDesdeSelect('${t.id}', this.value); this.value=''" style="font-size:10.5px;padding:5px 7px;border:1.5px solid var(--border);border-radius:6px;background:#fff;cursor:pointer">
+      <option value="">Cambiar asignación…</option>
+      <option value="sin_asignar">Devolver a sin asignar</option>
+    </select>` : '';
   // Tarjeta "colgando" (a petición de Paula, 2026-08-12) — mismo lenguaje
   // visual que buildTareaGestorRow: pestaña de color arriba + badge de
   // estado, en vez del recuadro plano de columna kanban de antes.
@@ -2120,29 +2121,40 @@ function arrastrarTicketMantenimiento(ev, id){
   const idsAMover = (mantSeleccionadas.has(id) && mantSeleccionadas.size>1) ? Array.from(mantSeleccionadas) : [id];
   ev.dataTransfer.setData('text/plain', idsAMover.join(','));
 }
+// Coordinación solo puede devolver una asignación a la cola; no puede simular un inicio ni un cierre firmado.
+async function devolverMantenimientoASinAsignar(ids){
+  if(!['ADMIN','TECNICO'].includes(currentUserRole))return false;
+  const unicos=[...new Set(ids.map(String).filter(Boolean))];
+  if(!unicos.length)return false;
+  const tx=await actualizarStorageJsonConEtag(MANTENIMIENTO_KEY,[],cloud=>{
+    if(!Array.isArray(cloud))throw Error('Mantenimiento: formato inválido');
+    const encontrados=cloud.filter(t=>unicos.includes(String(t.id)));
+    if(encontrados.length!==unicos.length||encontrados.some(t=>ticketMantenimientoArchivado(t)||t.estado!=='asignado'))return undefined;
+    return cloud.map(t=>unicos.includes(String(t.id))?{...t,estado:'sin_asignar',asignados:[],visto:{}}:t);
+  });
+  if(!tx.ok||tx.noChange){
+    await loadMantenimientoData();
+    showToast('No se ha cambiado la asignación: revisa el estado actual del ticket.');
+    renderTareasContent(document.getElementById('tareas-overlay'),true);
+    return false;
+  }
+  mantenimientoData=tx.value;
+  unicos.forEach(id=>mantSeleccionadas.delete(id));
+  logHistorial(`Devolvió ${unicos.length} ticket(s) de mantenimiento a Sin asignar`);
+  showToast(`✓ ${unicos.length} ticket(s) sin asignar`);
+  renderTareasContent(document.getElementById('tareas-overlay'),true);
+  return true;
+}
 async function soltarTicketMantenimiento(ev, nuevoEstado){
   ev.preventDefault();
-  const ids = (ev.dataTransfer.getData('text/plain')||'').split(',').filter(Boolean);
-  if(!ids.length) return;
-  await loadMantenimientoData();
-  ids.forEach(id=>{
-    const t = mantenimientoData.find(x=>x.id===id);
-    if(t&&!ticketMantenimientoArchivado(t)) t.estado = nuevoEstado;
-  });
-  await persistMantenimientoData();
-  mantSeleccionadas.clear();
-  logHistorial(`Movió ${ids.length} ticket(s) de mantenimiento a "${nuevoEstado}"`);
-  renderTareasContent(document.getElementById('tareas-overlay'), true);
+  if(nuevoEstado!=='sin_asignar'){showToast('Inicio y cierre de mantenimiento requieren ejecución del peón.');return;}
+  const ids=(ev.dataTransfer.getData('text/plain')||'').split(',').filter(Boolean);
+  return devolverMantenimientoASinAsignar(ids);
 }
-async function moverTicketMantenimientoDesdeSelect(id, nuevoEstado){
-  if(!nuevoEstado) return;
-  await loadMantenimientoData();
-  const t = mantenimientoData.find(x=>x.id===id);
-  if(!t||ticketMantenimientoArchivado(t)){showToast('El ticket ya no está activo.');return;}
-  t.estado = nuevoEstado;
-  await persistMantenimientoData();
-  logHistorial(`Movió un ticket de mantenimiento a "${nuevoEstado}"`);
-  renderTareasContent(document.getElementById('tareas-overlay'), true);
+async function moverTicketMantenimientoDesdeSelect(id,nuevoEstado){
+  if(!nuevoEstado)return;
+  if(nuevoEstado!=='sin_asignar'){showToast('Inicio y cierre de mantenimiento requieren ejecución del peón.');return;}
+  return devolverMantenimientoASinAsignar([id]);
 }
 // "Marcar en todas" premarca la misma persona en TODAS las tarjetas visibles
 // de "Sin asignar" (el coordinador puede corregir alguna a mano antes de
