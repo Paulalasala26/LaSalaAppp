@@ -235,3 +235,17 @@
   .qco-inline .qco-photo-gallery{grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:8px}
   .qco-inline .qco-photo-top{padding:10px}
 }
+
+
+/* QC 0.111 SharePoint — diferenciar evidencia confirmada y pendiente local. */
+.qco-inline .qco-photo-sync{display:inline-flex;align-items:center;justify-content:center;
+  min-height:43px;padding:9px 13px;border:1px solid #a7c5e7;border-radius:8px;
+  background:#1558a0;color:white;font-size:12px;font-weight:800;cursor:pointer}
+.qco-inline .qco-photo-sync[hidden]{display:none}
+.qco-inline .qco-photo-sync:disabled{opacity:.5;cursor:default}
+.qco-inline .qco-photo-source{position:absolute;bottom:0;left:0;right:0;
+  background:rgba(13,42,73,.83);color:#fff;font-size:10px;font-weight:700;
+  text-align:center;padding:4px 2px;pointer-events:none}
+.qco-inline .qco-photo-tile>.qco-photo-error{display:block;padding:11px 6px;
+  font-size:11px;line-height:1.2;overflow-wrap:anywhere}
+.qco-inline .qco-photo-sync:focus-visible{outline:3px solid #6ca6df;outline-offset:2px}
