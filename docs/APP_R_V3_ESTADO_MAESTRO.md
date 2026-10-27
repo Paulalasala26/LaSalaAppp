@@ -1493,6 +1493,15 @@ El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en int
 
 **Próximo paso:** validar visualmente el icono en cabecera Operativas, abrir el modal y comprobar selección/contador y vista previa, **una tanda**, sin repetir validaciones de Mantenimiento. Sin cambios en `main` ni PRD.
 
+## 0.122. Operativas — aclaración del selector de impresión y auditoría de asignación (27/10/2026) — TEST
+**Cambio autorizado y ejecutado:** «Día a imprimir» → «Días con tareas»; «Salas» → «Salas con tareas» en el selector de impresión de Operativas (componente compartido con PEÓN). Solo etiquetas, sin cambios en filtros ni impresión ni datos. Commit funcional `7366752b9c190f9482cbd33341061aa9dcf54c44` en `test/v1.0`. Cinco scripts JS inline del HTML parsean sin errores. UAT visual pendiente.
+
+**Auditoría funcional solicitada, solo lectura:** En Operativas, `buildTareaGestorRow` muestra Editar/Anular únicamente para `manual` + `pendiente`; botón individual Imprimir para manual/Riego/Específicos, y partes/jornada para Pistola. El selector de lote se activa únicamente con manuales pendientes; `asignarTareasEnLote` persiste el nuevo `asignadoA` mediante ETag y deja `visto:false`. «Nueva tarea» permite elegir uno o varios usuarios en `details`: `crearTarea` genera una tarea independiente por destinatario. `showEditarTareaForm` solo abre manual pendiente; puede reasignar y editar. `iniciarTarea` y `completarTarea` son acciones exclusivas del operario destinatario, fuera de gestión ADMIN/TÉCNICO.
+
+**Riego no permite reasignación desde Operativas:** `planTareasRiegoParaDias` y generación usan `peonDelaSala`: `sala1→PEON1`, `sala2→PEON2`, `sala3/4/5→PEON3`; `conciliarRiegoTareasConfirmadas` identifica destinatario distinto del predeterminado como conflicto y no confirma la conciliación. No habilitar reasignación de Riego sin resolver primero el modelo de propietarios/excepciones y la conciliación ETag; no modificar el circuito ya cerrado de Pistola por inercia. User pregunta por falta de acciones en tarjetas; se informa diagnóstico y se puede proponer posteriormente reasignación administrativa protegida para Riego, pero **NO autorizada ni implementada** en esta intervención.
+
+**Estado:** únicamente las dos etiquetas publicadas; auditoría sin escritura. `main`/PRD y Mantenimiento intactos. 
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).
