@@ -165,6 +165,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 <script src="assets/control-qc-operativo.js?v=111" defer></script>
 <script src="assets/control-ui-empty.js?v=080" defer></script>
 <script src="assets/qc-offline-operarios-store.js" defer></script>
+<script src="assets/qc-offline-operarios-photos.js?v=111s" defer></script>
 </head>
 <body>
 
@@ -7814,120 +7815,131 @@ function botonCuantificacionControlHTML(c){
     </div>`;
 }
 
-/* QC 0.111 · Galería aditiva por inspección (solo TEST).
- * Conserva intacta la foto histórica por id. Cada nueva foto tiene su propia
- * ruta RTDB, de forma que subir/borrar otra nunca reescribe fotos anteriores.
+/* QC 0.111 corrigido: IndexedDB local + SharePoint definitivo.
+ * Las fotografías históricas Firebase son estrictamente de lectura.
+ * Ninguna fotografía nueva se escribe en RTDB.
  */
-const QC_MULTIFOTO_KEY='lasala-qc-multifotos-v1';
-function qcFotoRef(id){
+window.QCPhotoMainSession=()=>({user:currentUser,role:currentUserRole});
+let qcPhotoSession='';
+const qcPhotoObjectUrls=new Map();
+async function qcPhotoReady(){
+  if(!window.QCOfflinePhotos)throw Error('El módulo de fotos sin conexión no está disponible.');
+  if(!currentUser||!['ADMIN','TECNICO','CARGADOR'].includes(currentUserRole))
+    throw Error('Inicia sesión para guardar fotografías.');
+  const key=currentUser+'|'+currentUserRole;
+  if(key!==qcPhotoSession){
+    await window.QCOfflinePhotos.init(currentUser,currentUserRole);
+    qcPhotoSession=key;
+    for(const src of qcPhotoObjectUrls.values())URL.revokeObjectURL(src);
+    qcPhotoObjectUrls.clear();
+  }
+}
+function qcPhotoRef(id){
   const c=controlChecksData.find(x=>x.id===id);
-  if(!c||!['tunel','carga'].includes(c.tipo)||!/^[A-Za-z0-9_-]{1,180}$/.test(id))
-    throw Error('Inspección no disponible.');
-  return c;
+  if(!c||!['tunel','carga'].includes(c.tipo)||
+     !/^[A-Za-z0-9_-]{1,180}$/.test(id))throw Error('Inspección no disponible.');
+  return {id:c.id,tipo:c.tipo,dia:c.dia,partida:c.partida};
 }
-function qcFotoUrl(c,subpath=''){
-  return CLOUD_DB_URL+'/'+QC_MULTIFOTO_KEY+'/'+c.tipo+'/'+encodeURIComponent(c.id)+
-    (subpath?'/'+subpath:'')+'.json';
-}
-async function qcLeerGaleriaNueva(c){
-  const response=await appFetch(qcFotoUrl(c),{cache:'no-store'});
-  if(!response.ok)throw Error('No se han podido consultar las fotografías.');
-  const obj=await response.json();
-  return obj&&typeof obj==='object'&&!Array.isArray(obj)?obj:{};
+function qcPhotoBlobSrc(key,blob){
+  if(qcPhotoObjectUrls.has(key))return qcPhotoObjectUrls.get(key);
+  const uri=URL.createObjectURL(blob);
+  qcPhotoObjectUrls.set(key,uri);
+  return uri;
 }
 async function listarFotosInspeccionQC(id){
-  const c=qcFotoRef(id);
-  const [datos]=await Promise.all([
-    qcLeerGaleriaNueva(c),
-    !controlFotosData[id] ? fetchFotoPartidaPorId(id) : Promise.resolve()
-  ]);
-  const items=[];
-  const legacy=controlFotosData[id];
-  if(legacy&&!datos.ocultarLegacy){
-    const f=fotoSrcCompleta(legacy),t=fotoSrcMiniatura(legacy);
-    if(f)items.push({id:'legacy',f,t:t||f,legacy:true});
+  await qcPhotoReady();
+  const ref=qcPhotoRef(id),result=[];
+  // Foto histórica: lectura antigua compatible, sin cambio de formato.
+  if(!controlFotosData[id])await fetchFotoPartidaPorId(id);
+  const historical=controlFotosData[id];
+  if(historical){
+    const full=fotoSrcCompleta(historical),tiny=fotoSrcMiniatura(historical);
+    if(full)result.push({id:'historica',f:full,t:tiny||full,readonly:true,legacy:true});
   }
-  const fotos=datos.fotos&&typeof datos.fotos==='object'?datos.fotos:{};
-  Object.entries(fotos).forEach(([key,val])=>{
-    if(val&&typeof val==='object'&&typeof val.f==='string'&&val.f)
-      items.push({id:key,f:val.f,t:val.t||val.f,fecha:val.fecha||0});
-  });
-  return items.sort((a,b)=>a.legacy?-1:b.legacy?1:(a.fecha||0)-(b.fecha||0));
-}
-async function qcFotoEscribirNueva(c,photoId,entry){
-  const url=qcFotoUrl(c,'fotos/'+photoId);
+  const local=await window.QCOfflinePhotos.galleryLocal(ref);
+  for(const entry of local){
+    const src=qcPhotoBlobSrc('local/'+entry.id,entry.blob);
+    result.push({id:entry.id,f:src,t:src,pending:true,estado:entry.status,
+      fecha:entry.fecha});
+  }
+  if(navigator.onLine!==false){
+    try{
+      const remote=await window.QCOfflinePhotos.galleryRemote(ref);
+      for(const entry of remote){
+        if(result.some(x=>x.id===entry.id))continue;
+        try{
+          const photo=await window.QCOfflinePhotos.galleryRemoteBlob(ref,entry.id);
+          const src=qcPhotoBlobSrc('sp/'+entry.id,photo);
+          result.push({id:entry.id,f:src,t:src,sharepoint:true,fecha:entry.fecha});
+        }catch(e){
+          result.push({id:entry.id,readonly:true,error:true,estado:'SharePoint: miniatura no disponible'});
+        }
+      }
+    }catch(e){
+      if(!result.length)throw e;
+      showToast('Galería SharePoint no disponible. Se muestran las fotos locales.');
+    }
+  }
+  // Compatibilidad: los bytes experimentales QC multifoto subidos previamente
+  // a Firebase TEST quedan visibles como solo lectura, pendientes de migración.
   try{
-    const r=await appFetch(url,{
-      method:'PUT',headers:{'Content-Type':'application/json','if-match':'null_etag'},
-      body:JSON.stringify(entry)
-    });
-    if(r.ok)return true;
-  }catch(_){}
-  // Confirmación exclusivamente de lectura después de un fallo de red incierto.
-  try{
+    const url=CLOUD_DB_URL+'/lasala-qc-multifotos-v1/'+ref.tipo+'/'+encodeURIComponent(ref.id)+'.json';
     const r=await appFetch(url,{cache:'no-store'});
     if(r.ok){
-      const found=await r.json();
-      if(found&&found.f===entry.f&&found.t===entry.t)return true;
+      const old=await r.json();
+      Object.entries(old?.fotos||{}).forEach(([key,value])=>{
+        if(value?.f)result.push({id:'experimental/'+key,f:value.f,
+          t:value.t||value.f,readonly:true,legacy:true,
+          estado:'Foto TEST antigua pendiente de migración'});
+      });
     }
   }catch(_){}
-  return false;
+  return result;
 }
 async function agregarFotosInspeccionQC(input,id){
-  const c=qcFotoRef(id),files=Array.from(input?.files||[]);
-  if(!files.length)return 0;
-  if(navigator.onLine===false)throw Error('Sin conexión. Las fotos no se han enviado; utiliza la captura QC sin conexión.');
-  let saved=0;
-  for(const file of files){
-    const compressed=await comprimirImagenParaControl(file);
-    if(!compressed?.data?.f)break;
-    const photoId='f'+Date.now().toString(36)+'_'+
-      (typeof crypto!=='undefined'&&crypto.randomUUID?
-        crypto.randomUUID().replace(/-/g,'') : Math.random().toString(36).slice(2));
-    const ok=await qcFotoEscribirNueva(c,photoId,{
-      f:compressed.data.f,t:compressed.data.t||compressed.data.f,fecha:Date.now()
-    });
-    if(!ok)break;
-    saved++;
+  await qcPhotoReady();
+  const ref=qcPhotoRef(id);
+  const count=await window.QCOfflinePhotos.galleryCapture(ref,input.files);
+  showToast('✓ '+count+' foto(s) guardadas en este dispositivo');
+  let sent=false;
+  if(navigator.onLine!==false){
+    // Conservar el contrato anterior: requiere confirmación explícita
+    // antes del POST real a SharePoint; no sincronizar a escondidas.
+    const report=await window.QCOfflinePhotos.gallerySend(ref);
+    sent=report.includes('verificada(s) en SharePoint');
+    if(report&&!sent)showToast(report);
   }
-  if(saved!==files.length)
-    throw Error(saved?('Se han guardado '+saved+' de '+files.length+' fotos. Comprueba la galería antes de repetir.'):
-      'No se ha confirmado el guardado de la foto. Comprueba la conexión.');
-  showToast(saved===1?'✓ Foto añadida':'✓ '+saved+' fotos añadidas');
-  return saved;
+  return {count,sent};
 }
 async function eliminarFotoInspeccionQC(id,photoId){
-  const c=qcFotoRef(id);
-  let r;
-  if(photoId==='legacy'){
-    // Ocultar sin borrar el fichero histórico, utilizado en otras pantallas.
-    r=await appFetch(qcFotoUrl(c,'ocultarLegacy'),{
-      method:'PUT',headers:{'Content-Type':'application/json'},body:'true'
-    });
-  }else{
-    if(!/^f[a-z0-9_]{8,100}$/i.test(photoId))throw Error('Foto no válida.');
-    r=await appFetch(qcFotoUrl(c,'fotos/'+photoId),{method:'DELETE'});
-  }
-  if(!r.ok)throw Error('No se ha podido confirmar la eliminación.');
+  await qcPhotoReady();
+  const ref=qcPhotoRef(id);
+  if(photoId==='historica'||photoId.startsWith('experimental/'))
+    throw Error('La fotografía histórica se conserva en modo lectura.');
+  const local=(await window.QCOfflinePhotos.galleryLocal(ref)).some(x=>x.id===photoId);
+  if(local)await window.QCOfflinePhotos.galleryDeleteLocal(ref,photoId);
+  else await window.QCOfflinePhotos.galleryRemoveRemote(ref,photoId);
+  const key=(local?'local/':'sp/')+photoId;
+  const src=qcPhotoObjectUrls.get(key);
+  if(src){URL.revokeObjectURL(src);qcPhotoObjectUrls.delete(key);}
   return true;
 }
 function ampliarFotoInspeccionQC(photo){
-  if(!photo||typeof photo.f!=='string'||!/^data:image\//i.test(photo.f))return;
+  if(!photo?.f||!(/^(data:image\/|blob:)/i.test(photo.f)))return;
   const mo=getOrCreateOverlay('control-foto-ampliada-overlay');
-  mo.style.padding='0';
-  mo.replaceChildren();
+  mo.style.padding='0';mo.replaceChildren();
   const shade=document.createElement('div');
   shade.style.cssText='position:relative;width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.88)';
-  const picture=document.createElement('img');
-  picture.src=photo.f;picture.alt='Fotografía de inspección ampliada';
-  picture.style.cssText='max-width:94vw;max-height:94vh;object-fit:contain;border-radius:8px';
-  const close=document.createElement('button');
-  close.type='button';close.textContent='✕';close.setAttribute('aria-label','Cerrar fotografía');
-  close.style.cssText='position:absolute;top:14px;right:14px;border:0;border-radius:9px;background:#fff;color:#17324e;min-height:43px;min-width:43px;cursor:pointer';
+  const img=document.createElement('img');
+  img.src=photo.f;img.alt='Fotografía QC ampliada';
+  img.style.cssText='max-width:94vw;max-height:94vh;object-fit:contain;border-radius:8px';
+  const close=document.createElement('button');close.type='button';close.textContent='✕';
+  close.setAttribute('aria-label','Cerrar foto');
+  close.style.cssText='position:absolute;top:14px;right:14px;border:0;border-radius:9px;background:white;color:#17324e;min-height:43px;min-width:43px;cursor:pointer';
   close.addEventListener('click',ev=>{ev.stopPropagation();mo.style.display='none'});
-  shade.addEventListener('click',()=>{mo.style.display='none'});
-  picture.addEventListener('click',ev=>ev.stopPropagation());
-  shade.append(picture,close);mo.append(shade);mo.style.display='flex';
+  shade.addEventListener('click',()=>mo.style.display='none');
+  img.addEventListener('click',ev=>ev.stopPropagation());
+  shade.append(img,close);mo.append(shade);mo.style.display='flex';
 }
 
 function abrirMedicionesControl(id){
