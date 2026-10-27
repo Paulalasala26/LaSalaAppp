@@ -616,6 +616,79 @@
       }
     }
   }
+  async function openQCBrowserCamera(onPhoto){
+    if(!navigator.mediaDevices?.getUserMedia){
+      report('La cámara no está disponible en este navegador. Usa Elegir fotos.','error');
+      return;
+    }
+    let stream;
+    try{
+      stream=await navigator.mediaDevices.getUserMedia({
+        video:{facingMode:{ideal:'environment'}},audio:false
+      });
+    }catch(e){
+      report(e?.name==='NotAllowedError'?
+        'Permiso de cámara denegado. Actívalo en el navegador o usa Elegir fotos.':
+        'No se ha podido abrir la cámara. Comprueba la cámara o utiliza Elegir fotos.','error');
+      return;
+    }
+    // Pantalla temporal: captura local; el Blob se entrega al MISMO
+    // circuito IndexedDB/SharePoint que los archivos seleccionados.
+    const overlay=node('section',null,'qco-camera-overlay');
+    overlay.setAttribute('role','dialog');
+    overlay.setAttribute('aria-modal','true');
+    overlay.setAttribute('aria-label','Cámara de inspección');
+    const body=node('div',null,'qco-camera-dialog');
+    const heading=node('h3','Cámara de inspección');
+    const video=node('video');
+    video.setAttribute('playsinline','');
+    video.autoplay=true;video.muted=true;
+    video.srcObject=stream;
+    const controls=node('div',null,'qco-camera-controls');
+    const snap=node('button','Capturar foto');
+    snap.type='button';snap.className='qco-camera-capture';
+    const cancel=node('button','Cancelar');
+    cancel.type='button';cancel.className='qco-camera-cancel';
+    let closed=false;
+    const stop=()=>{
+      if(closed)return;
+      closed=true;
+      stream.getTracks().forEach(t=>t.stop());
+      video.srcObject=null;overlay.remove();
+      document.removeEventListener('keydown',onKey);
+    };
+    const onKey=e=>{if(e.key==='Escape')stop();};
+    cancel.addEventListener('click',stop);
+    snap.addEventListener('click',async()=>{
+      if(closed||!video.videoWidth||!video.videoHeight)return;
+      snap.disabled=true;
+      try{
+        const canvas=document.createElement('canvas');
+        canvas.width=video.videoWidth;canvas.height=video.videoHeight;
+        const ctx=canvas.getContext('2d');
+        if(!ctx)throw Error('No se puede capturar la imagen.');
+        ctx.drawImage(video,0,0,canvas.width,canvas.height);
+        const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',0.86));
+        canvas.width=0;canvas.height=0;
+        if(!blob||blob.size<100)throw Error('La cámara no ha generado una imagen.');
+        const file=new File([blob],'QC_'+Date.now()+'.jpg',{type:'image/jpeg'});
+        stop();
+        await onPhoto(file);
+      }catch(e){
+        report(e?.message||'Error al capturar la imagen.','error');
+        if(!closed)snap.disabled=false;
+      }
+    });
+    controls.append(cancel,snap);
+    body.append(heading,video,controls);overlay.append(body);
+    document.body.append(overlay);
+    document.addEventListener('keydown',onKey);
+    try{await video.play()}catch(e){
+      stop();report('La cámara no se ha podido iniciar. Usa Elegir fotos.','error');
+    }
+    if(!closed)cancel.focus({preventScroll:true});
+  }
+
   function build(rec){
     const overlay=node('section',null,'qco-inline');overlay.id='qco-inline';
     const dialog=node('div',null,'qco-dialog');dialog.setAttribute('role','region');
@@ -678,27 +751,61 @@
       notes.addEventListener('change',()=>{void persistNotes();});
       notesField.append(notes);content.append(notesField);
       const media=node('div',null,'qco-photo-area');
-      const pick=node('label',null,'qco-photo-action');
-      pick.append(node('span','Añadir foto','qco-photo-action-text'));
-      const upload=node('input');upload.type='file';upload.accept='image/*';
-      upload.multiple=true; // selector múltiple; la cámara sigue disponible en el selector móvil
-      upload.addEventListener('change',async()=>{
-        if(!upload.files?.length||photoBusy)return;
-        photoBusy=true;upload.disabled=true;
+      const actions=node('div',null,'qco-photo-actions');
+      // 0.112: cámara y galería son dos acciones separadas. Un selector
+      // "multiple" sin capture no abre la cámara en todos los móviles.
+      const galleryInput=node('input');
+      galleryInput.type='file';galleryInput.accept='image/*';galleryInput.multiple=true;
+      galleryInput.className='qco-photo-input';galleryInput.setAttribute('aria-label','Elegir fotos');
+      const cameraInput=node('input');
+      cameraInput.type='file';cameraInput.accept='image/*';
+      cameraInput.setAttribute('capture','environment');
+      cameraInput.className='qco-photo-input';cameraInput.setAttribute('aria-label','Hacer foto');
+      const cameraButton=node('button',null,'qco-photo-action');
+      cameraButton.type='button';
+      cameraButton.append(node('i',null,'ti ti-camera'),node('span','Hacer foto'));
+      const galleryButton=node('button',null,'qco-photo-action');
+      galleryButton.type='button';
+      galleryButton.append(node('i',null,'ti ti-photo-plus'),node('span','Elegir fotos'));
+      async function uploadPhotoFiles(files){
+        const selected=Array.from(files||[]);
+        if(!selected.length||photoBusy)return;
+        photoBusy=true;
+        cameraButton.disabled=true;galleryButton.disabled=true;
         try{
-          const count=upload.files.length;
-          report(count===1?'Guardando fotografía…':'Guardando '+count+' fotografías…','');
-          const outcome=await legacyApi?.uploadPhoto?.(upload);
+          report(selected.length===1?'Guardando fotografía en el dispositivo…':
+            'Guardando '+selected.length+' fotografías en el dispositivo…','');
+          const outcome=await legacyApi?.uploadPhoto?.({files:selected});
           report(outcome?.sent?'Fotografías confirmadas en SharePoint.':
-            'Fotografías conservadas en este dispositivo. Pendientes de SharePoint.','');
+            'Fotografías guardadas en este dispositivo. Pendientes de SharePoint.','');
         }catch(e){
-          report(e?.message||'No se ha podido confirmar la carga de fotografías.','error');
+          report(e?.message||'No se han podido guardar las fotografías.','error');
         }finally{
-          photoBusy=false;upload.disabled=false;upload.value='';
+          photoBusy=false;
+          cameraButton.disabled=false;galleryButton.disabled=false;
+          galleryInput.value='';cameraInput.value='';
           if(active)void refreshPhoto();
         }
+      }
+      galleryInput.addEventListener('change',()=>{void uploadPhotoFiles(galleryInput.files);});
+      cameraInput.addEventListener('change',()=>{void uploadPhotoFiles(cameraInput.files);});
+      galleryButton.addEventListener('click',()=>{
+        if(photoBusy)return;
+        galleryInput.value='';
+        galleryInput.click();
       });
-      pick.append(upload);media.append(pick);
+      cameraButton.addEventListener('click',()=>{
+        if(photoBusy)return;
+        cameraInput.value='';
+        // iOS/Android: captura nativa con la cámara trasera.
+        const isMobile=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent||'')||
+          navigator.userAgentData?.mobile===true;
+        if(isMobile){cameraInput.click();return;}
+        // Escritorio/tableta sin selector nativo: vista de cámara del navegador.
+        void openQCBrowserCamera(file=>uploadPhotoFiles([file]));
+      });
+      actions.append(cameraButton,galleryButton,cameraInput,galleryInput);
+      media.append(actions);
       const sync=node('button','Enviar a SharePoint','qco-photo-sync');
       sync.type='button';sync.hidden=true;
       sync.addEventListener('click',async()=>{
