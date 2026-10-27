@@ -2975,7 +2975,7 @@ function showImprimirTareasSelector(tareas,origen='peon'){
       ${esOperativas?'<div style="font-size:11px;color:#55687e;line-height:1.4;margin-bottom:12px">Partes activos asignados a PEÓN según los filtros. Pistola y Específicos tienen impresión propia.</div>':''}
       ${fechas.length ? `
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-        <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Día a imprimir</label>
+        <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Días con tareas</label>
         <label style="font-size:11px;font-weight:600;display:flex;align-items:center;gap:4px;cursor:pointer">
           <input type="checkbox" onchange="document.querySelectorAll('#imprimir-tareas-selector-overlay .it-dia-chk').forEach(c=>c.checked=this.checked);actualizarConteoImprimirTareas()"> Todos
         </label>
@@ -2987,7 +2987,7 @@ function showImprimirTareasSelector(tareas,origen='peon'){
           </label>`).join('')}
       </div>` : `
       <div style="font-size:12px;color:var(--muted);font-style:italic;margin-bottom:14px">Estas tareas no tienen fecha asignada — se imprimirán todas.</div>`}
-      ${salasDisponibles.length?'<label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:5px">Salas</label><div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">'+salasDisponibles.map(sala=>'<label style="font-size:12px;display:flex;align-items:center;gap:4px;border:1px solid #cbd9e9;border-radius:6px;padding:5px 8px;cursor:pointer"><input type="checkbox" class="it-sala-chk" value="'+sala+'" onchange="actualizarConteoImprimirTareas()" checked> Sala '+sala.slice(-1)+'</label>').join('')+'</div>':''}
+      ${salasDisponibles.length?'<label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:5px">Salas con tareas</label><div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">'+salasDisponibles.map(sala=>'<label style="font-size:12px;display:flex;align-items:center;gap:4px;border:1px solid #cbd9e9;border-radius:6px;padding:5px 8px;cursor:pointer"><input type="checkbox" class="it-sala-chk" value="'+sala+'" onchange="actualizarConteoImprimirTareas()" checked> Sala '+sala.slice(-1)+'</label>').join('')+'</div>':''}
       <div style="display:flex;justify-content:flex-end;gap:10px">
         <button type="button" onclick="this.closest('.modal-overlay-dyn').style.display='none'" style="padding:8px 12px;font-size:12px;background:#1558a0;color:#fff;border:0;border-radius:7px;cursor:pointer">Cancelar</button>
         <button type="button" id="it-imprimir-confirmar" onclick="confirmarImprimirTareasSeleccionadas()" style="padding:8px 12px;font-size:12px;font-weight:800;background:#1558a0;color:#fff;border:0;border-radius:7px;cursor:pointer">Imprimir (<span id="it-contador">0</span>)</button>
