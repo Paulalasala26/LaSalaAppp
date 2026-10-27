@@ -80,6 +80,7 @@
     return '';
   }
   let active=null,sequence=0,writing=false,version=0,record=null,original='',initialSnapshot='',lastTotal=null;
+  let photoBusy=false,photoRefreshToken=0;
   let savedMeasurement=null,currentRules=null,observer=null,loading=false,legacyApi=null,notesPending=null,switchingRecord=false;
   // Guardado confirmado mientras continúa abierta la ficha.
   let savedForList=null;
@@ -108,15 +109,51 @@
       if(input&&legacyApi?.getObservations)input.value=String(legacyApi.getObservations()??'');
     }
   }
-  function refreshPhoto(){
-    if(!active||!record)return;
-    const area=active.querySelector('.qco-photo-area');
-    if(!area)return;
-    const image=area.querySelector('img'),label=area.querySelector('.qco-photo-action-text');
-    const source=legacyApi?.photoPreview?.()||'';
-    image.hidden=!source;
-    if(source)image.src=source;else image.removeAttribute('src');
-    label.textContent=source?'Cambiar foto':'Añadir foto';
+  async function refreshPhoto(){
+    const editor=active,context=legacyApi,ref=record;
+    const gallery=editor?.querySelector('.qco-photo-gallery');
+    if(!editor||!gallery||!context?.listPhotos||!ref)return;
+    const seq=++photoRefreshToken;
+    gallery.replaceChildren(node('span','Cargando fotografías…','qco-photo-empty'));
+    try{
+      const photos=await context.listPhotos();
+      if(editor!==active||context!==legacyApi||seq!==photoRefreshToken)return;
+      gallery.replaceChildren();
+      if(!photos.length){
+        gallery.append(node('span','Sin fotografías','qco-photo-empty'));
+        return;
+      }
+      photos.forEach((photo,i)=>{
+        const tile=node('div',null,'qco-photo-tile');
+        const open=node('button',null,'qco-photo-open');
+        open.type='button';open.title='Ampliar foto '+(i+1);
+        open.setAttribute('aria-label','Ampliar foto '+(i+1));
+        const image=node('img');image.src=photo.t||photo.f;
+        image.alt='Miniatura '+(i+1)+' de '+photos.length;
+        image.loading='lazy';
+        open.append(image);
+        open.addEventListener('click',()=>context.openPhoto?.(photo));
+        const trash=node('button','🗑','qco-photo-delete');
+        trash.type='button';trash.title='Eliminar foto '+(i+1);
+        trash.setAttribute('aria-label','Eliminar foto '+(i+1));
+        trash.addEventListener('click',async()=>{
+          if(photoBusy||!confirm('¿Eliminar esta fotografía de la inspección?'))return;
+          photoBusy=true;trash.disabled=true;
+          try{
+            await context.deletePhoto(photo.id);
+            report('Fotografía eliminada.','');
+          }catch(e){report(e?.message||'No se pudo eliminar la fotografía.','error');}
+          finally{
+            photoBusy=false;
+            if(editor===active)void refreshPhoto();
+          }
+        });
+        tile.append(open,trash);gallery.append(tile);
+      });
+    }catch(e){
+      if(editor!==active||seq!==photoRefreshToken)return;
+      gallery.replaceChildren(node('span','No se ha podido cargar la galería. Reabre la inspección.','qco-photo-error'));
+    }
   }
   function notesChanged(){
     const field=active?.querySelector('.qco-notes input');
@@ -219,7 +256,7 @@
   function changed(){return original!==JSON.stringify(snapshot())}
   function editedByUser(){return initialSnapshot!==JSON.stringify(snapshot())}
   function close(force=false){
-    if(writing)return false;
+    if(writing||photoBusy)return false;
     const quantitiesAtRequest=JSON.stringify(snapshot());
     if(!force&&active&&editedByUser()&&!confirm('Hay cantidades sin guardar. ¿Salir sin guardar?'))return false;
     if(notesPending||notesChanged()){
@@ -247,7 +284,7 @@
   }
   async function prepareRecordSwitch(fromId){
     if(!active)return {allowed:true,reopen:false};
-    if(writing)return {allowed:false,reopen:false};
+    if(writing||photoBusy)return {allowed:false,reopen:false};
     const editor=active;
     if(!(await settleNotes())||active!==editor)return {allowed:false,reopen:false};
     const reopen=record?.id===fromId;
@@ -624,27 +661,30 @@
       notes.addEventListener('change',()=>{void persistNotes();});
       notesField.append(notes);content.append(notesField);
       const media=node('div',null,'qco-photo-area');
-      const preview=node('img');preview.alt='Fotografía del control';
-      preview.hidden=true;preview.tabIndex=0;preview.setAttribute('role','button');
-      preview.setAttribute('aria-label','Ver fotografía');
-      preview.addEventListener('click',()=>legacyApi?.openPhoto?.());
-      preview.addEventListener('keydown',event=>{
-        if(event.key==='Enter'||event.key===' '){event.preventDefault();legacyApi?.openPhoto?.();}
-      });
-      media.append(preview);
       const pick=node('label',null,'qco-photo-action');
       pick.append(node('span','Añadir foto','qco-photo-action-text'));
       const upload=node('input');upload.type='file';upload.accept='image/*';
+      upload.multiple=true;
       upload.setAttribute('capture','environment');
       upload.addEventListener('change',async()=>{
-        if(!upload.files?.length)return;
-        try{await legacyApi?.uploadPhoto?.(upload);}
-        catch(e){report('No se ha podido completar la carga de la foto.','error');}
-        finally{if(active)refreshPhoto();upload.value='';}
+        if(!upload.files?.length||photoBusy)return;
+        photoBusy=true;upload.disabled=true;
+        try{
+          const count=upload.files.length;
+          report(count===1?'Guardando fotografía…':'Guardando '+count+' fotografías…','');
+          await legacyApi?.uploadPhoto?.(upload);
+          report(count===1?'Fotografía añadida.':'Fotografías añadidas.','');
+        }catch(e){
+          report(e?.message||'No se ha podido confirmar la carga de fotografías.','error');
+        }finally{
+          photoBusy=false;upload.disabled=false;upload.value='';
+          if(active)void refreshPhoto();
+        }
       });
       pick.append(upload);media.append(pick);
+      media.append(node('div',null,'qco-photo-gallery'));
       const photoSection=node('section',null,'qco-photo-top');
-      photoSection.append(node('div','Fotografía','qco-extras-heading'),media);
+      photoSection.append(node('div','Fotografías','qco-extras-heading'),media);
       form.insertBefore(photoSection,form.querySelector('.qco-cat'));
       section.append(content);form.append(section);
     }
