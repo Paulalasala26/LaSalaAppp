@@ -1598,6 +1598,22 @@ El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en int
 
 **Resguardos:** solo se modificó `index.html`. Sin cambios en `main`, PRD, Firebase, QC, Riego, Plaguicidas, Tareas, Específicos, datos ni persistencia. No reabrir módulos cerrados. Próximo paso: **validar pantalla inicial de Partidas como Riego; después continuar con el mapa** según instrucciones del usuario.
 
+## 0.130. Partidas — quincena igual que Riego, sobre selección y «Cambiar» (27/10/2026) — IMPLEMENTADO TEST / UAT PENDIENTE
+
+**Solicitud del usuario (captura Riego):** «sé coherente, como en riego, primero la quincena arriba de la selección, luego cuando entras se mantiene primero la quincena, después el cambiar».
+
+**Código:** `index.html` commit `0f73168b5dac08a87be08c2c67ef824eaa973e29` en rama exclusiva `test/v1.0`. Se conserva selector Sala/INV en pantalla previa de §0.129 y la cabecera con icono X.
+
+**Dos pantallas, mismo orden:**
+- **Selección:** cabecera «Partidas» con X → barra navegable **quincena** exactamente con estilo de Riego (flechas azules de 36px, fechas centradas y fondo azul claro; reutiliza `riegoQuincenaLabel`) → cinco filas desplegables Sala/INV.
+- **Mapa:** cabecera «Partidas» con X → **la misma barra de quincena** → «Sala N · INV. X» y botón azul **Cambiar** → dos opciones discretas de la semana del mapa («semana 1 / semana 2» del período seleccionado) → controles/mapa existente.
+
+**Preservación funcional:** Riego está dividido en quincenas de 14 días, Partidas conserva su histórico y lógica de visibilidad de salidas por **semanas de 7 días**. Las quincenas de Riego y semanas de Partidas coinciden en lunes; `partidasQuincenaBase()` las asocia sin reescribir fechas. `changePartidasQuincena` avanza/retrasa **dos** semanas, conservando la misma mitad de quincena; el mínimo inicial de Partidas es 27/07/2026 (quincena base 3), no crea semanas anteriores fuera de histórico del mapa. `seleccionarSemanaPartidasQuincena` cambia entre los dos cortes semanales del período. Se cargan los banners Específicos al cambiar periodo/semana y se mantiene el mismo mapa `renderPartidasInvHTML`. No reinterpretar semana de salida como quincena ni mezclar partidas visibles en semanas distintas.
+
+**Verificaciones:** los cinco scripts inline de `index.html` compilan; simulación JS confirma 5 salas, quincena 19 oct — 1 nov para el 27/10/2026, barra de quincena situada antes que Sala/INV en la pantalla inicial y antes de «Cambiar» en el mapa; dos semanas 19–25 oct y 26 oct–1 nov, activa la segunda; mapa renderiza y divs balanceados. Cambios exclusivamente `index.html`; ningún dato real de Firebase modificado; `main` y PRD intactos.
+
+**Pendiente:** comprobación humana visual y funcional de fecha/selección, anterior/siguiente quincena, elección INV, etiqueta «Cambiar» y visualización mapa semana 1/2. No declarar validación humana antes de respuesta.
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).
