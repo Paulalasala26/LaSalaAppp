@@ -288,7 +288,7 @@
   if(!(await removeAfterConfirmed(original)))
    throw Error('La confirmación remota existe, pero no se pudo retirar la foto local.');
   items=items.filter(x=>x.photoId!==original.photoId);
-  summary();
+  summary();window.dispatchEvent(new Event('qc-local-updated'));
  }
  async function syncFor(ref,button,status,repaint,globalConfirmed=false){
   if(sending||!refValid(ref))return;
@@ -341,11 +341,6 @@
   const indicator=text('span');indicator.style.cssText='font-size:12px;font-weight:700;color:#8c5400';
   const view=text('button','Ver última');view.type='button';
   view.style.cssText='padding:6px 8px;color:#1558a0;background:white;border:1px solid #aac1d7;border-radius:7px;font-size:12px;font-weight:700';
-  const sync=text('button','Enviar fotos');
-  sync.type='button';
-  sync.style.cssText='padding:8px 10px;background:#1558a0;color:white;border:0;border-radius:7px;font-weight:700';
-  const syncStatus=text('span');
-  syncStatus.setAttribute('role','status');syncStatus.style.cssText='font-size:12px;color:#33516b;width:100%';
   const picker=text('input');picker.type='file';picker.accept='image/*';
   picker.setAttribute('capture','environment');picker.hidden=true;
   function repaint(){
@@ -354,8 +349,6 @@
    indicator.textContent=photos.length?photos.length+' pendiente(s) · local'+
     (revisar?' · '+revisar+' por revisar':''):'';
    view.hidden=!photos.length;
-   sync.hidden=!photos.length;
-   sync.textContent=(revisar?'Revisar ':'Enviar ')+photos.length+' foto(s)';
   }
   button.addEventListener('click',()=>{try{requireSession();picker.value='';picker.click();}catch(e){indicator.textContent=e.message;}});
   picker.addEventListener('change',async()=>{
@@ -374,6 +367,7 @@
     };
     await operation('readwrite',s=>s.add(photo));
     items.push(photo);summary();repaint();
+    window.dispatchEvent(new Event('qc-local-updated'));
     const status=document.getElementById('status');
     if(status)status.textContent='Foto LOCAL guardada. No se ha enviado a SharePoint.';
    }catch(e){repaint();indicator.textContent=e?.message||'No se ha podido guardar.';}
@@ -384,9 +378,8 @@
    try{await preview(photos[photos.length-1]);}
    catch(e){indicator.textContent=e.message||'No se puede abrir la foto.';}
   });
-  sync.addEventListener('click',()=>{void syncFor(ref,sync,syncStatus,repaint);});
   if(allowCapture)row.append(button);
-  row.append(indicator,view,sync,syncStatus);
+  row.append(indicator,view);
   if(allowCapture)row.append(picker);
   parent.append(row);repaint();
  }
@@ -431,6 +424,7 @@
     blob,capturedAt:new Date().toISOString(),status:'PENDIENTE_LOCAL'};
    await operation('readwrite',st=>st.add(photo));
    items.push(photo);done++;
+   window.dispatchEvent(new Event('qc-local-updated'));
   }
   summary();
   return done;
@@ -451,6 +445,7 @@
    throw Error('Envío por verificar. No se puede eliminar la copia de seguridad.');
   await operation('readwrite',st=>st.delete(found.photoId));
   items=items.filter(x=>x.photoId!==id);summary();
+  window.dispatchEvent(new Event('qc-local-updated'));
   return true;
  }
  async function galleryAccessToken(){
