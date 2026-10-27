@@ -664,8 +664,7 @@
       const pick=node('label',null,'qco-photo-action');
       pick.append(node('span','Añadir foto','qco-photo-action-text'));
       const upload=node('input');upload.type='file';upload.accept='image/*';
-      upload.multiple=true;
-      upload.setAttribute('capture','environment');
+      upload.multiple=true; // selector múltiple; la cámara sigue disponible en el selector móvil
       upload.addEventListener('change',async()=>{
         if(!upload.files?.length||photoBusy)return;
         photoBusy=true;upload.disabled=true;
