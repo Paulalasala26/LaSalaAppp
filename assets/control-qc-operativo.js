@@ -119,12 +119,19 @@
       const photos=await context.listPhotos();
       if(editor!==active||context!==legacyApi||seq!==photoRefreshToken)return;
       gallery.replaceChildren();
+      const sync=editor.querySelector('.qco-photo-sync');
+      const pending=photos.filter(p=>p.pending).length;
+      if(sync){sync.hidden=!pending;sync.textContent=pending?'Enviar a SharePoint ('+pending+')':'';sync.disabled=photoBusy||navigator.onLine===false;}
       if(!photos.length){
         gallery.append(node('span','Sin fotografías','qco-photo-empty'));
         return;
       }
       photos.forEach((photo,i)=>{
         const tile=node('div',null,'qco-photo-tile');
+        if(photo.error){
+          tile.append(node('span','Foto en SharePoint (vista previa no disponible)','qco-photo-error'));
+          gallery.append(tile);return;
+        }
         const open=node('button',null,'qco-photo-open');
         open.type='button';open.title='Ampliar foto '+(i+1);
         open.setAttribute('aria-label','Ampliar foto '+(i+1));
@@ -133,22 +140,32 @@
         image.loading='lazy';
         open.append(image);
         open.addEventListener('click',()=>context.openPhoto?.(photo));
-        const trash=node('button','🗑','qco-photo-delete');
-        trash.type='button';trash.title='Eliminar foto '+(i+1);
-        trash.setAttribute('aria-label','Eliminar foto '+(i+1));
-        trash.addEventListener('click',async()=>{
-          if(photoBusy||!confirm('¿Eliminar esta fotografía de la inspección?'))return;
-          photoBusy=true;trash.disabled=true;
-          try{
-            await context.deletePhoto(photo.id);
-            report('Fotografía eliminada.','');
-          }catch(e){report(e?.message||'No se pudo eliminar la fotografía.','error');}
-          finally{
-            photoBusy=false;
-            if(editor===active)void refreshPhoto();
-          }
-        });
-        tile.append(open,trash);gallery.append(tile);
+        tile.append(open);
+        const tag=node('span',photo.pending?'Pendiente local':
+          photo.legacy?'Histórica':'SharePoint','qco-photo-source');
+        tile.append(tag);
+        if(!photo.readonly){
+          const trash=node('button','🗑','qco-photo-delete');
+          trash.type='button';trash.title=photo.sharepoint?'Retirar de galería (se conserva en SharePoint)':'Eliminar foto local';
+          trash.setAttribute('aria-label',trash.title);
+          trash.addEventListener('click',async()=>{
+            if(photoBusy||!confirm(photo.sharepoint?
+              '¿Retirar de la galería? El archivo se conserva en SharePoint.':
+              '¿Eliminar esta foto local pendiente de envío?'))return;
+            photoBusy=true;trash.disabled=true;
+            try{
+              await context.deletePhoto(photo.id);
+              report(photo.sharepoint?'Foto retirada de la galería. Archivo conservado en SharePoint.':
+                'Fotografía local eliminada.','');
+            }catch(e){report(e?.message||'No se pudo eliminar la fotografía.','error');}
+            finally{
+              photoBusy=false;
+              if(editor===active)void refreshPhoto();
+            }
+          });
+          tile.append(trash);
+        }
+        gallery.append(tile);
       });
     }catch(e){
       if(editor!==active||seq!==photoRefreshToken)return;
@@ -671,8 +688,9 @@
         try{
           const count=upload.files.length;
           report(count===1?'Guardando fotografía…':'Guardando '+count+' fotografías…','');
-          await legacyApi?.uploadPhoto?.(upload);
-          report(count===1?'Fotografía añadida.':'Fotografías añadidas.','');
+          const outcome=await legacyApi?.uploadPhoto?.(upload);
+          report(outcome?.sent?'Fotografías confirmadas en SharePoint.':
+            'Fotografías conservadas en este dispositivo. Pendientes de SharePoint.','');
         }catch(e){
           report(e?.message||'No se ha podido confirmar la carga de fotografías.','error');
         }finally{
@@ -681,7 +699,21 @@
         }
       });
       pick.append(upload);media.append(pick);
-      media.append(node('div',null,'qco-photo-gallery'));
+      const sync=node('button','Enviar a SharePoint','qco-photo-sync');
+      sync.type='button';sync.hidden=true;
+      sync.addEventListener('click',async()=>{
+        if(photoBusy)return;
+        photoBusy=true;sync.disabled=true;
+        try{
+          const message=await legacyApi?.sendPhotos?.();
+          report(message||'Las fotos siguen guardadas en este dispositivo.','');
+        }catch(e){report(e?.message||'Envío no confirmado. Fotos conservadas localmente.','error');}
+        finally{
+          photoBusy=false;
+          if(active)void refreshPhoto();
+        }
+      });
+      media.append(sync,node('div',null,'qco-photo-gallery'));
       const photoSection=node('section',null,'qco-photo-top');
       photoSection.append(node('div','Fotografías','qco-extras-heading'),media);
       form.insertBefore(photoSection,form.querySelector('.qco-cat'));
