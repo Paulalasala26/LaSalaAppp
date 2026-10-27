@@ -1515,6 +1515,12 @@ El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en int
 
 **UAT pendiente:** un único caso real en TEST: reasignar una tarea Riego pendiente, comprobar asignado nuevo y que le aparece al PEÓN nuevo; guardar/cambiar después una instrucción de Riego del mismo día para verificar que conserva destinatario. No repetir Mantenimiento ni QC; no tocar PRD/main.
 
+## 0.124. Operativas — todas las acciones de impresión como icono (27/10/2026) — IMPLEMENTADO TEST / UAT VISUAL PENDIENTE
+
+**Petición explícita:** «las opciones de imprimir tienes que cambiarlo por el icono de impresora». En las tarjetas de Operativas se sustituyen **ambos** botones de texto: «Imprimir parte» de Pistola y «Imprimir» de Riego/Manual/Específicos por botones azules compactos con icono `ti-printer`, `title` y `aria-label` distintos para identificar el circuito. Iconos de 18px, botón de 36×34px. El botón global de la cabecera ya era icono y se conserva sin cambios. Se mantienen exactamente los `onclick` `imprimirHojaFumigacionTarea(id)` / `imprimirTareaSuelta(id)`, los controles y requisitos de caldo del documento fitosanitario y el resto de acciones. No se han modificado datos ni Firebase.
+
+**Código** `index.html` en `test/v1.0`, commit `02649efe149a4e59abdd101ae3379f5f2a875d3e`. Verificación sintáctica de cinco bloques JS inline satisfactoria; revisión estática de dos controles icon-only. Validación visual real del usuario pendiente. **No reabrir Pistola, Mantenimiento ni QC**; PRD/main intactos.
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).
