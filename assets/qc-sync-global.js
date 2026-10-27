@@ -41,7 +41,7 @@
   toggle.type='button';
   toggle.setAttribute('aria-label',state.total+' elementos QC pendientes de sincronizar');
   toggle.setAttribute('aria-expanded',String(opened));
-  toggle.append(text('span','↥'),text('span',String(state.total)+' pendientes'));
+  toggle.append(text('span','↥'),text('span',String(state.total)+' por sincronizar'));
   toggle.addEventListener('click',()=>{opened=!opened;show();});
   anchor.append(toggle);
   if(!opened)return;
@@ -70,7 +70,7 @@
   action.type='button';action.disabled=busy||navigator.onLine===false;
   action.addEventListener('click',()=>{void synchronize();});
   panel.append(action);
-  const status=text('p','Orden: inspecciones → fotos a SharePoint. Se confirma cada registro.','qc-sync-status');
+  const status=text('p','Orden: inspecciones → fotos a SharePoint. Cada elemento se verifica antes de retirarlo del dispositivo.','qc-sync-status');
   status.id='qc-global-sync-status';status.setAttribute('role','status');panel.append(status);
   if(lastErrors.length){
     const errors=text('details',null,'qc-sync-errors');
