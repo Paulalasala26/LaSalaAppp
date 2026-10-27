@@ -153,6 +153,55 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .avisos-modulo-grupo{width:100%;max-width:540px;margin:0 auto;display:flex;flex-direction:column;gap:26px;}
 .avisos-modulo-titulo{font-size:14px;font-weight:800;color:#173d6b;margin-bottom:2px;}
 
+/* Operativas minimalista — estilos aislados: la lógica de origen, ejecución, firma y Archivo no cambia. */
+.op-ui{--op-azul:#1558a0;--op-borde:#d0deed;--op-fondo:#f7faff;color:#263c53;font-size:12px}
+.op-ui button,.op-ui select,.op-ui input,.op-ui textarea{font:inherit}
+.op-ui button{cursor:pointer}
+.op-ui button:not(:disabled):focus-visible{outline:2px solid #62a2ed;outline-offset:2px}
+.op-btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;background:var(--op-azul);color:#fff;border:1px solid var(--op-azul);border-radius:7px;min-height:32px;padding:6px 10px;font-size:11px!important;font-weight:700;white-space:nowrap}
+.op-btn:hover:not(:disabled){background:#10477f;border-color:#10477f}
+.op-btn:disabled{opacity:.45;cursor:not-allowed}
+.op-lista{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,305px),1fr));gap:8px}
+.op-tarjeta{background:#fff;border:1px solid var(--op-borde);border-radius:9px;padding:10px 11px;display:flex;flex-direction:column;gap:6px;min-width:0;box-shadow:none;margin:0}
+.op-tarjeta-cab{display:flex;align-items:flex-start;gap:8px}
+.op-tarjeta-cab strong{flex:1;min-width:0;font-size:12.5px;line-height:1.3;overflow-wrap:anywhere;font-weight:800}
+.op-tarjeta-cab .tarea-select-chk{flex-shrink:0;width:16px;height:16px;margin:1px 1px 0 0;accent-color:var(--op-azul)}
+.op-estado{font-size:10px;font-weight:700;white-space:nowrap;padding:3px 7px;border-radius:6px}
+.op-prioridad{font-size:10px;color:#a52a2a;font-weight:800;margin-left:6px}
+.op-ubicacion{font-size:11px;color:#496783;font-weight:650;overflow-wrap:anywhere}
+.op-descripcion{font-size:11px;color:#5b6e83;overflow-wrap:anywhere;line-height:1.4;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.op-metadatos{display:flex;flex-wrap:wrap;gap:4px 9px;align-items:center;color:#587087;font-size:10.5px}
+.op-metadatos span{display:inline-flex;align-items:center;gap:4px}
+.op-metadatos .op-origen{font-weight:750;color:var(--op-azul)}
+.op-ejecucion{font-size:10.5px;color:#66798d;border-top:1px solid #e9f0f7;padding-top:5px;overflow-wrap:anywhere}
+.op-acciones{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:5px;margin-top:auto;padding-top:7px;border-top:1px solid #e9f0f7}
+.op-seccion-cab{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:10px 0 8px;padding-bottom:5px;border-bottom:1px solid #d6e2ee;color:var(--op-azul)}
+.op-seccion-cab h3{font-size:12.5px;margin:0;font-weight:800}
+.op-seccion-cab .op-count{font-size:11px;color:#526b86;font-weight:700}
+.op-buscador{display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:7px 12px;background:#f7faff;border-bottom:1px solid #d6e2ee}
+.op-buscador #tareas-gestor-buscar{flex:1;min-width:135px;max-width:none}
+.op-buscador input,.op-buscador select{min-height:33px;border:1px solid var(--op-borde);background:#fff;border-radius:7px;padding:6px 9px;color:#1558a0;font-size:11px;box-sizing:border-box}
+.op-fecha{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-right:2px}
+.op-fecha input[type="date"]{width:130px;min-width:0}
+.op-filtros-extra{display:flex;gap:6px;align-items:center;flex-wrap:wrap;width:100%;padding-top:5px}
+.op-filtros-extra select{max-width:175px;min-width:110px}
+.op-filtros-extra input[type="date"]{max-width:155px}
+.op-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin:0 0 8px}
+.op-batch{display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:7px 9px;margin:0 0 8px;border-radius:7px;background:#edf4fc;border:1px solid #d6e2ee}
+.op-batch select{border:1px solid #cfdeec;border-radius:7px;padding:6px;font-size:11px;min-height:33px;background:#fff}
+.op-nt-form{background:#f7faff;border:1px solid #cbdcec;border-radius:9px;padding:11px;margin:0 0 10px}
+.op-nt-form .op-nt-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,140px),1fr));gap:7px}
+.op-nt-form input,.op-nt-form textarea,.op-nt-form select{box-sizing:border-box;min-height:34px;width:100%;padding:7px 9px;border:1px solid #cbdcec;border-radius:7px;background:#fff;font-size:11px}
+.op-nt-form textarea{resize:vertical;min-height:44px}
+.op-nt-form .op-nt-footer{display:flex;justify-content:flex-end;align-items:center;gap:7px;flex-wrap:wrap;margin-top:8px}
+.op-nt-form .op-nt-footer label{margin-right:auto;font-size:11px;color:#4d6580}
+.op-nt-form .op-personal{border:1px solid #d3e0ef;border-radius:7px;background:#fff;margin:7px 0}
+.op-nt-form .op-personal summary{padding:8px 10px;cursor:pointer;color:#1558a0;font-size:11px;font-weight:800}
+.op-nt-form .op-personal>div{padding:8px 9px;display:flex;flex-wrap:wrap;gap:5px}
+.op-nt-form .chip-asignado{border-radius:7px!important;padding:6px 9px!important;background:#1558a0!important;border:1px solid #1558a0!important;color:#fff!important;font-size:11px!important}
+.op-nt-form .chip-asignado-on{background:#0d396b!important;border-color:#0d396b!important;box-shadow:inset 0 0 0 2px #87b7ec!important}
+@media(max-width:510px){.op-buscador{padding:7px 9px}.op-fecha{order:2;width:100%}.op-fecha input[type="date"]{flex:1}.op-buscador #tareas-gestor-buscar{order:1}.op-buscador>.op-btn{order:1}.op-lista{grid-template-columns:1fr}}
+
 /* Mantenimiento compacto: estilos limitados a este módulo, sin modificar QC, login ni otras pantallas */
 /* Selector único para asignación operativa; sin multiselección. */
 .mant-asignacion-simple{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
@@ -1977,41 +2026,43 @@ function estadoTareaColores(estado){
 // que ya tenía la tabla (checkbox de selección en lote, editar/imprimir/
 // eliminar).
 function buildTareaGestorRow(t, conSeleccion){
-  const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const est = estadoTareaColores(t.estado);
+  const esc=v=>String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const est=estadoTareaColores(t.estado);
   const origen=tareaOrigenGestion(t),manual=origen==='manual',pistola=origen==='pistola';
   const pistolaVinculada=pistola&&!!t.origenFito?.serieId;
   const origenLabel={riego:'Riego',pistola:'Pistola',manual:'Manual',especificos:'Específicos',sin_origen:'Antiguo'}[origen]||origen;
-  const subtitulo = t.objetivos && t.objetivos.length ? invCallesLabelDeTarea(t) : ((t.inv?('INV '+t.inv):'')+(t.calles?(' · '+(/\(INV completo\)$/.test(t.calles)?'ENTERO':t.calles)):''));
-  const detalles = [
-    t.horaInicio ? `Inicio: ${escapar(t.horaInicio)}` : '',
-    t.horaFin ? `Fin: ${escapar(t.horaFin)}` : '',
-    t.firmante ? `Firma: ${escapar(t.firmante)}` : ''
-  ].filter(Boolean).join(' · ');
-  return `
-    <div class="tarea-card" style="position:relative;margin-top:10px;border-radius:4px 4px 12px 12px;background:#fff;border:1.5px solid var(--border);border-top:none;box-shadow:var(--shadow-sm);padding:14px 16px 12px">
-      <div style="position:absolute;top:-9px;left:18px;width:38px;height:16px;background:${est.color};border-radius:5px 5px 0 0;box-shadow:0 -1px 3px rgba(0,0,0,.15)"></div>
-      ${conSeleccion ? `<input type="checkbox" class="tarea-select-chk" value="${t.id}" ${tareasSeleccionadas.has(t.id)?'checked':''} onchange="toggleSeleccionTarea('${t.id}',this.checked)" style="position:absolute;top:12px;right:14px;width:16px;height:16px;cursor:pointer">` : ''}
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;padding-right:${conSeleccion?'26px':'0'}">
-        <div style="font-size:15px;font-weight:800;color:var(--text)">${escapar(t.titulo)}${t.prioridad==='alta'?' <span style="color:#c62828;font-size:11px;font-weight:800">● ALTA</span>':''}</div>
-        <span style="font-size:10px;font-weight:800;padding:4px 11px;border-radius:20px;background:${est.bg};color:${est.color};white-space:nowrap">${est.label}</span>
-      </div>
-      ${subtitulo ? `<div style="font-size:12.5px;font-weight:600;color:var(--muted);margin-top:3px">${escapar(subtitulo)}</div>` : ''}
-      ${t.descripcion ? `<div style="font-size:12px;color:var(--muted);margin-top:4px">${escapar(t.descripcion)}</div>` : ''}
-      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center">
-        <span style="font-size:11px;font-weight:700;background:#eef4fb;color:#1558a0;border-radius:999px;padding:3px 11px">${escapar(origenLabel)}</span>
-        <span style="font-size:11px;font-weight:700;background:#f2f4f0;color:var(--text);border-radius:999px;padding:3px 11px">👤 ${escapar(t.asignadoA)}</span>
-        ${t.horario ? `<span style="font-size:10.5px;font-weight:800;color:#c62828;border:1.5px solid #c62828;border-radius:999px;padding:2px 10px">⏰ ${escapar(t.horario)}</span>` : ''}
-      </div>
-      ${detalles ? `<div style="font-size:11px;color:var(--muted);margin-top:8px;padding-top:8px;border-top:1px dashed var(--border)">${detalles}</div>` : ''}
-      <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
-        ${manual&&t.estado==='pendiente'&&!t.conciliacionFito ? `<button onclick="showEditarTareaForm('${t.id}')" style="padding:7px 12px;font-size:11px;font-weight:700;background:#1558a0;color:#fff;border:0;border-radius:7px;cursor:pointer">Editar</button>
-          <button onclick="eliminarTarea('${t.id}')" style="padding:7px 12px;font-size:11px;background:#eef4fb;color:#1558a0;border:1px solid #a8c4e8;border-radius:7px;cursor:pointer">Anular</button>` : ''}
-        ${pistola ? `<button onclick="imprimirHojaFumigacionTarea('${t.id}')" style="padding:7px 12px;font-size:11px;font-weight:700;background:#1558a0;color:#fff;border:0;border-radius:7px;cursor:pointer">Imprimir parte</button>
-          ${pistolaVinculada?`<button onclick="abrirJornadaPistolaDesdeTareas('${t.id}')" style="padding:7px 12px;font-size:11px;background:#eef4fb;color:#1558a0;border:1px solid #a8c4e8;border-radius:7px;cursor:pointer">Ver jornada</button>`:''}` : ''}
-        ${!pistola ? `<button onclick="imprimirTareaSuelta('${t.id}')" style="padding:7px 12px;font-size:11px;background:#eef4fb;color:#1558a0;border:1px solid #a8c4e8;border-radius:7px;cursor:pointer">Imprimir</button>` : ''}
-      </div>
-    </div>`;
+  const subtitulo=t.objetivos&&t.objetivos.length?invCallesLabelDeTarea(t):
+    ((t.inv?('INV '+t.inv):'')+(t.calles?(' · '+(/\\(INV completo\\)$/.test(t.calles)?'ENTERO':t.calles)):''));
+  const detalles=[
+    t.horaInicio?'Inicio: '+esc(t.horaInicio):'',
+    t.horaFin?'Fin: '+esc(t.horaFin):'',
+    t.firmante?'Firma: '+esc(t.firmante):''
+  ].filter(Boolean);
+  return `<article class="op-tarjeta tarea-card">
+    <div class="op-tarjeta-cab">
+      ${conSeleccion?`<input type="checkbox" class="tarea-select-chk" aria-label="Seleccionar tarea ${esc(t.titulo)}" value="${esc(t.id)}" ${tareasSeleccionadas.has(t.id)?'checked':''} onchange="toggleSeleccionTarea('${t.id}',this.checked)">`:''}
+      <strong>${esc(t.titulo)}${t.prioridad==='alta'?'<span class="op-prioridad">Alta</span>':''}</strong>
+      <span class="op-estado" style="background:${est.bg};color:${est.color}">${est.label}</span>
+    </div>
+    ${subtitulo?`<div class="op-ubicacion"><i class="ti ti-map-pin"></i> ${esc(subtitulo)}</div>`:''}
+    ${t.descripcion?`<div class="op-descripcion">${esc(t.descripcion)}</div>`:''}
+    <div class="op-metadatos">
+      <span class="op-origen">${esc(origenLabel)}</span>
+      <span><i class="ti ti-user"></i> ${esc(t.asignadoA||'Sin asignar')}</span>
+      ${t.horario?`<span><i class="ti ti-clock"></i> ${esc(t.horario)}</span>`:''}
+      ${t.fechaISO?`<span><i class="ti ti-calendar"></i> ${esc(t.fechaISO)}</span>`:''}
+    </div>
+    ${detalles.length?`<div class="op-ejecucion">${detalles.join(' · ')}</div>`:''}
+    <div class="op-acciones">
+      ${manual&&t.estado==='pendiente'&&!t.conciliacionFito?`
+        <button type="button" class="op-btn" onclick="showEditarTareaForm('${t.id}')"><i class="ti ti-pencil"></i> Editar</button>
+        <button type="button" class="op-btn" onclick="eliminarTarea('${t.id}')"><i class="ti ti-ban"></i> Anular</button>`:''}
+      ${pistola?`
+        <button type="button" class="op-btn" onclick="imprimirHojaFumigacionTarea('${t.id}')"><i class="ti ti-printer"></i> Imprimir parte</button>
+        ${pistolaVinculada?`<button type="button" class="op-btn" onclick="abrirJornadaPistolaDesdeTareas('${t.id}')"><i class="ti ti-eye"></i> Ver jornada</button>`:''}`:
+        `<button type="button" class="op-btn" onclick="imprimirTareaSuelta('${t.id}')"><i class="ti ti-printer"></i> Imprimir</button>`}
+    </div>
+  </article>`;
 }
 function tareaTableHead(conSeleccion){
   return conSeleccion ? `
