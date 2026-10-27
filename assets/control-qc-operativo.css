@@ -249,3 +249,32 @@
 .qco-inline .qco-photo-tile>.qco-photo-error{display:block;padding:11px 6px;
   font-size:11px;line-height:1.2;overflow-wrap:anywhere}
 .qco-inline .qco-photo-sync:focus-visible{outline:3px solid #6ca6df;outline-offset:2px}
+
+
+/* QC 0.112 — cámara real + selección multifoto, acciones explícitas en móvil/PC. */
+.qco-inline .qco-photo-actions{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+.qco-inline button.qco-photo-action{display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  min-height:44px;padding:9px 14px;background:#1558a0;color:#fff;border:1px solid #1558a0;
+  border-radius:8px;font-size:13px;font-weight:800;cursor:pointer}
+.qco-inline button.qco-photo-action:nth-of-type(2){background:#edf5ff;color:#1558a0;border-color:#a7c5e7}
+.qco-inline button.qco-photo-action:disabled{opacity:.5;cursor:wait}
+.qco-inline button.qco-photo-action i{font-size:19px}
+.qco-inline .qco-photo-input{position:absolute!important;width:1px!important;height:1px!important;
+  opacity:0!important;overflow:hidden!important;pointer-events:none!important}
+.qco-camera-overlay{position:fixed;inset:0;z-index:2147483645;display:flex;align-items:center;
+  justify-content:center;background:rgba(6,19,35,.92);padding:12px;box-sizing:border-box}
+.qco-camera-dialog{box-sizing:border-box;width:min(100%,760px);max-height:96vh;display:flex;
+  flex-direction:column;gap:13px;border-radius:12px;padding:14px;background:#fff;color:#173d6b}
+.qco-camera-dialog h3{margin:0;font-size:17px;color:#1558a0}
+.qco-camera-dialog video{display:block;width:100%;max-height:70vh;background:#051422;
+  object-fit:contain;border-radius:9px}
+.qco-camera-controls{display:flex;gap:10px;justify-content:flex-end}
+.qco-camera-controls button{min-height:44px;padding:10px 15px;border-radius:8px;
+  border:1px solid #b7cce2;background:#f4f9ff;color:#1558a0;font-weight:800;cursor:pointer}
+.qco-camera-controls .qco-camera-capture{background:#1558a0;color:#fff;border-color:#1558a0}
+.qco-camera-controls button:disabled{opacity:.5;cursor:wait}
+@media(max-width:560px){
+ .qco-inline .qco-photo-actions{width:100%;display:grid;grid-template-columns:1fr 1fr}
+ .qco-inline button.qco-photo-action{min-width:0;padding:9px 8px}
+ .qco-camera-controls button{flex:1}
+}
