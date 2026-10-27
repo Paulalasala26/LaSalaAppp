@@ -7,6 +7,11 @@
  const TYPES=['image/jpeg','image/png','image/webp','image/heic','image/heif'];
  let owner='',role='',items=[],sending=false,previewClose=null;
  function requireSession(){
+  if(window.QCPhotoMainSession){
+   const current=window.QCPhotoMainSession();
+   if(!current||current.user!==owner||current.role!==role)
+    throw Error('La sesión ha cambiado. Fotografía conservada en este dispositivo.');
+  }
   if(window.QCOfflineSessionGuard&&!window.QCOfflineSessionGuard.active())
    throw Error('La sesión ha cambiado. Foto conservada; vuelve a iniciar sesión.');
  }
@@ -123,7 +128,8 @@
    session=JSON.parse(localStorage.getItem('lasala-sesion-v1')||'null');
   }catch(_){throw Error('No se ha podido leer la sesión. La fotografía sigue local.');}
   if(!auth?.refreshToken||auth.user!==owner||session?.user!==owner||
-     localStorage.getItem('viguerapp-qc-offline-role-test-v1')!==role)
+     (window.QCPhotoMainSession?window.QCPhotoMainSession()?.role!==role:
+       localStorage.getItem('viguerapp-qc-offline-role-test-v1')!==role))
    throw Error('La sesión ha cambiado. Abre ViguerAPP con el usuario original.');
   let reply,data;
   try{
@@ -136,7 +142,8 @@
    data=await reply.json();
    if(!data.id_token||!data.refresh_token)throw Error('LOGIN_REQUIRED');
   }catch(_){throw Error('No se ha podido validar la sesión. La foto sigue local.');}
-  if(auth.user!==owner||localStorage.getItem('viguerapp-qc-offline-role-test-v1')!==role)
+  if(auth.user!==owner||(window.QCPhotoMainSession?window.QCPhotoMainSession()?.role!==role:
+     localStorage.getItem('viguerapp-qc-offline-role-test-v1')!==role))
    throw Error('El usuario ha cambiado durante la comprobación.');
   localStorage.setItem('lasala-firebase-auth-v1',
    JSON.stringify({user:owner,refreshToken:data.refresh_token}));
@@ -403,5 +410,83 @@
   }
   parent.hidden=false;
  }
- window.QCOfflinePhotos=Object.freeze({init,decorate,renderSaved,lock,count:()=>items.length});
+
+ // Galería QC online: reutiliza EXACTAMENTE el mismo IndexedDB, UUID y
+ // protocolo de envío comprobado del capturador sin conexión.
+ async function galleryCapture(ref,files){
+  requireSession();
+  if(!refValid(ref))throw Error('Inspección no autorizada.');
+  let done=0;
+  for(const file of Array.from(files||[])){
+   if(items.length>=LIMIT)throw Error(done?
+    'Guardadas '+done+' fotos. Límite de '+LIMIT+' pendientes por usuario en este dispositivo.':
+    'Límite de '+LIMIT+' fotos pendientes por usuario en este dispositivo.');
+   if(typeof crypto?.randomUUID!=='function')throw Error('El dispositivo no admite identificadores seguros.');
+   const blob=await compressed(file);
+   requireSession();
+   const photo={photoId:crypto.randomUUID(),owner,role,
+    ref:{id:ref.id,tipo:ref.tipo,dia:ref.dia,partida:ref.partida},
+    blob,capturedAt:new Date().toISOString(),status:'PENDIENTE_LOCAL'};
+   await operation('readwrite',st=>st.add(photo));
+   items.push(photo);done++;
+  }
+  summary();
+  return done;
+ }
+ async function galleryLocal(ref){
+  requireSession();
+  if(!refValid(ref))return [];
+  return listFor(ref).map(x=>({id:x.photoId,blob:x.blob,
+   status:x.status,fecha:x.capturedAt,pending:true}));
+ }
+ async function galleryDeleteLocal(ref,id){
+  requireSession();
+  if(!refValid(ref))throw Error('Registro no válido.');
+  const found=listFor(ref).find(x=>x.photoId===id);
+  if(!found)throw Error('Fotografía no encontrada.');
+  if(found.status==='ENVIO_INCIERTO')
+   throw Error('Envío por verificar. No se puede eliminar la copia de seguridad.');
+  await operation('readwrite',st=>st.delete(found.photoId));
+  items=items.filter(x=>x.photoId!==id);summary();
+  return true;
+ }
+ async function galleryRemote(ref){
+  requireSession();if(!refValid(ref)||!navigator.onLine)return [];
+  const token=await userToken();
+  const q=new URLSearchParams({action:'photo-list',id:ref.id,tipo:ref.tipo,dia:String(ref.dia)});
+  const r=await fetch('/api/qc-fotos-sharepoint?'+q.toString(),{
+   headers:{Authorization:'Bearer '+token},cache:'no-store'});
+  if(!r.ok)throw Error('No se ha podido consultar la galería SharePoint.');
+  const body=await r.json();
+  if(!body.ok||!Array.isArray(body.photos))throw Error('Respuesta de galería incorrecta.');
+  return body.photos;
+ }
+ async function galleryRemoteBlob(ref,id){
+  requireSession();if(!refValid(ref))throw Error('Registro no válido.');
+  const token=await userToken();
+  const q=new URLSearchParams({action:'photo-image',id:ref.id,tipo:ref.tipo,dia:String(ref.dia),photoId:id});
+  const r=await fetch('/api/qc-fotos-sharepoint?'+q.toString(),{
+    headers:{Authorization:'Bearer '+token},cache:'no-store'});
+  if(!r.ok)throw Error('No se ha podido recuperar la fotografía de SharePoint.');
+  return r.blob();
+ }
+ async function gallerySend(ref){
+  requireSession();if(!refValid(ref))throw Error('Registro no válido.');
+  const status={textContent:''},button={disabled:false};
+  await syncFor(ref,button,status,()=>{});
+  return status.textContent;
+ }
+ async function galleryRemoveRemote(ref,id){
+  requireSession();if(!refValid(ref))throw Error('Registro no válido.');
+  const token=await userToken();
+  const q=new URLSearchParams({action:'photo-hide',id:ref.id,tipo:ref.tipo,dia:String(ref.dia),photoId:id});
+  const r=await fetch('/api/qc-fotos-sharepoint?'+q.toString(),{
+    method:'DELETE',headers:{Authorization:'Bearer '+token},cache:'no-store'});
+  if(!r.ok)throw Error('No se ha podido retirar la foto de la galería SharePoint.');
+  return true;
+ }
+
+ window.QCOfflinePhotos=Object.freeze({init,decorate,renderSaved,lock,
+  galleryCapture,galleryLocal,galleryDeleteLocal,galleryRemote,galleryRemoteBlob,
+  gallerySend,galleryRemoveRemote,count:()=>items.length});
 })();
