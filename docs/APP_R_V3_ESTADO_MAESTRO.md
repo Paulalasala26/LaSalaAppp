@@ -7,7 +7,7 @@
 
 ## 0. CONTINUIDAD ACTUAL — 26/10/2026 (LEER ANTES DEL RESTO)
 
-**BLOQUE ACTIVO: QC 0.111.1 — CORRECCIÓN ARQUITECTURA FOTOS: SharePoint destino definitivo, IndexedDB dispositivo offline/cola de envío, Firebase TEST solo índice de metadatos de fotos SharePoint (NO bytes). IMPLEMENTADO TEST / VERIFICACIÓN REAL UAT PENDIENTE.** Se revierte la ruta experimental de subida de imágenes a RTDB de QC 0.111. QC 0.110 Carga validado por usuario; Tareas en pausa. El usuario confirmó QC 0.107 y §0.106.1 en Túnel el 26/10; Carga conserva pendiente su prueba particular del editor y la réplica posterior del diseño de pantalla. Compatibilidad con registros históricos mantenida. Tareas continúa en pausa. Las referencias anteriores a Plaguicidas 0.91 son históricas, no reanudación.
+**BLOQUE ACTIVO: QC 0.112 — botón de cámara accesible («Hacer foto») + selector multifoto independiente («Elegir fotos») en las inspecciones de Túnel/Carga. IMPLEMENTADO TEST / UAT DISPOSITIVO PENDIENTE.** QC 0.111.1 conserva fotografías en IndexedDB y SharePoint, con confirmación de envío; nunca nuevos bytes en RTDB. QC 0.110 Carga validado; Tareas en pausa. El usuario confirmó QC 0.107 y §0.106.1 en Túnel el 26/10; Carga conserva pendiente su prueba particular del editor y la réplica posterior del diseño de pantalla. Compatibilidad con registros históricos mantenida. Tareas continúa en pausa. Las referencias anteriores a Plaguicidas 0.91 son históricas, no reanudación.
 
 **CONTEXTO HISTÓRICO: Plaguicidas Pistola→Tareas. NUEVA INCIDENCIA / CORRECCIÓN UI 0.91**. El usuario rechaza la confusión entre «seleccionar solo Pistola», elegir un producto fitosanitario (que asigna a `PEON1`) y pulsar una desconocida «Hoja oficial» que falla por ausencia de caldo. Tras analizar código, se mantiene el significado correcto: Pistola/Cañón son **métodos de aplicación**, producto/dosis/volumen configuran el **tratamiento real**, y Pistola genera **tarea de ejecución PEÓN** automáticamente según sala; Cañón no. No inventar aplicaciones vacías ni atribuir aplicación ejecutada al mero registro. Nuevos registros requieren datos suficientes para imprimir el parte; anteriores se preservan. Formularios reordenados, responsable visible, botón «Guardar tratamiento» y «Imprimir parte» en Consulta; las jornadas guardadas incompletas muestran motivo sin diálogo frustrante. Revisar el apartado 0.91 y HEAD Vercel para UAT. **No declarar Bloque C validado hasta prueba humana integral.**
 
@@ -1343,6 +1343,17 @@ El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en int
 - **Resto:** no tocar `main`, PRD, datos históricos, permisos generales, QC porcentual, otras pantallas, configuración SharePoint ni Tareas. Ninguna foto real se ha subido/migrado/eliminado en este trabajo.
 
 **Verificación pendiente e instrucciones UAT:** en TEST, inspección de Túnel/Carga, añadir varias fotos (se retienen localmente), comprobar miniaturas `Pendiente local`; desconectar red, añadir foto y confirmar conservación/reaparición con mismo usuario; reconectar y pulsar `Enviar a SharePoint`, confirmar, comprobar respuesta real y miniatura con etiqueta SharePoint; cambiar de inspección y volver; comprobar no duplicados en ruta final. Si la bandera de subida está desactivada, se verá el mensaje y **las fotos permanecerán íntegramente en IndexedDB**, sin declarar SP validado. Prueba de historia de foto única y posible antigua foto experimental. **Pendiente UAT humana autenticada y confirmación de biblioteca/metadata en Graph**.
+
+## 0.112. QC Túnel/Carga — reparar botón Añadir foto que no abre la cámara (27/10/2026) — IMPLEMENTADO TEST / UAT DISPOSITIVO PENDIENTE
+
+**Incidencia usuario:** «añadir foto no va, dice que empiece a añadir fotos pero no muestra la camara». El editor cuantitativo mostraba un solo label Añadir foto con input de archivos múltiple sin atributo capture. Eso abre el selector de archivos/fototeca en ciertos navegadores, no la cámara.
+
+**Corrección aplicada:**
+- assets/control-qc-operativo.js commit 8e3d58e307cd58d646d13d2beeedaf0558597ec6: dentro de Fotografías hay dos botones distintos y visibles, «Hacer foto» y «Elegir fotos». Hacer foto en móviles iOS/Android acciona un input de foto individual con accept=image/* y capture=environment; en PC abre la cámara con getUserMedia, vista de vídeo y botón Capturar foto. El stream se detiene al cancelar o capturar. Elegir fotos acciona un input independiente con multiple y sin capture. Fallos y denegaciones de permisos se informan claramente. Ambos flujos pasan a legacyApi.uploadPhoto y reutilizan QCOfflinePhotos.galleryCapture -> IndexedDB -> SharePoint con confirmación. No se guarda ninguna imagen nueva en RTDB.
+- assets/control-qc-operativo.css commit 8441ea9155f839f24d6838fb6c8d0ae2f8df074f: botones táctiles azules e independientes, inputs ocultos funcionales y cámara modal responsive.
+- index.html commit ab32c0de2ec1a6a7bcb5f3561159081f4cc9e074: bump CSS/JS a v112 para evitar caché obsoleta en la aplicación instalada o navegador.
+
+**Verificación:** sintaxis JS sin fallos y 7/7 pruebas simuladas de clic móvil/escritorio, selector de cámara, selector multifoto y entrega de varias fotografías al adaptador. Falta UAT física del teléfono (permisos/cámara reales). No se alteran las reglas de QC cuantitativo, datos históricos, main ni PRD.
 
 ## 1. Reglas innegociables
 
