@@ -164,11 +164,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .mant-cabecera,.mant-form-titulo{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
 .mant-cabecera{margin:0 0 12px}.mant-cabecera h2{font-size:16px;color:var(--mant-azul);margin:0;font-weight:800}
 .mant-resumen{color:#667e99;font-size:11px;margin-top:3px}
-.mant-btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:8px 11px;border-radius:8px;border:1px solid var(--mant-borde);cursor:pointer;font-size:12px!important;font-weight:700!important;min-height:36px;white-space:nowrap}
+.mant-btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:8px 11px;border-radius:8px;border:1px solid var(--mant-azul);background:var(--mant-azul);color:#fff;cursor:pointer;font-size:12px!important;font-weight:700!important;min-height:36px;white-space:nowrap}
 .mant-btn-principal{background:var(--mant-azul);border-color:var(--mant-azul);color:#fff}
-.mant-btn-secundario{background:#fff;color:var(--mant-azul)}
-.mant-btn-archivo{color:#526a83;background:#f7f9fc;border-color:#d5e0ed}
-.mant-btn:disabled{opacity:.42;cursor:not-allowed}
+.mant-btn-secundario{background:var(--mant-azul);border-color:var(--mant-azul);color:#fff}
+.mant-btn-archivo{background:var(--mant-azul);border-color:var(--mant-azul);color:#fff}
+.mant-btn:hover:not(:disabled){background:#10477f;border-color:#10477f}.mant-btn:focus-visible{outline:2px solid #2e82da;outline-offset:2px}.mant-btn:disabled{opacity:.42;cursor:not-allowed}
 .mant-herramientas{display:flex;gap:8px;align-items:center;margin:0 0 13px}
 .mant-herramientas input,.mant-herramientas select{min-height:39px;border:1px solid var(--mant-borde);background:#fff;border-radius:8px;padding:8px 10px;box-sizing:border-box}
 .mant-herramientas input{flex:1;min-width:110px}.mant-herramientas select{width:auto;max-width:170px;color:var(--mant-azul)}
@@ -188,7 +188,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .mant-ticket-responsable{font-size:11px;color:#1558a0;font-weight:700;overflow-wrap:anywhere}
 .mant-ticket-acciones{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:6px;margin-top:auto;padding-top:7px;border-top:1px solid #e4edf7}
 .mant-asignacion,.mant-masivo,.mant-sala{border:1px solid var(--mant-borde);border-radius:8px;background:var(--mant-fondo)}
-.mant-asignacion summary,.mant-masivo summary,.mant-sala summary{cursor:pointer;color:var(--mant-azul);font-size:12px;font-weight:700;padding:9px 11px;user-select:none}
+.mant-asignacion summary,.mant-masivo summary,.mant-sala summary{cursor:pointer;background:var(--mant-azul);color:#fff;font-size:12px;font-weight:700;padding:9px 11px;user-select:none;border-radius:7px}.mant-sala summary:hover{background:#10477f}.mant-sala[open] summary{border-radius:7px 7px 0 0}
 .mant-asignacion-contenido,.mant-masivo-interior{padding:0 10px 10px}.mant-masivo{margin-bottom:12px}
 .mant-masivo-interior p{font-size:11px;color:#61758b;margin:0 0 8px}
 .mant-personas{display:flex;flex-wrap:wrap;gap:6px;max-height:165px;overflow-y:auto;padding:2px}
@@ -201,10 +201,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .mant-form-label{font-size:12px;color:#1558a0;font-weight:800;margin:12px 0 8px;display:flex;flex-wrap:wrap;align-items:center;gap:9px}
 .mant-contador{font-size:11px;color:#526b85;font-weight:500}
 .mant-trabajos{display:flex;flex-wrap:wrap;gap:7px}
-.mant-trabajos button{background:#fff;border:1px solid var(--mant-borde);border-radius:8px;padding:9px 12px;cursor:pointer;color:#1558a0;font-size:12px;font-weight:700}
-.mant-trabajos button.activo{background:#e4effd;border-color:#1558a0;box-shadow:inset 0 0 0 1px #1558a0}
+.mant-trabajos button{background:var(--mant-azul);border:1px solid var(--mant-azul);border-radius:8px;padding:9px 12px;cursor:pointer;color:#fff;font-size:12px;font-weight:700}
+.mant-trabajos button:hover{background:#10477f;border-color:#10477f}.mant-trabajos button.activo{background:#0d396b;border-color:#0d396b;color:#fff;box-shadow:inset 0 0 0 2px #70aff1}.mant-trabajos button:focus-visible{outline:2px solid #2e82da;outline-offset:2px}
 .mant-salas{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:7px}
-.mant-sala{min-width:0}.mant-sala summary span{color:#62758b;font-weight:500;font-size:11px}
+.mant-sala{min-width:0}.mant-sala summary span{color:#eaf3ff;font-weight:500;font-size:11px}
 .mant-lista-inv{display:flex;flex-wrap:wrap;gap:5px;padding:0 9px 9px;max-height:140px;overflow-y:auto}
 .mant-form-opciones{display:flex;align-items:end;gap:12px;flex-wrap:wrap;margin:12px 0 8px}
 .mant-check,.mant-fecha{font-size:12px;color:#3c5874;display:flex;align-items:center;gap:7px}
@@ -1903,7 +1903,7 @@ function showMantenimientoPeonModule(){
       <div style="position:absolute;top:0;left:0;right:0;bottom:0;background:var(--bg);display:flex;flex-direction:column;border-radius:12px;overflow:hidden">
         <div style="padding:1.5rem;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
           <h2 style="font-size:20px;font-weight:800;color:var(--text);margin:0">Mantenimiento de Parcelas</h2>
-          <button onclick="document.getElementById('mant-peon-overlay').style.display='none'" style="padding:6px 10px;font-size:16px;background:none;border:none;color:var(--muted);cursor:pointer">✕</button>
+          <button onclick="document.getElementById('mant-peon-overlay').style.display='none'" style="padding:6px 10px;font-size:16px;background:#1558a0;border:1px solid #1558a0;border-radius:7px;color:#fff;cursor:pointer">✕</button>
         </div>
         <div style="flex:1;overflow-y:auto;padding:1.5rem">
           ${renderMantenimientoColgandoHTML()}
@@ -2621,7 +2621,7 @@ function renderTareasGestorFullScreen(overlay){
    return !f.fecha||t.fechaISO===f.fecha;
  });
  const active=filtered.filter(t=>t.estado!=='completada'&&t.estado!=='anulada'),done=filtered.filter(t=>t.estado==='completada');
- const nav=(key,label,count,icon)=>`<button onclick="irATareasGestorVista('${key}')" style="flex:1;min-width:0;padding:9px 3px;font-size:12px;font-weight:800;background:${vista===key?'#fff':'transparent'};color:${vista===key?'#1558a0':'#fff'};border:1px solid #8eb1d5;border-radius:7px;cursor:pointer;white-space:nowrap"><i class="ti ${icon}"></i> ${label} ${count}</button>`;
+ const nav=(key,label,count,icon)=>`<button onclick="irATareasGestorVista('${key}')" style="flex:1;min-width:0;padding:9px 3px;font-size:12px;font-weight:800;background:${vista===key?'#0d396b':'#1558a0'};color:#fff;border:1px solid ${vista===key?'#c8def7':'#8eb1d5'};border-radius:7px;cursor:pointer;white-space:nowrap"><i class="ti ${icon}"></i> ${label} ${count}</button>`;
  const select=(campo,ops)=>`<select aria-label="${campo}" onchange="cambiarFiltroTareasGestor('${campo}',this.value)" style="min-width:110px;max-width:190px;padding:8px;border:1px solid #a8c4e8;border-radius:7px;background:#fff;color:#1558a0;font-size:12px">${ops.map(([val,label])=>`<option value="${val}" ${f[campo]===val?'selected':''}>${label}</option>`).join('')}</select>`;
  const origen=[['todos','Todos los orígenes'],['manual','Manual'],['riego','Riego'],['especificos','Específicos'],['pistola','Pistola'],['mantenimiento','Mantenimiento'],['sin_origen','Antiguos']];
  const salas=[['todas','Todas las salas'],...['sala1','sala2','sala3','sala4','sala5'].map((v,i)=>[v,'Sala '+(i+1)])];
@@ -3326,7 +3326,7 @@ function buildTarjetaMantenimientoPeon(t){
     ${t.prioridad==='alta'?`<div style="margin-top:6px;font-size:11px;font-weight:800;color:#c62828">PRIORIDAD ALTA</div>`:''}
     <div style="margin-top:10px;display:flex;gap:8px">
       ${t.estado==='asignado' ? `<button onclick="iniciarMantenimientoPeon('${t.id}')" style="flex:1;padding:8px;font-size:11px;font-weight:800;background:#1558a0;color:#fff;border:none;border-radius:8px;cursor:pointer">▶ Iniciar</button>` : ''}
-      ${t.estado==='en_proceso' ? `<button onclick="showCompletarMantenimientoPeonDialog('${t.id}')" style="flex:1;padding:8px;font-size:11px;font-weight:800;background:#2e7d32;color:#fff;border:none;border-radius:8px;cursor:pointer">✓ Completar y firmar</button>` : ''}
+      ${t.estado==='en_proceso' ? `<button onclick="showCompletarMantenimientoPeonDialog('${t.id}')" style="flex:1;padding:8px;font-size:11px;font-weight:800;background:#1558a0;color:#fff;border:none;border-radius:8px;cursor:pointer">✓ Completar y firmar</button>` : ''}
     </div>
   </div>`;
 }
@@ -3347,8 +3347,8 @@ function showCompletarMantenimientoPeonDialog(id){
       <input id="cm-firma" type="text" placeholder="Tu nombre" value="${currentUser?currentUser[0]+currentUser.slice(1).toLowerCase():''}"
         style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;margin-bottom:14px">
       <div style="display:flex;justify-content:flex-end;gap:10px">
-        <button onclick="this.closest('.modal-overlay-dyn').style.display='none'" style="padding:9px 16px;font-size:12px;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:7px;cursor:pointer">Cancelar</button>
-        <button onclick="completarMantenimientoPeon('${id}')" style="padding:9px 18px;font-size:12px;font-weight:800;background:#2e7d32;color:#fff;border:none;border-radius:7px;cursor:pointer">Confirmar</button>
+        <button onclick="this.closest('.modal-overlay-dyn').style.display='none'" style="padding:9px 16px;font-size:12px;background:#1558a0;color:#fff;border:1px solid #1558a0;border-radius:7px;cursor:pointer">Cancelar</button>
+        <button onclick="completarMantenimientoPeon('${id}')" style="padding:9px 18px;font-size:12px;font-weight:800;background:#1558a0;color:#fff;border:1px solid #1558a0;border-radius:7px;cursor:pointer">Confirmar</button>
       </div>
     </div>`;
   mo.style.display='flex';
