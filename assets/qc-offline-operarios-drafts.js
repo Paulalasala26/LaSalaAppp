@@ -374,12 +374,11 @@
       at:Date.now(),status:'PENDIENTE_LOCAL'};
     await operation('readwrite',s=>s.put(stored));
     drafts.set(key(ref),stored);
+    window.dispatchEvent(new Event('qc-local-updated'));
     active=null;close();
     button.textContent='Editar borrador';
     if(button.parentElement&&!button.parentElement.querySelector('[data-qc-check]'))
      button.parentElement.append(makeCheckButton(ref));
-    if(button.parentElement&&!button.parentElement.querySelector('[data-qc-sync]'))
-     button.parentElement.append(makeSyncButton(ref,label));
     if(!label.textContent)label.textContent='Borrador guardado en dispositivo · pendiente de sincronizar';
     const status=document.getElementById('status');
     if(status)status.textContent='Borrador LOCAL guardado. No se ha enviado al servidor.';
@@ -524,7 +523,8 @@
     }
     store.delete(d.key);
    };
-   tx.oncomplete=()=>{connection.close();drafts.delete(d.key);resolve();};
+   tx.oncomplete=()=>{connection.close();drafts.delete(d.key);
+    window.dispatchEvent(new Event('qc-local-updated'));resolve();};
    tx.onabort=()=>{connection.close();reject(Error(
     'El servidor tiene cantidades verificadas, pero cambió el borrador local. Se conserva.'));};
   });
@@ -714,7 +714,7 @@
   button.type='button';button.style.cssText='background:#1558a0;border:0;border-radius:7px;color:white;padding:8px 10px;font-weight:700';
   button.addEventListener('click',()=>{void open(ref,button,label)});
   footer.append(label,button);
-  if(saved){footer.append(makeCheckButton(ref));footer.append(makeSyncButton(ref,label));}
+  if(saved)footer.append(makeCheckButton(ref));
   item.append(footer);
  }
  // El bloqueo por cambio de sesión cierra un editor abierto, pero NO toca
