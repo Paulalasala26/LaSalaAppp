@@ -152,6 +152,66 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .avisos-modulo-seccion{display:flex;flex-direction:column;gap:10px;}
 .avisos-modulo-grupo{width:100%;max-width:540px;margin:0 auto;display:flex;flex-direction:column;gap:26px;}
 .avisos-modulo-titulo{font-size:14px;font-weight:800;color:#173d6b;margin-bottom:2px;}
+
+/* Mantenimiento compacto: estilos limitados a este módulo, sin modificar QC, login ni otras pantallas */
+.mant-ui{--mant-azul:#1558a0;--mant-borde:#cddced;--mant-fondo:#f6f9fe;color:#243449;font-size:13px}
+.mant-ui button,.mant-ui input,.mant-ui select{font:inherit}
+.mant-cabecera,.mant-form-titulo{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.mant-cabecera{margin:0 0 12px}.mant-cabecera h2{font-size:16px;color:var(--mant-azul);margin:0;font-weight:800}
+.mant-resumen{color:#667e99;font-size:11px;margin-top:3px}
+.mant-btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:8px 11px;border-radius:8px;border:1px solid var(--mant-borde);cursor:pointer;font-size:12px!important;font-weight:700!important;min-height:36px;white-space:nowrap}
+.mant-btn-principal{background:var(--mant-azul);border-color:var(--mant-azul);color:#fff}
+.mant-btn-secundario{background:#fff;color:var(--mant-azul)}
+.mant-btn-archivo{color:#526a83;background:#f7f9fc;border-color:#d5e0ed}
+.mant-btn:disabled{opacity:.42;cursor:not-allowed}
+.mant-herramientas{display:flex;gap:8px;align-items:center;margin:0 0 13px}
+.mant-herramientas input,.mant-herramientas select{min-height:39px;border:1px solid var(--mant-borde);background:#fff;border-radius:8px;padding:8px 10px;box-sizing:border-box}
+.mant-herramientas input{flex:1;min-width:110px}.mant-herramientas select{width:auto;max-width:170px;color:var(--mant-azul)}
+.mant-grupo{margin:0 0 16px}.mant-grupo-cab{display:flex;align-items:center;gap:9px;padding:6px 2px;margin:0 0 7px;border-bottom:1px solid var(--mant-borde)}
+.mant-grupo-cab h3{font-size:13px;color:#1558a0;font-weight:800;margin:0}.mant-grupo-cab>span{font-size:11px;color:#1558a0;background:#e8f0fa;border-radius:20px;padding:2px 8px;font-weight:700}
+.mant-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:9px}
+.mant-ticket{background:#fff;border:1px solid var(--mant-borde);border-radius:9px;padding:11px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.mant-ticket-superior{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.mant-ticket-superior strong{font-size:13px;line-height:1.35;min-width:0;overflow-wrap:anywhere}
+.mant-estado{font-size:10px;font-weight:800;padding:4px 7px;border-radius:6px;flex-shrink:0;white-space:nowrap}
+.mant-estado-pendiente{background:#f0f4fa;color:#506985}.mant-estado-asignado{background:#eaf1fb;color:#1558a0}
+.mant-estado-curso{background:#dfeafa;color:#1558a0}.mant-estado-completo{background:#eaf5ed;color:#257044}
+.mant-prioridad{font-size:10px;color:#aa3333;white-space:nowrap}
+.mant-ticket-descripcion{font-size:12px;color:#5d7187;overflow-wrap:anywhere}
+.mant-ticket-datos{display:flex;flex-wrap:wrap;gap:5px 10px;font-size:11px;color:#62758b}
+.mant-ticket-datos span{display:inline-flex;align-items:center;gap:4px}
+.mant-ticket-responsable{font-size:11px;color:#1558a0;font-weight:700;overflow-wrap:anywhere}
+.mant-ticket-acciones{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:6px;margin-top:auto;padding-top:7px;border-top:1px solid #e4edf7}
+.mant-asignacion,.mant-masivo,.mant-sala{border:1px solid var(--mant-borde);border-radius:8px;background:var(--mant-fondo)}
+.mant-asignacion summary,.mant-masivo summary,.mant-sala summary{cursor:pointer;color:var(--mant-azul);font-size:12px;font-weight:700;padding:9px 11px;user-select:none}
+.mant-asignacion-contenido,.mant-masivo-interior{padding:0 10px 10px}.mant-masivo{margin-bottom:12px}
+.mant-masivo-interior p{font-size:11px;color:#61758b;margin:0 0 8px}
+.mant-personas{display:flex;flex-wrap:wrap;gap:6px;max-height:165px;overflow-y:auto;padding:2px}
+.mant-personas label,.mant-lista-inv label{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--mant-borde);border-radius:7px;background:#fff;padding:6px 8px;font-size:11px;cursor:pointer}
+.mant-personas input,.mant-lista-inv input{accent-color:#1558a0;margin:0}
+.mant-asignacion-pie{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px;font-size:11px;color:#62758b}
+.mant-masivo-interior>.mant-btn{margin-top:9px}.mant-vacio{padding:20px;border:1px dashed var(--mant-borde);border-radius:9px;text-align:center;color:#667e99}
+.mant-form{border:1px solid #b7cde6;background:#f7faff;border-radius:10px;padding:12px;margin-bottom:14px}
+.mant-form-titulo{margin-bottom:12px}.mant-form-titulo h3{font-size:14px;color:#1558a0;font-weight:800;margin:0}
+.mant-form-label{font-size:12px;color:#1558a0;font-weight:800;margin:12px 0 8px;display:flex;flex-wrap:wrap;align-items:center;gap:9px}
+.mant-contador{font-size:11px;color:#526b85;font-weight:500}
+.mant-trabajos{display:flex;flex-wrap:wrap;gap:7px}
+.mant-trabajos button{background:#fff;border:1px solid var(--mant-borde);border-radius:8px;padding:9px 12px;cursor:pointer;color:#1558a0;font-size:12px;font-weight:700}
+.mant-trabajos button.activo{background:#e4effd;border-color:#1558a0;box-shadow:inset 0 0 0 1px #1558a0}
+.mant-salas{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:7px}
+.mant-sala{min-width:0}.mant-sala summary span{color:#62758b;font-weight:500;font-size:11px}
+.mant-lista-inv{display:flex;flex-wrap:wrap;gap:5px;padding:0 9px 9px;max-height:140px;overflow-y:auto}
+.mant-form-opciones{display:flex;align-items:end;gap:12px;flex-wrap:wrap;margin:12px 0 8px}
+.mant-check,.mant-fecha{font-size:12px;color:#3c5874;display:flex;align-items:center;gap:7px}
+.mant-fecha{flex-direction:column;align-items:flex-start;gap:4px}
+.mant-fecha input{border:1px solid var(--mant-borde);padding:7px;border-radius:7px;max-width:165px}
+.mant-recur{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+#nm-recurrencia-campos{align-items:center;gap:7px;font-size:12px;flex-wrap:wrap}
+#nm-recur-cada{width:54px}#nm-recur-unidad{max-width:135px}
+#nm-recurrencia-campos input,#nm-recurrencia-campos select{border:1px solid #cddced;border-radius:7px;padding:7px;background:#fff}
+.mant-form-acciones{display:flex;gap:8px;justify-content:flex-end;border-top:1px solid #d6e3f1;padding-top:10px;margin-top:12px}
+@media(max-width:510px){.mant-cabecera{align-items:center}.mant-cabecera h2{font-size:15px}.mant-cabecera .mant-btn{padding:7px 9px}.mant-grid{grid-template-columns:1fr}.mant-herramientas select{max-width:132px}.mant-form{padding:10px}.mant-ticket{padding:10px}}
+
 </style>
 <link rel="stylesheet" href="assets/qc-sync-global.css?v=113">
 <!-- Diagnóstico RTDB opcional: activo únicamente con ?fbdiag=1 en TEST -->
@@ -2016,40 +2076,86 @@ const MANT_NIVELES_COLGANDO = [
   {key:'en_proceso', label:'En proceso', badge:'▶ En proceso', estados:['en_proceso'], color:'#1558a0', bg:'#eef4fb'},
   {key:'completada', label:'Completada', badge:'✓ Completada', estados:['cerrado'], color:'#1a5c2e', bg:'#eafaf0'}
 ];
+
+let mantBusquedaActual='', mantEstadoActual='todos';
+function mantHTML(v){return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function mantInvTicket(t){const m=/\bINV\s+([^\s)]+)/i.exec(String(t.titulo||''));return m?m[1]:'';}
+function cambiarBusquedaMantenimiento(input){
+  const pos=input.selectionStart;
+  mantBusquedaActual=input.value;
+  renderTareasContent(document.getElementById('tareas-overlay'),true);
+  const nuevo=document.getElementById('mant-buscar');
+  if(nuevo){nuevo.focus();try{nuevo.setSelectionRange(pos,pos)}catch(e){}}
+}
+function filtrarEstadoMantenimiento(valor){
+  mantEstadoActual=['todos','pendiente','en_proceso','cerrado'].includes(valor)?valor:'todos';
+  renderTareasContent(document.getElementById('tareas-overlay'),true);
+}
+function actualizarNuevoTicketMantenimiento(){
+  const marcados=Array.from(document.querySelectorAll('.nm-inv-chk:checked'));
+  const resumen=document.getElementById('nm-cuenta-inv');
+  if(resumen)resumen.textContent=marcados.length+' invernadero'+(marcados.length===1?'':'s')+' seleccionado'+(marcados.length===1?'':'s');
+  document.querySelectorAll('[data-mant-sala-count]').forEach(el=>{
+    const n=marcados.filter(ch=>ch.dataset.sala===el.dataset.mantSalaCount).length;
+    el.textContent=n?(' · '+n+' seleccionado'+(n===1?'':'s')):'';
+  });
+  const btn=document.getElementById('nm-btn-crear');
+  if(btn)btn.disabled=!nmTrabajoBulkSel||marcados.length===0;
+}
 function renderMantenimientoColgandoHTML(){
-  const bloques = MANT_NIVELES_COLGANDO.map(nivel=>{
-    const tickets = mantenimientoData.filter(t=>!ticketMantenimientoArchivado(t)&&nivel.estados.includes(t.estado));
-    if(!tickets.length) return '';
-    const conAsignar = nivel.key==='pendiente';
-    const sinAsignarTickets = tickets.filter(t=>t.estado==='sin_asignar');
-    const asignarToolbar = (conAsignar && sinAsignarTickets.length) ? `
-      <div style="padding:10px;background:#fff;border:1.5px dashed ${nivel.color};border-radius:8px;margin-bottom:10px">
-        <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:6px">Marcar personas en todas las "sin asignar":</div>
-        <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px">
-          ${Object.keys(USER_ROLES).map(u=>`
-            <label style="font-size:10px;border:1px solid #ccc;border-radius:999px;padding:3px 9px;cursor:pointer;display:inline-flex;align-items:center;gap:3px">
-              <input type="checkbox" class="mant-persona-todas-chk" onchange="marcarPersonaEnTodas('${u}',this.checked)" style="width:11px;height:11px"> ${u}
-            </label>`).join('')}
-        </div>
-        <button id="mant-btn-confirmar-todas" onclick="confirmarAsignacionesMantenimiento()" disabled style="width:100%;padding:7px;font-size:11px;font-weight:800;background:#1558a0;color:#fff;border:none;border-radius:6px;cursor:pointer;opacity:.5">Confirmar todas</button>
-      </div>` : '';
-    return `
-      <div style="margin-bottom:1.5rem">
-        <div style="font-size:12px;font-weight:800;color:${nivel.color};text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;display:flex;align-items:center;gap:8px">
-          ${nivel.label} <span style="background:${nivel.color};color:#fff;border-radius:999px;padding:1px 10px;font-size:11px">${tickets.length}</span>
-        </div>
-        ${asignarToolbar}
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px 16px">
-          ${tickets.map(t=>buildTarjetaMantenimiento(t, t.estado==='sin_asignar')).join('')}
-        </div>
-      </div>`;
+  const activos=mantenimientoData.filter(t=>!ticketMantenimientoArchivado(t));
+  const cuenta=(estados)=>activos.filter(t=>estados.includes(t.estado)).length;
+  const buscar=mantBusquedaActual.toLocaleLowerCase('es').trim();
+  const visibles=activos.filter(t=>{
+    if(mantEstadoActual!=='todos'){
+      const estadoGrupo=['sin_asignar','asignado'].includes(t.estado)?'pendiente':t.estado;
+      if(estadoGrupo!==mantEstadoActual)return false;
+    }
+    if(!buscar)return true;
+    return [t.titulo,t.descripcion,mantInvTicket(t),t.fechaProgramada,(t.asignados||[]).join(' '),t.prioridad].join(' ').toLocaleLowerCase('es').includes(buscar);
+  });
+  const grupos=[
+    {estados:['sin_asignar','asignado'],titulo:'Pendientes',nombre:'pendiente',icon:'ti-clock'},
+    {estados:['en_proceso'],titulo:'En curso',nombre:'curso',icon:'ti-player-play'},
+    {estados:['cerrado'],titulo:'Completados',nombre:'completo',icon:'ti-check'}
+  ];
+  const bloques=grupos.map(g=>{
+    const items=visibles.filter(t=>g.estados.includes(t.estado));
+    if(!items.length)return '';
+    return `<section class="mant-grupo">
+      <div class="mant-grupo-cab"><h3><i class="ti ${g.icon}"></i> ${g.titulo}</h3><span>${items.length}</span></div>
+      <div class="mant-grid">${items.map(t=>buildTarjetaMantenimiento(t,t.estado==='sin_asignar')).join('')}</div>
+    </section>`;
   }).join('');
-  return `
-    <button onclick="showNuevoTicketMantenimientoForm()" class="btn-elevado" style="margin-bottom:12px;padding:9px 16px;font-size:12px;font-weight:700;background:#2e7d32;color:#fff;border:none;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;gap:6px">
-      <i class="ti ti-plus" style="font-size:14px"></i> Nuevo ticket
-    </button>
+  const haySinAsignar=visibles.some(t=>t.estado==='sin_asignar');
+  const bulk=haySinAsignar&&visibles.filter(t=>t.estado==='sin_asignar').length>1?`
+    <details class="mant-masivo"><summary><i class="ti ti-users"></i> Asignación masiva</summary>
+      <div class="mant-masivo-interior">
+        <p>Selecciona las personas que se aplicarán a los tickets sin asignar visibles.</p>
+        <div class="mant-personas">
+          ${Object.keys(USER_ROLES).map(u=>`<label><input type="checkbox" class="mant-persona-todas-chk" onchange="marcarPersonaEnTodas(this.value,this.checked)" value="${mantHTML(u)}"> ${mantHTML(u)}</label>`).join('')}
+        </div>
+        <button id="mant-btn-confirmar-todas" class="mant-btn mant-btn-principal" onclick="confirmarAsignacionesMantenimiento()" disabled>Guardar asignaciones</button>
+      </div>
+    </details>`:'';
+  return `<div class="mant-ui">
+    <div class="mant-cabecera">
+      <div><h2>Mantenimiento</h2><div class="mant-resumen">${activos.length} tickets activos</div></div>
+      <button type="button" class="mant-btn mant-btn-principal" onclick="showNuevoTicketMantenimientoForm()"><i class="ti ti-plus"></i> Nuevo ticket</button>
+    </div>
     <div id="nuevo-ticket-mant-wrap"></div>
-    ${bloques || `<div style="text-align:center;padding:2rem;color:var(--muted);font-style:italic;font-size:13px">Sin tickets todavía.</div>`}`;
+    <div class="mant-herramientas">
+      <input id="mant-buscar" type="search" aria-label="Buscar en mantenimiento" placeholder="Buscar ticket, invernadero, operario…" value="${mantHTML(mantBusquedaActual)}" oninput="cambiarBusquedaMantenimiento(this)">
+      <select aria-label="Filtrar por estado" onchange="filtrarEstadoMantenimiento(this.value)">
+        <option value="todos" ${mantEstadoActual==='todos'?'selected':''}>Todos (${activos.length})</option>
+        <option value="pendiente" ${mantEstadoActual==='pendiente'?'selected':''}>Pendientes (${cuenta(['sin_asignar','asignado'])})</option>
+        <option value="en_proceso" ${mantEstadoActual==='en_proceso'?'selected':''}>En curso (${cuenta(['en_proceso'])})</option>
+        <option value="cerrado" ${mantEstadoActual==='cerrado'?'selected':''}>Completados (${cuenta(['cerrado'])})</option>
+      </select>
+    </div>
+    ${bulk}
+    ${bloques||'<div class="mant-vacio">No hay tickets para este filtro.</div>'}
+  </div>`;
 }
 // Tarjeta de un ticket: arrastrable (ratón, escritorio) + un desplegable
 // "Mover a..." como alternativa para pantallas táctiles, donde arrastrar y
@@ -2065,49 +2171,44 @@ function formatDuracionMant(ms){
   return h>0 ? `${h}h ${m}min` : `${m} min`;
 }
 function buildTarjetaMantenimiento(t, mostrarAsignarPersonas){
-  const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const seleccionada = mantSeleccionadas.has(t.id);
-  const personasHTML = (t.asignados||[]).map(u=>`<span style="font-size:9px;font-weight:700;background:#eef4fb;color:#1558a0;border-radius:999px;padding:2px 8px">${escapar(u)}</span>`).join(' ');
-  const asignarPersonasHTML = mostrarAsignarPersonas ? `
-    <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px">
-      ${Object.keys(USER_ROLES).map(u=>`
-        <label style="font-size:9px;border:1px solid #ccc;border-radius:999px;padding:2px 7px;cursor:pointer;display:inline-flex;align-items:center;gap:2px">
-          <input type="checkbox" class="mant-persona-chk" data-ticket="${t.id}" value="${u}" onchange="actualizarBotonConfirmarMantenimiento()" style="width:10px;height:10px"> ${u}
-        </label>`).join('')}
-    </div>` : '';
-  // La asignación puede devolverse a la cola. El inicio y cierre requieren el circuito PEÓN, con firma.
-  const moverSelect = t.estado==='asignado' ? `
-    <select aria-label="Cambiar asignación" onchange="moverTicketMantenimientoDesdeSelect('${t.id}', this.value); this.value=''" style="font-size:10.5px;padding:5px 7px;border:1.5px solid var(--border);border-radius:6px;background:#fff;cursor:pointer">
-      <option value="">Cambiar asignación…</option>
-      <option value="sin_asignar">Devolver a sin asignar</option>
-    </select>` : '';
-  // Tarjeta "colgando" (a petición de Paula, 2026-08-12) — mismo lenguaje
-  // visual que buildTareaGestorRow: pestaña de color arriba + badge de
-  // estado, en vez del recuadro plano de columna kanban de antes.
-  const nivel = MANT_NIVELES_COLGANDO.find(n=>n.estados.includes(t.estado)) || MANT_NIVELES_COLGANDO[0];
-  return `
-    <div class="tarea-card" data-id="${t.id}" style="position:relative;margin-top:10px;border-radius:4px 4px 12px 12px;background:#fff;border:1.5px solid ${seleccionada?'#1558a0':'var(--border)'};border-top:none;box-shadow:var(--shadow-sm);padding:14px 16px 12px">
-      <div style="position:absolute;top:-9px;left:18px;width:38px;height:16px;background:${nivel.color};border-radius:5px 5px 0 0;box-shadow:0 -1px 3px rgba(0,0,0,.15)"></div>
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
-        <label style="display:flex;align-items:center;gap:7px;cursor:pointer;flex:1">
-          <input type="checkbox" ${seleccionada?'checked':''} onchange="toggleSeleccionMantenimiento('${t.id}',this.checked,this)" style="width:15px;height:15px;flex-shrink:0">
-          <span style="font-size:14px;font-weight:800;color:var(--text)">${escapar(t.titulo)}${t.prioridad==='alta'?' <span style="color:#c62828;font-size:11px;font-weight:800">● ALTA</span>':''}</span>
-        </label>
-        <span style="font-size:10px;font-weight:800;padding:4px 11px;border-radius:20px;background:${nivel.bg};color:${nivel.color};white-space:nowrap">${nivel.badge}</span>
+  const id=mantHTML(t.id);
+  const rec=t.recurrencia?'Cada '+mantHTML(t.recurrencia.cada)+' '+mantHTML((MANT_RECUR_UNIDADES.find(u=>u.key===t.recurrencia.unidad)||{}).label||t.recurrencia.unidad).toLowerCase()+(t.proximaFecha?' · próxima '+mantHTML(t.proximaFecha):''):'';
+  const estado={sin_asignar:'Sin asignar',asignado:'Asignado',en_proceso:'En curso',cerrado:'Completado'}[t.estado]||t.estado;
+  const badgeClass={sin_asignar:'pendiente',asignado:'asignado',en_proceso:'curso',cerrado:'completo'}[t.estado]||'pendiente';
+  const personas=(t.asignados||[]).length?mantHTML(t.asignados.join(', ')):'Sin asignar';
+  const selector=mostrarAsignarPersonas?`
+    <details class="mant-asignacion">
+      <summary><i class="ti ti-user-plus"></i> Asignar personal</summary>
+      <div class="mant-asignacion-contenido">
+        <div class="mant-personas">
+          ${Object.keys(USER_ROLES).map(u=>`<label><input class="mant-persona-chk" type="checkbox" data-ticket="${id}" value="${mantHTML(u)}" onchange="actualizarBotonConfirmarMantenimiento()"> ${mantHTML(u)}</label>`).join('')}
+        </div>
+        <div class="mant-asignacion-pie">
+          <span data-mant-selected-for="${id}">0 personas</span>
+          <button type="button" class="mant-btn mant-btn-principal mant-asignar-individual" data-ticket="${id}" onclick="confirmarAsignacionesMantenimiento('${id}')" disabled>Asignar</button>
+        </div>
       </div>
-      ${t.descripcion ? `<div style="font-size:12px;color:var(--muted);margin-top:5px">${escapar(t.descripcion)}</div>` : ''}
-      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
-        ${t.fechaProgramada ? `<span style="font-size:10.5px;font-weight:800;color:#7b5cf0;border:1.5px solid #7b5cf0;border-radius:999px;padding:2px 10px">📅 ${escapar(t.fechaProgramada)}</span>` : ''}
-        ${t.recurrencia ? `<span style="font-size:10.5px;font-weight:700;color:#1558a0;background:#eef4fb;border-radius:999px;padding:2px 10px">🔁 Cada ${t.recurrencia.cada} ${escapar((MANT_RECUR_UNIDADES.find(u=>u.key===t.recurrencia.unidad)||{}).label||t.recurrencia.unidad).toLowerCase()}${t.proximaFecha?` · próx. ${escapar(t.proximaFecha)}`:''}</span>` : ''}
-        ${t.estado==='cerrado' && t.horaInicioTs && t.horaFinTs ? `<span style="font-size:10.5px;font-weight:700;color:#1a5c2e;background:#eafaf0;border-radius:999px;padding:2px 10px">⏱ Tardó ${formatDuracionMant(t.horaFinTs-t.horaInicioTs)}</span>` : ''}
-      </div>
-      ${personasHTML ? `<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px">${personasHTML}</div>` : ''}
-      ${asignarPersonasHTML}
-      <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
-        ${moverSelect}
-        <button onclick="archivarTicketMantenimiento('${t.id}')" title="Retirar de Mantenimiento y conservar en Archivo" style="padding:5px 10px;font-size:10.5px;font-weight:700;background:#eef4fb;color:#1558a0;border:1px solid #a8c4e8;border-radius:6px;cursor:pointer"><i class="ti ti-archive"></i> Archivar</button>
-      </div>
-    </div>`;
+    </details>`:'';
+  const devolver=t.estado==='asignado'?`<button type="button" class="mant-btn mant-btn-secundario" onclick="moverTicketMantenimientoDesdeSelect('${id}','sin_asignar')"><i class="ti ti-rotate-ccw"></i> Devolver</button>`:'';
+  return `<article class="mant-ticket">
+    <div class="mant-ticket-superior">
+      <strong>${mantHTML(t.titulo)} ${t.prioridad==='alta'?'<span class="mant-prioridad">Prioridad alta</span>':''}</strong>
+      <span class="mant-estado mant-estado-${badgeClass}">${estado}</span>
+    </div>
+    ${t.descripcion?`<div class="mant-ticket-descripcion">${mantHTML(t.descripcion)}</div>`:''}
+    <div class="mant-ticket-datos">
+      ${mantInvTicket(t)?`<span><i class="ti ti-building-greenhouse"></i> INV ${mantHTML(mantInvTicket(t))}</span>`:''}
+      ${t.fechaProgramada?`<span><i class="ti ti-calendar"></i> ${mantHTML(t.fechaProgramada)}</span>`:''}
+      ${rec?`<span><i class="ti ti-repeat"></i> ${rec}</span>`:''}
+      ${t.estado==='cerrado'&&t.horaInicioTs&&t.horaFinTs?`<span><i class="ti ti-clock"></i> ${formatDuracionMant(t.horaFinTs-t.horaInicioTs)}</span>`:''}
+    </div>
+    <div class="mant-ticket-responsable"><i class="ti ti-user"></i> ${personas}</div>
+    ${selector}
+    <div class="mant-ticket-acciones">
+      ${devolver}
+      <button type="button" class="mant-btn mant-btn-archivo" onclick="archivarTicketMantenimiento('${id}')" title="Conservar ticket y ejecuciones en Archivo"><i class="ti ti-archive"></i> Archivar</button>
+    </div>
+  </article>`;
 }
 function toggleSeleccionMantenimiento(id, checked, el){
   if(checked) mantSeleccionadas.add(id); else mantSeleccionadas.delete(id);
@@ -2165,103 +2266,101 @@ function marcarPersonaEnTodas(persona, checked){
   actualizarBotonConfirmarMantenimiento();
 }
 function actualizarBotonConfirmarMantenimiento(){
-  const btn = document.getElementById('mant-btn-confirmar-todas');
-  if(!btn) return;
-  const hayAlgo = document.querySelectorAll('.mant-persona-chk:checked').length > 0;
-  btn.disabled = !hayAlgo;
-  btn.style.opacity = hayAlgo ? '1' : '.5';
+  const checked=Array.from(document.querySelectorAll('.mant-persona-chk:checked'));
+  const bulk=document.getElementById('mant-btn-confirmar-todas');
+  if(bulk)bulk.disabled=!checked.length;
+  document.querySelectorAll('.mant-asignar-individual').forEach(btn=>{
+    const cuenta=checked.filter(el=>el.dataset.ticket===btn.dataset.ticket).length;
+    btn.disabled=!cuenta;
+  });
+  document.querySelectorAll('[data-mant-selected-for]').forEach(label=>{
+    const cuenta=checked.filter(el=>el.dataset.ticket===label.dataset.mantSelectedFor).length;
+    label.textContent=cuenta+' persona'+(cuenta===1?'':'s');
+  });
 }
 // Asigna en un solo guardado todos los tickets que tengan alguna persona
 // marcada, y pasa cada uno a "Asignado" — cada persona que reciba algo
 // nuevo se marca visto:false una sola vez (aunque le toquen varios tickets
 // del lote), para un aviso agrupado en vez de uno por ticket.
-async function confirmarAsignacionesMantenimiento(){
-  const porTicket = {};
+async function confirmarAsignacionesMantenimiento(soloId){
+  if(!['ADMIN','TECNICO'].includes(currentUserRole))return;
+  const porTicket={};
   document.querySelectorAll('.mant-persona-chk:checked').forEach(chk=>{
-    const id = chk.dataset.ticket;
-    (porTicket[id] = porTicket[id]||[]).push(chk.value);
+    if(soloId&&chk.dataset.ticket!==soloId)return;
+    (porTicket[chk.dataset.ticket]=porTicket[chk.dataset.ticket]||[]).push(chk.value);
   });
-  const ticketIds = Object.keys(porTicket);
-  if(!ticketIds.length){ showToast('Marca al menos una persona en algún ticket'); return; }
-  await loadMantenimientoData();
-  const personasConAlgoNuevo = new Set();
-  ticketIds.forEach(id=>{
-    const t = mantenimientoData.find(x=>x.id===id);
-    if(!t||ticketMantenimientoArchivado(t)) return;
-    const nuevos = porTicket[id].filter(p=>!(t.asignados||[]).includes(p));
-    t.asignados = porTicket[id];
-    t.estado = 'asignado';
-    t.visto = t.visto || {};
-    nuevos.forEach(p=>{ t.visto[p] = false; personasConAlgoNuevo.add(p); });
+  const ids=Object.keys(porTicket);
+  if(!ids.length){showToast('Selecciona al menos una persona.');return;}
+  const tx=await actualizarStorageJsonConEtag(MANTENIMIENTO_KEY,[],cloud=>{
+    if(!Array.isArray(cloud))throw Error('Mantenimiento: formato inválido');
+    const encontrados=cloud.filter(t=>ids.includes(t.id));
+    if(encontrados.length!==ids.length||encontrados.some(t=>ticketMantenimientoArchivado(t)||t.estado!=='sin_asignar'))return undefined;
+    return cloud.map(t=>{
+      if(!ids.includes(t.id))return t;
+      const personas=[...new Set(porTicket[t.id])];
+      return {...t,estado:'asignado',asignados:personas,visto:Object.fromEntries(personas.map(u=>[u,false]))};
+    });
   });
-  await persistMantenimientoData();
-  mantSeleccionadas.clear();
-  logHistorial(`Asignó ${ticketIds.length} ticket(s) de mantenimiento a: ${Array.from(personasConAlgoNuevo).join(', ')}`);
-  showToast(`✓ ${ticketIds.length} ticket(s) asignado(s)`);
-  renderTareasContent(document.getElementById('tareas-overlay'), true);
+  if(!tx.ok||tx.noChange){
+    await loadMantenimientoData();
+    showToast('Asignación no confirmada. Revisa el estado del ticket.');
+    renderTareasContent(document.getElementById('tareas-overlay'),true);
+    return;
+  }
+  mantenimientoData=tx.value;
+  logHistorial(`Asignó ${ids.length} ticket(s) de mantenimiento`);
+  showToast(ids.length===1?'✓ Ticket asignado':`✓ ${ids.length} tickets asignados`);
+  renderTareasContent(document.getElementById('tareas-overlay'),true);
 }
 let nmTrabajoBulkSel = null;
 function showNuevoTicketMantenimientoForm(){
-  const wrap = document.getElementById('nuevo-ticket-mant-wrap');
-  if(!wrap) return;
-  nmTrabajoBulkSel = null;
-
-  // Paso 1: Seleccionar trabajo predeterminado
-  wrap.innerHTML = `
-    <div style="border:1.5px solid var(--border);border-radius:10px;padding:12px;background:#f8f9fa;margin-bottom:14px;max-width:600px">
-      <div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:10px">Elige el tipo de trabajo:</div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px;margin-bottom:12px">
-        ${MANT_TRABAJOS_PREDETERMINADOS.map(t=>`
-          <button type="button" class="nm-trabajo-btn" data-trabajo="${t.id}" onclick="seleccionarTrabajoMant('${t.id}')" style="padding:12px;border-radius:8px;border:2px solid var(--border);background:#fff;cursor:pointer;font-size:12px;font-weight:700;display:flex;flex-direction:column;align-items:center;gap:4px;transition:all 200ms">
-            <span style="font-size:18px">${t.label.split(' ')[0]}</span>
-            <span style="font-size:11px;color:var(--muted)">${t.label.split(' ').slice(1).join(' ')}</span>
-          </button>
-        `).join('')}
+  const wrap=document.getElementById('nuevo-ticket-mant-wrap');
+  if(!wrap)return;
+  nmTrabajoBulkSel=null;
+  const salas=[INV_LAYOUT_SALA1,INV_LAYOUT_SALA2,INV_LAYOUT_SALA3,INV_LAYOUT_SALA4,INV_LAYOUT_SALA5];
+  wrap.innerHTML=`<div class="mant-form">
+    <div class="mant-form-titulo"><h3>Nuevo ticket</h3><button class="mant-btn mant-btn-secundario" type="button" onclick="document.getElementById('nuevo-ticket-mant-wrap').innerHTML=''"><i class="ti ti-x"></i> Cerrar</button></div>
+    <div class="mant-form-label">1. Tipo de trabajo</div>
+    <div class="mant-trabajos">
+      ${MANT_TRABAJOS_PREDETERMINADOS.map(t=>`<button type="button" class="nm-trabajo-btn" data-trabajo="${t.id}" aria-pressed="false" onclick="seleccionarTrabajoMant('${t.id}')">${mantHTML(t.label)}</button>`).join('')}
+    </div>
+    <div id="nm-paso2" style="display:none">
+      <div class="mant-form-label">2. Invernaderos <span id="nm-cuenta-inv" class="mant-contador">0 invernaderos seleccionados</span></div>
+      <div class="mant-salas">
+        ${salas.map((s,i)=>`<details class="mant-sala" ${i===0?'open':''}><summary>Sala ${i+1}<span data-mant-sala-count="sala${i+1}"></span></summary>
+          <div class="mant-lista-inv">${Object.keys(s).map(id=>`<label><input type="checkbox" class="nm-inv-chk" value="${mantHTML(id)}" data-sala="sala${i+1}" onchange="actualizarNuevoTicketMantenimiento()"> INV ${mantHTML(id)}</label>`).join('')}</div>
+        </details>`).join('')}
       </div>
-      <div id="nm-paso2" style="display:none">
-        <div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:10px">Asignar invernaderos:</div>
-        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">
-          ${Object.keys(INV_LAYOUT_SALA1).map(id=>`<label style="font-size:11px;display:flex;align-items:center;gap:3px;background:#fff;border:1px solid #ddd;border-radius:5px;padding:3px 7px;cursor:pointer"><input type="checkbox" class="nm-inv-chk" value="${id}" data-sala="sala1"> ${id}</label>`).join('')}
-          ${Object.keys(INV_LAYOUT_SALA2).map(id=>`<label style="font-size:11px;display:flex;align-items:center;gap:3px;background:#fff;border:1px solid #ddd;border-radius:5px;padding:3px 7px;cursor:pointer"><input type="checkbox" class="nm-inv-chk" value="${id}" data-sala="sala2"> ${id}</label>`).join('')}
-          ${Object.keys(INV_LAYOUT_SALA3).map(id=>`<label style="font-size:11px;display:flex;align-items:center;gap:3px;background:#fff;border:1px solid #ddd;border-radius:5px;padding:3px 7px;cursor:pointer"><input type="checkbox" class="nm-inv-chk" value="${id}" data-sala="sala3"> ${id}</label>`).join('')}
-          ${Object.keys(INV_LAYOUT_SALA4).map(id=>`<label style="font-size:11px;display:flex;align-items:center;gap:3px;background:#fff;border:1px solid #ddd;border-radius:5px;padding:3px 7px;cursor:pointer"><input type="checkbox" class="nm-inv-chk" value="${id}" data-sala="sala4"> ${id}</label>`).join('')}
-          ${Object.keys(INV_LAYOUT_SALA5).map(id=>`<label style="font-size:11px;display:flex;align-items:center;gap:3px;background:#fff;border:1px solid #ddd;border-radius:5px;padding:3px 7px;cursor:pointer"><input type="checkbox" class="nm-inv-chk" value="${id}" data-sala="sala5"> ${id}</label>`).join('')}
-        </div>
-        <label style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:5px;margin-bottom:8px">
-          <input type="checkbox" id="nm-prioridad"> Prioridad alta
-        </label>
-        <label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">Fecha programada (opcional)</label>
-        <input id="nm-fecha-programada" type="date" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px;margin-bottom:8px;box-sizing:border-box">
-        <label style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:5px;margin-bottom:8px;cursor:pointer">
-          <input type="checkbox" id="nm-recurrente" onchange="document.getElementById('nm-recurrencia-campos').style.display=this.checked?'flex':'none'"> Se repite cada cierto tiempo
-        </label>
-        <div id="nm-recurrencia-campos" style="display:none;align-items:center;gap:8px;margin-bottom:8px;padding:8px;background:#eef4fb;border-radius:7px">
-          <span style="font-size:11px;font-weight:700;color:#1558a0">Cada</span>
-          <input id="nm-recur-cada" type="number" min="1" value="1" style="width:56px;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px">
-          <select id="nm-recur-unidad" style="padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px">
-            ${MANT_RECUR_UNIDADES.map(u=>`<option value="${u.key}"${u.key==='anos'?' selected':''}>${u.label}</option>`).join('')}
-          </select>
+      <div class="mant-form-opciones">
+        <label class="mant-check"><input type="checkbox" id="nm-prioridad"> Prioridad alta</label>
+        <label class="mant-fecha">Fecha programada <input id="nm-fecha-programada" type="date"></label>
+      </div>
+      <div class="mant-recur">
+        <label class="mant-check"><input type="checkbox" id="nm-recurrente" onchange="document.getElementById('nm-recurrencia-campos').style.display=this.checked?'flex':'none'"> Repetir periódicamente</label>
+        <div id="nm-recurrencia-campos" style="display:none">
+          <span>Cada</span><input id="nm-recur-cada" type="number" min="1" value="1">
+          <select id="nm-recur-unidad">${MANT_RECUR_UNIDADES.map(u=>`<option value="${u.key}" ${u.key==='anos'?'selected':''}>${mantHTML(u.label)}</option>`).join('')}</select>
         </div>
       </div>
-      <div style="display:flex;justify-content:flex-end;gap:8px">
-        <button onclick="document.getElementById('nuevo-ticket-mant-wrap').innerHTML=''" style="padding:8px 14px;font-size:11px;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:7px;cursor:pointer">Cancelar</button>
-        <button id="nm-btn-crear" onclick="crearTicketMantenimientoConTrabajo()" disabled style="padding:8px 16px;font-size:11px;font-weight:800;background:#2e7d32;color:#fff;border:none;border-radius:7px;cursor:pointer;opacity:.5">Crear</button>
-      </div>
-    </div>`;
+    </div>
+    <div class="mant-form-acciones">
+      <button type="button" class="mant-btn mant-btn-secundario" onclick="document.getElementById('nuevo-ticket-mant-wrap').innerHTML=''">Cancelar</button>
+      <button type="button" id="nm-btn-crear" class="mant-btn mant-btn-principal" onclick="crearTicketMantenimientoConTrabajo()" disabled><i class="ti ti-check"></i> Crear ticket</button>
+    </div>
+  </div>`;
 }
-
 function seleccionarTrabajoMant(trabajoId){
-  nmTrabajoBulkSel = trabajoId;
+  if(!MANT_TRABAJOS_PREDETERMINADOS.some(t=>t.id===trabajoId))return;
+  nmTrabajoBulkSel=trabajoId;
   document.querySelectorAll('.nm-trabajo-btn').forEach(btn=>{
-    const isSelected = btn.dataset.trabajo === trabajoId;
-    btn.style.borderColor = isSelected ? '#2e7d32' : 'var(--border)';
-    btn.style.backgroundColor = isSelected ? '#e8f5e9' : '#fff';
+    const seleccionado=btn.dataset.trabajo===trabajoId;
+    btn.classList.toggle('activo',seleccionado);
+    btn.setAttribute('aria-pressed',seleccionado?'true':'false');
   });
-  document.getElementById('nm-paso2').style.display = 'block';
-  document.getElementById('nm-btn-crear').disabled = false;
-  document.getElementById('nm-btn-crear').style.opacity = '1';
+  const p=document.getElementById('nm-paso2');
+  if(p)p.style.display='block';
+  actualizarNuevoTicketMantenimiento();
 }
-
 async function crearTicketMantenimientoConTrabajo(){
   if(!nmTrabajoBulkSel){ showToast('Elige un tipo de trabajo'); return; }
   const invSeleccionados = Array.from(document.querySelectorAll('.nm-inv-chk:checked')).map(c=>c.value);
@@ -2555,7 +2654,7 @@ function renderTareasGestorFullScreen(overlay){
    ${avisoRiegoPendiente}
    ${filtroHTML}
    <div id="tareas-gestor-content-wrap" style="flex:1;overflow-y:auto;padding:12px 14px">
-     ${vista==='mantenimiento'?'<div id="nuevo-ticket-mant-wrap"></div>':''}${body}
+     ${body}
    </div>
  </div>`;
  const next=overlay.querySelector('#tareas-gestor-content-wrap');if(next)next.scrollTop=scroll;
