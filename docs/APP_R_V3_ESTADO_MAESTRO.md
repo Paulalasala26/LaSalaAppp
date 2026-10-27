@@ -1554,6 +1554,22 @@ El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en int
 
 **Siguiente bloque:** mostrar al usuario diagnóstico conciso y proponer secuencia: validar dos botones; decidir fuente maestra e interdependencias; ordenar pantalla Partidas (sin reprogramar QC); luego revisar pantalla Específicos por separado. **No modificar `main` ni PRD, ni datos Firebase.**
 
+## 0.127. Partidas — reorganización quirúrgica de interfaz (27/10/2026) — IMPLEMENTADO TEST, UAT PENDIENTE
+
+**Autorización:** usuario «adelante, con precisión de cirujano», continuando expresamente desde §0.126 y solo en Partidas; no volver a Tareas.
+
+**Código:** `index.html`, commit `f6bc2539140a6a1e6d7befe61ddb37e377836f87` en `test/v1.0`. Vercel TEST READY para ese commit, alias `la-sala-app-test.vercel.app` confirmado antes de registrar esta actualización documental.
+
+**Alcance visual:** (1) cabecera azul propia «Partidas»; (2) bloque «Localización» con las cinco salas, selección INV en una banda horizontal desplazable y navegación semanal; (3) «Mapa de ocupación» con búsqueda global, Sincronizar, Deshacer, Rehacer y Recuperar; (4) modal existente identificado como «Ficha e historial de partida», cabecera azul; (5) acceso contextual «Añadir Específico aquí» azul. Retirados del **mapa** los tres accesos globales duplicados «Añadir Específico», «Resumen» y «Cuadrícula»: sus funciones no se han borrado ni alterado y siguen perteneciendo al módulo independiente Específicos. Se conservan banners rosas y asociación con partida.
+
+**Semántica:** «Guardar» del mapa renombrado «Sincronizar» con icono de recarga porque `sincronizarPartidasManual` reintenta cola offline; el guardado de movimientos ya es automático. Función y comportamiento de cola **inalterados**.
+
+**Protecciones:** ninguna escritura a Firebase ni a PRD; sin cambios en fuentes de datos, carga GS/PDF, controles QC Túnel/Carga, `persistControlChecksData`, cálculo semanal, movimientos, salida, deshacer/rehacer, duplicados heredados, imágenes o trazabilidad. No se ha fusionado `partidasDB` con QC. El conjunto `partidasEspecificoModo` y el banner contextual siguen operando como antes.
+
+**Verificación técnica:** cinco scripts inline de `index.html` parsean sin error; se verificaron estáticamente los 5 accesos Sala, navegación INV, 2 flechas semana, búsqueda, Sincronizar, Deshacer, Rehacer, Recuperar, wrapper de scroll conservado y ausencia de 3 accesos globales desde el mapa. Inspeccionado el diff GitHub; TEST READY para SHA exacto.
+
+**Pendiente:** UAT visual y funcional del usuario en TEST en escritorio y móvil: navegación Sala→INV→Semana, desplazamiento horizontal INV, apertura de ficha e historial, botones de mapa, desplazamiento tras seleccionar/mover y contextual Específico. No declarar aceptación humana antes de confirmación. Siguiente fase de rediseño, si se autoriza, consolidar acciones en ficha **sin** reescribir modelo QC.
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).
