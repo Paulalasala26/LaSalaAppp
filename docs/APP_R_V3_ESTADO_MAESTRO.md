@@ -7,6 +7,11 @@
 
 ## 0. CONTINUIDAD ACTUAL — 28/10/2026 (PRIORIDAD SOBRE LOS HISTÓRICOS)
 
+### §0.136 — Inserción móvil por arriba Y por abajo (28/10/2026)
+**IMPLEMENTADO EN CÓDIGO; PENDIENTE VALIDACIÓN REAL DE USUARIO EN MÓVIL.** §0.135 permitió encajar encima pero el usuario reporta imposibilidad de soltar debajo. Causa real en interacción: el destino táctil se aceptaba solo al pisar la propia tarjeta o hasta 3 píxeles de borde; al querer colocar una partida debajo de la última tarjeta, el dedo cae en el vacío y no existe tarjeta receptora. Corrección acotada: zona táctil virtual hasta **24px por encima o por debajo de los bordes** de cada tarjeta, escogiendo el borde cercano sin cambiar de columna ni atravesar el PASILLO. Las mitades sobre tarjeta siguen distinguiendo arriba/abajo. Durante el arrastre se muestra una confirmación visual temporal **ENCIMA/DEBAJO de nº partida · Calle nº**, además de la línea azul en el borde exacto. Arrastre con punto de agarre preciso, composición de filas sin solapes, validación antes del guardado, cola offline, QC e historial preservados. El modo PRD/main sigue intacto. Validar soltar por encima y por debajo de la última partida en ambos lados del pasillo; sin reabrir módulos anteriores.
+
+
+
 ### §0.135 — Ocupación: ajuste quirúrgico del drag táctil (28/10/2026)
 **IMPLEMENTADO EN TEST, PENDIENTE VALIDACIÓN REAL EN MÓVIL.** El usuario informa que §0.134 todavía desplaza la tarjeta respecto al dedo, no encaja exactamente y parece solaparse. Diagnóstico confirmado: el flotante se posicionaba 58px por encima del toque y el destino buscaba tarjetas vecinas hasta 14px; el renderizador podía expandir spans fuera del grupo real de columnas del lado del pasillo. Solución: conservar la coordenada de agarre exacta (sin offset), clon con anchura y altura de la tarjeta y color de origen, destino identificado por toque exacto con tolerancia de 3px, tarjeta etiquetada con lado/calles pintadas, cuadrícula con posiciones y alturas fijas y ancho restringido a la sección; validar la posición final y ocupación sin colisiones antes de guardar y revertir en error. El offset semanal se incluye en la cola offline para reproducir el cambio sobre el período original. Historial, QC, acciones, colores y datos preservados. TEST únicamente, PRD/main sin tocar.
 

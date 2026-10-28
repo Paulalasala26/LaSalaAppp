@@ -10331,6 +10331,25 @@ function soltarPartidaSobrePartida(event,id){
 let partidasPunteroActivo=null;
 let partidasPunteroFantasma=null;
 let partidasPunteroRaf=null;
+let partidasEtiquetaDrop=null;
+function mostrarEtiquetaDropPartidas(destino){
+  if(!destino){
+    if(partidasEtiquetaDrop){partidasEtiquetaDrop.remove();partidasEtiquetaDrop=null;}
+    return;
+  }
+  if(!partidasEtiquetaDrop){
+    partidasEtiquetaDrop=document.createElement('div');
+    partidasEtiquetaDrop.style.cssText='position:fixed;z-index:10001;pointer-events:none;'+
+      'left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));'+
+      'margin:auto;max-width:320px;box-sizing:border-box;'+
+      'padding:8px 12px;border-radius:7px;background:#1558a0;color:#fff;'+
+      'box-shadow:0 3px 12px rgba(0,0,0,.25);font-size:12px;font-weight:800;text-align:center;';
+    document.body.appendChild(partidasEtiquetaDrop);
+  }
+  const c=controlChecksData.find(x=>x.id===destino.id);
+  partidasEtiquetaDrop.textContent=(destino.arribaVisual?'ENCIMA':'DEBAJO')+
+    ' de '+(c?.partida||'la partida')+' · Calle '+destino.calle;
+}
 function iniciarPunteroPartida(event,id){
   if(partidasEspecificoModo || (event.pointerType!=='touch' && event.pointerType!=='pen') || event.isPrimary===false)return;
   if(partidasPunteroActivo)cancelarPunteroPartida();
@@ -10356,18 +10375,32 @@ function crearFantasmaPartida(){
   partidasPunteroFantasma=f;
 }
 function buscarDestinoTactilPartidas(x,y,origenId){
-  // Solo bajo el dedo, tolerancia máxima de 3 px en el separador.
-  for(const dy of [0,-3,3]){
+  // El dedo puede quedar EN la tarjeta o inmediatamente DESPUÉS de su borde.
+  // La versión anterior aceptaba solo 3px fuera: debajo de la última partida
+  // no existía ninguna zona donde soltar. Se permite un carril de 24px en
+  // ambos extremos, siempre restringido a la columna real del destino.
+  const encima=document.elementFromPoint(x,y);
+  if(encima?.closest('#partidas-mapa-horizontal')===null)return null;
+  if(encima?.textContent?.trim()==='PASILLO')return null;
+  const offsets=[0,-4,4,-8,8,-12,12,-18,18,-24,24];
+  let mejor=null;
+  for(const dy of offsets){
     const el=document.elementFromPoint(x,y+dy)?.closest('[data-partida-id]');
     if(!el||el.dataset.partidaId===origenId||!el.closest('#partidas-overlay'))continue;
     const r=el.getBoundingClientRect();
-    if(x<r.left||x>=r.right||y<r.top-3||y>r.bottom+3)continue;
+    if(x<r.left||x>=r.right)continue;
+    // Preferir el borde de la tarjeta más próximo al dedo; no elegir
+    // arbitrariamente otra fila o columna.
+    const distancia=Math.max(r.top-y,0,y-r.bottom);
+    if(distancia>24)continue;
     const id=el.dataset.partidaId;
     const d=destinoInsercionPartidas({currentTarget:el,clientX:x,clientY:y},id);
     if(!d||d.calle==null)continue;
-    return {id,lado:d.lado,calle:d.calle,arribaVisual:d.arribaVisual,el};
+    const candidato={id,lado:d.lado,calle:d.calle,arribaVisual:d.arribaVisual,el,distancia};
+    if(!mejor||candidato.distancia<mejor.distancia)mejor=candidato;
+    if(!distancia)break; // el dedo está realmente sobre esa tarjeta
   }
-  return null;
+  return mejor;
 }
 function actualizarDestinoPunteroPartidas(){
   const s=partidasPunteroActivo;
@@ -10379,17 +10412,19 @@ function actualizarDestinoPunteroPartidas(){
   }
   quitarIndicadorDropPartidas();
   const d=buscarDestinoTactilPartidas(s.x,s.y,s.id);
-  if(!d){s.destino=null;return;}
+  if(!d){s.destino=null;mostrarEtiquetaDropPartidas(null);return;}
   const origen=controlChecksData.find(c=>c.id===s.id);
   const misma=origen&&origen.invId===partidasInvSel&&callesDePartidaEntry(origen).includes(d.calle);
   const permitida=misma||!!origen&&callesDePartidaEntry(origen).length===1;
   partidasIndicadorDrop=d.el;
   if(!permitida){
     s.destino=null;
+    mostrarEtiquetaDropPartidas(null);
     d.el.style.boxShadow='inset 0 0 0 2px #b42332';
     return;
   }
   s.destino=d;
+  mostrarEtiquetaDropPartidas(d);
   d.el.style.boxShadow=d.arribaVisual?'inset 0 5px #1558a0':'inset 0 -5px #1558a0';
 }
 function desplazamientoAutomaticoPartidas(){
@@ -10455,6 +10490,7 @@ function limpiarPunteroPartida(){
   }
   if(partidasPunteroFantasma)partidasPunteroFantasma.remove();
   partidasPunteroFantasma=null;
+  mostrarEtiquetaDropPartidas(null);
   partidasPunteroActivo=null;
   terminarArrastrePartida();
 }
