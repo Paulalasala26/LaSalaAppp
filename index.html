@@ -10416,6 +10416,9 @@ function abrirAplicarEspecificoAPartidas(){
 // §0.150: cada alta desde Partidas tiene identidad propia, incluso si
 // dos partidas comparten una calle. La cuadrícula sigue leyendo "texto".
 let espPartidasAltasPendientes={};
+// Operaciones por ID y celda. Se fusionan contra el estado remoto en el
+// mismo ETag para que dos usuarios no se pisen en una calle compartida.
+const espPartidasCellOpsPendientes=new Map();
 function celdaEspecificoPartidaActualizada(raw,registroId,info,eliminar){
   const original=raw && typeof raw==='object' ? raw : null;
   if(raw && !original?.partidaRegistros &&
@@ -10455,7 +10458,13 @@ function planificarEspecificosDesdePartidas(cambios){
         {partidaId:r.partidaId,partida:r.partida,trat:r.trat,dosis:r.dosis,
           horario:r.horario||'',caldoLitros:r.caldoLitros||null,
           caldoLabel:r.caldoLabel||''},eliminar);
-      celdas.set(clave,{invId:r.invId,dia:r.dia,calle,valor});
+      const previo=celdas.get(clave);
+      const ops={...(previo?.ops||{})};
+      ops[r.registroId]=eliminar?null:{
+        partidaId:r.partidaId,partida:r.partida,trat:r.trat,dosis:r.dosis,
+        horario:r.horario||'',caldoLitros:r.caldoLitros||null,caldoLabel:r.caldoLabel||''
+      };
+      celdas.set(clave,{invId:r.invId,dia:r.dia,calle,valor,ops});
     }
   };
   cambios.forEach(c=>{if(c.antes)operar(c.antes,true);});
@@ -10468,6 +10477,10 @@ function aplicarPlanEspecificosPartidas(plan){
     if(!especificosData[x.invId][x.dia])especificosData[x.invId][x.dia]={};
     if(x.valor==null)delete especificosData[x.invId][x.dia][x.calle];
     else especificosData[x.invId][x.dia][x.calle]=x.valor;
+    const key=especificosDirtyCellKey(x.invId,x.dia,x.calle);
+    espPartidasCellOpsPendientes.set(key,{
+      ...(espPartidasCellOpsPendientes.get(key)||{}),...x.ops
+    });
     marcarEspecificosDirtyCell(x.invId,x.dia,x.calle);
   }
 }
@@ -21964,7 +21977,9 @@ async function syncEspecificosV2InvsDesdeCloud(cloud,invIds){
 async function saveEspecificosPatch(extraDeletes){
   const dirtySnapshot=Array.from(especificosDirtyCells.values()).map(x=>({
     ...x,
-    local:clonarEspecificosSnapshot(especificosData[x.invId]?.[x.dia]?.[x.calle] ?? null)
+    local:clonarEspecificosSnapshot(especificosData[x.invId]?.[x.dia]?.[x.calle] ?? null),
+    ops:espPartidasCellOpsPendientes.has(especificosDirtyCellKey(x.invId,x.dia,x.calle))?
+      clonarEspecificosSnapshot(espPartidasCellOpsPendientes.get(especificosDirtyCellKey(x.invId,x.dia,x.calle))):null
   }));
   const intenciones=new Map();
   dirtySnapshot.forEach(x=>intenciones.set(especificosDirtyCellKey(x.invId,x.dia,x.calle),x));
@@ -21995,13 +22010,22 @@ async function saveEspecificosPatch(extraDeletes){
 
       intenciones.forEach(it=>{
         const inv=String(it.invId), dia=String(it.dia), calle=String(it.calle);
-        if(it.local==null){
+        let valor=it.local;
+        if(it.ops){
+          // No sustituir la celda remota por el snapshot local: aplicar
+          // SOLO los registros que realmente han cambiado.
+          valor=clonarEspecificosSnapshot(cloud[inv]?.[dia]?.[calle]??null);
+          for(const [registroId,info] of Object.entries(it.ops)){
+            valor=celdaEspecificoPartidaActualizada(valor,registroId,info,info==null);
+          }
+        }
+        if(valor==null){
           if(cloud[inv]?.[dia]) delete cloud[inv][dia][calle];
           if(cloud[inv]?.[dia] && Object.keys(cloud[inv][dia]).length===0) delete cloud[inv][dia];
         }else{
           if(!cloud[inv]) cloud[inv]={};
           if(!cloud[inv][dia]) cloud[inv][dia]={};
-          cloud[inv][dia][calle]=clonarEspecificosSnapshot(it.local);
+          cloud[inv][dia][calle]=clonarEspecificosSnapshot(valor);
         }
       });
 
@@ -22023,7 +22047,10 @@ async function saveEspecificosPatch(extraDeletes){
 
   dirtySnapshot.forEach(x=>{
     const actual=especificosDirtyCells.get(especificosDirtyCellKey(x.invId,x.dia,x.calle));
-    if(actual && actual.version===x.version) especificosDirtyCells.delete(especificosDirtyCellKey(x.invId,x.dia,x.calle));
+    if(actual && actual.version===x.version){
+      especificosDirtyCells.delete(especificosDirtyCellKey(x.invId,x.dia,x.calle));
+      espPartidasCellOpsPendientes.delete(especificosDirtyCellKey(x.invId,x.dia,x.calle));
+    }
   });
   recalcularEspecificosDirtyInvs();
 
