@@ -22063,6 +22063,10 @@ async function saveEspecificosData(){
 // asigna al regante.
 function setEspecifico(invId,dia,calle,val,extra){
   invId=String(invId);
+  if(especificosData[invId]?.[dia]?.[calle]?.partidaRegistros){
+    showToast('Celda vinculada a partidas: edita el específico desde su ficha para no borrar otros.');
+    return false;
+  }
   if(!especificosData[invId])especificosData[invId]={};
   if(!especificosData[invId][dia])especificosData[invId][dia]={};
   if(val){
@@ -22396,6 +22400,9 @@ function detectEspecificoBrackets(invId,dia,calles){
   return brackets;
 }
 function updateEspecificoBracket(invId,dia,calles,val){
+  if(calles.some(c=>especificosData[invId]?.[dia]?.[c]?.partidaRegistros)){
+    showToast('Tramo vinculado a partidas: modifícalo desde las fichas.');renderEspecificosGrid(invId);return;
+  }
   registrarUndoEspecifico(invId,dia,calles);
   calles.forEach(c=>setEspecifico(invId,dia,c,val));
   saveEspecificosData();
@@ -22940,6 +22947,9 @@ async function saveEspecificoManual(){
   const controlOk = await loadControlCompletoV2(false);
   if(!controlOk){ avisarFalloCarga(); return; }
   const porInv = bulkInvIds.map(invId=>({ invId, ...calcularCallesEspBulk(invId) }));
+  if(porInv.some(({invId,calles})=>calles.some(c=>especificosData[invId]?.[dia]?.[c]?.partidaRegistros))){
+    showToast('Hay específicos vinculados a partidas en esas calles. Edítalos desde sus fichas.');return;
+  }
   registrarUndoEspecificoMultiInv(porInv.map(({invId,calles})=>({ invId, dia, calles })));
   const fechaLabel = riegoDiaLabelCorto(dia);
   const fechaISO = fechaLocalISO(riegoDiaToDate(dia));
@@ -22991,6 +23001,9 @@ async function saveEspecificoManual(){
 // no sabe "borrar", una celda ya vacía en local heredaría el valor antiguo
 // de la nube que se acaba de quitar).
 async function guardarBorradoEspecifico(entradas){
+  if((entradas||[]).some(e=>(e.calles||[]).some(c=>especificosData[e.invId]?.[e.dia]?.[c]?.partidaRegistros))){
+    showToast('Borrado bloqueado: una calle contiene tratamientos de partidas distintas.');return false;
+  }
   const r=await saveEspecificosPatch(entradas||[]);
   if(!r.ok) return false;
   const invs = entradas.map(e=>e.invId);
@@ -23011,6 +23024,9 @@ async function borrarEspecificoManual(){
   // (auditoría 2026-09-11).
   if(!(await loadEspecificosPartidaData(false))) return;
   const entradas = bulkInvIds.map(invId=>({ invId, dia, calles: calcularCallesEspBulk(invId).calles }));
+  if(entradas.some(({invId,calles})=>calles.some(c=>especificosData[invId]?.[dia]?.[c]?.partidaRegistros))){
+    showToast('No se puede borrar un específico compartido: utiliza las fichas de Partidas.');return;
+  }
   registrarUndoEspecificoMultiInv(entradas);
   entradas.forEach(({invId, calles})=>calles.forEach(c=>setEspecifico(invId, dia, c, '')));
   // A petición de Paula (2026-08-18): borrar desde la cuadrícula también
@@ -23110,6 +23126,9 @@ function registrarUndoEspecificoMultiInv(entradas){
   actualizarBotonRetrocederEspecifico();
 }
 function setEspecificoUndo(invId, dia, calle, val){
+  if(especificosData[invId]?.[dia]?.[calle]?.partidaRegistros){
+    showToast('Celda vinculada a partidas: edita desde la ficha.');renderEspecificosGrid(invId);return;
+  }
   registrarUndoEspecifico(invId, dia, [calle]);
   setEspecifico(invId, dia, calle, val);
   saveEspecificosData();
