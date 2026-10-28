@@ -11013,12 +11013,12 @@ function renderPartidasInvHTML(invId){
     if(!calles.length)return '';
     const set=new Set(calles);
     const relevantes=bloques.filter(b=>b.calles.some(c=>set.has(c)));
-    // Arrancar con 10 filas por lado y mantener SIEMPRE una fila completa
+    // Arrancar con 5 filas por lado y mantener SIEMPRE una fila completa
     // libre junto al pasillo al llegar a la última ocupada. Así el usuario
     // puede soltar una partida más, incluso multicalle, sin botón de ampliar.
     // No modificar las filas guardadas: solo crece el espacio visual.
     // filaManual admite 0…300 (301 posiciones como máximo).
-    const maxPos=Math.min(301,Math.max(10,...relevantes.map(b=>b.pos+2)));
+    const maxPos=Math.min(301,Math.max(5,...relevantes.map(b=>b.pos+2)));
     const porFila=new Map();
     relevantes.forEach(b=>{
       if(!porFila.has(b.pos))porFila.set(b.pos,new Map());
