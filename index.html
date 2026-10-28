@@ -10779,26 +10779,67 @@ async function aplicarInsercionPartidaMapa(idOrigen,idDestino,lado,calleDestino,
   if(filaDestino>300){showToast('No quedan filas disponibles');return false;}
   let plan;
   if(Array.isArray(filasFijadas)){
-    plan=filasFijadas;
+    // Reintentos de versiones anteriores podían incluir TODAS las calles
+    // del pasillo. No volver a desplazar registros ajenos al movimiento.
+    const alcance=new Set([...srcCalles,calle]);
+    plan=filasFijadas.filter(x=>{
+      if(x?.id===idOrigen)return true;
+      const c=controlChecksData.find(e=>e.id===x?.id);
+      return c&&c.invId===dst.invId&&
+        callesDePartidaEntry(c).some(n=>alcance.has(n));
+    });
   }else{
     const porId=new Map();
     originalDst.forEach(b=>{if(!porId.has(b.entry.id))porId.set(b.entry.id,b.pos);});
-    // Se fijan las filas actuales para no perder huecos. Solo se empuja
-    // el lado del pasillo donde se inserta; el otro queda intacto.
-    const callesLado=new Set(INV_LAYOUT[dst.invId].row1.includes(calle)
-      ?INV_LAYOUT[dst.invId].row1:INV_LAYOUT[dst.invId].row2);
-    plan=[...porId].filter(([id])=>id!==idOrigen).map(([id,fila])=>{
-      const item=controlChecksData.find(c=>c.id===id);
-      const mismoLado=callesDePartidaEntry(item).some(n=>callesLado.has(n));
-      return {id,ubic:{...snapshotUbicacionPartida(item),
-        filaManual:mismoLado&&fila>=filaDestino?fila+1:fila}};
-    });
+    // Solo las calles reales que ocupa la tarjeta reciben empujes.
+    // Las demás calles (aunque estén en el mismo lado del pasillo) no
+    // cambian de fila. Los huecos se conservan: nadie baja por sistema.
     const tramos=multicalle
       ? (src.tramos||[{desde:src.calleDesde,hasta:src.calleHasta}]).map(t=>({...t}))
       : [{desde:calle,hasta:calle}];
+    const destinoCalles=new Set(tramos.flatMap(t=>
+      Array.from({length:Math.abs(t.hasta-t.desde)+1},
+        (_,i)=>Math.min(t.desde,t.hasta)+i)));
+    const relevantes=new Set([...srcCalles,...destinoCalles]);
+    const posiciones=new Map([...porId].filter(([id])=>id!==src.id));
+    const porCalles=new Map([...posiciones.keys()].map(id=>{
+      const item=controlChecksData.find(c=>c.id===id);
+      return [id,[...new Set(callesDePartidaEntry(item))]];
+    }));
+    const desplazados=new Set();
+    // Desplazar en cascada solamente los ocupantes que obstaculizan
+    // materialmente el sitio; una multicalle ajena que sale de estas
+    // calles se considera barrera, nunca se arrastra al resto del grid.
+    function despejar(callles,fila,visitados=new Set()){
+      if(fila>300)return false;
+      const conflictos=[...posiciones].filter(([id,pos])=>
+        pos===fila&&porCalles.get(id)?.some(n=>callles.has(n)));
+      for(const [id] of conflictos){
+        if(visitados.has(id))return false;
+        const propias=porCalles.get(id)||[];
+        if(propias.some(n=>!destinoCalles.has(n)))return false;
+        const siguientes=new Set(visitados);siguientes.add(id);
+        if(!despejar(new Set(propias),fila+1,siguientes))return false;
+        posiciones.set(id,fila+1);desplazados.add(id);
+      }
+      return true;
+    }
+    if(!despejar(destinoCalles,filaDestino)){
+      showToast('No cabe sin mover partidas de otras calles. Movimiento cancelado.');
+      return false;
+    }
+    // Fijar el estado previo de las calles afectadas evita que el
+    // compactador heredado rellene los huecos al quitar el origen.
+    plan=[...porId].filter(([id])=>id!==src.id&&
+      porCalles.get(id)?.some(n=>relevantes.has(n))).map(([id,fila])=>{
+      const item=controlChecksData.find(c=>c.id===id);
+      return {id,ubic:{...snapshotUbicacionPartida(item),
+        filaManual:posiciones.get(id)??fila}};
+    });
     plan.push({id:idOrigen,ubic:{...snapshotUbicacionPartida(src),invId:dst.invId,
       tramos,calleDesde:tramos[0].desde,calleHasta:tramos[0].hasta,
       filaManual:filaDestino}});
+
   }
   if(!plan.some(x=>x.id===idOrigen)||new Set(plan.map(x=>x.id)).size!==plan.length||
      plan.some(x=>!controlChecksData.some(c=>c.id===x.id)||
@@ -10809,6 +10850,21 @@ async function aplicarInsercionPartidaMapa(idOrigen,idDestino,lado,calleDestino,
   }));
   plan.forEach(x=>aplicarUbicacionPartida(x.id,x.ubic));
   const despues=calcularBloquesPartidasInvBase(dst.invId,semana);
+  const filasNuevas=new Map();
+  despues.forEach(b=>{if(!filasNuevas.has(b.entry.id))filasNuevas.set(b.entry.id,b.pos);});
+  // Los registros no relacionados con las calles movidas NO pueden variar
+  // de fila, ni siquiera indirectamente por el compactado de datos antiguos.
+  const callesInfluidas=new Set([...srcCalles,calle]);
+  const otrosIntactos=[...originalDst].every(b=>{
+    const entry=controlChecksData.find(c=>c.id===b.entry.id);
+    if(!entry||entry.id===src.id)return true;
+    const toca=callesDePartidaEntry(entry).some(n=>callesInfluidas.has(n));
+    return toca||filasNuevas.get(entry.id)===b.pos;
+  });
+  const planExacto=plan.every(x=>{
+    const bloques=despues.filter(b=>b.entry.id===x.id);
+    return bloques.length>0&&bloques.every(b=>b.pos===x.ubic.filaManual);
+  });
   const srcEnMapa=despues.filter(b=>b.entry.id===idOrigen);
   const dstEnMapa=despues.find(b=>b.entry.id===idDestino&&b.calles.includes(calle));
   const srcFila=controlChecksData.find(x=>x.id===idOrigen)?.filaManual;
@@ -10820,7 +10876,7 @@ async function aplicarInsercionPartidaMapa(idOrigen,idDestino,lado,calleDestino,
     if(ocupadas.has(key))return false;
     ocupadas.add(key);return true;
   }));
-  if(!destinoValido||!sinSolape){
+  if(!destinoValido||!sinSolape||!otrosIntactos||!planExacto){
     for(const [id,prev] of antes)aplicarUbicacionPartida(id,prev);
     showToast('No se puede insertar aquí sin solapar partidas');return false;
   }
