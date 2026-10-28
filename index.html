@@ -6051,6 +6051,7 @@ const ACCIONES_OFFLINE_REPLAYABLES = {
   aplicarSalidaPartida,
   aplicarIntercambioPartidas,
   aplicarMoverPartidaACalle,
+  aplicarColocarPartidaEnFila,
   aplicarSepararPartidaEnCalles,
   aplicarInsercionPartidaMapa
 };
@@ -6116,7 +6117,7 @@ async function procesarColaOffline(){
       }else {
         const saved=await fn(...accion.args);
         // Si faltara el control original, conservar la acción de ubicación.
-        if(accion.fn==='aplicarEditarUbicacionesPartida' && saved!==true){
+        if(['aplicarEditarUbicacionesPartida','aplicarColocarPartidaEnFila','aplicarInsercionPartidaMapa'].includes(accion.fn) && saved!==true){
           sinAplicar++;continue;
         }
       }
@@ -9671,6 +9672,7 @@ async function showPartidasModule(){
   partidasEspecificoModo = false;
   partidasEspecificoSeleccion = new Set();
   partidasSemanaOffset = partidasSemanaOffsetActual();
+  partidasMinFilasGrid=10;
   partidasInvSel = null;
   renderPartidasSelectorContent(overlay);
   overlay.style.display = 'flex';
@@ -9844,12 +9846,14 @@ let partidasEspecificoSeleccion = new Set();
 let partidasHistorialDeshacer = [];
 let partidasHistorialRehacer = [];
 function snapshotUbicacionPartida(c){
-  return { invId:c.invId, tramos: c.tramos ? c.tramos.map(t=>({...t})) : undefined, calleDesde:c.calleDesde, calleHasta:c.calleHasta, posManual:c.posManual };
+  return { invId:c.invId, tramos:c.tramos?c.tramos.map(t=>({...t})):undefined,
+    calleDesde:c.calleDesde,calleHasta:c.calleHasta,posManual:c.posManual,filaManual:c.filaManual };
 }
 function aplicarUbicacionPartida(id, ubic){
   const c = controlChecksData.find(x=>x.id===id);
   if(!c) return;
-  Object.assign(c, ubic);
+  Object.assign(c,ubic);
+  if(ubic.filaManual===undefined)delete c.filaManual;
 }
 function registrarMovimientoPartidas(entradas){
   // entradas: [{id, antes, despues}, ...]
@@ -9935,20 +9939,23 @@ async function cambiarPosicionPartida(id, posActual){
   const ok = await persistControlChecksData();
   if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
 }
-function intercambiarPartidasPorId(idA, idB){
-  const cA = controlChecksData.find(x=>x.id===idA);
-  const cB = controlChecksData.find(x=>x.id===idB);
-  if(!cA || !cB) return;
+function intercambiarPartidasPorId(idA,idB){
+  const cA=controlChecksData.find(x=>x.id===idA);
+  const cB=controlChecksData.find(x=>x.id===idB);
+  if(!cA||!cB)return;
+  if(callesDePartidaEntry(cA).length!==1||callesDePartidaEntry(cB).length!==1){
+    showToast('Para intercambiar partidas de varias calles, separa primero. Puedes moverlas verticalmente a una fila libre.');return;
+  }
   // Para intercambiar: A toma TODO de B (ubicación + clave), B toma TODO de A
   const keyA = typeof cA.posManual === 'number' ? cA.posManual : new Date(cA.creadoEn || 0).getTime();
   const keyB = typeof cB.posManual === 'number' ? cB.posManual : new Date(cB.creadoEn || 0).getTime();
 
   // ubicB = lo que A recibirá (ubicación y clave de B)
-  const ubicB = { invId:cB.invId, calleDesde:cB.calleDesde, calleHasta:cB.calleHasta, posManual: keyB };
+  const ubicB = { invId:cB.invId, calleDesde:cB.calleDesde, calleHasta:cB.calleHasta, posManual:keyB, filaManual:cB.filaManual };
   if(cB.tramos) ubicB.tramos = cB.tramos.map(t=>({...t}));
 
   // ubicA = lo que B recibirá (ubicación y clave de A)
-  const ubicA = { invId:cA.invId, calleDesde:cA.calleDesde, calleHasta:cA.calleHasta, posManual: keyA };
+  const ubicA = { invId:cA.invId, calleDesde:cA.calleDesde, calleHasta:cA.calleHasta, posManual:keyA, filaManual:cA.filaManual };
   if(cA.tramos) ubicA.tramos = cA.tramos.map(t=>({...t}));
 
   aplicarIntercambioPartidas(idA, ubicB, idB, ubicA);
@@ -9980,71 +9987,155 @@ function clicPartidaEnMapa(id){
 // la última (más cerca del pasillo) entre las que ya hubiera en esa calle;
 // si se quiere un orden más fino dentro de la misma calle, luego se puede
 // ajustar con el intercambio de toda la vida.
-function clicCeldaVaciaPartidas(invId, calle){
-  if(!partidaSeleccionadaParaMover) return;
-  const id = partidaSeleccionadaParaMover;
-  partidaSeleccionadaParaMover = null;
-  const c = controlChecksData.find(x=>x.id===id);
-  if(!c) return;
-  moverPartidaAHueco(id, invId, calle);
+// La coordenada de un hueco incluye calle Y fila; nunca se compacta
+// automáticamente después de colocar la partida.
+function clicCeldaVaciaPartidas(invId,calle,fila){
+  const id=partidaSeleccionadaParaMover;
+  if(!id)return;
+  partidaSeleccionadaParaMover=null;
+  moverPartidaAHueco(id,invId,calle,fila);
 }
-// Una celda realmente vacía es destino válido incluso cuando TODO ese lado
-// del pasillo está vacío. El movimiento conserva la identidad y el color
-// original y puede deshacerse con el historial normal.
-function moverPartidaAHueco(id,invId,calle){
-  const c=controlChecksData.find(x=>x.id===id);
-  const layout=INV_LAYOUT[invId], destino=Number(calle);
-  if(!c||!layout||![...layout.row1,...layout.row2].includes(destino))return false;
-  if(callesDePartidaEntry(c).length!==1){
-    showToast('Separa primero la partida de varias calles para trasladarla');return false;
-  }
-  if(!partidaVisibleEnSemana(partidaParaPintar(c),partidasSemanaOffset)){
-    showToast('La partida no está visible en esta semana');return false;
-  }
-  const ocupantes=calcularBloquesPartidasInvBase(invId,partidasSemanaOffset)
-    .filter(b=>b.calles.includes(destino)&&b.entry.id!==id);
-  const maxClave=ocupantes.length?Math.max(...ocupantes.map(b=>sortKeyPartida(b.entry))):0;
-  const posicion=Number.isFinite(maxClave)?maxClave+1:Date.now();
-  return aplicarMoverPartidaACalle(id,invId,{desde:destino,hasta:destino},posicion,partidasSemanaOffset);
-}
-async function aplicarMoverPartidaACalle(id, invId, tramo, posManualVal, semanaGuardada){
-  const c=controlChecksData.find(x=>x.id===id);
+function filasLibresParaPartida(id,invId,calles,fila,semana){
+  if(!Number.isInteger(fila)||fila<0||fila>300)return false;
   const layout=INV_LAYOUT[invId];
-  const calle=Number(tramo?.desde),hasta=Number(tramo?.hasta);
+  const permitidas=new Set([...(layout?.row1||[]),...(layout?.row2||[])]);
+  if(!calles.length||calles.some(c=>!permitidas.has(c)))return false;
+  const ocupadas=new Set(calcularBloquesPartidasInvBase(invId,semana)
+    .filter(b=>b.entry.id!==id&&b.pos===fila)
+    .flatMap(b=>b.calles));
+  return calles.every(c=>!ocupadas.has(c));
+}
+function moverPartidaAHueco(id,invId,calle,fila){
+  const c=controlChecksData.find(x=>x.id===id);
+  const destino=Number(calle),row=Number(fila);
+  const layout=INV_LAYOUT[invId];
+  if(!c||!layout||!Number.isInteger(destino)||
+     ![...layout.row1,...layout.row2].includes(destino)||!Number.isInteger(row))return false;
+  const calles=callesDePartidaEntry(c);
+  const mantenerTramos=calles.length>1;
+  // La partida multicalle se puede mover libremente arriba/abajo EN SUS
+  // CALLES ACTUALES; para desplazarla lateralmente sigue exigiendo separar.
+  if(mantenerTramos&&(c.invId!==invId||!calles.includes(destino))){
+    showToast('Separa primero la partida multicalle para cambiarla de calle');return false;
+  }
+  const tramos=mantenerTramos
+    ? (c.tramos||[{desde:c.calleDesde,hasta:c.calleHasta}]).map(t=>({...t}))
+    : [{desde:destino,hasta:destino}];
+  const callesDestino=tramos.flatMap(t=>Array.from({
+    length:Math.max(0,Math.abs(t.hasta-t.desde)+1)},(_,i)=>Math.min(t.desde,t.hasta)+i));
+  if(!filasLibresParaPartida(id,invId,callesDestino,row,partidasSemanaOffset)){
+    showToast('Fila ocupada: la partida no puede solaparse con otras calles');return false;
+  }
+  return aplicarColocarPartidaEnFila(id,invId,tramos,row,partidasSemanaOffset);
+}
+async function aplicarColocarPartidaEnFila(id,invId,tramos,fila,semanaGuardada,filasFijadas){
+  const c=controlChecksData.find(x=>x.id===id);
   const semana=Number.isInteger(semanaGuardada)?semanaGuardada:partidasSemanaOffset;
-  if(!c||!layout||!Number.isInteger(calle)||calle!==hasta||
-    ![...layout.row1,...layout.row2].includes(calle))return false;
-  if(callesDePartidaEntry(c).length!==1){
-    showToast('Separa primero la partida de varias calles para trasladarla');return false;
+  if(!c||!partidaVisibleEnSemana(partidaParaPintar(c),semana))return false;
+  const calles=Array.isArray(tramos)?tramos.flatMap(t=>{
+    const a=Number(t.desde),b=Number(t.hasta);
+    return Number.isInteger(a)&&Number.isInteger(b)&&Math.abs(a-b)<=300
+      ?Array.from({length:Math.abs(a-b)+1},(_,i)=>Math.min(a,b)+i):[];
+  }):[];
+  if(!calles.length||!Array.isArray(tramos)||tramos.some(t=>!Number.isInteger(Number(t.desde))||
+      !Number.isInteger(Number(t.hasta))||Math.abs(Number(t.hasta)-Number(t.desde))>300)||
+      !filasLibresParaPartida(id,invId,calles,Number(fila),semana))return false;
+  const originales=callesDePartidaEntry(c);
+  if(originales.length>1&&(c.invId!==invId||
+      originales.length!==calles.length||originales.some(x=>!calles.includes(x)))){
+    showToast('Separa la partida de varias calles antes de cambiar sus calles');return false;
   }
-  if(!partidaVisibleEnSemana(partidaParaPintar(c),semana))return false;
-  const antes=snapshotUbicacionPartida(c);
-  c.invId=invId;c.tramos=[{desde:calle,hasta:calle}];
-  c.calleDesde=calle;c.calleHasta=calle;c.posManual=posManualVal;
-  // Validación geométrica antes de registrar o enviar el cambio.
-  const bloques=calcularBloquesPartidasInvBase(invId,semana);
-  const colocado=bloques.some(b=>b.entry.id===id&&b.calles.includes(calle));
-  const ocupacion=new Set();
-  const sinSolape=bloques.every(b=>b.calles.every(n=>{
-    const k=n+':'+b.pos;
-    if(ocupacion.has(k))return false;
-    ocupacion.add(k);return true;
+  const origenInv=c.invId;
+  const afectados=[...new Set([origenInv,invId].filter(Boolean))];
+  const filasAnteriores=new Map();
+  afectados.forEach(inv=>calcularBloquesPartidasInvBase(inv,semana).forEach(b=>{
+    if(b.entry.id!==id&&!filasAnteriores.has(b.entry.id))filasAnteriores.set(b.entry.id,b.pos);
   }));
-  if(!colocado||!sinSolape){
-    aplicarUbicacionPartida(id,antes);
-    showToast('Movimiento cancelado: ubicación no válida');return false;
+  const antes=new Map([[id,snapshotUbicacionPartida(c)]]);
+  const restaurar=()=>{
+    for(const [ident,prev] of antes)aplicarUbicacionPartida(ident,prev);
+  };
+  c.invId=invId;
+  c.tramos=tramos.map(t=>({desde:Math.min(Number(t.desde),Number(t.hasta)),
+    hasta:Math.max(Number(t.desde),Number(t.hasta))}));
+  c.calleDesde=c.tramos[0].desde;c.calleHasta=c.tramos[0].hasta;
+  c.filaManual=Number(fila);
+  let fijaciones=Array.isArray(filasFijadas)?filasFijadas:null;
+  if(fijaciones){
+    for(const item of fijaciones){
+      const otro=controlChecksData.find(x=>x.id===item.id);
+      if(!otro||item.id===id||!Number.isInteger(item.fila)||item.fila<0||item.fila>300){
+        restaurar();return false;
+      }
+      if(!antes.has(item.id))antes.set(item.id,snapshotUbicacionPartida(otro));
+      otro.filaManual=item.fila;
+    }
+  }else{
+    fijaciones=[];
+    // Solo fijar las partidas heredadas que se desplazarían al compactarse.
+    // Las restantes no se editan ni generan escrituras adicionales.
+    for(let iter=0;iter<4;iter++){
+      const actuales=new Map();
+      afectados.forEach(inv=>calcularBloquesPartidasInvBase(inv,semana).forEach(b=>{
+        if(b.entry.id!==id&&!actuales.has(b.entry.id))actuales.set(b.entry.id,b.pos);
+      }));
+      let nuevos=0;
+      for(const [otroId,prevFila] of filasAnteriores){
+        if(actuales.get(otroId)===prevFila)continue;
+        const otro=controlChecksData.find(x=>x.id===otroId);
+        if(!otro||!Number.isInteger(prevFila)||prevFila>300)continue;
+        if(!antes.has(otroId))antes.set(otroId,snapshotUbicacionPartida(otro));
+        otro.filaManual=prevFila;
+        if(!fijaciones.some(x=>x.id===otroId))fijaciones.push({id:otroId,fila:prevFila});
+        nuevos++;
+      }
+      if(!nuevos)break;
+    }
   }
-  const despues=snapshotUbicacionPartida(c);
-  if(JSON.stringify(antes)===JSON.stringify(despues))return true;
-  registrarMovimientoPartidas([{id,antes,despues}]);
+  const bloquesDespues=afectados.flatMap(inv=>
+    calcularBloquesPartidasInvBase(inv,semana).map(b=>({...b,inv})));
+  const propios=bloquesDespues.filter(b=>b.entry.id===id&&b.inv===invId);
+  const exacto=propios.length>0&&propios.every(b=>b.pos===c.filaManual)&&
+    calles.every(calle=>propios.some(b=>b.calles.includes(calle)));
+  const filasPreservadas=[...filasAnteriores].every(([otroId,prevFila])=>{
+    const actual=bloquesDespues.find(b=>b.entry.id===otroId);
+    return actual&&actual.pos===prevFila;
+  });
+  const celdas=new Set();
+  const sinSolapes=bloquesDespues.every(b=>b.calles.every(n=>{
+    const key=b.inv+':'+n+':'+b.pos;
+    if(celdas.has(key))return false;
+    celdas.add(key);return true;
+  }));
+  if(!exacto||!filasPreservadas||!sinSolapes){
+    restaurar();showToast('La fila no está libre: movimiento cancelado');return false;
+  }
+  const cambios=[];
+  for(const [ident,prev] of antes){
+    const actual=controlChecksData.find(x=>x.id===ident);
+    if(actual&&JSON.stringify(prev)!==JSON.stringify(snapshotUbicacionPartida(actual)))
+      cambios.push({id:ident,antes:prev,despues:snapshotUbicacionPartida(actual)});
+  }
+  if(!cambios.length)return true;
+  registrarMovimientoPartidas(cambios);
   renderPartidasMapaContent(document.getElementById('partidas-overlay'));
-  showToast('✓ Partida movida a calle '+calle);
-  const qid=encolarAccionOffline('aplicarMoverPartidaACalle',
-    [id,invId,{desde:calle,hasta:calle},posManualVal,semana]);
-  marcarControlCheckSucio(id);
+  showToast('✓ Partida colocada en calle '+calles[0]+', fila '+(c.filaManual+1));
+  const qid=encolarAccionOffline('aplicarColocarPartidaEnFila',
+    [id,invId,c.tramos,c.filaManual,semana,fijaciones]);
+  cambios.forEach(x=>marcarControlCheckSucio(x.id));
   const ok=await persistControlChecksData();
   if(ok)desencolarAccion(qid);else avisarGuardadoLocalPendiente(leerColaOffline().length);
   return ok;
+}
+// Compatibilidad de acciones anteriores pendientes sin fila: usar el
+// primer espacio libre en destino, nunca compactar una posición explícita.
+async function aplicarMoverPartidaACalle(id, invId, tramo, posManualVal, semanaGuardada){
+  const c=controlChecksData.find(x=>x.id===id);
+  if(!c||callesDePartidaEntry(c).length!==1)return false;
+  const semana=Number.isInteger(semanaGuardada)?semanaGuardada:partidasSemanaOffset;
+  let fila=0;
+  while(fila<300&&!filasLibresParaPartida(id,invId,[Number(tramo.desde)],fila,semana))fila++;
+  return aplicarColocarPartidaEnFila(id,invId,[{desde:Number(tramo.desde),hasta:Number(tramo.desde)}],fila,semana);
 }
 // Calcula, para un invernadero, en qué fila (0 = más alejada del pasillo) le
 // toca a cada "bloque" (una partida, o uno de sus tramos si ocupa varias
@@ -10064,25 +10155,45 @@ function calcularBloquesPartidasInv(invId){
 // la UI daba falsos negativos (partida real no encontrada) y quitar el
 // filtro del todo daría falsos positivos (partidas ya salidas de esa calle,
 // cuyo check nunca se borra, seguirían aparejándose).
+// La posición vertical real se conserva como filaManual (entero desde 0).
+// Reservar primero las posiciones explícitas evita que un registro heredado
+// compacto vuelva a ocupar el hueco elegido. Los registros sin filaManual
+// conservan el compactado tradicional, sin migración masiva de datos.
 function calcularBloquesPartidasInvBase(invId, semanaOffset){
-  const entradas = controlChecksData
-    .filter(c=>(c.tipo==='tunel'||(c.tipo==='ubicacion'&&raizQCPartida(c))) && c.invId===invId && c.invId && ((c.tramos&&c.tramos.length)||c.calleDesde!=null) && (semanaOffset==null || partidaVisibleEnSemana(partidaParaPintar(c), semanaOffset)))
+  const entradas=controlChecksData
+    .filter(c=>(c.tipo==='tunel'||(c.tipo==='ubicacion'&&raizQCPartida(c)))&&
+      c.invId===invId && ((c.tramos&&c.tramos.length)||c.calleDesde!=null)&&
+      (semanaOffset==null||partidaVisibleEnSemana(partidaParaPintar(c),semanaOffset)))
     .map(partidaParaPintar)
-    .sort((a,b)=> sortKeyPartida(a) - sortKeyPartida(b));
-  const alturaPorCalle = {};
-  const bloques = [];
-  entradas.forEach(entry=>{
-    const tramos = (entry.tramos && entry.tramos.length) ? entry.tramos : [{desde:entry.calleDesde, hasta:entry.calleHasta}];
+    .sort((a,b)=>sortKeyPartida(a)-sortKeyPartida(b)||
+      String(a.id).localeCompare(String(b.id)));
+  const ocupadas=new Set(),bloques=[],pendientes=[];
+  const callesEntry=c=>[...new Set(callesDePartidaEntry(c))];
+  const libre=(calles,fila)=>calles.every(c=>!ocupadas.has(c+':'+fila));
+  const ocupar=(calles,fila)=>calles.forEach(c=>ocupadas.add(c+':'+fila));
+  const insertar=(entry,fila)=>{
+    ocupar(callesEntry(entry),fila);
+    // Para registros con varios tramos, TODOS comparten la misma fila.
+    const tramos=(entry.tramos&&entry.tramos.length)?entry.tramos:
+      [{desde:entry.calleDesde,hasta:entry.calleHasta}];
     tramos.forEach(t=>{
-      if(t.desde==null) return;
-      const desde = Math.min(t.desde, t.hasta==null?t.desde:t.hasta);
-      const hasta = Math.max(t.desde, t.hasta==null?t.desde:t.hasta);
-      const calles = [];
-      for(let c=desde; c<=hasta; c++) calles.push(c);
-      const pos = Math.max(0, ...calles.map(c=>alturaPorCalle[c]||0));
-      calles.forEach(c=>{ alturaPorCalle[c] = pos+1; });
-      bloques.push({ calles, pos, entry });
+      if(t.desde==null)return;
+      const desde=Math.min(t.desde,t.hasta??t.desde),hasta=Math.max(t.desde,t.hasta??t.desde);
+      bloques.push({calles:Array.from({length:hasta-desde+1},(_,i)=>desde+i),pos:fila,entry});
     });
+  };
+  entradas.forEach(entry=>{
+    const calles=callesEntry(entry);
+    if(!calles.length)return;
+    const f=entry.filaManual;
+    if(Number.isInteger(f)&&f>=0&&f<=300&&libre(calles,f))insertar(entry,f);
+    else pendientes.push(entry);
+  });
+  pendientes.forEach(entry=>{
+    const calles=callesEntry(entry);
+    let fila=0;
+    while(fila<=300&&!libre(calles,fila))fila++;
+    if(fila<=300)insertar(entry,fila);
   });
   return bloques;
 }
@@ -10096,8 +10207,28 @@ async function aplicarIntercambioPartidas(id1, ubic1, id2, ubic2){
   const antes1 = c1 ? snapshotUbicacionPartida(c1) : null;
   const antes2 = c2 ? snapshotUbicacionPartida(c2) : null;
   const invSelAntes = partidasInvSel; // Preservar invernadero seleccionado
-  if(c1) Object.assign(c1, ubic1);
-  if(c2) Object.assign(c2, ubic2);
+  if(c1)aplicarUbicacionPartida(id1,ubic1);
+  if(c2)aplicarUbicacionPartida(id2,ubic2);
+  const semana=partidasSemanaOffset;
+  const invs=[...new Set([c1?.invId,c2?.invId].filter(Boolean))];
+  const valido=invs.every(inv=>{
+    const bs=calcularBloquesPartidasInvBase(inv,semana);
+    const celdas=new Set();
+    return bs.every(b=>b.calles.every(c=>{
+      const key=c+':'+b.pos;
+      if(celdas.has(key))return false;
+      celdas.add(key);return true;
+    }))&&[c1,c2].filter(c=>c?.invId===inv).every(c=>{
+      const propios=bs.filter(b=>b.entry.id===c.id);
+      return propios.length>0&&(!Number.isInteger(c.filaManual)||
+        propios.every(b=>b.pos===c.filaManual));
+    });
+  });
+  if(!valido){
+    if(c1)aplicarUbicacionPartida(id1,antes1);
+    if(c2)aplicarUbicacionPartida(id2,antes2);
+    showToast('Intercambio cancelado para evitar solapes');return false;
+  }
   const entradas = [];
   if(c1) entradas.push({id:id1, antes:antes1, despues: snapshotUbicacionPartida(c1)});
   if(c2) entradas.push({id:id2, antes:antes2, despues: snapshotUbicacionPartida(c2)});
@@ -10428,8 +10559,8 @@ function mostrarEtiquetaDropPartidas(destino){
     document.body.appendChild(partidasEtiquetaDrop);
   }
   if(destino.tipo==='hueco'){
-    partidasEtiquetaDrop.textContent='COLOCAR EN CALLE '+destino.calle+
-      (destino.ladoPasillo==='abajo'?' · Bajo pasillo':' · Sobre pasillo');
+    partidasEtiquetaDrop.textContent='CALLE '+destino.calle+
+      ' · FILA '+(destino.fila+1)+(destino.ladoPasillo==='abajo'?' · Bajo pasillo':' · Sobre pasillo');
   }else{
     const c=controlChecksData.find(x=>x.id===destino.id);
     partidasEtiquetaDrop.textContent=(destino.arribaVisual?'ENCIMA':'DEBAJO')+
@@ -10470,7 +10601,8 @@ function buscarDestinoTactilPartidas(x,y,origenId){
     const calle=Number(hueco.dataset.partidasCalle);
     const invId=hueco.dataset.partidasInv;
     if(Number.isFinite(calle)&&invId===partidasInvSel)
-      return {tipo:'hueco',invId,calle,ladoPasillo:hueco.dataset.partidasLado,el:hueco};
+      return {tipo:'hueco',invId,calle,fila:Number(hueco.dataset.partidasFila),
+        ladoPasillo:hueco.dataset.partidasLado,el:hueco};
   }
   // El dedo puede quedar EN la tarjeta o inmediatamente DESPUÉS de su borde.
   // La versión anterior aceptaba solo 3px fuera: debajo de la última partida
@@ -10511,7 +10643,11 @@ function actualizarDestinoPunteroPartidas(){
   const origen=controlChecksData.find(c=>c.id===s.id);
   const misma=origen&&origen.invId===partidasInvSel&&callesDePartidaEntry(origen).includes(d.calle);
   const permitida=d.tipo==='hueco'
-    ? !!origen && callesDePartidaEntry(origen).length===1
+    ? !!origen && (callesDePartidaEntry(origen).length===1||
+        (origen.invId===d.invId&&callesDePartidaEntry(origen).includes(d.calle)))&&
+        filasLibresParaPartida(origen.id,d.invId,
+          callesDePartidaEntry(origen).length>1?callesDePartidaEntry(origen):[d.calle],
+          d.fila,partidasSemanaOffset)
     : misma||!!origen&&callesDePartidaEntry(origen).length===1;
   partidasIndicadorDrop=d.el;
   if(!permitida){
@@ -10605,7 +10741,7 @@ function soltarPunteroPartida(event){
     const origen=s.id;
     partidasSuprimirClickHasta=Date.now()+850;
     limpiarPunteroPartida();
-    if(destino?.tipo==='hueco')moverPartidaAHueco(origen,destino.invId,destino.calle);
+    if(destino?.tipo==='hueco')moverPartidaAHueco(origen,destino.invId,destino.calle,destino.fila);
     else if(destino)aplicarInsercionPartidaMapa(origen,destino.id,destino.lado,destino.calle);
     else showToast('Suelta sobre una partida o una calle vacía');
   }else limpiarPunteroPartida();
@@ -10618,60 +10754,75 @@ function cancelarPunteroPartida(event){
 }
 // Se conservan ubicación, QC, historial y relaciones; si es multicalle,
 // para cambiar de calle debe separarse expresamente desde la ficha.
-async function aplicarInsercionPartidaMapa(idOrigen,idDestino,lado,calleDestino,semanaGuardada){
-  const src=controlChecksData.find(x=>x.id===idOrigen),dst=controlChecksData.find(x=>x.id===idDestino);
-  if(!src||!dst||src.id===dst.id||!['antes','despues'].includes(lado))return false;
+// Insertar antes/después de otra tarjeta crea una fila REAL y mantiene
+// todas las posiciones existentes (sin apilar ni mover automáticamente).
+// La cola offline conserva posiciones absolutas y no duplica un segundo
+// desplazamiento al reproducir la operación.
+async function aplicarInsercionPartidaMapa(idOrigen,idDestino,lado,calleDestino,semanaGuardada,filasFijadas){
+  const src=controlChecksData.find(x=>x.id===idOrigen);
+  const dst=controlChecksData.find(x=>x.id===idDestino);
   const semana=Number.isInteger(semanaGuardada)?semanaGuardada:partidasSemanaOffset;
-  if(!partidaVisibleEnSemana(partidaParaPintar(src),semana)||!partidaVisibleEnSemana(partidaParaPintar(dst),semana))return false;
   const calle=Number(calleDestino);
-  if(!Number.isFinite(calle)||!callesDePartidaEntry(dst).includes(calle))return false;
+  if(!src||!dst||src.id===dst.id||!['antes','despues'].includes(lado)||
+      !Number.isInteger(calle)||!callesDePartidaEntry(dst).includes(calle)||
+      !partidaVisibleEnSemana(partidaParaPintar(src),semana)||
+      !partidaVisibleEnSemana(partidaParaPintar(dst),semana))return false;
   const srcCalles=callesDePartidaEntry(src);
-  const comparten=src.invId===dst.invId&&srcCalles.includes(calle);
-  if(!comparten&&srcCalles.length!==1){
-    showToast('Separa primero la partida de varias calles para trasladarla');return false;
+  const multicalle=srcCalles.length>1;
+  if(multicalle&&(src.invId!==dst.invId||!srcCalles.includes(calle))){
+    showToast('Separa primero la partida multicalle para cambiarla de calle');return false;
   }
-  if(!comparten&&![...(INV_LAYOUT[dst.invId]?.row1||[]),...(INV_LAYOUT[dst.invId]?.row2||[])].includes(calle))return false;
-  const antes=new Map([[src.id,snapshotUbicacionPartida(src)]]);
-  if(!comparten){
-    src.invId=dst.invId;src.tramos=[{desde:calle,hasta:calle}];
-    src.calleDesde=calle;src.calleHasta=calle;
-  }
-  const orden=controlChecksData.filter(c=>(c.tipo==='tunel'||c.tipo==='ubicacion')&&c.invId===dst.invId&&
-     ((c.tramos&&c.tramos.length)||c.calleDesde!=null)&&partidaVisibleEnSemana(partidaParaPintar(c),semana))
-    .sort((a,b)=>sortKeyPartida(a)-sortKeyPartida(b)||String(a.id).localeCompare(String(b.id)))
-    .filter(c=>c.id!==src.id);
-  const index=orden.findIndex(c=>c.id===dst.id);
-  if(index<0)return false;
-  orden.splice(index+(lado==='despues'?1:0),0,src);
-  const i=orden.findIndex(c=>c.id===src.id);
-  const izq=orden[i-1],der=orden[i+1];
-  const kIzq=izq?sortKeyPartida(izq):null,kDer=der?sortKeyPartida(der):null;
-  const nueva=kIzq===null?(kDer===null?1000:kDer-1):kDer===null?kIzq+1:(kIzq+kDer)/2;
-  if(Number.isFinite(nueva)&&(kIzq===null||nueva>kIzq)&&(kDer===null||nueva<kDer)){
-    src.posManual=nueva;
+  const originalDst=calcularBloquesPartidasInvBase(dst.invId,semana);
+  const bloqueDestino=originalDst.find(b=>b.entry.id===idDestino&&b.calles.includes(calle));
+  if(!bloqueDestino)return false;
+  const filaDestino=bloqueDestino.pos+(lado==='despues'?1:0);
+  if(filaDestino>300){showToast('No quedan filas disponibles');return false;}
+  let plan;
+  if(Array.isArray(filasFijadas)){
+    plan=filasFijadas;
   }else{
-    // Claves antiguas iguales: reindexación estable del invernadero visible.
-    orden.forEach((c,n)=>{
-      if(!antes.has(c.id))antes.set(c.id,snapshotUbicacionPartida(c));
-      c.posManual=(n+1)*1000;
+    const porId=new Map();
+    originalDst.forEach(b=>{if(!porId.has(b.entry.id))porId.set(b.entry.id,b.pos);});
+    // Se fijan las filas actuales para no perder huecos. Solo se empuja
+    // el lado del pasillo donde se inserta; el otro queda intacto.
+    const callesLado=new Set(INV_LAYOUT[dst.invId].row1.includes(calle)
+      ?INV_LAYOUT[dst.invId].row1:INV_LAYOUT[dst.invId].row2);
+    plan=[...porId].filter(([id])=>id!==idOrigen).map(([id,fila])=>{
+      const item=controlChecksData.find(c=>c.id===id);
+      const mismoLado=callesDePartidaEntry(item).some(n=>callesLado.has(n));
+      return {id,ubic:{...snapshotUbicacionPartida(item),
+        filaManual:mismoLado&&fila>=filaDestino?fila+1:fila}};
     });
+    const tramos=multicalle
+      ? (src.tramos||[{desde:src.calleDesde,hasta:src.calleHasta}]).map(t=>({...t}))
+      : [{desde:calle,hasta:calle}];
+    plan.push({id:idOrigen,ubic:{...snapshotUbicacionPartida(src),invId:dst.invId,
+      tramos,calleDesde:tramos[0].desde,calleHasta:tramos[0].hasta,
+      filaManual:filaDestino}});
   }
-  // No guardar si el resultado real no queda en la calle/posición solicitada.
-  const despues=calcularBloquesPartidasInvBase(dst.invId,semana);
-  const origenEnMapa=despues.find(b=>b.entry.id===idOrigen&&b.calles.includes(calle));
-  const destinoEnMapa=despues.find(b=>b.entry.id===idDestino&&b.calles.includes(calle));
-  const encaja=origenEnMapa&&destinoEnMapa&&
-    (lado==='antes'?origenEnMapa.pos<destinoEnMapa.pos:origenEnMapa.pos>destinoEnMapa.pos);
-  const ocupacion=new Set();
-  const sinSolape=despues.every(b=>b.calles.every(c=>{
-    const k=c+':'+b.pos;
-    if(ocupacion.has(k))return false;
-    ocupacion.add(k);return true;
+  if(!plan.some(x=>x.id===idOrigen)||new Set(plan.map(x=>x.id)).size!==plan.length||
+     plan.some(x=>!controlChecksData.some(c=>c.id===x.id)||
+       !Number.isInteger(x.ubic?.filaManual)||x.ubic.filaManual<0||x.ubic.filaManual>300))return false;
+  const antes=new Map(plan.map(x=>{
+    const c=controlChecksData.find(e=>e.id===x.id);
+    return [x.id,snapshotUbicacionPartida(c)];
   }));
-  if(!encaja||!sinSolape){
+  plan.forEach(x=>aplicarUbicacionPartida(x.id,x.ubic));
+  const despues=calcularBloquesPartidasInvBase(dst.invId,semana);
+  const srcEnMapa=despues.filter(b=>b.entry.id===idOrigen);
+  const dstEnMapa=despues.find(b=>b.entry.id===idDestino&&b.calles.includes(calle));
+  const srcFila=controlChecksData.find(x=>x.id===idOrigen)?.filaManual;
+  const destinoValido=srcEnMapa.length>0&&srcEnMapa.every(b=>b.pos===srcFila)&&
+    dstEnMapa&&(lado==='antes'?srcFila<dstEnMapa.pos:srcFila>dstEnMapa.pos);
+  const ocupadas=new Set();
+  const sinSolape=despues.every(b=>b.calles.every(c=>{
+    const key=c+':'+b.pos;
+    if(ocupadas.has(key))return false;
+    ocupadas.add(key);return true;
+  }));
+  if(!destinoValido||!sinSolape){
     for(const [id,prev] of antes)aplicarUbicacionPartida(id,prev);
-    showToast('No se puede insertar sin solapes. Movimiento cancelado, sin guardar.');
-    return false;
+    showToast('No se puede insertar aquí sin solapar partidas');return false;
   }
   const cambios=[];
   for(const [id,prev] of antes){
@@ -10682,8 +10833,9 @@ async function aplicarInsercionPartidaMapa(idOrigen,idDestino,lado,calleDestino,
   if(!cambios.length)return true;
   registrarMovimientoPartidas(cambios);
   renderPartidasMapaContent(document.getElementById('partidas-overlay'));
-  showToast('✓ Partida insertada en calle '+calle);
-  const qid=encolarAccionOffline('aplicarInsercionPartidaMapa',[idOrigen,idDestino,lado,calle,semana]);
+  showToast('✓ Partida insertada en fila '+(srcFila+1));
+  const qid=encolarAccionOffline('aplicarInsercionPartidaMapa',
+    [idOrigen,idDestino,lado,calle,semana,plan]);
   cambios.forEach(c=>marcarControlCheckSucio(c.id));
   const ok=await persistControlChecksData();
   if(ok)desencolarAccion(qid);else avisarGuardadoLocalPendiente(leerColaOffline().length);
@@ -10730,25 +10882,32 @@ async function aplicarSepararPartidaEnCalles(id, calles, nuevosIds){
   if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
   return ok;
 }
-function soltarPartidaEnHueco(event,invId,calle){
+function soltarPartidaEnHueco(event,invId,calle,fila){
   event.preventDefault();event.stopPropagation();
   const id=partidasDragId||event.dataTransfer?.getData('text/plain');
   partidasSuprimirClickHasta=Date.now()+850;
   terminarArrastrePartida();
-  if(id)moverPartidaAHueco(id,invId,calle);
+  if(id)moverPartidaAHueco(id,invId,calle,fila);
+}
+// Diez filas accesibles por lado y ampliación manual sin alterar las
+// posiciones ya guardadas (máximo de seguridad: 300 filas).
+let partidasMinFilasGrid=10;
+function ampliarFilasPartidas(){
+  partidasMinFilasGrid=Math.min(300,partidasMinFilasGrid+5);
+  renderPartidasMapaContent(document.getElementById('partidas-overlay'));
 }
 function renderPartidasInvHTML(invId){
   const layout = INV_LAYOUT[invId];
   if(!layout) return '';
   const bloques = calcularBloquesPartidasInv(invId);
-  const CW = 82, ROW_H = 32, HDR_H = 22;
+  const CW=82, ROW_H=32, HDR_H=22;
   function buildSection(calles,alinearArriba){
     if(!calles.length)return '';
     const set=new Set(calles);
     const relevantes=bloques.filter(b=>b.calles.some(c=>set.has(c)));
     // Siempre hay una fila destino visible incluso si TODO el lado del
     // pasillo carece de partidas; una extra al final permite ampliarlo.
-    const maxPos=Math.max(1,...relevantes.map(b=>b.pos+2));
+    const maxPos=Math.max(partidasMinFilasGrid,...relevantes.map(b=>b.pos+1));
     const porFila=new Map();
     relevantes.forEach(b=>{
       if(!porFila.has(b.pos))porFila.set(b.pos,new Map());
@@ -10774,9 +10933,9 @@ function renderPartidasInvHTML(invId){
           ci+=span;
         }else{
           const resaltado=partidaSeleccionadaParaMover?'border:1.5px dashed #1558a0;cursor:pointer':'border:1px solid #d4e2f2;';
-          celdas.push(`<div data-partidas-hueco="1" data-partidas-inv="${invId}" data-partidas-calle="${calle}" data-partidas-lado="${alinearArriba?'arriba':'abajo'}"
-            onclick="if(Date.now()>partidasSuprimirClickHasta)clicCeldaVaciaPartidas('${invId}',${calle})"
-            ondragover="event.preventDefault()" ondrop="soltarPartidaEnHueco(event,'${invId}',${calle})"
+          celdas.push(`<div data-partidas-hueco="1" data-partidas-inv="${invId}" data-partidas-calle="${calle}" data-partidas-fila="${pos}" data-partidas-lado="${alinearArriba?'arriba':'abajo'}"
+            onclick="if(Date.now()>partidasSuprimirClickHasta)clicCeldaVaciaPartidas('${invId}',${calle},${pos})"
+            ondragover="event.preventDefault()" ondrop="soltarPartidaEnHueco(event,'${invId}',${calle},${pos})"
             style="width:${CW}px;flex:0 0 ${CW}px;padding:2px;height:${ROW_H}px;cursor:crosshair">
             <div style="height:100%;background:#eef4fb;border-radius:4px;${resaltado}"></div></div>`);
           ci++;
@@ -10805,6 +10964,7 @@ function renderPartidasInvHTML(invId){
         <div style="min-width:${layout.row2.length*CW}px">${buildSection(layout.row2, false)}</div>
         ${hdrHTML(layout.row2)}
       </div>
+      <button type="button" onclick="ampliarFilasPartidas()" title="Ampliar el espacio disponible del grid" style="display:block;margin:9px auto 0;padding:7px 13px;background:#1558a0;color:#fff;border:0;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer">+ 5 filas</button>
     </div>
     ${partidasEspecificoModo && partidasEspecificoSeleccion.size>0 ? `
       <div style="position:fixed;left:0;right:0;bottom:0;background:#1558a0;color:#fff;padding:.8rem 1.25rem;display:flex;justify-content:space-between;align-items:center;gap:10px;box-shadow:0 -4px 20px rgba(0,0,0,.25);z-index:50">
