@@ -18219,6 +18219,10 @@ function toggleBulkSala(salaChk, prefix){
   document.querySelectorAll(`.${prefix}-inv-chk[data-sala="${sala}"]`).forEach(chk=>{ chk.checked = salaChk.checked; });
 }
 function leerInvernaderosBulkSeleccionados(prefix){
+  if(prefix==='esp' && espManualDesdeCelda &&
+     document.getElementById('especifico-manual-overlay')?.style.display==='flex'){
+    return especificosInvSel?[especificosInvSel]:[];
+  }
   return Array.from(document.querySelectorAll(`.${prefix}-inv-chk:checked`)).map(el=>el.value);
 }
 // Aplica un texto ya construido a varios tramos de calles de un día (pueden
@@ -22482,7 +22486,7 @@ function abrirEspecificoDesdeCelda(invId,dia,calles){
   const hoy=riegoDiaDeHoy();
   const fechas=currentUserRole==='TECNICO'?[hoy,hoy+1]:[hoy-3,hoy-2,hoy-1,hoy,hoy+1];
   const editable=fechas.includes(Number(dia))&&!vinculado;
-  showEspecificoManualForm({desdeCelda:true});
+  showEspecificoManualForm({desdeCelda:true,editar:!!texto});
   const sel=document.getElementById('esp-dia');
   if(sel){
     if(!Array.from(sel.options).some(o=>Number(o.value)===Number(dia))){
@@ -22515,7 +22519,7 @@ function abrirEspecificoDesdeCelda(invId,dia,calles){
     body.prepend(msg);
     body.querySelectorAll('input,select,textarea').forEach(el=>el.disabled=true);
   }
-  ['esp-aplicar-btn','esp-borrar-btn','esp-imprimir-btn'].forEach(id=>{
+  ['esp-aplicar-btn','esp-borrar-btn'].forEach(id=>{
     const el=document.getElementById(id);
     if(el){el.disabled=true;el.style.opacity='.45';el.style.cursor='not-allowed';}
   });
@@ -22548,8 +22552,38 @@ function abrirEspecificoManualDia(invId, dia){
 
 // ── AÑADIR MANUALMENTE (Específicos) — SOLO Tratamiento/Dosis/Horario,
 // sin nada de Riego/Trabajo: es un tratamiento puntual independiente.
+
+let espManualDesdeCelda=false;
+function especificoCeldaFichaHTML(inv){
+  const cfg=espBulkConfig[inv];
+  const tramo=cfg?.tramos?.[0]||{desde:null,hasta:null,tipo:'',obs:''};
+  const escapeHtml=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  const rango=tramo.desde===tramo.hasta?String(tramo.desde):tramo.desde+'–'+tramo.hasta;
+  return `<section id="esp-ubicacion-fija" style="border:1px solid #b0c8e0;border-radius:8px;background:#e8f0fb;padding:9px">
+    <div style="font-size:10px;font-weight:700;color:#537597">UBICACIÓN DEL TRATAMIENTO</div>
+    <div style="font-size:14px;font-weight:800;color:#1558a0;margin-top:2px">INV ${escapeHtml(inv)} · Calle${tramo.desde===tramo.hasta?'':'s'} ${escapeHtml(rango)}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+      <label style="font-size:11px;font-weight:700;color:#1558a0">Tipo
+        <select id="esp-tipo-celda" onchange="espBulkConfig['${inv}'].tramos[0].tipo=this.value"
+          style="display:block;width:100%;margin-top:3px;min-height:38px;padding:6px;border:1px solid #a8c4e8;border-radius:6px;background:#fff;font-size:12px">
+          <option value="">—</option>
+          ${ESPECIFICO_TIPOS.map(t=>`<option value="${escapeHtml(t)}"${t===tramo.tipo?' selected':''}>${escapeHtml(t)}</option>`).join('')}
+        </select>
+      </label>
+      <label style="font-size:11px;font-weight:700;color:#1558a0">Observaciones
+        <input id="esp-obs-celda" type="text" value="${escapeHtml(tramo.obs||'')}"
+          oninput="espBulkConfig['${inv}'].tramos[0].obs=this.value"
+          placeholder="Opcional" style="display:block;width:100%;margin-top:3px;min-height:38px;padding:6px 8px;border:1px solid #a8c4e8;border-radius:6px;background:#fff;font-size:12px">
+      </label>
+    </div>
+  </section>`;
+}
+
 function showEspecificoManualForm(opciones={}){
   const desdeCelda=!!opciones.desdeCelda;
+  espManualDesdeCelda=desdeCelda;
+  const titulo=desdeCelda?(opciones.editar?'Editar específico':'Añadir específico'):'Específicos · Edición múltiple';
   const inv = especificosInvSel;
   if(espPendingBulkConfig){
     // Editando desde el resumen de la quincena: TODOS los invernaderos del
@@ -22574,90 +22608,82 @@ function showEspecificoManualForm(opciones={}){
   const hoyEsp = riegoDiaDeHoy();
   const diasQ = currentUserRole==='TECNICO' ? [hoyEsp, hoyEsp+1] : [hoyEsp-3, hoyEsp-2, hoyEsp-1, hoyEsp, hoyEsp+1];
 
-  const mo = getOrCreateOverlay('especifico-manual-overlay');
-  mo.style.padding = '0';
-  mo.innerHTML = `
-    <div style="background:#fff;border-radius:0;width:100vw;height:100vh;max-width:100vw;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.3)">
-      <div style="background:linear-gradient(120deg,#2b6fae,#3c80c2 55%,#5b9bd5);color:#fff;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
-        <div style="font-size:15px;font-weight:800">&#127919; Añadir específico</div>
-        <button onclick="document.getElementById('especifico-manual-overlay').style.display='none'" style="background:#1558a0;border:1px solid #1558a0;color:#fff;border-radius:6px;width:30px;height:30px;cursor:pointer;font-size:20px">✕</button>
-      </div>
-      <div id="esp-form-body" style="flex:1;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:6px;max-width:640px;width:100%;margin:0 auto">
-        <details id="esp-ambito-detalle" ${desdeCelda?'':'open'} style="order:3;border:1px solid #d5e3f2;border-radius:7px;background:#f8fbff">
-          <summary style="padding:9px;font-size:12px;font-weight:800;color:#1558a0;cursor:pointer">
-            ${desdeCelda&&inv&&espBulkConfig[inv]?.tramos?.length
-              ? 'INV '+inv+' · Calle(s) '+espBulkConfig[inv].tramos.map(t=>t.desde===t.hasta?t.desde:t.desde+'–'+t.hasta).join(', ')+' · Cambiar'
-              : 'Invernaderos y calles'}
-          </summary>
-          <div style="padding:0 7px 7px">${especificoBulkInvSelectorHTML()}</div>
-        </details>
-        <div style="order:0">
-          <label style="font-size:11px;font-weight:700;color:#1558a0;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Día (${riegoDiaLabelCorto(diasQ[0])} – ${riegoDiaLabelCorto(diasQ[diasQ.length-1])})</label>
-          <div style="position:relative">
-            <select id="esp-dia" style="width:100%;padding:7px 32px 7px 9px;border:1.5px solid var(--border);border-radius:7px;font-size:14px;font-weight:600;background:#f2f4f0;outline:none;cursor:pointer;-webkit-appearance:none">
-              ${diasQ.map(d=>`<option value="${d}"${d===riegoDiaDeHoy()?' selected':''}>${riegoDiaLabelCorto(d)} — ${riegoDiaSemana(d)}</option>`).join('')}
+
+  const mo=getOrCreateOverlay('especifico-manual-overlay');
+  mo.style.padding='0';
+  mo.innerHTML=`
+    <div style="background:#fff;width:100vw;height:100vh;max-width:100vw;overflow:hidden;display:flex;flex-direction:column">
+      <header class="control-ui-header" style="min-height:42px;padding:5px 9px;flex-shrink:0;justify-content:space-between">
+        <strong style="display:flex;align-items:center;gap:7px;font-size:14px;color:#fff">
+          <i class="ti ti-target-arrow" aria-hidden="true"></i> ${titulo}
+        </strong>
+        <button type="button" class="control-ui-close"
+          onclick="document.getElementById('especifico-manual-overlay').style.display='none'"
+          title="Cerrar" aria-label="Cerrar formulario">&times;</button>
+      </header>
+      <div id="esp-form-body" style="flex:1;min-height:0;overflow-y:auto;padding:10px 11px;display:flex;
+        flex-direction:column;gap:9px;max-width:540px;width:100%;margin:0 auto">
+        ${desdeCelda?especificoCeldaFichaHTML(inv):`
+          <details id="esp-ambito-detalle" open style="border:1px solid #b0c8e0;border-radius:8px;background:#f8fbff">
+            <summary style="padding:9px 10px;color:#1558a0;font-size:12px;font-weight:800;cursor:pointer">Invernaderos y calles · Edición múltiple</summary>
+            <div style="padding:0 7px 7px">${especificoBulkInvSelectorHTML()}</div>
+          </details>`}
+        <div style="display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:9px">
+          <label style="font-size:11px;font-weight:700;color:#1558a0">Día
+            <select id="esp-dia" style="display:block;width:100%;margin-top:3px;min-height:40px;padding:7px;
+              border:1.5px solid #a8c4e8;border-radius:7px;background:#fff;color:#1558a0;font-size:13px">
+              ${diasQ.map(d=>`<option value="${d}"${d===hoyEsp?' selected':''}>${riegoDiaLabelCorto(d)} · ${riegoDiaSemana(d)}</option>`).join('')}
             </select>
-            <i class="ti ti-chevron-down" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);pointer-events:none;color:#2e7d32;font-size:14px"></i>
-          </div>
-        </div>
-        <div style="order:1;border:1.5px solid #a8c4e8;border-radius:9px;padding:8px;background:#f5f9ff">
-          <div style="font-size:11px;font-weight:800;color:#1558a0;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;display:flex;align-items:center;gap:5px"><i class="ti ti-flask" style="font-size:13px"></i> Específicos</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-            <div>
-              <label style="font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bottom:3px">Tratamiento</label>
-              <select id="esp-trat" style="width:100%;padding:6px 9px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;background:#fff;outline:none">
-                <option value="">—</option>
-                ${ESPECIFICO_TRATAMIENTOS.map(t=>`<option value="${t}">${t}</option>`).join('')}
-              </select>
-            </div>
-            <div>
-              <label style="font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bottom:3px">Dosis</label>
-              <select id="esp-dosis" style="width:100%;padding:6px 9px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;background:#fff;outline:none">
-                <option value="">—</option>
-                ${ESPECIFICO_DOSIS.map(d=>`<option value="${d}">${d}</option>`).join('')}
-              </select>
-            </div>
-          </div>
-          <div>
-            <label style="font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bottom:3px">Horario</label>
-            <select id="esp-horario" style="width:100%;padding:6px 9px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;background:#fff;outline:none">
+          </label>
+          <label style="font-size:11px;font-weight:700;color:#1558a0">Horario
+            <select id="esp-horario" style="display:block;width:100%;margin-top:3px;min-height:40px;padding:7px;
+              border:1.5px solid #a8c4e8;border-radius:7px;background:#fff;font-size:13px">
               <option value="">—</option>
               ${ESPECIFICO_HORARIOS.map(h=>`<option value="${h}">${h}</option>`).join('')}
             </select>
-          </div>
-          <div style="margin-top:8px">
-            <label style="font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bottom:3px">Caldo inicial</label>
-            <select id="esp-caldo" onchange="actualizarGastoEspecificoManual()" style="width:100%;padding:6px 9px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;background:#fff;outline:none">
+          </label>
+          <label style="font-size:11px;font-weight:700;color:#1558a0">Tratamiento
+            <select id="esp-trat" style="display:block;width:100%;margin-top:3px;min-height:40px;padding:7px;
+              border:1.5px solid #a8c4e8;border-radius:7px;background:#fff;font-size:13px">
               <option value="">—</option>
-              ${FITO_CALDO_OPCIONES.map(o=>`<option value="${o.litros}">${o.label}</option>`).join('')}
+              ${ESPECIFICO_TRATAMIENTOS.map(t=>`<option value="${t}">${t}</option>`).join('')}
             </select>
-          </div>
-          <div id="esp-gasto-preview" style="margin-top:8px;font-size:12px;font-weight:700;color:#2e7d32"></div>
+          </label>
+          <label style="font-size:11px;font-weight:700;color:#1558a0">Dosis
+            <select id="esp-dosis" onchange="actualizarGastoEspecificoManual()" style="display:block;width:100%;margin-top:3px;
+              min-height:40px;padding:7px;border:1.5px solid #a8c4e8;border-radius:7px;background:#fff;font-size:13px">
+              <option value="">—</option>
+              ${ESPECIFICO_DOSIS.map(d=>`<option value="${d}">${d}</option>`).join('')}
+            </select>
+          </label>
         </div>
+        <label style="font-size:11px;font-weight:700;color:#1558a0">Caldo inicial
+          <select id="esp-caldo" onchange="actualizarGastoEspecificoManual()" style="display:block;width:100%;margin-top:3px;
+            min-height:40px;padding:7px;border:1.5px solid #a8c4e8;border-radius:7px;background:#fff;font-size:13px">
+            <option value="">—</option>
+            ${FITO_CALDO_OPCIONES.map(o=>`<option value="${o.litros}">${o.label}</option>`).join('')}
+          </select>
+        </label>
+        <div id="esp-gasto-preview" style="min-height:15px;font-size:11px;color:#1558a0;font-weight:700"></div>
       </div>
-      <!-- BUTTONS (fijos abajo, siempre visibles) -->
-      <div style="display:flex;gap:5px;justify-content:space-between;padding:7px 8px;border-top:1px solid #dce4ed;flex-shrink:0;background:#fff">
-        <button id="esp-borrar-btn" onclick="borrarEspecificoManual()" title="Borrar el específico de estos tramos"
-          style="padding:7px 9px;font-size:12px;font-weight:700;background:#fdecea;color:#c62828;border:1px solid #f3c2bd;border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:6px">
-          <i class="ti ti-trash" style="font-size:14px"></i> Borrar
+      <footer style="padding:8px 11px;display:flex;justify-content:space-between;gap:8px;
+        background:#fff;border-top:1px solid #dce4ed;flex-shrink:0">
+        <button id="esp-borrar-btn" type="button" onclick="borrarEspecificoManual()" title="Borrar el tratamiento seleccionado"
+          style="border:1px solid #f3c2bd;border-radius:7px;background:#fdecea;color:#c62828;
+            min-height:39px;padding:8px 12px;font-size:12px;font-weight:800;cursor:pointer">
+          <i class="ti ti-trash" aria-hidden="true"></i> Borrar
         </button>
-        <div style="display:flex;gap:8px">
-          <button id="esp-imprimir-btn" onclick="imprimirHojaEspecificoManual()" title="Imprimir hoja de específico"
-            style="padding:7px 9px;font-size:12px;font-weight:700;background:#e8f0fb;color:#1558a0;border:1px solid #a8c4e8;border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:6px">
-            <i class="ti ti-printer" style="font-size:15px"></i>
-          </button>
-          <button onclick="document.getElementById('especifico-manual-overlay').style.display='none'"
-            style="padding:7px 10px;font-size:12px;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:8px;cursor:pointer">Cancelar</button>
-          <button id="esp-aplicar-btn" onclick="saveEspecificoManual()"
-            style="padding:7px 12px;font-size:12px;font-weight:700;background:#1558a0;color:#fff;border:1px solid #1558a0;border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:6px">
-            <i class="ti ti-check" style="font-size:14px"></i> Aplicar
-          </button>
-        </div>
-      </div>
+        <button id="esp-aplicar-btn" type="button" onclick="saveEspecificoManual()"
+          style="border:1px solid #1558a0;border-radius:7px;background:#1558a0;color:#fff;
+            min-height:39px;padding:8px 20px;font-size:12px;font-weight:800;cursor:pointer">
+          <i class="ti ti-check" aria-hidden="true"></i> Aplicar
+        </button>
+      </footer>
     </div>`;
-  mo.style.display = 'flex';
-  renderEspBulkPanels();
+  mo.style.display='flex';
+  if(!desdeCelda)renderEspBulkPanels();
 }
+
 function actualizarGastoEspecificoManual(){
   const dosis = parseFloat(document.getElementById('esp-dosis')?.value);
   const caldo = parseFloat(document.getElementById('esp-caldo')?.value);
@@ -22860,7 +22886,10 @@ function calcularCallesEspBulk(invId){
   const allCalles = callesOrdenadasInv(invId);
   const cfg = espBulkConfig[invId] || {modo:'entero'};
   if(cfg.modo==='tramo'){
-    const tramos = leerEspBulkTramosDesdeDOM(invId);
+    // En el alta desde una celda se edita el tramo en espBulkConfig, no en la rejilla masiva.
+    const tramos = (espManualDesdeCelda && invId===especificosInvSel)
+      ? cfg.tramos.map(t=>({...t,obs:String(t.obs||'').trim()}))
+      : leerEspBulkTramosDesdeDOM(invId);
     const calles = [];
     tramos.forEach(({desde,hasta})=>{
       const s=Math.min(desde,hasta), e=Math.max(desde,hasta);
