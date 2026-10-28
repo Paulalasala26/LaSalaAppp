@@ -7,6 +7,11 @@
 
 ## 0. CONTINUIDAD ACTUAL — 28/10/2026 (PRIORIDAD SOBRE LOS HISTÓRICOS)
 
+### §0.134 — Corrección de arrastre táctil (28/10/2026)
+**IMPLEMENTADO EN CÓDIGO, PENDIENTE VALIDACIÓN REAL EN MÓVIL.** El usuario reporta que el arrastre de §0.133 no funciona en móvil y que en PC las tarjetas se superponen; prioridad explícita: **móvil**. Se ha sustituido el gesto de pulsación larga basado en eventos touch por seguimiento directo con **Pointer Events + setPointerCapture + touch-action:none en las tarjetas**, sin dependencia de drag nativo. El dedo puede empezar a mover una tarjeta tras un desplazamiento de 7 px, un clon flotante sigue el gesto y una línea azul marca antes/después del destino; el mapa no se reconstruye mientras se arrastra. Soltar sobre tarjeta o separador próximo ejecuta la inserción existente; hay autoscroll horizontal/vertical al llegar a bordes y la pulsación simple conserva la ficha. Intercambio y otros datos/historial se mantienen, sin cambios en PRD/main. **Solicitar validación en móvil real** antes de cerrar el bloque; no considerar aceptado por pruebas técnicas.
+
+
+
 **BLOQUE ACTIVO: PARTIDAS / OCUPACIÓN — §0.133 IMPLEMENTADO EN CÓDIGO, PENDIENTE UAT.** §0.131 compactación validada; §0.132 tarjetas mostrando solo número, el resto en ficha, desplegado en TEST (commit `86b52ff`), UAT pendiente. Solicitud del 28/10: recuperar junto a **Ocupación (N)** el contador de partidas distintas de la quincena (unión de ambas semanas para el invernadero elegido). Drag & drop sobre tarjeta inserta antes/después y permite intercalar partidas en una misma calle, sin intercambiar; orientación correcta a ambos lados del pasillo; pulsación larga táctil, colores y tamaño de tarjetas conservados. Intercambio tocar/tocar original intacto. Movimientos registrados para deshacer/rehacer y guardado en cola offline, preservando relaciones con QC y otros campos. La partida multicalle debe separarse antes de cambiarla de calle, para no perder tramos. **Siguiente: validar visualmente contador e inserción real entre dos partidas en ambos lados del pasillo.** No alterar PRD ni main.
 
 ### Contexto anterior — 27/10/2026
