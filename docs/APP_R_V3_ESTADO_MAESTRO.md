@@ -1624,6 +1624,22 @@ El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en int
 
 **Validación técnica:** cinco scripts inline parseados correctamente. Render simulado con INV seleccionado comprueba la quincena superior, «Ocupación» y buscador, la presencia de mapa, la ausencia de selector «Semana del mapa» y cuatro botones globales, 10 divs equilibrados y orden visual correcto. Validación humana en TEST pendiente. `main`, PRD, Firebase, QC, módulos ajenos y datos intactos.
 
+## 0.132. Partidas — tarjetas del mapa solo con número y ficha completa (28/10/2026) — IMPLEMENTADO TEST, UAT PENDIENTE
+
+**Petición:** «Puede haber muchas pintadas en el mapa. Debemos dejarla con solo el nº de partida y que el resto de datos que se reflejen en su ficha, de esta forma podemos meter muchas partidas visualmente y todos los datos permanecerán en su detalle». El diseño de §0.131 de Ocupación, selector Sala/INV y quincena queda validado por el usuario; **no reabrirlo**.
+
+**Código TEST:** commit `86b52ff1dd620a60891eaa24b923c41007f4982b`, exclusivamente `index.html` rama `test/v1.0`.
+
+- `renderPartidasBloqueHTML`: tarjeta sin cliente/variedad, ST, entrega, HV, banners rosas de Específicos, iconos ni botones pequeños. **Solo número** de partida visible, centrado, una línea, con `title` completo y atributos de accesibilidad. Fondo diferenciado por HV 2/3/4 y resaltado de selección permanece (color sin texto). Click y Enter abren ficha o completan intercambio si ya hay partida seleccionada; arrastrar/soltar y modo seleccionar específicos mantienen callbacks.
+- `renderPartidasInvHTML`: ancho calle **92 → 82 px**, alto fila **58 → 32 px**, cabecera de calle **24 → 22 px**; mismos tramos, pasillo, orden y ubicación física.
+- `mostrarHistorialPartida`: ficha mantiene check Túnel/Carga, observaciones, fotos e historial Riego/Plaguicidas/Específicos. Añadida ubicación explícita (Sala/INV/calles), bandejas, tipo HV, fecha de entrega y cliente-variedad ya presentes; ahora carga también `especificosPartidaData` solo para el ID consultado. Los tratamientos/banners antes visualizados en mapa se trasladan a bloque **Específicos asociados** con edición por botón, sin borrar registros ni alterar su esquema.
+- Acciones antes minúsculas sobre la tarjeta pasan a la ficha, solo para la partida realmente visible en la semana: **Mover en mapa**, **Cambiar posición**, **Separar calles** (cuando el primer tramo comprende varias), **Marcar salida**; **Recuperar** se ofrece a fichas previamente marcadas con salida manual, incluso si ya no son visibles en mapa pero se abren mediante búsqueda. Se reutilizan las funciones ya existentes y se conserva confirmación de salida. Tras editar o eliminar un banner de Específicos en ficha, se refresca la ficha visible.
+- No se han alterado el cálculo de bloques, la quincena/semana interna, la cola offline, las transacciones QC ni los campos en Firebase.
+
+**Pruebas:** cinco scripts inline de HTML compilan; prueba de tarjeta simula una partida con cliente/variedad y verifica **solo el nº** en HTML visible, callbacks de ficha/drag y modo selección específicos; prueba dinámica de ficha comprueba cliente-variedad, calles, bandejas, tipo HV, editar específicos, mover/cambiar orden/separar/marcar salida, impresión y etiquetas equilibradas. **Pendiente UAT del usuario**: densidad visual en mapa, detalle completo, movimientos y específicos. No declarar validación humana antes de respuesta.
+
+**Entornos:** solo TEST `https://la-sala-app-test.vercel.app`. `main` y PRD intactos.
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).
