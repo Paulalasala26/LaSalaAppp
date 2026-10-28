@@ -10037,10 +10037,11 @@ async function aplicarIntercambioPartidas(id1, ubic1, id2, ubic2){
 }
 // Cada recuadro del mapa muestra exclusivamente el NÚMERO de partida.
 // Los datos, tratamientos y acciones se consultan desde su ficha.
-function renderPartidasBloqueHTML(bloque){
+function renderPartidasBloqueHTML(bloque,callesRender=null,ladoRender='arriba'){
   if(!bloque) return '<div style="height:100%"></div>';
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   const c = bloque.entry;
+  const callesPintadas=callesRender||bloque.calles;
   const tipoPlanta = detectarTipoPlantaPartida(c.clienteVariedad);
   const seleccionada = partidaSeleccionadaParaMover === c.id;
   const enSeleccionEspecifico = partidasEspecificoSeleccion.has(c.id);
@@ -10059,7 +10060,7 @@ function renderPartidasBloqueHTML(bloque){
     onpointerup="soltarPunteroPartida(event)" onpointercancel="cancelarPunteroPartida(event)"
     oncontextmenu="if(partidasPunteroActivo){event.preventDefault();}"`;
   return `
-    <div role="button" tabindex="0" data-partida-id="${escapar(c.id)}" title="${escapar(c.partida)||'Partida sin número'}" aria-label="Partida ${escapar(c.partida)||'sin número'}"
+    <div role="button" tabindex="0" data-partida-id="${escapar(c.id)}" data-partida-calles="${callesPintadas.join(',')}" data-partida-lado="${ladoRender}" title="${escapar(c.partida)||'Partida sin número'}" aria-label="Partida ${escapar(c.partida)||'sin número'}"
       ${eventoDrag} onclick="if(Date.now()>partidasSuprimirClickHasta)${accion}('${c.id}')"
       onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();${accion}('${c.id}')}"
       style="min-height:28px;height:100%;display:flex;align-items:center;justify-content:center;padding:3px 5px;background:${bg};border:1.5px solid ${borde};border-radius:5px;cursor:grab;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none">
@@ -10286,15 +10287,17 @@ function quitarIndicadorDropPartidas(){
 }
 function destinoInsercionPartidas(event,id){
   const c=controlChecksData.find(x=>x.id===id);
-  const b=c && calcularBloquesPartidasInv(c.invId).find(x=>x.entry.id===id);
-  const el=event.currentTarget, rect=el.getBoundingClientRect();
-  const abajo=!!(b && INV_LAYOUT[c.invId]?.row2.some(x=>b.calles.includes(x)));
+  const el=event.currentTarget;
+  if(!c||!el)return null;
+  const rect=el.getBoundingClientRect();
+  const abajo=el.dataset?.partidaLado==='abajo';
+  const calles=String(el.dataset?.partidaCalles||'').split(',').filter(Boolean).map(Number).filter(Number.isFinite);
+  if(!calles.length||rect.width<=0)return null;
   const arribaVisual=event.clientY<rect.top+rect.height/2;
   const lado=abajo?(arribaVisual?'despues':'antes'):(arribaVisual?'antes':'despues');
-  const ordenCalles=(abajo?INV_LAYOUT[c.invId].row2:INV_LAYOUT[c.invId]?.row1)||[];
-  const calles=b?b.calles.slice().sort((a,z)=>ordenCalles.indexOf(a)-ordenCalles.indexOf(z)):[];
-  const fr=rect.width?Math.max(0,Math.min(.999,(event.clientX-rect.left)/rect.width)):0;
-  return {lado,calle:calles[Math.floor(fr*calles.length)]??c?.calleDesde,arribaVisual};
+  const x=Math.min(rect.right-0.01,Math.max(rect.left,event.clientX));
+  const calle=calles[Math.min(calles.length-1,Math.floor((x-rect.left)/rect.width*calles.length))];
+  return {lado,calle,arribaVisual};
 }
 function iniciarArrastrePartida(event,id){
   if(partidasEspecificoModo){event.preventDefault();return;}
@@ -10331,11 +10334,11 @@ let partidasPunteroRaf=null;
 function iniciarPunteroPartida(event,id){
   if(partidasEspecificoModo || (event.pointerType!=='touch' && event.pointerType!=='pen') || event.isPrimary===false)return;
   if(partidasPunteroActivo)cancelarPunteroPartida();
-  const el=event.currentTarget;
-  // En móvil no iniciar el arrastre HTML5 (incompatible con esta interacción).
+  const el=event.currentTarget,rect=el.getBoundingClientRect();
   el.draggable=false;
   partidasPunteroActivo={id,pointerId:event.pointerId,el,inicioX:event.clientX,inicioY:event.clientY,
-    x:event.clientX,y:event.clientY,arrastrando:false,destino:null};
+    agarrarX:event.clientX-rect.left,agarrarY:event.clientY-rect.top,
+    ancho:rect.width,alto:rect.height,x:event.clientX,y:event.clientY,arrastrando:false,destino:null};
   try{el.setPointerCapture(event.pointerId);}catch(_){}
 }
 function crearFantasmaPartida(){
@@ -10344,41 +10347,50 @@ function crearFantasmaPartida(){
   const f=document.createElement('div');
   const c=controlChecksData.find(x=>x.id===s.id);
   f.textContent=c?.partida||'Partida';
-  f.style.cssText='position:fixed;z-index:9999;pointer-events:none;max-width:170px;white-space:nowrap;'+
-    'overflow:hidden;text-overflow:ellipsis;border-radius:7px;padding:8px 12px;'+
-    'background:#1558a0;color:white;font-size:13px;font-weight:800;'+
-    'box-shadow:0 4px 12px rgba(0,0,0,.28);';
+  f.style.cssText='position:fixed;z-index:9999;pointer-events:none;box-sizing:border-box;'+
+    'width:'+s.ancho+'px;height:'+s.alto+'px;display:flex;align-items:center;justify-content:center;'+
+    'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-radius:5px;padding:3px 5px;'+
+    'border:2px solid #1558a0;background:'+s.el.style.background+';color:#16436c;opacity:.78;'+
+    'font-size:11px;font-weight:800;box-shadow:0 3px 8px rgba(0,0,0,.22);';
   document.body.appendChild(f);
   partidasPunteroFantasma=f;
 }
 function buscarDestinoTactilPartidas(x,y,origenId){
-  // Admitir soltar justo entre tarjetas: comprobación de unos píxeles arriba
-  // y abajo, pues las tarjetas compactas dejan un separador.
-  for(const dy of [0,-7,7,-14,14]){
+  // Solo bajo el dedo, tolerancia máxima de 3 px en el separador.
+  for(const dy of [0,-3,3]){
     const el=document.elementFromPoint(x,y+dy)?.closest('[data-partida-id]');
-    if(!el || el.dataset.partidaId===origenId || !el.closest('#partidas-overlay'))continue;
+    if(!el||el.dataset.partidaId===origenId||!el.closest('#partidas-overlay'))continue;
+    const r=el.getBoundingClientRect();
+    if(x<r.left||x>=r.right||y<r.top-3||y>r.bottom+3)continue;
     const id=el.dataset.partidaId;
-    const info=destinoInsercionPartidas({currentTarget:el,clientX:x,clientY:y},id);
-    if(info.calle==null)continue;
-    return {id,lado:info.lado,calle:info.calle,arribaVisual:info.arribaVisual,el};
+    const d=destinoInsercionPartidas({currentTarget:el,clientX:x,clientY:y},id);
+    if(!d||d.calle==null)continue;
+    return {id,lado:d.lado,calle:d.calle,arribaVisual:d.arribaVisual,el};
   }
   return null;
 }
 function actualizarDestinoPunteroPartidas(){
   const s=partidasPunteroActivo;
-  if(!s || !s.arrastrando)return;
+  if(!s||!s.arrastrando)return;
   if(partidasPunteroFantasma){
-    // Desplazado por encima del dedo para no tapar el destino.
-    partidasPunteroFantasma.style.left=Math.max(6,Math.min(window.innerWidth-125,s.x-35))+'px';
-    partidasPunteroFantasma.style.top=Math.max(3,s.y-58)+'px';
+    // El punto de la tarjeta que se agarró permanece bajo el dedo.
+    partidasPunteroFantasma.style.left=(s.x-s.agarrarX)+'px';
+    partidasPunteroFantasma.style.top=(s.y-s.agarrarY)+'px';
   }
   quitarIndicadorDropPartidas();
-  s.destino=buscarDestinoTactilPartidas(s.x,s.y,s.id);
-  if(s.destino){
-    const target=s.destino.el;
-    partidasIndicadorDrop=target;
-    target.style.boxShadow=s.destino.arribaVisual?'inset 0 5px #1558a0':'inset 0 -5px #1558a0';
+  const d=buscarDestinoTactilPartidas(s.x,s.y,s.id);
+  if(!d){s.destino=null;return;}
+  const origen=controlChecksData.find(c=>c.id===s.id);
+  const misma=origen&&origen.invId===partidasInvSel&&callesDePartidaEntry(origen).includes(d.calle);
+  const permitida=misma||!!origen&&callesDePartidaEntry(origen).length===1;
+  partidasIndicadorDrop=d.el;
+  if(!permitida){
+    s.destino=null;
+    d.el.style.boxShadow='inset 0 0 0 2px #b42332';
+    return;
   }
+  s.destino=d;
+  d.el.style.boxShadow=d.arribaVisual?'inset 0 5px #1558a0':'inset 0 -5px #1558a0';
 }
 function desplazamientoAutomaticoPartidas(){
   partidasPunteroRaf=null;
@@ -10471,10 +10483,11 @@ function cancelarPunteroPartida(event){
 }
 // Se conservan ubicación, QC, historial y relaciones; si es multicalle,
 // para cambiar de calle debe separarse expresamente desde la ficha.
-async function aplicarInsercionPartidaMapa(idOrigen,idDestino,lado,calleDestino){
+async function aplicarInsercionPartidaMapa(idOrigen,idDestino,lado,calleDestino,semanaGuardada){
   const src=controlChecksData.find(x=>x.id===idOrigen),dst=controlChecksData.find(x=>x.id===idDestino);
   if(!src||!dst||src.id===dst.id||!['antes','despues'].includes(lado))return false;
-  if(!partidaVisibleEnSemana(src,partidasSemanaOffset)||!partidaVisibleEnSemana(dst,partidasSemanaOffset))return false;
+  const semana=Number.isInteger(semanaGuardada)?semanaGuardada:partidasSemanaOffset;
+  if(!partidaVisibleEnSemana(src,semana)||!partidaVisibleEnSemana(dst,semana))return false;
   const calle=Number(calleDestino);
   if(!Number.isFinite(calle)||!callesDePartidaEntry(dst).includes(calle))return false;
   const srcCalles=callesDePartidaEntry(src);
@@ -10489,7 +10502,7 @@ async function aplicarInsercionPartidaMapa(idOrigen,idDestino,lado,calleDestino)
     src.calleDesde=calle;src.calleHasta=calle;
   }
   const orden=controlChecksData.filter(c=>c.tipo==='tunel'&&c.invId===dst.invId&&
-    ((c.tramos&&c.tramos.length)||c.calleDesde!=null)&&partidaVisibleEnSemana(c,partidasSemanaOffset))
+    ((c.tramos&&c.tramos.length)||c.calleDesde!=null)&&partidaVisibleEnSemana(c,semana))
     .sort((a,b)=>sortKeyPartida(a)-sortKeyPartida(b)||String(a.id).localeCompare(String(b.id)))
     .filter(c=>c.id!==src.id);
   const index=orden.findIndex(c=>c.id===dst.id);
@@ -10508,6 +10521,23 @@ async function aplicarInsercionPartidaMapa(idOrigen,idDestino,lado,calleDestino)
       c.posManual=(n+1)*1000;
     });
   }
+  // No guardar si el resultado real no queda en la calle/posición solicitada.
+  const despues=calcularBloquesPartidasInvBase(dst.invId,semana);
+  const origenEnMapa=despues.find(b=>b.entry.id===idOrigen&&b.calles.includes(calle));
+  const destinoEnMapa=despues.find(b=>b.entry.id===idDestino&&b.calles.includes(calle));
+  const encaja=origenEnMapa&&destinoEnMapa&&
+    (lado==='antes'?origenEnMapa.pos<destinoEnMapa.pos:origenEnMapa.pos>destinoEnMapa.pos);
+  const ocupacion=new Set();
+  const sinSolape=despues.every(b=>b.calles.every(c=>{
+    const k=c+':'+b.pos;
+    if(ocupacion.has(k))return false;
+    ocupacion.add(k);return true;
+  }));
+  if(!encaja||!sinSolape){
+    for(const [id,prev] of antes)aplicarUbicacionPartida(id,prev);
+    showToast('No se puede insertar sin solapes. Movimiento cancelado, sin guardar.');
+    return false;
+  }
   const cambios=[];
   for(const [id,prev] of antes){
     const c=controlChecksData.find(x=>x.id===id);
@@ -10518,7 +10548,7 @@ async function aplicarInsercionPartidaMapa(idOrigen,idDestino,lado,calleDestino)
   registrarMovimientoPartidas(cambios);
   renderPartidasMapaContent(document.getElementById('partidas-overlay'));
   showToast('✓ Partida insertada en calle '+calle);
-  const qid=encolarAccionOffline('aplicarInsercionPartidaMapa',[idOrigen,idDestino,lado,calle]);
+  const qid=encolarAccionOffline('aplicarInsercionPartidaMapa',[idOrigen,idDestino,lado,calle,semana]);
   cambios.forEach(c=>marcarControlCheckSucio(c.id));
   const ok=await persistControlChecksData();
   if(ok)desencolarAccion(qid);else avisarGuardadoLocalPendiente(leerColaOffline().length);
@@ -10569,54 +10599,42 @@ function renderPartidasInvHTML(invId){
   if(!layout) return '';
   const bloques = calcularBloquesPartidasInv(invId);
   const CW = 82, ROW_H = 32, HDR_H = 22;
-  function buildSection(calles, alinearArriba){
-    if(!calles.length) return '';
-    const maxPos = Math.max(0, ...bloques.filter(b=>b.calles.some(c=>calles.includes(c))).map(b=>b.pos+1));
-    if(!maxPos) return `<div style="display:flex">${calles.map(()=>`<div style="width:${CW}px;flex-shrink:0"></div>`).join('')}</div>`;
-    // Algunos invernaderos numeran sus calles al REVÉS (17/18/20/22: row1 y
-    // row2 van de mayor a menor) — bloque.calles siempre se construye en
-    // orden ascendente (ver calcularBloquesPartidasInv), así que anclar
-    // siempre por calles[0] (el número más pequeño) solo es correcto si esta
-    // sección también va ascendente; si va descendente hay que anclar por el
-    // número más ALTO, que es el que se encuentra primero al recorrerla.
-    // Sin este ajuste, una partida de varias calles se dibujaba desplazada
-    // en esos invernaderos. Corregido a la vez que el fallo de "no funciona
-    // en el lado de abajo" (2026-08-05), aunque son dos causas distintas.
-    const vaDescendente = calles.length>1 && calles[0]>calles[calles.length-1];
-    const anclaDe = b => vaDescendente ? Math.max(...b.calles) : Math.min(...b.calles);
-    // alinearArriba=true (lado de arriba, row1): fila 0 = más lejos del
-    // pasillo, arriba del todo; las filas van creciendo hacia el pasillo
-    // (abajo). alinearArriba=false (lado de abajo, row2): al revés, la fila
-    // más cercana al pasillo va arriba (justo debajo del divisor) y crece
-    // hacia abajo alejándose — así ambos lados quedan "pegados" al pasillo.
-    const filas = [];
-    for(let r=0; r<maxPos; r++){
-      const displayPos = alinearArriba ? r : (maxPos-1-r);
-      let ci = 0;
-      const celdas = [];
-      while(ci < calles.length){
-        const calle = calles[ci];
-        const bloque = bloques.find(b=>b.pos===displayPos && anclaDe(b)===calle);
+  function buildSection(calles,alinearArriba){
+    if(!calles.length)return '';
+    const set=new Set(calles);
+    const relevantes=bloques.filter(b=>b.calles.some(c=>set.has(c)));
+    const maxPos=Math.max(0,...relevantes.map(b=>b.pos+1));
+    if(!maxPos)return `<div style="display:flex">${calles.map(()=>`<div style="width:${CW}px;flex-shrink:0"></div>`).join('')}</div>`;
+    const porFila=new Map();
+    relevantes.forEach(b=>{
+      if(!porFila.has(b.pos))porFila.set(b.pos,new Map());
+      const fila=porFila.get(b.pos);
+      b.calles.forEach(c=>{
+        if(!set.has(c))return;
+        if(fila.has(c)&&fila.get(c)!==b){console.warn('Solape de bloque de partidas',invId,b.pos,c);return;}
+        fila.set(c,b);
+      });
+    });
+    const filas=[];
+    for(let r=0;r<maxPos;r++){
+      const pos=alinearArriba?r:maxPos-1-r;
+      const ocupadas=porFila.get(pos)||new Map();
+      const celdas=[];let ci=0;
+      while(ci<calles.length){
+        const calle=calles[ci],bloque=ocupadas.get(calle);
         if(bloque){
-          celdas.push(`<div style="width:${CW*bloque.calles.length}px;flex-shrink:0;padding:2px">${renderPartidasBloqueHTML(bloque)}</div>`);
-          ci += bloque.calles.length;
-        } else {
-          // Comprobar si esta calle está "ocupada" por un bloque de una calle
-          // anterior que se extiende hasta aquí (para no dibujar una celda
-          // vacía encima de un bloque ya pintado).
-          const cubiertaPorAnterior = bloques.some(b=>b.pos===displayPos && b.calles.includes(calle) && anclaDe(b)!==calle);
-          if(!cubiertaPorAnterior){
-            // Con una partida seleccionada, los huecos vacíos se resaltan
-            // con un borde discontinuo — tocarlos la mueve ahí (a petición
-            // de Paula, 2026-08-05: "déjame mover las partidas a donde yo
-            // quiera", no solo intercambiarlas con otra ya puesta).
-            const resaltado = partidaSeleccionadaParaMover ? 'border:1.5px dashed #c47f00;border-radius:6px;cursor:pointer' : '';
-            celdas.push(`<div onclick="clicCeldaVaciaPartidas('${invId}',${calle})" ondragover="event.preventDefault()" ondrop="event.preventDefault();clicCeldaVaciaPartidas('${invId}',${calle})" style="width:${CW}px;flex-shrink:0;padding:2px"><div style="height:100%;min-height:${ROW_H-4}px;${resaltado}"></div></div>`);
-          }
+          let span=1;
+          while(ci+span<calles.length&&ocupadas.get(calles[ci+span])===bloque)span++;
+          const segmento=calles.slice(ci,ci+span);
+          celdas.push(`<div style="width:${CW*span}px;flex:0 0 ${CW*span}px;padding:2px;height:${ROW_H}px">${renderPartidasBloqueHTML(bloque,segmento,alinearArriba?'arriba':'abajo')}</div>`);
+          ci+=span;
+        }else{
+          const resaltado=partidaSeleccionadaParaMover?'border:1.5px dashed #c47f00;border-radius:6px;cursor:pointer':'';
+          celdas.push(`<div onclick="clicCeldaVaciaPartidas('${invId}',${calle})" ondragover="event.preventDefault()" ondrop="event.preventDefault();clicCeldaVaciaPartidas('${invId}',${calle})" style="width:${CW}px;flex:0 0 ${CW}px;padding:2px;height:${ROW_H}px"><div style="height:100%;${resaltado}"></div></div>`);
           ci++;
         }
       }
-      filas.push(`<div style="display:flex;min-height:${ROW_H}px">${celdas.join('')}</div>`);
+      filas.push(`<div style="display:flex;height:${ROW_H}px;min-height:${ROW_H}px">${celdas.join('')}</div>`);
     }
     return filas.join('');
   }

@@ -7,6 +7,11 @@
 
 ## 0. CONTINUIDAD ACTUAL — 28/10/2026 (PRIORIDAD SOBRE LOS HISTÓRICOS)
 
+### §0.135 — Ocupación: ajuste quirúrgico del drag táctil (28/10/2026)
+**IMPLEMENTADO EN TEST, PENDIENTE VALIDACIÓN REAL EN MÓVIL.** El usuario informa que §0.134 todavía desplaza la tarjeta respecto al dedo, no encaja exactamente y parece solaparse. Diagnóstico confirmado: el flotante se posicionaba 58px por encima del toque y el destino buscaba tarjetas vecinas hasta 14px; el renderizador podía expandir spans fuera del grupo real de columnas del lado del pasillo. Solución: conservar la coordenada de agarre exacta (sin offset), clon con anchura y altura de la tarjeta y color de origen, destino identificado por toque exacto con tolerancia de 3px, tarjeta etiquetada con lado/calles pintadas, cuadrícula con posiciones y alturas fijas y ancho restringido a la sección; validar la posición final y ocupación sin colisiones antes de guardar y revertir en error. El offset semanal se incluye en la cola offline para reproducir el cambio sobre el período original. Historial, QC, acciones, colores y datos preservados. TEST únicamente, PRD/main sin tocar.
+
+
+
 ### §0.134 — Corrección de arrastre táctil (28/10/2026)
 **IMPLEMENTADO EN CÓDIGO, PENDIENTE VALIDACIÓN REAL EN MÓVIL.** El usuario reporta que el arrastre de §0.133 no funciona en móvil y que en PC las tarjetas se superponen; prioridad explícita: **móvil**. Se ha sustituido el gesto de pulsación larga basado en eventos touch por seguimiento directo con **Pointer Events + setPointerCapture + touch-action:none en las tarjetas**, sin dependencia de drag nativo. El dedo puede empezar a mover una tarjeta tras un desplazamiento de 7 px, un clon flotante sigue el gesto y una línea azul marca antes/después del destino; el mapa no se reconstruye mientras se arrastra. Soltar sobre tarjeta o separador próximo ejecuta la inserción existente; hay autoscroll horizontal/vertical al llegar a bordes y la pulsación simple conserva la ficha. Intercambio y otros datos/historial se mantienen, sin cambios en PRD/main. **Solicitar validación en móvil real** antes de cerrar el bloque; no considerar aceptado por pruebas técnicas.
 
