@@ -10427,7 +10427,9 @@ function celdaEspecificoPartidaActualizada(raw,registroId,info,eliminar){
   }
   const registros={...(original?.partidaRegistros||{})};
   if(eliminar){
-    if(!registros[registroId]) throw new Error('El específico ya no coincide con la cuadrícula. Actualiza la pantalla.');
+    // Una escritura v1 puede estar confirmada aunque haya fallado su
+    // sincronización v2. El reintento del mismo borrado es idempotente.
+    if(!registros[registroId])return raw||null;
     delete registros[registroId];
   }else{
     registros[registroId]={...info};
@@ -10489,7 +10491,8 @@ async function verificarTareasPartidasEditables(cambios){
   for(const c of cambios){
     if(!c.antes)continue;
     const tarea=tareasData.find(t=>t.especificoPartidaRegistroId===c.antes.registroId);
-    if(tarea&&tarea.estado!=='pendiente')
+    if(tarea&&tarea.estado!=='pendiente'&&
+       !(tarea.estado==='anulada'&&!c.despues))
       throw new Error('Este específico tiene una tarea iniciada, completada o archivada. No puede editarse ni eliminarse.');
   }
 }
@@ -10500,7 +10503,8 @@ async function sincronizarTareasDesdePartidas(cambios){
     for(const c of cambios){
       const r=c.despues||c.antes;
       const index=cloud.findIndex(t=>t.especificoPartidaRegistroId===r.registroId);
-      if(index>=0&&cloud[index].estado!=='pendiente')
+      if(index>=0&&cloud[index].estado!=='pendiente'&&
+         !(cloud[index].estado==='anulada'&&!c.despues))
         throw new Error('Una tarea se ha iniciado durante la operación. Avise a ADMIN.');
       if(!c.despues){
         if(index>=0){
