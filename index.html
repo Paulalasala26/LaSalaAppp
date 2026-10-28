@@ -9689,21 +9689,16 @@ function renderPartidasMapaContent(overlay){
         <button type="button" onclick="volverSeleccionPartidas()" title="Cambiar invernadero"
           style="padding:6px 12px;background:#1558a0;border:1px solid #1558a0;color:#fff;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">Cambiar</button>
       </div>
-      <div id="partidas-panel-controles" style="flex:0 1 auto;min-height:0;max-height:45%;overflow-y:auto;overscroll-behavior:contain">
-        ${partidasSemanaDentroQuincenaHTML()}
-        <div style="padding:7px 10px;background:#1558a0;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-          <div style="font-size:12px;font-weight:800;color:#fff;margin-right:auto">Mapa de ocupación · ${partidasVisibles} partida${partidasVisibles===1?'':'s'}</div>
-          <div style="display:flex">
-            <input id="partidas-buscar-partida" type="text" placeholder="Buscar Nº partida..." onkeydown="if(event.key==='Enter') buscarPartidaGlobal()"
-              style="padding:8px 12px;border:1.5px solid rgba(255,255,255,.4);border-right:none;border-radius:8px 0 0 8px;font-size:12px;width:150px;background:rgba(255,255,255,.15);color:#fff">
-            <button onclick="buscarPartidaGlobal()" title="Buscar en todas las semanas" style="padding:8px 12px;background:#fff;color:#0f5c4a;border:none;border-radius:0 8px 8px 0;cursor:pointer"><i class="ti ti-search" style="font-size:14px"></i></button>
-          </div>
-          ${sincronizarPartidasBtnHTML()}
-          <button onclick="deshacerMovimientoPartida()" ${partidasHistorialDeshacer.length?'':'disabled style="opacity:.35;cursor:default"'} title="Deshacer el último movimiento" style="padding:8px 12px;border-radius:8px;font-size:14px;font-weight:800;background:rgba(255,255,255,.2);color:#fff;border:none;cursor:pointer">←</button>
-          <button onclick="rehacerMovimientoPartida()" ${partidasHistorialRehacer.length?'':'disabled style="opacity:.35;cursor:default"'} title="Rehacer el movimiento deshecho" style="padding:8px 12px;border-radius:8px;font-size:14px;font-weight:800;background:rgba(255,255,255,.2);color:#fff;border:none;cursor:pointer">→</button>
-          <button onclick="recuperarPartidaPorId()" title="Recuperar partida marcada como salida" style="padding:8px 14px;border-radius:8px;font-size:12px;font-weight:800;background:rgba(255,255,255,.2);color:#fff;border:none;cursor:pointer;display:flex;align-items:center;gap:5px"><i class="ti ti-refresh" style="font-size:14px"></i> Recuperar</button>
+      <div id="partidas-panel-controles" style="padding:7px 12px;background:#edf3fb;border-bottom:1px solid #c7d8ee;display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:space-between;flex-shrink:0">
+        <span style="font-size:13px;font-weight:800;color:#1558a0;white-space:nowrap">Ocupación</span>
+        <div style="display:flex;flex:0 1 320px;max-width:100%;min-width:0;height:34px">
+          <input id="partidas-buscar-partida" type="text" placeholder="Buscar Nº partida..." aria-label="Buscar número de partida" onkeydown="if(event.key==='Enter') buscarPartidaGlobal()"
+            style="flex:1;min-width:0;padding:6px 10px;border:1px solid #a8c4e8;border-right:none;border-radius:7px 0 0 7px;font-size:13px;background:#fff;color:#1558a0">
+          <button type="button" onclick="buscarPartidaGlobal()" title="Buscar partida" aria-label="Buscar partida"
+            style="height:34px;min-width:38px;padding:0 9px;background:#1558a0;color:#fff;border:1px solid #1558a0;border-radius:0 7px 7px 0;cursor:pointer;display:flex;align-items:center;justify-content:center"><i class="ti ti-search" style="font-size:15px" aria-hidden="true"></i></button>
         </div>
-        ${partidaSeleccionadaParaMover ? (()=>{
+      </div>
+      ${partidaSeleccionadaParaMover ? (()=>{
         // Aviso visible de qué hay seleccionado (a petición de Paula,
         // 2026-08-06: "se intercambian otras distintas") — antes la
         // selección era invisible salvo por el resaltado de la propia
@@ -9715,9 +9710,8 @@ function renderPartidasMapaContent(overlay){
           <button onclick="partidaSeleccionadaParaMover=null;renderPartidasMapaContent(document.getElementById('partidas-overlay'))" style="padding:5px 12px;font-size:11px;font-weight:800;background:#c47f00;color:#fff;border:none;border-radius:6px;cursor:pointer">Cancelar</button>
         </div>`;
       })() : ''}
-      </div>
-      <div id="partidas-content-wrap" style="flex:1;min-height:0;overflow:auto;padding:12px">
-        ${partidasVisibles===0?'<div style="font-size:12px;color:#34577f;background:#e8f2fd;padding:10px 12px;border-radius:7px;margin-bottom:10px">Sin partidas en este invernadero durante esta semana. Cambia de semana o vuelve a elegir invernadero.</div>':''}
+            <div id="partidas-content-wrap" style="flex:1;min-height:0;overflow:auto;padding:12px">
+        ${partidasVisibles===0?'<div style="font-size:12px;color:#34577f;background:#e8f2fd;padding:10px 12px;border-radius:7px;margin-bottom:10px">No se muestran partidas en la vista actual.</div>':''}
         ${renderPartidasInvHTML(partidasInvSel)}
       </div>
     </div>`;
