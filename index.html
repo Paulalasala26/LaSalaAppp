@@ -14868,7 +14868,7 @@ function editarResumenTratamiento(modulo, idx){
     });
     especificosInvSel = primerInv;
     espPendingBulkConfig = bulkConfig;
-    showEspecificoManualForm();
+    showEspecificoManualForm({diaSeleccionado:f.dia});
     document.getElementById('esp-dia').value = f.dia;
     document.getElementById('esp-trat').value = parsed.trat;
     document.getElementById('esp-dosis').value = parsed.dosis;
@@ -18920,7 +18920,7 @@ function abrirFitoManualDiaConTramo(invId, dia, desde, hasta){
 function abrirEspecificoManualDiaConTramo(invId, dia, desde, hasta){
   especificosInvSel = invId;
   espPendingConfig = {modo:'tramo', tramos:[{desde: Math.min(desde,hasta), hasta: Math.max(desde,hasta), tipo:'', obs:''}]};
-  showEspecificoManualForm();
+  showEspecificoManualForm({diaSeleccionado:dia});
   document.getElementById('esp-dia').value = dia;
 }
 // Abre el formulario con el riego existente mediante un clic. También
@@ -22273,7 +22273,7 @@ async function aplicarSugerenciaEspecifico(invId, calle, sugerencia){
   const diasQ = riegoQuincenaDias(offset);
   const dia = diasQ[diasQ.length-1]; // Último día de la quincena
   espPendingConfig = {modo:'tramo', tramos:[{desde:calle, hasta:calle, tipo:'', obs:''}]};
-  showEspecificoManualForm();
+  showEspecificoManualForm({diaSeleccionado:dia});
   document.getElementById('esp-dia').value = dia;
   document.getElementById('esp-trat').value = sugerencia;
   renderEspecificosGrid(invId);
@@ -22483,10 +22483,8 @@ function abrirEspecificoDesdeCelda(invId,dia,calles){
   const texto=typeof raw==='string'?raw:(raw?.texto||'');
   const parsed=texto&&!vinculado?parsearTextoEspecifico(texto):null;
   espPendingConfig={modo:'tramo',tramos:[{desde:Math.min(...tramo),hasta:Math.max(...tramo),tipo:parsed?.tipo||'',obs:parsed?.obs||''}]};
-  const hoy=riegoDiaDeHoy();
-  const fechas=currentUserRole==='TECNICO'?[hoy,hoy+1]:[hoy-3,hoy-2,hoy-1,hoy,hoy+1];
-  const editable=fechas.includes(Number(dia))&&!vinculado;
-  showEspecificoManualForm({desdeCelda:true,editar:!!texto});
+  const editable=esDiaEspecificoEditable(dia)&&!vinculado;
+  showEspecificoManualForm({desdeCelda:true,editar:!!texto,diaSeleccionado:dia});
   const sel=document.getElementById('esp-dia');
   if(sel){
     if(!Array.from(sel.options).some(o=>Number(o.value)===Number(dia))){
@@ -22580,6 +22578,23 @@ function especificoCeldaFichaHTML(inv){
   </section>`;
 }
 
+// Unificar permiso de fecha en cuadrícula, formulario y persistencia.
+// Se permite planificar cualquier fecha futura; solo se limita el pasado por rol.
+function esDiaEspecificoEditable(dia){
+  const numero=Number(dia);
+  if(!Number.isInteger(numero)||numero<15)return false;
+  const hoy=riegoDiaDeHoy();
+  return numero>=(currentUserRole==='TECNICO'?hoy:hoy-3);
+}
+function diasSeleccionablesEspecifico(diaSeleccionado){
+  const hoy=riegoDiaDeHoy();
+  const inicio=currentUserRole==='TECNICO'?hoy:hoy-3;
+  const base=Array.from({length:hoy+1-inicio+1},(_,i)=>inicio+i);
+  const deQuincena=riegoQuincenaDias(especificosQuincenaOffset).filter(esDiaEspecificoEditable);
+  const elegida=Number(diaSeleccionado);
+  const extra=Number.isInteger(elegida)&&elegida>=15?[elegida]:[];
+  return [...new Set([...base,...deQuincena,...extra])].sort((a,b)=>a-b);
+}
 function showEspecificoManualForm(opciones={}){
   const desdeCelda=!!opciones.desdeCelda;
   espManualDesdeCelda=desdeCelda;
@@ -22601,12 +22616,13 @@ function showEspecificoManualForm(opciones={}){
   }
   espPendingBulkConfig = null;
   espPendingConfig = null;
-  // Rango de días acotado por rol (a petición de Paula, 2026-08-12) — antes
-  // ofrecía toda la quincena para cualquiera. TÉCNICO: de hoy al día
-  // siguiente (no puede meter específicos de días pasados). ADMIN: 3 días
-  // atrás y hasta el día siguiente (puede corregir/completar días recientes).
-  const hoyEsp = riegoDiaDeHoy();
-  const diasQ = currentUserRole==='TECNICO' ? [hoyEsp, hoyEsp+1] : [hoyEsp-3, hoyEsp-2, hoyEsp-1, hoyEsp, hoyEsp+1];
+  // Mostrar las fechas editables de la quincena visible, sin límite
+  // superior artificial de mañana. La fecha pulsada se incluye siempre
+  // para poder consultar registros históricos sin cambiarla por error.
+  const hoyEsp=riegoDiaDeHoy();
+  const diaSeleccionado=Number(opciones.diaSeleccionado);
+  const tieneSeleccion=Number.isInteger(diaSeleccionado)&&diaSeleccionado>=15;
+  const diasQ=diasSeleccionablesEspecifico(tieneSeleccion?diaSeleccionado:null);
 
 
   const mo=getOrCreateOverlay('especifico-manual-overlay');
@@ -22632,7 +22648,7 @@ function showEspecificoManualForm(opciones={}){
           <label style="font-size:11px;font-weight:700;color:#1558a0">Día
             <select id="esp-dia" style="display:block;width:100%;margin-top:3px;min-height:40px;padding:7px;
               border:1.5px solid #a8c4e8;border-radius:7px;background:#fff;color:#1558a0;font-size:13px">
-              ${diasQ.map(d=>`<option value="${d}"${d===hoyEsp?' selected':''}>${riegoDiaLabelCorto(d)} · ${riegoDiaSemana(d)}</option>`).join('')}
+              ${diasQ.map(d=>`<option value="${d}"${d===(tieneSeleccion?diaSeleccionado:hoyEsp)?' selected':''}>${riegoDiaLabelCorto(d)} · ${riegoDiaSemana(d)}${esDiaEspecificoEditable(d)?'':' · solo consulta'}</option>`).join('')}
             </select>
           </label>
           <label style="font-size:11px;font-weight:700;color:#1558a0">Horario
@@ -23095,7 +23111,11 @@ function resolverPartidaPorObsEspecifico(invId, calles, obs, dia){
   return null;
 }
 async function saveEspecificoManual(){
-  const dia = parseInt(document.getElementById('esp-dia').value);
+  const dia = parseInt(document.getElementById('esp-dia').value,10);
+  if(!esDiaEspecificoEditable(dia)){
+    showToast('Fecha fuera de rango: no se pueden registrar específicos en ese día.');
+    return;
+  }
   const trat = document.getElementById('esp-trat')?.value || '';
   const dosis = document.getElementById('esp-dosis')?.value || '';
   const horario = document.getElementById('esp-horario')?.value || '';
@@ -23179,8 +23199,12 @@ async function guardarBorradoEspecifico(entradas){
 }
 
 async function borrarEspecificoManual(){
+  const dia=parseInt(document.getElementById('esp-dia').value,10);
+  if(!esDiaEspecificoEditable(dia)){
+    showToast('Fecha fuera de rango: no se puede borrar este específico.');
+    return;
+  }
   if(!confirm('¿Borrar el específico marcado?')) return;
-  const dia = parseInt(document.getElementById('esp-dia').value);
   const bulkInvIds = leerInvernaderosBulkSeleccionados('esp');
   if(!bulkInvIds.length){ showToast('Elige al menos un invernadero'); return; }
   // especificosPartidaData solo se cargaba al abrir el mapa de Partidas, y
