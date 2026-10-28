@@ -10864,53 +10864,91 @@ async function mostrarHistorialPartida(id){
       ${especificosFicha.map(({e,idx})=>`<button type="button" onclick="editarEspecificoPartidaBanner('${c.id}',${idx})"
         title="Editar específico" style="padding:7px 10px;font-size:11px;font-weight:700;background:#ffe2ed;color:#6b1742;border:1px solid #e8a3c1;border-radius:7px;cursor:pointer">${escapar(e.trat)} ${escapar(e.dosis)} · ${escapar(e.fechaLabel)}</button>`).join('')}
     </div>` : '';
-  const accionesFichaHTML = enMapaActual ? `
-    <button onclick="accionPartidaDesdeFicha('${c.id}','mover')" style="padding:8px 12px;font-size:12px;font-weight:700;background:#1558a0;color:#fff;border:none;border-radius:7px;cursor:pointer">Mover en mapa</button>
-    ${bloqueEnMapa ? `<button onclick="accionPartidaDesdeFicha('${c.id}','posicion',${bloqueEnMapa.pos+1})" style="padding:8px 12px;font-size:12px;font-weight:700;background:#1558a0;color:#fff;border:none;border-radius:7px;cursor:pointer">Cambiar posición</button>` : ''}
-    ${separable ? `<button onclick="accionPartidaDesdeFicha('${c.id}','separar')" style="padding:8px 12px;font-size:12px;font-weight:700;background:#1558a0;color:#fff;border:none;border-radius:7px;cursor:pointer">Separar calles</button>` : ''}
-    ${salidaManual ? `<button onclick="accionPartidaDesdeFicha('${c.id}','recuperar')" style="padding:8px 12px;font-size:12px;font-weight:700;background:#1558a0;color:#fff;border:none;border-radius:7px;cursor:pointer">Recuperar</button>` :
-      `<button onclick="accionPartidaDesdeFicha('${c.id}','salida')" style="padding:8px 12px;font-size:12px;font-weight:700;background:#b42332;color:#fff;border:none;border-radius:7px;cursor:pointer">Marcar salida</button>`}
-  ` : (salidaManual ? `<button onclick="accionPartidaDesdeFicha('${c.id}','recuperar')" style="padding:8px 12px;font-size:12px;font-weight:700;background:#1558a0;color:#fff;border:none;border-radius:7px;cursor:pointer">Recuperar partida</button>` : '');
+  // Sólo operaciones administrativas en el pie. Los movimientos de orden se
+  // realizan mediante el drag táctil validado, no mediante prompts duplicados.
+  const accionesFichaHTML = `
+    <button type="button" onclick="mostrarAsignarCalleControl('${c.id}')" style="min-height:40px;flex:1 1 138px;display:flex;justify-content:center;align-items:center;gap:6px;padding:9px 11px;border-radius:7px;font-size:12px;font-weight:800;color:#fff;cursor:pointer;background:#1558a0;border:1px solid #1558a0" title="Cambiar invernadero y calles">
+      <i class="ti ti-map-pin" aria-hidden="true"></i> Editar ubicación
+    </button>
+    ${separable?`<button type="button" onclick="accionPartidaDesdeFicha('${c.id}','separar')" style="min-height:40px;flex:1 1 138px;display:flex;justify-content:center;align-items:center;gap:6px;padding:9px 11px;border-radius:7px;font-size:12px;font-weight:800;color:#fff;cursor:pointer;background:#1558a0;border:1px solid #1558a0" title="Separar calles">
+      <i class="ti ti-cut" aria-hidden="true"></i> Separar calles</button>`:''}
+    ${salidaManual
+      ? `<button type="button" onclick="accionPartidaDesdeFicha('${c.id}','recuperar')" style="min-height:40px;flex:1 1 138px;display:flex;justify-content:center;align-items:center;gap:6px;padding:9px 11px;border-radius:7px;font-size:12px;font-weight:800;color:#fff;cursor:pointer;background:#1558a0;border:1px solid #1558a0">Recuperar partida</button>`
+      : (enMapaActual?`<button type="button" onclick="accionPartidaDesdeFicha('${c.id}','salida')" style="min-height:40px;flex:1 1 138px;display:flex;justify-content:center;align-items:center;gap:6px;padding:9px 11px;border-radius:7px;font-size:12px;font-weight:800;color:#fff;cursor:pointer;background:#b42332;border:1px solid #b42332">Marcar salida</button>`:'')}
+  `;
   window.__partidaHistorialActual = { c, cargaSalida, eventos, resumenCategoriasHTML, tipoPlanta, diaDesde, fotosPartida };
   const mo = getOrCreateOverlay('partidas-historial-overlay');
+  mo.style.padding = '0';
+  mo.style.alignItems = 'center';
+  mo.style.justifyContent = 'center';
   mo.innerHTML = `
-    <div style="background:#fff;border-radius:14px;max-width:640px;width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.3)">
-      <div style="background:linear-gradient(120deg,#1558a0,#2678bc);color:#fff;padding:1rem 1.25rem;border-radius:14px 14px 0 0;position:sticky;top:0">
-        <div style="font-size:11px;font-weight:700;opacity:.9;margin-bottom:4px">Ficha e historial de partida</div>
-        <div style="font-size:17px;font-weight:800">${escapar(c.partida)||'— Sin partida —'}</div>
-        <div style="font-size:12px;opacity:.9;margin-top:2px">${escapar(c.clienteVariedad)||''}${tipoPlanta?' · '+escapar(tipoPlanta):''}</div>
-        <div style="font-size:11px;opacity:.85;margin-top:2px">${c.fentrega?`Entrega ${escapar(c.fentrega)} · `:''}INV ${escapar(c.invId)||'—'} · Día 1 (salida de Túnel): ${escapar(riegoDiaLabelCorto(diaDesde))}</div>
+    <div style="width:100%;max-width:680px;height:100vh;height:100dvh;max-height:790px;min-height:0;background:#fff;display:flex;flex-direction:column;overflow:hidden;border-radius:10px;box-shadow:0 8px 40px rgba(0,0,0,.3)">
+      <div style="background:linear-gradient(120deg,#1558a0,#2678bc);color:#fff;padding:10px 12px;display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-shrink:0">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:10px;font-weight:800;letter-spacing:.04em;opacity:.9">FICHA DE PARTIDA</div>
+          <div style="font-size:18px;font-weight:800;line-height:1.25">${escapar(c.partida)||'— Sin partida —'}</div>
+          <div style="font-size:12px;margin-top:2px;opacity:.94;overflow-wrap:anywhere">${escapar(c.clienteVariedad)||''}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+          <button type="button" onclick="imprimirHistorialPartida()" title="Imprimir ficha" aria-label="Imprimir ficha"
+            style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:#1558a0;border:1px solid rgba(255,255,255,.5);color:#fff;border-radius:7px;cursor:pointer"><i class="ti ti-printer" style="font-size:18px" aria-hidden="true"></i></button>
+          <button type="button" onclick="document.getElementById('partidas-historial-overlay').style.display='none'" title="Cerrar ficha" aria-label="Cerrar ficha"
+            style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:#1558a0;border:1px solid rgba(255,255,255,.5);color:#fff;border-radius:7px;cursor:pointer"><i class="ti ti-x" style="font-size:20px" aria-hidden="true"></i></button>
+        </div>
       </div>
-      <div style="padding:1.25rem 1.5rem">
-        <div style="font-size:12px;color:#1558a0;background:#e8f2fd;border-radius:8px;padding:10px 12px;margin-bottom:16px">
-          <b>Ubicación:</b> Sala ${escapar((salaDeInv(c.invId)||'').replace('sala',''))} · INV ${escapar(c.invId)||'—'} · ${escapar(ubicacion)}
-          ${c.numBandejas?` · <b>Bandejas:</b> ${escapar(c.numBandejas)}`:''}
-          ${tipoPlanta?` · <b>Tipo:</b> ${escapar(tipoPlanta)}`:''}
-        </div>
-        ${especificosFichaHTML}
-        <div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Check de entrada (Túnel) — ${escapar(riegoDiaLabelCorto(c.dia))}${c.numBandejas?' · Nº bandejas: '+escapar(c.numBandejas):''}</div>
-        <div style="margin-bottom:6px">${resumenCategoriasHTML(c)}</div>
-        <div style="font-size:12px;color:var(--text);margin-bottom:1.25rem">
-          ${c.observaciones ? escapar(c.observaciones) : '<span style="font-style:italic;color:var(--muted)">Sin observaciones</span>'}
-        </div>
-        <div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Check de salida (Carga)${cargaSalida?' — '+escapar(riegoDiaLabelCorto(cargaSalida.dia)):''}</div>
-        ${cargaSalida ? `
-        <div style="font-size:12px;color:var(--text);margin-bottom:6px">
-          ${cargaSalida.cliente?`<b>Cliente:</b> ${escapar(cargaSalida.cliente)} · `:''}${cargaSalida.variedad?`<b>Variedad:</b> ${escapar(cargaSalida.variedad)}`:''}${cargaSalida.numBandejas?` · <b>Nº bandejas:</b> ${escapar(cargaSalida.numBandejas)}`:''}
-        </div>
-        <div style="margin-bottom:6px">${resumenCategoriasHTML(cargaSalida)}</div>
-        <div style="font-size:12px;color:var(--text);margin-bottom:1.25rem">
-          ${cargaSalida.observaciones ? escapar(cargaSalida.observaciones) : '<span style="font-style:italic;color:var(--muted)">Sin observaciones</span>'}
-        </div>` : `<div style="font-size:12px;color:var(--muted);font-style:italic;margin-bottom:1.25rem">Todavía no tiene parte de carga.</div>`}
-        ${fotosHTML}
-        <div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Historial de riegos, plaguicidas y específicos</div>
-        ${eventosHTML}
+      <div id="partidas-ficha-scroll" style="flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;background:#f5f7fb;padding:12px;display:flex;flex-direction:column;gap:10px">
+        <section style="background:#fff;border:1px solid #c7d8ee;border-radius:9px;padding:12px;flex-shrink:0">
+          <div style="font-size:11px;font-weight:800;letter-spacing:.03em;color:#1558a0;margin-bottom:10px">DATOS GENERALES</div>
+          <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 14px;font-size:12px;color:var(--text)">
+            <div style="min-width:0"><div style="font-size:10px;color:var(--muted);margin-bottom:2px">Sala / Invernadero</div><b>Sala ${escapar((salaDeInv(c.invId)||'').replace('sala',''))} · INV ${escapar(c.invId)||'—'}</b></div>
+            <div><div style="font-size:10px;color:var(--muted);margin-bottom:2px">Bandejas</div><b>${c.numBandejas!=null&&c.numBandejas!==''?escapar(c.numBandejas):'—'}</b></div>
+            <div style="min-width:0;grid-column:1 / -1"><div style="font-size:10px;color:var(--muted);margin-bottom:2px">Ubicación / Calles</div><b style="overflow-wrap:anywhere">${escapar(ubicacion)}</b></div>
+            <div><div style="font-size:10px;color:var(--muted);margin-bottom:2px">Entrada a invernadero</div><b>${escapar(riegoDiaLabelCorto(diaDesde))}</b></div>
+            <div><div style="font-size:10px;color:var(--muted);margin-bottom:2px">Entrega prevista</div><b>${c.fentrega?escapar(c.fentrega):'—'}</b></div>
+            ${tipoPlanta?`<div style="grid-column:1 / -1"><div style="font-size:10px;color:var(--muted);margin-bottom:2px">Tipo de planta</div><b>${escapar(tipoPlanta)}</b></div>`:''}
+          </div>
+        </section>
+        <div style="font-size:11px;font-weight:800;letter-spacing:.03em;color:#1558a0;padding:3px 1px 0">CONTROL DE CALIDAD</div>
+        <details style="flex-shrink:0;border:1px solid #c7d8ee;border-radius:9px;background:#fff;overflow:hidden">
+ <summary style="display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;padding:10px 12px;list-style:none;cursor:pointer;background:#e8f0fb;color:#1558a0;font-size:13px;font-weight:800">
+   <span><i class="ti ti-clipboard-check" aria-hidden="true"></i> Túnel — Entrada</span><span style="font-size:11px;font-weight:600;white-space:nowrap">${escapar(riegoDiaLabelCorto(c.dia))}</span>
+ </summary>
+ <div style="border-top:1px solid #c7d8ee;padding:12px"><div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">${resumenCategoriasHTML(c)}</div>
+<div style="font-size:11px;color:var(--muted);font-weight:700;margin-bottom:4px">Observaciones</div>
+<div style="font-size:12px;overflow-wrap:anywhere">${c.observaciones?escapar(c.observaciones):'<span style="font-style:italic;color:var(--muted)">Sin observaciones</span>'}</div></div>
+</details>
+        <details style="flex-shrink:0;border:1px solid #c7d8ee;border-radius:9px;background:#fff;overflow:hidden">
+ <summary style="display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;padding:10px 12px;list-style:none;cursor:pointer;background:#e8f0fb;color:#1558a0;font-size:13px;font-weight:800">
+   <span><i class="ti ti-truck-loading" aria-hidden="true"></i> Carga — Salida</span><span style="font-size:11px;font-weight:600;white-space:nowrap">${cargaSalida?escapar(riegoDiaLabelCorto(cargaSalida.dia)):'Sin parte'}</span>
+ </summary>
+ <div style="border-top:1px solid #c7d8ee;padding:12px">
+${cargaSalida?`
+  <div style="font-size:12px;margin-bottom:9px">
+    ${cargaSalida.cliente?`<b>Cliente:</b> ${escapar(cargaSalida.cliente)} · `:''}
+    ${cargaSalida.variedad?`<b>Variedad:</b> ${escapar(cargaSalida.variedad)}`:''}
+    ${cargaSalida.numBandejas?` · <b>Bandejas:</b> ${escapar(cargaSalida.numBandejas)}`:''}
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">${resumenCategoriasHTML(cargaSalida)}</div>
+  <div style="font-size:11px;color:var(--muted);font-weight:700;margin-bottom:4px">Observaciones</div>
+  <div style="font-size:12px;overflow-wrap:anywhere">${cargaSalida.observaciones?escapar(cargaSalida.observaciones):'<span style="font-style:italic;color:var(--muted)">Sin observaciones</span>'}</div>
+`:'<span style="font-size:12px;color:var(--muted)">Todavía no existe un parte de Carga asociado.</span>'}</div>
+</details>
+        <details style="flex-shrink:0;border:1px solid #c7d8ee;border-radius:9px;background:#fff;overflow:hidden">
+ <summary style="display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;padding:10px 12px;list-style:none;cursor:pointer;background:#e8f0fb;color:#1558a0;font-size:13px;font-weight:800">
+   <span><i class="ti ti-history" aria-hidden="true"></i> Tratamientos y seguimiento</span><span style="font-size:11px;font-weight:600;white-space:nowrap">${eventos.length} registro${eventos.length===1?'':'s'}</span>
+ </summary>
+ <div style="border-top:1px solid #c7d8ee;padding:12px">${especificosFichaHTML}${eventosHTML}</div>
+</details>
+        <details style="flex-shrink:0;border:1px solid #c7d8ee;border-radius:9px;background:#fff;overflow:hidden">
+ <summary style="display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;padding:10px 12px;list-style:none;cursor:pointer;background:#e8f0fb;color:#1558a0;font-size:13px;font-weight:800">
+   <span><i class="ti ti-photo" aria-hidden="true"></i> Fotografías históricas</span><span style="font-size:11px;font-weight:600;white-space:nowrap">${fotosPartida.length} foto${fotosPartida.length===1?'':'s'}</span>
+ </summary>
+ <div style="border-top:1px solid #c7d8ee;padding:12px">${fotosPartida.length?fotosHTML:'<span style="font-size:12px;color:var(--muted)">Sin fotografías históricas vinculadas.</span>'}</div>
+</details>
       </div>
-      <div style="padding:10px 1.5rem;border-top:1px solid #dce5ef;display:flex;justify-content:flex-end;align-items:center;gap:7px;flex-wrap:wrap">
-        ${accionesFichaHTML}
-        <button onclick="mostrarAsignarCalleControl('${c.id}')" style="padding:9px 18px;font-size:12px;font-weight:800;background:#e8f2fd;color:#1558a0;border:1px solid #9ab8d8;border-radius:7px;cursor:pointer;display:flex;align-items:center;gap:5px"><i class="ti ti-map-pin" style="font-size:14px"></i> Editar ubicación</button>
-        <button onclick="imprimirHistorialPartida()" style="padding:9px 18px;font-size:12px;font-weight:800;background:#1558a0;color:#fff;border:none;border-radius:7px;cursor:pointer;display:flex;align-items:center;gap:5px"><i class="ti ti-printer" style="font-size:14px"></i> Imprimir</button>
-        <button onclick="document.getElementById('partidas-historial-overlay').style.display='none'" style="padding:9px 18px;font-size:12px;font-weight:700;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:7px;cursor:pointer">Cerrar</button>
+      <div style="flex-shrink:0;background:#fff;border-top:1px solid #c7d8ee;padding:9px 12px max(9px,env(safe-area-inset-bottom))">
+        <div style="font-size:10px;font-weight:800;letter-spacing:.03em;color:#1558a0;margin-bottom:7px">GESTIÓN DE LA PARTIDA</div>
+        <div style="display:flex;gap:7px;flex-wrap:wrap;align-items:stretch">${accionesFichaHTML}</div>
       </div>
     </div>`;
   mo.style.display = 'flex';
