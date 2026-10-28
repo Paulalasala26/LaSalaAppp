@@ -10639,14 +10639,14 @@ async function aplicarEspecificoAPartidasSeleccionadas(){
       cambios.push({antes:previo?{...previo}:null,despues:nuevo});
     }
     if(!(await guardarCambiosEspecificosDesdePartidas(cambios)))
-      throw new Error('Guardado incompleto. No repitas el alta; vuelve a pulsar Aplicar para reintentar.');
+      throw new Error('Guardado incompleto: no abras otro alta. Puedes reintentar con este mismo botón.');
     document.getElementById('especifico-por-partidas-overlay').style.display='none';
     espPartidasAltasPendientes={};
     partidasEspecificoModo=false;
     partidasEspecificoSeleccion=new Set();
     showToast('✓ Específicos guardados y tareas vinculadas');
     renderPartidasMapaContent(document.getElementById('partidas-overlay'));
-  }catch(e){showToast('No aplicado: '+e.message);}
+  }catch(e){showToast('Operación no completada: '+e.message);}
   finally{if(boton)boton.disabled=false;}
 }
 // Editar/eliminar un banner de específico ya aplicado a una partida (a
@@ -10728,7 +10728,7 @@ async function guardarEspecificoPartidaBanner(partidaId,idx){
       await mostrarHistorialPartida(partidaId);
     if(especificosInvSel===nuevo.invId)renderEspecificosGrid(nuevo.invId);
     showToast('✓ Ficha, cuadrícula y tarea actualizadas');
-  }catch(e){showToast('No actualizado: '+e.message);}
+  }catch(e){showToast('Actualización incompleta: '+e.message);}
 }
 async function borrarEspecificoPartidaBanner(partidaId,idx){
   const original=especificosPartidaData[partidaId]?.[idx];
@@ -10747,7 +10747,7 @@ async function borrarEspecificoPartidaBanner(partidaId,idx){
       await mostrarHistorialPartida(partidaId);
     if(especificosInvSel===original.invId)renderEspecificosGrid(original.invId);
     showToast('✓ Eliminado sin borrar otros tratamientos; tarea anulada');
-  }catch(e){showToast('No eliminado: '+e.message);}
+  }catch(e){showToast('Eliminación incompleta: '+e.message);}
 }
 // Insertar por drag & drop sin intercambiar el destino ni perder sus datos.
 let partidasDragId=null, partidasIndicadorDrop=null, partidasSuprimirClickHasta=0;
