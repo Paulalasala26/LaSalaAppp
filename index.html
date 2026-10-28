@@ -10367,36 +10367,48 @@ function abrirAplicarEspecificoAPartidas(){
   const hoy = riegoDiaDeHoy();
   const diasQ = [hoy-2, hoy-1, hoy, hoy+1];
   overlay.innerHTML = `
-    <div style="background:#fff;border-radius:14px;max-width:380px;width:100%;padding:1.5rem;box-shadow:0 8px 40px rgba(0,0,0,.3)">
-      <div style="font-size:15px;font-weight:800;margin-bottom:4px">🧪 Aplicar Específico</div>
-      <div style="font-size:12px;color:var(--muted);margin-bottom:14px">A ${partidasEspecificoSeleccion.size} partida${partidasEspecificoSeleccion.size===1?'':'s'} seleccionada${partidasEspecificoSeleccion.size===1?'':'s'} — las calles se calculan solas.</div>
-      <label style="font-size:11px;font-weight:700;color:var(--muted)">Día</label>
-      <select id="eap-dia" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;margin:4px 0 10px">
-        ${diasQ.map(d=>`<option value="${d}"${d===hoy?' selected':''}>${escapar(riegoDiaLabelCorto(d))} — ${escapar(riegoDiaSemana(d))}</option>`).join('')}
-      </select>
-      <label style="font-size:11px;font-weight:700;color:var(--muted)">Tratamiento</label>
-      <select id="eap-trat" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;margin:4px 0 10px">
-        <option value="">—</option>
-        ${ESPECIFICO_TRATAMIENTOS.map(t=>`<option value="${t}">${t}</option>`).join('')}
-      </select>
-      <label style="font-size:11px;font-weight:700;color:var(--muted)">Dosis</label>
-      <select id="eap-dosis" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;margin:4px 0 10px">
-        <option value="">—</option>
-        ${ESPECIFICO_DOSIS.map(d=>`<option value="${d}">${d}</option>`).join('')}
-      </select>
-      <label style="font-size:11px;font-weight:700;color:var(--muted)">Horario</label>
-      <select id="eap-horario" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;margin:4px 0 10px">
-        <option value="">—</option>
-        ${ESPECIFICO_HORARIOS.map(h=>`<option value="${h}">${h}</option>`).join('')}
-      </select>
-      <label style="font-size:11px;font-weight:700;color:var(--muted)">Caldo inicial</label>
-      <select id="eap-caldo" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;margin:4px 0 14px">
-        <option value="">—</option>
-        ${FITO_CALDO_OPCIONES.map(o=>`<option value="${o.litros}">${o.label}</option>`).join('')}
-      </select>
-      <div style="display:flex;justify-content:flex-end;gap:10px">
-        <button onclick="document.getElementById('especifico-por-partidas-overlay').style.display='none'" style="padding:9px 16px;font-size:12px;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:7px;cursor:pointer">Cancelar</button>
-        <button onclick="aplicarEspecificoAPartidasSeleccionadas()" style="padding:9px 18px;font-size:12px;font-weight:800;background:#1558a0;color:#fff;border:none;border-radius:7px;cursor:pointer">Aplicar</button>
+    <div style="background:#fff;border-radius:10px;max-width:390px;width:calc(100vw - 22px);max-height:calc(100dvh - 24px);overflow-y:auto;box-shadow:0 8px 36px rgba(0,0,0,.25)">
+      <div style="background:#1558a0;color:#fff;padding:9px 12px;display:flex;align-items:center;justify-content:space-between">
+        <strong style="font-size:13px">Añadir específico</strong>
+        <button type="button" onclick="document.getElementById('especifico-por-partidas-overlay').style.display='none'" aria-label="Cerrar" title="Cerrar" style="width:30px;height:30px;border:0;border-radius:5px;background:#1558a0;color:#fff;font-size:20px;cursor:pointer">×</button>
+      </div>
+      <div style="padding:12px">
+        <div style="font-size:11px;color:#516779;margin-bottom:10px">${partidasEspecificoSeleccion.size} partida${partidasEspecificoSeleccion.size===1?'':'s'} seleccionada${partidasEspecificoSeleccion.size===1?'':'s'}. Calles automáticas.</div>
+        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px">
+          <label style="font-size:11px;font-weight:700;color:#34577f">Día
+            <select id="eap-dia" style="display:block;width:100%;min-width:0;margin-top:3px;padding:8px 5px;border:1px solid #b4cae1;border-radius:6px;font-size:12px;background:#fff">
+              ${diasQ.map(d=>`<option value="${d}"${d===hoy?' selected':''}>${escapar(riegoDiaLabelCorto(d))} — ${escapar(riegoDiaSemana(d))}</option>`).join('')}
+            </select>
+          </label>
+          <label style="font-size:11px;font-weight:700;color:#34577f">Horario
+            <select id="eap-horario" style="display:block;width:100%;min-width:0;margin-top:3px;padding:8px 5px;border:1px solid #b4cae1;border-radius:6px;font-size:12px;background:#fff">
+              <option value="">—</option>
+              ${ESPECIFICO_HORARIOS.map(h=>`<option value="${h}">${h}</option>`).join('')}
+            </select>
+          </label>
+          <label style="font-size:11px;font-weight:700;color:#34577f">Tratamiento
+            <select id="eap-trat" required style="display:block;width:100%;min-width:0;margin-top:3px;padding:8px 5px;border:1px solid #b4cae1;border-radius:6px;font-size:12px;background:#fff">
+              <option value="">—</option>
+              ${ESPECIFICO_TRATAMIENTOS.map(t=>`<option value="${t}">${t}</option>`).join('')}
+            </select>
+          </label>
+          <label style="font-size:11px;font-weight:700;color:#34577f">Dosis
+            <select id="eap-dosis" required style="display:block;width:100%;min-width:0;margin-top:3px;padding:8px 5px;border:1px solid #b4cae1;border-radius:6px;font-size:12px;background:#fff">
+              <option value="">—</option>
+              ${ESPECIFICO_DOSIS.map(d=>`<option value="${d}">${d}</option>`).join('')}
+            </select>
+          </label>
+        </div>
+        <label style="display:block;font-size:11px;font-weight:700;color:#34577f;margin-top:9px">Caldo inicial
+          <select id="eap-caldo" style="display:block;width:100%;margin-top:3px;padding:8px 7px;border:1px solid #b4cae1;border-radius:6px;font-size:12px;background:#fff">
+            <option value="">—</option>
+            ${FITO_CALDO_OPCIONES.map(o=>`<option value="${o.litros}">${o.label}</option>`).join('')}
+          </select>
+        </label>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px">
+          <button type="button" onclick="document.getElementById('especifico-por-partidas-overlay').style.display='none'" style="padding:7px 12px;font-size:12px;background:#fff;color:#1558a0;border:1px solid #a8c4e8;border-radius:6px;cursor:pointer">Cancelar</button>
+          <button type="button" id="eap-aplicar" onclick="aplicarEspecificoAPartidasSeleccionadas()" style="padding:7px 14px;font-size:12px;font-weight:800;background:#1558a0;color:#fff;border:1px solid #1558a0;border-radius:6px;cursor:pointer">Aplicar</button>
+        </div>
       </div>
     </div>`;
   overlay.style.display = 'flex';
