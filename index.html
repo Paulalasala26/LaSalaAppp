@@ -10024,116 +10024,27 @@ async function aplicarIntercambioPartidas(id1, ubic1, id2, ubic2){
   if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
   return ok;
 }
+// Cada recuadro del mapa muestra exclusivamente el NÚMERO de partida.
+// Los datos, tratamientos y acciones se consultan desde su ficha.
 function renderPartidasBloqueHTML(bloque){
   if(!bloque) return '<div style="height:100%"></div>';
-  const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   const c = bloque.entry;
   const tipoPlanta = detectarTipoPlantaPartida(c.clienteVariedad);
   const seleccionada = partidaSeleccionadaParaMover === c.id;
-  // Sin draggable="true" (a petición de Paula, 2026-08-05: "sigue sin
-  // funcionar en el lado de abajo, solo funciona arriba") — el atributo
-  // draggable interfiere con el gesto normal de scroll táctil en móvil,
-  // sobre todo en elementos a los que hay que llegar haciendo scroll (el
-  // lado de abajo, tras el "PASILLO"): el navegador puede confundir el
-  // pequeño desplazamiento del dedo al hacer scroll con un intento de
-  // arrastre, y eso rompe los toques normales en los botones de esa
-  // partida. El intercambio ahora depende SOLO del botón ⇄ (tocar/tocar),
-  // que no necesita draggable para nada.
-  // Botón "／" (a petición de Paula, 2026-08-06): una partida de 2+ calles
-  // se ve normalmente como UN bloque grande que ocupa varias columnas. Al
-  // pulsar este botón se SEPARA de verdad en una línea de check independiente
-  // por cada calle (separarPartidaEnCalles) — no es solo un cambio visual:
-  // "se deben de poder mover por separado sin necesidad de que se muevan las
-  // 2", así que tienen que ser registros distintos, cada uno movible o
-  // intercambiable sin afectar al otro. Acción irreversible (no hay "volver
-  // a juntar"), coherente con que a partir de ahí son partidas separadas de
-  // verdad, no una vista alternativa de la misma.
-  const esMultiCalle = bloque.calles.length > 1;
-  const separadoBtnHTML = esMultiCalle ? `
-      <button onclick="event.stopPropagation();separarPartidaEnCalles('${c.id}')" title="Separar en una línea independiente por cada calle (se podrán mover por separado)" style="position:absolute;top:2px;right:38px;width:16px;height:16px;padding:0;background:rgba(15,92,74,.15);color:#0f5c4a;border:none;border-radius:4px;font-size:10px;line-height:16px;cursor:pointer">／</button>` : '';
-  // Colores de fondo por tipo de planta (a petición de Paula, 2026-08-06):
-  // 2HV azul, 3HV morado, 4HV naranja — igual que el bloque ya se resalta en
-  // amarillo cuando está seleccionado, esos colores mandan por encima de
-  // esto (si no, no se vería que está seleccionada).
-  const FONDOS_TIPO_PLANTA = { '2HV':{bg:'#dbeafe', border:'#93c5fd'}, '3HV':{bg:'#ede9fe', border:'#c4b5fd'}, '4HV':{bg:'#ffe4c4', border:'#f0b060'} };
-  const fondoTipo = FONDOS_TIPO_PLANTA[tipoPlanta];
-  const bgBloque = seleccionada ? '#fff3dc' : (fondoTipo ? fondoTipo.bg : '#e8f5ef');
-  const borderBloque = seleccionada ? '#c47f00' : (fondoTipo ? fondoTipo.border : '#a5d6c2');
-  // "ST:d/m" = fecha de Salida de Túnel (a petición de Paula, 2026-08-06) —
-  // el día 1 de la partida en el invernadero es el propio c.dia (el día del
-  // check de Túnel que le asignó su calle), igual que en mostrarHistorialPartida.
-  const stLabel = c.dia!=null ? (()=>{
-    const fecha = riegoDiaToDate(c.dia);
-    return `ST:${fecha.getDate()}/${fecha.getMonth()+1}`;
-  })() : '';
-  // Arrastrar-y-soltar nativo restaurado (a petición de Paula, 2026-08-06:
-  // "has quitado la opción de arrastrar, tienes que corregirlo") — se había
-  // quitado pensando que interfería con el scroll táctil, pero el fallo real
-  // de los intercambios era la selección que no se borraba entre pantallas
-  // (ver seleccionarInvPartidas/seleccionarSalaPartidas); el tocar-y-tocar
-  // sigue funcionando igual, esto es un método adicional, no un sustituto.
-  // Modo "Añadir Específico aquí" (fusión Partidas+Específicos, 2026-08-11):
-  // tocar la tarjeta marca/desmarca en vez de mover, y se ocultan los botones
-  // de mover/separar/eliminar para no confundir gestos mientras se elige.
   const enSeleccionEspecifico = partidasEspecificoSeleccion.has(c.id);
-  // Banner(s) de específicos aplicados a esta partida (se apilan, uno por
-  // cada específico aplicado con el tiempo — a petición de Paula) — leídos
-  // de especificosPartidaData[c.id], independiente de especificosData (que
-  // guarda por invId/día/calle, no por partida).
-  // A petición de Paula (partida en varias calles, generalmente el mismo
-  // tratamiento en todas): un solo banner por día+tratamiento aunque el
-  // registro se haya guardado repetido una vez por cada calle/tramo — se
-  // muestra solo el primero de cada combinación, el resto queda oculto
-  // pero sigue existiendo en los datos (editar/eliminar solo afecta al que
-  // se ve, que es representativo de todos).
-  const especificosVistos = new Set();
-  const especificosBannersData = (especificosPartidaData[c.id]||[]).map((e,idx)=>({e,idx})).filter(({e})=>{
-    const clave = `${e.fechaISO}|${e.trat}|${e.dosis}|${e.horario}`;
-    if(especificosVistos.has(clave)) return false;
-    especificosVistos.add(clave);
-    return true;
-  });
-  // A petición de Paula (2026-08-18): "en Añadir Específico... no se deben
-  // borrar los banners rosas... necesitamos verlos" — la tarjeta de modo
-  // selección los omitía por completo. Aquí van sin el onclick de editar
-  // (para no interferir con el toque que marca/desmarca la partida).
-  const especificosBannersSoloLectura = especificosBannersData.map(({e})=>`
-    <div style="margin-top:2px;padding:3px 5px 4px;border-radius:0 0 5px 5px;background:linear-gradient(to top, #ffc2dd, ${enSeleccionEspecifico?'#c6f2d3':bgBloque});font-size:10px;line-height:1.3;font-weight:600;color:var(--text);white-space:normal;word-break:break-word">
-      ${escapar(e.trat)} ${escapar(e.dosis)} · ${escapar(e.fechaLabel)}
-    </div>`).join('');
-  if(partidasEspecificoModo){
-    return `
-      <div onclick="togglePartidaEnSeleccionEspecifico('${c.id}')"
-        style="height:100%;padding:4px 6px;background:${enSeleccionEspecifico?'#c6f2d3':bgBloque};border:2px solid ${enSeleccionEspecifico?'#1a5c2e':borderBloque};border-radius:6px;font-size:10px;line-height:1.35;position:relative;overflow:${especificosBannersSoloLectura?'visible;z-index:1':'hidden'};cursor:pointer">
-        <div style="position:absolute;top:2px;right:2px;width:16px;height:16px;border-radius:4px;background:${enSeleccionEspecifico?'#1a5c2e':'#fff'};border:1.5px solid ${enSeleccionEspecifico?'#1a5c2e':'#a5d6c2'};color:#fff;font-size:11px;line-height:15px;text-align:center">${enSeleccionEspecifico?'✓':''}</div>
-        <div style="font-weight:800;color:#0f5c4a;padding-right:20px">${escapar(c.partida)||'—'}</div>
-        <div style="color:var(--text);font-weight:600">${escapar(c.clienteVariedad)||''}</div>
-        <div style="color:var(--muted);display:flex;gap:5px;flex-wrap:wrap;margin-top:1px">
-          ${stLabel ? `<span title="Salida de Túnel">${stLabel}</span>` : ''}
-          ${c.fentrega ? `<span>📅 ${escapar(c.fentrega)}</span>` : ''}
-          ${tipoPlanta ? `<span style="font-weight:700;color:#0f5c4a">${escapar(tipoPlanta)}</span>` : ''}
-        </div>
-        ${especificosBannersSoloLectura}
-      </div>`;
-  }
-  const especificosBanners = especificosBannersData.map(({e,idx})=>`
-    <div onclick="event.stopPropagation();editarEspecificoPartidaBanner('${c.id}',${idx})" title="Tocar para editar" style="margin-top:2px;padding:3px 5px 4px;border-radius:0 0 5px 5px;background:linear-gradient(to top, #ffc2dd, ${bgBloque});font-size:10px;line-height:1.3;font-weight:600;color:var(--text);white-space:normal;word-break:break-word;cursor:pointer">
-      ${escapar(e.trat)} ${escapar(e.dosis)} · ${escapar(e.fechaLabel)}
-    </div>`).join('');
+  const fondos = {'2HV':{bg:'#dbeafe',borde:'#93c5fd'},'3HV':{bg:'#ede9fe',borde:'#c4b5fd'},'4HV':{bg:'#ffe4c4',borde:'#f0b060'}};
+  const fondo = fondos[tipoPlanta]||{bg:'#e8f5ef',borde:'#a5d6c2'};
+  const bg = partidasEspecificoModo && enSeleccionEspecifico ? '#c9e9ff' : seleccionada ? '#fff3dc' : fondo.bg;
+  const borde = partidasEspecificoModo && enSeleccionEspecifico ? '#1558a0' : seleccionada ? '#c47f00' : fondo.borde;
+  const accion = partidasEspecificoModo ? 'togglePartidaEnSeleccionEspecifico' : 'clicPartidaEnMapa';
+  const eventoDrag = partidasEspecificoModo ? '' : `draggable="true" ondragstart="iniciarArrastrePartida('${c.id}')" ondragover="event.preventDefault()" ondrop="event.preventDefault();clicPartidaEnMapa('${c.id}')"`;
   return `
-    <div draggable="true" ondragstart="iniciarArrastrePartida('${c.id}')" ondragover="event.preventDefault()" ondrop="event.preventDefault();clicPartidaEnMapa('${c.id}')" onclick="clicPartidaEnMapa('${c.id}')"
-      style="height:100%;padding:4px 6px;background:${bgBloque};border:1.5px solid ${borderBloque};border-radius:6px;font-size:10px;line-height:1.35;position:relative;${especificosBanners?'overflow:visible;z-index:1':'overflow:hidden'};cursor:grab">
-      ${separadoBtnHTML}
-      <span onclick="event.stopPropagation();cambiarPosicionPartida('${c.id}',${bloque.pos + 1})" title="Toca para cambiar posición" style="position:absolute;top:3px;right:20px;width:8px;height:8px;padding:0;background:${seleccionada?'#c47f00':'#0f5c4a'};color:#fff;border:none;border-radius:1px;font-size:4px;font-weight:900;line-height:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0.5">${bloque.pos + 1}</span>
-      <button onclick="event.stopPropagation();marcarSalidaPartida('${c.id}')" title="Marcar salida (quitar del mapa)" style="position:absolute;top:2px;right:2px;width:16px;height:16px;padding:0;background:rgba(198,40,40,.12);color:#c62828;border:none;border-radius:4px;font-size:10px;line-height:16px;cursor:pointer">✕</button>
-      <div style="font-weight:800;color:#0f5c4a;padding-right:${esMultiCalle?52:34}px">${escapar(c.partida)||'—'}</div>
-      <div style="color:var(--text);font-weight:600">${escapar(c.clienteVariedad)||''}</div>
-      <div style="color:var(--muted);display:flex;gap:5px;flex-wrap:wrap;margin-top:1px">
-        ${stLabel ? `<span title="Salida de Túnel">${stLabel}</span>` : ''}
-        ${c.fentrega ? `<span>📅 ${escapar(c.fentrega)}</span>` : ''}
-        ${tipoPlanta ? `<span style="font-weight:700;color:#0f5c4a">${escapar(tipoPlanta)}</span>` : ''}
-      </div>
-      ${especificosBanners}
+    <div role="button" tabindex="0" title="${escapar(c.partida)||'Partida sin número'}" aria-label="Partida ${escapar(c.partida)||'sin número'}"
+      ${eventoDrag} onclick="${accion}('${c.id}')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();${accion}('${c.id}')}"
+      style="min-height:28px;height:100%;display:flex;align-items:center;justify-content:center;padding:3px 5px;background:${bg};border:1.5px solid ${borde};border-radius:5px;cursor:pointer;overflow:hidden">
+      <span style="display:block;max-width:100%;font-size:11px;font-weight:800;color:#16436c;line-height:1.2;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapar(c.partida)||'—'}</span>
     </div>`;
 }
 // Calles reales de una partida (mismo cálculo que ya usa
@@ -10321,6 +10232,7 @@ async function guardarEspecificoPartidaBanner(partidaId, idx){
   if(!(await saveEspecificosPartidaData())) return;
   document.getElementById('especifico-banner-editar-overlay').style.display = 'none';
   renderPartidasMapaContent(document.getElementById('partidas-overlay'));
+  if(document.getElementById('partidas-historial-overlay')?.style.display==='flex') await mostrarHistorialPartida(partidaId);
   showToast('✓ Específico actualizado');
 }
 async function borrarEspecificoPartidaBanner(partidaId, idx){
@@ -10343,6 +10255,7 @@ async function borrarEspecificoPartidaBanner(partidaId, idx){
   }
   document.getElementById('especifico-banner-editar-overlay').style.display = 'none';
   renderPartidasMapaContent(document.getElementById('partidas-overlay'));
+  if(document.getElementById('partidas-historial-overlay')?.style.display==='flex') await mostrarHistorialPartida(partidaId);
   showToast('✓ Eliminado');
 }
 function iniciarArrastrePartida(id){
@@ -10392,7 +10305,7 @@ function renderPartidasInvHTML(invId){
   const layout = INV_LAYOUT[invId];
   if(!layout) return '';
   const bloques = calcularBloquesPartidasInv(invId);
-  const CW = 92, ROW_H = 58, HDR_H = 24;
+  const CW = 82, ROW_H = 32, HDR_H = 22;
   function buildSection(calles, alinearArriba){
     if(!calles.length) return '';
     const maxPos = Math.max(0, ...bloques.filter(b=>b.calles.some(c=>calles.includes(c))).map(b=>b.pos+1));
@@ -10485,6 +10398,18 @@ function togglePartidaEnSeleccionEspecifico(id){
 // check) desde el día en que entró en su calle. Riego/Fito/Específicos
 // comparten la misma forma de datos (data[invId][dia][calle] = texto),
 // así que se recorren los mismos días/calles en los tres a la vez.
+// Acciones trasladadas desde los botones diminutos del mapa a la ficha.
+// No modifica la implementación de movimientos, separación ni persistencia.
+function accionPartidaDesdeFicha(id,accion,pos){
+  const modal=document.getElementById('partidas-historial-overlay');
+  if(accion==='salida' && !confirm('¿Marcar esta partida como salida? Desaparecerá del mapa (se conserva el check de Túnel).')) return;
+  if(modal) modal.style.display='none';
+  if(accion==='mover'){ seleccionarPartidaParaMover(id); return; }
+  if(accion==='posicion'){ cambiarPosicionPartida(id,pos); return; }
+  if(accion==='separar'){ separarPartidaEnCalles(id); return; }
+  if(accion==='salida'){ aplicarSalidaPartida(id,true); return; }
+  if(accion==='recuperar'){ aplicarSalidaPartida(id,false); return; }
+}
 async function mostrarHistorialPartida(id){
   const c = controlChecksData.find(x=>x.id===id);
   if(!c) return;
@@ -10494,7 +10419,8 @@ async function mostrarHistorialPartida(id){
   await Promise.all([
     c.invId ? loadRiegoInvData(c.invId, false) : Promise.resolve(true),
     c.invId ? loadFitoInvData(c.invId, false) : Promise.resolve(true),
-    c.invId ? loadEspecificosInvData(c.invId, false) : Promise.resolve(true)
+    c.invId ? loadEspecificosInvData(c.invId, false) : Promise.resolve(true),
+    loadEspecificosPartidaIdsData([id], false)
   ]);
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const tramos = (c.tramos && c.tramos.length) ? c.tramos : [{desde:c.calleDesde, hasta:c.calleHasta}];
@@ -10600,6 +10526,34 @@ async function mostrarHistorialPartida(id){
               <div style="font-size:10px;color:var(--muted);margin-top:3px">${escapar(f.label)}</div>
             </div>`).join('')}
         </div>` : '';
+  // Datos que antes ocupaban espacio dentro del mapa: calles, tipo de
+  // planta, entrega, bandejas, tratamientos y operaciones sobre ubicación.
+  const ubicacion = c.invId && calles.length ? formatCallesConEnteroParaImprimir(c.invId, calles) : 'Sin calles asignadas';
+  const enMapaActual = c.invId===partidasInvSel && partidaVisibleEnSemana(c, partidasSemanaOffset);
+  const bloqueEnMapa = enMapaActual ? calcularBloquesPartidasInv(c.invId).find(b=>b.entry.id===c.id) : null;
+  const primerTramo = tramos[0];
+  const separable = !!bloqueEnMapa && primerTramo?.desde!=null &&
+    Math.abs((primerTramo.hasta??primerTramo.desde)-primerTramo.desde)>=1;
+  const salidaManual = c.salioDesdeSemanaNumerada!==null && c.salioDesdeSemanaNumerada!==undefined;
+  const vistos = new Set();
+  const especificosFicha = (especificosPartidaData[c.id]||[]).map((e,idx)=>({e,idx})).filter(({e})=>{
+    const key = [e.fechaISO,e.trat,e.dosis,e.horario].join('|');
+    if(vistos.has(key)) return false;
+    vistos.add(key); return true;
+  });
+  const especificosFichaHTML = especificosFicha.length ? `
+    <div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;margin:12px 0 8px">Específicos asociados</div>
+    <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:16px">
+      ${especificosFicha.map(({e,idx})=>`<button type="button" onclick="editarEspecificoPartidaBanner('${c.id}',${idx})"
+        title="Editar específico" style="padding:7px 10px;font-size:11px;font-weight:700;background:#ffe2ed;color:#6b1742;border:1px solid #e8a3c1;border-radius:7px;cursor:pointer">${escapar(e.trat)} ${escapar(e.dosis)} · ${escapar(e.fechaLabel)}</button>`).join('')}
+    </div>` : '';
+  const accionesFichaHTML = enMapaActual ? `
+    <button onclick="accionPartidaDesdeFicha('${c.id}','mover')" style="padding:8px 12px;font-size:12px;font-weight:700;background:#1558a0;color:#fff;border:none;border-radius:7px;cursor:pointer">Mover en mapa</button>
+    ${bloqueEnMapa ? `<button onclick="accionPartidaDesdeFicha('${c.id}','posicion',${bloqueEnMapa.pos+1})" style="padding:8px 12px;font-size:12px;font-weight:700;background:#1558a0;color:#fff;border:none;border-radius:7px;cursor:pointer">Cambiar posición</button>` : ''}
+    ${separable ? `<button onclick="accionPartidaDesdeFicha('${c.id}','separar')" style="padding:8px 12px;font-size:12px;font-weight:700;background:#1558a0;color:#fff;border:none;border-radius:7px;cursor:pointer">Separar calles</button>` : ''}
+    ${salidaManual ? `<button onclick="accionPartidaDesdeFicha('${c.id}','recuperar')" style="padding:8px 12px;font-size:12px;font-weight:700;background:#1558a0;color:#fff;border:none;border-radius:7px;cursor:pointer">Recuperar</button>` :
+      `<button onclick="accionPartidaDesdeFicha('${c.id}','salida')" style="padding:8px 12px;font-size:12px;font-weight:700;background:#b42332;color:#fff;border:none;border-radius:7px;cursor:pointer">Marcar salida</button>`}
+  ` : (salidaManual ? `<button onclick="accionPartidaDesdeFicha('${c.id}','recuperar')" style="padding:8px 12px;font-size:12px;font-weight:700;background:#1558a0;color:#fff;border:none;border-radius:7px;cursor:pointer">Recuperar partida</button>` : '');
   window.__partidaHistorialActual = { c, cargaSalida, eventos, resumenCategoriasHTML, tipoPlanta, diaDesde, fotosPartida };
   const mo = getOrCreateOverlay('partidas-historial-overlay');
   mo.innerHTML = `
@@ -10608,9 +10562,15 @@ async function mostrarHistorialPartida(id){
         <div style="font-size:11px;font-weight:700;opacity:.9;margin-bottom:4px">Ficha e historial de partida</div>
         <div style="font-size:17px;font-weight:800">${escapar(c.partida)||'— Sin partida —'}</div>
         <div style="font-size:12px;opacity:.9;margin-top:2px">${escapar(c.clienteVariedad)||''}${tipoPlanta?' · '+escapar(tipoPlanta):''}</div>
-        <div style="font-size:11px;opacity:.85;margin-top:2px">${c.fentrega?`📅 Entrega ${escapar(c.fentrega)} · `:''}INV ${escapar(c.invId)||'—'} · Día 1 (salida de Túnel): ${escapar(riegoDiaLabelCorto(diaDesde))}</div>
+        <div style="font-size:11px;opacity:.85;margin-top:2px">${c.fentrega?`Entrega ${escapar(c.fentrega)} · `:''}INV ${escapar(c.invId)||'—'} · Día 1 (salida de Túnel): ${escapar(riegoDiaLabelCorto(diaDesde))}</div>
       </div>
       <div style="padding:1.25rem 1.5rem">
+        <div style="font-size:12px;color:#1558a0;background:#e8f2fd;border-radius:8px;padding:10px 12px;margin-bottom:16px">
+          <b>Ubicación:</b> Sala ${escapar((salaDeInv(c.invId)||'').replace('sala',''))} · INV ${escapar(c.invId)||'—'} · ${escapar(ubicacion)}
+          ${c.numBandejas?` · <b>Bandejas:</b> ${escapar(c.numBandejas)}`:''}
+          ${tipoPlanta?` · <b>Tipo:</b> ${escapar(tipoPlanta)}`:''}
+        </div>
+        ${especificosFichaHTML}
         <div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Check de entrada (Túnel) — ${escapar(riegoDiaLabelCorto(c.dia))}${c.numBandejas?' · Nº bandejas: '+escapar(c.numBandejas):''}</div>
         <div style="margin-bottom:6px">${resumenCategoriasHTML(c)}</div>
         <div style="font-size:12px;color:var(--text);margin-bottom:1.25rem">
@@ -10629,7 +10589,8 @@ async function mostrarHistorialPartida(id){
         <div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Historial de riegos, plaguicidas y específicos</div>
         ${eventosHTML}
       </div>
-      <div style="padding:1rem 1.5rem;text-align:right;display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap">
+      <div style="padding:10px 1.5rem;border-top:1px solid #dce5ef;display:flex;justify-content:flex-end;align-items:center;gap:7px;flex-wrap:wrap">
+        ${accionesFichaHTML}
         <button onclick="mostrarAsignarCalleControl('${c.id}')" style="padding:9px 18px;font-size:12px;font-weight:800;background:#e8f2fd;color:#1558a0;border:1px solid #9ab8d8;border-radius:7px;cursor:pointer;display:flex;align-items:center;gap:5px"><i class="ti ti-map-pin" style="font-size:14px"></i> Editar ubicación</button>
         <button onclick="imprimirHistorialPartida()" style="padding:9px 18px;font-size:12px;font-weight:800;background:#1558a0;color:#fff;border:none;border-radius:7px;cursor:pointer;display:flex;align-items:center;gap:5px"><i class="ti ti-printer" style="font-size:14px"></i> Imprimir</button>
         <button onclick="document.getElementById('partidas-historial-overlay').style.display='none'" style="padding:9px 18px;font-size:12px;font-weight:700;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:7px;cursor:pointer">Cerrar</button>
