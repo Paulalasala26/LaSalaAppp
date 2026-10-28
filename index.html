@@ -22280,20 +22280,13 @@ function especificosLayoutSala(sala){
   return ({'1':INV_LAYOUT_SALA1,'2':INV_LAYOUT_SALA2,'3':INV_LAYOUT_SALA3,
     '4':INV_LAYOUT_SALA4,'5':INV_LAYOUT_SALA5})[String(sala)]||{};
 }
-function poblarEspecificosInvernaderos(sala,seleccion){
-  const combo=document.getElementById('especificos-inv');
-  if(!combo)return;
-  const invs=Object.keys(especificosLayoutSala(sala)).sort((a,b)=>a.localeCompare(b,'es',{numeric:true}));
-  combo.innerHTML='<option value="">Elegir invernadero…</option>'+
-    invs.map(id=>`<option value="${id}">${id}</option>`).join('');
-  combo.disabled=!invs.length;
-  combo.value=seleccion&&invs.includes(String(seleccion))?String(seleccion):'';
-}
-function cambiarEspecificosSala(sala){
-  especificosInvSel=null;
-  especificosVistaActual='cuadricula';
-  poblarEspecificosInvernaderos(sala,null);
-  actualizarVistaEspecificos();
+function opcionesEspecificosPorSala(){
+  return [1,2,3,4,5].map(sala=>{
+    const opciones=Object.keys(especificosLayoutSala(sala))
+      .sort((a,b)=>a.localeCompare(b,'es',{numeric:true}))
+      .map(id=>`<option value="${id}">INV ${id}</option>`).join('');
+    return `<optgroup label="Sala ${sala}">${opciones}</optgroup>`;
+  }).join('');
 }
 function cambiarVistaEspecificos(vista){
   if(vista!=='cuadricula'&&vista!=='resumen')return;
@@ -22350,18 +22343,12 @@ function showEspecificosModule(){
         <div style="padding:6px 10px;background:#e8f0fb;border-bottom:1px solid #b0c8e0;flex-shrink:0">
           <div id="especificos-quincena-bar" style="display:grid;grid-template-columns:36px minmax(0,1fr) 36px;align-items:center;gap:8px"></div>
         </div>
-        <div style="padding:9px 10px;background:#f5f9ff;border-bottom:1px solid #d5e3f2;display:grid;grid-template-columns:minmax(85px,1fr) minmax(130px,2fr);gap:8px;align-items:end;flex-shrink:0">
-          <label style="font-size:11px;font-weight:800;color:#1558a0">Sala
-            <select id="especificos-sala" onchange="cambiarEspecificosSala(this.value)"
-              style="display:block;width:100%;margin-top:3px;min-height:40px;padding:7px 9px;border:1.5px solid #a8c4e8;border-radius:7px;background:#fff;color:#1558a0;font-size:14px">
-              <option value="">Elegir sala…</option>
-              ${[1,2,3,4,5].map(n=>`<option value="${n}">Sala ${n}</option>`).join('')}
-            </select>
-          </label>
-          <label style="font-size:11px;font-weight:800;color:#1558a0">Invernadero
-            <select id="especificos-inv" onchange="if(this.value)selectEspecificoInv(this.value)" disabled
+        <div style="padding:9px 10px;background:#f5f9ff;border-bottom:1px solid #d5e3f2;flex-shrink:0">
+          <label style="display:block;max-width:520px;font-size:11px;font-weight:800;color:#1558a0">Invernadero
+            <select id="especificos-inv" onchange="if(this.value)selectEspecificoInv(this.value)"
               style="display:block;width:100%;margin-top:3px;min-height:40px;padding:7px 9px;border:1.5px solid #a8c4e8;border-radius:7px;background:#fff;color:#1558a0;font-size:14px">
               <option value="">Elegir invernadero…</option>
+              ${opcionesEspecificosPorSala()}
             </select>
           </label>
         </div>
@@ -22381,22 +22368,15 @@ function showEspecificosModule(){
     actualizarVistaEspecificos();
   }).catch(e=>{showToast('❌ Error al cargar Específicos: '+e.message);});
 }
-function selectEspecificoInv(invId,btn){
+function selectEspecificoInv(invId){
   if(!INV_LAYOUT[invId])return;
   especificosInvSel=invId;
   especificosVistaActual='cuadricula';
-  const sala=String(salaDeInv(invId)||'').replace('sala','');
-  const comboSala=document.getElementById('especificos-sala');
-  if(comboSala&&comboSala.value!==sala){
-    comboSala.value=sala;
-    poblarEspecificosInvernaderos(sala,invId);
-  }
-  const comboInv=document.getElementById('especificos-inv');
-  if(comboInv)comboInv.value=invId;
+  const combo=document.getElementById('especificos-inv');
+  if(combo)combo.value=invId;
   actualizarVistaEspecificos();
   marcarPresenciaInvernadero('especifico',invId);
 }
-
 // Distribución de calles + lo marcado como "específico" en cada día — nunca
 // muestra lo marcado en Riego, son datos completamente independientes.
 // A petición de Paula (2026-08-19): distinguir visualmente el Tipo del
