@@ -10413,61 +10413,182 @@ function abrirAplicarEspecificoAPartidas(){
     </div>`;
   overlay.style.display = 'flex';
 }
-async function aplicarEspecificoAPartidasSeleccionadas(){
-  const dia = parseInt(document.getElementById('eap-dia').value);
-  const trat = document.getElementById('eap-trat').value || '';
-  const dosis = document.getElementById('eap-dosis').value || '';
-  const horario = document.getElementById('eap-horario').value || '';
-  const caldoLitros = parseFloat(document.getElementById('eap-caldo').value) || null;
-  if(!trat || !dosis){ showToast('Elige al menos tratamiento y dosis'); return; }
-  const caldoLabel = caldoLitros ? ((FITO_CALDO_OPCIONES.find(o=>o.litros===caldoLitros)||{}).label || `${caldoLitros}L`) : '';
-  const gastoLabel = (dosis && caldoLitros) ? `${Math.round(parseFloat(dosis)*caldoLitros*100)/100}cc` : '';
-  const tratDosis = [trat, dosis].filter(Boolean).join(' ');
-  const texto = [tratDosis, horario].filter(Boolean).join(' + ');
-  const fechaLabel = riegoDiaLabelCorto(dia);
-  const fechaISO = fechaLocalISO(riegoDiaToDate(dia));
-  const ids = [...partidasEspecificoSeleccion];
-  if(!(await loadEspecificosPartidaIdsData(ids,false))) return;
-  const semanaDelDia = partidasSemanaDeFecha(riegoDiaToDate(dia));
-  for(const id of ids){
-    const c = controlChecksData.find(x=>x.id===id);
-    if(!c || !c.invId) continue;
-    const calles = callesDePartidaEntry(c);
-    if(!calles.length) continue;
-    const layout = INV_LAYOUT[c.invId];
-    const allCalles = layout ? [...layout.row1, ...layout.row2] : calles;
-    // A petición de Paula (2026-08-18): "si no fuera la calle entera deberá
-    // aparecer en observaciones el número de partida" — para que el
-    // Resumen/Cuadrícula (que leen especificosData por calle, no por
-    // partida) puedan distinguir cuando varias partidas comparten la misma
-    // calle. Se comprueba, calle por calle, si hay OTRA partida ocupando
-    // esa misma calle esa semana; si la hay, se deja la observación con el
-    // código de esta partida (mismo formato que ya reconoce
-    // resolverPartidaPorObsEspecifico).
-    const bloquesInv = calcularBloquesPartidasInvBase(c.invId, semanaDelDia);
-    calles.forEach(calle=>{
-      if(!allCalles.includes(calle)) return;
-      const compartida = bloquesInv.some(b=>b.entry.id!==id && b.calles.includes(calle));
-      const textoCalle = compartida ? `${texto} — PARTIDA ${c.partida}` : texto;
-      setEspecifico(c.invId, dia, calle, textoCalle, {caldoLitros, caldoLabel});
-    });
-    const callesLabel = formatCallesConEnteroParaImprimir(c.invId, calles);
-    await autoAsignarTareaEspecifico(c.invId, dia, callesLabel, tratDosis, horario, '', {producto:trat, dosis, caldoLabel, gastoLabel});
-    if(!especificosPartidaData[id]) especificosPartidaData[id] = [];
-    // invId/dia/calles guardados en el propio banner (a petición de Paula,
-    // 2026-08-18: "se debe de poder borrar tanto de ahí como de la
-    // cuadrícula") — sin esto, borrar el banner no sabía qué celdas de
-    // especificosData había que vaciar también.
-    especificosPartidaData[id].push({trat, dosis, horario, fechaLabel, fechaISO, invId:c.invId, dia, calles});
-    marcarEspecificosPartidaDirty(id);
+// §0.150: cada alta desde Partidas tiene identidad propia, incluso si
+// dos partidas comparten una calle. La cuadrícula sigue leyendo "texto".
+let espPartidasAltasPendientes={};
+function celdaEspecificoPartidaActualizada(raw,registroId,info,eliminar){
+  const original=raw && typeof raw==='object' ? raw : null;
+  if(raw && !original?.partidaRegistros &&
+     (typeof raw==='string'?raw.trim():String(original?.texto||'').trim())){
+    throw new Error('Hay un específico anterior en esa calle y día. Revísalo en Específicos antes de añadir otro.');
   }
-  if(!(await saveEspecificosData())) return;
-  if(!(await saveEspecificosPartidaData())) return;
-  document.getElementById('especifico-por-partidas-overlay').style.display = 'none';
-  partidasEspecificoModo = false;
-  partidasEspecificoSeleccion = new Set();
-  showToast(`✓ Específico aplicado a ${ids.length} partida${ids.length===1?'':'s'}`);
-  renderPartidasMapaContent(document.getElementById('partidas-overlay'));
+  const registros={...(original?.partidaRegistros||{})};
+  if(eliminar){
+    if(!registros[registroId]) throw new Error('El específico ya no coincide con la cuadrícula. Actualiza la pantalla.');
+    delete registros[registroId];
+  }else{
+    registros[registroId]={...info};
+  }
+  const activos=Object.values(registros);
+  if(!activos.length)return null;
+  const textos=activos.map(r=>
+    [r.trat,r.dosis].filter(Boolean).join(' ')+
+    (r.horario?' + '+r.horario:'')+
+    ' — PARTIDA '+String(r.partida||'')
+  );
+  return {texto:textos.join(' | '),caldoLitros:activos[0].caldoLitros||null,
+    caldoLabel:activos[0].caldoLabel||'',partidaRegistros:registros};
+}
+function planificarEspecificosDesdePartidas(cambios){
+  const celdas=new Map();
+  const operar=(r,eliminar)=>{
+    if(!r||!r.registroId||!r.invId||r.dia==null||!Array.isArray(r.calles))
+      throw new Error('Falta la identificación del tratamiento de partida.');
+    const layout=INV_LAYOUT[r.invId];
+    const validas=layout?[...layout.row1,...layout.row2]:[];
+    for(const calle of new Set(r.calles)){
+      if(!validas.includes(Number(calle)))throw new Error('Calle fuera del invernadero '+r.invId);
+      const clave=[r.invId,r.dia,calle].join('|');
+      const actual=celdas.has(clave)?celdas.get(clave).valor:
+        especificosData[r.invId]?.[r.dia]?.[calle]||null;
+      const valor=celdaEspecificoPartidaActualizada(actual,r.registroId,
+        {partidaId:r.partidaId,partida:r.partida,trat:r.trat,dosis:r.dosis,
+          horario:r.horario||'',caldoLitros:r.caldoLitros||null,
+          caldoLabel:r.caldoLabel||''},eliminar);
+      celdas.set(clave,{invId:r.invId,dia:r.dia,calle,valor});
+    }
+  };
+  cambios.forEach(c=>{if(c.antes)operar(c.antes,true);});
+  cambios.forEach(c=>{if(c.despues)operar(c.despues,false);});
+  return [...celdas.values()];
+}
+function aplicarPlanEspecificosPartidas(plan){
+  for(const x of plan){
+    if(!especificosData[x.invId])especificosData[x.invId]={};
+    if(!especificosData[x.invId][x.dia])especificosData[x.invId][x.dia]={};
+    if(x.valor==null)delete especificosData[x.invId][x.dia][x.calle];
+    else especificosData[x.invId][x.dia][x.calle]=x.valor;
+    marcarEspecificosDirtyCell(x.invId,x.dia,x.calle);
+  }
+}
+async function verificarTareasPartidasEditables(cambios){
+  await loadTareasData();
+  for(const c of cambios){
+    if(!c.antes)continue;
+    const tarea=tareasData.find(t=>t.especificoPartidaRegistroId===c.antes.registroId);
+    if(tarea&&tarea.estado!=='pendiente')
+      throw new Error('Este específico tiene una tarea iniciada, completada o archivada. No puede editarse ni eliminarse.');
+  }
+}
+// En vez de fusionar tareas ajenas por título, usar identidad inequívoca.
+async function sincronizarTareasDesdePartidas(cambios){
+  const tx=await actualizarStorageJsonConEtag(TAREAS_KEY,[],cloud=>{
+    if(!Array.isArray(cloud))cloud=[];
+    for(const c of cambios){
+      const r=c.despues||c.antes;
+      const index=cloud.findIndex(t=>t.especificoPartidaRegistroId===r.registroId);
+      if(index>=0&&cloud[index].estado!=='pendiente')
+        throw new Error('Una tarea se ha iniciado durante la operación. Avise a ADMIN.');
+      if(!c.despues){
+        if(index>=0){
+          cloud[index]={...cloud[index],estado:'anulada',
+            motivoAnulacion:'Eliminado desde Partidas',archivadaEn:new Date().toISOString()};
+        }
+        continue;
+      }
+      const d=c.despues,fechaISO=d.fechaISO||fechaLocalISO(riegoDiaToDate(d.dia));
+      const gasto=d.caldoLitros&&d.dosis?
+        Math.round(parseFloat(d.dosis)*d.caldoLitros*100)/100+'cc':'';
+      const campos={titulo:[d.trat,d.dosis].filter(Boolean).join(' '),
+        descripcion:'Partida '+d.partida,inv:d.invId,calles:formatCallesConEnteroParaImprimir(d.invId,d.calles),
+        fecha:riegoDiaLabelCorto(d.dia),fechaISO,horario:d.horario||'',
+        producto:d.trat,dosis:d.dosis,caldoLabel:d.caldoLabel||'',gastoLabel:gasto,
+        categoria:'especifico',origenTarea:'especificos',
+        especificoPartidaRegistroId:d.registroId,especificoPartidaId:d.partidaId};
+      if(index>=0)cloud[index]={...cloud[index],...campos};
+      else cloud.push({id:'tarea_esp_'+d.registroId,...campos,
+        asignadoA:reganteDelaSala(d.invId),asignadoPor:currentUser||'—',
+        prioridad:'normal',estado:'pendiente',visto:false,
+        creadoEn:new Date().toLocaleString('es-ES')});
+    }
+    return cloud;
+  });
+  if(!tx.ok) return false;
+  tareasData=tx.value;
+  tareasDataCargadaEn=Date.now();
+  refreshTareasViews();
+  return true;
+}
+async function guardarCambiosEspecificosDesdePartidas(cambios){
+  const invs=[...new Set(cambios.flatMap(c=>[c.antes?.invId,c.despues?.invId]).filter(Boolean))];
+  if(!(await loadEspecificosInvsData(invs,false)))return false;
+  await verificarTareasPartidasEditables(cambios);
+  const plan=planificarEspecificosDesdePartidas(cambios);
+  aplicarPlanEspecificosPartidas(plan);
+  // Guardar primero el tratamiento: nunca publicar una tarea antes de
+  // confirmar la escritura de la cuadrícula y la ficha.
+  if(!(await saveEspecificosData()))return false;
+  for(const c of cambios){
+    const r=c.despues||c.antes;
+    const regs=especificosPartidaData[r.partidaId]||[];
+    const ix=regs.findIndex(e=>e.registroId===r.registroId);
+    if(c.despues){
+      if(ix>=0)regs[ix]={...c.despues};
+      else regs.push({...c.despues});
+    }else if(ix>=0)regs.splice(ix,1);
+    especificosPartidaData[r.partidaId]=regs;
+    marcarEspecificosPartidaDirty(r.partidaId);
+  }
+  if(!(await saveEspecificosPartidaData()))return false;
+  return await sincronizarTareasDesdePartidas(cambios);
+}
+async function aplicarEspecificoAPartidasSeleccionadas(){
+  const boton=document.getElementById('eap-aplicar');
+  if(boton?.disabled)return;
+  const dia=Number(document.getElementById('eap-dia')?.value);
+  const trat=document.getElementById('eap-trat')?.value||'';
+  const dosis=document.getElementById('eap-dosis')?.value||'';
+  const horario=document.getElementById('eap-horario')?.value||'';
+  const caldoLitros=parseFloat(document.getElementById('eap-caldo')?.value)||null;
+  if(!Number.isInteger(dia)||!ESPECIFICO_TRATAMIENTOS.includes(trat)||
+     !ESPECIFICO_DOSIS.includes(dosis)){showToast('Selecciona tratamiento, dosis y día.');return;}
+  const caldoLabel=caldoLitros?
+    (FITO_CALDO_OPCIONES.find(x=>x.litros===caldoLitros)?.label||caldoLitros+'L'):'';
+  const ids=[...partidasEspecificoSeleccion];
+  if(!ids.length){showToast('Selecciona al menos una partida.');return;}
+  if(boton)boton.disabled=true;
+  try{
+    if(!(await loadEspecificosPartidaIdsData(ids,false)))throw new Error('No se pudieron cargar las fichas.');
+    const cambios=[];
+    for(const id of ids){
+      const c=controlChecksData.find(x=>x.id===id);
+      if(!c?.invId)throw new Error('Partida no encontrada.');
+      const calles=[...new Set(callesDePartidaEntry(c))];
+      if(!calles.length)throw new Error('Partida sin calles.');
+      const registroId=espPartidasAltasPendientes[id]||
+        ('esp_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,10));
+      espPartidasAltasPendientes[id]=registroId;
+      const previo=(especificosPartidaData[id]||[]).find(e=>e.registroId===registroId);
+      const duplicado=(especificosPartidaData[id]||[]).some(e=>
+        e.registroId!==registroId&&e.dia===dia&&e.trat===trat&&
+        e.dosis===dosis&&e.horario===horario&&e.invId===c.invId);
+      if(duplicado)throw new Error('El específico ya existe para una partida seleccionada.');
+      const nuevo={registroId,partidaId:id,partida:c.partida,trat,dosis,horario,
+        fechaLabel:riegoDiaLabelCorto(dia),fechaISO:fechaLocalISO(riegoDiaToDate(dia)),
+        invId:c.invId,dia,calles,caldoLitros,caldoLabel};
+      // Un reintento tras una desconexión conserva la misma identidad.
+      cambios.push({antes:previo?{...previo}:null,despues:nuevo});
+    }
+    if(!(await guardarCambiosEspecificosDesdePartidas(cambios)))
+      throw new Error('Guardado incompleto. No repitas el alta; vuelve a pulsar Aplicar para reintentar.');
+    document.getElementById('especifico-por-partidas-overlay').style.display='none';
+    espPartidasAltasPendientes={};
+    partidasEspecificoModo=false;
+    partidasEspecificoSeleccion=new Set();
+    showToast('✓ Específicos guardados y tareas vinculadas');
+    renderPartidasMapaContent(document.getElementById('partidas-overlay'));
+  }catch(e){showToast('No aplicado: '+e.message);}
+  finally{if(boton)boton.disabled=false;}
 }
 // Editar/eliminar un banner de específico ya aplicado a una partida (a
 // petición de Paula, 2026-08-11: "al pincharle se debe de poder editar") —
