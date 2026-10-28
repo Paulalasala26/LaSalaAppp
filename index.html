@@ -9672,7 +9672,6 @@ async function showPartidasModule(){
   partidasEspecificoModo = false;
   partidasEspecificoSeleccion = new Set();
   partidasSemanaOffset = partidasSemanaOffsetActual();
-  partidasMinFilasGrid=10;
   partidasInvSel = null;
   renderPartidasSelectorContent(overlay);
   overlay.style.display = 'flex';
@@ -11004,13 +11003,7 @@ function soltarPartidaEnHueco(event,invId,calle,fila){
   terminarArrastrePartida();
   if(id)moverPartidaAHueco(id,invId,calle,fila,indice);
 }
-// Diez filas accesibles por lado y ampliación manual sin alterar las
-// posiciones ya guardadas (máximo de seguridad: 300 filas).
-let partidasMinFilasGrid=10;
-function ampliarFilasPartidas(){
-  partidasMinFilasGrid=Math.min(300,partidasMinFilasGrid+5);
-  renderPartidasMapaContent(document.getElementById('partidas-overlay'));
-}
+// Filas de grid automáticas: inicio compacto y crecimiento sin botón.
 function renderPartidasInvHTML(invId){
   const layout = INV_LAYOUT[invId];
   if(!layout) return '';
@@ -11020,9 +11013,12 @@ function renderPartidasInvHTML(invId){
     if(!calles.length)return '';
     const set=new Set(calles);
     const relevantes=bloques.filter(b=>b.calles.some(c=>set.has(c)));
-    // Siempre hay una fila destino visible incluso si TODO el lado del
-    // pasillo carece de partidas; una extra al final permite ampliarlo.
-    const maxPos=Math.max(partidasMinFilasGrid,...relevantes.map(b=>b.pos+1));
+    // Arrancar con 10 filas por lado y mantener SIEMPRE una fila completa
+    // libre junto al pasillo al llegar a la última ocupada. Así el usuario
+    // puede soltar una partida más, incluso multicalle, sin botón de ampliar.
+    // No modificar las filas guardadas: solo crece el espacio visual.
+    // filaManual admite 0…300 (301 posiciones como máximo).
+    const maxPos=Math.min(301,Math.max(10,...relevantes.map(b=>b.pos+2)));
     const porFila=new Map();
     relevantes.forEach(b=>{
       if(!porFila.has(b.pos))porFila.set(b.pos,new Map());
@@ -11079,7 +11075,6 @@ function renderPartidasInvHTML(invId){
         <div style="min-width:${layout.row2.length*CW}px">${buildSection(layout.row2, false)}</div>
         ${hdrHTML(layout.row2)}
       </div>
-      <button type="button" onclick="ampliarFilasPartidas()" title="Ampliar el espacio disponible del grid" style="display:block;margin:9px auto 0;padding:7px 13px;background:#1558a0;color:#fff;border:0;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer">+ 5 filas</button>
     </div>
     ${partidasEspecificoModo && partidasEspecificoSeleccion.size>0 ? `
       <div style="position:fixed;left:0;right:0;bottom:0;background:#1558a0;color:#fff;padding:.8rem 1.25rem;display:flex;justify-content:space-between;align-items:center;gap:10px;box-shadow:0 -4px 20px rgba(0,0,0,.25);z-index:50">
