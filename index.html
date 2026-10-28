@@ -22402,9 +22402,7 @@ function renderEspecificosGrid(invId){
   const CW=43,DH=esPantallaMovil()?38:32,DAY_W=46,SEM_W=48,HDR_H=27;
   const diasQ = riegoQuincenaDias(especificosQuincenaOffset);
   const escAttr=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-  // Este grid completo (con inputs editables) es solo de ADMIN/TÉCNICO — el
-  // REGANTE usa showEspecificosReganteModule (solo lectura), no esta función.
-  const esReganteSoloLectura = false;
+  // Cuadrícula de consulta: solo los botones de celda abren el formulario.
 
   function buildEspecificoSection(calles,secLabel){
     let hdr=`<tr style="background:#eaf5ea;position:sticky;top:0;z-index:10">
@@ -22425,9 +22423,6 @@ function renderEspecificosGrid(invId){
           // ancho, se pasa a un textarea de hasta 2 renglones (con la fuente
           // reducida según lo largo que sea) para que se vea todo, en vez de
           // quedar cortado como con un input de una sola línea.
-          const spanW = br.span * CW;
-          const trimmedLen = br.text.trim().length;
-          const { fontSize: fontSizeUnaLinea, fitsOneLine, fontSizeMultilinea } = calcularFontSizeCeldaGrid(spanW, br.text, esReganteSoloLectura);
           const bgBracket = colorFondoEspecificoPorTexto(br.text);
           const cellLabel=br.span>2?br.text:([parsearTextoEspecifico(br.text).trat,parsearTextoEspecifico(br.text).dosis].filter(Boolean).join(' ')||br.text);
           cells+=`<td colspan="${br.span}" style="height:${DH}px;border:1px solid #a8c4e8;padding:0;background:${bgBracket}">
