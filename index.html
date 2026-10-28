@@ -6049,7 +6049,8 @@ const ACCIONES_OFFLINE_REPLAYABLES = {
   aplicarSalidaPartida,
   aplicarIntercambioPartidas,
   aplicarMoverPartidaACalle,
-  aplicarSepararPartidaEnCalles
+  aplicarSepararPartidaEnCalles,
+  aplicarInsercionPartidaMapa
 };
 // A petición de Paula (2026-08-05): "ayer realizamos varios checks de túnel y
 // ponía que se estaban sincronizando y ya no salen" — bug real encontrado:
@@ -9675,6 +9676,11 @@ function renderPartidasMapaContent(overlay){
   const wrapAnterior = overlay.querySelector('#partidas-content-wrap');
   const scrollTopAnterior = wrapAnterior ? wrapAnterior.scrollTop : 0;
   const partidasVisibles = partidasInvSel ? new Set(calcularBloquesPartidasInvBase(partidasInvSel, partidasSemanaOffset).map(b=>b.entry.id)).size : 0;
+  // Número de partidas distintas durante las dos semanas de la quincena.
+  const primeraSemana = (partidasQuincenaActual()-partidasQuincenaBase())*2;
+  const partidasEnQuincena = partidasInvSel ? new Set([0,1].flatMap(n=>
+    calcularBloquesPartidasInvBase(partidasInvSel, primeraSemana+n).map(b=>b.entry.id))).size : 0;
+  const scrollHorizontalAnterior = overlay.querySelector('#partidas-mapa-horizontal')?.scrollLeft || 0;
   overlay.innerHTML = `
     <div style="background:#f5f7fb;width:100%;height:100%;min-height:0;max-width:100%;overflow:hidden;display:flex;flex-direction:column">
       <div style="background:linear-gradient(120deg,#2b6fae 0%,#3c80c2 55%,#5b9bd5 100%);color:#fff;padding:.45rem .75rem;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;gap:8px">
@@ -9690,7 +9696,7 @@ function renderPartidasMapaContent(overlay){
           style="padding:6px 12px;background:#1558a0;border:1px solid #1558a0;color:#fff;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">Cambiar</button>
       </div>
       <div id="partidas-panel-controles" style="padding:7px 12px;background:#edf3fb;border-bottom:1px solid #c7d8ee;display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:space-between;flex-shrink:0">
-        <span style="font-size:13px;font-weight:800;color:#1558a0;white-space:nowrap">Ocupación</span>
+        <span style="font-size:13px;font-weight:800;color:#1558a0;white-space:nowrap" title="Partidas distintas del invernadero en la quincena">Ocupación (${partidasEnQuincena})</span>
         <div style="display:flex;flex:0 1 320px;max-width:100%;min-width:0;height:34px">
           <input id="partidas-buscar-partida" type="text" placeholder="Buscar Nº partida..." aria-label="Buscar número de partida" onkeydown="if(event.key==='Enter') buscarPartidaGlobal()"
             style="flex:1;min-width:0;padding:6px 10px;border:1px solid #a8c4e8;border-right:none;border-radius:7px 0 0 7px;font-size:13px;background:#fff;color:#1558a0">
@@ -9716,6 +9722,8 @@ function renderPartidasMapaContent(overlay){
       </div>
     </div>`;
   const wrapNuevo = overlay.querySelector('#partidas-content-wrap');
+  const horizontalNuevo = overlay.querySelector('#partidas-mapa-horizontal');
+  if(horizontalNuevo) horizontalNuevo.scrollLeft = scrollHorizontalAnterior;
   // A petición de Paula, 2026-08-11: "al mover partidas me devuelve arriba"
   // — el ajuste síncrono de scrollTop (ya hecho justo aquí) no siempre
   // "cuaja" porque el navegador aún no ha terminado de calcular la altura
@@ -9727,7 +9735,10 @@ function renderPartidasMapaContent(overlay){
     wrapNuevo.scrollTop = scrollTopAnterior;
     requestAnimationFrame(()=>{
       wrapNuevo.scrollTop = scrollTopAnterior;
-      requestAnimationFrame(()=>{ wrapNuevo.scrollTop = scrollTopAnterior; });
+      requestAnimationFrame(()=>{
+        wrapNuevo.scrollTop = scrollTopAnterior;
+        if(horizontalNuevo)horizontalNuevo.scrollLeft = scrollHorizontalAnterior;
+      });
     });
   }
 }
@@ -10038,10 +10049,15 @@ function renderPartidasBloqueHTML(bloque){
   const bg = partidasEspecificoModo && enSeleccionEspecifico ? '#c9e9ff' : seleccionada ? '#fff3dc' : fondo.bg;
   const borde = partidasEspecificoModo && enSeleccionEspecifico ? '#1558a0' : seleccionada ? '#c47f00' : fondo.borde;
   const accion = partidasEspecificoModo ? 'togglePartidaEnSeleccionEspecifico' : 'clicPartidaEnMapa';
-  const eventoDrag = partidasEspecificoModo ? '' : `draggable="true" ondragstart="iniciarArrastrePartida('${c.id}')" ondragover="event.preventDefault()" ondrop="event.preventDefault();clicPartidaEnMapa('${c.id}')"`;
+  const eventoDrag = partidasEspecificoModo ? '' : `draggable="true"
+    ondragstart="iniciarArrastrePartida(event,'${c.id}')" ondragover="sobrePartidaArrastrada(event,'${c.id}')"
+    ondragleave="quitarIndicadorDropPartidas()" ondrop="soltarPartidaSobrePartida(event,'${c.id}')"
+    ondragend="terminarArrastrePartida()"
+    ontouchstart="iniciarToquePartida(event,'${c.id}')" ontouchmove="moverToquePartida(event)"
+    ontouchend="finalizarToquePartida(event)" ontouchcancel="cancelarToquePartida()"`;
   return `
-    <div role="button" tabindex="0" title="${escapar(c.partida)||'Partida sin número'}" aria-label="Partida ${escapar(c.partida)||'sin número'}"
-      ${eventoDrag} onclick="${accion}('${c.id}')"
+    <div role="button" tabindex="0" data-partida-id="${escapar(c.id)}" title="${escapar(c.partida)||'Partida sin número'}" aria-label="Partida ${escapar(c.partida)||'sin número'}"
+      ${eventoDrag} onclick="if(Date.now()>partidasSuprimirClickHasta)${accion}('${c.id}')"
       onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();${accion}('${c.id}')}"
       style="min-height:28px;height:100%;display:flex;align-items:center;justify-content:center;padding:3px 5px;background:${bg};border:1.5px solid ${borde};border-radius:5px;cursor:pointer;overflow:hidden">
       <span style="display:block;max-width:100%;font-size:11px;font-weight:800;color:#16436c;line-height:1.2;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapar(c.partida)||'—'}</span>
@@ -10258,8 +10274,153 @@ async function borrarEspecificoPartidaBanner(partidaId, idx){
   if(document.getElementById('partidas-historial-overlay')?.style.display==='flex') await mostrarHistorialPartida(partidaId);
   showToast('✓ Eliminado');
 }
-function iniciarArrastrePartida(id){
-  partidaSeleccionadaParaMover = id;
+// Insertar por drag & drop sin intercambiar el destino ni perder sus datos.
+let partidasDragId=null, partidasIndicadorDrop=null, partidasSuprimirClickHasta=0;
+let partidasTouch=null, partidasTouchTimer=null;
+function quitarIndicadorDropPartidas(){
+  if(partidasIndicadorDrop)partidasIndicadorDrop.style.boxShadow='';
+  partidasIndicadorDrop=null;
+}
+function destinoInsercionPartidas(event,id){
+  const c=controlChecksData.find(x=>x.id===id);
+  const b=c && calcularBloquesPartidasInv(c.invId).find(x=>x.entry.id===id);
+  const el=event.currentTarget, rect=el.getBoundingClientRect();
+  const abajo=!!(b && INV_LAYOUT[c.invId]?.row2.some(x=>b.calles.includes(x)));
+  const arribaVisual=event.clientY<rect.top+rect.height/2;
+  const lado=abajo?(arribaVisual?'despues':'antes'):(arribaVisual?'antes':'despues');
+  const ordenCalles=(abajo?INV_LAYOUT[c.invId].row2:INV_LAYOUT[c.invId]?.row1)||[];
+  const calles=b?b.calles.slice().sort((a,z)=>ordenCalles.indexOf(a)-ordenCalles.indexOf(z)):[];
+  const fr=rect.width?Math.max(0,Math.min(.999,(event.clientX-rect.left)/rect.width)):0;
+  return {lado,calle:calles[Math.floor(fr*calles.length)]??c?.calleDesde,arribaVisual};
+}
+function iniciarArrastrePartida(event,id){
+  if(partidasEspecificoModo){event.preventDefault();return;}
+  partidasDragId=id;partidaSeleccionadaParaMover=id;
+  if(event.dataTransfer){event.dataTransfer.effectAllowed='move';event.dataTransfer.setData('text/plain',id);}
+}
+function sobrePartidaArrastrada(event,id){
+  if(partidasEspecificoModo||!partidasDragId||partidasDragId===id)return;
+  event.preventDefault();
+  if(event.dataTransfer)event.dataTransfer.dropEffect='move';
+  const d=destinoInsercionPartidas(event,id);
+  quitarIndicadorDropPartidas();
+  partidasIndicadorDrop=event.currentTarget;
+  partidasIndicadorDrop.style.boxShadow=d.arribaVisual?'inset 0 4px #1558a0':'inset 0 -4px #1558a0';
+}
+function terminarArrastrePartida(){
+  quitarIndicadorDropPartidas();
+  partidasDragId=null;partidaSeleccionadaParaMover=null;
+}
+function soltarPartidaSobrePartida(event,id){
+  event.preventDefault();event.stopPropagation();
+  const origen=partidasDragId||event.dataTransfer?.getData('text/plain');
+  const d=destinoInsercionPartidas(event,id);
+  partidasSuprimirClickHasta=Date.now()+600;
+  terminarArrastrePartida();
+  if(origen&&origen!==id)aplicarInsercionPartidaMapa(origen,id,d.lado,d.calle);
+}
+// En móvil: pulsación larga para arrastrar; los gestos de scroll siguen funcionando.
+function iniciarToquePartida(event,id){
+  if(partidasEspecificoModo||event.touches.length!==1)return;
+  cancelarToquePartida();
+  const t=event.touches[0],el=event.currentTarget;
+  partidasTouch={id,x:t.clientX,y:t.clientY,activo:false,el};
+  partidasTouchTimer=setTimeout(()=>{
+    if(partidasTouch?.id!==id)return;
+    partidasTouch.activo=true;partidasDragId=id;partidaSeleccionadaParaMover=id;
+    el.style.opacity='.6';
+  },350);
+}
+function moverToquePartida(event){
+  const s=partidasTouch,t=event.touches[0];
+  if(!s||!t)return;
+  if(!s.activo){
+    if(Math.hypot(t.clientX-s.x,t.clientY-s.y)>9)cancelarToquePartida();
+    return;
+  }
+  event.preventDefault();
+  const el=document.elementFromPoint(t.clientX,t.clientY)?.closest('[data-partida-id]');
+  quitarIndicadorDropPartidas();
+  if(el&&el.dataset.partidaId!==s.id){
+    const d=destinoInsercionPartidas({clientX:t.clientX,clientY:t.clientY,currentTarget:el},el.dataset.partidaId);
+    partidasIndicadorDrop=el;
+    el.style.boxShadow=d.arribaVisual?'inset 0 4px #1558a0':'inset 0 -4px #1558a0';
+  }
+}
+function finalizarToquePartida(event){
+  const s=partidasTouch;
+  if(!s)return;
+  if(!s.activo){cancelarToquePartida();return;}
+  event.preventDefault();event.stopPropagation();
+  const t=event.changedTouches[0];
+  const el=t&&document.elementFromPoint(t.clientX,t.clientY)?.closest('[data-partida-id]');
+  const destino=el?.dataset.partidaId;
+  const d=destino&&destino!==s.id?destinoInsercionPartidas({clientX:t.clientX,clientY:t.clientY,currentTarget:el},destino):null;
+  partidasSuprimirClickHasta=Date.now()+600;
+  const origen=s.id;
+  cancelarToquePartida();
+  if(d)aplicarInsercionPartidaMapa(origen,destino,d.lado,d.calle);
+}
+function cancelarToquePartida(){
+  if(partidasTouchTimer)clearTimeout(partidasTouchTimer);
+  if(partidasTouch?.el)partidasTouch.el.style.opacity='';
+  partidasTouchTimer=null;partidasTouch=null;
+  terminarArrastrePartida();
+}
+// Se conservan ubicación, QC, historial y relaciones; si es multicalle,
+// para cambiar de calle debe separarse expresamente desde la ficha.
+async function aplicarInsercionPartidaMapa(idOrigen,idDestino,lado,calleDestino){
+  const src=controlChecksData.find(x=>x.id===idOrigen),dst=controlChecksData.find(x=>x.id===idDestino);
+  if(!src||!dst||src.id===dst.id||!['antes','despues'].includes(lado))return false;
+  if(!partidaVisibleEnSemana(src,partidasSemanaOffset)||!partidaVisibleEnSemana(dst,partidasSemanaOffset))return false;
+  const calle=Number(calleDestino);
+  if(!Number.isFinite(calle)||!callesDePartidaEntry(dst).includes(calle))return false;
+  const srcCalles=callesDePartidaEntry(src);
+  const comparten=src.invId===dst.invId&&srcCalles.includes(calle);
+  if(!comparten&&srcCalles.length!==1){
+    showToast('Separa primero la partida de varias calles para trasladarla');return false;
+  }
+  if(!comparten&&![...(INV_LAYOUT[dst.invId]?.row1||[]),...(INV_LAYOUT[dst.invId]?.row2||[])].includes(calle))return false;
+  const antes=new Map([[src.id,snapshotUbicacionPartida(src)]]);
+  if(!comparten){
+    src.invId=dst.invId;src.tramos=[{desde:calle,hasta:calle}];
+    src.calleDesde=calle;src.calleHasta=calle;
+  }
+  const orden=controlChecksData.filter(c=>c.tipo==='tunel'&&c.invId===dst.invId&&
+    ((c.tramos&&c.tramos.length)||c.calleDesde!=null)&&partidaVisibleEnSemana(c,partidasSemanaOffset))
+    .sort((a,b)=>sortKeyPartida(a)-sortKeyPartida(b)||String(a.id).localeCompare(String(b.id)))
+    .filter(c=>c.id!==src.id);
+  const index=orden.findIndex(c=>c.id===dst.id);
+  if(index<0)return false;
+  orden.splice(index+(lado==='despues'?1:0),0,src);
+  const i=orden.findIndex(c=>c.id===src.id);
+  const izq=orden[i-1],der=orden[i+1];
+  const kIzq=izq?sortKeyPartida(izq):null,kDer=der?sortKeyPartida(der):null;
+  const nueva=kIzq===null?(kDer===null?1000:kDer-1):kDer===null?kIzq+1:(kIzq+kDer)/2;
+  if(Number.isFinite(nueva)&&(kIzq===null||nueva>kIzq)&&(kDer===null||nueva<kDer)){
+    src.posManual=nueva;
+  }else{
+    // Claves antiguas iguales: reindexación estable del invernadero visible.
+    orden.forEach((c,n)=>{
+      if(!antes.has(c.id))antes.set(c.id,snapshotUbicacionPartida(c));
+      c.posManual=(n+1)*1000;
+    });
+  }
+  const cambios=[];
+  for(const [id,prev] of antes){
+    const c=controlChecksData.find(x=>x.id===id);
+    if(c&&JSON.stringify(prev)!==JSON.stringify(snapshotUbicacionPartida(c)))
+      cambios.push({id,antes:prev,despues:snapshotUbicacionPartida(c)});
+  }
+  if(!cambios.length)return true;
+  registrarMovimientoPartidas(cambios);
+  renderPartidasMapaContent(document.getElementById('partidas-overlay'));
+  showToast('✓ Partida insertada en calle '+calle);
+  const qid=encolarAccionOffline('aplicarInsercionPartidaMapa',[idOrigen,idDestino,lado,calle]);
+  cambios.forEach(c=>marcarControlCheckSucio(c.id));
+  const ok=await persistControlChecksData();
+  if(ok)desencolarAccion(qid);else avisarGuardadoLocalPendiente(leerColaOffline().length);
+  return ok;
 }
 function separarPartidaEnCalles(id){
   const c = controlChecksData.find(x=>x.id===id);
@@ -10369,7 +10530,7 @@ function renderPartidasInvHTML(invId){
         </button>
       </div>
       ${partidasEspecificoModo ? `<div style="margin-bottom:8px;font-size:12px;font-weight:700;color:#1a5c2e;background:#eafaf0;border:1px solid #a5d6c2;border-radius:8px;padding:8px 12px">Toca las partidas a las que quieras aplicar el específico.</div>` : ''}
-      <div style="overflow-x:auto;border:1px solid var(--border);border-radius:10px;background:#fff;padding:8px">
+      <div id="partidas-mapa-horizontal" style="overflow-x:auto;border:1px solid var(--border);border-radius:10px;background:#fff;padding:8px">
         ${hdrHTML(layout.row1)}
         <div style="min-width:${layout.row1.length*CW}px">${buildSection(layout.row1, true)}</div>
         <div style="text-align:center;font-size:10px;font-weight:800;color:#fff;background:#4a5568;padding:4px;border-radius:4px;margin:6px 0;letter-spacing:.05em">PASILLO</div>
