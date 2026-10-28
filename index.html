@@ -10598,6 +10598,9 @@ function editarEspecificoPartidaBanner(partidaId, idx){
   const registros = especificosPartidaData[partidaId];
   if(!registros || !registros[idx]) return;
   const e = registros[idx];
+  if(!e.registroId){
+    showToast('Registro histórico: para editarlo sin perder otros tratamientos utiliza Específicos.');return;
+  }
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const overlay = getOrCreateOverlay('especifico-banner-editar-overlay');
   overlay.style.zIndex = 2300;
@@ -10636,50 +10639,56 @@ function editarEspecificoPartidaBanner(partidaId, idx){
         <button onclick="borrarEspecificoPartidaBanner('${partidaId}',${idx})" style="padding:9px 14px;font-size:12px;font-weight:800;background:#fdecea;color:#c62828;border:1px solid #f0b0b0;border-radius:7px;cursor:pointer">🗑️ Eliminar</button>
         <div style="display:flex;gap:8px">
           <button onclick="document.getElementById('especifico-banner-editar-overlay').style.display='none'" style="padding:9px 16px;font-size:12px;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:7px;cursor:pointer">Cancelar</button>
-          <button onclick="guardarEspecificoPartidaBanner('${partidaId}',${idx})" style="padding:9px 18px;font-size:12px;font-weight:800;background:#2e7d32;color:#fff;border:none;border-radius:7px;cursor:pointer">Guardar</button>
+          <button onclick="guardarEspecificoPartidaBanner('${partidaId}',${idx})" style="padding:9px 18px;font-size:12px;font-weight:800;background:#1558a0;color:#fff;border:none;border-radius:7px;cursor:pointer">Guardar</button>
         </div>
       </div>
     </div>`;
   overlay.style.display = 'flex';
 }
-async function guardarEspecificoPartidaBanner(partidaId, idx){
-  const registros = especificosPartidaData[partidaId];
-  if(!registros || !registros[idx]) return;
-  const dia = parseInt(document.getElementById('eeb-dia').value, 10);
-  registros[idx].trat = document.getElementById('eeb-trat').value;
-  registros[idx].dosis = document.getElementById('eeb-dosis').value;
-  registros[idx].horario = document.getElementById('eeb-horario').value;
-  registros[idx].fechaLabel = riegoDiaLabelCorto(dia);
-  registros[idx].fechaISO = fechaLocalISO(riegoDiaToDate(dia));
-  marcarEspecificosPartidaDirty(partidaId);
-  if(!(await saveEspecificosPartidaData())) return;
-  document.getElementById('especifico-banner-editar-overlay').style.display = 'none';
-  renderPartidasMapaContent(document.getElementById('partidas-overlay'));
-  if(document.getElementById('partidas-historial-overlay')?.style.display==='flex') await mostrarHistorialPartida(partidaId);
-  showToast('✓ Específico actualizado');
-}
-async function borrarEspecificoPartidaBanner(partidaId, idx){
-  if(!confirm('¿Eliminar este específico de la partida? También se borrará de la cuadrícula.')) return;
-  const registros = especificosPartidaData[partidaId];
-  const registro = registros?.[idx];
-  registros.splice(idx,1);
-  marcarEspecificosPartidaDirty(partidaId);
-  if(!(await saveEspecificosPartidaData())) return;
-  // A petición de Paula (2026-08-18): "se debe de poder borrar tanto de ahí
-  // como de la cuadrícula" — antes solo se quitaba el banner, la celda
-  // seguía marcada en Específicos. Solo se puede vaciar la celda si el
-  // registro guarda invId/dia/calles (los aplicados desde el mapa a partir
-  // de este cambio); los banners antiguos, sin esos datos, solo quitan el
-  // banner como hasta ahora.
-  if(registro && registro.invId && registro.dia!=null && registro.calles?.length){
-    registro.calles.forEach(c=>setEspecifico(registro.invId, registro.dia, c, ''));
-    await guardarBorradoEspecifico([{invId:registro.invId, dia:registro.dia, calles:registro.calles}]);
-    if(especificosInvSel===registro.invId) renderEspecificosGrid(registro.invId);
+async function guardarEspecificoPartidaBanner(partidaId,idx){
+  const original=especificosPartidaData[partidaId]?.[idx];
+  if(!original)return;
+  if(!original.registroId){
+    showToast('Histórico sin vínculo único: edítalo desde Específicos. No se modificó la ficha.');
+    return;
   }
-  document.getElementById('especifico-banner-editar-overlay').style.display = 'none';
-  renderPartidasMapaContent(document.getElementById('partidas-overlay'));
-  if(document.getElementById('partidas-historial-overlay')?.style.display==='flex') await mostrarHistorialPartida(partidaId);
-  showToast('✓ Eliminado');
+  const dia=Number(document.getElementById('eeb-dia')?.value);
+  const trat=document.getElementById('eeb-trat')?.value||'';
+  const dosis=document.getElementById('eeb-dosis')?.value||'';
+  const horario=document.getElementById('eeb-horario')?.value||'';
+  if(!Number.isInteger(dia)||!ESPECIFICO_TRATAMIENTOS.includes(trat)||
+    !ESPECIFICO_DOSIS.includes(dosis)){showToast('Selecciona día, tratamiento y dosis.');return;}
+  const nuevo={...original,partidaId,trat,dosis,horario,dia,
+    fechaLabel:riegoDiaLabelCorto(dia),fechaISO:fechaLocalISO(riegoDiaToDate(dia))};
+  try{
+    if(!(await guardarCambiosEspecificosDesdePartidas([{antes:{...original,partidaId},despues:nuevo}])))
+      throw new Error('Guardado incompleto. Revisa la conexión y vuelve a guardar.');
+    document.getElementById('especifico-banner-editar-overlay').style.display='none';
+    renderPartidasMapaContent(document.getElementById('partidas-overlay'));
+    if(document.getElementById('partidas-historial-overlay')?.style.display==='flex')
+      await mostrarHistorialPartida(partidaId);
+    if(especificosInvSel===nuevo.invId)renderEspecificosGrid(nuevo.invId);
+    showToast('✓ Ficha, cuadrícula y tarea actualizadas');
+  }catch(e){showToast('No actualizado: '+e.message);}
+}
+async function borrarEspecificoPartidaBanner(partidaId,idx){
+  const original=especificosPartidaData[partidaId]?.[idx];
+  if(!original)return;
+  if(!original.registroId){
+    showToast('Histórico sin vínculo único: no puede borrarse con seguridad desde la ficha.');
+    return;
+  }
+  if(!confirm('¿Eliminar este específico y anular su tarea pendiente?'))return;
+  try{
+    if(!(await guardarCambiosEspecificosDesdePartidas([{antes:{...original,partidaId},despues:null}])))
+      throw new Error('Guardado incompleto. Verifica la tarea antes de reintentar.');
+    document.getElementById('especifico-banner-editar-overlay').style.display='none';
+    renderPartidasMapaContent(document.getElementById('partidas-overlay'));
+    if(document.getElementById('partidas-historial-overlay')?.style.display==='flex')
+      await mostrarHistorialPartida(partidaId);
+    if(especificosInvSel===original.invId)renderEspecificosGrid(original.invId);
+    showToast('✓ Eliminado sin borrar otros tratamientos; tarea anulada');
+  }catch(e){showToast('No eliminado: '+e.message);}
 }
 // Insertar por drag & drop sin intercambiar el destino ni perder sus datos.
 let partidasDragId=null, partidasIndicadorDrop=null, partidasSuprimirClickHasta=0;
