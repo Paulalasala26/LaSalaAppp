@@ -10382,7 +10382,7 @@ function buscarDestinoTactilPartidas(x,y,origenId){
   const encima=document.elementFromPoint(x,y);
   if(encima?.closest('#partidas-mapa-horizontal')===null)return null;
   if(encima?.textContent?.trim()==='PASILLO')return null;
-  const offsets=[0,-4,4,-8,8,-12,12,-18,18,-24,24];
+  const offsets=[0,-4,4,-8,8,-12,12,-18,18,-24,24,-28,28];
   let mejor=null;
   for(const dy of offsets){
     const el=document.elementFromPoint(x,y+dy)?.closest('[data-partida-id]');
