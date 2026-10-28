@@ -34,6 +34,10 @@
   --shadow-md:0 8px 24px rgba(20,40,25,.12);
 }
 *{box-sizing:border-box;margin:0;padding:0}
+/* Grid de Partidas 1A: ocultar SOLO el indicador de scroll vertical interno,
+   para que no recorte la última calle ni introduzca otro ancho horizontal. */
+#partidas-1a-superior-scroll{scrollbar-width:none;-ms-overflow-style:none}
+#partidas-1a-superior-scroll::-webkit-scrollbar{width:0;height:0;display:none}
 body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
 .topbar{background:linear-gradient(120deg,#2b6fae,#3c80c2 55%,#5b9bd5);color:#fff;padding:0 1.5rem;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:200;box-shadow:0 2px 12px rgba(20,40,25,.18)}
 .topbar-brand{display:flex;align-items:center;color:#fff;font-size:21px;font-weight:800;letter-spacing:.02em;line-height:1.1;white-space:nowrap}
@@ -11031,6 +11035,11 @@ function renderPartidasInvHTML(invId){
   if(!layout) return '';
   const bloques = calcularBloquesPartidasInv(invId);
   const CW=82, ROW_H=32, HDR_H=22;
+  // Una única anchura de dibujo para cabeceras, PASILLO y ambas bandas.
+  // El scroll horizontal pertenece solo a #partidas-mapa-horizontal;
+  // cada celda existe desde el primer render, incluso fuera del viewport.
+  const anchoMapa=Math.max(layout.row1.length,layout.row2.length)*CW;
+  const anchoBanda=calles=>calles.length*CW;
   function buildSection(calles,alinearArriba){
     if(!calles.length)return '';
     const set=new Set(calles);
@@ -11074,12 +11083,12 @@ function renderPartidasInvHTML(invId){
           ci++;
         }
       }
-      filas.push(`<div style="display:flex;height:${ROW_H}px;min-height:${ROW_H}px">${celdas.join('')}</div>`);
+      filas.push(`<div style="display:flex;width:${anchoBanda(calles)}px;min-width:${anchoBanda(calles)}px;height:${ROW_H}px;min-height:${ROW_H}px">${celdas.join('')}</div>`);
     }
     return filas.join('');
   }
-  const hdrHTML = (calles) => `<div style="display:flex;position:sticky;top:0;z-index:5;background:#dce8f5">
-    ${calles.map(c=>`<div style="width:${CW}px;flex-shrink:0;height:${HDR_H}px;border:1px solid #9ab8d8;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#1558a0">${c}</div>`).join('')}
+  const hdrHTML = (calles) => `<div style="display:flex;width:${anchoMapa}px;min-width:${anchoMapa}px;height:${HDR_H}px;background:#dce8f5">
+    ${calles.map(c=>`<div style="width:${CW}px;flex:0 0 ${CW}px;height:${HDR_H}px;border:1px solid #9ab8d8;background:#dce8f5;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#1558a0">${c}</div>`).join('')}
   </div>`;
   return `
     <div style="margin-bottom:2rem">
@@ -11090,19 +11099,21 @@ function renderPartidasInvHTML(invId){
         </button>
       </div>
       ${partidasEspecificoModo ? `<div style="margin-bottom:8px;font-size:12px;font-weight:700;color:#1a5c2e;background:#eafaf0;border:1px solid #a5d6c2;border-radius:8px;padding:8px 12px">Toca las partidas a las que quieras aplicar el específico.</div>` : ''}
-      <div id="partidas-mapa-horizontal" style="overflow-x:auto;border:1px solid var(--border);border-radius:10px;background:#fff;padding:8px">
+      <div id="partidas-mapa-horizontal" style="width:100%;max-width:100%;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;border:1px solid var(--border);border-radius:10px;background:#fff;padding:8px">
+        <div id="partidas-grid-ancho-completo" style="width:${anchoMapa}px;min-width:${anchoMapa}px;background:#fff">
         ${hdrHTML(layout.row1)}
         ${invId==='1A'? `
           <div id="partidas-1a-superior-scroll" aria-label="Filas superiores del invernadero 1A"
-            style="width:${layout.row1.length*CW}px;min-width:${layout.row1.length*CW}px;box-sizing:border-box;
+            style="width:${anchoBanda(layout.row1)}px;min-width:${anchoBanda(layout.row1)}px;
               height:${5*ROW_H}px;max-height:${5*ROW_H}px;overflow-y:auto;overflow-x:hidden;
-              overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch;scrollbar-width:thin">
-            <div style="width:${layout.row1.length*CW}px;min-width:${layout.row1.length*CW}px">${buildSection(layout.row1, true)}</div>
+              overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch">
+            <div style="width:${anchoBanda(layout.row1)}px;min-width:${anchoBanda(layout.row1)}px">${buildSection(layout.row1, true)}</div>
           </div>`:
-          `<div style="min-width:${layout.row1.length*CW}px">${buildSection(layout.row1, true)}</div>`}
-        <div style="text-align:center;font-size:10px;font-weight:800;color:#fff;background:#4a5568;padding:4px;border-radius:4px;margin:6px 0;letter-spacing:.05em">PASILLO</div>
-        <div style="min-width:${layout.row2.length*CW}px">${buildSection(layout.row2, false)}</div>
+          `<div style="width:${anchoBanda(layout.row1)}px;min-width:${anchoBanda(layout.row1)}px">${buildSection(layout.row1, true)}</div>`}
+        <div style="width:${anchoMapa}px;min-width:${anchoMapa}px;text-align:center;font-size:10px;font-weight:800;color:#fff;background:#4a5568;padding:4px;border-radius:4px;margin:6px 0;letter-spacing:.05em">PASILLO</div>
+        <div style="width:${anchoBanda(layout.row2)}px;min-width:${anchoBanda(layout.row2)}px">${buildSection(layout.row2, false)}</div>
         ${hdrHTML(layout.row2)}
+        </div>
       </div>
     </div>
     ${partidasEspecificoModo && partidasEspecificoSeleccion.size>0 ? `
