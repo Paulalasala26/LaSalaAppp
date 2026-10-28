@@ -9727,6 +9727,9 @@ function renderPartidasMapaContent(overlay){
   const partidasEnQuincena = partidasInvSel ? new Set([0,1].flatMap(n=>
     calcularBloquesPartidasInvBase(partidasInvSel, primeraSemana+n).map(b=>b.entry.id))).size : 0;
   const scrollHorizontalAnterior = overlay.querySelector('#partidas-mapa-horizontal')?.scrollLeft || 0;
+  // INV 1A: mantener el tramo superior desplazable cuando existen
+  // posiciones guardadas más allá de las cinco filas visibles.
+  const scrollSuperior1AAnterior=overlay.querySelector('#partidas-1a-superior-scroll')?.scrollTop||0;
   overlay.innerHTML = `
     <div style="background:#f5f7fb;width:100%;height:100%;min-height:0;max-width:100%;overflow:hidden;display:flex;flex-direction:column">
       <div style="background:linear-gradient(120deg,#2b6fae 0%,#3c80c2 55%,#5b9bd5 100%);color:#fff;padding:.45rem .75rem;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;gap:8px">
@@ -9770,6 +9773,8 @@ function renderPartidasMapaContent(overlay){
   const wrapNuevo = overlay.querySelector('#partidas-content-wrap');
   const horizontalNuevo = overlay.querySelector('#partidas-mapa-horizontal');
   if(horizontalNuevo) horizontalNuevo.scrollLeft = scrollHorizontalAnterior;
+  const scrollSuperior1ANuevo=overlay.querySelector('#partidas-1a-superior-scroll');
+  if(scrollSuperior1ANuevo)scrollSuperior1ANuevo.scrollTop=scrollSuperior1AAnterior;
   // A petición de Paula, 2026-08-11: "al mover partidas me devuelve arriba"
   // — el ajuste síncrono de scrollTop (ya hecho justo aquí) no siempre
   // "cuaja" porque el navegador aún no ha terminado de calcular la altura
@@ -9784,6 +9789,7 @@ function renderPartidasMapaContent(overlay){
       requestAnimationFrame(()=>{
         wrapNuevo.scrollTop = scrollTopAnterior;
         if(horizontalNuevo)horizontalNuevo.scrollLeft = scrollHorizontalAnterior;
+        if(scrollSuperior1ANuevo)scrollSuperior1ANuevo.scrollTop=scrollSuperior1AAnterior;
       });
     });
   }
@@ -10723,6 +10729,22 @@ function desplazamientoAutomaticoPartidas(){
   const s=partidasPunteroActivo;
   if(!s || !s.arrastrando)return;
   let scrollMovido=false;
+  // El INV 1A muestra solo cinco filas superiores a la vez; en el arrastre
+  // permitir desplazarse a otras filas sin abrir una altura extra de grid.
+  const banda1A=document.getElementById('partidas-1a-superior-scroll');
+  if(banda1A){
+    const r=banda1A.getBoundingClientRect();
+    if(s.x>=r.left&&s.x<=r.right&&s.y>=r.top-18&&s.y<=r.bottom+18){
+      const margen=36;
+      const delta=s.y<r.top+margen?-Math.ceil((r.top+margen-s.y)/4):
+        s.y>r.bottom-margen?Math.ceil((s.y-(r.bottom-margen))/4):0;
+      if(delta){
+        const anterior=banda1A.scrollTop;
+        banda1A.scrollTop+=Math.max(-15,Math.min(15,delta));
+        scrollMovido=scrollMovido||banda1A.scrollTop!==anterior;
+      }
+    }
+  }
   const zona=document.getElementById('partidas-content-wrap');
   if(zona){
     const r=zona.getBoundingClientRect();
@@ -11070,7 +11092,12 @@ function renderPartidasInvHTML(invId){
       ${partidasEspecificoModo ? `<div style="margin-bottom:8px;font-size:12px;font-weight:700;color:#1a5c2e;background:#eafaf0;border:1px solid #a5d6c2;border-radius:8px;padding:8px 12px">Toca las partidas a las que quieras aplicar el específico.</div>` : ''}
       <div id="partidas-mapa-horizontal" style="overflow-x:auto;border:1px solid var(--border);border-radius:10px;background:#fff;padding:8px">
         ${hdrHTML(layout.row1)}
-        <div style="min-width:${layout.row1.length*CW}px">${buildSection(layout.row1, true)}</div>
+        ${invId==='1A'? `
+          <div id="partidas-1a-superior-scroll" aria-label="Filas superiores del invernadero 1A"
+            style="height:${5*ROW_H}px;max-height:${5*ROW_H}px;overflow-y:auto;overflow-x:hidden;overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch;scrollbar-width:thin">
+            <div style="min-width:${layout.row1.length*CW}px">${buildSection(layout.row1, true)}</div>
+          </div>`:
+          `<div style="min-width:${layout.row1.length*CW}px">${buildSection(layout.row1, true)}</div>`}
         <div style="text-align:center;font-size:10px;font-weight:800;color:#fff;background:#4a5568;padding:4px;border-radius:4px;margin:6px 0;letter-spacing:.05em">PASILLO</div>
         <div style="min-width:${layout.row2.length*CW}px">${buildSection(layout.row2, false)}</div>
         ${hdrHTML(layout.row2)}
