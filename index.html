@@ -11094,8 +11094,10 @@ function renderPartidasInvHTML(invId){
         ${hdrHTML(layout.row1)}
         ${invId==='1A'? `
           <div id="partidas-1a-superior-scroll" aria-label="Filas superiores del invernadero 1A"
-            style="height:${5*ROW_H}px;max-height:${5*ROW_H}px;overflow-y:auto;overflow-x:hidden;overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch;scrollbar-width:thin">
-            <div style="min-width:${layout.row1.length*CW}px">${buildSection(layout.row1, true)}</div>
+            style="width:${layout.row1.length*CW}px;min-width:${layout.row1.length*CW}px;box-sizing:border-box;
+              height:${5*ROW_H}px;max-height:${5*ROW_H}px;overflow-y:auto;overflow-x:hidden;
+              overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch;scrollbar-width:thin">
+            <div style="width:${layout.row1.length*CW}px;min-width:${layout.row1.length*CW}px">${buildSection(layout.row1, true)}</div>
           </div>`:
           `<div style="min-width:${layout.row1.length*CW}px">${buildSection(layout.row1, true)}</div>`}
         <div style="text-align:center;font-size:10px;font-weight:800;color:#fff;background:#4a5568;padding:4px;border-radius:4px;margin:6px 0;letter-spacing:.05em">PASILLO</div>
