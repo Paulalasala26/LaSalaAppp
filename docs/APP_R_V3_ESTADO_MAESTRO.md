@@ -1614,6 +1614,16 @@ El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en int
 
 **Pendiente:** comprobación humana visual y funcional de fecha/selección, anterior/siguiente quincena, elección INV, etiqueta «Cambiar» y visualización mapa semana 1/2. No declarar validación humana antes de respuesta.
 
+## 0.131. Partidas — compactación de Ocupación, sin banda semanal ni acciones globales (28/10/2026) — IMPLEMENTADO EN TEST, UAT PENDIENTE
+
+**Solicitud:** usuario aporta captura y pide eliminar la banda redundante «Semana del mapa» (dos semanas), mantener la navegación temporal de quincenas ya colocada arriba, renombrar «Mapa de ocupación» a solo «Ocupación», mantener el buscador, eliminar la fila completa de botones Sincronizar/Deshacer/Rehacer/Recuperar y compactar la pantalla antes de continuar con otros cambios.
+
+**Cambio de código:** `index.html` commit `1e810b27d19608980f92079698e2dfdf60b5c541` en `test/v1.0`. La segunda pantalla queda: cabecera con X → navegación superior por quincenas → «Sala N · INV. X» + Cambiar → una franja discreta «Ocupación» con buscador por número de partida → mapa. Eliminados del render `partidasSemanaDentroQuincenaHTML()`, `sincronizarPartidasBtnHTML()`, `deshacerMovimientoPartida()`, `rehacerMovimientoPartida()` y `recuperarPartidaPorId()`; las funciones históricas y operaciones de datos permanecen definidas, sin borrar datos ni alterar persistencia. El aviso de vacío se reduce a «No se muestran partidas en la vista actual.» y ya no recomienda tocar el selector semanal eliminado.
+
+**Límite funcional deliberado:** se conserva íntegro el cómputo semanal `partidasSemanaOffset` y `partidaVisibleEnSemana` (incluidas entradas/salidas), así como las flechas superiores de quincena. **No se ha agregado ni fusionado artificialmente el contenido de dos semanas distintas** al retirar la barra secundaria. En caso de futura petición explícita de ocupación real por quincena, definir semántica temporal antes de tocar datos.
+
+**Validación técnica:** cinco scripts inline parseados correctamente. Render simulado con INV seleccionado comprueba la quincena superior, «Ocupación» y buscador, la presencia de mapa, la ausencia de selector «Semana del mapa» y cuatro botones globales, 10 divs equilibrados y orden visual correcto. Validación humana en TEST pendiente. `main`, PRD, Firebase, QC, módulos ajenos y datos intactos.
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).
