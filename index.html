@@ -9665,6 +9665,8 @@ async function showPartidasModule(){
   // Mantener carga Túnel + Carga para el mapa y el historial.
   const controlOk = await loadControlCompletoV2(false);
   if(!controlOk){ avisarFalloCarga(); return; }
+  // Reintentar solo tareas ya confirmadas en cuadrícula y ficha.
+  if(leerColaTareasEspPartidas().length) sincronizarColaTareasEspPartidas();
   const overlay = getOrCreateOverlay('partidas-overlay');
   overlay.style.padding = '0';
   overlay.style.alignItems = 'stretch';
@@ -10536,6 +10538,41 @@ async function sincronizarTareasDesdePartidas(cambios){
   refreshTareasViews();
   return true;
 }
+// La cuadrícula, los banners y Tareas son nodos Firebase separados.
+// Si la última escritura falla, conservar una conciliación local durable
+// para no dejar permanentemente una tarea sin actualizar.
+const ESP_PARTIDAS_COLA_TAREAS='viguerapp-test-esp-partidas-tareas-pendientes-v1';
+let espPartidasColaConciliando=false;
+function leerColaTareasEspPartidas(){
+  try{
+    const x=JSON.parse(localStorage.getItem(ESP_PARTIDAS_COLA_TAREAS)||'[]');
+    return Array.isArray(x)?x.filter(c=>c&&(c.despues||c.antes)): [];
+  }catch(_){return [];}
+}
+function escribirColaTareasEspPartidas(cola){
+  try{localStorage.setItem(ESP_PARTIDAS_COLA_TAREAS,JSON.stringify(cola));return true;}
+  catch(_){showToast('No se puede guardar la cola de tareas de específicos en este dispositivo.');return false;}
+}
+function encolarTareasEspPartidas(cambios){
+  const mapa=new Map(leerColaTareasEspPartidas().map(c=>[(c.despues||c.antes).registroId,c]));
+  cambios.forEach(c=>mapa.set((c.despues||c.antes).registroId,c));
+  return escribirColaTareasEspPartidas([...mapa.values()]);
+}
+async function sincronizarColaTareasEspPartidas(){
+  if(espPartidasColaConciliando)return false;
+  const cola=leerColaTareasEspPartidas();
+  if(!cola.length)return true;
+  espPartidasColaConciliando=true;
+  try{
+    const ok=await sincronizarTareasDesdePartidas(cola);
+    if(!ok)return false;
+    const procesadas=new Map(cola.map(c=>[(c.despues||c.antes).registroId,JSON.stringify(c)]));
+    const actuales=leerColaTareasEspPartidas();
+    return escribirColaTareasEspPartidas(actuales.filter(c=>
+      procesadas.get((c.despues||c.antes).registroId)!==JSON.stringify(c)));
+  }catch(e){showToast('Tareas de específicos pendientes de sincronizar: '+e.message);return false;}
+  finally{espPartidasColaConciliando=false;}
+}
 async function guardarCambiosEspecificosDesdePartidas(cambios){
   const invs=[...new Set(cambios.flatMap(c=>[c.antes?.invId,c.despues?.invId]).filter(Boolean))];
   if(!(await loadEspecificosInvsData(invs,false)))return false;
@@ -10557,7 +10594,12 @@ async function guardarCambiosEspecificosDesdePartidas(cambios){
     marcarEspecificosPartidaDirty(r.partidaId);
   }
   if(!(await saveEspecificosPartidaData()))return false;
-  return await sincronizarTareasDesdePartidas(cambios);
+  if(!encolarTareasEspPartidas(cambios))return false;
+  if(!(await sincronizarColaTareasEspPartidas())){
+    showToast('Tratamiento guardado; la tarea está pendiente de sincronizar. No repitas el alta.');
+    return false;
+  }
+  return true;
 }
 async function aplicarEspecificoAPartidasSeleccionadas(){
   const boton=document.getElementById('eap-aplicar');
