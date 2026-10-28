@@ -5699,7 +5699,7 @@ function controlV2ShardKey(tipo,q){
   return `${CONTROL_ITEMS_V2_PREFIX}${tipo}-q${q}`;
 }
 function controlV2ShardDeItem(item){
-  if(!item || (item.tipo!=='tunel' && item.tipo!=='carga')) return null;
+  if(!item || (item.tipo!=='tunel' && item.tipo!=='carga' && item.tipo!=='ubicacion')) return null;
   const q=controlV2QDeDia(item.dia);
   return q==null ? null : controlV2ShardKey(item.tipo,q);
 }
@@ -5756,7 +5756,7 @@ async function loadControlChecksSlice(tipo,q,forzar){
     // No copiar ediciones dirty, ni clientes, fotos, observaciones o contraseñas.
     if(currentUser&&window.QCOfflineOperarios&&navigator.onLine!==false&&
       (currentUserRole==='ADMIN'||currentUserRole==='TECNICO'||
-       (currentUserRole==='CARGADOR'&&tipo==='carga'))){
+       (currentUserRole==='CARGADOR'&&tipo==='carga')) && (tipo==='tunel'||tipo==='carga')){
       const source=Object.values(cloud).filter(t=>t&&t.tipo===tipo&&
         Number.isInteger(t.dia)&&controlV2QDeDia(t.dia)===q);
       void window.QCOfflineOperarios.save(currentUser,currentUserRole,tipo,q,source)
@@ -5791,7 +5791,8 @@ async function loadControlTipoCompleto(tipo,forzar){
 async function loadControlCompletoV2(forzar){
   const tunelOk=await loadControlTipoCompleto('tunel',forzar);
   if(!tunelOk) return false;
-  return await loadControlTipoCompleto('carga',forzar);
+  const ok=await loadControlTipoCompleto('carga',forzar);
+  return ok && await loadControlTipoCompleto('ubicacion',forzar);
 }
 async function loadControlSeccionSlice(tipo,q,forzar){
   const ok=await loadControlChecksSlice(tipo,q,forzar);
@@ -5834,7 +5835,7 @@ async function actualizarControlV2IndexConteos(shardKeys){
       if(!etag || !idx || typeof idx!=='object') return false;
       if(!idx.shards) idx.shards={};
       for(const key of claves){
-        const m=/^lasala-control-items-v2-(tunel|carga)-q(\d+)$/.exec(key);
+        const m=/^lasala-control-items-v2-(tunel|carga|ubicacion)-q(\d+)$/.exec(key);
         if(!m) continue;
         const tipo=m[1], q=parseInt(m[2],10), k=tipo+'|'+q;
         idx.shards[k]={...(idx.shards[k]||{}),key,tipo,q,count:conteos[key]};
@@ -6041,6 +6042,7 @@ const ACCIONES_OFFLINE_REPLAYABLES = {
   eliminarControlCheckConfirmado,
   aplicarAsignarCalleControl,
   aplicarAsignarCalleControlMulti,
+  aplicarEditarUbicacionesPartida,
   aplicarNuevaLineaControlCarga,
   aplicarNuevaLineaControl,
   aplicarEditarControlCargaCheck,
@@ -6111,7 +6113,13 @@ async function procesarColaOffline(){
         // A diferencia de una acción ordinaria, NO duplicamos el cambio en la cola.
         const saved=await fn(accion.args[0],{qcReplayCreatedAt:accion.t});
         if(saved!==true){sinAplicar++;continue;}
-      }else await fn(...accion.args);
+      }else {
+        const saved=await fn(...accion.args);
+        // Si faltara el control original, conservar la acción de ubicación.
+        if(accion.fn==='aplicarEditarUbicacionesPartida' && saved!==true){
+          sinAplicar++;continue;
+        }
+      }
     }catch(e){ lanzoExcepcion = true; sinAplicar++; }
     // La propia fn ya gestiona su reintento (vuelve a encolarse con un qid
     // nuevo si falla) — aquí solo se retira la entrada ORIGINAL de esta
@@ -9079,13 +9087,17 @@ function mostrarAsignarCalleControl(id){
   // calle) — sin esto, si este overlay ya existía en el DOM de antes (uso
   // previo desde Control), quedaría detrás del historial en vez de encima.
   mo.style.zIndex = 2200;
-  acGrupos = (c.tramos && c.tramos.length) ? [{invId:c.invId, tramos:c.tramos.map(t=>({desde:t.desde, hasta:t.hasta}))}]
-    : c.invId ? [{invId:c.invId, tramos:[{desde:c.calleDesde, hasta:c.calleHasta}]}]
-    : [{invId:'', tramos:[]}];
+  const raiz=raizQCPartida(c);
+  if(!raiz||raiz.tipo!=='tunel')return;
+  acGrupos=[raiz,...otrasUbicacionesPartida(raiz.id)].map(x=>({
+    id:x.id,invId:x.invId,
+    tramos:(x.tramos&&x.tramos.length?x.tramos:[{desde:x.calleDesde,hasta:x.calleHasta}])
+      .filter(t=>t.desde!=null).map(t=>({...t}))
+  }));
   mo.innerHTML = `
     <div style="background:#fff;border-radius:14px;max-width:420px;width:100%;padding:1.5rem;box-shadow:0 8px 40px rgba(0,0,0,.3);max-height:88vh;overflow-y:auto">
       <div style="font-size:15px;font-weight:800;margin-bottom:4px">Editar ubicación</div>
-      <div style="font-size:11px;color:var(--muted);margin-bottom:12px">Si la partida está repartida en varios invernaderos, añade uno por cada uno con sus propias calles.</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:12px">Puedes corregir ubicaciones anteriores. No se generan nuevas inspecciones QC.</div>
       <div id="ac-grupos-wrap"></div>
       <button type="button" onclick="agregarGrupoInvAC()" style="width:100%;padding:8px;font-size:11px;font-weight:700;background:#f0f4f8;border:1.5px dashed #1558a0;border-radius:6px;cursor:pointer;color:#1558a0;margin-bottom:14px">+ Añadir invernadero</button>
       <div style="display:flex;justify-content:flex-end;gap:8px">
@@ -9110,7 +9122,7 @@ function renderGruposInvAC(){
     const opts = sel => calles.map(cc=>`<option value="${cc}"${cc===sel?' selected':''}>${cc}</option>`).join('');
     const tramos = g.tramos.length ? g.tramos : [{desde:calles[0], hasta:calles[0]}];
     return `
-    <div class="ac-grupo" data-gi="${gi}" style="border:1.5px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;background:#fafbfa">
+    <div class="ac-grupo" data-gi="${gi}" data-ubic-id="${g.id||''}" style="border:1.5px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;background:#fafbfa">
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
         <select class="ac-grupo-inv" onchange="cambiarInvGrupoAC(${gi}, this.value)" style="flex:1;padding:9px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px">${opcionesInv(g.invId)}</select>
         ${acGrupos.length>1 ? `<button type="button" onclick="quitarGrupoInvAC(${gi})" title="Quitar este invernadero" style="width:32px;height:32px;background:#fdecea;color:#c62828;border:1px solid #f3c2bd;border-radius:6px;cursor:pointer;font-size:13px;flex-shrink:0">✕</button>` : ''}
@@ -9133,6 +9145,7 @@ function renderGruposInvAC(){
 // acGrupos, para no perder lo que el usuario ya haya tocado en pantalla.
 function leerGruposDesdeDOMAC(){
   return Array.from(document.querySelectorAll('.ac-grupo')).map(div=>({
+    id:div.dataset.ubicId||'',
     invId: div.querySelector('.ac-grupo-inv')?.value || '',
     tramos: Array.from(div.querySelectorAll('.ac-tramo-row')).map(row=>({
       desde: parseInt(row.querySelector('.ac-tramo-desde').value, 10),
@@ -9142,18 +9155,19 @@ function leerGruposDesdeDOMAC(){
 }
 function agregarGrupoInvAC(){
   acGrupos = leerGruposDesdeDOMAC();
-  acGrupos.push({invId:'', tramos:[]});
+  acGrupos.push({id:'',invId:'', tramos:[]});
   renderGruposInvAC();
 }
 function quitarGrupoInvAC(gi){
   acGrupos = leerGruposDesdeDOMAC();
+  if(acGrupos[gi]?.id && !confirm('¿Retirar ubicación del mapa? El control QC se conserva.'))return;
   acGrupos.splice(gi,1);
   renderGruposInvAC();
 }
 function cambiarInvGrupoAC(gi, invId){
   acGrupos = leerGruposDesdeDOMAC();
   const calles = invId && INV_LAYOUT[invId] ? [...INV_LAYOUT[invId].row1, ...INV_LAYOUT[invId].row2].sort((a,b)=>a-b) : [];
-  acGrupos[gi] = {invId, tramos: invId ? [{desde:calles[0], hasta:calles[0]}] : []};
+  acGrupos[gi] = {id:acGrupos[gi].id,invId,tramos:invId?[{desde:calles[0],hasta:calles[0]}]:[]};
   renderGruposInvAC();
 }
 function agregarTramoRowAC(gi){
@@ -9168,100 +9182,131 @@ function quitarTramoRowAC(gi, ti){
   acGrupos[gi].tramos.splice(ti,1);
   renderGruposInvAC();
 }
+
+/* Ocupación adicional: vinculada al QC original, no nueva inspección. */
+function raizQCPartida(c){
+  return c?.tipo==='ubicacion'?
+    controlChecksData.find(x=>x.id===c.qcOrigenId&&x.tipo==='tunel')||null:c;
+}
+function otrasUbicacionesPartida(id){
+  return controlChecksData.filter(x=>x.tipo==='ubicacion'&&x.qcOrigenId===id)
+    .sort((a,b)=>(a.ordenUbicacion||0)-(b.ordenUbicacion||0));
+}
+function partidaParaPintar(c){
+  if(c?.tipo!=='ubicacion')return c;
+  const r=raizQCPartida(c);
+  return r?{...r,...c,partida:r.partida,clienteVariedad:r.clienteVariedad,
+    numBandejas:r.numBandejas,dia:r.dia,creadoEn:r.creadoEn}:c;
+}
+function nuevoIdUbicacion(){
+  return 'ubicacion_'+Date.now()+'_'+Math.random().toString(36).slice(2,10);
+}
+function validarUbicaciones(grupos){
+  if(!Array.isArray(grupos)||!grupos.length){showToast('Falta una ubicación');return null;}
+  const inv=new Set(),res=[];
+  for(const g of grupos){
+    const lay=INV_LAYOUT[g.invId];
+    if(!lay||inv.has(g.invId)){showToast('Invernadero inválido o repetido');return null;}
+    inv.add(g.invId);
+    const calles=[...lay.row1,...lay.row2];
+    if(!g.tramos?.length){showToast('Selecciona calles');return null;}
+    const tr=[];
+    for(const t of g.tramos){
+      const a=Number(t.desde),b=Number(t.hasta);
+      if(!Number.isInteger(a)||!Number.isInteger(b)||!calles.includes(a)||!calles.includes(b)){
+        showToast('Calle inválida');return null;
+      }
+      tr.push({desde:Math.min(a,b),hasta:Math.max(a,b)});
+    }
+    res.push({id:g.id||'',invId:g.invId,tramos:tr});
+  }
+  return res;
+}
 async function guardarAsignarCalleControl(id){
-  const c = controlChecksData.find(x=>x.id===id);
-  if(!c) return;
-  const grupos = leerGruposDesdeDOMAC()
-    .filter(g=>g.invId)
-    .map(g=>({ invId:g.invId, tramos: g.tramos.filter(t=>!isNaN(t.desde) && !isNaN(t.hasta)).map(t=>({desde:Math.min(t.desde,t.hasta), hasta:Math.max(t.desde,t.hasta)})) }))
-    .filter(g=>g.tramos.length);
-  if(!grupos.length){ showToast('Elige al menos un invernadero y un tramo'); return; }
-  aplicarAsignarCalleControlMulti(id, grupos);
+  const r=raizQCPartida(controlChecksData.find(x=>x.id===id));
+  if(!r||r.tipo!=='tunel')return false;
+  const g=validarUbicaciones(leerGruposDesdeDOMAC());
+  if(!g)return false;
+  const actuales=otrasUbicacionesPartida(r.id);
+  g.slice(1).forEach(x=>{if(!actuales.some(e=>e.id===x.id))x.id=nuevoIdUbicacion();});
+  return aplicarEditarUbicacionesPartida(r.id,g,
+    'edicion_'+Date.now()+'_'+Math.random().toString(36).slice(2,8));
 }
-// El cierre de modal/aviso/repintado se hacen aquí, ANTES de esperar la red, para
-// que se vean al instante aunque no haya conexión — el guardado real sigue en
-// segundo plano y se encola si falla (mismo motivo que aplicarSanidadEnfermedad).
-async function aplicarAsignarCalleControl(id, invId, tramos){
-  const c = controlChecksData.find(x=>x.id===id);
-  if(!c) return;
-  c.invId = invId; c.tramos = tramos;
-  c.calleDesde = tramos[0].desde; c.calleHasta = tramos[0].hasta; // alias de compatibilidad
-  document.getElementById('control-calle-overlay').style.display = 'none';
-  showToast('✓ Calle asignada');
-  renderControlContent(document.getElementById('control-overlay'));
-  // Si se editó la calle desde el historial de la partida (Partidas →
-  // Buscar partida → Editar calle), ese modal se queda abierto DEBAJO del
-  // de asignar calle — hay que refrescarlo para que muestre la calle nueva
-  // en vez de la vieja.
-  if(document.getElementById('partidas-historial-overlay')?.style.display==='flex') mostrarHistorialPartida(id);
-  // Bug real corregido (2026-08-27): "añado un tramo... no aparecen en el
-  // mapa" — el mapa de Partidas (debajo del historial) nunca se repintaba
-  // tras editar la calle desde aquí, así que se quedaba mostrando la
-  // versión de ANTES de la edición hasta que se hiciera otra acción que sí
-  // repintara. Ahora, si el mapa de Partidas está abierto, se navega al
-  // invernadero (y sala) donde se acaba de colocar la partida y se
-  // repinta, para verla ahí de inmediato.
-  if(document.getElementById('partidas-overlay')?.style.display==='flex'){
-    partidasSalaSel = salaDeInv(invId);
-    partidasInvSel = invId;
-    // También hay que saltar a la semana en la que la partida es visible de
-    // verdad (la de su entrada a Túnel) — si se estaba viendo otra semana
-    // distinta, partidaVisibleEnSemana la seguiría escondiendo aunque el
-    // invernadero ya fuera el correcto.
-    partidasSemanaOffset = partidasSemanaDeFecha(riegoDiaToDate(c.dia));
-    renderPartidasMapaContent(document.getElementById('partidas-overlay'));
-  }
-  const qid = encolarAccionOffline('aplicarAsignarCalleControl', [id, invId, tramos]);
-  marcarControlCheckSucio(id);
-  const ok = await persistControlChecksData();
-  if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
-  return ok;
+// Compatibilidad: la cola anterior no vuelve a clonar registros Túnel.
+async function aplicarAsignarCalleControl(id,invId,tramos){
+  const raiz=raizQCPartida(controlChecksData.find(x=>x.id===id));
+  if(!raiz)return false;
+  return aplicarEditarUbicacionesPartida(raiz.id,[{id:raiz.id,invId,tramos},
+    ...otrasUbicacionesPartida(raiz.id).map(x=>({id:x.id,invId:x.invId,tramos:x.tramos}))]);
 }
-// Reparte una partida en VARIOS invernaderos a la vez (ver comentario en
-// acGrupos) — el primer grupo actualiza la línea original tal cual
-// (mismo camino que aplicarAsignarCalleControl); cada grupo adicional crea
-// una copia nueva de la partida en su propio invernadero, mismo patrón que
-// ya usa aplicarSepararPartidaEnCalles para repartir en varias calles.
-// Los ids de las copias se generan AQUÍ (no al pulsar Guardar) para que la
-// acción sea idempotente si se reproduce desde la cola offline.
-async function aplicarAsignarCalleControlMulti(id, grupos){
-  const c = controlChecksData.find(x=>x.id===id);
-  if(!c) return;
-  if(grupos.length>1 && bloquearAltaPasadaControlQC(c.dia))return false;
-  if(grupos.length===1){
-    // Caso normal (un solo invernadero) — sin cambios de comportamiento.
-    return aplicarAsignarCalleControl(id, grupos[0].invId, grupos[0].tramos);
+async function aplicarAsignarCalleControlMulti(id,grupos){
+  const r=raizQCPartida(controlChecksData.find(x=>x.id===id));
+  if(!r)return false;
+  return aplicarEditarUbicacionesPartida(r.id,(grupos||[]).map((g,i)=>({...g,
+    id:i===0?r.id:(g.id||'ubicacion_'+r.id.replace(/[^A-Za-z0-9_-]/g,'_')+'_'+i)
+  })));
+}
+async function aplicarEditarUbicacionesPartida(id,grupos,marca){
+  const r=raizQCPartida(controlChecksData.find(x=>x.id===id));
+  if(!r||r.tipo!=='tunel')return false;
+  const g=validarUbicaciones(grupos);
+  if(!g)return false;
+  const anteriores=otrasUbicacionesPartida(r.id);
+  const antes=[r,...anteriores].map(x=>({invId:x.invId,
+    tramos:(x.tramos||[{desde:x.calleDesde,hasta:x.calleHasta}]).map(t=>({...t}))}));
+  const ids=new Set();
+  for(const x of g.slice(1)){
+    if(!x.id||x.id===r.id)x.id=nuevoIdUbicacion();
+    if(ids.has(x.id)||controlChecksData.some(e=>e.id===x.id&&
+       !(e.tipo==='ubicacion'&&e.qcOrigenId===r.id))){
+      showToast('Conflicto de ubicación');return false;
+    }
+    ids.add(x.id);
   }
-  const [primero, ...resto] = grupos;
-  c.invId = primero.invId; c.tramos = primero.tramos;
-  c.calleDesde = primero.tramos[0].desde; c.calleHasta = primero.tramos[0].hasta;
-  const idsNuevos = [];
-  const claveBase = sortKeyPartida(c);
-  resto.forEach((g,i)=>{
-    const nid = 'control_'+Date.now()+'_multi'+i+'_'+Math.random().toString(36).slice(2,8);
-    idsNuevos.push(nid);
-    controlChecksData.push({
-      ...c, id: nid,
-      invId: g.invId, tramos: g.tramos,
-      calleDesde: g.tramos[0].desde, calleHasta: g.tramos[0].hasta,
-      posManual: claveBase + i + 1
-    });
+  r.invId=g[0].invId;r.tramos=g[0].tramos.map(t=>({...t}));
+  r.calleDesde=r.tramos[0].desde;r.calleHasta=r.tramos[0].hasta;
+  const dirty=new Set([r.id]);
+  g.slice(1).forEach((x,i)=>{
+    let a=controlChecksData.find(e=>e.id===x.id&&e.tipo==='ubicacion');
+    if(!a){a={id:x.id,tipo:'ubicacion',qcOrigenId:r.id,
+        creadoEn:new Date().toISOString()};controlChecksData.push(a);}
+    a.invId=x.invId;a.tramos=x.tramos.map(t=>({...t}));
+    a.calleDesde=x.tramos[0].desde;a.calleHasta=x.tramos[0].hasta;
+    a.dia=r.dia;a.partida=r.partida;a.ordenUbicacion=i+1;
+    dirty.add(a.id);
   });
-  document.getElementById('control-calle-overlay').style.display = 'none';
-  showToast(`✓ Calle asignada en ${grupos.length} invernaderos`);
-  renderControlContent(document.getElementById('control-overlay'));
-  if(document.getElementById('partidas-historial-overlay')?.style.display==='flex') mostrarHistorialPartida(id);
+  for(const a of anteriores){
+    if(!ids.has(a.id)){
+      controlChecksData=controlChecksData.filter(x=>x.id!==a.id);
+      dirty.add(a.id);
+    }
+  }
+  const despues=g.map(x=>({invId:x.invId,tramos:x.tramos.map(t=>({...t}))}));
+  if(JSON.stringify(antes)!==JSON.stringify(despues)&&
+     !(marca&&(r.historialUbicaciones||[]).some(h=>h.marca===marca))){
+    r.historialUbicaciones=[...(r.historialUbicaciones||[]),{
+      marca:marca||'ubicacion_'+Date.now(),fecha:new Date().toISOString(),
+      usuario:typeof currentUser==='string'?currentUser:currentUser?.email||currentUser?.nombre||'Usuario',
+      antes,despues
+    }];
+  }
+  const modal=document.getElementById('control-calle-overlay');
+  if(modal)modal.style.display='none';
+  showToast('✓ Ubicaciones guardadas ('+g.length+')');
+  if(document.getElementById('control-overlay')?.style.display==='flex')
+    renderControlContent(document.getElementById('control-overlay'));
   if(document.getElementById('partidas-overlay')?.style.display==='flex'){
-    partidasSalaSel = salaDeInv(primero.invId);
-    partidasInvSel = primero.invId;
-    partidasSemanaOffset = partidasSemanaDeFecha(riegoDiaToDate(c.dia));
+    partidasSalaSel=salaDeInv(g[0].invId);partidasInvSel=g[0].invId;
+    partidasSemanaOffset=partidasSemanaDeFecha(riegoDiaToDate(r.dia));
     renderPartidasMapaContent(document.getElementById('partidas-overlay'));
   }
-  const qid = encolarAccionOffline('aplicarAsignarCalleControlMulti', [id, grupos]);
-  marcarControlCheckSucio(id);
-  idsNuevos.forEach(nid=>marcarControlCheckSucio(nid));
-  const ok = await persistControlChecksData();
-  if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
+  if(document.getElementById('partidas-historial-overlay')?.style.display==='flex')
+    mostrarHistorialPartida(controlChecksData.some(x=>x.id===window.__ultimaFichaPartidaId)?
+      window.__ultimaFichaPartidaId:r.id);
+  const qid=encolarAccionOffline('aplicarEditarUbicacionesPartida',[r.id,g,marca]);
+  dirty.forEach(marcarControlCheckSucio);
+  const ok=await persistControlChecksData();
+  if(ok)desencolarAccion(qid);else avisarGuardadoLocalPendiente(leerColaOffline().length);
   return ok;
 }
 function mostrarEditarControlCheck(id){
@@ -9985,8 +10030,8 @@ function calcularBloquesPartidasInv(invId){
 // cuyo check nunca se borra, seguirían aparejándose).
 function calcularBloquesPartidasInvBase(invId, semanaOffset){
   const entradas = controlChecksData
-    .filter(c=>c.tipo==='tunel' && c.invId===invId && c.invId && ((c.tramos&&c.tramos.length) || c.calleDesde!=null) && (semanaOffset==null || partidaVisibleEnSemana(c, semanaOffset)))
-    .slice()
+    .filter(c=>(c.tipo==='tunel'||(c.tipo==='ubicacion'&&raizQCPartida(c))) && c.invId===invId && c.invId && ((c.tramos&&c.tramos.length)||c.calleDesde!=null) && (semanaOffset==null || partidaVisibleEnSemana(partidaParaPintar(c), semanaOffset)))
+    .map(partidaParaPintar)
     .sort((a,b)=> sortKeyPartida(a) - sortKeyPartida(b));
   const alturaPorCalle = {};
   const bloques = [];
@@ -10523,7 +10568,7 @@ async function aplicarInsercionPartidaMapa(idOrigen,idDestino,lado,calleDestino,
   const src=controlChecksData.find(x=>x.id===idOrigen),dst=controlChecksData.find(x=>x.id===idDestino);
   if(!src||!dst||src.id===dst.id||!['antes','despues'].includes(lado))return false;
   const semana=Number.isInteger(semanaGuardada)?semanaGuardada:partidasSemanaOffset;
-  if(!partidaVisibleEnSemana(src,semana)||!partidaVisibleEnSemana(dst,semana))return false;
+  if(!partidaVisibleEnSemana(partidaParaPintar(src),semana)||!partidaVisibleEnSemana(partidaParaPintar(dst),semana))return false;
   const calle=Number(calleDestino);
   if(!Number.isFinite(calle)||!callesDePartidaEntry(dst).includes(calle))return false;
   const srcCalles=callesDePartidaEntry(src);
@@ -10537,8 +10582,8 @@ async function aplicarInsercionPartidaMapa(idOrigen,idDestino,lado,calleDestino,
     src.invId=dst.invId;src.tramos=[{desde:calle,hasta:calle}];
     src.calleDesde=calle;src.calleHasta=calle;
   }
-  const orden=controlChecksData.filter(c=>c.tipo==='tunel'&&c.invId===dst.invId&&
-    ((c.tramos&&c.tramos.length)||c.calleDesde!=null)&&partidaVisibleEnSemana(c,semana))
+  const orden=controlChecksData.filter(c=>(c.tipo==='tunel'||c.tipo==='ubicacion')&&c.invId===dst.invId&&
+     ((c.tramos&&c.tramos.length)||c.calleDesde!=null)&&partidaVisibleEnSemana(partidaParaPintar(c),semana))
     .sort((a,b)=>sortKeyPartida(a)-sortKeyPartida(b)||String(a.id).localeCompare(String(b.id)))
     .filter(c=>c.id!==src.id);
   const index=orden.findIndex(c=>c.id===dst.id);
@@ -10602,7 +10647,7 @@ function separarPartidaEnCalles(id){
   // Los ids de las copias nuevas se generan AQUÍ, antes de guardar — igual
   // que en aplicarNuevaLineaControl — para que la acción sea idempotente al
   // reproducirla desde la cola offline (si ya existe un id, no se duplica).
-  const nuevosIds = calles.slice(1).map((_,i)=>'control_'+Date.now()+'_sep'+i+'_'+Math.random().toString(36).slice(2,8));
+  const nuevosIds = calles.slice(1).map(()=>nuevoIdUbicacion());
   aplicarSepararPartidaEnCalles(id, calles, nuevosIds);
 }
 async function aplicarSepararPartidaEnCalles(id, calles, nuevosIds){
@@ -10615,9 +10660,10 @@ async function aplicarSepararPartidaEnCalles(id, calles, nuevosIds){
     const nid = nuevosIds[i];
     if(!controlChecksData.find(x=>x.id===nid)){
       controlChecksData.push({
-        ...c, id: nid,
-        tramos: [{desde:calle, hasta:calle}], calleDesde: calle, calleHasta: calle,
-        posManual: claveBase + i + 1
+        id:nid,tipo:'ubicacion',qcOrigenId:raizQCPartida(c)?.id||c.id,
+        dia:c.dia,partida:c.partida,invId:c.invId,
+        tramos:[{desde:calle,hasta:calle}],calleDesde:calle,calleHasta:calle,
+        posManual:claveBase+i+1,creadoEn:new Date().toISOString()
       });
     }
   });
@@ -10728,8 +10774,11 @@ function accionPartidaDesdeFicha(id,accion,pos){
   if(accion==='recuperar'){ aplicarSalidaPartida(id,false); return; }
 }
 async function mostrarHistorialPartida(id){
-  const c = controlChecksData.find(x=>x.id===id);
-  if(!c) return;
+  const original=controlChecksData.find(x=>x.id===id);
+  if(!original)return;
+  const c=partidaParaPintar(original);
+  const idQC=raizQCPartida(original)?.id||id;
+  window.__ultimaFichaPartidaId=id;
   // El historial recorre exclusivamente las calles de ESTA partida en su
   // invernadero; Riego y Fito se cargan solo para ese INV. Específicos sigue
   // global hasta su bloque de segmentación propio.
@@ -10737,7 +10786,7 @@ async function mostrarHistorialPartida(id){
     c.invId ? loadRiegoInvData(c.invId, false) : Promise.resolve(true),
     c.invId ? loadFitoInvData(c.invId, false) : Promise.resolve(true),
     c.invId ? loadEspecificosInvData(c.invId, false) : Promise.resolve(true),
-    loadEspecificosPartidaIdsData([id], false)
+    loadEspecificosPartidaIdsData([...new Set([id,idQC])], false)
   ]);
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const tramos = (c.tramos && c.tramos.length) ? c.tramos : [{desde:c.calleDesde, hasta:c.calleHasta}];
@@ -10827,7 +10876,7 @@ async function mostrarHistorialPartida(id){
   // pide solo la foto de estos 1-2 ids concretos (fetchFotoPartidaPorId),
   // nunca los 29 shards completos de fotos de toda la app.
   const idsFotoBuscados = [
-    {id:c.id, label:'Entrada (Túnel)'},
+    {id:idQC, label:'Entrada (Túnel)'},
     cargaSalida ? {id:cargaSalida.id, label:'Salida (Carga)'} : null
   ].filter(Boolean);
   const fotosPartida = (await Promise.all(idsFotoBuscados.map(async ({id:fid,label})=>{
@@ -10853,7 +10902,7 @@ async function mostrarHistorialPartida(id){
     Math.abs((primerTramo.hasta??primerTramo.desde)-primerTramo.desde)>=1;
   const salidaManual = c.salioDesdeSemanaNumerada!==null && c.salioDesdeSemanaNumerada!==undefined;
   const vistos = new Set();
-  const especificosFicha = (especificosPartidaData[c.id]||[]).map((e,idx)=>({e,idx})).filter(({e})=>{
+  const especificosFicha = [...new Set([id,idQC])].flatMap(partidaId=>(especificosPartidaData[partidaId]||[]).map((e,idx)=>({e,idx,partidaId}))).filter(({e})=>{
     const key = [e.fechaISO,e.trat,e.dosis,e.horario].join('|');
     if(vistos.has(key)) return false;
     vistos.add(key); return true;
@@ -10861,11 +10910,25 @@ async function mostrarHistorialPartida(id){
   const especificosFichaHTML = especificosFicha.length ? `
     <div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;margin:12px 0 8px">Específicos asociados</div>
     <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:16px">
-      ${especificosFicha.map(({e,idx})=>`<button type="button" onclick="editarEspecificoPartidaBanner('${c.id}',${idx})"
+      ${especificosFicha.map(({e,idx,partidaId})=>`<button type="button" onclick="editarEspecificoPartidaBanner('${partidaId}',${idx})"
         title="Editar específico" style="padding:7px 10px;font-size:11px;font-weight:700;background:#ffe2ed;color:#6b1742;border:1px solid #e8a3c1;border-radius:7px;cursor:pointer">${escapar(e.trat)} ${escapar(e.dosis)} · ${escapar(e.fechaLabel)}</button>`).join('')}
     </div>` : '';
   // Sólo operaciones administrativas en el pie. Los movimientos de orden se
   // realizan mediante el drag táctil validado, no mediante prompts duplicados.
+  const ubicacionesRelacionadas=[raizQCPartida(original),...otrasUbicacionesPartida(idQC)].filter(Boolean);
+  const ubicacionesHTML=ubicacionesRelacionadas.length
+    ? '<section style="background:#fff;border:1px solid #c7d8ee;border-radius:9px;padding:10px 12px;flex-shrink:0">'+
+      '<div style="font-size:11px;font-weight:800;color:#1558a0;margin-bottom:6px">UBICACIONES DE LA PARTIDA</div>'+
+      ubicacionesRelacionadas.map(u=>'<div style="font-size:12px;margin:5px 0">INV '+escapar(u.invId)+' · '+
+        escapar(formatTramosLabel(u.invId,u.tramos||[]))+'</div>').join('')+'</section>':'';
+  const historialUbicaciones=raizQCPartida(original)?.historialUbicaciones||[];
+  const historialUbicacionesHTML=historialUbicaciones.length
+    ? '<details style="flex-shrink:0;background:#fff;border:1px solid #c7d8ee;border-radius:9px;padding:10px 12px">'+
+      '<summary style="font-size:11px;font-weight:800;color:#1558a0;cursor:pointer">Historial de ubicaciones ('+historialUbicaciones.length+')</summary>'+
+      historialUbicaciones.slice().reverse().map(h=>'<div style="font-size:11px;border-top:1px solid #e4eaf2;margin-top:7px;padding-top:7px">'+
+        '<b>'+escapar(String(h.fecha||'').slice(0,16).replace('T',' '))+'</b> · '+escapar(h.usuario||'')+
+        '<div>'+escapar((h.antes||[]).map(g=>'INV '+g.invId+' · '+formatTramosLabel(g.invId,g.tramos||[])).join('; ')||'—')+' → '+
+        escapar((h.despues||[]).map(g=>'INV '+g.invId+' · '+formatTramosLabel(g.invId,g.tramos||[])).join('; '))+'</div></div>').join('')+'</details>':'';
   const accionesFichaHTML = `
     <button type="button" onclick="mostrarAsignarCalleControl('${c.id}')" style="min-height:40px;flex:1 1 138px;display:flex;justify-content:center;align-items:center;gap:6px;padding:9px 11px;border-radius:7px;font-size:12px;font-weight:800;color:#fff;cursor:pointer;background:#1558a0;border:1px solid #1558a0" title="Cambiar invernadero y calles">
       <i class="ti ti-map-pin" aria-hidden="true"></i> Editar ubicación
@@ -10912,6 +10975,8 @@ async function mostrarHistorialPartida(id){
             ${tipoPlanta?`<div style="grid-column:1 / -1"><div style="font-size:10px;color:var(--muted);margin-bottom:2px">Tipo de planta</div><b>${escapar(tipoPlanta)}</b></div>`:''}
           </div>
         </section>
+        ${ubicacionesHTML}
+        ${historialUbicacionesHTML}
         <div style="font-size:11px;font-weight:800;letter-spacing:.03em;color:#1558a0;padding:3px 1px 0">CONTROL DE CALIDAD</div>
         <details style="flex-shrink:0;border:1px solid #c7d8ee;border-radius:9px;background:#fff;overflow:hidden">
  <summary style="display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;padding:10px 12px;list-style:none;cursor:pointer;background:#e8f0fb;color:#1558a0;font-size:13px;font-weight:800">
