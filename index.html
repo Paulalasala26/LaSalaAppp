@@ -9986,28 +9986,64 @@ function clicCeldaVaciaPartidas(invId, calle){
   partidaSeleccionadaParaMover = null;
   const c = controlChecksData.find(x=>x.id===id);
   if(!c) return;
-  const tramoActual = (c.tramos && c.tramos.length) ? c.tramos[0] : {desde:c.calleDesde, hasta:c.calleHasta};
-  const span = tramoActual.desde!=null ? Math.abs((tramoActual.hasta??tramoActual.desde)-tramoActual.desde)+1 : 1;
-  const nuevoTramo = {desde:calle, hasta:calle+span-1};
-  const ocupantes = calcularBloquesPartidasInv(invId).filter(b=>b.calles.includes(calle) && b.entry.id!==id);
-  const maxClave = ocupantes.length ? Math.max(...ocupantes.map(b=>sortKeyPartida(b.entry))) : 0;
-  aplicarMoverPartidaACalle(id, invId, nuevoTramo, maxClave+1);
+  moverPartidaAHueco(id, invId, calle);
 }
-async function aplicarMoverPartidaACalle(id, invId, tramo, posManualVal){
-  const c = controlChecksData.find(x=>x.id===id);
-  if(!c) return;
-  const antes = snapshotUbicacionPartida(c);
-  c.invId = invId;
-  c.tramos = [tramo];
-  c.calleDesde = tramo.desde; c.calleHasta = tramo.hasta;
-  c.posManual = posManualVal;
-  registrarMovimientoPartidas([{id, antes, despues: snapshotUbicacionPartida(c)}]);
+// Una celda realmente vacía es destino válido incluso cuando TODO ese lado
+// del pasillo está vacío. El movimiento conserva la identidad y el color
+// original y puede deshacerse con el historial normal.
+function moverPartidaAHueco(id,invId,calle){
+  const c=controlChecksData.find(x=>x.id===id);
+  const layout=INV_LAYOUT[invId], destino=Number(calle);
+  if(!c||!layout||![...layout.row1,...layout.row2].includes(destino))return false;
+  if(callesDePartidaEntry(c).length!==1){
+    showToast('Separa primero la partida de varias calles para trasladarla');return false;
+  }
+  if(!partidaVisibleEnSemana(partidaParaPintar(c),partidasSemanaOffset)){
+    showToast('La partida no está visible en esta semana');return false;
+  }
+  const ocupantes=calcularBloquesPartidasInvBase(invId,partidasSemanaOffset)
+    .filter(b=>b.calles.includes(destino)&&b.entry.id!==id);
+  const maxClave=ocupantes.length?Math.max(...ocupantes.map(b=>sortKeyPartida(b.entry))):0;
+  const posicion=Number.isFinite(maxClave)?maxClave+1:Date.now();
+  return aplicarMoverPartidaACalle(id,invId,{desde:destino,hasta:destino},posicion,partidasSemanaOffset);
+}
+async function aplicarMoverPartidaACalle(id, invId, tramo, posManualVal, semanaGuardada){
+  const c=controlChecksData.find(x=>x.id===id);
+  const layout=INV_LAYOUT[invId];
+  const calle=Number(tramo?.desde),hasta=Number(tramo?.hasta);
+  const semana=Number.isInteger(semanaGuardada)?semanaGuardada:partidasSemanaOffset;
+  if(!c||!layout||!Number.isInteger(calle)||calle!==hasta||
+    ![...layout.row1,...layout.row2].includes(calle))return false;
+  if(callesDePartidaEntry(c).length!==1){
+    showToast('Separa primero la partida de varias calles para trasladarla');return false;
+  }
+  if(!partidaVisibleEnSemana(partidaParaPintar(c),semana))return false;
+  const antes=snapshotUbicacionPartida(c);
+  c.invId=invId;c.tramos=[{desde:calle,hasta:calle}];
+  c.calleDesde=calle;c.calleHasta=calle;c.posManual=posManualVal;
+  // Validación geométrica antes de registrar o enviar el cambio.
+  const bloques=calcularBloquesPartidasInvBase(invId,semana);
+  const colocado=bloques.some(b=>b.entry.id===id&&b.calles.includes(calle));
+  const ocupacion=new Set();
+  const sinSolape=bloques.every(b=>b.calles.every(n=>{
+    const k=n+':'+b.pos;
+    if(ocupacion.has(k))return false;
+    ocupacion.add(k);return true;
+  }));
+  if(!colocado||!sinSolape){
+    aplicarUbicacionPartida(id,antes);
+    showToast('Movimiento cancelado: ubicación no válida');return false;
+  }
+  const despues=snapshotUbicacionPartida(c);
+  if(JSON.stringify(antes)===JSON.stringify(despues))return true;
+  registrarMovimientoPartidas([{id,antes,despues}]);
   renderPartidasMapaContent(document.getElementById('partidas-overlay'));
-  showToast('✓ Partida movida');
-  const qid = encolarAccionOffline('aplicarMoverPartidaACalle', [id, invId, tramo, posManualVal]);
+  showToast('✓ Partida movida a calle '+calle);
+  const qid=encolarAccionOffline('aplicarMoverPartidaACalle',
+    [id,invId,{desde:calle,hasta:calle},posManualVal,semana]);
   marcarControlCheckSucio(id);
-  const ok = await persistControlChecksData();
-  if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
+  const ok=await persistControlChecksData();
+  if(ok)desencolarAccion(qid);else avisarGuardadoLocalPendiente(leerColaOffline().length);
   return ok;
 }
 // Calcula, para un invernadero, en qué fila (0 = más alejada del pasillo) le
@@ -10105,7 +10141,7 @@ function renderPartidasBloqueHTML(bloque,callesRender=null,ladoRender='arriba'){
     onpointerup="soltarPunteroPartida(event)" onpointercancel="cancelarPunteroPartida(event)"
     oncontextmenu="if(partidasPunteroActivo){event.preventDefault();}"`;
   return `
-    <div role="button" tabindex="0" data-partida-id="${escapar(c.id)}" data-partida-calles="${callesPintadas.join(',')}" data-partida-lado="${ladoRender}" title="${escapar(c.partida)||'Partida sin número'}" aria-label="Partida ${escapar(c.partida)||'sin número'}"
+    <div role="button" tabindex="0" data-partida-id="${escapar(c.id)}" data-partida-calles="${callesPintadas.join(',')}" data-partida-lado="${ladoRender}" data-partida-color="${fondo.bg}" title="${escapar(c.partida)||'Partida sin número'}" aria-label="Partida ${escapar(c.partida)||'sin número'}"
       ${eventoDrag} onclick="if(Date.now()>partidasSuprimirClickHasta)${accion}('${c.id}')"
       onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();${accion}('${c.id}')}"
       style="min-height:28px;height:100%;display:flex;align-items:center;justify-content:center;padding:3px 5px;background:${bg};border:1.5px solid ${borde};border-radius:5px;cursor:grab;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none">
@@ -10391,9 +10427,14 @@ function mostrarEtiquetaDropPartidas(destino){
       'box-shadow:0 3px 12px rgba(0,0,0,.25);font-size:12px;font-weight:800;text-align:center;';
     document.body.appendChild(partidasEtiquetaDrop);
   }
-  const c=controlChecksData.find(x=>x.id===destino.id);
-  partidasEtiquetaDrop.textContent=(destino.arribaVisual?'ENCIMA':'DEBAJO')+
-    ' de '+(c?.partida||'la partida')+' · Calle '+destino.calle;
+  if(destino.tipo==='hueco'){
+    partidasEtiquetaDrop.textContent='COLOCAR EN CALLE '+destino.calle+
+      (destino.ladoPasillo==='abajo'?' · Bajo pasillo':' · Sobre pasillo');
+  }else{
+    const c=controlChecksData.find(x=>x.id===destino.id);
+    partidasEtiquetaDrop.textContent=(destino.arribaVisual?'ENCIMA':'DEBAJO')+
+      ' de '+(c?.partida||'la partida')+' · Calle '+destino.calle;
+  }
 }
 function iniciarPunteroPartida(event,id){
   if(partidasEspecificoModo || (event.pointerType!=='touch' && event.pointerType!=='pen') || event.isPrimary===false)return;
@@ -10414,19 +10455,28 @@ function crearFantasmaPartida(){
   f.style.cssText='position:fixed;z-index:9999;pointer-events:none;box-sizing:border-box;'+
     'width:'+s.ancho+'px;height:'+s.alto+'px;display:flex;align-items:center;justify-content:center;'+
     'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-radius:5px;padding:3px 5px;'+
-    'border:2px solid #1558a0;background:'+s.el.style.background+';color:#16436c;opacity:.78;'+
+    'border:2px solid #1558a0;background:'+(s.el.dataset.partidaColor||s.el.style.background)+';color:#16436c;opacity:.85;'+
     'font-size:11px;font-weight:800;box-shadow:0 3px 8px rgba(0,0,0,.22);';
   document.body.appendChild(f);
   partidasPunteroFantasma=f;
 }
 function buscarDestinoTactilPartidas(x,y,origenId){
+  // Si la celda de destino está vacía, reconocerla directamente, sin
+  // exigir otra tarjeta cercana. Funciona en las dos bandas del pasillo.
+  const punto=document.elementFromPoint(x,y);
+  if(!punto?.closest('#partidas-mapa-horizontal'))return null;
+  const hueco=punto.closest('[data-partidas-hueco]');
+  if(hueco&&hueco.closest('#partidas-overlay')){
+    const calle=Number(hueco.dataset.partidasCalle);
+    const invId=hueco.dataset.partidasInv;
+    if(Number.isFinite(calle)&&invId===partidasInvSel)
+      return {tipo:'hueco',invId,calle,ladoPasillo:hueco.dataset.partidasLado,el:hueco};
+  }
   // El dedo puede quedar EN la tarjeta o inmediatamente DESPUÉS de su borde.
   // La versión anterior aceptaba solo 3px fuera: debajo de la última partida
   // no existía ninguna zona donde soltar. Se permite un carril de 24px en
   // ambos extremos, siempre restringido a la columna real del destino.
-  const encima=document.elementFromPoint(x,y);
-  if(encima?.closest('#partidas-mapa-horizontal')===null)return null;
-  if(encima?.textContent?.trim()==='PASILLO')return null;
+  if(punto.textContent?.trim()==='PASILLO')return null;
   const offsets=[0,-4,4,-8,8,-12,12,-18,18,-24,24,-28,28];
   let mejor=null;
   for(const dy of offsets){
@@ -10460,7 +10510,9 @@ function actualizarDestinoPunteroPartidas(){
   if(!d){s.destino=null;mostrarEtiquetaDropPartidas(null);return;}
   const origen=controlChecksData.find(c=>c.id===s.id);
   const misma=origen&&origen.invId===partidasInvSel&&callesDePartidaEntry(origen).includes(d.calle);
-  const permitida=misma||!!origen&&callesDePartidaEntry(origen).length===1;
+  const permitida=d.tipo==='hueco'
+    ? !!origen && callesDePartidaEntry(origen).length===1
+    : misma||!!origen&&callesDePartidaEntry(origen).length===1;
   partidasIndicadorDrop=d.el;
   if(!permitida){
     s.destino=null;
@@ -10470,7 +10522,8 @@ function actualizarDestinoPunteroPartidas(){
   }
   s.destino=d;
   mostrarEtiquetaDropPartidas(d);
-  d.el.style.boxShadow=d.arribaVisual?'inset 0 5px #1558a0':'inset 0 -5px #1558a0';
+  d.el.style.boxShadow=d.tipo==='hueco'?'inset 0 0 0 3px #1558a0':
+    (d.arribaVisual?'inset 0 5px #1558a0':'inset 0 -5px #1558a0');
 }
 function desplazamientoAutomaticoPartidas(){
   partidasPunteroRaf=null;
@@ -10552,8 +10605,9 @@ function soltarPunteroPartida(event){
     const origen=s.id;
     partidasSuprimirClickHasta=Date.now()+850;
     limpiarPunteroPartida();
-    if(destino)aplicarInsercionPartidaMapa(origen,destino.id,destino.lado,destino.calle);
-    else showToast('Suelta sobre otra partida para insertarla');
+    if(destino?.tipo==='hueco')moverPartidaAHueco(origen,destino.invId,destino.calle);
+    else if(destino)aplicarInsercionPartidaMapa(origen,destino.id,destino.lado,destino.calle);
+    else showToast('Suelta sobre una partida o una calle vacía');
   }else limpiarPunteroPartida();
 }
 function cancelarPunteroPartida(event){
@@ -10676,6 +10730,13 @@ async function aplicarSepararPartidaEnCalles(id, calles, nuevosIds){
   if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
   return ok;
 }
+function soltarPartidaEnHueco(event,invId,calle){
+  event.preventDefault();event.stopPropagation();
+  const id=partidasDragId||event.dataTransfer?.getData('text/plain');
+  partidasSuprimirClickHasta=Date.now()+850;
+  terminarArrastrePartida();
+  if(id)moverPartidaAHueco(id,invId,calle);
+}
 function renderPartidasInvHTML(invId){
   const layout = INV_LAYOUT[invId];
   if(!layout) return '';
@@ -10685,8 +10746,9 @@ function renderPartidasInvHTML(invId){
     if(!calles.length)return '';
     const set=new Set(calles);
     const relevantes=bloques.filter(b=>b.calles.some(c=>set.has(c)));
-    const maxPos=Math.max(0,...relevantes.map(b=>b.pos+1));
-    if(!maxPos)return `<div style="display:flex">${calles.map(()=>`<div style="width:${CW}px;flex-shrink:0"></div>`).join('')}</div>`;
+    // Siempre hay una fila destino visible incluso si TODO el lado del
+    // pasillo carece de partidas; una extra al final permite ampliarlo.
+    const maxPos=Math.max(1,...relevantes.map(b=>b.pos+2));
     const porFila=new Map();
     relevantes.forEach(b=>{
       if(!porFila.has(b.pos))porFila.set(b.pos,new Map());
@@ -10711,8 +10773,12 @@ function renderPartidasInvHTML(invId){
           celdas.push(`<div style="width:${CW*span}px;flex:0 0 ${CW*span}px;padding:2px;height:${ROW_H}px">${renderPartidasBloqueHTML(bloque,segmento,alinearArriba?'arriba':'abajo')}</div>`);
           ci+=span;
         }else{
-          const resaltado=partidaSeleccionadaParaMover?'border:1.5px dashed #c47f00;border-radius:6px;cursor:pointer':'';
-          celdas.push(`<div onclick="clicCeldaVaciaPartidas('${invId}',${calle})" ondragover="event.preventDefault()" ondrop="event.preventDefault();clicCeldaVaciaPartidas('${invId}',${calle})" style="width:${CW}px;flex:0 0 ${CW}px;padding:2px;height:${ROW_H}px"><div style="height:100%;${resaltado}"></div></div>`);
+          const resaltado=partidaSeleccionadaParaMover?'border:1.5px dashed #1558a0;cursor:pointer':'border:1px solid #d4e2f2;';
+          celdas.push(`<div data-partidas-hueco="1" data-partidas-inv="${invId}" data-partidas-calle="${calle}" data-partidas-lado="${alinearArriba?'arriba':'abajo'}"
+            onclick="if(Date.now()>partidasSuprimirClickHasta)clicCeldaVaciaPartidas('${invId}',${calle})"
+            ondragover="event.preventDefault()" ondrop="soltarPartidaEnHueco(event,'${invId}',${calle})"
+            style="width:${CW}px;flex:0 0 ${CW}px;padding:2px;height:${ROW_H}px;cursor:crosshair">
+            <div style="height:100%;background:#eef4fb;border-radius:4px;${resaltado}"></div></div>`);
           ci++;
         }
       }
