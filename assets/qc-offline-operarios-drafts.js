@@ -54,8 +54,9 @@
  }
  function validate(v){
   const total=v.bandejasInspeccionadas;
-  if(v.schemaVersion===5){
-   if(!quantity(total))throw Error('Falta el total de bandejas.');
+  if(v.schemaVersion===5||v.schemaVersion===6){
+   if(v.schemaVersion===6&&Object.prototype.hasOwnProperty.call(v,'bandejasInspeccionadas'))throw Error('Formato porcentual incorrecto.');
+   if(v.schemaVersion===5&&!quantity(total))throw Error('Falta el total de bandejas.');
    const cs=v.categorias,g=v.porcentajeInvalidasGlobal;
    if(!cs||Object.keys(cs).sort().join('|')!==CATS.map(x=>x[0]).sort().join('|')||
       !Number.isInteger(g)||g<0||g>100||g%10!==0)
@@ -160,8 +161,7 @@
   return v;
  }
  function input(form){
-  const out={schemaVersion:5,
-    bandejasInspeccionadas:Number(form.elements.namedItem('total').value),
+  const out={schemaVersion:6,
     categorias:{},
     porcentajeInvalidasGlobal:Number(form.elements.namedItem('globalPct').value)};
   for(const [cat] of CATS){
@@ -213,7 +213,7 @@
   total.append(visibleTotal);
   const totalInput=el('input');totalInput.type='hidden';totalInput.name='total';totalInput.value=initialTotal||'';
   total.append(totalInput);form.append(total);
-  const current=draft?.schemaVersion===5;
+  const current=[5,6].includes(draft?.schemaVersion);
    const findSelected=cat=>{
    const old=draft?.mediciones?.[cat];
    const options=draft?.categorias?.[cat]?.opciones;
@@ -463,10 +463,10 @@
  // o un borrador con POST incierto como si nunca hubiera sido enviado.
  const canonical=value=>JSON.stringify(value);
  const matches=(stored,draft)=>{
-  if(!stored||stored.bandejasInspeccionadas!==draft.bandejasInspeccionadas)return false;
+  if(!stored||draft.schemaVersion!==6&&stored.bandejasInspeccionadas!==draft.bandejasInspeccionadas)return false;
   if(draft.categorias)return
-    (draft.schemaVersion!==5||
-      stored.schemaVersion===5&&stored.porcentajeInvalidasGlobal===draft.porcentajeInvalidasGlobal)&&
+    (![5,6].includes(draft.schemaVersion)||
+      stored.schemaVersion===draft.schemaVersion&&stored.porcentajeInvalidasGlobal===draft.porcentajeInvalidasGlobal)&&
     CATS.every(([cat])=>JSON.stringify(stored.categorias?.[cat])===JSON.stringify(draft.categorias[cat]));
   return CATS.every(([cat])=>{
    const actual=stored.mediciones?.[cat],expected=draft.mediciones?.[cat];
@@ -593,9 +593,9 @@
     throw Error('Reenvío cancelado. Borrador local conservado para revisión.');
    if(!navigator.onLine)throw Error('No hay conexión. Borrador conservado.');
    const payload={id:ref.id,tipo:ref.tipo,dia:ref.dia,partida:ref.partida,
-    version:0,bandejasInspeccionadas:d.bandejasInspeccionadas,
-    ...(d.schemaVersion===4||d.schemaVersion===5?{schemaVersion:d.schemaVersion}:{}),
-    ...(d.schemaVersion===5?{porcentajeInvalidasGlobal:d.porcentajeInvalidasGlobal}:{}),
+    version:0,...(d.schemaVersion===6?{}:{bandejasInspeccionadas:d.bandejasInspeccionadas}),
+    ...([4,5,6].includes(d.schemaVersion)?{schemaVersion:d.schemaVersion}:{}),
+    ...([5,6].includes(d.schemaVersion)?{porcentajeInvalidasGlobal:d.porcentajeInvalidasGlobal}:{}),
     ...(d.categorias?{categorias:d.categorias}:{mediciones:d.mediciones})};
    // Persistir el hecho del intento antes del POST; resiste recarga o cierre.
    const attempted=await markAttempt(d);
@@ -694,7 +694,7 @@
    area.append(el('strong',d.ref.partida),
     el('span',(d.ref.tipo==='tunel'?'QC Túnel':'QC Carga')+
      ' · Inspección '+d.ref.id),
-    el('span',d.bandejasInspeccionadas+' bandejas inspeccionadas'));
+    el('span',[5,6].includes(d.schemaVersion)?'Evaluación porcentual':'Medición histórica'));
    decorate(area,d.ref);
    card.append(area);
    parent.append(card);
