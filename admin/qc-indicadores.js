@@ -20,7 +20,7 @@
     const data=measurement?.mediciones;
     // V5: un porcentaje de toda la evaluación, sin porcentajes por el resto
     // de categorías; enfermedades con estimación propia y posible solapamiento.
-    if(measurement?.schemaVersion===5&&
+    if([5,6].includes(measurement?.schemaVersion)&&
        measurement?.categorias&&Number.isInteger(measurement.porcentajeInvalidasGlobal)){
       const rows=[];
       for(const [cat,name,labels] of CATS){
