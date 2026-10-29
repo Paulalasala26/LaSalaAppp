@@ -695,6 +695,7 @@
     head.append(heading,exit);dialog.append(head);
     const body=node('div',null,'qco-body'),form=node('form');form.noValidate=true;form.addEventListener('submit',save);
     const total=node('div',null,'qco-total');
+    total.hidden=true; // Campo técnico de compatibilidad v5; no es una medición de QC.
     total.append(node('span','Bandejas de la partida: '),node('strong','—','qco-total-value'));
     const count=node('input');count.type='hidden';total.append(count);form.append(total);
     for(const [cat,name,options] of CATS){
