@@ -7,6 +7,9 @@
 
 ## 0. CONTINUIDAD ACTUAL — 29/10/2026 (PRIORIDAD SOBRE LOS HISTÓRICOS)
 
+### §0.180 — Backoffice / Control de calidad: primera revisión visual (29/10/2026)
+**IMPLEMENTADO EN TEST; UAT PENDIENTE.** A petición del usuario se avanza desde Registros de riego a Control de calidad del Backoffice. Revisión de `admin/control.html`, `admin/control.js`, `admin/control.css`: consulta por Túnel/Carga, estado, rango, búsqueda, listado, indicadores, detalle, enlaces Panel/Criterios/Partidas GS, conexión y cola de fotos. Sin reconstruir operaciones existentes ni cambiar servicios. Se aplica tema azul y presentación compacta solo a `control.html`/`control.css`: menú, cabecera, filtros, indicadores, tabla, detalle y modal; se preservan identificadores, JS, acciones, QC, fotos y permisos. Código `27fcd073` y `ff91ae52`, solo `test/v1.0`, main/PRD intactos. **Incidencia independiente ABIERTA en Registros de riego:** el usuario comunicó que Imprimir redirige a la home, sin abrir registro; todavía no corregida, no dar por validada.
+
 ### §0.179 — Backoffice / Registros de riego: revisión visual (29/10/2026)
 **IMPLEMENTADO TEST; UAT VISUAL PENDIENTE.** Usuario continúa al siguiente bloque. Revisados `admin/registros.html` y `admin/registros.js`: consulta de riegos, filtros, búsqueda, paginación y derivación a Control de Riego para editar/imprimir, sin modificación administrativa directa; funcionalidades ya validadas previamente, no reconstruidas. Cambio solo en `admin/registros.html`: aspecto azul coherente, menú/cabecera/filtros/contadores/tabla compactos, icono de impresora en lugar del texto largo de acción general (con title y aria-label); se mantienen IDs y funciones. Código `775e366d` en `test/v1.0`, main/PRD intactos. Pendiente aceptación visual y comprobación real de impresión; siguiente Control de calidad de Backoffice.
 
