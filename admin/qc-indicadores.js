@@ -20,7 +20,7 @@
     const data=measurement?.mediciones;
     // V5: un porcentaje de toda la evaluación, sin porcentajes por el resto
     // de categorías; enfermedades con estimación propia y posible solapamiento.
-    if(measurement?.schemaVersion===5&&Number.isSafeInteger(inspected)&&inspected>0&&
+    if(measurement?.schemaVersion===5&&
        measurement?.categorias&&Number.isInteger(measurement.porcentajeInvalidasGlobal)){
       const rows=[];
       for(const [cat,name,labels] of CATS){
@@ -41,7 +41,7 @@
         optionLabel:'Total inválidas',count:null,pct:measurement.porcentajeInvalidasGlobal,
         percentDisplay:measurement.porcentajeInvalidasGlobal,treatment:'informativo',
         treatmentLabel:'Informativo',tolerance:null,level:'neutral',
-        description:'Porcentaje global de bandejas inválidas'});
+        description:'Índice global de los cinco bloques'});
       return {available:true,inspected,rows,evaluatedCount:rows.length,
         configuredCount:0,warningCount:0,criticalCount:0,objective:null,hasRules:false};
     }
