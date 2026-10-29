@@ -7,6 +7,9 @@
 
 ## 0. CONTINUIDAD ACTUAL — 29/10/2026 (PRIORIDAD SOBRE LOS HISTÓRICOS)
 
+### §0.173 — Riego: selector diario arriba de la selección de INV (29/10/2026)
+**IMPLEMENTADO EN CÓDIGO TEST; VALIDACIÓN VISUAL PENDIENTE.** A petición del usuario, en el modal de imprimir Riego el selector «Día de riego» se muestra justo debajo de «¿Qué quieres imprimir?» ocupando el lugar del contador superior «1 invernadero · 1 día», que se elimina solo para Riego. La lista de invernaderos queda debajo; se suprime la sección duplicada de día del final. Plaguicidas conserva su selector y resumen anteriores. No hay cambios de datos ni función de impresión. Código commit 178d01c14f3333c6f7401fe8f244f72a059c8335. Solo test/v1.0; main/PRD intactos.
+
 ### §0.172 — Riego: impresión de un único día (29/10/2026)
 **IMPLEMENTADO EN TEST; UAT PENDIENTE.** En Riego, la quincena delimita los 14 días disponibles, pero se imprime exclusivamente un día seleccionado mediante un nuevo desplegable. Día predeterminado: hoy si pertenece a la quincena visible, de lo contrario el primero de esa quincena. Se retiran para Riego los presets multifecha; los de Plaguicidas siguen intactos. Se mantiene selección de invernaderos, carga de riegos y prevención de hojas vacías. Código 4014594b75c18483a71629f58afb17206b6f93ad. Validar INV 1A del 19/10 al 01/11. PRD/main intactos.
 
