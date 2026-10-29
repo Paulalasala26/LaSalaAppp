@@ -15,8 +15,8 @@ self.addEventListener('push', (event) => {
   // dominio (404) en vez de a la propia carpeta de la app.
   const options = {
     body: data.body || '',
-    icon: 'icon-192.png',
-    badge: 'icon-192.png',
+    icon: 'icon-192.png?v=ls-20261029',
+    badge: 'icon-192.png?v=ls-20261029',
     tag: 'lasala-aviso'
   };
   event.waitUntil(self.registration.showNotification(title, options));

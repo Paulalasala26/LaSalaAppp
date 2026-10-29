@@ -117,3 +117,7 @@ td:last-child{text-align:right}
 .pending-actions .button.danger{color:#a32020;background:#fff8f8;border-color:#efbaba}
 .pending-actions .button.danger:hover:not(:disabled){background:#ffebeb}
 #form-user[readonly]{background:#f4f7f4;color:#536a58}
+
+/* Identidad La Sala 29/10/2026: monograma LS + hojas */
+.brand-mark{background:transparent;overflow:hidden;border-radius:10px;letter-spacing:normal}
+.brand-mark img{display:block;width:100%;height:100%;object-fit:contain;border-radius:inherit}
