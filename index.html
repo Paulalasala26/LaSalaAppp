@@ -15017,21 +15017,27 @@ function imprimirHojaResumen(modulo, idx){
       fechaISO, horario: parsed.horario, asignadoPor: currentUser, objetivos, tipoTrat
     });
   } else {
-    const parsed = parsearTextoEspecifico(f.texto);
-    // Cada tramo con su propia observación sale en su propia fila, pero
-    // TODOS los invernaderos/tramos de este tratamiento van en la MISMA
-    // hoja (a petición de Paula) — imprimirHojaEspecificoConDatos ya
-    // soporta varias filas con obs independiente.
-    const filasEsp = [];
-    Object.entries(f.porInv).forEach(([invId,porObs])=>{
-      Object.entries(porObs).forEach(([obs,calles])=>{
-        filasEsp.push({ invId, calles: formatCallesConEnteroParaImprimir(invId, calles), tipo: parsed.tipo, obs: obs||parsed.obs });
-      });
-    });
-    imprimirHojaEspecificoConDatos({
-      fechaISO, trat: parsed.trat, dosis: parsed.dosis, caldoLitros: f.raw?.caldoLitros||null, horario: parsed.horario, filas: filasEsp
-    });
+    imprimirHojaResumenEspecifico(f);
   }
+}
+// Generador único de hoja registrada: lo utiliza tanto la tarjeta del Resumen
+// como la impresora global de cabecera. No recrea datos ni modifica registros.
+function imprimirHojaResumenEspecifico(f){
+  if(!f)return;
+  const parsed=parsearTextoEspecifico(f.texto);
+  const filasEsp=[];
+  Object.entries(f.porInv).forEach(([invId,porObs])=>{
+    Object.entries(porObs).forEach(([obs,calles])=>{
+      filasEsp.push({invId,calles:formatCallesConEnteroParaImprimir(invId,calles),
+        tipo:parsed.tipo,obs:obs||parsed.obs});
+    });
+  });
+  if(!filasEsp.length){showToast('No hay calles registradas que imprimir.');return;}
+  imprimirHojaEspecificoConDatos({
+    fechaISO:fechaLocalISO(riegoDiaToDate(f.dia)),
+    trat:parsed.trat,dosis:parsed.dosis,caldoLitros:f.raw?.caldoLitros||null,
+    horario:parsed.horario,filas:filasEsp
+  });
 }
 
 // riegoSoloLectura: true para la vista "Hojas de riego" del rol REGANTE —
@@ -23483,23 +23489,160 @@ function retrocederEspecifico(){
 }
 function actualizarBotonRetrocederEspecifico(){}
 
-// Selector "qué imprimir" (arriba a la derecha del módulo): elige
-// invernadero + día y genera la hoja a partir de lo REALMENTE guardado en
-// especificosData — no depende de lo que haya (o no) en el formulario de alta.
-// Popup "Imprimir" (arriba a la derecha del módulo): recoge los datos del
-// papel — Producto/Dosis/Caldo inicial (Mezcla se calcula sola) — y el
-// invernadero/calles destino, igual que en Plaguicidas (tramo Desde-Hasta o
-// invernaderos/salas completos).
-function showImprimirEspecificoSelector(){
+// Impresora principal de cabecera: selección de tratamientos reales en
+// la quincena visible. El viejo formulario manual queda como herramienta
+// secundaria; ningún botón de imprimir crea ni modifica registros.
+let especificosFilasParaImprimir=[];
+function obtenerEspecificosRegistradosParaImprimir(){
+  // Reusar exactamente la agrupación de Resumen, sin heredar filtros visuales
+  // que podrían ocultar tratamientos. Restaurar también la cache de las fichas
+  // para no alterar sus índices de Editar/Imprimir al cerrar este diálogo.
+  const prev={
+    dia:resumenQuincenaDiaFiltro.especifico,
+    sala:resumenQuincenaSalaFiltro.especifico,
+    inv:resumenQuincenaInvFiltro.especifico,
+    cache:resumenQuincenaFilasCache.especifico
+  };
+  try{
+    resumenQuincenaDiaFiltro.especifico=null;
+    resumenQuincenaSalaFiltro.especifico=null;
+    resumenQuincenaInvFiltro.especifico=null;
+    renderResumenQuincenaTratamientos('especifico');
+    return (resumenQuincenaFilasCache.especifico||[]).slice();
+  } finally {
+    resumenQuincenaDiaFiltro.especifico=prev.dia;
+    resumenQuincenaSalaFiltro.especifico=prev.sala;
+    resumenQuincenaInvFiltro.especifico=prev.inv;
+    resumenQuincenaFilasCache.especifico=prev.cache;
+  }
+}
+async function showImprimirEspecificoSelector(){
+  const mo=getOrCreateOverlay('imprimir-especifico-selector-overlay');
+  mo.style.padding='10px';
+  mo.style.display='flex';
+  mo.innerHTML='<div style="background:#fff;padding:25px;border-radius:10px;font-size:13px;color:#1558a0">Cargando tratamientos registrados…</div>';
+  try{
+    const ok=await cargaEspecificosVisibleUsuario();
+    if(mo.style.display!=='flex')return;
+    if(!ok){mo.innerHTML='<div style="padding:20px;background:#fff;border-radius:9px">No se pudieron cargar los tratamientos. <button type="button" onclick="showImprimirEspecificoSelector()">Reintentar</button></div>';return;}
+    especificosFilasParaImprimir=obtenerEspecificosRegistradosParaImprimir();
+    const dias=[...new Set(especificosFilasParaImprimir.map(f=>f.dia))].sort((a,b)=>a-b);
+    const invs=[...new Set(especificosFilasParaImprimir.flatMap(f=>Object.keys(f.porInv)))].sort((a,b)=>a.localeCompare(b,'es',{numeric:true}));
+    const esc=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    mo.innerHTML=`
+      <div style="background:#fff;border-radius:10px;width:min(100%,520px);max-height:94vh;overflow:auto;box-shadow:0 8px 40px rgba(0,0,0,.25)">
+        <header class="control-ui-header" style="min-height:42px;padding:6px 10px;position:sticky;top:0;z-index:2">
+          <strong style="display:flex;align-items:center;gap:7px;font-size:14px;color:#fff">
+            <i class="ti ti-printer" aria-hidden="true"></i> Imprimir específicos
+          </strong>
+          <button type="button" class="control-ui-close" title="Cerrar" aria-label="Cerrar"
+            onclick="document.getElementById('imprimir-especifico-selector-overlay').style.display='none'">&times;</button>
+        </header>
+        <div style="padding:12px;display:flex;flex-direction:column;gap:10px">
+          <div style="font-size:11px;color:#526478">Tratamientos guardados · ${esc(riegoQuincenaLabel(especificosQuincenaOffset))}</div>
+          <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px">
+            <label style="font-size:11px;font-weight:800;color:#1558a0">Día
+              <select id="ie-filtrar-dia" onchange="filtrarEspecificosParaImprimir()" style="display:block;width:100%;margin-top:3px;min-height:38px;padding:7px;border:1px solid #a8c4e8;border-radius:7px;background:#fff;color:#17324e;font-size:12px">
+                <option value="">Todos</option>
+                ${dias.map(d=>`<option value="${d}">${esc(riegoDiaLabelCorto(d))} · ${esc(riegoDiaSemana(d))}</option>`).join('')}
+              </select>
+            </label>
+            <label style="font-size:11px;font-weight:800;color:#1558a0">Invernadero
+              <select id="ie-filtrar-inv" onchange="filtrarEspecificosParaImprimir()" style="display:block;width:100%;margin-top:3px;min-height:38px;padding:7px;border:1px solid #a8c4e8;border-radius:7px;background:#fff;color:#17324e;font-size:12px">
+                <option value="">Todos</option>
+                ${invs.map(inv=>`<option value="${esc(inv)}">INV ${esc(inv)}</option>`).join('')}
+              </select>
+            </label>
+          </div>
+          <label style="font-size:11px;font-weight:800;color:#1558a0">Tratamiento registrado
+            <select id="ie-registro" onchange="actualizarDetalleEspecificoParaImprimir()" aria-label="Tratamiento registrado"
+              style="display:block;width:100%;margin-top:3px;min-height:42px;padding:7px;border:1px solid #a8c4e8;border-radius:7px;background:#fff;color:#17324e;font-size:12px"></select>
+          </label>
+          <div id="ie-registro-detalle" aria-live="polite" style="font-size:12px;color:#526478;border:1px solid #d9e4f0;background:#f5f9ff;border-radius:7px;padding:9px"></div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding-top:3px">
+            <button type="button" onclick="showImprimirEspecificoManualSelector()" title="Generar una hoja sin registrar tratamiento"
+              style="padding:8px 10px;min-height:36px;background:#1558a0;border:1px solid #1558a0;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer">
+              Hoja manual
+            </button>
+            <button id="ie-imprimir-guardado" type="button" onclick="imprimirEspecificoRegistradoSeleccionado()"
+              style="display:flex;align-items:center;gap:6px;padding:9px 14px;min-height:38px;background:#1558a0;border:1px solid #1558a0;border-radius:7px;color:#fff;font-size:12px;font-weight:800;cursor:pointer">
+              <i class="ti ti-printer" aria-hidden="true"></i> Imprimir
+            </button>
+          </div>
+        </div>
+      </div>`;
+    if(especificosVistaActual==='cuadricula'&&especificosInvSel && invs.includes(especificosInvSel)){
+      document.getElementById('ie-filtrar-inv').value=especificosInvSel;
+    }
+    filtrarEspecificosParaImprimir();
+  }catch(e){
+    if(mo.style.display==='flex'){
+      mo.innerHTML='<div style="background:#fff;padding:20px;border-radius:9px;color:#9c2929">No se pudo preparar la impresión. Cierra y vuelve a intentarlo.</div>';
+    }
+  }
+}
+function filtrarEspecificosParaImprimir(){
+  const sel=document.getElementById('ie-registro');
+  if(!sel)return;
+  const dia=document.getElementById('ie-filtrar-dia')?.value||'';
+  const inv=document.getElementById('ie-filtrar-inv')?.value||'';
+  const previo=sel.value;
+  const disponibles=especificosFilasParaImprimir.map((f,i)=>({f,i}))
+    .filter(({f})=>(!dia||String(f.dia)===dia)&&(!inv||!!f.porInv[inv]));
+  const esc=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  sel.innerHTML=disponibles.length
+    ? disponibles.map(({f,i})=>{
+        const p=parsearTextoEspecifico(f.texto);
+        const invs=Object.keys(f.porInv);
+        const nInv=invs.length===1?'INV '+invs[0]:invs.length+' INV';
+        const label=riegoDiaLabelCorto(f.dia)+' · '+(p.trat||f.texto)+' '+(p.dosis||'')+
+          (p.horario?' · '+p.horario:'')+' · '+nInv;
+        return `<option value="${i}">${esc(label)}</option>`;
+      }).join('')
+    : '<option value="">No hay tratamientos con estos filtros</option>';
+  if(disponibles.some(({i})=>String(i)===prev))sel.value=prev;
+  actualizarDetalleEspecificoParaImprimir();
+}
+function actualizarDetalleEspecificoParaImprimir(){
+  const indice=Number(document.getElementById('ie-registro')?.value);
+  const tiene=document.getElementById('ie-registro')?.value!=='';
+  const f=tiene?especificosFilasParaImprimir[indice]:null;
+  const detalle=document.getElementById('ie-registro-detalle');
+  const btn=document.getElementById('ie-imprimir-guardado');
+  if(btn)btn.disabled=!f;
+  if(btn)btn.style.opacity=f?'1':'.45';
+  if(!detalle)return;
+  if(!f){detalle.textContent='No hay específicos registrados con estos filtros. Puedes generar una hoja manual sin guardar datos.';return;}
+  const p=parsearTextoEspecifico(f.texto);
+  detalle.textContent='INV '+Object.keys(f.porInv).join(', ')+' · '+(p.trat||'')+
+    (p.dosis?' · '+p.dosis:'')+(p.tipo?' · '+p.tipo:'')+
+    (p.horario?' · '+p.horario:'')+
+    (f.raw?.caldoLabel?' · Caldo '+f.raw.caldoLabel:'')+
+    ' · '+Object.values(f.porInv).reduce((n,obs)=>n+Object.values(obs).reduce((s,cs)=>s+cs.length,0),0)+' calles';
+}
+function imprimirEspecificoRegistradoSeleccionado(){
+  const val=document.getElementById('ie-registro')?.value;
+  if(!val)return;
+  const f=especificosFilasParaImprimir[Number(val)];
+  if(!f){showToast('Selecciona un tratamiento registrado.');return;}
+  document.getElementById('imprimir-especifico-selector-overlay').style.display='none';
+  imprimirHojaResumenEspecifico(f);
+}
+
+// Opción secundaria: hoja manual no registrada (funcionalidad antigua intacta).
+function showImprimirEspecificoManualSelector(){
   const diasQ = riegoQuincenaDias(especificosQuincenaOffset);
   const mo = getOrCreateOverlay('imprimir-especifico-selector-overlay');
+  mo.style.padding='10px';
   mo.innerHTML = `
-    <div style="background:#fff;border-radius:14px;max-width:480px;width:100%;max-height:92vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.25)">
-      <div style="background:#2e7d32;color:#fff;padding:1rem 1.5rem;border-radius:14px 14px 0 0;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:2">
-        <div style="font-size:15px;font-weight:800">&#128424; Imprimir hoja de específico</div>
+    <div style="background:#fff;border-radius:10px;max-width:520px;width:100%;max-height:94vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.25)">
+      <div style="background:linear-gradient(120deg,#2b6fae,#3c80c2 55%,#5b9bd5);color:#fff;padding:8px 12px;border-radius:10px 10px 0 0;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:2">
+        <div style="font-size:15px;font-weight:800"><i class="ti ti-printer" aria-hidden="true"></i> Hoja manual de específico</div>
         <button onclick="document.getElementById('imprimir-especifico-selector-overlay').style.display='none'" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer">✕</button>
       </div>
-      <div style="padding:1.25rem;display:flex;flex-direction:column;gap:12px">
+      <div style="padding:12px;display:flex;flex-direction:column;gap:9px">
         <div>
           <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Día</label>
           <select id="ie-dia" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:14px;font-weight:600;background:#f2f4f0;outline:none;cursor:pointer">
@@ -23559,12 +23702,13 @@ function showImprimirEspecificoSelector(){
           </select>
         </div>
         <div id="ie-calles-wrap"></div>
-        ${bulkInvSalaSelectorHTML('espprint')}
+        <details style="border:1px solid #b0c8e0;border-radius:7px;background:#f8fbff">
+          <summary style="padding:9px;font-size:12px;font-weight:800;color:#1558a0;cursor:pointer">Imprimir salas o invernaderos completos (opcional)</summary>
+          <div style="padding:0 8px 8px">${bulkInvSalaSelectorHTML('espprint')}</div>
+        </details>
         <div style="display:flex;justify-content:flex-end;gap:8px;padding-top:4px">
-          <button onclick="document.getElementById('imprimir-especifico-selector-overlay').style.display='none'"
-            style="padding:9px 18px;font-size:13px;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:8px;cursor:pointer">Cancelar</button>
           <button onclick="imprimirHojaEspecifico()"
-            style="padding:9px 20px;font-size:13px;font-weight:700;background:#2e7d32;color:#fff;border:none;border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:6px">
+            style="padding:9px 20px;font-size:13px;font-weight:700;background:#1558a0;color:#fff;border:none;border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:6px">
             <i class="ti ti-printer" style="font-size:14px"></i> Imprimir
           </button>
         </div>
