@@ -7,6 +7,9 @@
 
 ## 0. CONTINUIDAD ACTUAL — 29/10/2026 (PRIORIDAD SOBRE LOS HISTÓRICOS)
 
+### §0.181 — Backoffice QC: etiquetas del selector principal (29/10/2026)
+**IMPLEMENTADO EN TEST; UAT PENDIENTE.** A petición del usuario, las tres opciones de «Tipo de control» pasan a mostrarse como **Todos**, **QC Túnel** y **QC Carga**, conservando los valores internos `todos`, `tunel` y `carga`, el orden y la opción predeterminada. Cambio exclusivo en `admin/control.html`; ningún cambio en filtros, JS, datos ni API. Commit `dc3029ff`, rama `test/v1.0`; main/PRD intactos.
+
 ### §0.180 — Backoffice / Control de calidad: primera revisión visual (29/10/2026)
 **IMPLEMENTADO EN TEST; UAT PENDIENTE.** A petición del usuario se avanza desde Registros de riego a Control de calidad del Backoffice. Revisión de `admin/control.html`, `admin/control.js`, `admin/control.css`: consulta por Túnel/Carga, estado, rango, búsqueda, listado, indicadores, detalle, enlaces Panel/Criterios/Partidas GS, conexión y cola de fotos. Sin reconstruir operaciones existentes ni cambiar servicios. Se aplica tema azul y presentación compacta solo a `control.html`/`control.css`: menú, cabecera, filtros, indicadores, tabla, detalle y modal; se preservan identificadores, JS, acciones, QC, fotos y permisos. Código `27fcd073` y `ff91ae52`, solo `test/v1.0`, main/PRD intactos. **Incidencia independiente ABIERTA en Registros de riego:** el usuario comunicó que Imprimir redirige a la home, sin abrir registro; todavía no corregida, no dar por validada.
 
