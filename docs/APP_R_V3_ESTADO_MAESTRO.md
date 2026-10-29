@@ -7,6 +7,9 @@
 
 ## 0. CONTINUIDAD ACTUAL — 29/10/2026 (PRIORIDAD SOBRE LOS HISTÓRICOS)
 
+### §0.166 — Específicos: simplificar impresión y retirar Hoja manual (29/10/2026)
+**IMPLEMENTADO EN TEST; VALIDACIÓN VISUAL PENDIENTE.** Auditoría funcional: «Hoja manual» abría formulario de impresión de un tratamiento introducido manualmente y no registrado en la aplicación, con riesgo de generar documentos discordantes con los datos reales y redundancia de alta. Se retira exclusivamente el botón de acceso «Hoja manual» del selector de impresora de cabecera y el mensaje que lo promovía cuando no hay tratamientos. Botón Imprimir queda único, azul, alineado a derecha; selección por día/INV, ficha registrada y motor A4 intactos. No se elimina la implementación histórica del formulario manual ni se modifica almacenamiento, tratamientos, tareas, partidas o funciones de guardado. Código commit `fc94de3bc1c67eb0fbebd3d3e553cce366bef5a4`. Sin UAT de navegador aún. Rama `test/v1.0`; main y PRD intactos.
+
 ### §0.165 — Específicos: evitar segunda hoja A4 vacía (29/10/2026)
 **IMPLEMENTADO EN TEST; PENDIENTE VALIDACIÓN DEL USUARIO.** El usuario confirma que el selector de impresión vuelve a funcionar, pero una ficha mínima genera dos páginas. Se identificó en `imprimirHojaEspecificoConDatos` una altura mínima CSS `269mm` exactamente igual al alto imprimible A4 con márgenes de 14mm; los redondeos del motor de impresión y bordes pueden desbordar la página. Se elimina exclusivamente `min-height:269mm` y se compacta el padding a 10mm, conservando tamaño A4, márgenes, campos y fichas reales. Un contenido extenso puede legítimamente requerir varias hojas; no se trunca. Cambio `index.html` commit `0619463b2a02d403c51bcc61e262a21f987236f3`. Falta probar en navegador vista previa con registro breve. `test/v1.0` exclusivamente, PRD/main intactos.
 
