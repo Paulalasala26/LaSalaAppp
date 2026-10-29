@@ -1,11 +1,20 @@
 # VIGUERAPP / APP R v3 — ESTADO MAESTRO CANÓNICO
 
-**Revisión:** 28/10/2026 (España) · **Responsable del estado:** esta conversación, con verificaciones GitHub/Vercel y confirmaciones expresas del usuario.
+**Revisión:** 29/10/2026 (España) · **Responsable del estado:** esta conversación, con verificaciones GitHub/Vercel y confirmaciones expresas del usuario.
 
 > **LEE ESTO ANTES DE PLANIFICAR O MODIFICAR APP R EN CUALQUIER CHAT O CHATGPT PROJECT.**
 > Este es el **único inventario vivo** de trabajo terminado y pendiente. Los handovers DOCX y otros `docs/*.md` con fechas anteriores son **histórico**, no una nueva lista de tareas. El repositorio es la fuente de código; la confirmación funcional del usuario es la fuente de la prueba de aceptación. **Nunca conviertas un pendiente histórico en pendiente actual sin contrastarlo.**
 
-## 0. CONTINUIDAD ACTUAL — 28/10/2026 (PRIORIDAD SOBRE LOS HISTÓRICOS)
+## 0. CONTINUIDAD ACTUAL — 29/10/2026 (PRIORIDAD SOBRE LOS HISTÓRICOS)
+
+### §0.157 — Identidad gráfica La Sala (29/10/2026)
+**IMPLEMENTADO EN TEST · PENDIENTE DE VERIFICACIÓN VISUAL EN DISPOSITIVOS.** El usuario aprueba expresamente el nuevo logotipo generado «LS con dos hojas verdes» y solicita aplicarlo en toda la app, sustituyendo el anterior icono con aspecto de copa de fútbol.
+
+**Alcance gráfico exclusivamente:** regenerados los binarios de instalación `icon-192.png` y `icon-512.png` a partir del diseño aprobado, con versión de URL `ls-20261029` para refrescar la caché; actualizado `manifest.json`, favicon y Apple touch icon. Sustituido el PNG antiguo incrustado como base64 en el login por el icono LS, con rótulo «La Sala». La cabecera principal incorpora LS antes de ViguerAPP. El backoffice usa LS en las marcas de acceso y de menú de sus pantallas y su favicon. Añadida marca en QC sin conexión. Push del service worker usa el mismo icono versionado. No se modifican roles, sesiones, QC, tratamientos, riegos, partidas, operaciones, Firebase ni configuración de usuarios.
+
+**Control técnico:** cambios limitados a la rama `test/v1.0`, proyecto de Vercel TEST; `main` y PRD intactos. Primera revisión de código `feffbdbe0cb2cdb5830d57cde2ee196c33d530be`, corrección posterior del PNG de 512 px para garantizar integridad de imagen. Se requiere inspección del acceso, cabecera, backoffice, favicon e instalación/actualización del acceso directo en móvil; la aceptación del diseño no constituye todavía aceptación de la implementación.
+
+
 
 ### §0.156 — Específicos: corregir bloqueo de fechas futuras en alta desde cuadrícula (28/10/2026)
 **VALIDADO EXPRESAMENTE POR EL USUARIO EL 28/10/2026 («validado»).** El usuario informa que al tocar cualquier celda, incluso días posteriores a hoy, el formulario «Añadir Específico» queda en modo «Día fuera del rango autorizado: consulta sin edición», impidiendo aplicar. Causa reproducible en código: la comprobación de celda limitaba los días editables a **hoy/mañana** para TÉCNICO o **hoy−3..mañana** para ADMIN, mientras que la cuadrícula permite navegar a **quincenas futuras**. La selección de un día posterior a mañana inyectaba un option «solo consulta» y deshabilitaba todas las acciones.
