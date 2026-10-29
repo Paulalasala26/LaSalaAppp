@@ -23880,7 +23880,7 @@ function showImprimirResumenSelector(tipo){
       </div>
     </section>`;
   }).join('');
-  const diasHTML = diasQ.map(d=>'<label style="font-size:12px;display:flex;align-items:center;gap:5px;cursor:pointer;padding:5px 4px"><input type="checkbox" class="rr-dia-chk" value="'+d+'" '+(d===riegoDiaDeHoy()?'checked':'')+' onchange="actualizarImpresionResumenUI()"> '+riegoDiaLabelCorto(d)+'</label>').join('');
+  const diasHTML = diasQ.map(d=>'<label style="font-size:12px;display:flex;align-items:center;gap:5px;cursor:pointer;padding:5px 4px"><input type="checkbox" class="rr-dia-chk" value="'+d+'" '+'checked'+' onchange="actualizarImpresionResumenUI()"> '+riegoDiaLabelCorto(d)+'</label>').join('');
 
   const mo = getOrCreateOverlay('imprimir-resumen-overlay');
   mo.style.padding = '0';
@@ -23920,9 +23920,9 @@ function showImprimirResumenSelector(tipo){
             <div style="font-size:11px;color:#68727d">Elige una opción</div>
           </div>
           <select id="rr-dia-preset" onchange="aplicarPresetDiasResumen(this.value)" style="width:100%;padding:10px 12px;background:#1558a0;border:1px solid #1558a0;color:#fff;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer">
-            <option value="hoy" selected>Hoy</option>
+            <option value="hoy">Hoy</option>
             <option value="manana">Mañana</option>
-            <option value="quincena">Quincena completa</option>
+            <option value="quincena" selected>Quincena completa</option>
             <option value="laborables">Días laborables</option>
             <option value="manual">Selección manual</option>
           </select>
@@ -23945,10 +23945,6 @@ function showImprimirResumenSelector(tipo){
       </div>
     </div>`;
   mo.style.display = 'flex';
-  if(!diasQ.includes(riegoDiaDeHoy())){
-    const fallback = document.querySelector('.rr-dia-chk');
-    if(fallback){fallback.checked=true;document.getElementById('rr-dia-preset').value='manual';}
-  }
   actualizarImpresionResumenUI();
 }
 
@@ -24039,12 +24035,34 @@ function actualizarImpresionResumenUI(){
 // Uno o varios invernaderos, con uno o varios días cada uno — todo junto en
 // una sola hoja continua (sin salto de página forzado por día ni por
 // invernadero, a diferencia de antes que salía una hoja física por día).
-function imprimirResumen(){
+async function imprimirResumen(){
   const cfg = RESUMEN_CONFIG[resumenTipoActual];
   const invIds = leerInvernaderosBulkSeleccionados('rr');
-  const dias = Array.from(document.querySelectorAll('.rr-dia-chk:checked')).map(el=>parseInt(el.value)).sort((a,b)=>a-b);
+  const dias = Array.from(document.querySelectorAll('.rr-dia-chk:checked')).map(el=>parseInt(el.value,10)).sort((a,b)=>a-b);
   if(!invIds.length){ showToast('Elige al menos un invernadero'); return; }
   if(!dias.length){ showToast('Elige al menos un día'); return; }
+  const printBtn = document.getElementById('rr-print-btn');
+  if(printBtn){ printBtn.disabled = true; printBtn.setAttribute('aria-busy','true'); }
+  try {
+    if(resumenTipoActual==='riego'){
+      // Cargar invernaderos seleccionados que aún no se han consultado;
+      // conservar cualquier edición local pendiente de sincronización.
+      const pendientes = invIds.filter(id=>!riegoInvCargadaEn[String(id)] && !Array.from(riegoDirtyCells.values()).some(c=>String(c.invId)===String(id)));
+      if(pendientes.length && !(await loadRiegoInvsData(pendientes,false))){
+        showToast('No se han podido cargar los riegos para imprimir.');return;
+      }
+    }
+    const hayContenido = invIds.some(id=>{
+      const layout=INV_LAYOUT[id];
+      return layout && dias.some(d=>cfg.detectBrackets(id,d,[...layout.row1,...layout.row2]).length>0);
+    });
+    if(!hayContenido){
+      showToast('No hay riegos registrados en los días e invernaderos seleccionados.');
+      return;
+    }
+  } finally {
+    if(printBtn){printBtn.removeAttribute('aria-busy');actualizarImpresionResumenUI();}
+  }
 
   const escapar = v => String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
