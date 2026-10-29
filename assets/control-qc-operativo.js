@@ -251,7 +251,7 @@
   }
   function snapshot(){
     if(!active)return null;
-    const out={bandejasInspeccionadas:active.querySelector('.qco-total input').value,categorias:{},
+    const out={categorias:{},
       porcentajeInvalidasGlobal:Number(active.querySelector('.qco-global-percent').value)};
     for(const [cat] of CATS){
       const wrap=active.querySelector('[data-qco-cat="'+cat+'"]');
@@ -365,7 +365,7 @@
     const total=saved?strCount(saved.bandejasInspeccionadas):strCount(rec?.numBandejas);
     active.querySelector('.qco-total input').value=total===null?'':String(total);
     active.querySelector('.qco-total-value').textContent=total===null?'No disponible':total.toLocaleString('es-ES');
-    const savedV5=saved?.schemaVersion===5;
+    const savedV5=[5,6].includes(saved?.schemaVersion);
     const aggregate=active.querySelector('.qco-global-percent');
      for(const [cat] of CATS){
       const wrap=active.querySelector('[data-qco-cat="'+cat+'"]');
@@ -452,8 +452,7 @@
     d.hidden=false;if(expand)d.open=true;updateIndicatorVisibility();
   }
   function validate(){
-    const v=snapshot(),total=strCount(v.bandejasInspeccionadas),errors=[];
-    if(total===null)errors.push('No consta el total de bandejas de la partida.');
+    const v=snapshot(),errors=[];
     const global=v.porcentajeInvalidasGlobal;
     const hasIssue=Object.values(v.categorias).some(i=>i.opciones.some(k=>k!=='ok'&&k!=='noEvaluada'));
     if(!Number.isInteger(global)||global<0||global>100||global%10!==0||
@@ -478,7 +477,7 @@
         if(sum>100)errors.push('Sanidad: suma de enfermedades superior al 100 %.');
       }else if(a.length!==1)errors.push(name+': solo permite una opción.');
     }
-    return {errors,total,categorias:v.categorias,porcentajeInvalidasGlobal:global};
+    return {errors,categorias:v.categorias,porcentajeInvalidasGlobal:global};
   }
   // Tras una respuesta de guardado incierta, solo LEER la misma medición.
   // Nunca reintentar la escritura automáticamente (evita duplicados/conflictos).
@@ -496,7 +495,7 @@
       if(!saved)return {state:'absent'};
       if(!Number.isInteger(saved.version)||saved.version<=previousVersion)
         return {state:'different'};
-      const same=saved.schemaVersion===5&&saved.bandejasInspeccionadas===expected.total&&
+      const same=saved.schemaVersion===6&&
         saved.porcentajeInvalidasGlobal===expected.porcentajeInvalidasGlobal&&
         Object.keys(expected.categorias).every(cat=>JSON.stringify(saved.categorias?.[cat])===JSON.stringify(expected.categorias[cat]));
       return same?{state:'confirmed',value:saved}:{state:'different'};
@@ -544,7 +543,7 @@
         method:'POST',headers:{Authorization:'Bearer '+jwt,'Content-Type':'application/json'},
         body:JSON.stringify({
           id:record.id,tipo:record.tipo,dia:record.dia,partida:record.partida,
-          schemaVersion:5,version,bandejasInspeccionadas:checked.total,
+          schemaVersion:6,version,
           categorias:checked.categorias,porcentajeInvalidasGlobal:checked.porcentajeInvalidasGlobal
         }),cache:'no-store'
       });
@@ -561,7 +560,7 @@
       const data=await r.json();
       if(!data.ok||!Number.isInteger(data.version))throw Error('INVALID_RESPONSE');
       version=data.version;original=JSON.stringify(snapshot());initialSnapshot=original;
-      savedMeasurement={schemaVersion:5,version,bandejasInspeccionadas:checked.total,
+      savedMeasurement={schemaVersion:6,version,
         categorias:checked.categorias,porcentajeInvalidasGlobal:checked.porcentajeInvalidasGlobal};
       confirmed=true;
     }catch(err){
