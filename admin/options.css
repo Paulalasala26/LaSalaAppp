@@ -30,3 +30,15 @@
   #options-modal #options-form{padding:0 18px 20px}
   #options-modal .catalog-modal-footer button{white-space:normal}
 }
+
+/* Opciones de riego: compacto y coherente con catálogos */
+.options-group-select{margin:2px 0 13px;gap:10px}
+.options-group-select select{padding:7px 10px;min-height:36px;border-radius:7px}
+#options-modal .modal-heading{padding-top:18px;padding-bottom:9px}
+#options-modal #options-form{padding-bottom:18px}
+#options-modal #options-form .field{margin-bottom:12px}
+#options-modal .catalog-modal-footer{margin-top:15px;justify-content:flex-end}
+#options-modal .catalog-modal-footer button{min-height:38px}
+#options-modal .catalog-state-button{background:#e8f2ff;border-color:#b9d3f1;color:#155caa}
+#options-modal .catalog-state-button.is-danger{background:#fff2f0;border-color:#edc6c1;color:#a3342e}
+#options-modal .modal-info{margin-top:13px}
