@@ -204,7 +204,8 @@
   title.style.cssText='font-size:20px;color:#1558a0';
   const hint=el('p','No se enviará al servidor. Solo disponible en este dispositivo.');
   const form=el('form');form.noValidate=true;
-  const total=el('div','Bandejas de la partida:');
+  const total=el('div','');
+  total.hidden=true; // El valor se conserva para compatibilidad con el esquema v5.
   total.style.cssText='display:flex;gap:8px;align-items:center;color:#1558a0;font-weight:800;margin:12px 0';
   const sourceTotal=quantity(Number(ref.bandejas))&&/^\d+$/.test(String(ref.bandejas||'').trim())?Number(ref.bandejas):null;
   const initialTotal=draft?.bandejasInspeccionadas||sourceTotal;
