@@ -383,15 +383,15 @@
     version=saved?.version||0;
     const modern=[5,6].includes(saved?.schemaVersion);
     const legacyEditor=el('qcu-form');
-    legacyEditor.hidden=modern;
-    el('qcu-quant-title').textContent=modern?'Evaluación porcentual':'Medición histórica por bandejas';
+    legacyEditor.hidden=true; // La captura cuantitativa antigua queda solo histórica; jamás ofrecer nueva escritura.
+    el('qcu-quant-title').textContent=modern?'Evaluación porcentual':'Evaluación QC';
     let summary=el('qcu-percent-summary');
     if(!summary){
       summary=node('div',null,'qcu-percent-summary');
       summary.id='qcu-percent-summary';
       legacyEditor.parentElement.insertBefore(summary,legacyEditor);
     }
-    summary.hidden=!modern;
+    summary.hidden=false;
     summary.replaceChildren();
     if(modern){
       const labels={color:'Color',tamano:'Tamaño',sanidad:'Sanidad',flores:'Flores',raices:'Raíces'};
@@ -403,6 +403,8 @@
       for(const [d,pct] of Object.entries(diseases))
         summary.append(node('p',d+': '+pct+' %','qci-note'));
       summary.append(node('strong','Índice global: '+saved.porcentajeInvalidasGlobal+' %'));
+    }else{
+      summary.append(node('p',saved?'Registro de cantidades anterior: disponible exclusivamente en el detalle histórico de indicadores.':'Aún no hay evaluación porcentual. Regístrala desde Control de Calidad en ViguerAPP.','qci-note'));
     }
 
     el('qcu-inspected').value=saved?String(saved.bandejasInspeccionadas):'';
@@ -518,7 +520,7 @@
   async function submit(e){
     e.preventDefault();
     if(saving||!currentRef)return;
-    if([5,6].includes(savedSnapshot?.schemaVersion)){
+    if(true){
       inform('Esta ficha porcentual se consulta aquí. La edición se realiza desde Control de Calidad. No se ha modificado ningún dato.',true);
       return;
     }
