@@ -18,10 +18,42 @@
 .reg-results td:last-child{white-space:nowrap}.reg-results .action-button{margin-left:5px}
 @media(max-width:850px){.reg-filter{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:530px){.reg-filter{grid-template-columns:1fr}.reg-stats{grid-template-columns:1fr}}
+
+/* Registros: compactación y controles coherentes con el Backoffice azul */
+.registros-page{--green:#155caa;--green2:#246fbf;--ink:#22354b;--muted:#67788b;--line:#e0e7f0;--canvas:#f5f8fc;--focus:#377bd0}
+.registros-page .sidebar{background:#fff;border-right-color:#e0e7f0;padding-top:18px}
+.registros-page .brand{padding-bottom:20px}
+.registros-page .sidebar-label{color:#8292a7}
+.registros-page .nav-item{color:#425b78;min-height:38px}
+.registros-page .nav-item.selected{background:#e8f2ff;color:#155caa}
+.registros-page .menu-label{margin-top:15px}
+.registros-page .sidebar-footer a{color:#155caa}
+.registros-page .topbar{height:55px;min-height:55px}
+.registros-page .content{padding-top:19px}
+.registros-page h1{font-size:26px}
+.registros-page .reg-filter{gap:9px;padding:13px;margin-bottom:12px}
+.registros-page .reg-filter label{font-size:11px;margin-bottom:4px}
+.registros-page .reg-filter input,.registros-page .reg-filter select{min-height:36px;padding:7px 9px}
+.registros-page .reg-filter button{min-height:36px}
+.registros-page .reg-stats{gap:10px;margin-bottom:14px}
+.registros-page .reg-stats .stat{min-height:75px;padding:13px 16px;gap:4px}
+.registros-page .reg-stats .stat strong{font-size:23px;color:#155caa}
+.registros-page .table-toolbar{padding:13px 17px}
+.registros-page th{padding:10px 13px}
+.registros-page td{padding:8px 13px}
+.registros-page .table-footer{padding:10px 17px}
+.registros-page .button.ghost{color:#155caa;border-color:#b9d3f1}
+.registros-page .button.ghost:hover:not(:disabled){background:#e8f2ff}
+.registros-page .action-button{background:#f6faff;color:#155caa;border-color:#b9d3f1}
+.registros-page .reg-print-icon{width:38px;height:38px;min-height:38px;padding:0;font-size:18px;display:inline-grid;place-items:center}
+.registros-page .operation-feedback{background:#f0f7ff;border-color:#bdd7f5;color:#155caa}
+.registros-page .operation-feedback.error{background:#fff1f1;border-color:#edb5b5;color:#a32121}
+@media(max-width:530px){.registros-page .reg-stats{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}.registros-page .reg-stats .stat{padding:10px;min-height:70px}.registros-page .reg-stats .stat strong{font-size:21px}.registros-page .topbar{height:50px;min-height:50px}}
+
 </style>
   <script src="./registros.js" defer></script>
 </head>
-<body>
+<body class="registros-page">
   <div id="access-gate" class="access-gate" role="status" aria-live="polite">
     <div class="access-panel">
       <div class="brand-mark"><img src="../icon-192.png?v=ls-20261029" alt=""></div>
@@ -33,7 +65,7 @@
   <div id="workspace" class="shell" hidden>
     <aside class="sidebar" aria-label="Navegación del Backoffice">
       <div class="brand">
-        <div class="brand-mark"><img src="../icon-192.png?v=ls-20261029" alt=""></div><div><strong>ViguerAPP</strong><span>Backoffice</span></div>
+        <div class="brand-mark"><img src="../icon-192.png?v=ls-20261029" alt=""></div><div><strong>La Sala</strong><span>Backoffice</span></div>
       </div>
       <div class="sidebar-label">GENERAL</div>
       <nav class="sidebar-nav">
@@ -77,7 +109,7 @@
   </section>
   <section class="table-card">
     <div class="table-toolbar"><div class="table-title"><h2>Listado de registros</h2><p id="reg-desc">Selecciona un invernadero y pulsa Consultar.</p></div>
-      <button id="reg-print" class="button ghost" type="button" disabled>Imprimir desde Riego</button></div>
+      <button id="reg-print" class="button ghost reg-print-icon" type="button" title="Imprimir desde Control de Riego" aria-label="Imprimir desde Control de Riego" disabled>🖨</button></div>
     <div class="table-scroll"><table class="catalog-table reg-results">
       <thead><tr><th>Fecha</th><th>Invernadero / calle</th><th>Marcaje</th><th>Usuario</th><th class="actions-col">Acciones</th></tr></thead>
       <tbody id="reg-body"><tr><td colspan="5" class="empty-cell">Sin consulta todavía.</td></tr></tbody>
