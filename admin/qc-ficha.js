@@ -381,6 +381,30 @@
   function loadSaved(saved){
     savedSnapshot=saved;
     version=saved?.version||0;
+    const modern=[5,6].includes(saved?.schemaVersion);
+    const legacyEditor=el('qcu-form');
+    legacyEditor.hidden=modern;
+    el('qcu-quant-title').textContent=modern?'Evaluación porcentual':'Medición histórica por bandejas';
+    let summary=el('qcu-percent-summary');
+    if(!summary){
+      summary=node('div',null,'qcu-percent-summary');
+      summary.id='qcu-percent-summary';
+      legacyEditor.parentElement.insertBefore(summary,legacyEditor);
+    }
+    summary.hidden=!modern;
+    summary.replaceChildren();
+    if(modern){
+      const labels={color:'Color',tamano:'Tamaño',sanidad:'Sanidad',flores:'Flores',raices:'Raíces'};
+      const diseases=saved.categorias?.sanidad?.porcentajesEnfermedades||{};
+      for(const [key,label] of Object.entries(labels)){
+        const selected=saved.categorias?.[key]?.opciones||[];
+        summary.append(node('p',label+': '+(selected.length?selected.join(', '):'Sin evaluar'),'qci-note'));
+      }
+      for(const [d,pct] of Object.entries(diseases))
+        summary.append(node('p',d+': '+pct+' %','qci-note'));
+      summary.append(node('strong','Índice global: '+saved.porcentajeInvalidasGlobal+' %'));
+    }
+
     el('qcu-inspected').value=saved?String(saved.bandejasInspeccionadas):'';
     for(const cat of CATS){
       const group=el('qcu-groups').querySelector('[data-cat="'+cat.key+'"].qcu-group');
@@ -432,7 +456,7 @@
     el('qcu-groups').querySelectorAll('.qcu-inline-indicator').forEach(x=>{x.hidden=true;x.textContent='';});
     status.hidden=false;
     section.hidden=true;
-    if(savedSnapshot&&!measurementsUnchanged()){
+    if(savedSnapshot&&![5,6].includes(savedSnapshot.schemaVersion)&&!measurementsUnchanged()){
       status.hidden=true;
       return;
     }
@@ -453,7 +477,8 @@
       result.configuredCount===0?'Sin criterios configurados.':'';
     status.hidden=!status.textContent;
     const stats=el('qci-metrics');stats.replaceChildren();
-    metric(stats,'Bandejas inspeccionadas',result.inspected.toLocaleString('es-ES'));
+    if(![5,6].includes(savedSnapshot.schemaVersion))
+      metric(stats,'Bandejas inspeccionadas',result.inspected.toLocaleString('es-ES'));
     metric(stats,'Opciones cuantificadas',String(result.evaluatedCount));
     metric(stats,'Advertencias',result.configuredCount?String(result.warningCount):'—');
     metric(stats,'Alertas prioritarias',result.configuredCount?String(result.criticalCount):'—');
@@ -473,7 +498,7 @@
       const tr=node('tr');
       for(const value of [
         row.categoryLabel+' · '+row.optionLabel,
-        row.count.toLocaleString('es-ES')+' / '+result.inspected.toLocaleString('es-ES'),
+        row.count===null?'—':row.count.toLocaleString('es-ES')+' / '+result.inspected.toLocaleString('es-ES'),
         percentText(row.percentDisplay),
         row.treatmentLabel,
         row.tolerance===null?'—':percentText(row.tolerance)
@@ -493,6 +518,10 @@
   async function submit(e){
     e.preventDefault();
     if(saving||!currentRef)return;
+    if([5,6].includes(savedSnapshot?.schemaVersion)){
+      inform('Esta ficha porcentual se consulta aquí. La edición se realiza desde Control de Calidad. No se ha modificado ningún dato.',true);
+      return;
+    }
     const result=validate();
     if(!result.ok){
       inform('No se puede guardar: '+result.errors.slice(0,8).join(' · ')+
