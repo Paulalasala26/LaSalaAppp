@@ -7,6 +7,9 @@
 
 ## 0. CONTINUIDAD ACTUAL — 29/10/2026 (PRIORIDAD SOBRE LOS HISTÓRICOS)
 
+### §0.167 — Específicos: papelera junto a Aplicar en edición (29/10/2026)
+**IMPLEMENTADO EN TEST, VALIDACIÓN VISUAL PENDIENTE.** El usuario solicita sustituir «Borrar» por solo icono de papelera, colocado inmediatamente a la izquierda de Aplicar en los formularios de edición. Pie alineado a la derecha con gap de 8px. Papelera con etiqueta accesible y acción preexistente de borrado/confirmación sin cambios; oculta en altas, visible en edición desde celda o ficha Resumen. Aplicar sigue a la derecha. Sin cambios de persistencia, tratamientos, permisos ni vínculos. Commit `9836c25a02000d060fc6f042b69c386119f5d3d2` rama `test/v1.0`; PRD/main intactos.
+
 ### §0.166 — Específicos: simplificar impresión y retirar Hoja manual (29/10/2026)
 **IMPLEMENTADO EN TEST; VALIDACIÓN VISUAL PENDIENTE.** Auditoría funcional: «Hoja manual» abría formulario de impresión de un tratamiento introducido manualmente y no registrado en la aplicación, con riesgo de generar documentos discordantes con los datos reales y redundancia de alta. Se retira exclusivamente el botón de acceso «Hoja manual» del selector de impresora de cabecera y el mensaje que lo promovía cuando no hay tratamientos. Botón Imprimir queda único, azul, alineado a derecha; selección por día/INV, ficha registrada y motor A4 intactos. No se elimina la implementación histórica del formulario manual ni se modifica almacenamiento, tratamientos, tareas, partidas o funciones de guardado. Código commit `fc94de3bc1c67eb0fbebd3d3e553cce366bef5a4`. Sin UAT de navegador aún. Rama `test/v1.0`; main y PRD intactos.
 
