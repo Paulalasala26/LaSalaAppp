@@ -14965,7 +14965,7 @@ function abrirEditarFichaResumenEspecifico(f){
       body.prepend(aviso);
       body.querySelectorAll('input,select,textarea').forEach(el=>el.disabled=true);
     }
-    ['esp-aplicar-btn','esp-borrar-btn'].forEach(id=>{const el=document.getElementById(id);if(el)el.disabled=true;});
+    ['esp-aplicar-btn','esp-borrar-btn'].forEach(id=>{const el=document.getElementById(id);if(el){el.disabled=true;el.style.display='none';}});
   }
 }
 function refrescarVistaResumenEspecifico(){
@@ -22627,7 +22627,7 @@ function abrirEspecificoDesdeCelda(invId,dia,calles){
   }
   ['esp-aplicar-btn','esp-borrar-btn'].forEach(id=>{
     const el=document.getElementById(id);
-    if(el){el.disabled=true;el.style.opacity='.45';el.style.cursor='not-allowed';}
+    if(el){el.disabled=true;el.style.display='none';}
   });
 }
 
