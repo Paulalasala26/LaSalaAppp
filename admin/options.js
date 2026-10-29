@@ -146,6 +146,7 @@
     el('form-order').value=String(defaultOrder());
     el('toggle-option').hidden=true;el('option-status').hidden=true;
     set('modal-feedback','');set('save-option','Crear');
+    el('save-option').disabled=false;
     openForm();
   }
   function openEdit(option){
@@ -161,12 +162,21 @@
     el('option-status').hidden=false;
     set('option-status','Estado: '+(option.active?'activo':'desactivado'));
     set('modal-feedback','');set('save-option','Guardar cambios');
+    updateSaveAvailability();
     openForm();
+  }
+  function updateSaveAvailability(){
+    if(!editing)return;
+    const unchanged=el('form-label').value.trim()===editing.label &&
+      Number(el('form-order').value)===Number(editing.order);
+    el('save-option').disabled=busy||unchanged;
+    el('save-option').title=unchanged?'No hay cambios que guardar':'';
   }
   function setBusy(next){
     busy=next;
     for(const id of ['new-option','save-option','toggle-option','modal-close','modal-cancel','group-selector'])
       el(id).disabled=next;
+    if(!next)updateSaveAvailability();
   }
   async function mutate(method,payload,success){
     if(busy)return;
@@ -207,6 +217,8 @@
     el('filter-status').addEventListener('change',render);
     el('new-option').addEventListener('click',openNew);
     el('options-form').addEventListener('submit',save);
+    el('form-label').addEventListener('input',updateSaveAvailability);
+    el('form-order').addEventListener('input',updateSaveAvailability);
     el('toggle-option').addEventListener('click',toggle);
     el('modal-close').addEventListener('click',closeForm);
     el('modal-cancel').addEventListener('click',closeForm);
