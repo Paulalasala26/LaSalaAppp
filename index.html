@@ -15145,7 +15145,7 @@ function showRiegoModule(soloLectura){
             Cambiar
           </button>
         </div>
-        <div id="riego-actions-row" style="display:none;position:relative;z-index:30;padding:.65rem 1.25rem;background:#fff;border-bottom:1px solid #dce4ed;align-items:center;gap:8px;flex-shrink:0">
+        <div id="riego-actions-row" style="display:none;position:relative;z-index:30;padding:.65rem 1.25rem;background:#fff;border-bottom:1px solid #dce4ed;align-items:center;justify-content:flex-end;gap:8px;flex-shrink:0">
           <button onclick="showRiegoManualForm()" title="Añadir riego"
             style="padding:7px 14px;background:#1558a0;border:1px solid #1558a0;color:#fff;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">
             <i class="ti ti-plus" style="font-size:14px;vertical-align:-2px"></i> Añadir riego
@@ -17915,7 +17915,7 @@ function showRiegoManualForm(){
         </div>
       </div>
       <!-- BUTTONS (fijos abajo, siempre visibles) -->
-      <div style="display:flex;gap:8px;justify-content:space-between;padding:.55rem .75rem;border-top:1px solid #dce4ed;flex-shrink:0;background:#fff">
+      <div style="display:flex;gap:8px;justify-content:flex-end;padding:.55rem .75rem;border-top:1px solid #dce4ed;flex-shrink:0;background:#fff">
         <button id="rm-borrar-btn" type="button" onclick="borrarRiegoManual()" title="Eliminar riego original" aria-label="Eliminar riego original"
           style="display:none;width:36px;height:36px;padding:0;background:#fdecea;color:#c62828;border:1px solid #f3c2bd;border-radius:8px;cursor:pointer;align-items:center;justify-content:center;flex-shrink:0">
           <i class="ti ti-trash" aria-hidden="true" style="font-size:17px"></i>
@@ -23927,13 +23927,13 @@ function showImprimirResumenSelector(tipo){
             <option value="manual">Selección manual</option>
           </select>
           <div id="rr-manual-days" style="display:none;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:3px;margin-top:9px;padding:8px;background:#f7f9fc;border:1px solid #d6e0ec;border-radius:7px">
-            \${diasHTML}
+            ${diasHTML}
           </div>
         </section>
       </div>
 
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:10px 14px;background:#fff;border-top:1px solid #d6e0ec;box-shadow:0 -2px 8px rgba(0,0,0,.06);flex-shrink:0">
-        <div id="rr-selection-summary" style="font-size:12px;font-weight:700;color:#1558a0">0 invernaderos · 0 días seleccionados</div>
+      <div style="display:flex;align-items:center;justify-content:flex-end;gap:12px;flex-wrap:wrap;padding:10px 14px;background:#fff;border-top:1px solid #d6e0ec;box-shadow:0 -2px 8px rgba(0,0,0,.06);flex-shrink:0">
+        <div id="rr-selection-summary" style="font-size:12px;font-weight:700;color:#1558a0;margin-right:auto">0 invernaderos · 0 días seleccionados</div>
         <div style="display:flex;gap:8px">
           <button onclick="document.getElementById('imprimir-resumen-overlay').style.display='none'"
             style="padding:8px 16px;font-size:13px;font-weight:700;background:#1558a0;color:#fff;border:1px solid #1558a0;border-radius:7px;cursor:pointer">Cancelar</button>
@@ -23945,6 +23945,10 @@ function showImprimirResumenSelector(tipo){
       </div>
     </div>`;
   mo.style.display = 'flex';
+  if(!diasQ.includes(riegoDiaDeHoy())){
+    const fallback = document.querySelector('.rr-dia-chk');
+    if(fallback){fallback.checked=true;document.getElementById('rr-dia-preset').value='manual';}
+  }
   actualizarImpresionResumenUI();
 }
 
