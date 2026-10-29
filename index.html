@@ -22833,15 +22833,15 @@ function showEspecificoManualForm(opciones={}){
         </label>
         <div id="esp-gasto-preview" style="min-height:15px;font-size:11px;color:#1558a0;font-weight:700"></div>
       </div>
-      <footer style="padding:8px 11px;display:flex;justify-content:space-between;gap:8px;
+      <footer style="padding:8px 11px;display:flex;justify-content:flex-end;gap:8px;
         background:#fff;border-top:1px solid #dce4ed;flex-shrink:0">
-        <button id="esp-borrar-btn" type="button" onclick="borrarEspecificoManual()" title="Borrar el tratamiento seleccionado"
-          style="border:1px solid #f3c2bd;border-radius:7px;background:#fdecea;color:#c62828;
-            min-height:39px;padding:8px 12px;font-size:12px;font-weight:800;cursor:pointer">
-          <i class="ti ti-trash" aria-hidden="true"></i> Borrar
+        <button id="esp-borrar-btn" type="button" onclick="borrarEspecificoManual()" title="Borrar específico" aria-label="Borrar específico"
+          style="display:${desdeResumenFicha||opciones.editar?'inline-flex':'none'};align-items:center;justify-content:center;border:1px solid #f3c2bd;border-radius:7px;background:#fdecea;color:#c62828;
+            min-height:39px;min-width:39px;padding:8px;font-size:15px;font-weight:800;cursor:pointer">
+          <i class="ti ti-trash" aria-hidden="true"></i>
         </button>
         <button id="esp-aplicar-btn" type="button" onclick="saveEspecificoManual()"
-          style="margin-left:auto;border:1px solid #1558a0;border-radius:7px;background:#1558a0;color:#fff;
+          style="border:1px solid #1558a0;border-radius:7px;background:#1558a0;color:#fff;
             min-height:39px;padding:8px 20px;font-size:12px;font-weight:800;cursor:pointer">
           <i class="ti ti-check" aria-hidden="true"></i> Aplicar
         </button>
