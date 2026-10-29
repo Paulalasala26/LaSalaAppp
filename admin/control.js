@@ -363,7 +363,7 @@
       row.append(status);
       const actions=node('td');actions.className='actions-col';
       const open=node('button','Abrir QC','action-button');open.type='button';
-      open.title='Ficha QC: detalle, edición tradicional y mediciones por cantidad';
+      open.title='Ficha QC: evaluación porcentual e histórico';
       open.addEventListener('click',()=>openQuantitativePrototype(rec));actions.append(open);
       const camera=node('button','📷','action-button');camera.type='button';
       camera.title='Piloto TEST: hacer foto QC y guardarla en SharePoint (solo ADMIN)';
@@ -388,7 +388,6 @@
     if(rec.tipo==='carga'){
       addField(grid,'Cliente',rec.cliente);addField(grid,'Variedad',rec.variedad);
     }else addField(grid,'Cliente y variedad',rec.clienteVariedad);
-    addField(grid,'Nº bandejas',rec.numBandejas);
     addField(grid,'Invernadero y calle',locationText(rec));
     addField(grid,'Estado',rec.done?'Completado':'Pendiente');
     addField(grid,'Creado por',rec.creadoPor);addField(grid,'Fecha de creación',rec.creadoEn);
@@ -552,8 +551,7 @@
               const origin=m.ubicacionOrigen==='tunel'?
                 'Túnel ('+(m.registroTunelOrigen||m.ubicacionEstado)+')':
                 'Carga ('+(m.ubicacionEstado||'directa')+')';
-              line.textContent='Partida '+record.partida+' · '+(record.numBandejas??'—')+
-                ' bandejas: '+inv+' · Calle '+calle+' · Origen '+origin;
+              line.textContent='Partida '+record.partida+': '+inv+' · Calle '+calle+' · Origen '+origin;
               if(m.ubicacionEstado==='tunel_ambiguo'||
                  m.ubicacionEstado==='tunel_calle_ambigua'){
                 const diag=body.diagnosticoTunel;
@@ -568,8 +566,7 @@
                       c.tramos.map(t=>t.desde===t.hasta?String(t.desde):t.desde+'–'+t.hasta).join(', '):
                       'sin calle';
                     const detail=node('div','• '+fecha+' · INV '+c.invernadero+
-                      ' · Calle '+calleTunel+' · '+(c.numBandejas??'—')+
-                      ' bandejas · '+c.id,'qc-secondary');
+                      ' · Calle '+calleTunel+' · '+c.id,'qc-secondary');
                     line.append(detail);
                   }
                   if(diag.consideradas>8){
