@@ -23895,12 +23895,15 @@ function showImprimirResumenSelector(tipo){
           style="width:30px;height:30px;padding:0;background:#1558a0;border:1px solid #1558a0;color:#fff;border-radius:6px;cursor:pointer;font-size:20px;line-height:1">&times;</button>
       </div>
       <div style="flex:1;overflow-y:auto;padding:clamp(12px,3vw,24px);display:flex;flex-direction:column;gap:14px">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
-          <div>
-            <div style="font-size:17px;font-weight:800;color:#1a1e18">¿Qué quieres imprimir?</div>
-            <div style="font-size:12px;color:#68727d;margin-top:3px">${tipo==='riego'?'Selecciona un día de la quincena y los invernaderos que quieres imprimir.':'Selecciona los invernaderos y los días. Todo se imprimirá junto.'}</div>
-          </div>
-          <div id="rr-selection-summary-top" style="font-size:12px;font-weight:700;color:#1558a0;background:#e8f0fb;border-radius:7px;padding:7px 10px">0 invernaderos · 0 días</div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div style="font-size:17px;font-weight:800;color:#1a1e18">¿Qué quieres imprimir?</div>
+          ${tipo==='riego' ? `
+            <label for="rr-riego-dia" style="font-size:12px;font-weight:800;color:#1558a0">Día de riego · ${riegoQuincenaLabel(cfg.quincenaOffset())}</label>
+            <select id="rr-riego-dia" onchange="actualizarImpresionResumenUI()" style="width:100%;min-height:40px;padding:9px 12px;background:#fff;border:1px solid #a8c4e8;color:#17324e;border-radius:7px;font-size:13px;font-weight:700">
+              ${diasQ.map(d=>'<option value="'+d+'" '+(d===diaRiegoPredeterminado?'selected':'')+'>'+riegoDiaLabelCorto(d)+' — '+riegoDiaSemana(d)+'</option>').join('')}
+            </select>` : `
+            <div style="font-size:12px;color:#68727d">Selecciona los invernaderos y los días. Todo se imprimirá junto.</div>
+            <div id="rr-selection-summary-top" style="font-size:12px;font-weight:700;color:#1558a0;background:#e8f0fb;border-radius:7px;padding:7px 10px;align-self:flex-start">0 invernaderos · 0 días</div>`}
         </div>
 
         <section style="background:#fff;border:1px solid #d6e0ec;border-radius:9px;padding:12px">
@@ -23915,6 +23918,7 @@ function showImprimirResumenSelector(tipo){
           </div>
         </section>
 
+        ${tipo==='riego' ? '' : `
         <section style="background:#fff;border:1px solid #d6e0ec;border-radius:9px;padding:12px">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:9px">
             <div style="font-size:14px;font-weight:800;color:#1a1e18">${tipo==='riego'?'Día de riego':'Días a imprimir'}</div>
@@ -23932,6 +23936,8 @@ function showImprimirResumenSelector(tipo){
             ${diasHTML}
           </div>`}
         </section>
+        `}
+
       </div>
 
       <div style="display:flex;align-items:center;justify-content:flex-end;gap:12px;flex-wrap:wrap;padding:10px 14px;background:#fff;border-top:1px solid #d6e0ec;box-shadow:0 -2px 8px rgba(0,0,0,.06);flex-shrink:0">
