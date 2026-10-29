@@ -23560,11 +23560,7 @@ async function showImprimirEspecificoSelector(){
               style="display:block;width:100%;margin-top:3px;min-height:42px;padding:7px;border:1px solid #a8c4e8;border-radius:7px;background:#fff;color:#17324e;font-size:12px"></select>
           </label>
           <div id="ie-registro-detalle" aria-live="polite" style="font-size:12px;color:#526478;border:1px solid #d9e4f0;background:#f5f9ff;border-radius:7px;padding:9px"></div>
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding-top:3px">
-            <button type="button" onclick="showImprimirEspecificoManualSelector()" title="Generar una hoja sin registrar tratamiento"
-              style="padding:8px 10px;min-height:36px;background:#1558a0;border:1px solid #1558a0;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer">
-              Hoja manual
-            </button>
+          <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;padding-top:3px">
             <button id="ie-imprimir-guardado" type="button" onclick="imprimirEspecificoRegistradoSeleccionado()"
               style="display:flex;align-items:center;gap:6px;padding:9px 14px;min-height:38px;background:#1558a0;border:1px solid #1558a0;border-radius:7px;color:#fff;font-size:12px;font-weight:800;cursor:pointer">
               <i class="ti ti-printer" aria-hidden="true"></i> Imprimir
@@ -23614,7 +23610,7 @@ function actualizarDetalleEspecificoParaImprimir(){
   if(btn)btn.disabled=!f;
   if(btn)btn.style.opacity=f?'1':'.45';
   if(!detalle)return;
-  if(!f){detalle.textContent='No hay específicos registrados con estos filtros. Puedes generar una hoja manual sin guardar datos.';return;}
+  if(!f){detalle.textContent='No hay específicos registrados con estos filtros.';return;}
   const p=parsearTextoEspecifico(f.texto);
   detalle.textContent='INV '+Object.keys(f.porInv).join(', ')+' · '+(p.trat||'')+
     (p.dosis?' · '+p.dosis:'')+(p.tipo?' · '+p.tipo:'')+
