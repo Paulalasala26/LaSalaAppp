@@ -7,6 +7,9 @@
 
 ## 0. CONTINUIDAD ACTUAL — 29/10/2026 (PRIORIDAD SOBRE LOS HISTÓRICOS)
 
+### §0.170 — Control de Riego: acción de imprimir solo icono (29/10/2026)
+**IMPLEMENTADO TEST; VALIDACIÓN VISUAL PENDIENTE.** Retirado el texto «Imprimir» del botón del selector de impresión de resumen de Riego. Botón compacto 38×38 px con solo icono de impresora, title y aria-label accesibles, en el mismo pie derecho. Se conservan ID rr-print-btn, acción imprimirResumen(), activación por selección de invernaderos y días, y formato de salida. Código commit 6358c67c3d77458a802dc2132be2fae55421f544. Rama test/v1.0; PRD/main intactos.
+
 ### §0.169 — Riego: impresión deshabilitada y alineación de acciones (29/10/2026)
 **IMPLEMENTADO TEST; UAT PENDIENTE.** Causa del botón «Imprimir» siempre deshabilitado en el selector de Riego: el bloque de checkboxes de días usaba el texto literal escapado `\${diasHTML}` en vez de interpolar la plantilla; por ello `.rr-dia-chk` no existía y la condición `diaSelected>0` nunca se cumplía. Se corrige interpolación y, si la quincena visible no contiene hoy, se marca por defecto el primer día y el selector pasa a «Selección manual»; el usuario puede elegir otro. Se alinea a la derecha la fila de «Añadir riego», las acciones del pie del formulario Riego (papelera, Cancelar, Aplicar) y acciones del pie del selector de impresión; el resumen de selección permanece visible separado a la izquierda. Sin cambios en guardado, permisos, datos, resúmenes ni impresión real. Código commit `a573a1e7161edfdf1835d8919d1ed732f6fa729b`. Validar en TEST impresión con selección de INV/días y visual de acciones. Rama `test/v1.0`, PRD/main intactos.
 
