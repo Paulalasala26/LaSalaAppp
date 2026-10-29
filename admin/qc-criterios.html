@@ -50,7 +50,8 @@
 <div class="main-area">
 <header class="topbar"><div class="breadcrumbs">Backoffice <span>/</span> QC <span>/</span> Criterios</div><div class="topbar-right"><span class="session-user" id="session-user">Administrador</span></div></header>
 <main class="content qcr-main">
-<div class="page-head"><h1>Criterios de calidad</h1><a class="button ghost" href="./control.html">← Registros QC</a></div>
+<div class="page-head"><h1>Criterios QC históricos</h1><a class="button ghost" href="./control.html">← Registros QC</a></div>
+<p class="qcr-note">Configuración histórica de tratamientos y tolerancias por cantidades. El QC porcentual actual utiliza un índice global de cinco bloques y porcentajes individuales de enfermedades; estas reglas antiguas no se aplican al nuevo modelo. Solo consulta.</p>
 <div id="qcr-feedback" class="qcr-feedback" role="status" aria-live="polite" hidden></div>
 <div class="qcr-toolbar">
   <label class="qcr-field" for="qcr-stage">Estadio
@@ -58,7 +59,7 @@
   </label>
   <span class="qcr-meta" id="qcr-version">—</span>
 </div>
-<form id="qcr-form" novalidate>
+<form id="qcr-form" novalidate aria-label="Criterios históricos en solo consulta">
 <section class="qcr-panel">
 <h2>Objetivo de calidad</h2>
 <label class="qcr-field" for="qcr-threshold">Porcentaje objetivo de calidad (%) 
@@ -69,7 +70,7 @@
 <h2>Criterios por categoría</h2>
 <div id="qcr-groups" class="qcr-grid"></div>
 <div class="qcr-actions">
-<button id="qcr-save" class="button primary" type="submit">Guardar</button>
+<button id="qcr-save" class="button primary" type="submit" hidden disabled>Guardar</button>
 <a href="./control.html" class="button ghost">Volver</a>
 </div>
 </section>
