@@ -65,6 +65,29 @@ function validMeasurement(value,id){
   }
   return true;
 }
+function validPercentMeasurement(value,id){
+  if(!plainObject(value)||![5,6].includes(value.schemaVersion)||
+     !plainObject(value.legacy)||value.legacy.id!==id||!REF_RE.test(id)||
+     !TYPES.has(value.legacy.tipo)||!Number.isInteger(value.legacy.dia)||
+     !PART_RE.test(value.legacy.partida)||!plainObject(value.categorias)||
+     Object.keys(value.categorias).sort().join('|')!==Object.keys(CATEGORIES).sort().join('|')||
+     !Number.isInteger(value.porcentajeInvalidasGlobal)||
+     value.porcentajeInvalidasGlobal<0||value.porcentajeInvalidasGlobal>100||
+     value.porcentajeInvalidasGlobal%10!==0)return false;
+  if(value.schemaVersion===5&&(!Number.isSafeInteger(value.bandejasInspeccionadas)||
+     value.bandejasInspeccionadas<1))return false;
+  if(value.schemaVersion===6&&Object.hasOwn(value,'bandejasInspeccionadas'))return false;
+  for(const category of Object.keys(CATEGORIES)){
+    const entry=value.categorias[category],choices=entry?.opciones;
+    if(!Array.isArray(choices)||!choices.length)return false;
+    if(category==='sanidad'){
+      const diseases=entry.porcentajesEnfermedades;
+      if(!plainObject(diseases)||Object.keys(diseases).some(k=>!/^enfermedad[1-4]$/.test(k)))return false;
+      if(Object.values(diseases).some(n=>!Number.isInteger(n)||n<10||n>100||n%10))return false;
+    }else if(choices.length!==1)return false;
+  }
+  return true;
+}
 function chosenRule(catalog,type,cat,key){
   const saved=catalog?.[type];
   if(!plainObject(saved)||saved.schemaVersion!==1||saved.stage!==type)return null;
@@ -131,11 +154,11 @@ function buildDashboard(raw,rawRules,filters,legacyRecords=[]){
     throw new Error('QC DB invalid');
   if(Object.keys(raw).length>50000)throw httpError(503,'TOO_MANY_RECORDS');
   const partitions={tunel:{records:0,completed:0,pending:0,measured:0,
-      bandejas:0,warnings:0,critical:0,flagged:0},
+      bandejas:0,percentSum:0,percentCount:0,warnings:0,critical:0,flagged:0},
     carga:{records:0,completed:0,pending:0,measured:0,
       bandejas:0,warnings:0,critical:0,flagged:0}};
   const options={},weekly=new Map(),rows=[],batches=new Set(),measuredBatches=new Set();
-  let measured=0,completed=0,warningCount=0,criticalCount=0,flaggedCount=0;
+  let measured=0,completed=0,warningCount=0,criticalCount=0,flaggedCount=0,percentSum=0,percentCount=0;
   let pendingCriteriaCount=0,invalidCount=0,unmatchedCount=0,inspectedAcrossRecords=0;
   let hasConfiguredRules=false;
   for(const type of TYPES){
@@ -157,7 +180,7 @@ function buildDashboard(raw,rawRules,filters,legacyRecords=[]){
   }
   const measurementById=new Map();
   for(const [id,value] of Object.entries(raw)){
-    if(!validMeasurement(value,id)){invalidCount++;continue}
+    if(!validMeasurement(value,id)&&!validPercentMeasurement(value,id)){invalidCount++;continue}
     measurementById.set(id,value);
   }
   const ids=new Set(),matchedQuantified=new Set();
@@ -189,10 +212,13 @@ function buildDashboard(raw,rawRules,filters,legacyRecords=[]){
     if(quant){
       matchedQuantified.add(rec.id);
       measured++;part.measured++;week.measured++;
-      const inspected=quant.bandejasInspeccionadas;
+      const modern=[5,6].includes(quant.schemaVersion);
+      if(modern){percentSum+=quant.porcentajeInvalidasGlobal;percentCount++;
+        part.percentSum+=quant.porcentajeInvalidasGlobal;part.percentCount++;}
+      const inspected=modern?0:quant.bandejasInspeccionadas;
       inspectedAcrossRecords+=inspected;part.bandejas+=inspected;
       if(typeof rec.partida==='string'&&rec.partida.trim())measuredBatches.add(rec.partida.trim());
-      for(const [cat,labels] of Object.entries(OPTIONS)){
+      if(!modern)for(const [cat,labels] of Object.entries(OPTIONS)){
         for(const key of Object.keys(labels)){
           const stat=options[type][cat][key];
           stat.inspected+=inspected;
@@ -216,7 +242,10 @@ function buildDashboard(raw,rawRules,filters,legacyRecords=[]){
       id:rec.id,tipo:type,dia:rec.dia,date:dayToISO(rec.dia),
       partida:typeof rec.partida==='string'?rec.partida:'',
       done,quantified:!!quant,numBandejasLegacy:rec.numBandejas??null,
-      bandejasInspeccionadas:quant?quant.bandejasInspeccionadas:null,
+      bandejasInspeccionadas:quant?.schemaVersion===1?quant.bandejasInspeccionadas:null,
+      porcentajeInvalidasGlobal:[5,6].includes(quant?.schemaVersion)?quant.porcentajeInvalidasGlobal:null,
+      enfermedades:[5,6].includes(quant?.schemaVersion)?quant.categorias?.sanidad?.porcentajesEnfermedades||{}:null,
+      measurementSchema:quant?.schemaVersion||null,
       version:quant?.version||0,updatedAt:quant?.updatedAt||null,
       warningCount:quant?warnings:null,criticalCount:quant?critical:null,
       criteriaPending:quant?pending:null,observedOptions:quant?observed:0
@@ -241,7 +270,8 @@ function buildDashboard(raw,rawRules,filters,legacyRecords=[]){
     filterType:filters.stage,filterPart:filters.part,
     stats:{records:rows.length,partidas:batches.size,completed,pending:rows.length-completed,
       measured,unmeasured:rows.length-measured,measuredPartidas:measuredBatches.size,
-      inspectedAcrossRecords,warningCount,criticalCount,flaggedCount,
+      inspectedAcrossRecords,percentCount,percentAverage:percentCount?Math.floor(percentSum/percentCount):null,
+      warningCount,criticalCount,flaggedCount,
       pendingRecordCount:pendingCriteriaCount,hasConfiguredRules},
     partitions,options:optionTotals,
     trend:Array.from(weekly.values()).sort((a,b)=>a.weekStart.localeCompare(b.weekStart)),
