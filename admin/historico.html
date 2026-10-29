@@ -20,10 +20,42 @@
 .audit-stats{grid-template-columns:repeat(3,minmax(0,1fr))}
 @media(max-width:850px){.audit-filters{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:540px){.audit-filters,.audit-stats{grid-template-columns:1fr}}
+
+/* Histórico: revisión compacta y azul, aislada del resto del Backoffice */
+.historico-page{--green:#155caa;--green2:#246fbf;--ink:#22354b;--muted:#67788b;--line:#e0e7f0;--canvas:#f5f8fc;--focus:#377bd0}
+.historico-page .sidebar{background:#fff;border-right-color:#e0e7f0;padding-top:18px}
+.historico-page .brand{padding-bottom:20px}
+.historico-page .sidebar-label{color:#8292a7}
+.historico-page .nav-item{color:#425b78;min-height:38px}
+.historico-page .nav-item.selected{background:#e8f2ff;color:#155caa}
+.historico-page .menu-label{margin-top:15px}
+.historico-page .sidebar-footer a{color:#155caa}
+.historico-page .topbar{min-height:55px;height:55px}
+.historico-page .content{padding-top:19px}
+.historico-page h1{font-size:26px}
+.historico-page .audit-filters{gap:9px;padding:13px;margin-bottom:12px;grid-template-columns:repeat(3,minmax(0,1fr))}
+.historico-page .audit-filters label{font-size:11px;margin-bottom:4px}
+.historico-page .audit-filters input,.historico-page .audit-filters select{min-height:36px;padding:6px 9px}
+.historico-page .audit-filters button{height:36px;align-self:end;justify-self:end;color:#155caa;border-color:#b9d3f1}
+.historico-page .audit-stats{gap:10px;margin-bottom:14px}
+.historico-page .stat{min-height:75px;padding:13px 16px;gap:4px}
+.historico-page .stat span{color:#697e94}
+.historico-page .stat strong{font-size:23px;color:#155caa}
+.historico-page .table-toolbar{padding:13px 17px}
+.historico-page th{padding:10px 13px}
+.historico-page td{padding:8px 13px}
+.historico-page .table-footer{padding:10px 17px}
+.historico-page .button.primary{background:#155caa;border-color:#155caa}
+.historico-page .button.ghost{color:#155caa;border-color:#b9d3f1}
+.historico-page .button.ghost:hover:not(:disabled){background:#e8f2ff}
+.historico-page .operation-feedback{background:#f0f7ff;border-color:#bdd7f5;color:#155caa}
+.historico-page .operation-feedback.error{background:#fff1f1;border-color:#edb5b5;color:#a32121}
+@media(max-width:850px){.historico-page .audit-filters{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:540px){.historico-page .audit-filters{grid-template-columns:1fr}.historico-page .audit-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.historico-page .audit-filters button{justify-self:stretch}.historico-page .topbar{height:50px;min-height:50px}}
 </style>
   <script src="./historico.js" defer></script>
 </head>
-<body>
+<body class="historico-page">
   <div id="access-gate" class="access-gate" role="status" aria-live="polite">
     <div class="access-panel">
       <div class="brand-mark"><img src="../icon-192.png?v=ls-20261029" alt=""></div>
@@ -34,7 +66,7 @@
   </div>
   <div id="workspace" class="shell" hidden>
     <aside class="sidebar" aria-label="Navegación del Backoffice">
-      <div class="brand"><div class="brand-mark"><img src="../icon-192.png?v=ls-20261029" alt=""></div><div><strong>ViguerAPP</strong><span>Backoffice</span></div></div>
+      <div class="brand"><div class="brand-mark"><img src="../icon-192.png?v=ls-20261029" alt=""></div><div><strong>La Sala</strong><span>Backoffice</span></div></div>
       <div class="sidebar-label">GENERAL</div>
       <nav class="sidebar-nav">
         <a href="./" class="nav-item"><span class="nav-symbol">◉</span> Usuarios</a>
