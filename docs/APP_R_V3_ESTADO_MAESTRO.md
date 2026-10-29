@@ -7,6 +7,9 @@
 
 ## 0. CONTINUIDAD ACTUAL — 29/10/2026 (PRIORIDAD SOBRE LOS HISTÓRICOS)
 
+### §0.171 — Control de Riego: impresión con datos reales de la quincena (29/10/2026)
+**CORREGIDO EN CÓDIGO TEST; PENDIENTE VALIDACIÓN REAL.** Incidencia del usuario: INV 1A, quincena 19 oct — 1 nov, al imprimir obtiene hoja con título sin los riegos existentes. Auditoría de `showImprimirResumenSelector` / `imprimirResumen`: el selector arrancaba con preset «Hoy» y solo marcaba hoy, aunque el usuario navegara una quincena distinta; `imprimirResumen` generaba hoja aun sin un solo riego. Además, solo leía la caché local de invernaderos, sin cargar los seleccionados todavía no consultados. Corrección: preset inicial «Quincena completa», los 14 días marcados; antes de imprimir Riego se cargan invernaderos seleccionados no presentes en caché (sin sobrescribir ediciones locales dirty), y se impide imprimir si no existen riegos en los INV/días seleccionados, con aviso. Se conserva opción Hoy/Mañana/Manual, resto de formatos y selector y no se modifican datos. Código commit `d8c22868c0784e8913f1f986c59a3b5f4f1642a3`. Falta UAT directa del INV 1A de esa quincena, y verificar contenido detallado/impresión física; no afirmar que se hayan leído riegos reales de Firebase. PRD/main intactos.
+
 ### §0.170 — Control de Riego: acción de imprimir solo icono (29/10/2026)
 **IMPLEMENTADO TEST; VALIDACIÓN VISUAL PENDIENTE.** Retirado el texto «Imprimir» del botón del selector de impresión de resumen de Riego. Botón compacto 38×38 px con solo icono de impresora, title y aria-label accesibles, en el mismo pie derecho. Se conservan ID rr-print-btn, acción imprimirResumen(), activación por selección de invernaderos y días, y formato de salida. Código commit 6358c67c3d77458a802dc2132be2fae55421f544. Rama test/v1.0; PRD/main intactos.
 
