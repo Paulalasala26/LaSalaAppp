@@ -182,6 +182,8 @@
     el('toggle-item').hidden=true;el('status-line').hidden=true;
     text('catalog-modal-feedback','');
     text('save-item','Crear');
+    el('save-item').disabled=false;
+    el('save-item').title='';
     showModal();
   }
   function nextRoomId(){
@@ -207,11 +209,19 @@
     text('status-line',entry.active?'Estado: activo':'Estado: desactivado');
     text('catalog-modal-feedback','');
     text('save-item','Guardar cambios');
+    updateSaveAvailability();
     showModal();
+  }
+  function updateSaveAvailability(){
+    if(!editing)return;
+    const unchanged=el('form-label').value.trim()===editing.label;
+    el('save-item').disabled=busy||unchanged;
+    el('save-item').title=unchanged?'No hay cambios que guardar':'';
   }
   function setBusy(value){
     busy=value;
     for(const id of ['new-item','save-item','toggle-item','catalog-modal-cancel','catalog-modal-close'])el(id).disabled=value;
+    if(!value)updateSaveAvailability();
   }
   async function mutate(method,payload,success){
     if(busy)return;
@@ -265,6 +275,7 @@
     el('filter-status').addEventListener('change',render);
     el('filter-room').addEventListener('change',render);
     el('catalog-form').addEventListener('submit',save);
+    el('form-label').addEventListener('input',updateSaveAvailability);
     el('toggle-item').addEventListener('click',toggle);
     el('catalog-modal-close').addEventListener('click',closeModal);
     el('catalog-modal-cancel').addEventListener('click',closeModal);
