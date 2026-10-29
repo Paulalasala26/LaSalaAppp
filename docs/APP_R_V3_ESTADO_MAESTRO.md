@@ -7,6 +7,9 @@
 
 ## 0. CONTINUIDAD ACTUAL — 29/10/2026 (PRIORIDAD SOBRE LOS HISTÓRICOS)
 
+### §0.169 — Riego: impresión deshabilitada y alineación de acciones (29/10/2026)
+**IMPLEMENTADO TEST; UAT PENDIENTE.** Causa del botón «Imprimir» siempre deshabilitado en el selector de Riego: el bloque de checkboxes de días usaba el texto literal escapado `\${diasHTML}` en vez de interpolar la plantilla; por ello `.rr-dia-chk` no existía y la condición `diaSelected>0` nunca se cumplía. Se corrige interpolación y, si la quincena visible no contiene hoy, se marca por defecto el primer día y el selector pasa a «Selección manual»; el usuario puede elegir otro. Se alinea a la derecha la fila de «Añadir riego», las acciones del pie del formulario Riego (papelera, Cancelar, Aplicar) y acciones del pie del selector de impresión; el resumen de selección permanece visible separado a la izquierda. Sin cambios en guardado, permisos, datos, resúmenes ni impresión real. Código commit `a573a1e7161edfdf1835d8919d1ed732f6fa729b`. Validar en TEST impresión con selección de INV/días y visual de acciones. Rama `test/v1.0`, PRD/main intactos.
+
 ### §0.168 — Específicos: ocultar acciones en solo consulta (29/10/2026)
 **VALIDADO EXPRESAMENTE POR EL USUARIO EL 29/10/2026 («validado»).** En formularios históricos fuera del periodo editable y en celdas vinculadas a Partidas (ambos solo consulta), se ocultan los botones Aplicar y Borrar/papelera en vez de mostrarlos deshabilitados. La cabecera mantiene Cerrar; campos continúan no editables; guardado y borrado siguen protegidos por sus verificaciones preexistentes. Se aplica tanto al formulario desde cuadrícula como a edición histórica desde Resumen. Sin cambios en fechas autorizadas, datos ni permisos. Código commit `6936487089f23485b2cdf04d28f953411f1fd5f9`, rama `test/v1.0`; PRD/main intactos.
 
