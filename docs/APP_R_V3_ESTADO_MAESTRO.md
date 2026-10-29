@@ -7,6 +7,9 @@
 
 ## 0. CONTINUIDAD ACTUAL — 29/10/2026 (PRIORIDAD SOBRE LOS HISTÓRICOS)
 
+### §0.174 — Backoffice / Usuarios: primera revisión de presentación (29/10/2026)
+**IMPLEMENTADO EN TEST; VALIDACIÓN VISUAL DEL USUARIO PENDIENTE.** Se inicia revisión secuencial Backoffice por Usuarios, primera opción de menú. Auditoría del código `admin/index.html`/`admin/app.js`: existentes alta, cambio de rol, restablecimiento de contraseña, activación/desactivación, búsqueda, filtro y contadores, respaldados por endpoint ADMIN. No reconstruir funcionalidad ya existente. Se identifica diferencia visual con frontend azul y exceso de espaciado. Se añade clase `users-page` solo a la pantalla Usuarios y CSS acotado: identidad azul, menú, métricas de cuatro tarjetas más compactas (dos por fila en móvil), tabla y filtros compactos, acciones azules, modal ajustado y cabecera reducida. **No se modifica `admin/app.js`, API, cuentas, roles, contraseñas, permisos ni datos.** Commits `b48310542` + `b2226008` solo `test/v1.0`, `main`/PRD intactos. Pendiente UAT visual PC/móvil y recorrido no destructivo de formulario; después continuar con siguiente sección del Backoffice. 
+
 ### §0.173 — Riego: selector diario arriba de la selección de INV (29/10/2026)
 **IMPLEMENTADO EN CÓDIGO TEST; VALIDACIÓN VISUAL PENDIENTE.** A petición del usuario, en el modal de imprimir Riego el selector «Día de riego» se muestra justo debajo de «¿Qué quieres imprimir?» ocupando el lugar del contador superior «1 invernadero · 1 día», que se elimina solo para Riego. La lista de invernaderos queda debajo; se suprime la sección duplicada de día del final. Plaguicidas conserva su selector y resumen anteriores. No hay cambios de datos ni función de impresión. Código commit 178d01c14f3333c6f7401fe8f244f72a059c8335. Solo test/v1.0; main/PRD intactos.
 
