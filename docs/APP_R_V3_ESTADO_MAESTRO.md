@@ -7,6 +7,9 @@
 
 ## 0. CONTINUIDAD ACTUAL — 29/10/2026 (PRIORIDAD SOBRE LOS HISTÓRICOS)
 
+### §0.168 — Específicos: ocultar acciones en solo consulta (29/10/2026)
+**IMPLEMENTADO EN TEST; PENDIENTE VALIDACIÓN VISUAL DEL USUARIO.** En formularios históricos fuera del periodo editable y en celdas vinculadas a Partidas (ambos solo consulta), se ocultan los botones Aplicar y Borrar/papelera en vez de mostrarlos deshabilitados. La cabecera mantiene Cerrar; campos continúan no editables; guardado y borrado siguen protegidos por sus verificaciones preexistentes. Se aplica tanto al formulario desde cuadrícula como a edición histórica desde Resumen. Sin cambios en fechas autorizadas, datos ni permisos. Código commit `6936487089f23485b2cdf04d28f953411f1fd5f9`, rama `test/v1.0`; PRD/main intactos.
+
 ### §0.167 — Específicos: papelera junto a Aplicar en edición (29/10/2026)
 **IMPLEMENTADO EN TEST, VALIDACIÓN VISUAL PENDIENTE.** El usuario solicita sustituir «Borrar» por solo icono de papelera, colocado inmediatamente a la izquierda de Aplicar en los formularios de edición. Pie alineado a la derecha con gap de 8px. Papelera con etiqueta accesible y acción preexistente de borrado/confirmación sin cambios; oculta en altas, visible en edición desde celda o ficha Resumen. Aplicar sigue a la derecha. Sin cambios de persistencia, tratamientos, permisos ni vínculos. Commit `9836c25a02000d060fc6f042b69c386119f5d3d2` rama `test/v1.0`; PRD/main intactos.
 
