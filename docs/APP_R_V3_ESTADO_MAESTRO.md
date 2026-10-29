@@ -7,6 +7,13 @@
 
 ## 0. CONTINUIDAD ACTUAL — 29/10/2026 (PRIORIDAD SOBRE LOS HISTÓRICOS)
 
+### §0.158 — Avisos: mover acceso de Inicio a campana de la cabecera (29/10/2026)
+**IMPLEMENTADO EN TEST; PENDIENTE VALIDACIÓN FUNCIONAL/VISUAL REAL.** A petición del usuario, se elimina la tarjeta «Avisos» de las homes ADMIN y TÉCNICO (no se alteran accesos de otros roles) y se añade un botón azul translúcido con icono de campana en la cabecera global, inmediatamente antes de «Cerrar sesión», a la derecha de ajustes ADMIN. Al pulsar la campana se ejecuta exactamente `mostrarModuloAvisos()`: las pantallas y operaciones preexistentes (activar/desactivar push, consultar, propuestas, hojas marcadas/corregidas, evaluación/resolución) permanecen.
+
+**Punto rojo:** representa existencia de uno o más avisos con `leido!==true` de la sesión activa, sin confundir «sin leer» con «sin evaluar» o «sin resolver». La marca se actualiza al entrar/restaurar sesión, al volver a la pestaña, con una consulta ligera cada 30 s mientras esté visible, al recibir un aviso dirigido al usuario actual y tras abrir/consultar avisos. El ADMIN conserva el funcionamiento anterior de su pantalla «Consultar avisos» (elimina del buzón los consultados); el TÉCNICO marca `leido:true` al consultar sus avisos mediante el mismo guardado con ETag ya existente, **sin modificar evaluación, resolución ni contenido**, de modo que el punto desaparece pero las acciones pendientes siguen disponibles. La pantalla «Avisos» (primer nivel) por sí sola NO marca los mensajes como leídos. No se reescriben otras claves de almacenamiento ni se alteran tareas, riego, Partidas, Específicos, QC, roles o Firebase aparte del atributo de lectura de los propios avisos.
+
+**Control técnico:** edición exclusiva de `index.html` y actualización documental, `test/v1.0`, `main` y PRD intactos. Validación sintáctica de los cinco scripts inline y comprobaciones estáticas de campana única, desaparición de tarjeta duplicada y conservación del módulo Avisos. **UAT pendiente:** comprobar como ADMIN y TÉCNICO la campana junto a logout, punto rojo con mensaje sin leer y desaparición al consultar, navegación al módulo original y que las tareas/evaluaciones pendientes siguen accesibles; confirmar que REGANTE/PEÓN/CARGADOR no ven esta campana.
+
 ### §0.157 — Identidad gráfica La Sala (29/10/2026)
 **IMPLEMENTADO EN TEST · PENDIENTE DE VERIFICACIÓN VISUAL EN DISPOSITIVOS.** El usuario aprueba expresamente el nuevo logotipo generado «LS con dos hojas verdes» y solicita aplicarlo en toda la app, sustituyendo el anterior icono con aspecto de copa de fútbol.
 

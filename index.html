@@ -48,6 +48,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .topbar-right{flex-shrink:0}
 .logout-btn{width:36px;height:36px;display:grid;place-items:center;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:7px;padding:0;cursor:pointer;transition:background .15s}
 .logout-btn:hover{background:rgba(255,255,255,.18)}
+/* Avisos en cabecera: punto rojo exclusivamente para mensajes sin leer. */
+.header-avisos-btn{position:relative;flex:none}
+.header-avisos-dot{position:absolute;right:3px;top:3px;width:10px;height:10px;background:#d92332;border:2px solid #fff;border-radius:50%;pointer-events:none}
+.header-avisos-dot[hidden]{display:none}
 .nav{background:var(--surface);border-bottom:1px solid var(--border);padding:0 1.5rem;display:flex;position:sticky;top:56px;z-index:100}
 .nav-tab{padding:12px 20px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:3px solid transparent;transition:all .15s;white-space:nowrap;border-radius:8px 8px 0 0}
 .nav-tab:hover{color:var(--verde);background:var(--verde-light)}
@@ -370,6 +374,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
     <div class="topbar-right">
       <div id="qc-global-sync-anchor"></div>
       <a id="admin-settings-link" class="logout-btn" href="/admin/" style="display:none" aria-label="Abrir Backoffice de usuarios" title="Administración de usuarios"><i class="ti ti-settings" style="font-size:22px" aria-hidden="true"></i></a>
+      <button type="button" id="header-avisos-btn" class="logout-btn header-avisos-btn" style="display:none" onclick="mostrarModuloAvisos()" aria-label="Abrir Avisos" title="Avisos"><i class="ti ti-bell" style="font-size:22px" aria-hidden="true"></i><span id="header-avisos-dot" class="header-avisos-dot" aria-hidden="true" hidden></span></button>
       <button type="button" class="logout-btn" onclick="doLogout()" aria-label="Cerrar sesión" title="Cerrar sesión"><i class="ti ti-door-exit" style="font-size:23px" aria-hidden="true"></i></button>
     </div>
   </div>
@@ -845,6 +850,7 @@ async function entrarApp(user, roleHint){
   const name=user[0]+user.slice(1).toLowerCase();
 
   applyRoleHomeUI();
+  void actualizarCampanaAvisos();
   window.QCGlobalSync?.start?.(currentUser,currentUserRole);
   if(currentUserRole==='ADMIN'){
     void abrirRegistroRiegoDesdeBackoffice();
@@ -915,6 +921,7 @@ function doLogout(){
   // No dejar conexiones con el token de la sesión anterior.
   cerrarRiegoSync();
   currentUser=null;currentUserRole=null;
+  void actualizarCampanaAvisos();
   document.getElementById('admin-settings-link').style.display='none';
   borrarFirebaseAuth();
   document.getElementById('app').style.display='none';
@@ -984,20 +991,6 @@ function aplicarTarjetasCuadradasHome(block){
       label.style.whiteSpace='normal';
     }
   });
-}
-function crearTarjetaAvisosHome(block, perfil){
-  if(!block)return;
-  const card=document.createElement('div');
-  card.id='shortcut-avisos-'+perfil;
-  card.className='home-shortcut-card';
-  card.setAttribute('aria-label','Abrir Avisos');
-  card.setAttribute('role','button');
-  card.setAttribute('tabindex','0');
-  card.onclick=mostrarModuloAvisos;
-  card.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();mostrarModuloAvisos();}};
-  card.style.cssText='background:linear-gradient(120deg,#2b6fae,#3c80c2 55%,#5b9bd5);color:#fff;border-radius:14px;padding:12px;aspect-ratio:1 / 1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:12px;white-space:normal;cursor:pointer;width:100%;max-width:none;min-width:0;height:auto;box-sizing:border-box;justify-self:stretch';
-  card.innerHTML='<i class="ti ti-bell" style="font-size:28px;opacity:.95" aria-hidden="true"></i><span style="font-size:15px;font-weight:800;line-height:1.25">Avisos <span id="avisos-'+perfil+'-badge"></span></span>';
-  block.appendChild(card);
 }
 function applyRoleHomeUI(){
   const homeInner = document.getElementById('page-home-inner');
@@ -1077,9 +1070,6 @@ function applyRoleHomeUI(){
     // les llegue en el dispositivo el aviso de guardia cuando un peón/regante
     // ejecute un trabajo/riego de su turno (notificarUsuario/tecnicoDeGuardia).
     const block = document.getElementById('quick-access-block');
-    if(block){
-      crearTarjetaAvisosHome(block,'tecnico');
-    }
     aplicarTarjetasCuadradasHome(block);
     actualizarBadgeAvisosTecnico();
   } else if(currentUserRole==='CARGADOR'){
@@ -1103,9 +1093,7 @@ function applyRoleHomeUI(){
       aplicarTarjetasCuadradasHome(document.getElementById('cargador-home-accesos'));
     }
   } else if(currentUserRole==='ADMIN'){
-    // Acceso único a Avisos para cualquier ADMIN; Vigueras mantiene sus acciones de riego dentro.
-    const block=document.getElementById('quick-access-block');
-    crearTarjetaAvisosHome(block,'admin');
+    // Avisos reside en la campana de cabecera, conservando su módulo original.
     actualizarBadgeNotificacionesAdmin();
   }
   // ADMIN, VIGUERAS y perfiles estándar: mismas tarjetas cuadradas, accesos sin alterar.
@@ -1375,6 +1363,34 @@ async function enviarPushA(target, title, body){
 // para que se muestre (toast + Notification si el navegador ya tiene
 // permiso) la próxima vez que ese usuario entre o use la app.
 const AVISOS_USUARIO_KEY = 'lasala-avisos-usuario-v1';
+// Mantener acceso para ADMIN/TÉCNICO y pintar únicamente los NO LEÍDOS,
+// independientemente de la evaluación, resolución o avisos ya anunciados por toast.
+async function actualizarCampanaAvisos(){
+  const btn=document.getElementById('header-avisos-btn');
+  const dot=document.getElementById('header-avisos-dot');
+  if(!btn||!dot)return;
+  const usuario=currentUser;
+  const habilitado=!!usuario&&(currentUserRole==='ADMIN'||currentUserRole==='TECNICO');
+  btn.style.display=habilitado?'grid':'none';
+  if(!habilitado){dot.hidden=true;btn.title='Avisos';btn.setAttribute('aria-label','Abrir Avisos');return;}
+  try{
+    const r=await window.storage.get(AVISOS_USUARIO_KEY);
+    if(currentUser!==usuario||!(currentUserRole==='ADMIN'||currentUserRole==='TECNICO'))return;
+    const cloud=r?JSON.parse(r.value):{};
+    const lista=Array.isArray(cloud?.[usuario])?cloud[usuario]:[];
+    const sinLeer=lista.filter(a=>!a.leido).length;
+    dot.hidden=sinLeer===0;
+    const etiqueta=sinLeer>0?'Avisos: '+sinLeer+' sin leer':'Abrir Avisos';
+    btn.title=etiqueta;
+    btn.setAttribute('aria-label',etiqueta);
+  }catch(e){/* sin alterar el último estado visible si falla la red */}
+}
+// Otros usuarios pueden emitir avisos mientras la aplicación permanece abierta.
+document.addEventListener('visibilitychange',()=>{
+  if(!document.hidden&&currentUser)void actualizarCampanaAvisos();
+});
+window.addEventListener('focus',()=>{if(currentUser)void actualizarCampanaAvisos();});
+setInterval(()=>{if(currentUser&&!document.hidden)void actualizarCampanaAvisos();},30000);
 // "titulo" (a petición de Paula, 2026-07-29): identifica DE QUÉ es el aviso
 // a simple vista, tanto en la notificación real del dispositivo (antes
 // siempre decía "App La Sala", sin más detalle) como en la lista de
@@ -1399,6 +1415,7 @@ async function notificarUsuario(target,mensaje,titulo,extra){
     });
   }catch(e){}
   enviarPushA(target,tituloFinal,mensaje);
+  if(target===currentUser)void actualizarCampanaAvisos();
 }
 async function avisarAvisosPendientes(usuario){
   if(!usuario) return;
@@ -1478,6 +1495,7 @@ async function actualizarBadgeNotificacionesAdmin(){
     const badges=['notificaciones-admin-badge','avisos-admin-badge'].map(id=>document.getElementById(id));
     badges.forEach(badge=>{if(badge) badge.innerHTML = n>0 ? `<span style="background:#ffeb3b;color:#7a5000;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:2px;font-weight:800">${n}</span>` : '';});
   }catch(e){}
+  void actualizarCampanaAvisos();
 }
 // Accesos de Avisos del técnico: se reutilizan las cuatro funciones existentes.
 function cerrarModuloAvisos(){
@@ -1571,10 +1589,11 @@ function mostrarAvisosTecnico(){
       const lista=Array.isArray(cloud[currentUser])?cloud[currentUser]:[];
       let migrado=false;
       const nueva=lista.map(a=>{
-        if(a.id) return a;
+        if(a.id&&a.leido===true) return a;
         migrado=true;
-        return {...a,id:'aviso_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
-          evaluacion:a.evaluacion??null,observaciones:a.observaciones??'',
+        // Consultar marca como leído, NO como evaluado/resuelto.
+        return {...a,id:a.id||'aviso_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
+          leido:true,evaluacion:a.evaluacion??null,observaciones:a.observaciones??'',
           evaluadoPor:a.evaluadoPor??null,fechaEvaluacion:a.fechaEvaluacion??null};
       });
       if(!migrado) return undefined;
@@ -1592,6 +1611,7 @@ function mostrarAvisosTecnico(){
     const overlay=getOrCreateOverlay('avisos-tecnico-overlay');
     renderAvisosTecnicoContent(overlay);
     overlay.style.display='flex';
+    void actualizarCampanaAvisos();
   })();
 }
 let avisosTecnicoData = [];
@@ -1756,6 +1776,7 @@ async function actualizarBadgeAvisosTecnico(){
     const badge = document.getElementById('avisos-tecnico-badge');
     if(badge) badge.innerHTML = n>0 ? `<span style="background:#ffeb3b;color:#7a5000;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:2px;font-weight:800">${n}</span>` : '';
   }catch(e){}
+  void actualizarCampanaAvisos();
 }
 // "Hojas marcadas" — a petición de Paula: cuando Fran o Dennis terminan de
 // marcar todo el riego, pulsan este botón (solo visible para TÉCNICO) y
