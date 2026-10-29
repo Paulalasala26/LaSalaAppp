@@ -164,6 +164,8 @@ async function load(nextStage){
 }
 async function save(e){
   e.preventDefault();
+  status('Los criterios anteriores son de solo consulta y no se utilizan para evaluar el QC porcentual.','');
+  return;
   if(busy||!rules||!loaded)return;
   let values;
   try{values=collect()}catch(error){status(error.message,'error');return}
