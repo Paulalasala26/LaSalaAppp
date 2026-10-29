@@ -121,3 +121,41 @@ td:last-child{text-align:right}
 /* Identidad La Sala 29/10/2026: monograma LS + hojas */
 .brand-mark{background:transparent;overflow:hidden;border-radius:10px;letter-spacing:normal}
 .brand-mark img{display:block;width:100%;height:100%;object-fit:contain;border-radius:inherit}
+
+/* Usuarios: interfaz compacta y coherente con el azul ViguerAPP */
+.users-page{--green:#155caa;--green2:#246fbf;--ink:#22354b;--muted:#67788b;--line:#e0e7f0;--canvas:#f5f8fc;--focus:#377bd0}
+.users-page .sidebar{background:#fff;border-right-color:#e0e7f0;padding-top:18px}
+.users-page .brand{padding-bottom:20px}
+.users-page .sidebar-label{color:#8292a7}
+.users-page .nav-item{color:#425b78;min-height:38px}
+.users-page .nav-item.selected{background:#e8f2ff;color:#155caa}
+.users-page .menu-label{margin-top:15px}
+.users-page .topbar{height:55px;min-height:55px}
+.users-page .content{padding-top:19px}
+.users-page h1{font-size:26px}
+.users-page .stats{gap:10px;margin-bottom:16px}
+.users-page .stat{padding:13px 16px;min-height:75px;gap:4px}
+.users-page .stat strong{font-size:23px;color:#155caa}
+.users-page .stat span{color:#697e94}
+.users-page .table-toolbar{padding:15px 18px}
+.users-page th{padding:11px 17px}
+.users-page td{padding:9px 17px}
+.users-page .table-footer{padding:11px 18px}
+.users-page .user-avatar{background:#e8f2ff;color:#155caa}
+.users-page .user-name{color:#263f5e}
+.users-page .role-pill.admin{background:#e8f2ff;color:#155caa}
+.users-page .action-button{border-color:#b9d3f1;color:#155caa;background:#f6faff}
+.users-page .action-button:hover{background:#e8f2ff}
+.users-page .button.primary{background:#155caa;border-color:#155caa}
+.users-page .button.primary:hover:not(:disabled){background:#104783}
+.users-page .sidebar-footer a{color:#155caa}
+.users-page .modal{border-radius:12px}
+.users-page .modal-heading{padding-top:19px}
+.users-page .modal-desc{margin-bottom:14px}
+.users-page .field{margin-bottom:12px}
+.users-page .form-divider{margin:14px 0}
+.users-page .modal-info{margin-top:12px}
+.users-page .modal-footer{margin-top:16px}
+.users-page .operation-feedback{background:#f0f7ff;border-color:#bdd7f5;color:#155caa}
+.users-page .operation-feedback.error{background:#fff1f1;border-color:#edb5b5;color:#a32121}
+@media(max-width:690px){.users-page .topbar{min-height:50px;height:50px}.users-page .stats{grid-template-columns:repeat(2,minmax(0,1fr))}.users-page .stat{min-height:75px}.users-page .content{padding-top:14px}.users-page .page-head{flex-direction:row;align-items:center}.users-page .page-head .button{padding:9px 11px}.users-page .modal-heading{padding:16px 19px 6px}.users-page .modal-desc{padding:0 19px}.users-page #user-form{padding:0 19px 18px}}
