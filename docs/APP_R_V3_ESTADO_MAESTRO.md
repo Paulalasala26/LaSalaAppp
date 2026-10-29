@@ -7,6 +7,9 @@
 
 ## 0. CONTINUIDAD ACTUAL — 29/10/2026 (PRIORIDAD SOBRE LOS HISTÓRICOS)
 
+### §0.172 — Riego: impresión de un único día (29/10/2026)
+**IMPLEMENTADO EN TEST; UAT PENDIENTE.** En Riego, la quincena delimita los 14 días disponibles, pero se imprime exclusivamente un día seleccionado mediante un nuevo desplegable. Día predeterminado: hoy si pertenece a la quincena visible, de lo contrario el primero de esa quincena. Se retiran para Riego los presets multifecha; los de Plaguicidas siguen intactos. Se mantiene selección de invernaderos, carga de riegos y prevención de hojas vacías. Código 4014594b75c18483a71629f58afb17206b6f93ad. Validar INV 1A del 19/10 al 01/11. PRD/main intactos.
+
 ### §0.171 — Control de Riego: impresión con datos reales de la quincena (29/10/2026)
 **CORREGIDO EN CÓDIGO TEST; PENDIENTE VALIDACIÓN REAL.** Incidencia del usuario: INV 1A, quincena 19 oct — 1 nov, al imprimir obtiene hoja con título sin los riegos existentes. Auditoría de `showImprimirResumenSelector` / `imprimirResumen`: el selector arrancaba con preset «Hoy» y solo marcaba hoy, aunque el usuario navegara una quincena distinta; `imprimirResumen` generaba hoja aun sin un solo riego. Además, solo leía la caché local de invernaderos, sin cargar los seleccionados todavía no consultados. Corrección: preset inicial «Quincena completa», los 14 días marcados; antes de imprimir Riego se cargan invernaderos seleccionados no presentes en caché (sin sobrescribir ediciones locales dirty), y se impide imprimir si no existen riegos en los INV/días seleccionados, con aviso. Se conserva opción Hoy/Mañana/Manual, resto de formatos y selector y no se modifican datos. Código commit `d8c22868c0784e8913f1f986c59a3b5f4f1642a3`. Falta UAT directa del INV 1A de esa quincena, y verificar contenido detallado/impresión física; no afirmar que se hayan leído riegos reales de Firebase. PRD/main intactos.
 
