@@ -93,6 +93,7 @@
     metric(root,formatInt(v.pending),'Checks pendientes');
     metric(root,formatInt(v.partidas),'Partidas distintas');
     metric(root,formatInt(v.measured),'Controles con mediciones');
+    metric(root,v.percentAverage===null?'—':formatPct(v.percentAverage),'Media de índices QC globales');
     // Se retira el agregado de bandejas: no pertenece al modelo QC porcentual.
     metric(root,formatInt(v.flaggedCount),'Controles medidos con alerta');
     metric(root,v.measured&&v.hasConfiguredRules?formatInt(v.warningCount):'—','Advertencias en mediciones');
@@ -115,7 +116,7 @@
       const row=node('tr');
       for(const val of [
         stageName(type),formatInt(v.records),formatInt(v.completed),
-        formatInt(v.measured),'—',
+        formatInt(v.measured),v.percentCount?formatPct(Math.floor(v.percentSum/v.percentCount)):'—',
         v.measured&&data.stats.hasConfiguredRules?formatInt(v.warnings):'—',
         v.measured&&data.stats.hasConfiguredRules?formatInt(v.critical):'—'
       ])cell(row,val);
@@ -184,8 +185,8 @@
       for(const value of [
         readableDate(row.date),stageName(row.tipo),row.partida,
         row.done?'Completado':'Pendiente',
-        row.quantified?'Cuantificado':'Sin medición',
-        '—',
+        row.quantified?'Evaluado':'Sin evaluación',
+        row.porcentajeInvalidasGlobal==null?'Histórico':formatPct(row.porcentajeInvalidasGlobal),
         row.quantified?formatInt(row.warningCount):'—',
         row.quantified?formatInt(row.criticalCount):'—'
       ])cell(tr,value);
