@@ -23880,6 +23880,7 @@ function showImprimirResumenSelector(tipo){
       </div>
     </section>`;
   }).join('');
+  const diaRiegoPredeterminado = diasQ.includes(riegoDiaDeHoy()) ? riegoDiaDeHoy() : diasQ[0];
   const diasHTML = diasQ.map(d=>'<label style="font-size:12px;display:flex;align-items:center;gap:5px;cursor:pointer;padding:5px 4px"><input type="checkbox" class="rr-dia-chk" value="'+d+'" '+'checked'+' onchange="actualizarImpresionResumenUI()"> '+riegoDiaLabelCorto(d)+'</label>').join('');
 
   const mo = getOrCreateOverlay('imprimir-resumen-overlay');
@@ -23897,7 +23898,7 @@ function showImprimirResumenSelector(tipo){
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
           <div>
             <div style="font-size:17px;font-weight:800;color:#1a1e18">¿Qué quieres imprimir?</div>
-            <div style="font-size:12px;color:#68727d;margin-top:3px">Selecciona los invernaderos y los días. Todo se imprimirá junto.</div>
+            <div style="font-size:12px;color:#68727d;margin-top:3px">${tipo==='riego'?'Selecciona un día de la quincena y los invernaderos que quieres imprimir.':'Selecciona los invernaderos y los días. Todo se imprimirá junto.'}</div>
           </div>
           <div id="rr-selection-summary-top" style="font-size:12px;font-weight:700;color:#1558a0;background:#e8f0fb;border-radius:7px;padding:7px 10px">0 invernaderos · 0 días</div>
         </div>
@@ -23916,9 +23917,10 @@ function showImprimirResumenSelector(tipo){
 
         <section style="background:#fff;border:1px solid #d6e0ec;border-radius:9px;padding:12px">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:9px">
-            <div style="font-size:14px;font-weight:800;color:#1a1e18">Días a imprimir</div>
-            <div style="font-size:11px;color:#68727d">Elige una opción</div>
+            <div style="font-size:14px;font-weight:800;color:#1a1e18">${tipo==='riego'?'Día de riego':'Días a imprimir'}</div>
+            <div style="font-size:11px;color:#68727d">${tipo==='riego'?riegoQuincenaLabel(cfg.quincenaOffset()):'Elige una opción'}</div>
           </div>
+          ${tipo==='riego'?'<select id="rr-riego-dia" onchange="actualizarImpresionResumenUI()" style="width:100%;padding:10px 12px;background:#fff;border:1px solid #a8c4e8;color:#17324e;border-radius:7px;font-size:13px;font-weight:700">'+diasQ.map(d=>'<option value="'+d+'" '+(d===diaRiegoPredeterminado?'selected':'')+'>'+riegoDiaLabelCorto(d)+' — '+riegoDiaSemana(d)+'</option>').join('')+'</select>':`
           <select id="rr-dia-preset" onchange="aplicarPresetDiasResumen(this.value)" style="width:100%;padding:10px 12px;background:#1558a0;border:1px solid #1558a0;color:#fff;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer">
             <option value="hoy">Hoy</option>
             <option value="manana">Mañana</option>
@@ -23928,7 +23930,7 @@ function showImprimirResumenSelector(tipo){
           </select>
           <div id="rr-manual-days" style="display:none;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:3px;margin-top:9px;padding:8px;background:#f7f9fc;border:1px solid #d6e0ec;border-radius:7px">
             ${diasHTML}
-          </div>
+          </div>`}
         </section>
       </div>
 
@@ -23987,9 +23989,10 @@ function actualizarImpresionResumenUI(){
   const manualDays = document.getElementById('rr-manual-days');
   if(manualDays) manualDays.style.display = preset && preset.value === 'manual' ? 'grid' : 'none';
   const invChecks = Array.from(document.querySelectorAll('.rr-inv-chk'));
-  const diaChecks = Array.from(document.querySelectorAll('.rr-dia-chk'));
+  const diaRiego = resumenTipoActual==='riego' ? document.getElementById('rr-riego-dia') : null;
+  const diaChecks = diaRiego ? [] : Array.from(document.querySelectorAll('.rr-dia-chk'));
   const invSelected = invChecks.filter(el=>el.checked).length;
-  const diaSelected = diaChecks.filter(el=>el.checked).length;
+  const diaSelected = diaRiego ? (diaRiego.value ? 1 : 0) : diaChecks.filter(el=>el.checked).length;
 
   document.querySelectorAll('[id^="rr-sala-"][id$="-count"]').forEach(el=>{
     const salaId = el.id.replace('rr-sala-','').replace('-count','');
@@ -24038,7 +24041,9 @@ function actualizarImpresionResumenUI(){
 async function imprimirResumen(){
   const cfg = RESUMEN_CONFIG[resumenTipoActual];
   const invIds = leerInvernaderosBulkSeleccionados('rr');
-  const dias = Array.from(document.querySelectorAll('.rr-dia-chk:checked')).map(el=>parseInt(el.value,10)).sort((a,b)=>a-b);
+  const dias = resumenTipoActual==='riego'
+    ? [Number(document.getElementById('rr-riego-dia')?.value)].filter(Number.isInteger)
+    : Array.from(document.querySelectorAll('.rr-dia-chk:checked')).map(el=>parseInt(el.value,10)).sort((a,b)=>a-b);
   if(!invIds.length){ showToast('Elige al menos un invernadero'); return; }
   if(!dias.length){ showToast('Elige al menos un día'); return; }
   const printBtn = document.getElementById('rr-print-btn');
