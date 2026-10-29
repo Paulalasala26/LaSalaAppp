@@ -14887,6 +14887,7 @@ function editarResumenTratamiento(modulo, idx){
   if(!f) return;
   const primerInv = Object.keys(f.porInv)[0];
   if(!primerInv) return;
+  if(modulo==='especifico'){ abrirEditarFichaResumenEspecifico(f); return; }
   const selectFn = DASHBOARD_MODULOS[modulo].selectFn;
   window[selectFn](primerInv);
   const raw = f.raw;
@@ -14926,31 +14927,55 @@ function editarResumenTratamiento(modulo, idx){
     fitoInvSel = primerInv;
     fmEditContextoOriginal = { invId: primerInv, dia: f.dia, calles: [...new Set(Object.values(f.porInv[primerInv]).flat())] };
     actualizarAccionesFitoManual();
-  } else {
-    const parsed = parsearTextoEspecifico(f.texto);
-    // Mismo arreglo que en Fito (ver comentario arriba): calles no
-    // contiguas de una misma observación se agrupan en varios tramos reales
-    // en vez de un único rango Math.min/Math.max que se traga las calles
-    // del hueco de en medio.
-    const bulkConfig = {};
-    Object.entries(f.porInv).forEach(([invId, porObs])=>{
-      const tramos = [];
-      Object.entries(porObs).forEach(([obs,calles])=>{
-        agruparCallesEnTramos(calles).forEach(t=>tramos.push({...t, tipo:parsed.tipo, obs}));
-      });
-      bulkConfig[invId] = { modo:'tramo', tipoEntero:'', obsEntero:'', excluir:{desde:null,hasta:null,tipo:'',obs:''}, tramos };
-    });
-    especificosInvSel = primerInv;
-    espPendingBulkConfig = bulkConfig;
-    showEspecificoManualForm({diaSeleccionado:f.dia});
-    document.getElementById('esp-dia').value = f.dia;
-    document.getElementById('esp-trat').value = parsed.trat;
-    document.getElementById('esp-dosis').value = parsed.dosis;
-    document.getElementById('esp-horario').value = parsed.horario;
-    if(raw && typeof raw==='object' && raw.caldoLitros){
-      document.getElementById('esp-caldo').value = raw.caldoLitros;
-    }
   }
+}
+function abrirEditarFichaResumenEspecifico(f){
+  const parsed=parsearTextoEspecifico(f.texto);
+  const porInv=JSON.parse(JSON.stringify(f.porInv));
+  const celdas=Object.entries(porInv).flatMap(([invId,porObs])=>
+    Object.values(porObs).flat().map(c=>({invId,calle:Number(c)})));
+  if(!celdas.length)return;
+  if(celdas.some(({invId,calle})=>getEspecificoCellRaw(invId,f.dia,calle)?.partidaRegistros)){
+    showToast('Este específico pertenece a Partidas. Edítalo desde la ficha de la partida.');
+    return;
+  }
+  const bulk={};
+  Object.entries(porInv).forEach(([invId,porObs])=>{
+    const tramos=[];
+    Object.entries(porObs).forEach(([obs,calles])=>{
+      agruparCallesEnTramos(calles).forEach(t=>tramos.push({...t,tipo:parsed.tipo,obs}));
+    });
+    bulk[invId]={modo:'tramo',tipoEntero:'',obsEntero:'',
+      excluir:{desde:null,hasta:null,tipo:'',obs:''},tramos};
+  });
+  espPendingBulkConfig=bulk;
+  showEspecificoManualForm({desdeResumenFicha:true,resumenFichaContext:{dia:f.dia,porInv},diaSeleccionado:f.dia});
+  document.getElementById('esp-trat').value=parsed.trat;
+  document.getElementById('esp-dosis').value=parsed.dosis;
+  document.getElementById('esp-horario').value=parsed.horario;
+  if(f.raw && typeof f.raw==='object' && f.raw.caldoLitros)
+    document.getElementById('esp-caldo').value=String(f.raw.caldoLitros);
+  actualizarGastoEspecificoManual();
+  if(!esDiaEspecificoEditable(f.dia)){
+    const body=document.getElementById('esp-form-body');
+    if(body){
+      const aviso=document.createElement('div');
+      aviso.style.cssText='font-size:12px;color:#1558a0;background:#e8f0fb;border:1px solid #b0c8e0;border-radius:7px;padding:8px';
+      aviso.textContent='Fecha fuera del intervalo editable: solo consulta.';
+      body.prepend(aviso);
+      body.querySelectorAll('input,select,textarea').forEach(el=>el.disabled=true);
+    }
+    ['esp-aplicar-btn','esp-borrar-btn'].forEach(id=>{const el=document.getElementById(id);if(el)el.disabled=true;});
+  }
+}
+function refrescarVistaResumenEspecifico(){
+  if(document.getElementById('especificos-overlay')?.style.display==='flex' &&
+     especificosVistaActual==='resumen'){
+    actualizarVistaEspecificos();
+    return;
+  }
+  const wrap=document.getElementById('resumen-quincena-especifico');
+  if(wrap) wrap.outerHTML=renderResumenQuincenaTratamientos('especifico');
 }
 // Botón "Imprimir hoja" de cada tarjeta del resumen — reconstruye la hoja
 // OFICIAL completa (misma que las de siempre) a partir de lo que ya está
@@ -18293,6 +18318,9 @@ function toggleBulkSala(salaChk, prefix){
   document.querySelectorAll(`.${prefix}-inv-chk[data-sala="${sala}"]`).forEach(chk=>{ chk.checked = salaChk.checked; });
 }
 function leerInvernaderosBulkSeleccionados(prefix){
+  if(prefix==='esp' && espResumenFichaContext &&
+     document.getElementById('especifico-manual-overlay')?.style.display==='flex')
+    return Object.keys(espResumenFichaContext.porInv);
   if(prefix==='esp' && espManualDesdeCelda &&
      document.getElementById('especifico-manual-overlay')?.style.display==='flex'){
     return especificosInvSel?[especificosInvSel]:[];
@@ -22626,6 +22654,45 @@ function abrirEspecificoManualDia(invId, dia){
 // sin nada de Riego/Trabajo: es un tratamiento puntual independiente.
 
 let espManualDesdeCelda=false;
+let espResumenFichaContext=null;
+function cambiarTipoFichaResumen(tipo){
+  if(!espResumenFichaContext)return;
+  Object.values(espBulkConfig).forEach(cfg=>cfg.tramos.forEach(t=>{t.tipo=tipo;}));
+}
+function cambiarObsFichaResumen(obs){
+  if(!espResumenFichaContext)return;
+  Object.values(espBulkConfig).forEach(cfg=>cfg.tramos.forEach(t=>{t.obs=obs;}));
+}
+function especificoResumenFichaHTML(ctx){
+  const esc=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  const tramos=Object.values(espBulkConfig).flatMap(cfg=>cfg.tramos);
+  const tipos=[...new Set(tramos.map(t=>t.tipo||''))];
+  const obsUnicas=[...new Set(tramos.map(t=>t.obs||''))];
+  const items=Object.entries(ctx.porInv).map(([id,porObs])=>{
+    const calles=[...new Set(Object.values(porObs).flat().map(Number))].sort((a,b)=>a-b);
+    return `<div style="font-size:12px;font-weight:700;color:#1558a0;line-height:1.5">INV ${esc(id)} · Calles ${esc(calles.join(', '))}</div>`;
+  }).join('');
+  return `<section style="padding:9px;border:1px solid #b0c8e0;background:#f5f9ff;border-radius:8px">
+    <div style="font-size:10px;font-weight:800;color:#537597;margin-bottom:4px">UBICACIÓN DE ESTE ESPECÍFICO · FIJA</div>
+    ${items}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+      <label style="font-size:11px;font-weight:700;color:#1558a0">Tipo
+        <select onchange="cambiarTipoFichaResumen(this.value)"
+          style="display:block;width:100%;margin-top:3px;min-height:38px;padding:6px;border:1px solid #a8c4e8;border-radius:6px;background:#fff;font-size:12px">
+          <option value="">—</option>
+          ${ESPECIFICO_TIPOS.map(t=>`<option value="${esc(t)}"${tipos.length===1&&tipos[0]===t?' selected':''}>${esc(t)}</option>`).join('')}
+        </select>
+      </label>
+      ${obsUnicas.length===1
+        ? `<label style="font-size:11px;font-weight:700;color:#1558a0">Observaciones
+            <input type="text" value="${esc(obsUnicas[0])}" oninput="cambiarObsFichaResumen(this.value)"
+              style="display:block;width:100%;margin-top:3px;min-height:38px;padding:6px;border:1px solid #a8c4e8;border-radius:6px;background:#fff;font-size:12px">
+          </label>`
+        : `<div style="font-size:11px;color:#537597;line-height:1.4"><b>Observaciones por tramo</b><div>Se conservan las originales.</div></div>`}
+    </div>
+  </section>`;
+}
 function especificoCeldaFichaHTML(inv){
   const cfg=espBulkConfig[inv];
   const tramo=cfg?.tramos?.[0]||{desde:null,hasta:null,tipo:'',obs:''};
@@ -22671,8 +22738,11 @@ function diasSeleccionablesEspecifico(diaSeleccionado){
 }
 function showEspecificoManualForm(opciones={}){
   const desdeCelda=!!opciones.desdeCelda;
+  const desdeResumenFicha=!!opciones.desdeResumenFicha;
   espManualDesdeCelda=desdeCelda;
-  const titulo=desdeCelda?(opciones.editar?'Editar específico':'Añadir específico'):'Específicos · Edición múltiple';
+  espResumenFichaContext=desdeResumenFicha?opciones.resumenFichaContext:null;
+  const titulo=desdeResumenFicha?'Editar específico'
+    :desdeCelda?(opciones.editar?'Editar específico':'Añadir específico'):'Específicos · Edición múltiple';
   const inv = especificosInvSel;
   if(espPendingBulkConfig){
     // Editando desde el resumen de la quincena: TODOS los invernaderos del
@@ -22713,14 +22783,15 @@ function showEspecificoManualForm(opciones={}){
       </header>
       <div id="esp-form-body" style="flex:1;min-height:0;overflow-y:auto;padding:10px 11px;display:flex;
         flex-direction:column;gap:9px;max-width:540px;width:100%;margin:0 auto">
-        ${desdeCelda?especificoCeldaFichaHTML(inv):`
+        ${desdeCelda?especificoCeldaFichaHTML(inv)
+          :desdeResumenFicha?especificoResumenFichaHTML(espResumenFichaContext):`
           <details id="esp-ambito-detalle" open style="border:1px solid #b0c8e0;border-radius:8px;background:#f8fbff">
             <summary style="padding:9px 10px;color:#1558a0;font-size:12px;font-weight:800;cursor:pointer">Invernaderos y calles · Edición múltiple</summary>
             <div style="padding:0 7px 7px">${especificoBulkInvSelectorHTML()}</div>
           </details>`}
         <div style="display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:9px">
           <label style="font-size:11px;font-weight:700;color:#1558a0">Día
-            <select id="esp-dia" style="display:block;width:100%;margin-top:3px;min-height:40px;padding:7px;
+            <select id="esp-dia" ${desdeResumenFicha?'disabled title="Fecha fija de este específico"':''} style="display:block;width:100%;margin-top:3px;min-height:40px;padding:7px;
               border:1.5px solid #a8c4e8;border-radius:7px;background:#fff;color:#1558a0;font-size:13px">
               ${diasQ.map(d=>`<option value="${d}"${d===(tieneSeleccion?diaSeleccionado:hoyEsp)?' selected':''}>${riegoDiaLabelCorto(d)} · ${riegoDiaSemana(d)}${esDiaEspecificoEditable(d)?'':' · solo consulta'}</option>`).join('')}
             </select>
@@ -22771,7 +22842,7 @@ function showEspecificoManualForm(opciones={}){
       </footer>
     </div>`;
   mo.style.display='flex';
-  if(!desdeCelda)renderEspBulkPanels();
+  if(!desdeCelda&&!desdeResumenFicha)renderEspBulkPanels();
 }
 
 function actualizarGastoEspecificoManual(){
@@ -22977,7 +23048,9 @@ function calcularCallesEspBulk(invId){
   const cfg = espBulkConfig[invId] || {modo:'entero'};
   if(cfg.modo==='tramo'){
     // En el alta desde una celda se edita el tramo en espBulkConfig, no en la rejilla masiva.
-    const tramos = (espManualDesdeCelda && invId===especificosInvSel)
+    const tramos = ((espManualDesdeCelda && invId===especificosInvSel) ||
+      (espResumenFichaContext && document.getElementById('especifico-manual-overlay')?.style.display==='flex' &&
+       Object.prototype.hasOwnProperty.call(espResumenFichaContext.porInv,invId)))
       ? cfg.tramos.map(t=>({...t,obs:String(t.obs||'').trim()}))
       : leerEspBulkTramosDesdeDOM(invId);
     const calles = [];
@@ -23186,6 +23259,10 @@ function resolverPartidaPorObsEspecifico(invId, calles, obs, dia){
 }
 async function saveEspecificoManual(){
   const dia = parseInt(document.getElementById('esp-dia').value,10);
+  if(espResumenFichaContext && dia!==espResumenFichaContext.dia){
+    showToast('La fecha de este específico no se cambia desde esta ficha.');
+    return;
+  }
   if(!esDiaEspecificoEditable(dia)){
     showToast('Fecha fuera de rango: no se pueden registrar específicos en ese día.');
     return;
@@ -23253,7 +23330,8 @@ async function saveEspecificoManual(){
   if(!(await saveEspecificosData())) return;
   if(!(await saveEspecificosPartidaData())) return;
   document.getElementById('especifico-manual-overlay').style.display = 'none';
-  if(especificosInvSel) renderEspecificosGrid(especificosInvSel);
+  if(espResumenFichaContext) refrescarVistaResumenEspecifico();
+  else if(especificosInvSel) renderEspecificosGrid(especificosInvSel);
   showToast(`✓ Día ${dia} → aplicado a ${bulkInvIds.length} invernadero(s) (${count} calles)`);
 }
 
@@ -23274,6 +23352,10 @@ async function guardarBorradoEspecifico(entradas){
 
 async function borrarEspecificoManual(){
   const dia=parseInt(document.getElementById('esp-dia').value,10);
+  if(espResumenFichaContext && dia!==espResumenFichaContext.dia){
+    showToast('Solo se puede borrar el específico original de esta ficha.');
+    return;
+  }
   if(!esDiaEspecificoEditable(dia)){
     showToast('Fecha fuera de rango: no se puede borrar este específico.');
     return;
@@ -23322,7 +23404,8 @@ async function borrarEspecificoManual(){
   document.getElementById('especifico-manual-overlay').style.display = 'none';
   const okBorrado=await guardarBorradoEspecifico(entradas);
   if(!okBorrado) return;
-  if(especificosInvSel) renderEspecificosGrid(especificosInvSel);
+  if(espResumenFichaContext) refrescarVistaResumenEspecifico();
+  else if(especificosInvSel) renderEspecificosGrid(especificosInvSel);
 }
 
 // Doble clic en un específico ya marcado: abre el alta con ese tramo y el
