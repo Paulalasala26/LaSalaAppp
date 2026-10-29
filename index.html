@@ -23602,7 +23602,7 @@ function filtrarEspecificosParaImprimir(){
         return `<option value="${i}">${esc(label)}</option>`;
       }).join('')
     : '<option value="">No hay tratamientos con estos filtros</option>';
-  if(disponibles.some(({i})=>String(i)===prev))sel.value=prev;
+  if(disponibles.some(({i})=>String(i)===previo))sel.value=previo;
   actualizarDetalleEspecificoParaImprimir();
 }
 function actualizarDetalleEspecificoParaImprimir(){
