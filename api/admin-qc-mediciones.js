@@ -243,6 +243,13 @@ function validateEvaluationV5(input){
     throw httpError(400,'INVALID_GLOBAL_PERCENT');
   return {categorias:clean,porcentajeInvalidasGlobal:total};
 }
+// V6 usa exactamente la validación porcentual v5, pero sin conteo de bandejas.
+// El 1 temporal solo satisface una comprobación histórica interna y nunca se persiste.
+function validateEvaluationV6(input){
+  if(Object.prototype.hasOwnProperty.call(input,'bandejasInspeccionadas'))
+    throw httpError(400,'INVALID_MEASUREMENTS');
+  return validateEvaluationV5({...input,bandejasInspeccionadas:1});
+}
 function pathFor(id){return DB+'/'+PREFIX+'/'+encodeURIComponent(id)+'.json';}
 function sourcePath(ref){
   const q=Math.floor((ref.dia-15)/14);
@@ -269,7 +276,7 @@ async function legacyRecord(ref,token){
 function validateStored(entry,ref,partida){
   if(entry===null)return {version:0};
   if(!entry||typeof entry!=='object'||Array.isArray(entry)||
-     ![1,2,3,4,5].includes(entry.schemaVersion)||!Number.isInteger(entry.version)||entry.version<1||
+     ![1,2,3,4,5,6].includes(entry.schemaVersion)||!Number.isInteger(entry.version)||entry.version<1||
      entry.legacy?.id!==ref.id||entry.legacy?.tipo!==ref.tipo||
      entry.legacy?.dia!==ref.dia||entry.legacy?.partida!==partida)
     throw httpError(409,'SAVED_CONFLICT');
@@ -317,7 +324,8 @@ async function consultarEstadosQC(req,res,data){
       try{
         const stored=validateStored(value,{id:ref.id,tipo:q.tipo,dia:q.dia},ref.partida);
         if(stored.version<1)return false;
-        if(stored.schemaVersion===5)validateEvaluationV5(stored);
+        if(stored.schemaVersion===6)validateEvaluationV6(stored);
+        else if(stored.schemaVersion===5)validateEvaluationV5(stored);
         else if(stored.schemaVersion===4)validateGlobalCategorias(stored);
         else if(stored.schemaVersion===3)validateDiseaseCategorias(stored);
         else if(stored.schemaVersion===2)validateCategorias(stored);
@@ -369,10 +377,11 @@ module.exports=async function handler(req,res){
     const hasDiseaseBreakdown=isPercent&&
       Object.prototype.hasOwnProperty.call(request.categorias?.sanidad||{},'porcentajesEnfermedades');
     // No interpretar formatos antiguos como v4: esos borradores siguen protegidos.
-    const v4=request.schemaVersion===4,v5=request.schemaVersion===5;
-    if((v4||v5)&&!isPercent||v4&&hasDiseaseBreakdown)
+    const v4=request.schemaVersion===4,v5=request.schemaVersion===5,v6=request.schemaVersion===6;
+    if((v4||v5||v6)&&!isPercent||v4&&hasDiseaseBreakdown)
       throw httpError(400,'INVALID_MEASUREMENTS');
-    const checked=v5?validateEvaluationV5(request):
+    const checked=v6?validateEvaluationV6(request):
+      v5?validateEvaluationV5(request):
       v4?validateGlobalCategorias(request):
       hasDiseaseBreakdown?validateDiseaseCategorias(request):
       isPercent?validateCategorias(request):validateMeasurements(request);
@@ -384,13 +393,13 @@ module.exports=async function handler(req,res){
     if(before.version!==request.version)throw httpError(409,'CONCURRENT_MODIFICATION');
     const now=new Date().toISOString();
     const next={
-      schemaVersion:v5?5:v4?4:hasDiseaseBreakdown?3:isPercent?2:1,version:before.version+1,
+      schemaVersion:v6?6:v5?5:v4?4:hasDiseaseBreakdown?3:isPercent?2:1,version:before.version+1,
       legacy:{...ref,partida:source.partida},
-      bandejasInspeccionadas:request.bandejasInspeccionadas,
-      ...(v5?{
+      ...(!v6?{bandejasInspeccionadas:request.bandejasInspeccionadas}:{}),
+      ...((v5||v6)?{
         categorias:checked.categorias,porcentajeInvalidasGlobal:checked.porcentajeInvalidasGlobal,
         legacyMediciones:before.legacyMediciones||before.mediciones||null,
-        ...((before.legacyCategorias||before.categorias&&before.schemaVersion!==5)?
+        ...((before.legacyCategorias||before.categorias&&![5,6].includes(before.schemaVersion))?
           {legacyCategorias:before.legacyCategorias||before.categorias}:{})
       }:isPercent?{categorias:checked,
         legacyMediciones:before.legacyMediciones||before.mediciones||null,
