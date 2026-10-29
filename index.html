@@ -23937,9 +23937,9 @@ function showImprimirResumenSelector(tipo){
         <div style="display:flex;gap:8px">
           <button onclick="document.getElementById('imprimir-resumen-overlay').style.display='none'"
             style="padding:8px 16px;font-size:13px;font-weight:700;background:#1558a0;color:#fff;border:1px solid #1558a0;border-radius:7px;cursor:pointer">Cancelar</button>
-          <button id="rr-print-btn" onclick="imprimirResumen()" disabled
-            style="padding:8px 18px;font-size:13px;font-weight:700;background:#d6dbe1;color:#68727d;border:1px solid #b8c0ca;border-radius:7px;cursor:default;display:flex;align-items:center;gap:6px">
-            <i class="ti ti-printer" style="font-size:14px"></i> Imprimir
+          <button id="rr-print-btn" onclick="imprimirResumen()" disabled title="Imprimir resumen" aria-label="Imprimir resumen"
+            style="width:38px;height:38px;padding:0;background:#d6dbe1;color:#68727d;border:1px solid #b8c0ca;border-radius:7px;cursor:default;display:flex;align-items:center;justify-content:center">
+            <i class="ti ti-printer" aria-hidden="true" style="font-size:18px"></i>
           </button>
         </div>
       </div>
