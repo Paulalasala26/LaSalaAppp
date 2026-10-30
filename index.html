@@ -713,6 +713,15 @@ function applyRoleHomeUI(){
           <button onclick="marcarHojasMarcadas('Sala 2')" title="Avisar a Vigueras de que ya has terminado de marcar la Sala 2" style="padding:11px 18px;font-size:13px;font-weight:800;background:#1558a0;color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:8px">
             <i class="ti ti-check" style="font-size:16px"></i> Hojas marcadas Sala 2
           </button>
+          <button onclick="marcarHojasMarcadas('Sala 3')" title="Avisar a Vigueras de que ya has terminado de marcar la Sala 3" style="padding:11px 18px;font-size:13px;font-weight:800;background:#1558a0;color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:8px">
+            <i class="ti ti-check" style="font-size:16px"></i> Hojas marcadas Sala 3
+          </button>
+          <button onclick="marcarHojasMarcadas('Sala 4')" title="Avisar a Vigueras de que ya has terminado de marcar la Sala 4" style="padding:11px 18px;font-size:13px;font-weight:800;background:#1558a0;color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:8px">
+            <i class="ti ti-check" style="font-size:16px"></i> Hojas marcadas Sala 4
+          </button>
+          <button onclick="marcarHojasMarcadas('Sala 5')" title="Avisar a Vigueras de que ya has terminado de marcar la Sala 5" style="padding:11px 18px;font-size:13px;font-weight:800;background:#1558a0;color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:8px">
+            <i class="ti ti-check" style="font-size:16px"></i> Hojas marcadas Sala 5
+          </button>
         </div>`);
     }
     actualizarBadgeAvisosTecnico();
@@ -2704,6 +2713,7 @@ async function crearTarea(){
     tareasData.push({
       id: 'tarea_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
       titulo, descripcion, asignadoA, asignadoPor: currentUser||'—',
+      origen: 'manual',
       inv, calles, fecha, fechaISO: fechaRaw||null, turno,
       prioridad, estado:'pendiente', horaInicio:null, horaFin:null, firmante:null,
       visto: false,
@@ -4406,6 +4416,17 @@ async function saltarAFichaControl(id){
     const el = document.getElementById('control-card-'+c.id);
     if(el){ el.scrollIntoView({behavior:'smooth', block:'center'}); el.style.outline = '3px solid #ffd54f'; setTimeout(()=>{ if(el) el.style.outline = ''; }, 2500); }
   }, 150);
+}
+// "1,110.0" (millares con coma + decimal con punto) o "1,0"/"30,0" (decimal con
+// coma) -> entero limpio ("1110", "1", "30"). Antes "1,110.0" acababa como
+// "1.110" y el dashboard lo sumaba como 1,11. Un decimal distinto de .0 se conserva.
+function normalizarBandejasPdf(s){
+  const t = String(s==null?'':s).trim();
+  const m = /^(\d{1,3}(?:,\d{3})+|\d+)(?:[.,](\d+))?$/.exec(t);
+  if(!m) return t.replace(',', '.').replace(/\.0$/, '');
+  const ent = m[1].replace(/,/g, '');
+  const dec = m[2];
+  return (!dec || /^0+$/.test(dec)) ? ent : ent+'.'+dec;
 }
 function plantasEntero(s){ const d = String(s==null?'':s).replace(/[.,]/g,'').trim(); return /^\d+$/.test(d) ? d : ''; }
 function plantasVista(s){ const d = plantasEntero(s); return d ? d.replace(/\B(?=(\d{3})+(?!\d))/g,'.') : ''; }
@@ -6730,7 +6751,7 @@ async function autoCrearLineasDesdePdfControl(tipo, dia, pdfB64){
       const clienteVariedad = p.variedad ? `${p.cliente} — ${p.variedad}` : p.cliente;
       // Normaliza tanto "65.0" como "1,0"/"30,0" (coma o punto decimal según
       // el PDF) a un entero limpio ("65", "1", "30").
-      const numBandejas = p.nband.replace(',', '.').replace(/\.0$/, '');
+      const numBandejas = normalizarBandejasPdf(p.nband);
       const clave = p.partida+'|'+numBandejas+'|'+clienteVariedad;
       if(existentes.has(clave)) return;
       existentes.add(clave);
@@ -6851,7 +6872,7 @@ function parseControlPreinjertoPdfPartidas(lineas){
       cliente, partida: m.groups.partida.toUpperCase(), variedad: m.groups.variedad.trim(),
       fSiembra: m.groups.fsiembra, fEntrega: m.groups.fentrega,
       plantasSol: m.groups.plsol, plantasSem: m.groups.sem,
-      nband: m.groups.band.replace(/[.,]0+$/,''), obs: resto
+      nband: normalizarBandejasPdf(m.groups.band), obs: resto
     });
   });
   return { records, noReconocidas };
@@ -14622,7 +14643,7 @@ function parsearTrabajoDeTexto(texto){
 // "categoria" y no se tocan — que no estén ya completadas) y las vuelve a
 // crear desde cero recorriendo riegoData entero.
 async function generarTareasDesdeRiego(){
-  if(!confirm('¿Generar tareas de peón desde lo que hay escrito ahora mismo en Riego?\n\nSe borrarán las tareas de peón pendientes/iniciadas (no las completadas) y se crearán de nuevo solo con lo que esté escrito en este momento.')) return;
+  if(!confirm('¿Generar tareas de peón desde lo que hay escrito ahora mismo en Riego?\n\nSe borrarán y volverán a crearse las tareas de peón PENDIENTES generadas desde Riego. Se conservan las completadas, las ya iniciadas y las que hayas creado a mano con «Nueva tarea».')) return;
   showToast('Generando tareas…');
   // persistTareasData() solo FUSIONA con la nube (nunca borra, ver
   // persistTareasData) — si se usara aquí, las tareas obsoletas que se
@@ -14641,7 +14662,11 @@ async function generarTareasDesdeRiego(){
   // Detectado en la auditoría completa del 2026-09-09.
   if(!rCloud){ avisarFalloGuardado(); return; }
   tareasData = JSON.parse(rCloud.value);
-  tareasData = tareasData.filter(t => !((['PEON1','PEON2','PEON3'].includes(t.asignadoA)) && !t.categoria && t.estado!=='completada'));
+  // 2026-10-30 (Vigueras): solo se rehacen las PENDIENTES de origen riego. Las
+  // iniciadas (el peón ya está en ello), las completadas y las creadas a mano
+  // (origen:'manual') se conservan. Las tareas generadas antes de este cambio
+  // no llevan marca de origen y se tratan como de riego (como hasta ahora).
+  tareasData = tareasData.filter(t => !((['PEON1','PEON2','PEON3'].includes(t.asignadoA)) && !t.categoria && t.estado==='pendiente' && t.origen!=='manual'));
   const invIds = [...Object.keys(INV_LAYOUT_SALA1), ...Object.keys(INV_LAYOUT_SALA2), ...Object.keys(INV_LAYOUT_SALA3), ...Object.keys(INV_LAYOUT_SALA4), ...Object.keys(INV_LAYOUT_SALA5)];
   let creadas = 0;
   invIds.forEach(invId=>{
@@ -14673,13 +14698,15 @@ async function generarTareasDesdeRiego(){
         const crearOFusionar = (tituloBruto, horarioTarea, esFoliar) => {
           const tituloExpandido = expandirAbreviaturasRiego(tituloBruto);
           const peonAsignado = peonDelaSala(invId);
-          const existente = tareasData.find(t=>t.asignadoA===peonAsignado && !t.categoria && t.inv===invId && t.fechaISO===fechaISO && t.titulo===tituloExpandido && (t.horario||'')===(horarioTarea||''));
+          const existente = tareasData.find(t=>t.asignadoA===peonAsignado && !t.categoria && t.origen!=='manual' && t.inv===invId && t.fechaISO===fechaISO && t.titulo===tituloExpandido && (t.horario||'')===(horarioTarea||''));
+          if(existente && existente.estado==='iniciada') return; // ya en marcha: no se toca ni se duplica
           if(existente){
             existente._callesNumeros = [...new Set([...(existente._callesNumeros||[]), ...br.calles])];
           } else {
             tareasData.push({
               id: 'tarea_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
               titulo: tituloExpandido, descripcion:'', asignadoA:peonAsignado, asignadoPor: currentUser||'—',
+              origen: 'riego',
               inv: invId, calles: '', _callesNumeros:[...br.calles], _diaOrigen: dia, fecha: riegoDiaLabelCorto(dia), fechaISO, turno:'',
               horario: horarioTarea||'', esFoliar: !!esFoliar,
               prioridad:'normal', estado:'pendiente', horaInicio:null, horaFin:null, firmante:null,
@@ -16788,6 +16815,78 @@ function editarFitoManualDesdeCelda(invId, dia, calles){
 // vez de guardar con la fusión normal (mergeDeepPreferLocal no sabe
 // "borrar" — una celda ya vacía en local heredaría de la nube el valor
 // antiguo que se acaba de quitar). Mismo patrón que guardarBorradoRiego.
+// Tras borrar o reducir un tratamiento, la tarea que ya se había creado (Pistola ->
+// fumigación del peón; Específicos -> tarea del regante) se quedaba tal cual y
+// seguía pidiendo hacer algo que ya no está marcado (2026-10-30, Vigueras). Aquí
+// se recalcula, con lo que queda de verdad en la nube, qué calles siguen con ese
+// tratamiento: si no queda ninguna se quita esa parte de la tarea (o la tarea
+// entera) y si quedan menos se reduce. SOLO se tocan tareas PENDIENTES: una ya
+// iniciada o completada no se modifica nunca.
+async function reconciliarTareasConTratamiento(tipo, entradas){
+  try{
+    const esFito = tipo==='fito';
+    const categoria = esFito ? 'fumigacion' : 'especifico';
+    const rDatos = await window.storage.get(esFito ? FITO_KEY : ESPECIFICOS_KEY);
+    const rTareas = await window.storage.get(TAREAS_KEY);
+    if(!rDatos || !rTareas) return; // lectura fallida o vacía: no se toca nada
+    const datos = JSON.parse(rDatos.value);
+    const tareas = JSON.parse(rTareas.value);
+    const textoDe = raw => typeof raw==='string' ? raw : ((raw && raw.texto) || '');
+    const callesVivas = (invId, dia, tarea) => {
+      const layout = INV_LAYOUT[invId];
+      if(!layout) return null; // invernadero desconocido: no decidir nada
+      const celdas = (datos[invId] && datos[invId][dia]) || {};
+      return [...layout.row1, ...layout.row2].filter(cc=>{
+        const raw = celdas[cc];
+        const texto = textoDe(raw).trim();
+        if(!texto) return false;
+        if(esFito) return !!raw && typeof raw!=='string' && raw.tipoTrat==='Pistola' && texto.startsWith(tarea.titulo);
+        const p = parsearTextoEspecifico(texto);
+        return [[p.trat, p.dosis].filter(Boolean).join(' '), p.tipo].filter(Boolean).join(' + ') === tarea.titulo;
+      });
+    };
+    let cambios = 0;
+    const aBorrar = new Set();
+    const dias = {};
+    (entradas||[]).forEach(({invId, dia})=>{ if(invId!=null && dia!=null) dias[invId+'|'+dia] = {invId, dia}; });
+    Object.values(dias).forEach(({invId, dia})=>{
+      const fechaISO = fechaLocalISO(riegoDiaToDate(dia));
+      tareas.filter(t=>t.categoria===categoria && t.fechaISO===fechaISO && t.estado==='pendiente').forEach(t=>{
+        if(esFito){
+          const objs = t.objetivos || [];
+          const obj = objs.find(o=>o.inv===invId);
+          if(!obj) return;
+          const vivas = callesVivas(invId, dia, t);
+          if(vivas===null) return;
+          if(!vivas.length){
+            t.objetivos = objs.filter(o=>o!==obj);
+            cambios++;
+            if(!t.objetivos.length) aBorrar.add(t.id);
+          } else {
+            const etiqueta = formatCallesParaImprimir(invId, vivas);
+            if(etiqueta !== obj.calles){ obj.calles = etiqueta; cambios++; }
+          }
+        } else {
+          if(t.inv!==invId) return;
+          const vivas = callesVivas(invId, dia, t);
+          if(vivas===null) return;
+          if(!vivas.length){ aBorrar.add(t.id); cambios++; }
+          else {
+            const etiqueta = formatCallesParaImprimir(invId, vivas);
+            if(etiqueta !== t.calles){ t.calles = etiqueta; cambios++; }
+          }
+        }
+      });
+    });
+    if(!cambios) return;
+    const resultado = tareas.filter(t=>!aBorrar.has(t.id));
+    const ok = await window.storage.set(TAREAS_KEY, JSON.stringify(resultado));
+    if(!ok){ avisarFalloGuardado(); return; }
+    tareasData = resultado;
+    logHistorial(`Ajustó ${cambios} tarea${cambios===1?'':'s'} de ${esFito?'fumigación':'específico'} tras borrar/reducir un tratamiento`);
+    refreshTareasViews();
+  }catch(e){ console.warn('reconciliarTareasConTratamiento:', e); }
+}
 async function guardarBorradoFito(entradas){
   try{
     const r = await window.storage.get(FITO_KEY);
@@ -16809,6 +16908,7 @@ async function guardarBorradoFito(entradas){
   }catch(e){ avisarFalloGuardado(); return; }
   const invs = entradas.map(e=>e.invId);
   logHistorial(invs.length>1 ? `Borró plaguicidas de ${invs.length} invernaderos` : `Borró plaguicidas de INV ${invs[0]}`);
+  await reconciliarTareasConTratamiento('fito', entradas);
 }
 
 function borrarFitoManual(){
@@ -16943,8 +17043,11 @@ async function saveFitoManual(){
     sobrantes.forEach(c=>{ if(fitoData[contextoOriginal.invId]?.[contextoOriginal.dia]) delete fitoData[contextoOriginal.invId][contextoOriginal.dia][c]; });
     await guardarFitoConLimpieza(contextoOriginal.invId, contextoOriginal.dia, sobrantes);
   } else {
-    saveFitoData();
+    await saveFitoData();
   }
+  // Si se estaba editando un tratamiento (cambio de producto, tramo reducido o
+  // de día), la tarea de fumigación creada con el valor antiguo se reajusta.
+  if(contextoOriginal) await reconciliarTareasConTratamiento('fito', [{invId: contextoOriginal.invId, dia: contextoOriginal.dia}]);
   if(fitoInvSel) renderFitoGrid(fitoInvSel);
   showToast(`✓ Día ${dia} → "${valor}" aplicado a ${bulkInvIds.length} invernadero(s) (${count} calles)`);
 }
@@ -18148,6 +18251,7 @@ async function guardarBorradoEspecifico(entradas){
   }catch(e){ avisarFalloGuardado(); return; }
   const invs = entradas.map(e=>e.invId);
   logHistorial(invs.length>1 ? `Borró específicos de ${invs.length} invernaderos` : `Borró específicos de INV ${invs[0]}`);
+  await reconciliarTareasConTratamiento('especifico', entradas);
 }
 
 async function borrarEspecificoManual(){
@@ -18526,6 +18630,9 @@ function showImprimirResumenSelector(tipo){
           <div style="display:flex;flex-wrap:wrap;gap:6px;max-height:140px;overflow-y:auto;border:1px solid var(--border);border-radius:7px;padding:8px">
             ${Object.keys(INV_LAYOUT_SALA1).map(id=>`<label style="font-size:11px;display:flex;align-items:center;gap:3px;background:#f2f4f0;border:1px solid #ddd;border-radius:5px;padding:4px 8px;cursor:pointer"><input type="checkbox" class="rr-inv-chk" value="${id}" ${id===invSelActual?'checked':''}> ${id}</label>`).join('')}
             ${Object.keys(INV_LAYOUT_SALA2).map(id=>`<label style="font-size:11px;display:flex;align-items:center;gap:3px;background:#f2f4f0;border:1px solid #ddd;border-radius:5px;padding:4px 8px;cursor:pointer"><input type="checkbox" class="rr-inv-chk" value="${id}" ${id===invSelActual?'checked':''}> ${id}</label>`).join('')}
+            ${Object.keys(INV_LAYOUT_SALA3).map(id=>`<label style="font-size:11px;display:flex;align-items:center;gap:3px;background:#f2f4f0;border:1px solid #ddd;border-radius:5px;padding:4px 8px;cursor:pointer"><input type="checkbox" class="rr-inv-chk" value="${id}" ${id===invSelActual?'checked':''}> ${id}</label>`).join('')}
+            ${Object.keys(INV_LAYOUT_SALA4).map(id=>`<label style="font-size:11px;display:flex;align-items:center;gap:3px;background:#f2f4f0;border:1px solid #ddd;border-radius:5px;padding:4px 8px;cursor:pointer"><input type="checkbox" class="rr-inv-chk" value="${id}" ${id===invSelActual?'checked':''}> ${id}</label>`).join('')}
+            ${Object.keys(INV_LAYOUT_SALA5).map(id=>`<label style="font-size:11px;display:flex;align-items:center;gap:3px;background:#f2f4f0;border:1px solid #ddd;border-radius:5px;padding:4px 8px;cursor:pointer"><input type="checkbox" class="rr-inv-chk" value="${id}" ${id===invSelActual?'checked':''}> ${id}</label>`).join('')}
           </div>
         </div>
         <div>
