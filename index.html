@@ -329,13 +329,13 @@ if(new URL(location.href).searchParams.get('fbdiag')==='1'){
 <script src="assets/qc-offline-operarios-photos.js?v=113" defer></script>
 <script src="assets/qc-offline-operarios-drafts.js?v=113" defer></script>
 <script src="assets/qc-sync-global.js?v=113" defer></script>
+<script src="assets/control-qc-module.js?v=20261030-2" defer></script>
 <script>
 let controlChecksData = []; // Estado QC compartido, disponible aunque el módulo aún no se haya descargado.
-// QC (263 KB) se descarga solo al entrar en una pantalla que lo necesita.
+// El módulo QC se mantiene como recurso separado y diferido para no engordar este HTML.
 (function(root){
-  const moduleUrl=new URL('./assets/control-qc-module.js?v=20261030-1',location.href).href;
   const editorUrl=new URL('./assets/qc-editar-linea-loader.js?v=20261030-1',location.href).href;
-  let ready=false,loading=null,editorReady=false,editorLoading=null;
+  let editorReady=false,editorLoading=null;
   function loadScript(src,check){
     return new Promise((resolve,reject)=>{
       const script=document.createElement('script');
@@ -346,22 +346,18 @@ let controlChecksData = []; // Estado QC compartido, disponible aunque el módul
     });
   }
   root.ensureControlCodeLoaded=function(){
-    if(ready)return Promise.resolve(true);
-    if(!loading){
-      loading=loadScript(moduleUrl,()=>typeof root.controlShowControlModule==='function'&&typeof root.loadControlCompletoV2==='function')
-        .then(()=>{ready=true;return true;})
-        .catch(error=>{loading=null;console.error('[La Sala] No se pudo cargar Control/QC:',error);if(typeof root.showToast==='function')root.showToast('No se pudo cargar Control. Comprueba la conexión y vuelve a intentarlo.');return false;});
+    if(typeof root.controlShowControlModule!=='function'||typeof root.loadControlCompletoV2!=='function'){
+      console.error('[La Sala] El módulo Control/QC no está disponible.');
+      if(typeof root.showToast==='function')root.showToast('No se pudo cargar Control. Comprueba la conexión y vuelve a intentarlo.');
+      return Promise.resolve(false);
     }
-    return loading.then(async ok=>{
-      if(!ok||editorReady)return ok;
-      if(!editorLoading){
-        editorLoading=loadScript(editorUrl,()=>typeof root.mostrarEditarControlCheck==='function'&&typeof root.mostrarEditarControlCargaCheck==='function')
-          .then(()=>{editorReady=true;return true;})
-          .catch(error=>{editorLoading=null;console.warn('[La Sala] Se usará el editor QC integrado:',error);return false;});
-      }
-      await editorLoading; // El editor integrado sigue disponible si falla este complemento.
-      return true;
-    });
+    if(editorReady)return Promise.resolve(true);
+    if(!editorLoading){
+      editorLoading=loadScript(editorUrl,()=>typeof root.mostrarEditarControlCheck==='function'&&typeof root.mostrarEditarControlCargaCheck==='function')
+        .then(()=>{editorReady=true;return true;})
+        .catch(error=>{editorLoading=null;console.warn('[La Sala] Se usará el editor QC integrado:',error);return false;});
+    }
+    return editorLoading.then(()=>true); // El editor integrado sigue disponible si falla este complemento.
   };
   root.showControlModule=function(){
     return root.ensureControlCodeLoaded().then(ok=>ok?root.controlShowControlModule():undefined);
