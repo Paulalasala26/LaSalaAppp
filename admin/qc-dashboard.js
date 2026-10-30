@@ -2,7 +2,7 @@
 // Dashboard QC de solo lectura; consultas únicamente a petición del usuario o al abrir.
 (function(){
   const AUTH_STORE='lasala-firebase-auth-v1';
-  const API_KEY='AIzaSyDdDdMg6M1jVIssvGYKsdRA-mRug31Yt_g';
+  const API_KEY='AIzaSyBsRjw4NuCFg69P7_eqoX037rgjkbadcA0';
   const FICHA_CONTEXT='lasala-qc-prototipo-ref-v1';
   const RETURN_FILTERS='lasala-backoffice-qc-dashboard-filtros-v1';
   const ENDPOINT='/api/admin-qc-dashboard';
