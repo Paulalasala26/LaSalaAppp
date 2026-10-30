@@ -2,8 +2,8 @@
 // Consulta administrativa Control TEST. Nunca escribe ni elimina datos de Control.
 (function(){
   const STORE='lasala-firebase-auth-v1';
-  const API_KEY='AIzaSyDdDdMg6M1jVIssvGYKsdRA-mRug31Yt_g';
-  const TEST_DB='https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app';
+  const API_KEY='AIzaSyBsRjw4NuCFg69P7_eqoX037rgjkbadcA0';
+  const TEST_DB='https://la-sala-app-dev-default-rtdb.europe-west1.firebasedatabase.app';
   const HANDOFF='lasala-backoffice-control-v1';
   const RETURN_FILTERS='lasala-backoffice-control-filtros-v1';
   const START=Date.UTC(2026,5,15),PAGE=100;
