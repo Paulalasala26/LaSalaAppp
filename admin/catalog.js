@@ -3,7 +3,7 @@
 // Catálogos de infraestructura TEST: sólo ADMIN. Sin borrar registros.
 (function(){
   const SESSION_KEY='lasala-firebase-auth-v1';
-  const FIREBASE_WEB_API_KEY='AIzaSyDdDdMg6M1jVIssvGYKsdRA-mRug31Yt_g';
+  const FIREBASE_WEB_API_KEY='AIzaSyBsRjw4NuCFg69P7_eqoX037rgjkbadcA0';
   const API='/api/admin-catalog';
   const ERRORS={
     LOGIN_REQUIRED:'La sesión ha caducado. Accede a ViguerAPP con tu usuario ADMIN.',
