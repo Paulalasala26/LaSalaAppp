@@ -3,7 +3,7 @@
 (function(){
   const API='/api/admin-qc-mediciones';
   const AUTH='lasala-firebase-auth-v1';
-  const API_KEY='AIzaSyDdDdMg6M1jVIssvGYKsdRA-mRug31Yt_g';
+  const API_KEY='AIzaSyBsRjw4NuCFg69P7_eqoX037rgjkbadcA0';
   const CATS=[
     ['color','Color',[['verde','Verde'],['amarillo','Amarillo'],['verdeClaro','Verde claro'],['ok','OK']]],
     ['tamano','Tamaño',[['grande','Grande'],['pequeno','Pequeño'],['ok','OK']]],
