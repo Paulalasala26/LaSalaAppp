@@ -4380,7 +4380,7 @@ function bloquePreinjertoEnTunelHTML(t){
   if(!ps.length) return '';
   return ps.map(p=>`<div style="margin-top:8px;padding:8px 10px;background:#f1f8f2;border:1px solid #cfe6d2;border-radius:8px">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11px;font-weight:800;color:#2e7d32;margin-bottom:5px">
-        <span>🌱 Preinjerto ${etiquetaTipoPreinjerto(p.tipo)} · siembra ${escapar(p.fSiembra)||escapar(riegoDiaLabelCorto(p.dia))} · ${controlLineaCompletada(p)?'✅ check completo':'⬜ check pendiente'}</span>
+        <span>🌱 Preinjerto ${etiquetaTipoPreinjerto(p.tipo)} · entrega ${escapar(p.fEntrega)||escapar(riegoDiaLabelCorto(p.dia))} · ${controlLineaCompletada(p)?'✅ check completo':'⬜ check pendiente'}</span>
         <button onclick="saltarAFichaControl('${p.id}')" style="padding:3px 9px;font-size:10px;font-weight:800;background:#e8f5ea;color:#2e7d32;border:1px solid #a5d6a7;border-radius:6px;cursor:pointer">Ver en Preinjerto ${etiquetaTipoPreinjerto(p.tipo)} →</button>
       </div>
       <div>${resumenCategoriasControlHTML(p)}</div>
@@ -6399,7 +6399,7 @@ function renderControlChecklistHTML(seccion){
         <i class="ti ti-upload" style="font-size:16px"></i> ${pdf?'Sustituir PDF':'Insertar PDF'}
         <input type="file" accept="application/pdf" style="display:none" onchange="handleControlPdfInput(this,'${seccion.key}',${controlDiaSel})">
       </label>
-      <div style="font-size:10px;color:var(--muted);margin-top:6px">${esSeccionPreinjerto(seccion.key) ? 'Un solo PDF crea las líneas de los dos checks: Variedad (partidas con C o VE) y Patrón (P o WE), cada una en su día de siembra. Las demás partidas se ignoran.' : 'La lectura automática de las columnas del PDF está pendiente — de momento se guarda como referencia y las líneas se añaden a mano.'}</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:6px">${esSeccionPreinjerto(seccion.key) ? 'Un solo PDF crea las líneas de los dos checks: Variedad (partidas con C o VE) y Patrón (P o WE), cada una en su día de entrega. Las demás partidas se ignoran.' : 'La lectura automática de las columnas del PDF está pendiente — de momento se guarda como referencia y las líneas se añaden a mano.'}</div>
     </div>
 
     <div id="nuevo-control-form-wrap"></div>
@@ -6430,13 +6430,13 @@ function handleControlPdfInput(input, tipo, dia){
       } else {
         // El PDF también queda adjunto en cada día donde hay partidas, para
         // que la ficha de cada una enlace a su PDF.
-        // Solo si son pocos días: con un PDF grande (decenas de días de siembra) cada
+        // Solo si son pocos días: con un PDF grande (decenas de días de entrega) cada
         // copia es una clave de ~2MB en Firebase; se queda adjunto en el día elegido.
         if(r.dias.length <= 7){
           for(const d of r.dias){ if(d !== dia){ await guardarControlPdf('preinjerto_variedad', d, file.name, e.target.result); await guardarControlPdf('preinjerto_patron', d, file.name, e.target.result); } }
         }
         const detalle = Object.keys(r.porDia).map(Number).sort((a,b)=>a-b).map(d=>riegoDiaLabelCorto(d)+' ('+r.porDia[d]+')').join(', ');
-        if(r.creadas > 0) showToast(`✓ ${r.creadas} línea${r.creadas===1?'':'s'} creada${r.creadas===1?'':'s'} (${r.porTipo.preinjerto_variedad} en Variedad, ${r.porTipo.preinjerto_patron} en Patrón) por fecha de siembra: ${detalle} — falta el check`);
+        if(r.creadas > 0) showToast(`✓ ${r.creadas} línea${r.creadas===1?'':'s'} creada${r.creadas===1?'':'s'} (${r.porTipo.preinjerto_variedad} en Variedad, ${r.porTipo.preinjerto_patron} en Patrón) por fecha de entrega: ${detalle} — falta el check`);
         else showToast('✓ PDF adjuntado (no se han detectado partidas nuevas que añadir)');
         if(r.ignoradas && r.ignoradas.length) showToast(`ℹ️ ${r.ignoradas.length} partida${r.ignoradas.length===1?'':'s'} sin C/VE/P/WE ignorada${r.ignoradas.length===1?'':'s'}: ${r.ignoradas.slice(0,6).join(', ')}${r.ignoradas.length>6?'…':''}`);
         if(r.noReconocidas && r.noReconocidas.length){
@@ -6908,7 +6908,7 @@ function parseControlPreinjertoPdfPartidas(lineas){
   });
   return { records, noReconocidas };
 }
-// Crea las líneas de Preinjerto, cada una en el día de su F Siembra y en el check
+// Crea las líneas de Preinjerto, cada una en el día de su F Entrega y en el check
 // que le corresponde por la letra de la partida (C/VE -> Variedad, P/WE -> Patrón;
 // el resto se ignora). Devuelve {creadas, porDia:{dia:n}, porTipo, ignoradas,
 // dias:[...días con partidas], noReconocidas} o {error:-1|-2}. Idempotente
@@ -6929,7 +6929,8 @@ async function autoCrearLineasDesdePdfControlPreinjerto(pdfB64){
     records.forEach((p,idx)=>{
       const tipoP = tipoPreinjertoDePartida(p.partida);
       if(!tipoP){ ignoradas.push(p.partida); return; }
-      const dia = fechaExtensionADiaRiego(p.fSiembra);
+      // 2026-10-30 (Vigueras): la fecha de realización del check es la F ENTREGA, no la de siembra.
+      const dia = fechaExtensionADiaRiego(p.fEntrega);
       if(dia==null){ sinFecha.push(p.partida); return; }
       dias.add(dia);
       const clDia = tipoP+'|'+dia;
@@ -9189,7 +9190,7 @@ async function mostrarHistorialPartida(id){
       </div>
       <div style="padding:1.25rem 1.5rem">
         ${pres.length ? pres.map(pre=>`
-        <div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Check de Preinjerto ${etiquetaTipoPreinjerto(pre.tipo)} — siembra ${escapar(pre.fSiembra||riegoDiaLabelCorto(pre.dia))}</div>
+        <div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Check de Preinjerto ${etiquetaTipoPreinjerto(pre.tipo)} — entrega ${escapar(pre.fEntrega||riegoDiaLabelCorto(pre.dia))}</div>
         <div style="font-size:12px;color:var(--text);margin-bottom:6px">
           ${pre.numBandejas?`<b>Nº bandejas:</b> ${escapar(pre.numBandejas)} · `:''}${pre.fEntrega?`<b>F Entrega:</b> ${escapar(pre.fEntrega)} · `:''}<b>Plantas:</b> ${plantasVista(pre.plantasSol)||'—'} / ${plantasVista(pre.plantasSem)||'—'}
         </div>
@@ -9273,7 +9274,7 @@ function imprimirHistorialPartida(){
         </div>
       </div>
       <div class="meta">${c.fentrega?`Entrega ${escapar(c.fentrega)} · `:''}INV ${escapar(c.invId)||'—'} · Día 1 (salida de Túnel): ${escapar(riegoDiaLabelCorto(diaDesde))}</div>
-      ${(pres && pres.length) ? pres.map(pre=>`<h3>Check de Preinjerto ${etiquetaTipoPreinjerto(pre.tipo)} — siembra ${escapar(pre.fSiembra||riegoDiaLabelCorto(pre.dia))}</h3>
+      ${(pres && pres.length) ? pres.map(pre=>`<h3>Check de Preinjerto ${etiquetaTipoPreinjerto(pre.tipo)} — entrega ${escapar(pre.fEntrega||riegoDiaLabelCorto(pre.dia))}</h3>
       <div>${(pre.observaciones ? escapar(pre.observaciones) : 'Sin observaciones')+(pre.fEntrega?' · F Entrega '+escapar(pre.fEntrega):'')+' · Plantas '+(plantasVista(pre.plantasSol)||'—')+' / '+(plantasVista(pre.plantasSem)||'—')}</div>`).join('') : `<h3>Check de Preinjerto</h3>
       <div>No tiene check de Preinjerto.</div>`}
       <h3>Check de entrada (Túnel) — ${escapar(riegoDiaLabelCorto(c.dia))}${c.numBandejas?' · Nº bandejas: '+escapar(c.numBandejas):''}</h3>
