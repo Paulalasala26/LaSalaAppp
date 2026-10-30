@@ -4336,7 +4336,18 @@ function etiquetaTipoPreinjerto(t){ return t==='preinjerto_patron' ? 'Patrón' :
 // ── Conexión Preinjerto <-> Túnel (2026-10-04) ──
 // Se relacionan por el nº de partida; si en algún caso concreto cambia al pasar
 // a Túnel, la línea de Preinjerto guarda "partidaTunel" (editable en su ficha).
-function partidaTunelDePre(pre){ return String(pre.partidaTunel||pre.partida||'').trim().toUpperCase(); }
+// 2026-10-30: una partida de Variedad (C/VE) o de Patrón (P/WE) entra en Túnel ya
+// injertada, con el MISMO número y la letra del injerto: C y P -> X (26C02410 y
+// 26P02410 -> 26X02410); VE y WE -> YE. Esa es la que se busca en Túnel salvo que
+// la línea tenga una "Partida en Túnel" puesta a mano.
+function partidaInjertoDePreinjerto(partida){
+  const m = /^(\d{2})([A-Za-z]{1,2})(\d+)$/.exec(String(partida||'').trim());
+  if(!m) return '';
+  const L = m[2].toUpperCase();
+  const nueva = (L==='C' || L==='P') ? 'X' : (L==='VE' || L==='WE') ? 'YE' : '';
+  return nueva ? m[1]+nueva+m[3] : '';
+}
+function partidaTunelDePre(pre){ return String(pre.partidaTunel || partidaInjertoDePreinjerto(pre.partida) || pre.partida || '').trim().toUpperCase(); }
 function lineasTunelDePreinjerto(pre){
   const p = partidaTunelDePre(pre);
   return p ? controlChecksData.filter(x=>x.tipo==='tunel' && String(x.partida||'').trim().toUpperCase()===p).sort((a,b)=>a.dia-b.dia) : [];
@@ -4362,7 +4373,8 @@ function resumenCategoriasControlHTML(ch){
 function bloqueTunelDePreinjertoHTML(pre){
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const ts = lineasTunelDePreinjerto(pre);
-  const distinta = pre.partidaTunel && String(pre.partidaTunel).trim().toUpperCase() !== String(pre.partida||'').trim().toUpperCase();
+  const esperada = partidaTunelDePre(pre);
+  const distinta = !!pre.partidaTunel;
   const btn = `<button onclick="vincularPartidaTunelPreinjerto('${pre.id}')" title="Si esta partida entra en Túnel con otro número" style="padding:3px 9px;font-size:10px;font-weight:700;background:#fff8e1;color:#c47f00;border:1px solid #e0c080;border-radius:6px;cursor:pointer">✏️ Partida en Túnel${distinta?': '+escapar(pre.partidaTunel):''}</button>`;
   const filas = ts.length ? ts.map(t=>{
     const calle = t.invId ? 'INV '+escapar(t.invId)+' — '+escapar(formatTramosLabel(t.invId, (t.tramos&&t.tramos.length)?t.tramos:[{desde:t.calleDesde,hasta:t.calleHasta}])) : 'sin calle asignada';
@@ -4370,7 +4382,7 @@ function bloqueTunelDePreinjertoHTML(pre){
         <span>Túnel · ${escapar(riegoDiaLabelCorto(t.dia))} · ${calle} · ${controlLineaCompletada(t)?'✅ check completo':'⬜ check pendiente'}</span>
         <button onclick="saltarAFichaControl('${t.id}')" style="padding:3px 9px;font-size:10px;font-weight:800;background:#e8f2fd;color:#1558a0;border:1px solid #9ab8d8;border-radius:6px;cursor:pointer">Ver en Túnel →</button>
       </div>`;
-  }).join('') : `<div style="font-size:11px;font-weight:700;color:var(--muted);font-style:italic">Aún no está en Túnel${distinta?' (buscando la partida '+escapar(pre.partidaTunel)+')':''}</div>`;
+  }).join('') : `<div style="font-size:11px;font-weight:700;color:var(--muted);font-style:italic">Aún no está en Túnel (se espera como ${escapar(esperada)})</div>`;
   return `<div style="margin-top:8px;padding:8px 10px;background:#f6f9fc;border:1px solid #d5e6f7;border-radius:8px;display:flex;flex-direction:column;gap:6px">${filas}<div>${btn}</div></div>`;
 }
 // Bloque en la ficha de TÚNEL: lo que se vio en Preinjerto (solo si existe).
@@ -4402,10 +4414,11 @@ async function aplicarPartidaTunelPreinjerto(id, valor){
 function vincularPartidaTunelPreinjerto(id){
   const c = controlChecksData.find(x=>x.id===id);
   if(!c) return;
-  const v = prompt('Nº de partida con el que esta partida entra en Túnel.\n(Déjalo igual o vacío si es el mismo: '+c.partida+')', c.partidaTunel || c.partida || '');
+  const porDefecto = partidaInjertoDePreinjerto(c.partida) || String(c.partida||'').trim().toUpperCase();
+  const v = prompt('Nº de partida con el que esta partida entra en Túnel.\n(Déjalo vacío para usar la habitual: '+porDefecto+')', c.partidaTunel || porDefecto);
   if(v === null) return;
   const val = v.trim().toUpperCase();
-  aplicarPartidaTunelPreinjerto(id, (!val || val===String(c.partida||'').trim().toUpperCase()) ? '' : val);
+  aplicarPartidaTunelPreinjerto(id, (!val || val===porDefecto) ? '' : val);
 }
 // Salta a la ficha de otra partida (Túnel <-> Preinjerto), desde Control o
 // desde el historial de Partidas. Funciona en la vista clásica y en el paso a
