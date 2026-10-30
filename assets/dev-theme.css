@@ -1,0 +1,42 @@
+/* ViguerAPP: identidad visual exclusiva de DEV. No cambia funcionalidad ni estados. */
+:root{
+  --dev-rojo:#985458;
+  --dev-rojo-oscuro:#87454a;
+  --dev-rojo-claro:#f4e7e7;
+  --dev-gradiente:linear-gradient(120deg,#87454a 0%,#985458 55%,#a86163 100%);
+  --grad-blue:var(--dev-gradiente);
+  --grad-verde:var(--dev-gradiente);
+}
+/* Login: fondo rojo apagado, tarjeta blanca y controles legibles. */
+#login-screen{
+  background:linear-gradient(120deg,#986063 0%,#b27676 55%,#c18a86 100%)!important;
+}
+#login-screen #login-btn{background:var(--dev-gradiente)!important}
+#login-screen h1,#login-screen label{color:var(--dev-rojo-oscuro)!important}
+#login-screen #login-user,#login-screen #login-user-other,#login-screen #login-pass{
+  border-color:#cfaaaa!important;background:#fbf5f5!important;color:#493137!important;
+}
+#login-screen #pass-eye{color:var(--dev-rojo-oscuro)!important}
+/* Barras de cabecera de la app, QC y del Backoffice. */
+#app .topbar,header.topbar,.control-ui-header,.qco-header{
+  background:var(--dev-gradiente)!important;color:#fff!important;
+  border-color:transparent!important;
+}
+header.topbar .breadcrumbs,header.topbar .breadcrumbs span,header.topbar .session-user{
+  color:#fff!important;
+}
+.qco-header h1,.qco-header h2,.qco-header h3,.qco-header strong,.qco-header span{
+  color:#fff!important;
+}
+.qco-header .qco-close{
+  background:rgba(255,255,255,.16)!important;border-color:rgba(255,255,255,.65)!important;color:#fff!important;
+}
+#app .control-ui-close{background:#87454a!important;border-color:#87454a!important}
+/* Cabeceras secundarias: tono claro, sin inundar el contenido de rojo. */
+.page-head h1,.modal-heading h2{color:var(--dev-rojo-oscuro)!important}
+.modal-heading{background:var(--dev-rojo-claro)!important}
+.control-ui-nav{background:#f7eeee!important;border-bottom-color:#dfc1c2!important}
+.control-ui-tab.is-active{background:var(--dev-rojo)!important;border-color:var(--dev-rojo)!important}
+.qc-offline header,body>header{
+  background:var(--dev-gradiente)!important;color:#fff!important;
+}

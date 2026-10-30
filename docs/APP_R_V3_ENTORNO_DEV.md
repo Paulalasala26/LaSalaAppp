@@ -34,3 +34,10 @@
 4. Tras validar el cambio, proponer promoción controlada `DEV → TEST → PRD`, solo con autorización expresa para cada entorno. Nunca fusionar ramas o desplegar en un destino ajeno a DEV sin autorización.
 5. No copiar credenciales, enlaces de bases de datos ni configuración de Graph entre entornos; conservar los secretos en Vercel.
 6. La retirada del PRD antiguo y la promoción de TEST al nuevo PRD siguen pendientes de decisión del usuario. No realizarlas implícitamente.
+
+## Identidad visual DEV — 30/10/2026
+
+- Tema rojo teja suave exclusivo de DEV en `assets/dev-theme.css`, sin cambios de datos ni lógica.
+- Login, cabeceras principales/QC y Backoffice teñidos; formulario y contenido conservan contraste y estructura.
+- `index.html` añade solo la referencia de estilo; `admin/styles.css` lo importa para todas las pantallas administrativas; pantallas offline enlazan el mismo archivo.
+- Validación visual real en móvil y escritorio pendiente de aceptación del usuario; `test/v1.0` y `main` sin modificar.
