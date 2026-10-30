@@ -40,3 +40,21 @@ header.topbar .breadcrumbs,header.topbar .breadcrumbs span,header.topbar .sessio
 .qc-offline header,body>header{
   background:var(--dev-gradiente)!important;color:#fff!important;
 }
+
+/* Riego y Partidas: cabeceras dinámicas creadas con estilos inline.
+   Solo se tiñen las franjas superiores y sus botones de cabecera; no el grid. */
+#riego-overlay > div > div:first-child,
+#partidas-overlay > div > div:first-child,
+#partidas-historial-overlay > div > div:first-child,
+#especifico-por-partidas-overlay > div > div:first-child{
+  background:var(--dev-gradiente)!important;
+  color:#fff!important;
+}
+#riego-overlay #riego-header-actions button,
+#partidas-overlay > div > div:first-child > button,
+#partidas-historial-overlay > div > div:first-child button,
+#especifico-por-partidas-overlay > div > div:first-child button{
+  background:var(--dev-rojo-oscuro)!important;
+  border-color:rgba(255,255,255,.55)!important;
+  color:#fff!important;
+}
