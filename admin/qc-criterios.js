@@ -2,7 +2,7 @@
 /* Backoffice QC: catálogo de reglas por estadio, independiente del cálculo operativo. */
 (function(){
 const AUTH_STORE='lasala-firebase-auth-v1';
-const API_KEY='AIzaSyDdDdMg6M1jVIssvGYKsdRA-mRug31Yt_g';
+const API_KEY='AIzaSyBsRjw4NuCFg69P7_eqoX037rgjkbadcA0';
 const ENDPOINT='/api/admin-qc-reglas';
 const CATEGORIES=[
   ['color','Color',[['verde','Verde'],['amarillo','Amarillo'],['verdeClaro','Verde claro'],['ok','OK']]],
