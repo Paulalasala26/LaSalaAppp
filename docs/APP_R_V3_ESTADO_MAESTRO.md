@@ -1862,11 +1862,17 @@ El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en int
 
 **Entornos:** solo TEST `https://la-sala-app-test.vercel.app`. `main` y PRD intactos.
 
-## 0.184. Carga diferida del complemento de tratamientos — 30/10/2026 — IMPLEMENTADO EN TEST / UAT PENDIENTE
+## 0.184. Carga diferida del complemento de tratamientos — 30/10/2026 — VALIDADO POR EL USUARIO EN TEST
 
 Se retira la carga inicial de `assets/fito-series-v3.js` (65.939 bytes) y se incorpora `assets/fito-series-loader.js`. El complemento se solicita al entrar en Plaguicidas mediante `showFitoModule`; una vez cargado, se inicializa antes de abrir el módulo y permanece en memoria para el resto de la sesión. Si la descarga falla, muestra aviso y permite volver a intentarlo. No se modifica el contenido funcional del complemento ni los datos; el resto del `index.html` queda idéntico salvo por el reemplazo de su etiqueta `script`. El tamaño principal del HTML y su código inline no cambian: esta primera mejora evita descargar el complemento en sesiones que no usan Plaguicidas; no es todavía la división del núcleo monolítico.
 
-Respaldo solicitado por el usuario: rama `backup/test-v1.0-before-split-2026-10-30`, creada antes de editar, fijada al SHA `f6beb7786da114a826242991e6b811fdbc48e593`. Cambios únicamente en TEST: loader `fd1fbae`; integración en `index.html` `78ac907`. Comprobación estática: parseo JS válido del loader y complemento; etiqueta antigua retirada y nueva presente. **Pendiente** UAT visual/funcional real en TEST, incluidas primera entrada, reentrada, error de red y móvil, antes de continuar la división del núcleo o llevar cambios a PRD. Main y PRD intactos.
+Respaldo solicitado por el usuario: rama `backup/test-v1.0-before-split-2026-10-30`, creada antes de editar, fijada al SHA `f6beb7786da114a826242991e6b811fdbc48e593`. Cambios únicamente en TEST: loader `fd1fbae`; integración en `index.html` `78ac907`. Comprobación estática: parseo JS válido del loader y complemento; etiqueta antigua retirada y nueva presente. El usuario confirma que Plaguicidas va bien en TEST; esta confirmación no presupone una prueba del caso de error de red. Main y PRD intactos.
+
+## 0.185. Diagnóstico Firebase bajo demanda — 30/10/2026 — IMPLEMENTADO EN TEST / UAT PENDIENTE
+
+`assets/firebase-diagnostics.js` solo se activa con `?fbdiag=1`, pero se descargaba y analizaba en todas las aperturas. Se cambia su inclusión por una condición que únicamente escribe la etiqueta del script cuando el parámetro vale `1`. La inyección conserva orden síncrono para que el diagnóstico pueda observar desde el inicio las peticiones de TEST; la comprobación de host y activación existente dentro del propio diagnóstico permanece intacta. Se evitan 15.090 bytes de descarga y análisis en sesiones normales. Sin cambios en autenticación, datos ni el código del diagnóstico.
+
+En TEST, commit de código `889fa547` (incluye corrección verificada del escape de cierre: el código generado produce la etiqueta `</script>`). Parseo estático del cargador válido; rama verificada como `test/v1.0`. **Pendiente UAT** normal y con `?fbdiag=1`, incluida comprobación en la pestaña de red. No tocar PRD/main.
 
 ## 1. Reglas innegociables
 
