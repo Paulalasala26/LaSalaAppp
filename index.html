@@ -316,15 +316,7 @@ if(new URL(location.href).searchParams.get('fbdiag')==='1'){
   document.write('<script src="assets/firebase-diagnostics.js"><\/script>');
 }
 </script>
-<link rel="stylesheet" href="assets/control-qc-operativo.css?v=112">
-<link rel="stylesheet" href="assets/control-ui-empty.css?v=078">
-<link rel="stylesheet" href="assets/control-ui-list.css?v=083">
-<link rel="stylesheet" href="assets/qc-edit-linea-v3.css?v=107">
-<link rel="stylesheet" href="assets/control-ui-cards.css?v=109">
 <style>.qc-card-medido{display:inline-block;font-size:11px;font-weight:800;color:#1558a0;margin-top:4px}</style>
-<script src="admin/qc-indicadores.js?v=077" defer></script>
-<script src="assets/control-qc-operativo.js?v=112" defer></script>
-<script src="assets/control-ui-empty.js?v=080" defer></script>
 <script src="assets/qc-offline-operarios-store.js" defer></script>
 <script src="assets/qc-offline-operarios-photos.js?v=113" defer></script>
 <script src="assets/qc-offline-operarios-drafts.js?v=113" defer></script>
@@ -335,7 +327,33 @@ let controlChecksData = []; // Estado QC compartido, disponible aunque el módul
 (function(root){
   const moduleUrl=new URL('./assets/control-qc-module.js?v=20261030-1',location.href).href;
   const editorUrl=new URL('./assets/qc-editar-linea-loader.js?v=20261030-1',location.href).href;
-  let ready=false,loading=null,editorReady=false,editorLoading=null;
+  const supportScripts=[
+    ['./admin/qc-indicadores.js?v=077',()=>typeof root.QCIndicators?.evaluate==='function'],
+    ['./assets/control-qc-operativo.js?v=112',()=>typeof root.QCOperativo?.open==='function'],
+    ['./assets/control-ui-empty.js?v=080',()=>typeof root.QCEmptyState?.render==='function']
+  ];
+  const stylesheets=[
+    './assets/control-qc-operativo.css?v=112',
+    './assets/control-ui-empty.css?v=078',
+    './assets/control-ui-list.css?v=083',
+    './assets/qc-edit-linea-v3.css?v=107',
+    './assets/control-ui-cards.css?v=109'
+  ];
+  let ready=false,loading=null,editorReady=false,editorLoading=null,supportLoading=null,stylesLoading=null;
+  function loadStylesheets(){
+    if(!stylesLoading){
+      stylesLoading=Promise.all(stylesheets.map(path=>new Promise((resolve,reject)=>{
+        const href=new URL(path,location.href).href;
+        let link=Array.from(document.querySelectorAll('link[rel="stylesheet"]')).find(x=>x.href===href);
+        if(link?.sheet){resolve();return;}
+        if(!link){link=document.createElement('link');link.rel='stylesheet';link.href=href;link.dataset.qcLazyStyle='1';}
+        link.onload=()=>resolve();
+        link.onerror=()=>reject(new Error('No se pudo descargar '+href));
+        if(!link.isConnected)document.head.appendChild(link);
+      }))).catch(error=>{stylesLoading=null;throw error;});
+    }
+    return stylesLoading;
+  }
   function loadScript(src,check){
     return new Promise((resolve,reject)=>{
       const script=document.createElement('script');
@@ -345,10 +363,18 @@ let controlChecksData = []; // Estado QC compartido, disponible aunque el módul
       document.head.appendChild(script);
     });
   }
+  function loadSupportScripts(){
+    if(!supportLoading){
+      supportLoading=supportScripts.reduce((chain,[path,check])=>chain.then(()=>loadScript(new URL(path,location.href).href,check)),Promise.resolve())
+        .catch(error=>{supportLoading=null;throw error;});
+    }
+    return supportLoading;
+  }
   root.ensureControlCodeLoaded=function(){
     if(ready)return Promise.resolve(true);
     if(!loading){
-      loading=loadScript(moduleUrl,()=>typeof root.controlShowControlModule==='function'&&typeof root.loadControlCompletoV2==='function')
+      loading=Promise.all([loadStylesheets(),loadSupportScripts()])
+        .then(()=>loadScript(moduleUrl,()=>typeof root.controlShowControlModule==='function'&&typeof root.loadControlCompletoV2==='function'))
         .then(()=>{ready=true;return true;})
         .catch(error=>{loading=null;console.error('[La Sala] No se pudo cargar Control/QC:',error);if(typeof root.showToast==='function')root.showToast('No se pudo cargar Control. Comprueba la conexión y vuelve a intentarlo.');return false;});
     }
@@ -483,58 +509,6 @@ let controlChecksData = []; // Estado QC compartido, disponible aunque el módul
     </div>
   </div>
 
-  <!-- GEO -->
-  <div id="page-geo" class="pg">
-    <div style="max-width:1200px;margin:0 auto;padding:1.5rem">
-
-      <!-- PASO 1: SELECCIÓN DE SALA -->
-      <div id="geo-sala-select">
-        <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.75rem">Selecciona una sala</div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px">
-          <div class="geo-sala-card" onclick="selectGeoSala('sala1')" style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:1.5rem;cursor:pointer;transition:all .15s;text-align:center">
-            <i class="ti ti-building-warehouse" style="font-size:34px;color:var(--verde-mid);display:block;margin-bottom:10px"></i>
-            <div style="font-size:16px;font-weight:800;color:var(--text)">Sala 1</div>
-            <div style="font-size:12px;color:var(--muted);margin-top:4px">10 invernaderos</div>
-          </div>
-          <div class="geo-sala-card" onclick="selectGeoSala('sala2')" style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:1.5rem;cursor:pointer;transition:all .15s;text-align:center">
-            <i class="ti ti-building-warehouse" style="font-size:34px;color:var(--verde-mid);display:block;margin-bottom:10px"></i>
-            <div style="font-size:16px;font-weight:800;color:var(--text)">Sala 2</div>
-            <div style="font-size:12px;color:var(--muted);margin-top:4px">13 invernaderos</div>
-          </div>
-          <div class="geo-sala-card" onclick="selectGeoSala('sala3')" style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:1.5rem;cursor:pointer;transition:all .15s;text-align:center">
-            <i class="ti ti-building-warehouse" style="font-size:34px;color:var(--verde-mid);display:block;margin-bottom:10px"></i>
-            <div style="font-size:16px;font-weight:800;color:var(--text)">Sala 3</div>
-            <div style="font-size:12px;color:var(--muted);margin-top:4px">7 invernaderos</div>
-          </div>
-          <div class="geo-sala-card" onclick="selectGeoSala('sala4')" style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:1.5rem;cursor:pointer;transition:all .15s;text-align:center">
-            <i class="ti ti-building-warehouse" style="font-size:34px;color:var(--verde-mid);display:block;margin-bottom:10px"></i>
-            <div style="font-size:16px;font-weight:800;color:var(--text)">Sala 4</div>
-            <div style="font-size:12px;color:var(--muted);margin-top:4px">6 invernaderos</div>
-          </div>
-          <div class="geo-sala-card" onclick="selectGeoSala('sala5')" style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:1.5rem;cursor:pointer;transition:all .15s;text-align:center">
-            <i class="ti ti-building-warehouse" style="font-size:34px;color:var(--verde-mid);display:block;margin-bottom:10px"></i>
-            <div style="font-size:16px;font-weight:800;color:var(--text)">Sala 5</div>
-            <div style="font-size:12px;color:var(--muted);margin-top:4px">6 invernaderos</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- PASO 2: INVERNADEROS DE LA SALA ELEGIDA -->
-      <div id="geo-inv-picker" style="display:none">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:1rem;flex-wrap:wrap">
-          <button onclick="backToSalaSelect()" style="background:var(--surface);border:1.5px solid var(--border);border-radius:8px;padding:7px 14px;font-size:12px;font-weight:700;color:var(--text);cursor:pointer;display:inline-flex;align-items:center;gap:5px">
-            <i class="ti ti-arrow-left" style="font-size:13px"></i> Salas
-          </button>
-          <div id="geo-sala-label" style="font-size:13px;font-weight:700;color:var(--text)"></div>
-        </div>
-        <div id="geo-inv-cards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:10px;margin-bottom:1.25rem"></div>
-      </div>
-
-      <div id="geo-inv-display">
-        <div style="padding:4rem 1rem;text-align:center;color:var(--muted)"><i class="ti ti-map-2" style="font-size:44px;display:block;margin-bottom:14px;opacity:.25"></i><p style="font-size:13px">Selecciona una sala para ver sus invernaderos</p></div>
-      </div>
-    </div>
-  </div>
 </div>
 
 <script>
@@ -751,15 +725,6 @@ const geoData = {"10A": {"name": "INV 10A", "cap_total": 3094, "cap_arriba": 163
 "55": {"name": "INV 55", "cap_total": null, "cap_arriba": null, "cap_abajo": null, "arriba_start": null, "arriba_end": null, "abajo_start": null, "abajo_end": null, "calles_arriba": {}, "calles_abajo": {}, "pendiente": true},
 "56": {"name": "INV 56", "cap_total": null, "cap_arriba": null, "cap_abajo": null, "arriba_start": null, "arriba_end": null, "abajo_start": null, "abajo_end": null, "calles_arriba": {}, "calles_abajo": {}, "pendiente": true}};
 
-const SALAS = {
-  sala1: {label:'Sala 1', invs:['0A','0B','1A','1B','2A','2B','3A','3B','4A','4B','7A','7B','28','29','30','8','5']},
-  sala2: {label:'Sala 2', invs:['10A','10B','11A','11B','12','15','16','17','18','19','20','21','22']},
-  sala3: {label:'Sala 3', invs:['31','32','33','34','35','36','37']},
-  sala4: {label:'Sala 4', invs:['40','41','42','43','44','45']},
-  sala5: {label:'Sala 5', invs:['51','52','53','54','55','56']}
-};
-let currentGeoSala = null;
-let currentGeoInv = null;
 
 let partidasDB = [{"num": "25X09492", "variedad": "PRUEBA", "cliente": "VERDEMITIKO", "entrega": "06/07", "pinzado": "2 HV", "soporte": "104", "calle_inicio": "C/1702", "calle_fin": "C/1702", "inv": "17", "lado": "arriba", "entrada": "25/06/2026", "pinzadoFecha": "24-26/06", "fotoKey": "25X09492"}, {"num": "25X08701", "variedad": "SOBERBO", "cliente": "VERDEMITIKO", "entrega": "06/07", "pinzado": "2 HV", "soporte": "104", "calle_inicio": "C/1702", "calle_fin": "C/1702", "inv": "17", "lado": "arriba", "entrada": "25/06/2026", "pinzadoFecha": "24-26/06", "fotoKey": "25X08701"}, {"num": "25X08704", "variedad": "ZIMBRU", "cliente": "VERDEMITIKO", "entrega": "06/07", "pinzado": "2 HV", "soporte": "104", "calle_inicio": "C/1702", "calle_fin": "C/1702", "inv": "17", "lado": "arriba", "entrada": "25/06/2026", "pinzadoFecha": "24-26/06", "fotoKey": "25X08704"}, {"num": "25X08472", "variedad": "SOBERBO", "cliente": "VERDEMITIKO", "entrega": "06/07", "pinzado": "2 HV", "soporte": "104", "calle_inicio": "C/1702", "calle_fin": "C/1703", "inv": "17", "lado": "arriba", "entrada": "25/06/2026", "pinzadoFecha": "24-26/06", "fotoKey": "25X08472"}, {"num": "25X08730", "variedad": "SOBERBO", "cliente": "VERDEMITIKO", "entrega": "06/07", "pinzado": "3 HV", "soporte": "104", "calle_inicio": "C/1704", "calle_fin": "C/1704", "inv": "17", "lado": "arriba", "entrada": "25/06/2026", "pinzadoFecha": "29/06", "fotoKey": "25X08730"}, {"num": "25X08415", "variedad": "FALADI", "cliente": "VERDEMITIKO", "entrega": "06/07", "pinzado": "3 HV", "soporte": "104", "calle_inicio": "C/1704", "calle_fin": "C/1704", "inv": "17", "lado": "arriba", "entrada": "25/06/2026", "pinzadoFecha": "29/06", "fotoKey": "25X08415"}, {"num": "25X08729", "variedad": "FALADI", "cliente": "VERDEMITIKO", "entrega": "06/07", "pinzado": "3 HV", "soporte": "104", "calle_inicio": "C/1704", "calle_fin": "C/1704", "inv": "17", "lado": "arriba", "entrada": "25/06/2026", "pinzadoFecha": "29/06", "fotoKey": "25X08729"}, {"num": "25X08414", "variedad": "ARANO", "cliente": "VERDEMITIKO", "entrega": "06/07", "pinzado": "3 HV", "soporte": "104", "calle_inicio": "C/1704", "calle_fin": "C/1704", "inv": "17", "lado": "arriba", "entrada": "25/06/2026", "pinzadoFecha": "29/06", "fotoKey": "25X08414"}, {"num": "25X08808", "variedad": "SINTRA", "cliente": "VERDEMITIKO", "entrega": "06/07", "pinzado": "3 HV", "soporte": "104", "calle_inicio": "C/1705", "calle_fin": "C/1705", "inv": "17", "lado": "arriba", "entrada": "25/06/2026", "pinzadoFecha": "29/06", "fotoKey": "25X08808"}, {"num": "25X08416", "variedad": "ZIMBRU", "cliente": "VERDEMITIKO", "entrega": "06/07", "pinzado": "3 HV", "soporte": "104", "calle_inicio": "C/1705", "calle_fin": "C/1705", "inv": "17", "lado": "arriba", "entrada": "25/06/2026", "pinzadoFecha": "29/06", "fotoKey": "25X08416"}, {"num": "25X09450", "variedad": "GOLDSTREAM", "cliente": "ESTEVAO", "entrega": "14/07", "pinzado": "3 HV", "soporte": "Jiffy 8x8", "calle_inicio": "C/1728", "calle_fin": "C/1728", "inv": "17", "lado": "abajo", "entrada": "25/06/2026", "pinzadoFecha": "07/07", "fotoKey": "25X09450"}, {"num": "25X09457", "variedad": "PRUEBA", "cliente": "ESTEVAO", "entrega": "14/07", "pinzado": "3 HV", "soporte": "Jiffy 8x8", "calle_inicio": "C/1728", "calle_fin": "C/1728", "inv": "17", "lado": "abajo", "entrada": "25/06/2026", "pinzadoFecha": "07/07", "fotoKey": "25X09457"}, {"num": "25X09452", "variedad": "PRUEBA", "cliente": "ESTEVAO", "entrega": "14/07", "pinzado": "3 HV", "soporte": "Jiffy 8x8", "calle_inicio": "C/1728", "calle_fin": "C/1728", "inv": "17", "lado": "abajo", "entrada": "25/06/2026", "pinzadoFecha": "07/07", "fotoKey": "25X09452"}, {"num": "25X09461", "variedad": "FORZUDO", "cliente": "ESTEVAO", "entrega": "14/07", "pinzado": "3 HV", "soporte": "Jiffy 8x8", "calle_inicio": "C/1733", "calle_fin": "C/1736", "inv": "17", "lado": "abajo", "entrada": "25/06/2026", "pinzadoFecha": "07/07", "fotoKey": "25X09461"}, {"num": "25X09458", "variedad": "PRUEBA", "cliente": "ESTEVAO", "entrega": "14/07", "pinzado": "3 HV", "soporte": "Jiffy 8x8", "calle_inicio": "C/1732", "calle_fin": "C/1733", "inv": "17", "lado": "abajo", "entrada": "25/06/2026", "pinzadoFecha": "07/07", "fotoKey": "25X09458"}, {"num": "25X09459", "variedad": "PRUEBA", "cliente": "ESTEVAO", "entrega": "14/07", "pinzado": "3 HV", "soporte": "Jiffy 8x8", "calle_inicio": "C/1732", "calle_fin": "C/1732", "inv": "17", "lado": "abajo", "entrada": "25/06/2026", "pinzadoFecha": "07/07", "fotoKey": "25X09459"}, {"num": "25X09449", "variedad": "CORCEGA", "cliente": "ESTEVAO", "entrega": "14/07", "pinzado": "3 HV", "soporte": "Jiffy 8x8", "calle_inicio": "C/1731", "calle_fin": "C/1731", "inv": "17", "lado": "abajo", "entrada": "25/06/2026", "pinzadoFecha": "07/07", "fotoKey": "25X09449"}, {"num": "25X09451", "variedad": "SERIFOS", "cliente": "ESTEVAO", "entrega": "14/07", "pinzado": "3 HV", "soporte": "Jiffy 8x8", "calle_inicio": "C/1730", "calle_fin": "C/1731", "inv": "17", "lado": "abajo", "entrada": "25/06/2026", "pinzadoFecha": "07/07", "fotoKey": "25X09451"}, {"num": "25X09456", "variedad": "PRUEBA", "cliente": "ESTEVAO", "entrega": "14/07", "pinzado": "3 HV", "soporte": "Jiffy 8x8", "calle_inicio": "C/1729", "calle_fin": "C/1730", "inv": "17", "lado": "abajo", "entrada": "25/06/2026", "pinzadoFecha": "07/07", "fotoKey": "25X09456"}, {"num": "25X09450", "variedad": "GOLDSTREAM", "cliente": "ESTEVAO", "entrega": "14/07", "pinzado": "3 HV", "soporte": "Jiffy 8x8", "calle_inicio": "C/1728", "calle_fin": "C/1729", "inv": "17", "lado": "abajo", "entrada": "25/06/2026", "pinzadoFecha": "07/07", "fotoKey": "25X09450"}];
 
@@ -988,7 +953,6 @@ function doLogout(){
    document.getElementById('login-user-other').style.display='none';
   document.getElementById('login-alert').style.display='none';document.getElementById('attempts-msg').textContent='';
   borrarSesion();
-  resetGeoView();
 }
 restaurarSesion();
 
@@ -3105,16 +3069,7 @@ function handleQuickAction(val){
   // "Introducir partida" era peor: la comprobación de duplicados se hacía
   // contra esos datos de ejemplo. Ahora se espera la carga y se repinta,
   // igual que ya hacía showPartidasList (auditoría 2026-09-11).
-  if(val==='geo'){
-    showPage('geo', document.querySelectorAll('.nav-tab')[1]);
-    if(!partidasDBCargada) loadPartidasFromStorage().then(()=>{
-      // Repintar lo que el usuario tenga abierto en ese momento, para que
-      // las partidas reales sustituyan a las de ejemplo en cuanto llegan.
-      if(currentGeoInv) renderGeoInv(currentGeoInv);
-      else if(currentGeoSala) selectGeoSala(currentGeoSala);
-    });
-  }
-  else if(val==='ver-partidas') showPartidasList();
+  if(val==='ver-partidas') showPartidasList();
   else if(val==='intro-partida'){
     if(!partidasDBCargada) loadPartidasFromStorage().then(()=>showIntroPartida());
     else showIntroPartida();
@@ -3139,9 +3094,6 @@ function handleQuickAction(val){
     showHojasRiego();return;
   } else if(val==='sala-en-vivo'){
     showSalaEnVivoModule();return;
-  } else if(val==='tratamientos'){
-    showPage('geo', document.querySelectorAll('.nav-tab')[1]);
-    openGeoInv('17');
   }
 }
 
@@ -4890,8 +4842,6 @@ function guardarPartidaEnGeo(){
   // Show success
   showToast(`✓ Partida ${num} guardada en INV ${inv}`);
 
-  // If geo is showing that INV, refresh it
-  if(currentGeoInv===inv) renderGeoInv(inv);
 }
 
 function showToast(msg,tipo){
@@ -5139,140 +5089,6 @@ async function confirmBulkSalida(){
   logHistorial(`Cargó ${toCreate.length} partida(s) desde archivo (salida de túnel): ${toCreate.map(r=>r.num).join(', ')}`);
 }
 
-// ════════════════════════════════════════════════════════════════
-// GEO — SELECCIÓN DE SALA / INVERNADERO
-// ════════════════════════════════════════════════════════════════
-function selectGeoSala(salaKey){
-  const sala = SALAS[salaKey];
-  if(!sala) return;
-  currentGeoSala = salaKey;
-  currentGeoInv = null;
-  document.getElementById('geo-sala-select').style.display='none';
-  document.getElementById('geo-inv-picker').style.display='block';
-  document.getElementById('geo-sala-label').textContent = sala.label;
-  document.getElementById('geo-inv-cards').innerHTML = sala.invs.map(id=>{
-    const gd = geoData[id];
-    const pendiente = !gd || gd.pendiente;
-    const tag = pendiente ? 'Pendiente' : (gd.cap_total!=null ? gd.cap_total+'b' : 'Ver calles');
-    return `<div class="geo-inv-card" data-inv="${id}" onclick="selectGeoInvCard('${id}')"
-      style="background:var(--surface);border:1.5px solid var(--border);border-radius:8px;padding:.85rem .5rem;text-align:center;cursor:pointer;transition:all .15s">
-      <div style="font-size:13px;font-weight:800;color:var(--text)">${id}</div>
-      <div style="font-size:9px;color:${pendiente?'var(--muted)':'var(--verde)'};margin-top:2px;font-weight:600">${tag}</div>
-    </div>`;
-  }).join('');
-  document.getElementById('geo-inv-display').innerHTML = '<div style="padding:4rem 1rem;text-align:center;color:var(--muted)"><i class="ti ti-map-2" style="font-size:44px;display:block;margin-bottom:14px;opacity:.25"></i><p style="font-size:13px">Selecciona un invernadero</p></div>';
-}
-
-function backToSalaSelect(){
-  currentGeoSala = null;
-  currentGeoInv = null;
-  document.getElementById('geo-sala-select').style.display='block';
-  document.getElementById('geo-inv-picker').style.display='none';
-  document.getElementById('geo-inv-display').innerHTML = '<div style="padding:4rem 1rem;text-align:center;color:var(--muted)"><i class="ti ti-map-2" style="font-size:44px;display:block;margin-bottom:14px;opacity:.25"></i><p style="font-size:13px">Selecciona una sala para ver sus invernaderos</p></div>';
-}
-
-function selectGeoInvCard(invId){
-  currentGeoInv = invId;
-  document.querySelectorAll('.geo-inv-card').forEach(c=>{
-    const active = c.getAttribute('data-inv')===invId;
-    c.style.borderColor = active?'var(--verde)':'var(--border)';
-    c.style.background = active?'var(--verde-light)':'var(--surface)';
-  });
-  renderGeoInv(invId);
-}
-
-function openGeoInv(invId){
-  const salaKey = Object.keys(SALAS).find(k=>SALAS[k].invs.includes(invId));
-  if(salaKey) selectGeoSala(salaKey);
-  selectGeoInvCard(invId);
-}
-
-function resetGeoView(){
-  backToSalaSelect();
-}
-
-// ════════════════════════════════════════════════════════════════
-// GEO RENDER (with partidas overlay)
-// ════════════════════════════════════════════════════════════════
-function renderGeoInv(invId){
-  const display=document.getElementById('geo-inv-display');
-  if(!invId){display.innerHTML='<div style="padding:4rem 1rem;text-align:center;color:var(--muted)"><i class="ti ti-map-2" style="font-size:44px;display:block;margin-bottom:14px;opacity:.25"></i><p style="font-size:13px">Selecciona un invernadero</p></div>';return;}
-  const inv=geoData[invId];
-  if(!inv||inv.pendiente){display.innerHTML=`<div style="padding:4rem 1rem;text-align:center;color:var(--muted)"><i class="ti ti-tools" style="font-size:44px;display:block;margin-bottom:14px;opacity:.25"></i><p><strong>INV ${invId}</strong> — Datos pendientes</p></div>`;return;}
-
-  // Get partidas for this inv
-  function partidasEnRango(invId2, s, e){
-    return partidasDB.filter(p=>{
-      if(p.inv!==invId2) return false;
-      const ps=parseInt(p.calle_inicio.replace('C/',''));
-      const pe=parseInt(p.calle_fin.replace('C/',''));
-      return (ps<=e&&pe>=s);
-    });
-  }
-
-  function buildGrid(lado){
-    const sKey=lado==='arriba'?'arriba_start':'abajo_start';
-    const eKey=lado==='arriba'?'arriba_end':'abajo_end';
-    const s=inv[sKey],e=inv[eKey];if(!s)return'';
-    const calles=[];for(let i=s;i<=e;i++)calles.push(i);
-    const CHUNK=21;let html='';
-    for(let ci=0;ci<calles.length;ci+=CHUNK){
-      const chunk=calles.slice(ci,ci+CHUNK);
-      let numRow='<div style="display:flex">',capRow='<div style="display:flex">',partRow='<div style="display:flex">';
-      let hasPartidas=false;
-      chunk.forEach(n=>{
-        const key='C/'+n,cap=inv['calles_'+lado][key];
-        const ps=parseInt(n),pe=parseInt(n);
-        const pp=partidasEnRango(invId,ps,pe);
-        if(pp.length) hasPartidas=true;
-        numRow+=`<div style="min-width:54px;width:54px;flex-shrink:0;padding:6px 3px;text-align:center;border-right:1px solid #dde3ee;font-size:11px;font-weight:800;background:#e8eef8;border-bottom:1.5px solid #bcc8dc">${n}</div>`;
-        capRow+=cap?`<div style="min-width:54px;width:54px;flex-shrink:0;padding:5px 3px;text-align:center;border-right:1px solid #dde3ee;font-size:12px;font-weight:700;color:var(--verde);background:#fff;border-bottom:1px solid #eee${cap<=90?';color:var(--amber)':''}">${cap}b</div>`:`<div style="min-width:54px;width:54px;flex-shrink:0;padding:5px 3px;text-align:center;border-right:1px solid #dde3ee;font-size:10px;color:#ccc;background:#fafafa;border-bottom:1px solid #eee">—</div>`;
-        if(pp.length){
-          const chips=pp.map(p=>`<span onclick="showPartidaDetail('${p.num}','${p.inv}')" title="${p.variedad} - ${p.num}" style="display:inline-block;font-size:8px;font-weight:700;padding:1px 4px;border-radius:8px;cursor:pointer;margin:1px;line-height:1.4;background:${p.cliente==='VERDEMITIKO'?'var(--blue-light)':'var(--verde-light)'};color:${p.cliente==='VERDEMITIKO'?'var(--blue)':'var(--verde)'};border:1px solid ${p.cliente==='VERDEMITIKO'?'var(--blue-border)':'var(--verde-border)'}">${p.variedad.slice(0,5)}</span>`).join('');
-          partRow+=`<div style="min-width:54px;width:54px;flex-shrink:0;padding:2px 1px;text-align:center;border-right:1px solid #dde3ee;background:#f0f7f0;border-bottom:1px solid #eee">${chips}</div>`;
-        } else {
-          partRow+=`<div style="min-width:54px;width:54px;flex-shrink:0;padding:2px;border-right:1px solid #dde3ee;background:#fafafa;border-bottom:1px solid #eee"></div>`;
-        }
-      });
-      numRow+='</div>';capRow+='</div>';partRow+='</div>';
-      html+=`<div style="display:inline-flex;flex-direction:column;border:1.5px solid #ccc;border-radius:6px;overflow:hidden;margin-bottom:8px">${numRow}${capRow}${partRow}</div>`;
-    }
-    return html;
-  }
-
-  const capTxt = v => v!=null ? v+'b' : '—';
-  const hasArriba = !!inv.arriba_start, hasAbajo = !!inv.abajo_start;
-  const arrRango=hasArriba?`C/${inv.arriba_start} — C/${inv.arriba_end}`:'';
-  const abjRango=hasAbajo?`C/${inv.abajo_start} — C/${inv.abajo_end}`:'';
-
-  const arribaCard = hasArriba ? `
-      <div style="background:#fff;border:1px solid var(--border);border-radius:var(--r);overflow:hidden">
-        <div style="padding:.75rem 1.25rem;display:flex;align-items:center;justify-content:space-between;background:var(--blue-light);border-bottom:1px solid var(--blue-border)">
-          <div><div style="font-size:13px;font-weight:700;color:var(--blue)"><i class="ti ti-layout-rows" style="font-size:13px;vertical-align:-2px"></i> Lado Arriba — ${arrRango}</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:1px">Capacidad: ${capTxt(inv.cap_arriba)} bandejas</div></div>
-        </div>
-        <div style="padding:1rem;overflow-x:auto">${buildGrid('arriba')}</div>
-      </div>` : '';
-  const abajoCard = hasAbajo ? `
-      <div style="background:#fff;border:1px solid var(--border);border-radius:var(--r);overflow:hidden">
-        <div style="padding:.75rem 1.25rem;display:flex;align-items:center;justify-content:space-between;background:var(--amber-light);border-bottom:1px solid var(--amber-border)">
-          <div><div style="font-size:13px;font-weight:700;color:var(--amber)"><i class="ti ti-layout-rows" style="font-size:13px;vertical-align:-2px"></i> Lado Abajo — ${abjRango}</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:1px">Capacidad: ${capTxt(inv.cap_abajo)} bandejas</div></div>
-        </div>
-        <div style="padding:1rem;overflow-x:auto">${buildGrid('abajo')}</div>
-      </div>` : '';
-
-  display.innerHTML=`
-    <div style="background:var(--verde);color:#fff;border-radius:var(--r);padding:1.25rem 1.5rem;margin-bottom:1rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.75rem">
-      <div><h3 style="font-size:18px;font-weight:800">${inv.name}</h3><p style="font-size:12px;opacity:.7;margin-top:2px">Bandejas 150</p></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <div style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25);border-radius:6px;padding:4px 12px;font-size:12px;font-weight:600;text-align:center"><small style="display:block;font-size:9px;opacity:.7;margin-bottom:1px">Total</small>${capTxt(inv.cap_total)}</div>
-        <div style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25);border-radius:6px;padding:4px 12px;font-size:12px;font-weight:600;text-align:center"><small style="display:block;font-size:9px;opacity:.7;margin-bottom:1px">Arriba</small>${capTxt(inv.cap_arriba)}</div>
-        <div style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25);border-radius:6px;padding:4px 12px;font-size:12px;font-weight:600;text-align:center"><small style="display:block;font-size:9px;opacity:.7;margin-bottom:1px">Abajo</small>${capTxt(inv.cap_abajo)}</div>
-      </div>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:12px">${arribaCard}${abajoCard}</div>`;
-}
 
 </script>
 <script>
