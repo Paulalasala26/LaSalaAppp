@@ -4,7 +4,7 @@
 const {
   verifyFirebaseIdToken,serviceAccount,serviceAccessToken,readKey,validHash,httpError
 }=require('./admin-users')._adminCatalogHelpers;
-const DB='https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app';
+const DB='https://la-sala-app-dev-default-rtdb.europe-west1.firebasedatabase.app';
 const BASE=DB+'/lasala-qc-reglas-v1';
 const CATEGORIES=Object.freeze({
   color:['verde','amarillo','verdeClaro','ok'],
