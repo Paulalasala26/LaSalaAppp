@@ -1862,6 +1862,12 @@ El commit de interfaz `41f5b096457481f9273021bd3e4a01cc4715e857` se basó en int
 
 **Entornos:** solo TEST `https://la-sala-app-test.vercel.app`. `main` y PRD intactos.
 
+## 0.184. Carga diferida del complemento de tratamientos — 30/10/2026 — IMPLEMENTADO EN TEST / UAT PENDIENTE
+
+Se retira la carga inicial de `assets/fito-series-v3.js` (65.939 bytes) y se incorpora `assets/fito-series-loader.js`. El complemento se solicita al entrar en Plaguicidas mediante `showFitoModule`; una vez cargado, se inicializa antes de abrir el módulo y permanece en memoria para el resto de la sesión. Si la descarga falla, muestra aviso y permite volver a intentarlo. No se modifica el contenido funcional del complemento ni los datos; el resto del `index.html` queda idéntico salvo por el reemplazo de su etiqueta `script`. El tamaño principal del HTML y su código inline no cambian: esta primera mejora evita descargar el complemento en sesiones que no usan Plaguicidas; no es todavía la división del núcleo monolítico.
+
+Respaldo solicitado por el usuario: rama `backup/test-v1.0-before-split-2026-10-30`, creada antes de editar, fijada al SHA `f6beb7786da114a826242991e6b811fdbc48e593`. Cambios únicamente en TEST: loader `fd1fbae`; integración en `index.html` `78ac907`. Comprobación estática: parseo JS válido del loader y complemento; etiqueta antigua retirada y nueva presente. **Pendiente** UAT visual/funcional real en TEST, incluidas primera entrada, reentrada, error de red y móvil, antes de continuar la división del núcleo o llevar cambios a PRD. Main y PRD intactos.
+
 ## 1. Reglas innegociables
 
 - GitHub: `Paulalasala26/LaSalaAppp`. **Única rama de trabajo: `test/v1.0`** (no crear ramas adicionales).
