@@ -1,7 +1,7 @@
 const crypto = require('node:crypto');
 
-const EXPECTED_PROJECT = 'la-sala-app-test';
-const DATABASE_URL = 'https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app';
+const EXPECTED_PROJECT = 'la-sala-app-dev';
+const DATABASE_URL = 'https://la-sala-app-dev-default-rtdb.europe-west1.firebasedatabase.app';
 const USERS_KEY = 'lasala-users-v1';
 const ROLES_KEY = 'lasala-roles-v1';
 const TOKEN_AUD = 'https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit';
