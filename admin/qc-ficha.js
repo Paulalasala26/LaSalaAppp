@@ -8,8 +8,8 @@
   const API_URL='/api/admin-qc-mediciones';
   let currentRef=null,currentPartida='',version=0,saving=false;
   let savedSnapshot=null,currentRules=null,ruleLoadFailed=false;
-  const API_KEY='AIzaSyDdDdMg6M1jVIssvGYKsdRA-mRug31Yt_g';
-  const TEST_DB='https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app';
+  const API_KEY='AIzaSyBsRjw4NuCFg69P7_eqoX037rgjkbadcA0';
+  const TEST_DB='https://la-sala-app-dev-default-rtdb.europe-west1.firebasedatabase.app';
   const CATS=[
     {key:'color',name:'Color',options:[['verde','Verde'],['amarillo','Amarillo'],['verdeClaro','Verde claro'],['ok','OK']]},
     {key:'tamano',name:'Tamaño',options:[['grande','Grande'],['pequeno','Pequeño'],['ok','OK']]},
