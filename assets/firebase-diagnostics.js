@@ -1,17 +1,17 @@
-/* APP R · Firebase Diagnostics TEST
+/* APP R · Firebase Diagnostics DEV
  * Activación explícita: ?fbdiag=1. No guarda credenciales ni contenido de datos.
- * Solo instrumenta transferencias hacia Realtime Database de La Sala TEST.
+ * Solo instrumenta transferencias hacia Realtime Database de La Sala DEV.
  * No modifica las peticiones ni el comportamiento de Firebase fuera de diagnóstico.
  */
 (function () {
   'use strict';
 
-  var HOST = 'la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app';
+  var HOST = 'la-sala-app-dev-default-rtdb.europe-west1.firebasedatabase.app';
   var enabled = false;
   try {
     var here = new URL(location.href);
-    var approved = location.hostname === 'la-sala-app-test.vercel.app' ||
-      /^la-sala-app-test-[a-z0-9-]+\.vercel\.app$/i.test(location.hostname) ||
+    var approved = location.hostname === 'la-sala-app-dev.vercel.app' ||
+      /^la-sala-app-dev-[a-z0-9-]+\.vercel\.app$/i.test(location.hostname) ||
       location.hostname === 'localhost' || location.hostname === '127.0.0.1';
     enabled = approved && here.searchParams.get('fbdiag') === '1';
   } catch (_) {}
