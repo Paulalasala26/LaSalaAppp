@@ -310,7 +310,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 </style>
 <link rel="stylesheet" href="assets/qc-sync-global.css?v=113">
 <!-- Diagnóstico RTDB opcional: activo únicamente con ?fbdiag=1 en TEST -->
-<script src="assets/firebase-diagnostics.js"></script>
+<script>
+/* Diagnostics are opt-in via ?fbdiag=1; do not fetch or parse them in normal sessions. */
+if(new URL(location.href).searchParams.get('fbdiag')==='1'){
+  document.write('<script src="assets/firebase-diagnostics.js"><\\/script>');
+}
+</script>
 <link rel="stylesheet" href="assets/control-qc-operativo.css?v=112">
 <link rel="stylesheet" href="assets/control-ui-empty.css?v=078">
 <link rel="stylesheet" href="assets/control-ui-list.css?v=083">
