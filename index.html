@@ -4763,8 +4763,14 @@ const CONTROL_CHECK_CATEGORIAS = [
     opciones:[{key:'ok',label:'OK'},{key:'duro',label:'Duro'},{key:'tierno',label:'Tierno'}], soloEnTipos:['preinjerto_variedad','preinjerto_patron']},
   {key:'segado', label:'Segado', icon:'ti-scissors', gradiente:'linear-gradient(135deg,#d84315,#ff8a65)', tinte:'#fbe9e7',
     opciones:[{key:'segado',label:'Segado'},{key:'noSegado',label:'No segado'}], soloEnTipos:['preinjerto_patron']},
-  {key:'sanidad', label:'Sanidad', icon:'ti-stethoscope', gradiente:'linear-gradient(135deg,#f5a35c,#f0715c)', tinte:'#fdece5',
-    opciones:[{key:'ok',label:'OK'},{key:'enferma',label:'Enferma'}]},
+  // 2026-10-30 (Vigueras): Sanidad (OK/Enferma + detalle) se sustituye en TODOS los
+  // checks por dos casillas: Plagas y Enfermedades. OK y las demás opciones se
+  // excluyen entre sí (ver aplicarControlCheckOpcion). Los datos antiguos
+  // (sanidad / sanidadEnfermedades) se migraron a estas dos y se conservan intactos.
+  {key:'plagas', label:'Plagas', icon:'ti-bug', gradiente:'linear-gradient(135deg,#f5a35c,#f0715c)', tinte:'#fdece5',
+    opciones:[{key:'ok',label:'OK'},{key:'tuta',label:'Tuta'},{key:'minador',label:'Minador'},{key:'pulgon',label:'Pulgón'},{key:'oruga',label:'Oruga'},{key:'trips',label:'Trips'}]},
+  {key:'enfermedades', label:'Enfermedades', icon:'ti-virus', gradiente:'linear-gradient(135deg,#ad1457,#ec407a)', tinte:'#fce4ec',
+    opciones:[{key:'ok',label:'OK'},{key:'alternaria',label:'Alternaria'},{key:'mildiu',label:'Mildiu'},{key:'oidio',label:'Oídio'},{key:'botrytis',label:'Botrytis'},{key:'didymella',label:'Didymella'}]},
   {key:'flores', label:'Flores', icon:'ti-flower', gradiente:'linear-gradient(135deg,#1a5c2e,#3fa864)', tinte:'#e8f5ea',
     opciones:[{key:'si',label:'Sí'},{key:'no',label:'No'}], noEnTipos:['preinjerto_variedad','preinjerto_patron']},
   {key:'raices', label:'Raíces', icon:'ti-plant-2', gradiente:'linear-gradient(135deg,#c47f00,#e0a530)', tinte:'#fbf1e0',
@@ -4782,6 +4788,8 @@ function categoriasControlPara(tipo){
 // segundo nivel de casillas con el tipo de problema concreto — se guarda
 // aparte (c.sanidadEnfermedades) en vez de dentro de c.sanidad para no mezclar
 // el estado "enferma" (sí/no) con el detalle de qué enfermedad es.
+// LEGACY (30-oct-2026): ya no se pinta en ningún sitio; se conserva para migrar y por las
+// acciones antiguas que pudieran quedar en la cola sin conexión de algún móvil.
 const SANIDAD_ENFERMEDADES = [
   {key:'hojasManchadas', label:'Hojas manchadas'},
   {key:'hojasAmarillas', label:'Hojas amarillas'},
@@ -6107,12 +6115,10 @@ function generarControlCSVDia(tipo, dia){
     return /[",;\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s;
   };
   const opcionesMarcadas = (c, cat) => cat.opciones.filter(o=>c[cat.key] && c[cat.key][o.key]).map(o=>o.label).join(' + ');
-  const enfermedadesMarcadas = c => (c.sanidad && c.sanidad.enferma && c.sanidadEnfermedades)
-    ? SANIDAD_ENFERMEDADES.filter(e=>c.sanidadEnfermedades[e.key]).map(e=>e.label).join(' + ')
-    : '';
   const catColor = CONTROL_CHECK_CATEGORIAS.find(c=>c.key==='color');
   const catTamano = CONTROL_CHECK_CATEGORIAS.find(c=>c.key==='tamano');
-  const catSanidad = CONTROL_CHECK_CATEGORIAS.find(c=>c.key==='sanidad');
+  const catPlagas = CONTROL_CHECK_CATEGORIAS.find(c=>c.key==='plagas');
+  const catEnf = CONTROL_CHECK_CATEGORIAS.find(c=>c.key==='enfermedades');
   const catFlores = CONTROL_CHECK_CATEGORIAS.find(c=>c.key==='flores');
   const catRaices = CONTROL_CHECK_CATEGORIAS.find(c=>c.key==='raices');
   const catRaicesInj = CONTROL_CHECK_CATEGORIAS.find(c=>c.key==='raicesInjerto');
@@ -6123,10 +6129,10 @@ function generarControlCSVDia(tipo, dia){
   if(esSeccionPreinjerto(tipo)){
     const catsPre = categoriasControlPara(tipo);
     const cabeceraPre = ['Partida','Cliente','Variedad','Nº bandejas','F Siembra','F Entrega','Plantas solicitadas','Plantas sembradas',
-      ...catsPre.flatMap(k=>k.key==='sanidad' ? [k.label,'Enfermedades'] : [k.label]), 'Completada','Observaciones'];
+      ...catsPre.map(k=>k.label), 'Completada','Observaciones'];
     const filasPre = listaDia.map(c=>[
       c.partida||'', c.cliente||'', c.variedad||'', c.numBandejas||'', c.fSiembra||'', c.fEntrega||'', plantasEntero(c.plantasSol), plantasEntero(c.plantasSem),
-      ...catsPre.flatMap(k=>k.key==='sanidad' ? [opcionesMarcadas(c, k), enfermedadesMarcadas(c)] : [opcionesMarcadas(c, k)]),
+      ...catsPre.map(k=>opcionesMarcadas(c, k)),
       controlLineaCompletada(c) ? 'Sí' : 'No', c.observaciones||''
     ].map(esc).join(';'));
     return [cabeceraPre.map(esc).join(';'), ...filasPre].join('\r\n');
@@ -6134,26 +6140,26 @@ function generarControlCSVDia(tipo, dia){
   // Carga (Injerto/Normal): campos propios (cliente, variedad, invernadero
   // del parte y calle) en vez de Cliente/Variedad combinado + calle real de Túnel.
   if(esSeccionCarga(tipo)){
-    const cabeceraCarga = ['Partida','Cliente','Variedad','Nº bandejas','Invernadero','Calle','Color','Tamaño','Sanidad','Enfermedades','Flores','Raíces', ...(conRaicesInj?['Raíces punto injerto']:[]), 'Completada','Observaciones'];
+    const cabeceraCarga = ['Partida','Cliente','Variedad','Nº bandejas','Invernadero','Calle','Color','Tamaño','Plagas','Enfermedades','Flores','Raíces', ...(conRaicesInj?['Raíces punto injerto']:[]), 'Completada','Observaciones'];
     const filasCarga = listaDia.map(c=>{
       const t = calleTramoDeCarga(c);
       return [
         c.partida||'', c.cliente||'', c.variedad||'', c.numBandejas||'', c.invernadero||'', t ? t.label : '',
-        opcionesMarcadas(c, catColor), opcionesMarcadas(c, catTamano), opcionesMarcadas(c, catSanidad),
-        enfermedadesMarcadas(c), opcionesMarcadas(c, catFlores), opcionesMarcadas(c, catRaices),
+        opcionesMarcadas(c, catColor), opcionesMarcadas(c, catTamano), opcionesMarcadas(c, catPlagas),
+        opcionesMarcadas(c, catEnf), opcionesMarcadas(c, catFlores), opcionesMarcadas(c, catRaices),
         ...(conRaicesInj ? [opcionesMarcadas(c, catRaicesInj)] : []),
         controlLineaCompletada(c) ? 'Sí' : 'No', c.observaciones||''
       ].map(esc).join(';');
     });
     return [cabeceraCarga.map(esc).join(';'), ...filasCarga].join('\r\n');
   }
-  const cabecera = ['Partida','Cliente/Variedad','Nº bandejas','Calle real','Color','Tamaño','Sanidad','Enfermedades','Flores','Raíces','Raíces punto injerto','Completada','Observaciones'];
+  const cabecera = ['Partida','Cliente/Variedad','Nº bandejas','Calle real','Color','Tamaño','Plagas','Enfermedades','Flores','Raíces','Raíces punto injerto','Completada','Observaciones'];
   const filas = listaDia.map(c=>{
     const calleReal = c.invId ? `INV ${c.invId} — ${formatTramosLabel(c.invId, (c.tramos && c.tramos.length) ? c.tramos : [{desde:c.calleDesde, hasta:c.calleHasta}])}` : '';
     return [
       c.partida||'', c.clienteVariedad||'', c.numBandejas||'', calleReal,
-      opcionesMarcadas(c, catColor), opcionesMarcadas(c, catTamano), opcionesMarcadas(c, catSanidad),
-      enfermedadesMarcadas(c), opcionesMarcadas(c, catFlores), opcionesMarcadas(c, catRaices), opcionesMarcadas(c, catRaicesInj),
+      opcionesMarcadas(c, catColor), opcionesMarcadas(c, catTamano), opcionesMarcadas(c, catPlagas),
+      opcionesMarcadas(c, catEnf), opcionesMarcadas(c, catFlores), opcionesMarcadas(c, catRaices), opcionesMarcadas(c, catRaicesInj),
       controlLineaCompletada(c) ? 'Sí' : 'No', c.observaciones||''
     ].map(esc).join(';');
   });
@@ -6237,18 +6243,7 @@ function renderControlDashboardDiaHTML(seccion, listaDia){
     </div>`;
   }).join('');
 
-  const conEnferma = listaDia.filter(c=>c.sanidad && c.sanidad.enferma);
-  const conteosEnfermedades = SANIDAD_ENFERMEDADES.map(e=>({label:e.label, n: conEnferma.filter(c=>c.sanidadEnfermedades && c.sanidadEnfermedades[e.key]).length, lineas: conEnferma.filter(c=>c.sanidadEnfermedades && c.sanidadEnfermedades[e.key])})).filter(x=>x.n>0);
-  const enfermedadesHTML = conteosEnfermedades.length ? (()=>{
-    const max = Math.max(1, ...conteosEnfermedades.map(x=>x.n));
-    return `
-    <div style="border:1.5px solid var(--border);border-radius:12px;padding:14px;background:#fff">
-      <div style="font-size:12px;font-weight:800;color:#c62828;margin-bottom:10px;display:flex;align-items:center;gap:6px">
-        <i class="ti ti-alert-triangle" style="font-size:14px"></i> Enfermedades (${conEnferma.length} línea${conEnferma.length===1?'':'s'} enferma${conEnferma.length===1?'':'s'})
-      </div>
-      ${conteosEnfermedades.map(x=>barraCategoria(x.label, x.n, max, 'linear-gradient(135deg,#c62828,#e57373)', '#fdece5', x.lineas, conEnferma.length)).join('')}
-    </div>`;
-  })() : '';
+  const enfermedadesHTML = ''; // Plagas y Enfermedades salen ya como categorías normales (arriba)
 
   return statsHTML + `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px">${categoriasHTML}${enfermedadesHTML}</div>`;
 }
@@ -6797,7 +6792,7 @@ async function autoCrearLineasDesdePdfControl(tipo, dia, pdfB64){
         // pinzado automático como hasta ahora.
         fentrega: p.fentrega || '',
         invId: null, calleDesde: null, calleHasta: null,
-        color:{}, tamano:{}, sanidad:{}, flores:{}, raices:{}, observaciones:'',
+        color:{}, tamano:{}, plagas:{}, enfermedades:{}, flores:{}, raices:{}, observaciones:'',
         creadoPor: currentUser||'—', creadoEn: new Date().toLocaleString('es-ES'),
         origenPdf: true
       });
@@ -6946,7 +6941,7 @@ async function crearLineasPreinjerto(records, noReconocidas, porPartida){
       id: nuevoId, tipo: tipoP, dia,
       cliente: p.cliente, partida: p.partida, variedad: p.variedad, numBandejas: p.nband,
       fSiembra: p.fSiembra, fEntrega: p.fEntrega, plantasSol: p.plantasSol, plantasSem: p.plantasSem,
-      color:{}, tamano:{}, grosor:{}, firmeza:{}, segado:{}, sanidad:{}, flores:{}, raices:{}, observaciones: p.obs||'',
+      color:{}, tamano:{}, grosor:{}, firmeza:{}, segado:{}, plagas:{}, enfermedades:{}, flores:{}, raices:{}, observaciones: p.obs||'',
       creadoPor: currentUser||'—', creadoEn: new Date().toLocaleString('es-ES'), origenPdf: true
     });
     marcarControlCheckSucio(nuevoId);
@@ -7064,7 +7059,7 @@ async function autoCrearLineasDesdePdfControlCarga(dia, pdfB64, tipo){
         id: nuevoId,
         tipo: tipoP, dia,
         cliente: p.cliente, partida: p.partida, variedad: p.variedad, numBandejas: p.nband, invernadero: p.inverna,
-        color:{}, tamano:{}, sanidad:{}, flores:{}, raices:{}, observaciones:'',
+        color:{}, tamano:{}, plagas:{}, enfermedades:{}, flores:{}, raices:{}, observaciones:'',
         creadoPor: currentUser||'—', creadoEn: new Date().toLocaleString('es-ES'),
         origenPdf: true
       });
@@ -7457,7 +7452,7 @@ async function guardarNuevoControlCargaCheck(){
     id: 'control_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
     tipo: usaFichaCarga(controlSeccion) ? controlSeccion : 'carga', dia: controlDiaSel,
     cliente, partida, variedad, numBandejas, invernadero,
-    color:{}, tamano:{}, sanidad:{}, flores:{}, raices:{}, observaciones:'',
+    color:{}, tamano:{}, plagas:{}, enfermedades:{}, flores:{}, raices:{}, observaciones:'',
     creadoPor: currentUser||'—', creadoEn: new Date().toLocaleString('es-ES')
   };
   aplicarNuevaLineaControlCarga(entry);
@@ -8035,6 +8030,10 @@ async function aplicarControlCheckOpcion(id, categoriaKey, opcionKey, valor){
   if(!c) return;
   c[categoriaKey] = c[categoriaKey] || {};
   c[categoriaKey][opcionKey] = valor;
+  // Plagas / Enfermedades: "OK" y una plaga/enfermedad concreta no pueden ir a la vez.
+  if((categoriaKey==='plagas' || categoriaKey==='enfermedades') && valor){
+    Object.keys(c[categoriaKey]).forEach(k=>{ if(k!==opcionKey && (opcionKey==='ok' || k==='ok')) c[categoriaKey][k] = false; });
+  }
   // Marca de presencia en Carga (a petición de Paula, 2026-08-19, para "La
   // Sala en Vivo": "si hay hombres cargando o no") — se aproxima con la
   // misma ventana de 5 min que ya usa Plaguicidas/Específicos: tocar
@@ -8123,7 +8122,7 @@ async function guardarNuevoControlCheck(tipo){
     tipo, dia: controlDiaSel,
     clienteVariedad, partida, numBandejas,
     invId, calleDesde: isNaN(desde)?null:Math.min(desde,isNaN(hasta)?desde:hasta), calleHasta: isNaN(hasta)?(isNaN(desde)?null:desde):Math.max(desde,hasta),
-    color:{}, tamano:{}, sanidad:{}, flores:{}, raices:{}, observaciones:'',
+    color:{}, tamano:{}, plagas:{}, enfermedades:{}, flores:{}, raices:{}, observaciones:'',
     creadoPor: currentUser||'—', creadoEn: new Date().toLocaleString('es-ES')
   };
   aplicarNuevaLineaControl(entry);
