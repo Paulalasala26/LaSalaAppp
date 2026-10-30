@@ -4314,7 +4314,21 @@ async function eliminarTrabajoConfirmado(id){
 function esSeccionCarga(k){ return k==='carga' || k==='carga_normal'; }
 // Preinjerto (2026-10-02) usa la misma ficha/formulario/lista que Carga
 // (cliente, partida, variedad, nº bandejas) pero sin invernadero ni calle.
-function usaFichaCarga(k){ return esSeccionCarga(k) || k==='preinjerto'; }
+// 2026-10-30 (Vigueras): Preinjerto se separa en dos checks según la letra de la
+// partida: VARIEDAD (C o VE) y PATRÓN (P o WE). Las demás (X, YE, ZE, F...) no
+// entran en ninguno. Las líneas antiguas con tipo:'preinjerto' ya no existen.
+function esSeccionPreinjerto(k){ return k==='preinjerto_variedad' || k==='preinjerto_patron'; }
+function usaFichaCarga(k){ return esSeccionCarga(k) || esSeccionPreinjerto(k); }
+// "26C01234"/"26VE0123" -> 'preinjerto_variedad'; "26P01234"/"26WE0123" -> 'preinjerto_patron'; resto -> null
+function tipoPreinjertoDePartida(partida){
+  const m = /^\d{2}([A-Za-z]{0,2})\d+$/.exec(String(partida||'').trim());
+  if(!m) return null;
+  const letras = m[1].toUpperCase();
+  if(letras==='C' || letras==='VE') return 'preinjerto_variedad';
+  if(letras==='P' || letras==='WE') return 'preinjerto_patron';
+  return null;
+}
+function etiquetaTipoPreinjerto(t){ return t==='preinjerto_patron' ? 'Patrón' : 'Variedad'; }
 // Las cantidades de plantas del PDF de Preinjerto traen la coma como
 // separador de miles ("26,000" = 26.000 plantas). plantasEntero devuelve el
 // número limpio ("26000", para el CSV) y plantasVista lo muestra con punto de
@@ -4329,7 +4343,7 @@ function lineasTunelDePreinjerto(pre){
 }
 function lineasPreinjertoDeTunel(t){
   const p = String(t.partida||'').trim().toUpperCase();
-  return p ? controlChecksData.filter(x=>x.tipo==='preinjerto' && partidaTunelDePre(x)===p).sort((a,b)=>a.dia-b.dia) : [];
+  return p ? controlChecksData.filter(x=>esSeccionPreinjerto(x.tipo) && partidaTunelDePre(x)===p).sort((a,b)=>a.dia-b.dia) : [];
 }
 function resumenCategoriasControlHTML(ch){
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -4366,8 +4380,8 @@ function bloquePreinjertoEnTunelHTML(t){
   if(!ps.length) return '';
   return ps.map(p=>`<div style="margin-top:8px;padding:8px 10px;background:#f1f8f2;border:1px solid #cfe6d2;border-radius:8px">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11px;font-weight:800;color:#2e7d32;margin-bottom:5px">
-        <span>🌱 Preinjerto · siembra ${escapar(p.fSiembra)||escapar(riegoDiaLabelCorto(p.dia))} · ${controlLineaCompletada(p)?'✅ check completo':'⬜ check pendiente'}</span>
-        <button onclick="saltarAFichaControl('${p.id}')" style="padding:3px 9px;font-size:10px;font-weight:800;background:#e8f5ea;color:#2e7d32;border:1px solid #a5d6a7;border-radius:6px;cursor:pointer">Ver en Preinjerto →</button>
+        <span>🌱 Preinjerto ${etiquetaTipoPreinjerto(p.tipo)} · siembra ${escapar(p.fSiembra)||escapar(riegoDiaLabelCorto(p.dia))} · ${controlLineaCompletada(p)?'✅ check completo':'⬜ check pendiente'}</span>
+        <button onclick="saltarAFichaControl('${p.id}')" style="padding:3px 9px;font-size:10px;font-weight:800;background:#e8f5ea;color:#2e7d32;border:1px solid #a5d6a7;border-radius:6px;cursor:pointer">Ver en Preinjerto ${etiquetaTipoPreinjerto(p.tipo)} →</button>
       </div>
       <div>${resumenCategoriasControlHTML(p)}</div>
       ${p.observaciones ? `<div style="font-size:11px;color:var(--text)">${escapar(p.observaciones)}</div>` : ''}
@@ -4448,7 +4462,11 @@ const CONTROL_SECCIONES = [
   // Tamaño, Grosor, Sanidad, Flores y Raíces (ver CONTROL_CHECK_CATEGORIAS,
   // Grosor solo existe aquí). El PDF de origen aún no se lee solo: se adjunta
   // y las líneas se añaden a mano hasta conocer su formato.
-  {key:'preinjerto', label:'Check Preinjerto', icon:'ti-seeding', color:'linear-gradient(135deg,#2e7d32,#66bb6a)', conCheck:true},
+  // Desde 2026-10-30 son dos: Variedad (partidas C/VE) y Patrón (P/WE), con
+  // categorías distintas (ver CONTROL_CHECK_CATEGORIAS). Un solo PDF crea las
+  // líneas de los dos.
+  {key:'preinjerto_variedad', label:'Check Preinjerto Variedad', icon:'ti-seeding', color:'linear-gradient(135deg,#2e7d32,#66bb6a)', conCheck:true},
+  {key:'preinjerto_patron', label:'Check Preinjerto Patrón', icon:'ti-plant-2', color:'linear-gradient(135deg,#558b2f,#aed581)', conCheck:true},
   // Conteos semanales (tabla, no checklist por día) — a petición de Paula
   // 2026-08-01 (Tuta) y de Vigueras 2026-10-01 (Trips, misma estructura).
   // Cada uno con su propia lista de invernaderos, editable por separado
@@ -4735,17 +4753,22 @@ function renderConteoDashboardHTML(tipo, seccion){
 // ya usada en Trabajos/Riego/Plaguicidas/Específicos, no colores nuevos.
 const CONTROL_CHECK_CATEGORIAS = [
   {key:'color', label:'Color', icon:'ti-palette', gradiente:'linear-gradient(135deg,#7b5cf0,#5c8df0)', tinte:'#efeafd',
-    opciones:[{key:'verde',label:'Verde'},{key:'amarillo',label:'Amarillo'},{key:'verdeClaro',label:'Verde claro'},{key:'ok',label:'OK'}]},
+    opciones:[{key:'verde',label:'Verde'},{key:'amarillo',label:'Amarillo'},{key:'verdeClaro',label:'Verde claro'},{key:'ok',label:'OK'}], noEnTipos:['preinjerto_patron']},
   {key:'tamano', label:'Tamaño', icon:'ti-ruler-2', gradiente:'linear-gradient(135deg,#5c8df0,#3fc6b0)', tinte:'#e8f2fd',
-    opciones:[{key:'grande',label:'Grande'},{key:'pequeno',label:'Pequeño'},{key:'ok',label:'OK'}]},
+    opciones:[{key:'grande',label:'Grande'},{key:'pequeno',label:'Pequeño'},{key:'ok',label:'OK'}], noEnTipos:['preinjerto_patron']},
   {key:'grosor', label:'Grosor', icon:'ti-arrows-horizontal', gradiente:'linear-gradient(135deg,#00838f,#4dd0e1)', tinte:'#e0f7fa',
-    opciones:[{key:'fino',label:'Fino'},{key:'ok',label:'OK'},{key:'grueso',label:'Grueso'}], soloEnTipos:['preinjerto']},
+    opciones:[{key:'fino',label:'Fino'},{key:'ok',label:'OK'},{key:'grueso',label:'Grueso'}], soloEnTipos:['preinjerto_variedad','preinjerto_patron']},
+  // Firmeza (Variedad y Patrón) y Segado (solo Patrón): 2026-10-30, Vigueras.
+  {key:'firmeza', label:'Firmeza', icon:'ti-hand-finger', gradiente:'linear-gradient(135deg,#6a1b9a,#ab47bc)', tinte:'#f3e5f5',
+    opciones:[{key:'ok',label:'OK'},{key:'duro',label:'Duro'},{key:'tierno',label:'Tierno'}], soloEnTipos:['preinjerto_variedad','preinjerto_patron']},
+  {key:'segado', label:'Segado', icon:'ti-scissors', gradiente:'linear-gradient(135deg,#d84315,#ff8a65)', tinte:'#fbe9e7',
+    opciones:[{key:'segado',label:'Segado'},{key:'noSegado',label:'No segado'}], soloEnTipos:['preinjerto_patron']},
   {key:'sanidad', label:'Sanidad', icon:'ti-stethoscope', gradiente:'linear-gradient(135deg,#f5a35c,#f0715c)', tinte:'#fdece5',
     opciones:[{key:'ok',label:'OK'},{key:'enferma',label:'Enferma'}]},
   {key:'flores', label:'Flores', icon:'ti-flower', gradiente:'linear-gradient(135deg,#1a5c2e,#3fa864)', tinte:'#e8f5ea',
-    opciones:[{key:'si',label:'Sí'},{key:'no',label:'No'}]},
+    opciones:[{key:'si',label:'Sí'},{key:'no',label:'No'}], noEnTipos:['preinjerto_variedad','preinjerto_patron']},
   {key:'raices', label:'Raíces', icon:'ti-plant-2', gradiente:'linear-gradient(135deg,#c47f00,#e0a530)', tinte:'#fbf1e0',
-    opciones:[{key:'pocaRaiz',label:'Poca raíz'},{key:'ok',label:'OK'},{key:'raizVieja',label:'Raíz vieja'}]},
+    opciones:[{key:'pocaRaiz',label:'Poca raíz'},{key:'ok',label:'OK'},{key:'raizVieja',label:'Raíz vieja'}], noEnTipos:['preinjerto_variedad']},
   // 2026-10-02: "Raíz en variedad" sale de Raíces y pasa a ser una pregunta
   // aparte, solo donde hay planta injertada (Túnel y Carga Injerto) y NO
   // obligatoria para dar la línea por completada (opcional:true).
@@ -4753,7 +4776,7 @@ const CONTROL_CHECK_CATEGORIAS = [
     opciones:[{key:'si',label:'Sí'},{key:'no',label:'No'}], soloEnTipos:['tunel','carga'], opcional:true}
 ];
 function categoriasControlPara(tipo){
-  return CONTROL_CHECK_CATEGORIAS.filter(cat => !cat.soloEnTipos || cat.soloEnTipos.includes(tipo));
+  return CONTROL_CHECK_CATEGORIAS.filter(cat => (!cat.soloEnTipos || cat.soloEnTipos.includes(tipo)) && !(cat.noEnTipos && cat.noEnTipos.includes(tipo)));
 }
 // A petición de Paula (2026-08-01): al marcar Sanidad→Enferma aparece un
 // segundo nivel de casillas con el tipo de problema concreto — se guarda
@@ -5763,7 +5786,7 @@ function renderControlWizardFilaHTML(c, guionInfo){
           <div style="font-size:23px;font-weight:900;color:#1558a0;margin-top:2px">${escapar(c.partida)||'— Sin partida —'}</div>
           <div style="font-size:13px;font-weight:700;color:var(--muted);margin-top:5px">Bandejas: ${escapar(c.numBandejas)||'—'}</div>
           <div style="font-size:13px;font-weight:700;color:var(--muted);margin-top:2px">Calle: ${calleRealLabel}</div>
-          ${(()=>{ const ps = lineasPreinjertoDeTunel(c); return ps.length ? `<div style="font-size:12px;font-weight:800;color:#2e7d32;margin-top:4px">🌱 Preinjerto: ${controlLineaCompletada(ps[0])?'✅ completo':'⬜ pendiente'}</div>` : ''; })()}
+          ${(()=>{ const ps = lineasPreinjertoDeTunel(c); return ps.length ? `<div style="font-size:12px;font-weight:800;color:#2e7d32;margin-top:4px">${ps.map(p=>'🌱 Preinjerto '+etiquetaTipoPreinjerto(p.tipo)+': '+(controlLineaCompletada(p)?'✅ completo':'⬜ pendiente')).join(' · ')}</div>` : ''; })()}
         </div>
         <div style="flex-shrink:0;font-size:32px">${completada?'✅':'⬜'}</div>
       </div>
@@ -5783,8 +5806,8 @@ function renderControlWizardCargaFilaHTML(c){
           <div style="font-size:13px;font-weight:700;color:var(--muted)">${escapar(c.cliente)||'Sin cliente'}</div>
           <div style="font-size:23px;font-weight:900;color:#1558a0;margin-top:2px">${escapar(c.partida)||'— Sin partida —'}</div>
           <div style="font-size:13px;font-weight:700;color:var(--muted);margin-top:5px">${escapar(c.variedad)||'—'}</div>
-          <div style="font-size:13px;font-weight:700;color:var(--muted);margin-top:2px">Bandejas: ${escapar(c.numBandejas)||'—'}${c.tipo==='preinjerto' ? '' : ' · Invernadero: '+(escapar(c.invernadero)||'—')}</div>
-          ${c.tipo==='preinjerto' ? `<div style="font-size:13px;font-weight:700;color:var(--muted);margin-top:2px">Siembra: ${escapar(c.fSiembra)||'—'} · Entrega: ${escapar(c.fEntrega)||'—'}</div>
+          <div style="font-size:13px;font-weight:700;color:var(--muted);margin-top:2px">Bandejas: ${escapar(c.numBandejas)||'—'}${esSeccionPreinjerto(c.tipo) ? '' : ' · Invernadero: '+(escapar(c.invernadero)||'—')}</div>
+          ${esSeccionPreinjerto(c.tipo) ? `<div style="font-size:13px;font-weight:700;color:var(--muted);margin-top:2px">Siembra: ${escapar(c.fSiembra)||'—'} · Entrega: ${escapar(c.fEntrega)||'—'}</div>
           <div style="font-size:13px;font-weight:700;color:var(--muted);margin-top:2px">Plantas: ${plantasVista(c.plantasSol)||'—'} / ${plantasVista(c.plantasSem)||'—'}</div>
           <div style="font-size:12px;font-weight:800;color:#1558a0;margin-top:4px">${(()=>{ const ts = lineasTunelDePreinjerto(c); return ts.length ? 'Túnel: '+riegoDiaLabelCorto(ts[0].dia)+' · '+(controlLineaCompletada(ts[0])?'✅ completo':'⬜ pendiente') : 'Aún no está en Túnel'; })()}</div>` : `<div style="font-size:13px;font-weight:700;color:var(--muted);margin-top:2px">Calle: ${t ? escapar(t.label) : '—'}</div>`}
         </div>
@@ -6095,14 +6118,15 @@ function generarControlCSVDia(tipo, dia){
   const catRaicesInj = CONTROL_CHECK_CATEGORIAS.find(c=>c.key==='raicesInjerto');
   const conRaicesInj = (tipo==='tunel' || tipo==='carga');
   const listaDia = controlChecksData.filter(c=>c.tipo===tipo && c.dia===dia);
-  // Preinjerto: datos del PDF de pedidos (fechas, plantas) + sus 6 categorías.
-  if(tipo==='preinjerto'){
-    const catGrosor = CONTROL_CHECK_CATEGORIAS.find(x=>x.key==='grosor');
-    const cabeceraPre = ['Partida','Cliente','Variedad','Nº bandejas','F Siembra','F Entrega','Plantas solicitadas','Plantas sembradas','Color','Tamaño','Grosor','Sanidad','Enfermedades','Flores','Raíces','Completada','Observaciones'];
+  // Preinjerto (Variedad / Patrón): datos del PDF de pedidos (fechas, plantas) +
+  // las categorías propias de cada uno (categoriasControlPara).
+  if(esSeccionPreinjerto(tipo)){
+    const catsPre = categoriasControlPara(tipo);
+    const cabeceraPre = ['Partida','Cliente','Variedad','Nº bandejas','F Siembra','F Entrega','Plantas solicitadas','Plantas sembradas',
+      ...catsPre.flatMap(k=>k.key==='sanidad' ? [k.label,'Enfermedades'] : [k.label]), 'Completada','Observaciones'];
     const filasPre = listaDia.map(c=>[
       c.partida||'', c.cliente||'', c.variedad||'', c.numBandejas||'', c.fSiembra||'', c.fEntrega||'', plantasEntero(c.plantasSol), plantasEntero(c.plantasSem),
-      opcionesMarcadas(c, catColor), opcionesMarcadas(c, catTamano), opcionesMarcadas(c, catGrosor), opcionesMarcadas(c, catSanidad),
-      enfermedadesMarcadas(c), opcionesMarcadas(c, catFlores), opcionesMarcadas(c, catRaices),
+      ...catsPre.flatMap(k=>k.key==='sanidad' ? [opcionesMarcadas(c, k), enfermedadesMarcadas(c)] : [opcionesMarcadas(c, k)]),
       controlLineaCompletada(c) ? 'Sí' : 'No', c.observaciones||''
     ].map(esc).join(';'));
     return [cabeceraPre.map(esc).join(';'), ...filasPre].join('\r\n');
@@ -6141,7 +6165,7 @@ function exportarControlCSV(tipo, dia){
   const csv = generarControlCSVDia(tipo, dia);
   const blob = new Blob(['﻿' + csv], {type:'text/csv;charset=utf-8;'});
   const url = URL.createObjectURL(blob);
-  const nombreTipo = tipo==='tunel' ? 'CheckTunel' : tipo==='carga' ? 'CheckCargaInjerto' : tipo==='carga_normal' ? 'CheckCargaNormal' : tipo==='preinjerto' ? 'CheckPreinjerto' : tipo;
+  const nombreTipo = tipo==='tunel' ? 'CheckTunel' : tipo==='carga' ? 'CheckCargaInjerto' : tipo==='carga_normal' ? 'CheckCargaNormal' : tipo==='preinjerto_variedad' ? 'CheckPreinjertoVariedad' : tipo==='preinjerto_patron' ? 'CheckPreinjertoPatron' : tipo;
   const f = riegoDiaToDate(dia);
   const fechaStr = `${f.getFullYear()}-${String(f.getMonth()+1).padStart(2,'0')}-${String(f.getDate()).padStart(2,'0')}`;
   const a = document.createElement('a');
@@ -6375,7 +6399,7 @@ function renderControlChecklistHTML(seccion){
         <i class="ti ti-upload" style="font-size:16px"></i> ${pdf?'Sustituir PDF':'Insertar PDF'}
         <input type="file" accept="application/pdf" style="display:none" onchange="handleControlPdfInput(this,'${seccion.key}',${controlDiaSel})">
       </label>
-      <div style="font-size:10px;color:var(--muted);margin-top:6px">La lectura automática de las columnas del PDF está pendiente — de momento se guarda como referencia y las líneas se añaden a mano.</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:6px">${esSeccionPreinjerto(seccion.key) ? 'Un solo PDF crea las líneas de los dos checks: Variedad (partidas con C o VE) y Patrón (P o WE), cada una en su día de siembra. Las demás partidas se ignoran.' : 'La lectura automática de las columnas del PDF está pendiente — de momento se guarda como referencia y las líneas se añaden a mano.'}</div>
     </div>
 
     <div id="nuevo-control-form-wrap"></div>
@@ -6394,7 +6418,9 @@ function handleControlPdfInput(input, tipo, dia){
     // Carga Injerto y Carga Normal comparten el mismo parte de carga: se sube
     // UNA vez, en cualquiera de los dos, y queda adjunto en los dos.
     if(esSeccionCarga(tipo)) await guardarControlPdf(tipo==='carga' ? 'carga_normal' : 'carga', dia, file.name, e.target.result);
-    if(tipo === 'preinjerto'){
+    // Preinjerto Variedad y Patrón comparten el mismo PDF: se sube UNA vez y queda adjunto en los dos.
+    if(esSeccionPreinjerto(tipo)) await guardarControlPdf(tipo==='preinjerto_variedad' ? 'preinjerto_patron' : 'preinjerto_variedad', dia, file.name, e.target.result);
+    if(esSeccionPreinjerto(tipo)){
       showToast('Leyendo PDF y creando líneas...');
       const r = await autoCrearLineasDesdePdfControlPreinjerto(e.target.result);
       if(r.error === -2) showToast('❌ Error al GUARDAR las líneas leídas del PDF — no se ha llegado a subir a la nube, inténtalo de nuevo (si se repite, avisa)');
@@ -6404,10 +6430,11 @@ function handleControlPdfInput(input, tipo, dia){
       } else {
         // El PDF también queda adjunto en cada día donde hay partidas, para
         // que la ficha de cada una enlace a su PDF.
-        for(const d of r.dias){ if(d !== dia) await guardarControlPdf('preinjerto', d, file.name, e.target.result); }
+        for(const d of r.dias){ if(d !== dia){ await guardarControlPdf('preinjerto_variedad', d, file.name, e.target.result); await guardarControlPdf('preinjerto_patron', d, file.name, e.target.result); } }
         const detalle = Object.keys(r.porDia).map(Number).sort((a,b)=>a-b).map(d=>riegoDiaLabelCorto(d)+' ('+r.porDia[d]+')').join(', ');
-        if(r.creadas > 0) showToast(`✓ ${r.creadas} línea${r.creadas===1?'':'s'} creada${r.creadas===1?'':'s'} por fecha de siembra: ${detalle} — falta el check`);
+        if(r.creadas > 0) showToast(`✓ ${r.creadas} línea${r.creadas===1?'':'s'} creada${r.creadas===1?'':'s'} (${r.porTipo.preinjerto_variedad} en Variedad, ${r.porTipo.preinjerto_patron} en Patrón) por fecha de siembra: ${detalle} — falta el check`);
         else showToast('✓ PDF adjuntado (no se han detectado partidas nuevas que añadir)');
+        if(r.ignoradas && r.ignoradas.length) showToast(`ℹ️ ${r.ignoradas.length} partida${r.ignoradas.length===1?'':'s'} sin C/VE/P/WE ignorada${r.ignoradas.length===1?'':'s'}: ${r.ignoradas.slice(0,6).join(', ')}${r.ignoradas.length>6?'…':''}`);
         if(r.noReconocidas && r.noReconocidas.length){
           showToast(`⚠️ ${r.noReconocidas.length} línea${r.noReconocidas.length===1?'':'s'} con partida no se ha podido leer (formato distinto) — revisa la consola (F12)`);
           console.warn('Líneas de Preinjerto no reconocidas:', r.noReconocidas);
@@ -6850,7 +6877,7 @@ function parseControlCargaPdfPartidas(lineas){
 // Siembra (Vigueras, 2026-10-02). Incluye las ZE/YE.
 function parseControlPreinjertoPdfPartidas(lineas){
   const clienteRe = /^\d{3,6}\s*-\s*(.+)$/;
-  const filaRe = /^(?<partida>\d{2}[A-Za-z]{0,2}\d{4,6})\s+(?<variedad>.+?)\s+(?<fsiembra>\d{2}\/\d{2}\/\d{4})\s+(?<fentrega>\d{2}\/\d{2}\/\d{4})\s+(?<t>\S+)\s+(?<plsol>[\d.,]+)\s+(?<sem>[\d.,]+)\s+(?<band>\d+(?:[.,]\d+)?)\s+(?<s>[SNsn])(?:\s+(?<resto>.*))?$/;
+  const filaRe = /^(?<partida>\d{2}[A-Za-z]{0,2}\d{4,6})\s+(?<variedad>.+?)\s+(?<fsiembra>\d{2}\/\d{2}\/\d{4})\s+(?<fentrega>\d{2}\/\d{2}\/\d{4})\s+(?<t>\S+)\s+(?<plsol>[\d.,]+)\s+(?<sem>[\d.,]+)\s+(?<band>\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:[.,]\d+)?)\s+(?<s>[SNsn])(?:\s+(?<resto>.*))?$/;
   const records = [];
   const noReconocidas = [];
   let cliente = '';
@@ -6877,9 +6904,11 @@ function parseControlPreinjertoPdfPartidas(lineas){
   });
   return { records, noReconocidas };
 }
-// Crea las líneas de Preinjerto, cada una en el día de su F Siembra. Devuelve
-// {creadas, porDia:{dia:n}, dias:[...todos los días con partidas], noReconocidas}
-// o {error:-1|-2}. Idempotente (partida|bandejas|cliente|variedad por día).
+// Crea las líneas de Preinjerto, cada una en el día de su F Siembra y en el check
+// que le corresponde por la letra de la partida (C/VE -> Variedad, P/WE -> Patrón;
+// el resto se ignora). Devuelve {creadas, porDia:{dia:n}, porTipo, ignoradas,
+// dias:[...días con partidas], noReconocidas} o {error:-1|-2}. Idempotente
+// (partida|bandejas|cliente|variedad por tipo y día).
 async function autoCrearLineasDesdePdfControlPreinjerto(pdfB64){
   try{
     const base64 = pdfB64.split(',')[1];
@@ -6892,31 +6921,36 @@ async function autoCrearLineasDesdePdfControlPreinjerto(pdfB64){
     const claveDe = (x) => x.partida+'|'+x.numBandejas+'|'+x.cliente+'|'+x.variedad;
     const existentesPorDia = {};
     let creadas = 0; const porDia = {}; const dias = new Set(); const sinFecha = [];
+    const porTipo = {preinjerto_variedad:0, preinjerto_patron:0}; const ignoradas = [];
     records.forEach((p,idx)=>{
+      const tipoP = tipoPreinjertoDePartida(p.partida);
+      if(!tipoP){ ignoradas.push(p.partida); return; }
       const dia = fechaExtensionADiaRiego(p.fSiembra);
       if(dia==null){ sinFecha.push(p.partida); return; }
       dias.add(dia);
-      if(!existentesPorDia[dia]) existentesPorDia[dia] = new Set(controlChecksData.filter(x=>x.tipo==='preinjerto' && x.dia===dia).map(claveDe));
+      const clDia = tipoP+'|'+dia;
+      if(!existentesPorDia[clDia]) existentesPorDia[clDia] = new Set(controlChecksData.filter(x=>x.tipo===tipoP && x.dia===dia).map(claveDe));
       const clave = p.partida+'|'+p.nband+'|'+p.cliente+'|'+p.variedad;
-      if(existentesPorDia[dia].has(clave)) return;
-      existentesPorDia[dia].add(clave);
+      if(existentesPorDia[clDia].has(clave)) return;
+      existentesPorDia[clDia].add(clave);
       const nuevoId = 'control_'+Date.now()+'_'+idx+'_'+Math.random().toString(36).slice(2,8);
       controlChecksData.push({
-        id: nuevoId, tipo:'preinjerto', dia,
+        id: nuevoId, tipo: tipoP, dia,
         cliente: p.cliente, partida: p.partida, variedad: p.variedad, numBandejas: p.nband,
         fSiembra: p.fSiembra, fEntrega: p.fEntrega, plantasSol: p.plantasSol, plantasSem: p.plantasSem,
-        color:{}, tamano:{}, grosor:{}, sanidad:{}, flores:{}, raices:{}, observaciones: p.obs||'',
+        color:{}, tamano:{}, grosor:{}, firmeza:{}, segado:{}, sanidad:{}, flores:{}, raices:{}, observaciones: p.obs||'',
         creadoPor: currentUser||'—', creadoEn: new Date().toLocaleString('es-ES'), origenPdf: true
       });
       marcarControlCheckSucio(nuevoId);
       porDia[dia] = (porDia[dia]||0)+1;
+      porTipo[tipoP]++;
       creadas++;
     });
     if(creadas){
       const ok = await persistControlChecksData();
       if(!ok) return {error:-2, noReconocidas};
     }
-    return {creadas, porDia, dias:[...dias], noReconocidas, sinFecha};
+    return {creadas, porDia, porTipo, ignoradas, dias:[...dias], noReconocidas, sinFecha};
   }catch(e){
     console.error('Error leyendo PDF de Preinjerto:', e);
     return {error:-1, noReconocidas:[]};
@@ -7272,13 +7306,13 @@ function renderControlCargaCardHTML(c, seccion){
           <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">
             <span style="font-size:11px;font-weight:700;background:#f0f4f8;color:#1558a0;border-radius:999px;padding:3px 10px">Variedad: ${escapar(c.variedad)||'—'}</span>
             <span style="font-size:11px;font-weight:700;background:#f0f4f8;color:#1558a0;border-radius:999px;padding:3px 10px">Nº bandejas: ${escapar(c.numBandejas)||'—'}</span>
-            ${c.tipo==='preinjerto' ? `<span style="font-size:11px;font-weight:700;background:#f0f4f8;color:#1558a0;border-radius:999px;padding:3px 10px">F Siembra: ${escapar(c.fSiembra)||'—'}</span>
+            ${esSeccionPreinjerto(c.tipo) ? `<span style="font-size:11px;font-weight:700;background:#f0f4f8;color:#1558a0;border-radius:999px;padding:3px 10px">F Siembra: ${escapar(c.fSiembra)||'—'}</span>
             <span style="font-size:11px;font-weight:700;background:#f0f4f8;color:#1558a0;border-radius:999px;padding:3px 10px">F Entrega: ${escapar(c.fEntrega)||'—'}</span>
             <span style="font-size:11px;font-weight:700;background:#f0f4f8;color:#1558a0;border-radius:999px;padding:3px 10px">Plantas sol. / sem.: ${plantasVista(c.plantasSol)||'—'} / ${plantasVista(c.plantasSem)||'—'}</span>` : `<span style="font-size:11px;font-weight:700;background:#f0f4f8;color:#1558a0;border-radius:999px;padding:3px 10px">Invernadero: ${escapar(c.invernadero)||'—'}</span>
             <span style="font-size:11px;font-weight:700;background:#eef9f0;color:#2e7d32;border-radius:999px;padding:3px 10px">Calle: ${(()=>{ const t=calleTramoDeCarga(c); return t ? escapar(t.label) : '—'; })()}</span>`}
           </div>
           ${pdfInfoHTML}
-          ${c.tipo==='preinjerto' ? bloqueTunelDePreinjertoHTML(c) : ''}
+          ${esSeccionPreinjerto(c.tipo) ? bloqueTunelDePreinjertoHTML(c) : ''}
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0">
           <button onclick="mostrarEditarControlCargaCheck('${c.id}')" title="Editar" style="padding:5px 9px;font-size:11px;font-weight:700;background:#fff8e1;color:#c47f00;border:1px solid #e0c080;border-radius:6px;cursor:pointer;white-space:nowrap">
@@ -7330,7 +7364,7 @@ function mostrarFormNuevoControlCargaCheck(){
           <input id="ncc-bandejas" type="number" placeholder="Ej. 221" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px">
         </div>
       </div>
-      <div style="margin-bottom:12px;${controlSeccion==='preinjerto'?'display:none':''}">
+      <div style="margin-bottom:12px;${esSeccionPreinjerto(controlSeccion)?'display:none':''}">
         <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Invernadero</label>
         <select id="ncc-inv" style="width:100%;padding:8px 6px;border:1.5px solid var(--border);border-radius:7px;font-size:12px">
           <option value="">— Invernadero —</option>
@@ -7426,7 +7460,7 @@ function mostrarEditarControlCargaCheck(id){
           <input id="ecc-bandejas" type="text" value="${escapar(c.numBandejas)}" style="width:100%;padding:9px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px">
         </div>
       </div>
-      <div style="margin-bottom:14px;${c.tipo==='preinjerto'?'display:none':''}">
+      <div style="margin-bottom:14px;${esSeccionPreinjerto(c.tipo)?'display:none':''}">
         <label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">Invernadero</label>
         <select id="ecc-inv" style="width:100%;padding:9px 6px;border:1.5px solid var(--border);border-radius:7px;font-size:13px">
           <option value="">— Invernadero —</option>
@@ -9120,9 +9154,10 @@ async function mostrarHistorialPartida(id){
   // Fotos asociadas (Check de entrada y, si existe, Check de salida) — se
   // pide solo la foto de estos 1-2 ids concretos (fetchFotoPartidaPorId),
   // nunca los 29 shards completos de fotos de toda la app.
-  const pre = lineasPreinjertoDeTunel(c)[0] || null;
+  const pres = lineasPreinjertoDeTunel(c);
+  const pre = pres[0] || null;
   const idsFotoBuscados = [
-    pre ? {id:pre.id, label:'Preinjerto'} : null,
+    ...pres.map(p=>({id:p.id, label:'Preinjerto '+etiquetaTipoPreinjerto(p.tipo)})),
     {id:c.id, label:'Entrada (Túnel)'},
     cargaSalida ? {id:cargaSalida.id, label:'Salida (Carga)'} : null
   ].filter(Boolean);
@@ -9139,7 +9174,7 @@ async function mostrarHistorialPartida(id){
               <div style="font-size:10px;color:var(--muted);margin-top:3px">${escapar(f.label)}</div>
             </div>`).join('')}
         </div>` : '';
-  window.__partidaHistorialActual = { c, cargaSalida, eventos, resumenCategoriasHTML, tipoPlanta, diaDesde, fotosPartida, pre };
+  window.__partidaHistorialActual = { c, cargaSalida, eventos, resumenCategoriasHTML, tipoPlanta, diaDesde, fotosPartida, pre, pres };
   const mo = getOrCreateOverlay('partidas-historial-overlay');
   mo.innerHTML = `
     <div style="background:#fff;border-radius:14px;max-width:640px;width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.3)">
@@ -9149,8 +9184,8 @@ async function mostrarHistorialPartida(id){
         <div style="font-size:11px;opacity:.85;margin-top:2px">${c.fentrega?`📅 Entrega ${escapar(c.fentrega)} · `:''}INV ${escapar(c.invId)||'—'} · Día 1 (salida de Túnel): ${escapar(riegoDiaLabelCorto(diaDesde))}</div>
       </div>
       <div style="padding:1.25rem 1.5rem">
-        <div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Check de Preinjerto${pre?' — siembra '+escapar(pre.fSiembra||riegoDiaLabelCorto(pre.dia)):''}</div>
-        ${pre ? `
+        ${pres.length ? pres.map(pre=>`
+        <div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Check de Preinjerto ${etiquetaTipoPreinjerto(pre.tipo)} — siembra ${escapar(pre.fSiembra||riegoDiaLabelCorto(pre.dia))}</div>
         <div style="font-size:12px;color:var(--text);margin-bottom:6px">
           ${pre.numBandejas?`<b>Nº bandejas:</b> ${escapar(pre.numBandejas)} · `:''}${pre.fEntrega?`<b>F Entrega:</b> ${escapar(pre.fEntrega)} · `:''}<b>Plantas:</b> ${plantasVista(pre.plantasSol)||'—'} / ${plantasVista(pre.plantasSem)||'—'}
         </div>
@@ -9158,7 +9193,8 @@ async function mostrarHistorialPartida(id){
         <div style="font-size:12px;color:var(--text);margin-bottom:8px">
           ${pre.observaciones ? escapar(pre.observaciones) : '<span style="font-style:italic;color:var(--muted)">Sin observaciones</span>'}
         </div>
-        <button onclick="saltarAFichaControl('${pre.id}')" style="padding:5px 12px;font-size:11px;font-weight:800;background:#e8f5ea;color:#2e7d32;border:1px solid #a5d6a7;border-radius:6px;cursor:pointer;margin-bottom:1.25rem">Ver en Preinjerto →</button>` : `<div style="font-size:12px;color:var(--muted);font-style:italic;margin-bottom:1.25rem">Esta partida no tiene check de Preinjerto.</div>`}
+        <button onclick="saltarAFichaControl('${pre.id}')" style="padding:5px 12px;font-size:11px;font-weight:800;background:#e8f5ea;color:#2e7d32;border:1px solid #a5d6a7;border-radius:6px;cursor:pointer;margin-bottom:1.25rem">Ver en Preinjerto ${etiquetaTipoPreinjerto(pre.tipo)} →</button>`).join('') : `<div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Check de Preinjerto</div>
+        <div style="font-size:12px;color:var(--muted);font-style:italic;margin-bottom:1.25rem">Esta partida no tiene check de Preinjerto.</div>`}
         <div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Check de entrada (Túnel) — ${escapar(riegoDiaLabelCorto(c.dia))}${c.numBandejas?' · Nº bandejas: '+escapar(c.numBandejas):''}</div>
         <div style="margin-bottom:6px">${resumenCategoriasHTML(c)}</div>
         <div style="font-size:12px;color:var(--text);margin-bottom:1.25rem">
@@ -9191,7 +9227,7 @@ async function mostrarHistorialPartida(id){
 function imprimirHistorialPartida(){
   const datos = window.__partidaHistorialActual;
   if(!datos) return;
-  const { c, cargaSalida, eventos, resumenCategoriasHTML, tipoPlanta, diaDesde, fotosPartida, pre } = datos;
+  const { c, cargaSalida, eventos, resumenCategoriasHTML, tipoPlanta, diaDesde, fotosPartida, pre, pres } = datos;
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const eventosHTML = eventos.length ? eventos.map(ev=>`
     <tr>
@@ -9233,8 +9269,9 @@ function imprimirHistorialPartida(){
         </div>
       </div>
       <div class="meta">${c.fentrega?`Entrega ${escapar(c.fentrega)} · `:''}INV ${escapar(c.invId)||'—'} · Día 1 (salida de Túnel): ${escapar(riegoDiaLabelCorto(diaDesde))}</div>
-      <h3>Check de Preinjerto${pre?' — siembra '+escapar(pre.fSiembra||riegoDiaLabelCorto(pre.dia)):''}</h3>
-      <div>${pre ? ((pre.observaciones ? escapar(pre.observaciones) : 'Sin observaciones')+(pre.fEntrega?' · F Entrega '+escapar(pre.fEntrega):'')+' · Plantas '+(plantasVista(pre.plantasSol)||'—')+' / '+(plantasVista(pre.plantasSem)||'—')) : 'No tiene check de Preinjerto.'}</div>
+      ${(pres && pres.length) ? pres.map(pre=>`<h3>Check de Preinjerto ${etiquetaTipoPreinjerto(pre.tipo)} — siembra ${escapar(pre.fSiembra||riegoDiaLabelCorto(pre.dia))}</h3>
+      <div>${(pre.observaciones ? escapar(pre.observaciones) : 'Sin observaciones')+(pre.fEntrega?' · F Entrega '+escapar(pre.fEntrega):'')+' · Plantas '+(plantasVista(pre.plantasSol)||'—')+' / '+(plantasVista(pre.plantasSem)||'—')}</div>`).join('') : `<h3>Check de Preinjerto</h3>
+      <div>No tiene check de Preinjerto.</div>`}
       <h3>Check de entrada (Túnel) — ${escapar(riegoDiaLabelCorto(c.dia))}${c.numBandejas?' · Nº bandejas: '+escapar(c.numBandejas):''}</h3>
       <div>${c.observaciones ? escapar(c.observaciones) : 'Sin observaciones'}</div>
       <h3>Check de salida (Carga)${cargaSalida?' — '+escapar(riegoDiaLabelCorto(cargaSalida.dia)):''}</h3>
