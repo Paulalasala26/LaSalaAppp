@@ -4775,7 +4775,10 @@ const CONTROL_CHECK_CATEGORIAS = [
     opciones:[{key:'fino',label:'Fino'},{key:'ok',label:'OK'},{key:'grueso',label:'Grueso'}], soloEnTipos:['preinjerto_variedad','preinjerto_patron']},
   // Firmeza (Variedad y Patrón) y Segado (solo Patrón): 2026-10-30, Vigueras.
   {key:'firmeza', label:'Firmeza', icon:'ti-hand-finger', gradiente:'linear-gradient(135deg,#6a1b9a,#ab47bc)', tinte:'#f3e5f5',
-    opciones:[{key:'ok',label:'OK'},{key:'duro',label:'Duro'},{key:'tierno',label:'Tierno'}], soloEnTipos:['preinjerto_variedad','preinjerto_patron']},
+    opciones:[{key:'ok',label:'OK'},{key:'duro',label:'Duro'},{key:'tierno',label:'Tierno'}], soloEnTipos:['preinjerto_variedad','preinjerto_patron','carga','carga_normal'],
+    // 2026-10-30 (Vigueras): también en Check Carga (Injerto y Normal), pero ahí NO obligatoria
+    // para dar la línea por completada (así no se reabren las líneas de carga ya cerradas).
+    opcionalEnTipos:['carga','carga_normal']},
   {key:'segado', label:'Segado', icon:'ti-scissors', gradiente:'linear-gradient(135deg,#d84315,#ff8a65)', tinte:'#fbe9e7',
     opciones:[{key:'segado',label:'Segado'},{key:'noSegado',label:'No segado'}], soloEnTipos:['preinjerto_patron']},
   // 2026-10-30 (Vigueras): Sanidad (OK/Enferma + detalle) se sustituye en TODOS los
@@ -4797,7 +4800,8 @@ const CONTROL_CHECK_CATEGORIAS = [
     opciones:[{key:'si',label:'Sí'},{key:'no',label:'No'}], soloEnTipos:['tunel','carga'], opcional:true}
 ];
 function categoriasControlPara(tipo){
-  return CONTROL_CHECK_CATEGORIAS.filter(cat => (!cat.soloEnTipos || cat.soloEnTipos.includes(tipo)) && !(cat.noEnTipos && cat.noEnTipos.includes(tipo)));
+  return CONTROL_CHECK_CATEGORIAS.filter(cat => (!cat.soloEnTipos || cat.soloEnTipos.includes(tipo)) && !(cat.noEnTipos && cat.noEnTipos.includes(tipo)))
+    .map(cat => (cat.opcionalEnTipos && cat.opcionalEnTipos.includes(tipo)) ? Object.assign({}, cat, {opcional:true}) : cat);
 }
 // A petición de Paula (2026-08-01): al marcar Sanidad→Enferma aparece un
 // segundo nivel de casillas con el tipo de problema concreto — se guarda
@@ -6132,6 +6136,7 @@ function generarControlCSVDia(tipo, dia){
   const opcionesMarcadas = (c, cat) => cat.opciones.filter(o=>c[cat.key] && c[cat.key][o.key]).map(o=>o.label).join(' + ');
   const catColor = CONTROL_CHECK_CATEGORIAS.find(c=>c.key==='color');
   const catTamano = CONTROL_CHECK_CATEGORIAS.find(c=>c.key==='tamano');
+  const catFirmeza = CONTROL_CHECK_CATEGORIAS.find(c=>c.key==='firmeza');
   const catPlagas = CONTROL_CHECK_CATEGORIAS.find(c=>c.key==='plagas');
   const catEnf = CONTROL_CHECK_CATEGORIAS.find(c=>c.key==='enfermedades');
   const catFlores = CONTROL_CHECK_CATEGORIAS.find(c=>c.key==='flores');
@@ -6155,12 +6160,12 @@ function generarControlCSVDia(tipo, dia){
   // Carga (Injerto/Normal): campos propios (cliente, variedad, invernadero
   // del parte y calle) en vez de Cliente/Variedad combinado + calle real de Túnel.
   if(esSeccionCarga(tipo)){
-    const cabeceraCarga = ['Partida','Cliente','Variedad','Nº bandejas','Invernadero','Calle','Color','Tamaño','Plagas','Enfermedades','Flores','Raíces', ...(conRaicesInj?['Raíces punto injerto']:[]), 'Completada','Observaciones'];
+    const cabeceraCarga = ['Partida','Cliente','Variedad','Nº bandejas','Invernadero','Calle','Color','Tamaño','Firmeza','Plagas','Enfermedades','Flores','Raíces', ...(conRaicesInj?['Raíces punto injerto']:[]), 'Completada','Observaciones'];
     const filasCarga = listaDia.map(c=>{
       const t = calleTramoDeCarga(c);
       return [
         c.partida||'', c.cliente||'', c.variedad||'', c.numBandejas||'', c.invernadero||'', t ? t.label : '',
-        opcionesMarcadas(c, catColor), opcionesMarcadas(c, catTamano), opcionesMarcadas(c, catPlagas),
+        opcionesMarcadas(c, catColor), opcionesMarcadas(c, catTamano), opcionesMarcadas(c, catFirmeza), opcionesMarcadas(c, catPlagas),
         opcionesMarcadas(c, catEnf), opcionesMarcadas(c, catFlores), opcionesMarcadas(c, catRaices),
         ...(conRaicesInj ? [opcionesMarcadas(c, catRaicesInj)] : []),
         controlLineaCompletada(c) ? 'Sí' : 'No', c.observaciones||''
