@@ -6430,7 +6430,11 @@ function handleControlPdfInput(input, tipo, dia){
       } else {
         // El PDF también queda adjunto en cada día donde hay partidas, para
         // que la ficha de cada una enlace a su PDF.
-        for(const d of r.dias){ if(d !== dia){ await guardarControlPdf('preinjerto_variedad', d, file.name, e.target.result); await guardarControlPdf('preinjerto_patron', d, file.name, e.target.result); } }
+        // Solo si son pocos días: con un PDF grande (decenas de días de siembra) cada
+        // copia es una clave de ~2MB en Firebase; se queda adjunto en el día elegido.
+        if(r.dias.length <= 7){
+          for(const d of r.dias){ if(d !== dia){ await guardarControlPdf('preinjerto_variedad', d, file.name, e.target.result); await guardarControlPdf('preinjerto_patron', d, file.name, e.target.result); } }
+        }
         const detalle = Object.keys(r.porDia).map(Number).sort((a,b)=>a-b).map(d=>riegoDiaLabelCorto(d)+' ('+r.porDia[d]+')').join(', ');
         if(r.creadas > 0) showToast(`✓ ${r.creadas} línea${r.creadas===1?'':'s'} creada${r.creadas===1?'':'s'} (${r.porTipo.preinjerto_variedad} en Variedad, ${r.porTipo.preinjerto_patron} en Patrón) por fecha de siembra: ${detalle} — falta el check`);
         else showToast('✓ PDF adjuntado (no se han detectado partidas nuevas que añadir)');
