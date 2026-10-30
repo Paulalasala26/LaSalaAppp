@@ -6396,10 +6396,10 @@ function renderControlChecklistHTML(seccion){
           <span style="color:var(--muted);font-size:11px">(${escapar(pdf.subidoPor)}, ${escapar(pdf.subidoEn)})</span>
         </div>` : ''}
       <label style="display:inline-flex;align-items:center;gap:7px;padding:8px 14px;background:#dce8f5;border:1.5px solid #9ab8d8;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;color:#1558a0;margin-top:8px">
-        <i class="ti ti-upload" style="font-size:16px"></i> ${pdf?'Sustituir PDF':'Insertar PDF'}
-        <input type="file" accept="application/pdf" style="display:none" onchange="handleControlPdfInput(this,'${seccion.key}',${controlDiaSel})">
+        <i class="ti ti-upload" style="font-size:16px"></i> ${esSeccionPreinjerto(seccion.key) ? (pdf?'Sustituir PDF o subir Excel':'Insertar PDF o Excel') : (pdf?'Sustituir PDF':'Insertar PDF')}
+        <input type="file" accept="${esSeccionPreinjerto(seccion.key)?'application/pdf,.xlsx,.xls':'application/pdf'}" style="display:none" onchange="handleControlPdfInput(this,'${seccion.key}',${controlDiaSel})">
       </label>
-      <div style="font-size:10px;color:var(--muted);margin-top:6px">${esSeccionPreinjerto(seccion.key) ? 'Un solo PDF crea las líneas de los dos checks: Variedad (partidas con C o VE) y Patrón (P o WE), cada una en su día de entrega. Las demás partidas se ignoran.' : 'La lectura automática de las columnas del PDF está pendiente — de momento se guarda como referencia y las líneas se añaden a mano.'}</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:6px">${esSeccionPreinjerto(seccion.key) ? 'Un solo PDF crea las líneas de los dos checks: Variedad (partidas con C o VE) y Patrón (P o WE), cada una en su día de entrega. Las demás partidas se ignoran. También acepta el Excel del informe (más fiable que el PDF: nombres completos); las partidas que ya existen no se duplican.' : 'La lectura automática de las columnas del PDF está pendiente — de momento se guarda como referencia y las líneas se añaden a mano.'}</div>
     </div>
 
     <div id="nuevo-control-form-wrap"></div>
@@ -6412,6 +6412,7 @@ function renderControlChecklistHTML(seccion){
 function handleControlPdfInput(input, tipo, dia){
   if(!input.files || !input.files[0]) return;
   const file = input.files[0];
+  if(esSeccionPreinjerto(tipo) && /\.xlsx?$/i.test(file.name)){ importarExcelPreinjerto(file); input.value = ''; return; }
   const reader = new FileReader();
   reader.onload = async function(e){
     await guardarControlPdf(tipo, dia, file.name, e.target.result);
@@ -6913,6 +6914,56 @@ function parseControlPreinjertoPdfPartidas(lineas){
 // el resto se ignora). Devuelve {creadas, porDia:{dia:n}, porTipo, ignoradas,
 // dias:[...días con partidas], noReconocidas} o {error:-1|-2}. Idempotente
 // (partida|bandejas|cliente|variedad por tipo y día).
+// Núcleo común de PDF y Excel. porPartida=true (Excel): una partida que ya existe en
+// ese check NO se vuelve a crear, aunque el nombre de variedad/cliente difiera (el PDF
+// los trunca y el Excel los trae completos); false (PDF): clave partida|bandejas|
+// cliente|variedad por tipo y día, como siempre.
+async function crearLineasPreinjerto(records, noReconocidas, porPartida){
+  const claveDe = (x) => x.partida+'|'+x.numBandejas+'|'+x.cliente+'|'+x.variedad;
+  const existentesPorDia = {};
+  const existentesPartida = porPartida ? new Set(controlChecksData.filter(x=>esSeccionPreinjerto(x.tipo)).map(x=>x.tipo+'|'+x.partida)) : null;
+  let creadas = 0; const porDia = {}; const dias = new Set(); const sinFecha = [];
+  const porTipo = {preinjerto_variedad:0, preinjerto_patron:0}; const ignoradas = []; let yaExistian = 0;
+  records.forEach((p,idx)=>{
+    const tipoP = tipoPreinjertoDePartida(p.partida);
+    if(!tipoP){ ignoradas.push(p.partida); return; }
+    // 2026-10-30 (Vigueras): la fecha de realización del check es la F ENTREGA, no la de siembra.
+    const dia = fechaExtensionADiaRiego(p.fEntrega);
+    if(dia==null){ sinFecha.push(p.partida); return; }
+    dias.add(dia);
+    if(porPartida){
+      if(existentesPartida.has(tipoP+'|'+p.partida)){ yaExistian++; return; }
+      existentesPartida.add(tipoP+'|'+p.partida);
+    } else {
+      const clDia = tipoP+'|'+dia;
+      if(!existentesPorDia[clDia]) existentesPorDia[clDia] = new Set(controlChecksData.filter(x=>x.tipo===tipoP && x.dia===dia).map(claveDe));
+      const clave = p.partida+'|'+p.nband+'|'+p.cliente+'|'+p.variedad;
+      if(existentesPorDia[clDia].has(clave)) return;
+      existentesPorDia[clDia].add(clave);
+    }
+    const nuevoId = 'control_'+Date.now()+'_'+idx+'_'+Math.random().toString(36).slice(2,8);
+    controlChecksData.push({
+      id: nuevoId, tipo: tipoP, dia,
+      cliente: p.cliente, partida: p.partida, variedad: p.variedad, numBandejas: p.nband,
+      fSiembra: p.fSiembra, fEntrega: p.fEntrega, plantasSol: p.plantasSol, plantasSem: p.plantasSem,
+      color:{}, tamano:{}, grosor:{}, firmeza:{}, segado:{}, sanidad:{}, flores:{}, raices:{}, observaciones: p.obs||'',
+      creadoPor: currentUser||'—', creadoEn: new Date().toLocaleString('es-ES'), origenPdf: true
+    });
+    marcarControlCheckSucio(nuevoId);
+    porDia[dia] = (porDia[dia]||0)+1;
+    porTipo[tipoP]++;
+    creadas++;
+  });
+  if(creadas){
+    const ok = await persistControlChecksData();
+    if(!ok) return {error:-2, noReconocidas};
+  }
+  return {creadas, porDia, porTipo, ignoradas, yaExistian, dias:[...dias], noReconocidas, sinFecha};
+}
+// Crea las líneas de Preinjerto desde el PDF, cada una en el día de su F Entrega y en el
+// check que le corresponde por la letra de la partida (C/VE -> Variedad, P/WE -> Patrón;
+// el resto se ignora). Devuelve {creadas, porDia, porTipo, ignoradas, dias, noReconocidas}
+// o {error:-1|-2}.
 async function autoCrearLineasDesdePdfControlPreinjerto(pdfB64){
   try{
     const base64 = pdfB64.split(',')[1];
@@ -6922,44 +6973,53 @@ async function autoCrearLineasDesdePdfControlPreinjerto(pdfB64){
     const lineas = await extraerLineasControlPdf(bytes);
     const { records, noReconocidas } = parseControlPreinjertoPdfPartidas(lineas);
     if(!records.length) return {error:-1, noReconocidas};
-    const claveDe = (x) => x.partida+'|'+x.numBandejas+'|'+x.cliente+'|'+x.variedad;
-    const existentesPorDia = {};
-    let creadas = 0; const porDia = {}; const dias = new Set(); const sinFecha = [];
-    const porTipo = {preinjerto_variedad:0, preinjerto_patron:0}; const ignoradas = [];
-    records.forEach((p,idx)=>{
-      const tipoP = tipoPreinjertoDePartida(p.partida);
-      if(!tipoP){ ignoradas.push(p.partida); return; }
-      // 2026-10-30 (Vigueras): la fecha de realización del check es la F ENTREGA, no la de siembra.
-      const dia = fechaExtensionADiaRiego(p.fEntrega);
-      if(dia==null){ sinFecha.push(p.partida); return; }
-      dias.add(dia);
-      const clDia = tipoP+'|'+dia;
-      if(!existentesPorDia[clDia]) existentesPorDia[clDia] = new Set(controlChecksData.filter(x=>x.tipo===tipoP && x.dia===dia).map(claveDe));
-      const clave = p.partida+'|'+p.nband+'|'+p.cliente+'|'+p.variedad;
-      if(existentesPorDia[clDia].has(clave)) return;
-      existentesPorDia[clDia].add(clave);
-      const nuevoId = 'control_'+Date.now()+'_'+idx+'_'+Math.random().toString(36).slice(2,8);
-      controlChecksData.push({
-        id: nuevoId, tipo: tipoP, dia,
-        cliente: p.cliente, partida: p.partida, variedad: p.variedad, numBandejas: p.nband,
-        fSiembra: p.fSiembra, fEntrega: p.fEntrega, plantasSol: p.plantasSol, plantasSem: p.plantasSem,
-        color:{}, tamano:{}, grosor:{}, firmeza:{}, segado:{}, sanidad:{}, flores:{}, raices:{}, observaciones: p.obs||'',
-        creadoPor: currentUser||'—', creadoEn: new Date().toLocaleString('es-ES'), origenPdf: true
-      });
-      marcarControlCheckSucio(nuevoId);
-      porDia[dia] = (porDia[dia]||0)+1;
-      porTipo[tipoP]++;
-      creadas++;
-    });
-    if(creadas){
-      const ok = await persistControlChecksData();
-      if(!ok) return {error:-2, noReconocidas};
-    }
-    return {creadas, porDia, porTipo, ignoradas, dias:[...dias], noReconocidas, sinFecha};
+    return await crearLineasPreinjerto(records, noReconocidas, false);
   }catch(e){
     console.error('Error leyendo PDF de Preinjerto:', e);
     return {error:-1, noReconocidas:[]};
   }
+}
+// Excel del mismo informe ("SALIDA DE TOMATE CON FECHA PREV"): una fila por partida con
+// cabeceras Nombre Cliente, PARTIDA, VARIEDAD, F Siembra, F Entrega, Pl sol, Sem, Band,
+// OBSERVA. Las fechas llegan como número de serie de Excel.
+function fechaExcelADMA(v){
+  if(typeof v==='number'){ const d = new Date(Math.round((v-25569)*86400000)); return String(d.getUTCDate()).padStart(2,'0')+'/'+String(d.getUTCMonth()+1).padStart(2,'0')+'/'+d.getUTCFullYear(); }
+  const s = String(v==null?'':v).trim();
+  return /^\d{2}\/\d{2}\/\d{4}$/.test(s) ? s : '';
+}
+async function autoCrearLineasDesdeExcelControlPreinjerto(buf){
+  try{
+    await loadScriptOnce('https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js');
+    const wb = XLSX.read(buf, {type:'array'});
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {defval:''});
+    if(!rows.length || !('PARTIDA' in rows[0]) || !('F Entrega' in rows[0])) return {error:-3};
+    const entero = v => (v===''||v==null||isNaN(Number(v))) ? '' : String(Math.round(Number(v)));
+    const records = rows.filter(r=>String(r.PARTIDA).trim()).map(r=>({
+      cliente: String(r['Nombre Cliente']||'').trim(), partida: String(r.PARTIDA).trim().toUpperCase(), variedad: String(r.VARIEDAD||'').trim(),
+      fSiembra: fechaExcelADMA(r['F Siembra']), fEntrega: fechaExcelADMA(r['F Entrega']),
+      plantasSol: entero(r['Pl sol']), plantasSem: entero(r.Sem),
+      nband: (r.Band===''||r.Band==null) ? '' : normalizarBandejasPdf(String(r.Band)), obs: String(r.OBSERVA==null?'':r.OBSERVA).trim()
+    }));
+    return await crearLineasPreinjerto(records, [], true);
+  }catch(e){
+    console.error('Error leyendo Excel de Preinjerto:', e);
+    return {error:-1, noReconocidas:[]};
+  }
+}
+async function importarExcelPreinjerto(file){
+  showToast('Leyendo Excel y creando líneas...');
+  const r = await autoCrearLineasDesdeExcelControlPreinjerto(await file.arrayBuffer());
+  if(r.error === -2) showToast('❌ Error al GUARDAR las líneas leídas del Excel — no se ha llegado a subir a la nube, inténtalo de nuevo (si se repite, avisa)');
+  else if(r.error === -3) showToast('❌ Este Excel no tiene las columnas esperadas (PARTIDA, F Entrega...) — no se ha creado ninguna línea');
+  else if(r.error === -1) showToast('❌ No se ha podido leer el Excel');
+  else {
+    const detalle = Object.keys(r.porDia).map(Number).sort((a,b)=>a-b).map(d=>riegoDiaLabelCorto(d)+' ('+r.porDia[d]+')').join(', ');
+    if(r.creadas > 0) showToast(`✓ ${r.creadas} línea${r.creadas===1?'':'s'} nueva${r.creadas===1?'':'s'} (${r.porTipo.preinjerto_variedad} en Variedad, ${r.porTipo.preinjerto_patron} en Patrón) por fecha de entrega: ${detalle}. Ya existían ${r.yaExistian}. — falta el check`);
+    else showToast(`✓ Excel leído: no hay partidas nuevas (ya existían ${r.yaExistian})`);
+    if(r.ignoradas && r.ignoradas.length) showToast(`ℹ️ ${r.ignoradas.length} partida${r.ignoradas.length===1?'':'s'} sin C/VE/P/WE ignorada${r.ignoradas.length===1?'':'s'}`);
+    if(r.sinFecha && r.sinFecha.length) showToast(`⚠️ ${r.sinFecha.length} partida${r.sinFecha.length===1?'':'s'} sin fecha de entrega válida: ${r.sinFecha.slice(0,5).join(', ')}`);
+  }
+  renderControlContent(document.getElementById('control-overlay'));
 }
 async function autoCrearLineasDesdePdfControlCarga(dia, pdfB64, tipo){
   tipo = tipo || 'carga';
