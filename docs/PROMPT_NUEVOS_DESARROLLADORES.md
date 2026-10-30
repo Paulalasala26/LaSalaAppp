@@ -2,6 +2,8 @@
 
 Antes de tocar código, lee `docs/APP_R_V3_ESTADO_MAESTRO.md` en la rama `dev/v1.0` y confirma el estado real del repositorio, la rama y el diff. Ese documento recoge el contexto funcional vigente; contrástalo con el código actual y no conviertas notas históricas en tareas actuales.
 
+Para el estado de los entornos, lee también `docs/APP_R_V3_ENTORNO_DEV.md`. **No asumas que una validación de consulta equivale a pruebas de escritura, offline o SharePoint.**
+
 ## Regla de crecimiento del frontend
 
 `index.html` es el shell de la aplicación, no el lugar para seguir añadiendo funcionalidades. Mantén fuera de ese archivo el código nuevo de cada área:
