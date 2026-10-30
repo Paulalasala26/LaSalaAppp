@@ -333,7 +333,7 @@ if(new URL(location.href).searchParams.get('fbdiag')==='1'){
 let controlChecksData = []; // Estado QC compartido, disponible aunque el módulo aún no se haya descargado.
 // QC (263 KB) se descarga solo al entrar en una pantalla que lo necesita.
 (function(root){
-  const moduleUrl=new URL('./assets/control-qc-module.js?v=20261030-1',location.href).href;
+  const moduleUrl=new URL('./assets/control-qc-module.js?v=20261030-2',location.href).href;
   const editorUrl=new URL('./assets/qc-editar-linea-loader.js?v=20261030-1',location.href).href;
   let ready=false,loading=null,editorReady=false,editorLoading=null;
   function loadScript(src,check){
