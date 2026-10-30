@@ -3,7 +3,7 @@
 // Backoffice TEST: altas, roles, desactivación y cambio administrativo
 // de contraseñas. Todas las mutaciones se autorizan de nuevo EN SERVIDOR.
 (function () {
-  const FIREBASE_WEB_API_KEY = 'AIzaSyDdDdMg6M1jVIssvGYKsdRA-mRug31Yt_g';
+  const FIREBASE_WEB_API_KEY = 'AIzaSyBsRjw4NuCFg69P7_eqoX037rgjkbadcA0';
   const AUTH_SESSION_KEY = 'lasala-firebase-auth-v1';
   const ROLE_LABELS = {
     ADMIN:'Administrador',TECNICO:'Técnico',REGANTE:'Regante',
