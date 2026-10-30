@@ -1553,42 +1553,73 @@ function renderControlCardConGuionesHTML(grupo, seccion){
   return `<div class="qc-card-guion-group">${pagerHTML}${cardHTML}</div>`;
 }
 async function controlShowControlModule(){
-  // Entrada ligera: el resumen solo necesita el índice v2 (~1 KB). Túnel y
-  // Carga cargan después exclusivamente la quincena que el usuario abre.
-  // Si el índice no estuviera disponible, se conserva el loader v1 como
-  // fallback de seguridad; los módulos heredados siguen usándolo aparte.
+  const intento=(Number(window.__qcControlEntradaIntento)||0)+1;
+  window.__qcControlEntradaIntento=intento;
   const esCargador=currentUserRole==='CARGADOR';
   controlCargaInvFiltro='';
   controlTunelInvFiltro='';
-  const [v2ok] = await Promise.all([
-    loadControlV2Index(false),
-    ...(esCargador?[]:[loadConteoTutaData(),loadControlInvernaderoData()])
-  ]);
-  if(!v2ok) await loadControlChecksData(false);
-
-  // CARGADOR puede trabajar en QC Carga, pero no debe entrar al resto
-  // de apartados. Su permiso se comprueba también en la API.
+  controlSeccion=esCargador?'carga':null;
   if(esCargador){
-    const offset=riegoQuincenaOffsetActual();
-    if(!(await loadControlSeccionSlice('carga',offset,false))){
-      avisarFalloCarga();return;
-    }
-    controlSeccion='carga';
-    controlQuincenaOffset=offset;
+    controlQuincenaOffset=riegoQuincenaOffsetActual();
     controlDiaSel=riegoDiaDeHoy();
-  }else{
-    controlSeccion=null;
   }
-  const overlay = getOrCreateOverlay('control-overlay');
-  overlay.style.padding = '0';
-  renderControlContent(overlay);
-  overlay.style.display = 'flex';
+  const overlay=getOrCreateOverlay('control-overlay');
+  overlay.style.padding='0';
+  overlay.innerHTML=`<div class="control-ui-shell">
+    <header class="control-ui-header">
+      <div class="control-ui-home"><i class="ti ti-clipboard-check" aria-hidden="true"></i><span>Control de Calidad</span></div>
+      <div class="control-ui-header-right">
+        <span class="control-ui-section-label" aria-live="polite">Conectando</span>
+        <button type="button" class="control-ui-close" onclick="cerrarControlModule()" title="Cerrar Control de Calidad" aria-label="Cerrar Control de Calidad">&times;</button>
+      </div>
+    </header>
+    <main class="control-ui-content" style="display:grid;place-items:center">
+      <div role="status" aria-live="polite" style="text-align:center;color:#526174;padding:24px">
+        <i class="ti ti-loader-2" aria-hidden="true" style="font-size:28px;display:block;margin-bottom:10px"></i>
+        Cargando Control de Calidad…
+      </div>
+    </main>
+  </div>`;
+  overlay.style.display='flex';
 
-  // Una cola offline pendiente necesita reconstruir el estado global antes
-  // de reaplicar acciones; es la única excepción deliberada al lazy-load.
-  if(leerColaOffline().length) procesarColaOffline();
-  Promise.all([loadControlFotosData(false), loadControlPdfsData()]).then(()=>{
-    renderControlContent(document.getElementById('control-overlay'));
+  const cargar=async()=>{
+    const [v2ok]=await Promise.all([
+      loadControlV2Index(false),
+      ...(esCargador?[]:[loadConteoTutaData(),loadControlInvernaderoData()])
+    ]);
+    if(!v2ok) await loadControlChecksData(false);
+    if(esCargador && !(await loadControlSeccionSlice('carga',controlQuincenaOffset,false))){
+      throw new Error('No se pudieron cargar los datos de QC Carga.');
+    }
+  };
+  let terminado=false;
+  const mostrarResultado=()=>{
+    if(terminado||window.__qcControlEntradaIntento!==intento)return;
+    terminado=true;
+    renderControlContent(overlay);
+    Promise.all([loadControlFotosData(false),loadControlPdfsData()])
+      .then(()=>{if(window.__qcControlEntradaIntento===intento)renderControlContent(overlay);})
+      .catch(error=>console.error('[La Sala] Error al cargar recursos de Control QC:',error));
+  };
+  const mostrarError=(mensaje)=>{
+    if(window.__qcControlEntradaIntento!==intento)return;
+    overlay.querySelector('main').innerHTML=`<div role="alert" style="max-width:440px;text-align:center;padding:24px;color:#526174">
+      <div style="font-size:15px;font-weight:800;margin-bottom:8px;color:#a32020">${mensaje}</div>
+      <div style="font-size:13px;margin-bottom:16px">La Home y los demás módulos siguen disponibles.</div>
+      <button type="button" onclick="showControlModule()" style="background:#1558a0;color:#fff;border:0;border-radius:8px;padding:10px 16px;font-weight:700;cursor:pointer">Reintentar</button>
+    </div>`;
+  };
+  const carga=cargar();
+  const resultado=await Promise.race([
+    carga.then(()=> 'ok',error=>{console.error('[La Sala] Error al abrir Control/QC:',error);return 'error';}),
+    new Promise(resolve=>setTimeout(()=>resolve('timeout'),15000))
+  ]);
+  if(resultado==='ok'){mostrarResultado();return;}
+  if(resultado==='error'){mostrarError('No se han podido cargar los datos de Control de Calidad.');return;}
+  mostrarError('La conexión con Control de Calidad está tardando demasiado.');
+  carga.then(mostrarResultado,error=>{
+    console.error('[La Sala] Error al abrir Control/QC:',error);
+    mostrarError('No se han podido cargar los datos de Control de Calidad.');
   });
 }
 async function seleccionarSeccionControl(sec){
