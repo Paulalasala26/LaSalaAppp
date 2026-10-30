@@ -658,6 +658,7 @@ function applyRoleHomeUI(){
   if(currentUserRole==='REGANTE'){
     const block = document.getElementById('quick-access-block');
     if(block){
+      block.style.display = 'block'; // 2026-10-30: el contenedor era una cuadrícula de tarjetas y partía cabecera y botones en columnas
       block.innerHTML = `
         <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.75rem;display:flex;align-items:center;justify-content:space-between;gap:6px">
           <span style="display:flex;align-items:center;gap:6px"><i class="ti ti-bolt" style="font-size:15px;color:var(--verde-mid)"></i>Acceso de Regante</span>
@@ -702,7 +703,7 @@ function applyRoleHomeUI(){
     const block = document.getElementById('quick-access-block');
     if(block){
       block.insertAdjacentHTML('beforeend', `
-        <div style="margin-top:.9rem;padding-top:.9rem;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap">
+        <div style="grid-column:1/-1;margin-top:.9rem;padding-top:.9rem;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap">
           <button id="btn-avisos-push" onclick="toggleAvisosPush()" title="Recibir en el dispositivo el aviso cuando un peón/regante ejecute un trabajo de tu turno" style="padding:11px 14px;font-size:12px;font-weight:700;background:#f2f4f0;color:var(--muted);border:1px solid var(--border);border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:6px">&#128276; Activar avisos</button>
           <button onclick="mostrarAvisosTecnico()" title="Ver avisos: respuestas de Vigueras a propuestas y trabajos/riegos ejecutados para evaluar" style="padding:11px 18px;font-size:13px;font-weight:800;background:#a35d00;color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:8px">
             <i class="ti ti-bell" style="font-size:16px"></i> Avisos <span id="avisos-tecnico-badge"></span>
@@ -731,6 +732,7 @@ function applyRoleHomeUI(){
     // camión cargando plantas y sus horas previstas.
     const block = document.getElementById('quick-access-block');
     if(block){
+      block.style.display = 'block'; // 2026-10-30: el contenedor era una cuadrícula de tarjetas y partía cabecera y botones en columnas
       block.innerHTML = `
         <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.75rem;display:flex;align-items:center;gap:6px">
           <i class="ti ti-truck" style="font-size:15px;color:#ff6b35"></i>Acceso de Julio (Cargas)
@@ -749,7 +751,7 @@ function applyRoleHomeUI(){
     const block = document.getElementById('quick-access-block');
     if(block){
       block.insertAdjacentHTML('beforeend', `
-        <div style="margin-top:.9rem;padding-top:.9rem;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap">
+        <div style="grid-column:1/-1;margin-top:.9rem;padding-top:.9rem;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap">
           <button id="btn-avisos-push" onclick="toggleAvisosPush()" title="Recibir una notificación en el dispositivo cuando Fran/Dennis marquen las hojas o envíen una propuesta, aunque la app esté cerrada" style="padding:7px 12px;font-size:11px;font-weight:700;background:#f2f4f0;color:var(--muted);border:1px solid var(--border);border-radius:8px;cursor:pointer;white-space:nowrap">&#128276; Activar avisos</button>
           <button onclick="mostrarNotificacionesVigueras()" title="Ver todas las notificaciones recibidas" style="padding:9px 16px;font-size:12px;font-weight:800;background:#a35d00;color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:6px">
             <i class="ti ti-bell" style="font-size:15px"></i> Notificaciones <span id="notificaciones-vigueras-badge"></span>
