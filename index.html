@@ -4775,10 +4775,8 @@ const CONTROL_CHECK_CATEGORIAS = [
     opciones:[{key:'fino',label:'Fino'},{key:'ok',label:'OK'},{key:'grueso',label:'Grueso'}], soloEnTipos:['preinjerto_variedad','preinjerto_patron']},
   // Firmeza (Variedad y Patrón) y Segado (solo Patrón): 2026-10-30, Vigueras.
   {key:'firmeza', label:'Firmeza', icon:'ti-hand-finger', gradiente:'linear-gradient(135deg,#6a1b9a,#ab47bc)', tinte:'#f3e5f5',
-    opciones:[{key:'ok',label:'OK'},{key:'duro',label:'Duro'},{key:'tierno',label:'Tierno'}], soloEnTipos:['preinjerto_variedad','preinjerto_patron','carga','carga_normal'],
-    // 2026-10-30 (Vigueras): también en Check Carga (Injerto y Normal), pero ahí NO obligatoria
-    // para dar la línea por completada (así no se reabren las líneas de carga ya cerradas).
-    opcionalEnTipos:['carga','carga_normal']},
+    opciones:[{key:'ok',label:'OK'},{key:'duro',label:'Duro'},{key:'tierno',label:'Tierno'}], soloEnTipos:['preinjerto_variedad','preinjerto_patron','carga','carga_normal']},
+    // 2026-10-30 (Vigueras): también en Check Carga (Injerto y Normal), obligatoria como en Preinjerto.
   {key:'segado', label:'Segado', icon:'ti-scissors', gradiente:'linear-gradient(135deg,#d84315,#ff8a65)', tinte:'#fbe9e7',
     opciones:[{key:'segado',label:'Segado'},{key:'noSegado',label:'No segado'}], soloEnTipos:['preinjerto_patron']},
   // 2026-10-30 (Vigueras): Sanidad (OK/Enferma + detalle) se sustituye en TODOS los
