@@ -7588,7 +7588,15 @@ function handleQuickAction(val){
   } else if(val==='trabajos'){
     showTrabajosModule();return;
   } else if(val==='control'){
-    showControlModule();return;
+    if(typeof window.controlShowControlModule!=='function'){
+      showToast('Control de Calidad no está disponible. Recarga la aplicación.');
+      return;
+    }
+    Promise.resolve(window.controlShowControlModule()).catch(error=>{
+      console.error('[La Sala] Error al abrir Control/QC:',error);
+      showToast('No se pudo abrir Control de Calidad. Reinténtalo.');
+    });
+    return;
   } else if(val==='partidas'){
     showPartidasModule();return;
   } else if(val==='hojas-riego'){
