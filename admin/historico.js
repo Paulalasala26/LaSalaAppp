@@ -3,7 +3,7 @@
 // Sin escrituras ni acceso directo a la base de datos desde el navegador.
 (function(){
   const SESSION='lasala-firebase-auth-v1';
-  const API_KEY='AIzaSyDdDdMg6M1jVIssvGYKsdRA-mRug31Yt_g';
+  const API_KEY='AIzaSyBsRjw4NuCFg69P7_eqoX037rgjkbadcA0';
   const AREA={users:'Usuarios y permisos',infrastructure:'Salas / Invernaderos',riego_options:'Opciones de riego',
     riego:'Riego',control:'Control de calidad',operations:'Otras operaciones'};
   const ACTION={create:'Crear',edit:'Editar',changeRole:'Cambiar rol',resetPassword:'Restablecer contraseña',
