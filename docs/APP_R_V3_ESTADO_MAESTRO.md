@@ -1868,11 +1868,17 @@ Se retira la carga inicial de `assets/fito-series-v3.js` (65.939 bytes) y se inc
 
 Respaldo solicitado por el usuario: rama `backup/test-v1.0-before-split-2026-10-30`, creada antes de editar, fijada al SHA `f6beb7786da114a826242991e6b811fdbc48e593`. Cambios únicamente en TEST: loader `fd1fbae`; integración en `index.html` `78ac907`. Comprobación estática: parseo JS válido del loader y complemento; etiqueta antigua retirada y nueva presente. El usuario confirma que Plaguicidas va bien en TEST; esta confirmación no presupone una prueba del caso de error de red. Main y PRD intactos.
 
-## 0.185. Diagnóstico Firebase bajo demanda — 30/10/2026 — IMPLEMENTADO EN TEST / UAT PENDIENTE
+## 0.185. Diagnóstico Firebase bajo demanda — 30/10/2026 — ACEPTADO POR EL USUARIO; MODO DIAGNÓSTICO PENDIENTE
 
 `assets/firebase-diagnostics.js` solo se activa con `?fbdiag=1`, pero se descargaba y analizaba en todas las aperturas. Se cambia su inclusión por una condición que únicamente escribe la etiqueta del script cuando el parámetro vale `1`. La inyección conserva orden síncrono para que el diagnóstico pueda observar desde el inicio las peticiones de TEST; la comprobación de host y activación existente dentro del propio diagnóstico permanece intacta. Se evitan 15.090 bytes de descarga y análisis en sesiones normales. Sin cambios en autenticación, datos ni el código del diagnóstico.
 
 En TEST, commit de código `889fa547` (incluye corrección verificada del escape de cierre: el código generado produce la etiqueta `</script>`). Parseo estático del cargador válido; rama verificada como `test/v1.0`. **Pendiente UAT** normal y con `?fbdiag=1`, incluida comprobación en la pestaña de red. No tocar PRD/main.
+
+## 0.186. Editor QC de línea bajo demanda — 30/10/2026 — IMPLEMENTADO EN TEST / UAT PENDIENTE
+
+`assets/qc-editar-linea-v3.js` (10.718 bytes) deja de cargarse al abrir la app. Nuevo `assets/qc-editar-linea-loader.js` coloca una función intermediaria para «Editar» en Túnel y Carga; descarga el editor al primer clic y llama a la versión mejorada antes de abrir el formulario. El código inline mantiene sus editores base como respaldo si no se puede descargar el complemento. No cambia el almacenamiento, permisos, registros ni las rutas de guardado. Se evita cargar el complemento y analizar sus 10.718 bytes en sesiones que no editan líneas QC; el cargador inicial añade 1.621 bytes.
+
+TEST, commit de integración `d98bcee0` (loader `c4b3a83d`). Parseo estático de ambos scripts válido; el complemento no aparece como etiqueta inicial y los editores base siguen presentes en `index.html`. Vercel TEST READY en SHA `d98bcee0`, alias `la-sala-app-test.vercel.app`. **Pendiente UAT** al editar una línea Túnel y Carga, incluida la ruta de respaldo por error de carga. Main y PRD intactos.
 
 ## 1. Reglas innegociables
 
