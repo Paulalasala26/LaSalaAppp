@@ -292,6 +292,12 @@ module.exports=async function handler(req,res){
     return res.status(405).json({error:'METHOD_NOT_ALLOWED'});
   }
   try{
+    // Tareas Operativas/Archivo: consulta ADMIN sin escrituras ni firmas.
+    if(req.query?.modo==='tareas'){
+      const {token}=await verifyAdmin(req);
+      const report=await require('../lib/admin-tareas-read').query(token,req.query);
+      return res.status(200).json({ok:true,...report});
+    }
     // Específicos: consulta independiente por invernadero, sin alterar QC ni Fito.
     if(req.query?.modo==='especificos'){
       const {token}=await verifyAdmin(req);
