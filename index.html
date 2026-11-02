@@ -191,7 +191,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
           <i class="ti ti-briefcase" style="font-size:26px;opacity:.9"></i>
           <div style="font-size:14px;font-weight:700;margin-top:12px">Trabajos</div>
         </div>
-        <div class="home-shortcut-card" onclick="handleQuickAction('control')" style="background:linear-gradient(135deg,#4c1d95,#7c3aed);color:#fff;border-radius:14px;padding:1.4rem 1.25rem">
+        <div class="home-shortcut-card" data-testid="home-control" onclick="handleQuickAction('control')" style="background:linear-gradient(135deg,#4c1d95,#7c3aed);color:#fff;border-radius:14px;padding:1.4rem 1.25rem">
           <i class="ti ti-clipboard-check" style="font-size:26px;opacity:.9"></i>
           <div style="font-size:14px;font-weight:700;margin-top:12px">Control</div>
         </div>
@@ -6376,7 +6376,7 @@ function renderControlChecklistHTML(seccion){
             <i class="ti ti-search" style="font-size:14px"></i>
           </button>
         </div>
-        <button onclick="${usaFichaCarga(seccion.key)?'mostrarFormNuevoControlCargaCheck()':`mostrarFormNuevoControlCheck('${seccion.key}')`}" class="btn-elevado" style="padding:9px 16px;font-size:12px;font-weight:700;background:#2e7d32;color:#fff;border:none;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;gap:6px">
+        <button data-testid="control-add-line" onclick="${usaFichaCarga(seccion.key)?'mostrarFormNuevoControlCargaCheck()':`mostrarFormNuevoControlCheck('${seccion.key}')`}" class="btn-elevado" style="padding:9px 16px;font-size:12px;font-weight:700;background:#2e7d32;color:#fff;border:none;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;gap:6px">
           <i class="ti ti-plus" style="font-size:14px"></i> Añadir línea
         </button>
         ${seccion.key==='tunel' ? `
@@ -6391,9 +6391,9 @@ function renderControlChecklistHTML(seccion){
     </div>
 
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-      <button onclick="cambiarControlQuincena(-1)" ${controlQuincenaOffset<=0?'disabled style="opacity:.35;cursor:default"':'style="cursor:pointer"'} style="background:#fff;border:1.5px solid var(--border);border-radius:6px;width:26px;height:26px">&#8249;</button>
-      <span style="font-size:11px;font-weight:700;color:var(--muted)">Quincena ${controlQuincenaOffset+1} · ${riegoQuincenaLabel(controlQuincenaOffset)}</span>
-      <button onclick="cambiarControlQuincena(1)" style="background:#fff;border:1.5px solid var(--border);border-radius:6px;width:26px;height:26px;cursor:pointer">&#8250;</button>
+      <button data-testid="control-quincena-previous" onclick="cambiarControlQuincena(-1)" ${controlQuincenaOffset<=0?'disabled style="opacity:.35;cursor:default"':'style="cursor:pointer"'} style="background:#fff;border:1.5px solid var(--border);border-radius:6px;width:26px;height:26px">&#8249;</button>
+      <span data-testid="control-quincena-label" style="font-size:11px;font-weight:700;color:var(--muted)">Quincena ${controlQuincenaOffset+1} · ${riegoQuincenaLabel(controlQuincenaOffset)}</span>
+      <button data-testid="control-quincena-next" onclick="cambiarControlQuincena(1)" style="background:#fff;border:1.5px solid var(--border);border-radius:6px;width:26px;height:26px;cursor:pointer">&#8250;</button>
     </div>
     <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:1rem">${diaBotones}</div>
 
@@ -7261,7 +7261,7 @@ function renderControlCardHTML(c, seccion){
   const categoriasHTML = categoriasControlPara(c.tipo, c.dia).map(cat=>{
     const opcionesHTML = cat.opciones.map(o=>{
       const activo = !!(c[cat.key] && c[cat.key][o.key]);
-      return `<button onclick="toggleControlCheckOpcion('${c.id}','${cat.key}','${o.key}')" style="padding:6px 12px;border-radius:999px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid transparent;background:${activo?cat.gradiente:cat.tinte};color:${activo?'#fff':'var(--text)'}">${activo?'✓ ':''}${o.label}</button>`;
+      return `<button data-testid="control-option-${c.id}-${cat.key}-${o.key}" onclick="toggleControlCheckOpcion('${c.id}','${cat.key}','${o.key}')" style="padding:6px 12px;border-radius:999px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid transparent;background:${activo?cat.gradiente:cat.tinte};color:${activo?'#fff':'var(--text)'}">${activo?'✓ ':''}${o.label}</button>`;
     }).join('');
     // Sanidad→Enferma despliega el detalle de qué enfermedad es (a
     // petición de Paula, 2026-08-01).
@@ -7313,17 +7313,17 @@ function renderControlCardHTML(c, seccion){
           <button onclick="mostrarAsignarCalleControl('${c.id}')" title="Asignar calle" style="padding:5px 9px;font-size:11px;font-weight:700;background:#e8f2fd;color:#1558a0;border:1px solid #9ab8d8;border-radius:6px;cursor:pointer;white-space:nowrap">
             <i class="ti ti-map-pin" style="font-size:12px"></i>
           </button>
-          <button onclick="mostrarEditarControlCheck('${c.id}')" title="Editar" style="padding:5px 9px;font-size:11px;font-weight:700;background:#fff8e1;color:#c47f00;border:1px solid #e0c080;border-radius:6px;cursor:pointer;white-space:nowrap">
+          <button data-testid="control-edit-${c.id}" onclick="mostrarEditarControlCheck('${c.id}')" title="Editar" style="padding:5px 9px;font-size:11px;font-weight:700;background:#fff8e1;color:#c47f00;border:1px solid #e0c080;border-radius:6px;cursor:pointer;white-space:nowrap">
             <i class="ti ti-pencil" style="font-size:12px"></i>
           </button>
-          <button onclick="eliminarControlCheck('${c.id}')" title="Eliminar" style="padding:5px 9px;font-size:11px;font-weight:700;background:#fdecea;color:#c62828;border:1px solid #f0b0b0;border-radius:6px;cursor:pointer;white-space:nowrap">🗑️</button>
+          <button data-testid="control-delete-${c.id}" onclick="eliminarControlCheck('${c.id}')" title="Eliminar" style="padding:5px 9px;font-size:11px;font-weight:700;background:#fdecea;color:#c62828;border:1px solid #f0b0b0;border-radius:6px;cursor:pointer;white-space:nowrap">🗑️</button>
         </div>
       </div>
       <div style="margin-top:12px">${categoriasHTML}</div>
       <div style="margin-top:6px;display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">
         <div style="flex:1;min-width:180px">
           <div style="font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Observaciones</div>
-          <input type="text" value="${escapar(c.observaciones)}" placeholder="Sin observaciones"
+          <input data-testid="control-observations-${c.id}" type="text" value="${escapar(c.observaciones)}" placeholder="Sin observaciones"
             onchange="guardarControlObservaciones('${c.id}', this.value)"
             style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px">
         </div>
@@ -7347,7 +7347,7 @@ function renderControlCargaCardHTML(c, seccion){
   const categoriasHTML = categoriasControlPara(c.tipo, c.dia).map(cat=>{
     const opcionesHTML = cat.opciones.map(o=>{
       const activo = !!(c[cat.key] && c[cat.key][o.key]);
-      return `<button onclick="toggleControlCheckOpcion('${c.id}','${cat.key}','${o.key}')" style="padding:6px 12px;border-radius:999px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid transparent;background:${activo?cat.gradiente:cat.tinte};color:${activo?'#fff':'var(--text)'}">${activo?'✓ ':''}${o.label}</button>`;
+      return `<button data-testid="control-option-${c.id}-${cat.key}-${o.key}" onclick="toggleControlCheckOpcion('${c.id}','${cat.key}','${o.key}')" style="padding:6px 12px;border-radius:999px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid transparent;background:${activo?cat.gradiente:cat.tinte};color:${activo?'#fff':'var(--text)'}">${activo?'✓ ':''}${o.label}</button>`;
     }).join('');
     const enfermedadesHTML = (cat.key==='sanidad' && c.sanidad && c.sanidad.enferma) ? `
       <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:7px;padding-top:7px;border-top:1px dashed rgba(0,0,0,.12)">
@@ -7398,17 +7398,17 @@ function renderControlCargaCardHTML(c, seccion){
           ${esSeccionPreinjerto(c.tipo) ? bloqueTunelDePreinjertoHTML(c) : ''}
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0">
-          <button onclick="mostrarEditarControlCargaCheck('${c.id}')" title="Editar" style="padding:5px 9px;font-size:11px;font-weight:700;background:#fff8e1;color:#c47f00;border:1px solid #e0c080;border-radius:6px;cursor:pointer;white-space:nowrap">
+          <button data-testid="control-edit-${c.id}" onclick="mostrarEditarControlCargaCheck('${c.id}')" title="Editar" style="padding:5px 9px;font-size:11px;font-weight:700;background:#fff8e1;color:#c47f00;border:1px solid #e0c080;border-radius:6px;cursor:pointer;white-space:nowrap">
             <i class="ti ti-pencil" style="font-size:12px"></i>
           </button>
-          <button onclick="eliminarControlCheck('${c.id}')" title="Eliminar" style="padding:5px 9px;font-size:11px;font-weight:700;background:#fdecea;color:#c62828;border:1px solid #f0b0b0;border-radius:6px;cursor:pointer;white-space:nowrap">🗑️</button>
+          <button data-testid="control-delete-${c.id}" onclick="eliminarControlCheck('${c.id}')" title="Eliminar" style="padding:5px 9px;font-size:11px;font-weight:700;background:#fdecea;color:#c62828;border:1px solid #f0b0b0;border-radius:6px;cursor:pointer;white-space:nowrap">🗑️</button>
         </div>
       </div>
       <div style="margin-top:12px">${categoriasHTML}</div>
       <div style="margin-top:6px;display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">
         <div style="flex:1;min-width:180px">
           <div style="font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Observaciones</div>
-          <input type="text" value="${escapar(c.observaciones)}" placeholder="Sin observaciones"
+          <input data-testid="control-observations-${c.id}" type="text" value="${escapar(c.observaciones)}" placeholder="Sin observaciones"
             onchange="guardarControlObservaciones('${c.id}', this.value)"
             style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px">
         </div>
@@ -11024,10 +11024,10 @@ function renderRiegoQuincenaBar(){
   const bar = document.getElementById('riego-quincena-bar');
   if(!bar) return;
   bar.innerHTML = `
-    <button onclick="changeRiegoQuincena(-1)" ${riegoQuincenaOffset<=0?'disabled style="opacity:.35;cursor:default"':''}
+    <button data-testid="riego-quincena-previous" onclick="changeRiegoQuincena(-1)" ${riegoQuincenaOffset<=0?'disabled style="opacity:.35;cursor:default"':''}
       style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:5px;width:22px;height:22px;cursor:pointer;font-size:13px;line-height:1">&#8249;</button>
-    <span style="font-size:11px;font-weight:700">Quincena ${riegoQuincenaOffset+1} &middot; ${riegoQuincenaLabel(riegoQuincenaOffset)}</span>
-    <button onclick="changeRiegoQuincena(1)"
+    <span data-testid="riego-quincena-label" style="font-size:11px;font-weight:700">Quincena ${riegoQuincenaOffset+1} &middot; ${riegoQuincenaLabel(riegoQuincenaOffset)}</span>
+    <button data-testid="riego-quincena-next" onclick="changeRiegoQuincena(1)"
       style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:5px;width:22px;height:22px;cursor:pointer;font-size:13px;line-height:1">&#8250;</button>
   `;
 }
