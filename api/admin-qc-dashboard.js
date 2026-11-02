@@ -156,7 +156,7 @@ function buildDashboard(raw,rawRules,filters,legacyRecords=[]){
   const partitions={tunel:{records:0,completed:0,pending:0,measured:0,
       bandejas:0,percentSum:0,percentCount:0,warnings:0,critical:0,flagged:0},
     carga:{records:0,completed:0,pending:0,measured:0,
-      bandejas:0,warnings:0,critical:0,flagged:0}};
+      bandejas:0,percentSum:0,percentCount:0,warnings:0,critical:0,flagged:0}};
   const options={},weekly=new Map(),rows=[],batches=new Set(),measuredBatches=new Set();
   let measured=0,completed=0,warningCount=0,criticalCount=0,flaggedCount=0,percentSum=0,percentCount=0;
   let pendingCriteriaCount=0,invalidCount=0,unmatchedCount=0,inspectedAcrossRecords=0;
