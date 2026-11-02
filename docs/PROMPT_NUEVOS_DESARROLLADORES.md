@@ -1,4 +1,7 @@
 # Prompt de desarrollo para nuevos desarrolladores — ViguerAPP / APP R
+ 
+
+**Para incorporar desarrolladores con Claude, el contrato obligatorio y autocontenido es [PROMPT_CLAUDE_DEV_ARRANQUE.md](./PROMPT_CLAUDE_DEV_ARRANQUE.md). Empezar por él en modo solo lectura; ninguna edición está autorizada al arrancar.**
 
 Antes de tocar código, lee `docs/APP_R_V3_ESTADO_MAESTRO.md` en la rama `dev/v1.0` y confirma el estado real del repositorio, la rama y el diff. Ese documento recoge el contexto funcional vigente; contrástalo con el código actual y no conviertas notas históricas en tareas actuales.
 
