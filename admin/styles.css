@@ -159,3 +159,32 @@ td:last-child{text-align:right}
 .users-page .operation-feedback{background:#f0f7ff;border-color:#bdd7f5;color:#155caa}
 .users-page .operation-feedback.error{background:#fff1f1;border-color:#edb5b5;color:#a32121}
 @media(max-width:690px){.users-page .topbar{min-height:50px;height:50px}.users-page .stats{grid-template-columns:repeat(2,minmax(0,1fr))}.users-page .stat{min-height:75px}.users-page .content{padding-top:14px}.users-page .page-head{flex-direction:row;align-items:center}.users-page .page-head .button{padding:9px 11px}.users-page .modal-heading{padding:16px 19px 6px}.users-page .modal-desc{padding:0 19px}.users-page #user-form{padding:0 19px 18px}}
+
+/* Backoffice TEST · móvil: navegación horizontal accesible sin modificar formularios. */
+@media (max-width:690px){
+  .sidebar .sidebar-nav{
+    display:flex;
+    flex-direction:row;
+    overflow-x:auto;
+    overscroll-behavior-x:contain;
+    gap:5px;
+    padding:8px 0 7px;
+    -webkit-overflow-scrolling:touch;
+    scrollbar-width:thin;
+  }
+  .sidebar .sidebar-nav .sidebar-label{display:none}
+  .sidebar .sidebar-nav .nav-item{
+    flex:0 0 auto;
+    min-height:38px;
+    white-space:nowrap;
+    margin:0;
+    padding:8px 11px;
+    font-size:12px;
+    border:1px solid #dfebf8;
+  }
+  .sidebar .sidebar-nav .nav-item.selected{
+    background:#e8f2ff;
+    color:#1558a0;
+    border-color:#92bceb;
+  }
+}
