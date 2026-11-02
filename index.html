@@ -12269,6 +12269,7 @@ function renderRiegoGrid(invId){
                 <input type="text"
                   value="${br.text.replace(/"/g,'&quot;')}"
                   data-rinv="${invId}" data-dia="${dia}" data-rc="${br.calles.join(',')}"
+                  readonly
                   onchange="${onchangeAttr}"
                   ondblclick="editarRiegoManualDesdeCelda('${invId}',${dia},[${br.calles.join(',')}])"
                   onmousedown="dragCalleStart('riego','${invId}',${dia},${br.calles[0]})"
@@ -12303,6 +12304,7 @@ function renderRiegoGrid(invId){
                 <span style="font-size:${Math.min(11,fontSize+1)}px;font-weight:900;color:${colorBracket};margin-right:1px;flex-shrink:0;line-height:1.3">[</span>
                 <textarea rows="${esPantallaMovil()?3:2}"
                   data-rinv="${invId}" data-dia="${dia}" data-rc="${br.calles.join(',')}"
+                  readonly
                   onchange="${onchangeAttr}"
                   ondblclick="editarRiegoManualDesdeCelda('${invId}',${dia},[${br.calles.join(',')}])"
                   onmousedown="dragCalleStart('riego','${invId}',${dia},${br.calles[0]})"
@@ -12328,6 +12330,7 @@ function renderRiegoGrid(invId){
               value="${val.replace(/"/g,'&quot;')}"
               placeholder=""
               data-rinv="${invId}" data-dia="${dia}" data-rc="${calle}"
+              readonly
               onchange="setRiegoUndo('${invId}',${dia},${calle},this.value);renderRiegoGrid('${invId}')"
               onmousedown="dragCalleStart('riego','${invId}',${dia},${calle})"
               onmouseenter="dragCalleOver('riego','${invId}',${dia},${calle})"
@@ -13708,7 +13711,25 @@ function toggleRmBulkSala(salaChk){
 function leerRmBulkInvsSeleccionados(){
   return Array.from(document.querySelectorAll('.rmb-inv-chk:checked')).map(el=>el.value);
 }
+function guardarRmBulkConfigDesdeDOM(){
+  Object.keys(rmBulkConfig).forEach(invId=>{
+    const cfg = rmBulkConfig[invId];
+    if(cfg.modo==='tramo'){
+      const filas = document.querySelectorAll(`#rmb-tramos-${invId} .rmb-tramo-row`);
+      if(filas.length) cfg.tramos = leerRmBulkTramosDesdeDOM(invId);
+    } else if(cfg.modo==='entero_menos'){
+      const selects = document.querySelectorAll(`#rmb-detalle-${invId} select`);
+      if(selects.length>=2){
+        cfg.excluir = {
+          desde: parseInt(selects[0].value,10),
+          hasta: parseInt(selects[1].value,10)
+        };
+      }
+    }
+  });
+}
 function toggleRmBulkInv(){
+  guardarRmBulkConfigDesdeDOM();
   const seleccionados = leerRmBulkInvsSeleccionados();
   Object.keys(rmBulkConfig).forEach(id=>{ if(!seleccionados.includes(id)) delete rmBulkConfig[id]; });
   seleccionados.forEach(id=>{ if(!rmBulkConfig[id]) rmBulkConfig[id] = {modo:'entero', excluir:{desde:null,hasta:null}, tramos:[]}; });
@@ -13737,6 +13758,7 @@ function renderRmBulkPanels(){
   ids.forEach(invId=>renderRmBulkDetalle(invId));
 }
 function cambiarRmBulkModo(invId, modo){
+  guardarRmBulkConfigDesdeDOM();
   rmBulkConfig[invId].modo = modo;
   renderRmBulkDetalle(invId);
 }
@@ -14575,6 +14597,20 @@ async function saveRiegoManual(){
     if(!textoCompleto){ showToast('Rellena al menos un campo de riego o de trabajo'); return; }
     const invIds = leerRmBulkInvsSeleccionados();
     if(!invIds.length){ showToast('Elige al menos un invernadero'); return; }
+    for(const invId of invIds){
+      const cfg = rmBulkConfig[invId];
+      if(cfg?.modo!=='tramo') continue;
+      const allCalles = callesOrdenadasInv(invId);
+      const tramos = leerRmBulkTramosDesdeDOM(invId);
+      const tramoInvalido = tramos.some(({desde,hasta}) =>
+        !Number.isInteger(desde) || !Number.isInteger(hasta) ||
+        !allCalles.includes(desde) || !allCalles.includes(hasta) || desde>hasta
+      );
+      if(tramoInvalido){
+        showToast(`El tramo de calles de INV ${invId} es inválido: revisa que Desde sea menor o igual que Hasta.`);
+        return;
+      }
+    }
     const contextoOriginal = rmEditContextoOriginal;
     rmEditContextoOriginal = null;
     // Las tareas de peón YA NO se crean/actualizan aquí automáticamente en
@@ -14906,10 +14942,12 @@ function guardarPostItRiego(){
   const nota = document.getElementById('rm-postit-texto').value.trim();
   if(!nota){ showToast('Escribe algo en la nota'); return; }
   document.getElementById('riego-postit-overlay').style.display = 'none';
+  const {textoCompleto} = construirPartesRiegoManual();
+  const texto = textoCompleto ? `${textoCompleto} + * ${nota}` : `* ${nota}`;
   const dia = parseInt(document.getElementById('rm-dia').value);
   leerRmBulkInvsSeleccionados().forEach(invId=>{
     const {tramos} = calcularCallesRmBulk(invId);
-    aplicarTextoRiegoManual(invId, dia, tramos, '* '+nota);
+    aplicarTextoRiegoManual(invId, dia, tramos, texto);
   });
 }
 // Pulsar la etiqueta de un día en la cuadrícula abre el alta manual con ese

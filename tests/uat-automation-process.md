@@ -38,11 +38,21 @@ Se priorizan casos de prioridad Alta y flujos reutilizados. Una prueba puede cub
 2. Ejecutar localmente en Chromium contra la copia servida desde `127.0.0.1`, con fixtures aislados.
 3. Corregir defectos reproducibles y volver a ejecutar el caso y el lote afectado.
 4. GitHub Actions repite la suite en pull request y conserva informe, capturas y trazas de fallos.
-5. Registrar en SharePoint estado, fecha, ejecutor `Automatización CI`, comentario breve con resultado/commit y enlace al artefacto CI. No reemplazar el libro completo para modificar celdas.
+5. Registrar en SharePoint en lotes verificados: estado, fecha, ejecutor `Automatización CI`, comentario breve con resultado/commit y enlace al artefacto CI. Escribir únicamente los rangos de las filas afectadas mediante la sesión conectada de Excel; nunca reemplazar el libro completo. La autorización de trabajo cubre los lotes y no se solicita aprobación caso por caso. Si no hay una sesión Excel conectada, conservar el lote pendiente y seguir con la automatización local/CI hasta que el canal de rangos esté disponible.
 6. Si una prueba no puede ejecutarse por falta de entorno, dispositivo, usuario o expectativa objetiva, permanece pendiente con el motivo concreto.
+
+## Ciclo de trabajo en segundo plano
+
+1. Leer y clasificar el inventario UAT una vez por lote; volver a leer solo cuando cambie el libro o se actualicen estados.
+2. Priorizar flujos de alta reutilización y casos reproducibles con datos simulados. Añadir cobertura por ID, reproducir los fallos y corregir el producto cuando el resultado esperado esté claro.
+3. Ejecutar primero el módulo modificado y después la suite completa. GitHub Actions sirve de segunda ejecución y publica el informe y las trazas.
+4. Al terminar cada lote verde, preparar una única escritura agrupada en las filas correspondientes y verificar inmediatamente que los valores guardados coinciden. No se crean sesiones ni aprobaciones por cada UAT.
+5. Mantener separados los resultados automatizados simulados, los resultados de integración TEST y las verificaciones manuales; no presentar una simulación como escritura real en Firebase.
 
 ## Estado de partida
 
-La suite actual cubre UAT-001–010, UAT-019–025, UAT-028–032, UAT-067–075 y UAT-092: 32 casos UAT en 28 pruebas Playwright. La hoja ya contenía estados previos para algunos casos; las ejecuciones automatizadas se reportan como evidencia nueva, sin reescribir retrospectivamente quién los probó.
+La suite actual cubre UAT-001–010, UAT-019–025, UAT-028–032, UAT-067–081, UAT-083–092 y UAT-112: 48 casos UAT en 40 pruebas Playwright. La hoja ya contenía estados previos para algunos casos; las ejecuciones automatizadas se reportan como evidencia nueva, sin reescribir retrospectivamente quién los probó.
 
-La siguiente expansión prioriza lecturas y navegación aislables en Partidas (UAT-030–032), y después contratos de edición sobre registros desechables. Los casos de Firebase real, fotos, concurrencia, desconexión y sincronización requieren un proyecto TEST confirmado y credenciales de prueba; no se simulan como integración real. Los módulos que no existen en este checkout se registran como bloqueados por funcionalidad ausente hasta localizar el código correspondiente.
+En esta iteración UAT-076 detectó edición directa no permitida en la cuadrícula de Riego; las celdas ahora son de solo lectura y se editan desde el formulario. UAT-086 detectó que los tramos invertidos se aceptaban; ahora se bloquean y se explica cómo corregirlos. UAT-087 detectó que los tramos de otros invernaderos se perdían al cambiar la selección; el estado visible se conserva antes de reconstruir los paneles. UAT-089 confirmó que la nota adicional se sobrescribía sobre el riego; ahora se almacena junto a la programación. La suite de Riego y la suite completa se ejecutaron en verde tras los cambios.
+
+La siguiente expansión prioriza UAT-082 y UAT-093–126 de Riego, y después los módulos QC, Plaguicidas, Específicos y Tareas presentes en el código. Los casos de Firebase real, fotos, concurrencia, desconexión y sincronización requieren un proyecto TEST confirmado y credenciales de prueba; no se simulan como integración real. Los módulos que no existen en este checkout se registran como bloqueados por funcionalidad ausente hasta localizar el código correspondiente.
