@@ -1,6 +1,6 @@
 'use strict';
-// Reglas QC por estadio. CONFIGURACIÓN, sin aplicación automática a inspecciones.
-// Conserva histórico de revisiones y rechaza ediciones concurrentes (ETag + versión).
+// Configuración QC histórica: consulta de solo lectura.
+// El modelo vigente registra porcentajes por inspección y no usa scoring ni alertas.
 const {
   verifyFirebaseIdToken,serviceAccount,serviceAccessToken,readKey,validHash,httpError
 }=require('./admin-users')._adminCatalogHelpers;
@@ -15,12 +15,6 @@ const CATEGORIES=Object.freeze({
 });
 const STAGES=new Set(['tunel','carga']);
 const BEHAVIORS=new Set(['pendiente','informativo','incidencia','critico']);
-function parseBody(req){
-  let body=req.body;
-  if(typeof body==='string'){try{body=JSON.parse(body)}catch(_){throw httpError(400,'INVALID_BODY')}}
-  if(!body||typeof body!=='object'||Array.isArray(body))throw httpError(400,'INVALID_BODY');
-  return body;
-}
 function stageOf(value){
   if(!STAGES.has(value))throw httpError(400,'INVALID_STAGE');
   return value;
@@ -105,48 +99,20 @@ function stored(raw,stage){
 module.exports=async function handler(req,res){
   res.setHeader('Cache-Control','no-store');
   res.setHeader('X-Content-Type-Options','nosniff');
-  if(req.method!=='GET'&&req.method!=='POST'){
-    res.setHeader('Allow','GET, POST');
+  if(req.method!=='GET'){
+    res.setHeader('Allow','GET');
     return res.status(405).json({error:'METHOD_NOT_ALLOWED'});
   }
   try{
-    const input=req.method==='GET'?req.query:parseBody(req);
+    const input=req.query;
     const stage=stageOf(input.stage);
     const {actor,token}=await access(req,stage);
     const url=BASE+'/'+stage+'.json';
-    if(req.method==='GET'){
-      const {value}=await read(url,token,false);
-      const current=stored(value,stage);
-      return res.status(200).json({ok:true,stage,rules:current.rules,
-        revisions:current.history.length,operationalIntegration:false});
-    }
-    if(!Number.isSafeInteger(input.version)||input.version<0)
-      throw httpError(400,'INVALID_VERSION');
-    const config=validateRules(input,stage);
-    const snapshot=await read(url,token,true);
-    if(!snapshot.etag)throw new Error('Firebase ETag missing');
-    const prev=stored(snapshot.value,stage);
-    if(prev.rules.version!==input.version)
-      throw httpError(409,'CONCURRENT_MODIFICATION');
-    const now=new Date().toISOString();
-    const history=prev.history.slice(-49);
-    if(prev.rules.version>0)history.push({
-      version:prev.rules.version,umbralAptitudPct:prev.rules.umbralAptitudPct,
-      criterios:prev.rules.criterios,updatedAt:prev.rules.updatedAt,updatedBy:prev.rules.updatedBy
-    });
-    const next={schemaVersion:1,stage,version:prev.rules.version+1,
-      umbralAptitudPct:config.umbralAptitudPct,criterios:config.criterios,
-      updatedAt:now,updatedBy:actor,history};
-    const response=await fetch(url+'?print=silent',{
-      method:'PUT',headers:{Authorization:'Bearer '+token,
-        'Content-Type':'application/json','if-match':snapshot.etag},
-      body:JSON.stringify(next),signal:AbortSignal.timeout(10000)
-    });
-    if(response.status===412)throw httpError(409,'CONCURRENT_MODIFICATION');
-    if(!response.ok)throw new Error('Firebase write failed: '+response.status);
-    console.info('QC_RULES_SAVED',stage,'v'+next.version,actor);
-    return res.status(200).json({ok:true,stage,version:next.version,
-      updatedAt:now,updatedBy:actor,operationalIntegration:false});
+    const {value}=await read(url,token,false);
+    const current=stored(value,stage);
+    return res.status(200).json({ok:true,stage,rules:current.rules,
+      revisions:current.history.length,operationalIntegration:false,
+      readonly:true});
   }catch(e){
     const status=e.httpStatus||503;
     if(status===503)console.error('QC_RULES_ERROR',e.message);
