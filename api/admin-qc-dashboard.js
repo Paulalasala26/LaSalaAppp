@@ -292,6 +292,12 @@ module.exports=async function handler(req,res){
     return res.status(405).json({error:'METHOD_NOT_ALLOWED'});
   }
   try{
+    // Específicos: consulta independiente por invernadero, sin alterar QC ni Fito.
+    if(req.query?.modo==='especificos'){
+      const {token}=await verifyAdmin(req);
+      const report=await require('../lib/admin-especificos-read').query(token,req.query);
+      return res.status(200).json({ok:true,...report});
+    }
     // Plaguicidas reutiliza la API ADMIN existente: límite Hobby de 12 funciones.
     // No aplica los filtros Túnel/Carga ni lee mediciones QC.
     if(req.query?.modo==='plaguicidas'){
