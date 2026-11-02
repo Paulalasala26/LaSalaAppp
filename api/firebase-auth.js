@@ -4,6 +4,9 @@ const EXPECTED_PROJECT = 'la-sala-app-test';
 const DATABASE_URL = 'https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app';
 const USERS_KEY = 'lasala-users-v1';
 const ROLES_KEY = 'lasala-roles-v1';
+// Nunca emitir un Firebase Custom Token sin un rol operativo vigente.
+// Las reglas RTDB actuales del repositorio utilizan auth.token.appUser.
+const VALID_ROLES = new Set(['ADMIN','TECNICO','REGANTE','PEON','CARGADOR']);
 const TOKEN_AUD = 'https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit';
 const OAUTH_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const OAUTH_SCOPE = 'https://www.googleapis.com/auth/firebase.database https://www.googleapis.com/auth/userinfo.email';
@@ -102,7 +105,7 @@ function createFirebaseCustomToken(sa, user, role) {
     uid: uidForUser(user),
     claims: {
       appUser: user,
-      role: role || 'SIN_ROL'
+      role
     }
   });
 }
@@ -139,9 +142,11 @@ module.exports = async function handler(req, res) {
       return res.status(401).json({ error: 'INVALID_CREDENTIALS' });
     }
 
-    const role = roles && typeof roles === 'object' && typeof roles[user] === 'string'
-      ? roles[user]
-      : null;
+    const role = roles && typeof roles === 'object' && !Array.isArray(roles) &&
+      Object.prototype.hasOwnProperty.call(roles,user) ? roles[user] : null;
+    if (!VALID_ROLES.has(role)) {
+      return res.status(401).json({ error: 'INVALID_CREDENTIALS' });
+    }
 
     return res.status(200).json({
       customToken: createFirebaseCustomToken(sa, user, role),
