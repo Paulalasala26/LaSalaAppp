@@ -7,11 +7,6 @@
   const RETURN_FILTERS='lasala-backoffice-qc-dashboard-filtros-v1';
   const ENDPOINT='/api/admin-qc-dashboard';
   const START='2026-06-15';
-  const TREATMENTS={
-    pendiente:'Sin definir',informativo:'Informativo',
-    incidencia:'Incidencia',critico:'Crítico'
-  };
-  const CAT_ORDER=['color','tamano','sanidad','flores','raices'];
   const el=id=>document.getElementById(id);
   let busy=false;
   const formatInt=n=>Number(n).toLocaleString('es-ES');
@@ -92,21 +87,10 @@
     metric(root,formatInt(v.completed),'Checks completados');
     metric(root,formatInt(v.pending),'Checks pendientes');
     metric(root,formatInt(v.partidas),'Partidas distintas');
-    metric(root,formatInt(v.measured),'Controles con mediciones');
-    metric(root,v.percentAverage===null?'—':formatPct(v.percentAverage),'Media de índices QC globales');
-    // Se retira el agregado de bandejas: no pertenece al modelo QC porcentual.
-    metric(root,formatInt(v.flaggedCount),'Controles medidos con alerta');
-    metric(root,v.measured&&v.hasConfiguredRules?formatInt(v.warningCount):'—','Advertencias en mediciones');
-    metric(root,v.measured&&v.hasConfiguredRules?formatInt(v.criticalCount):'—','Alertas prioritarias en mediciones');
-    root.parentElement.querySelectorAll('.qcd-pending-info').forEach(x=>x.remove());
-    if(v.pendingRecordCount){
-      const p=node('p',formatInt(v.pendingRecordCount)+
-        ' controles cuantificados tienen alguna opción sin tratamiento definido.',
-        'qcd-desc qcd-pending-info');
-      root.after(p);
-    }
+    metric(root,formatInt(v.registeredPercentages),'Controles con porcentaje');
+    metric(root,formatInt(v.withoutPercentage),'Controles sin porcentaje');
   }
-  function renderStages(data){
+    function renderStages(data){
     const root=el('qcd-stages');root.replaceChildren();
     let shown=0;
     for(const type of ['tunel','carga']){
@@ -116,55 +100,30 @@
       const row=node('tr');
       for(const val of [
         stageName(type),formatInt(v.records),formatInt(v.completed),
-        formatInt(v.measured),v.percentCount?formatPct(Math.floor(v.percentSum/v.percentCount)):'—',
-        v.measured&&data.stats.hasConfiguredRules?formatInt(v.warnings):'—',
-        v.measured&&data.stats.hasConfiguredRules?formatInt(v.critical):'—'
+        formatInt(v.registeredPercentages)
       ])cell(row,val);
       root.append(row);shown++;
     }
-    if(!shown)emptyRow(root,7,'Sin estadios para mostrar.');
+    if(!shown)emptyRow(root,4,'Sin estadios para mostrar.');
   }
-  function renderTrend(data){
+    function renderTrend(data){
     const root=el('qcd-trend');root.replaceChildren();
     if(!data.trend.length){
       root.append(node('p','No hay controles registrados en este periodo.','qcd-desc'));
       return;
     }
-    for(const w of data.trend){
+    for(const week of data.trend){
       const wrap=node('div',null,'qcd-barline');
-      const label=node('span',readableDate(w.weekStart));
-      const track=node('div',null,'qcd-track'),bar=node('div',null,'qcd-fill');
-      const share=w.records?Math.min(100,100*w.measured/w.records):0;
-      bar.style.width=share+'%';
-      bar.title=w.measured+' de '+w.records+' controles con mediciones cuantitativas';
-      track.append(bar);
-      const caption=node('span',w.measured+' / '+w.records+
-        ' · '+(w.records?Math.round(100*w.measured/w.records):0)+' %');
-      caption.title=w.measured?w.flagged+' de '+w.measured+' controles cuantificados con alguna alerta':'Sin mediciones cuantitativas';
-      wrap.append(label,track,caption);root.append(wrap);
+      wrap.append(
+        node('span',readableDate(week.weekStart)),
+        node('span',formatInt(week.registeredPercentages)+' controles con porcentaje'),
+        node('span',formatInt(week.records)+' registrados')
+      );
+      root.append(wrap);
     }
   }
-  function renderOptions(data){
-    const root=el('qcd-options');root.replaceChildren();
-    const rows=(data.options||[]).filter(x=>x.recordCount>0)
-      .sort((a,b)=>a.type.localeCompare(b.type)||CAT_ORDER.indexOf(a.category)-CAT_ORDER.indexOf(b.category)||
-        b.affected-a.affected);
-    if(!rows.length){emptyRow(root,7,'Sin características cuantificadas.');return}
-    for(const x of rows){
-      const tr=node('tr');
-      for(const text of [
-        stageName(x.type),x.categoryLabel+' · '+x.label,
-        formatInt(x.affected)+' / '+formatInt(x.inspected),
-        formatPct(x.percent),TREATMENTS[x.treatment]||'Sin definir',
-        x.tolerance===null?'—':formatPct(x.tolerance)
-      ])cell(tr,text);
-      const alerts=x.warningRecords+x.criticalRecords;
-      cell(tr,alerts?formatInt(x.warningRecords)+' advert. · '+formatInt(x.criticalRecords)+' prior.':'—',
-        x.criticalRecords?'qcd-mark critical':x.warningRecords?'qcd-mark warning':'qcd-muted');
-      root.append(tr);
-    }
-  }
-  function openFicha(row){
+  
+    function openFicha(row){
     if(!row||!['tunel','carga'].includes(row.tipo)||!
       Number.isInteger(row.dia)||typeof row.id!=='string'||!
       /^[A-Za-z0-9_-]{1,180}$/.test(row.id))return;
@@ -179,16 +138,18 @@
     el('qcd-count').textContent=formatInt(data.totalRows)+
       ' controles en el filtro · mostrando '+formatInt(data.shownRows)+
       ' (máximo 150 por consulta). El mismo nº de partida puede aparecer varias veces.';
-    if(!data.records.length){emptyRow(root,9,'No hay controles de Túnel/Carga en el periodo seleccionado.');return;}
+    if(!data.records.length){
+      emptyRow(root,7,'No hay controles de Túnel/Carga en el periodo seleccionado.');
+      return;
+    }
     for(const row of data.records){
       const tr=node('tr');
       for(const value of [
         readableDate(row.date),stageName(row.tipo),row.partida,
         row.done?'Completado':'Pendiente',
-        row.quantified?'Evaluado':'Sin evaluación',
-        row.porcentajeInvalidasGlobal==null?'Histórico':formatPct(row.porcentajeInvalidasGlobal),
-        row.quantified?formatInt(row.warningCount):'—',
-        row.quantified?formatInt(row.criticalCount):'—'
+        row.porcentajeInvalidasGlobal!==null?'Registrado':
+          row.quantified?'Histórico sin porcentaje':'Sin registrar',
+        row.porcentajeInvalidasGlobal===null?'—':formatPct(row.porcentajeInvalidasGlobal)
       ])cell(tr,value);
       const td=node('td');
       const button=node('button','Abrir QC','qcd-rowbutton');button.type='button';
@@ -196,25 +157,21 @@
       td.append(button);tr.append(td);root.append(tr);
     }
   }
-  function render(data){
-    if(!data.ok||data.scope!=='legacy-and-quantified'||!data.stats||
-      !Array.isArray(data.trend)||!Array.isArray(data.options)||!Array.isArray(data.records))
+    function render(data){
+    if(!data.ok||data.scope!=='registered-percentages'||!data.stats||
+       !Array.isArray(data.trend)||!Array.isArray(data.records))
       throw new Error('INVALID_RESPONSE');
-    renderStats(data);renderStages(data);renderTrend(data);
-    renderOptions(data);renderRecords(data);
+    renderStats(data);renderStages(data);renderTrend(data);renderRecords(data);
     el('qcd-results').hidden=false;
     if(data.invalidExcluded>0||data.unmatchedMeasurements>0){
       message('Mediciones excluidas: '+formatInt(data.invalidExcluded+data.unmatchedMeasurements)+'.',true);
     }else if(data.stats.records===0){
       message('Sin controles en estas fechas.',false);
-    }else if(data.stats.measured===0){
-      message('Hay '+formatInt(data.stats.records)+
-        ' controles históricos, pero ninguno tiene todavía mediciones cuantitativas en este período.',false);
-    }else if(!data.stats.hasConfiguredRules){
-      message('Las mediciones existen; todavía no hay criterios configurados para generar alertas.',false);
+    }else if(data.stats.registeredPercentages===0){
+      message('No hay porcentajes registrados para los controles de este período.',false);
     }else message('',false);
   }
-  async function query(e){
+    async function query(e){
     if(e)e.preventDefault();
     if(busy)return;
     let opts;
@@ -239,7 +196,7 @@
       }else{
         message(error.message==='INVALID_FILTER'?'Comprueba las fechas y filtros de la consulta.':
           error.message==='INVALID_RESPONSE'?'El servidor ha devuelto un resumen incompleto.':
-          'Error al consultar indicadores.',true);
+          'Error al consultar porcentajes QC.',true);
       }
     }finally{busy=false;el('qcd-query').disabled=false;}
   }
