@@ -1,5 +1,5 @@
 'use strict';
-/* Backoffice QC: catálogo de reglas por estadio, independiente del cálculo operativo. */
+/* Backoffice QC: consulta histórica de reglas retiradas. Sin edición ni scoring. */
 (function(){
 const AUTH_STORE='lasala-firebase-auth-v1';
 const API_KEY='AIzaSyDdDdMg6M1jVIssvGYKsdRA-mRug31Yt_g';
@@ -16,7 +16,7 @@ const BEHAVIORS=[
   ['incidencia','Incidencia'],['critico','Crítico (alerta prioritaria)']
 ];
 const byId=id=>document.getElementById(id);
-let stage='tunel',rules=null,busy=false,loaded=false,baseline='';
+let stage='tunel',busy=false;
 function node(tag,txt,cls){
   const el=document.createElement(tag);
   if(txt!==null&&txt!==undefined)el.textContent=String(txt);
@@ -72,28 +72,25 @@ function build(){
       const row=node('div',null,'qcr-row');
       row.append(node('span',label));
       const select=node('select');
+      select.disabled=true;
       select.dataset.cat=category;select.dataset.option=option;select.dataset.kind='behavior';
       select.setAttribute('aria-label',name+' / '+label+' / tratamiento');
       for(const [key,display] of BEHAVIORS){
         const opt=node('option',display);opt.value=key;select.append(opt);
       }
       const tolerance=node('input');tolerance.type='number';tolerance.min='0';
+      tolerance.disabled=true;
       tolerance.max='100';tolerance.step='0.01';tolerance.inputMode='decimal';
       tolerance.placeholder='—';tolerance.dataset.cat=category;
       tolerance.dataset.option=option;tolerance.dataset.kind='tolerance';
       tolerance.setAttribute('aria-label',name+' / '+label+' / tolerancia (%)');
-      select.addEventListener('change',()=>{
-        const disabled=select.value==='pendiente';
-        tolerance.disabled=disabled;
-        if(disabled)tolerance.value='';
-      });
       row.append(select,tolerance);panel.append(row);
     }
     root.append(panel);
   }
 }
 function view(r){
-  rules=r;loaded=true;
+  // Mostrar snapshot histórico; nunca habilitar edición.
   byId('qcr-threshold').value=r.umbralAptitudPct===null?'':String(r.umbralAptitudPct);
   for(const [category,unused,options] of CATEGORIES){
     for(const [option] of options){
@@ -102,42 +99,16 @@ function view(r){
       const behavior=input(category,option,'behavior');
       const tolerance=input(category,option,'tolerance');
       behavior.value=setting.tratamiento;
-      tolerance.disabled=setting.tratamiento==='pendiente';
+      behavior.disabled=true;
+      tolerance.disabled=true;
       tolerance.value=setting.toleranciaPct===null?'':String(setting.toleranciaPct);
     }
   }
   byId('qcr-version').textContent=r.version?'Versión '+r.version+' · actualizado por '+(r.updatedBy||'—'):'Sin configuración guardada';
-  baseline=JSON.stringify(collect());
-}
-function percentage(inputElement){
-  const s=inputElement.value.trim();
-  if(!s)return null;
-  if(!/^(?:\d{1,3})(?:\.\d{1,2})?$/.test(s))throw new Error('Porcentaje no válido: introduce entre 0 y 100 con un máximo de dos decimales.');
-  const n=Number(s);
-  if(!Number.isFinite(n)||n<0||n>100)throw new Error('El porcentaje debe estar entre 0 y 100.');
-  return n;
-}
-function collect(){
-  const data={umbralAptitudPct:percentage(byId('qcr-threshold')),criterios:{}};
-  for(const [category,unused,options] of CATEGORIES){
-    data.criterios[category]={};
-    for(const [option,label] of options){
-      const behavior=input(category,option,'behavior');
-      const tolerance=input(category,option,'tolerance');
-      if(!BEHAVIORS.some(([id])=>id===behavior.value))throw new Error('Tratamiento no válido.');
-      const value=behavior.value==='pendiente'?null:percentage(tolerance);
-      data.criterios[category][option]={tratamiento:behavior.value,toleranciaPct:value};
-    }
-  }
-  return data;
-}
-function dirty(){
-  if(!loaded)return false;
-  try{return JSON.stringify(collect())!==baseline}catch(e){return true}
 }
 async function load(nextStage){
   if(busy)return false;
-  busy=true;byId('qcr-save').disabled=true;byId('qcr-stage').disabled=true;
+  busy=true;byId('qcr-stage').disabled=true;
   status('Cargando criterios…','');
   try{
     const jwt=await token();
@@ -159,55 +130,15 @@ async function load(nextStage){
     else status('No se ha podido cargar la configuración. Inténtalo de nuevo.','error');
     return false;
   }finally{
-    busy=false;byId('qcr-save').disabled=false;byId('qcr-stage').disabled=false;
+    busy=false;byId('qcr-stage').disabled=false;
   }
-}
-async function save(e){
-  e.preventDefault();
-  status('Los criterios anteriores son de solo consulta y no se utilizan para evaluar el QC porcentual.','');
-  return;
-  if(busy||!rules||!loaded)return;
-  let values;
-  try{values=collect()}catch(error){status(error.message,'error');return}
-  if(JSON.stringify(values)===baseline){status('','');return}
-  busy=true;byId('qcr-save').disabled=true;byId('qcr-stage').disabled=true;
-  status('Guardando…','');
-  try{
-    const jwt=await token();
-    const response=await fetch(ENDPOINT,{
-      method:'POST',headers:{Authorization:'Bearer '+jwt,'Content-Type':'application/json'},
-      body:JSON.stringify({stage,version:rules.version,...values}),cache:'no-store'
-    });
-    const result=await response.json().catch(()=>({}));
-    if(response.status===409)throw new Error('CONFLICT');
-    if(!response.ok||!result.ok||!Number.isInteger(result.version))throw new Error('SAVE_FAILED');
-    rules={...rules,...values,version:result.version,
-      updatedAt:result.updatedAt,updatedBy:result.updatedBy};
-    baseline=JSON.stringify(values);
-    byId('qcr-version').textContent='Versión '+rules.version+' · actualizado por '+rules.updatedBy;
-    status('✓ Guardado','success');
-    setTimeout(()=>{
-      if(byId('qcr-feedback').textContent==='✓ Guardado')status('','');
-    },2500);
-  }catch(err){
-    status(err.message==='CONFLICT'?
-      'Conflicto de edición. Recarga antes de guardar.':
-      'Guardado sin confirmar. Revisa la versión antes de reintentar.','error');
-  }finally{busy=false;byId('qcr-save').disabled=false;byId('qcr-stage').disabled=false}
 }
 async function start(){
   build();
-  byId('qcr-form').addEventListener('submit',save);
   byId('qcr-stage').addEventListener('change',async()=>{
     const next=byId('qcr-stage').value;
     if(next===stage)return;
-    if(dirty()&&!confirm('Hay cambios sin guardar en este estadio. ¿Descartarlos?')){
-      byId('qcr-stage').value=stage;return;
-    }
     if(!(await load(next)))byId('qcr-stage').value=stage;
-  });
-  window.addEventListener('beforeunload',e=>{
-    if(dirty()){e.preventDefault();e.returnValue='';}
   });
   try{
     byId('session-user').textContent=await verifyAdmin(await token());
