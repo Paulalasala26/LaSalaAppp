@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#1558a0">
+<title>ViguerAPP · Backoffice · Avisos</title>
+<link rel="icon" type="image/png" href="../icon-192.png?v=ls-20261029">
+<link rel="stylesheet" href="./styles.css"><link rel="stylesheet" href="./catalog.css">
+<style>
+.av-main{max-width:1300px}.av-panel{background:#fff;border:1px solid #d6e4f2;border-radius:11px;padding:16px;margin:13px 0}
+.av-note{font-size:12px;color:#536b84;line-height:1.65;margin:6px 0 14px}
+.av-form{display:grid;grid-template-columns:minmax(140px,1fr) minmax(140px,1fr) minmax(140px,1fr) minmax(170px,1.5fr) auto;gap:11px;align-items:end}
+.av-form label{display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:750;color:#335d7d;min-width:0}
+.av-form input,.av-form select{min-height:40px;min-width:0;width:100%;background:white;border:1px solid #b9d0e6;border-radius:8px;color:#17486d;padding:8px 10px}
+.av-form button{min-height:40px}
+.av-stats{display:flex;flex-wrap:wrap;gap:11px}.av-stat{min-width:175px;flex:1;padding:12px 16px;background:#f3f8fe;border:1px solid #dae7f3;border-radius:9px}
+.av-stat strong{display:block;font-size:23px;color:#1558a0}.av-stat span{font-size:12px;color:#506f87}
+.av-scroll{overflow-x:auto}.av-table{border-collapse:collapse;width:100%;min-width:1000px;font-size:12px}
+.av-table th,.av-table td{padding:10px 11px;vertical-align:top;text-align:left;border-bottom:1px solid #eaf0f7;color:#2e506b}
+.av-table th{background:#f5f9fe;color:#386182}
+.av-message{min-width:220px;max-width:400px;white-space:pre-wrap;overflow-wrap:anywhere}
+.av-message strong{display:block;color:#194d7b}
+.av-message small{display:block;color:#657e93;margin-top:4px}
+.av-wrap{max-width:235px;overflow-wrap:anywhere}.av-nowrap{white-space:nowrap}
+.av-alert{background:#eff6ff;border:1px solid #d2e2f4;padding:11px 13px;border-radius:9px;color:#234f79;font-size:12px;margin:13px 0}
+.av-alert.error{background:#fff4f4;border-color:#efcece;color:#932b2b}
+.av-empty{font-size:12px;color:#657c91;padding:17px}
+@media(max-width:1000px){.av-form{grid-template-columns:repeat(2,minmax(0,1fr))}.av-form button{grid-column:1/-1}}
+@media(max-width:550px){.av-form{grid-template-columns:1fr}.av-panel{padding:12px}}
+</style>
+<script src="./avisos.js" defer></script>
+</head>
+<body>
+<div id="access-gate" class="access-gate" role="status" aria-live="polite">
+ <div class="access-panel"><div class="brand-mark"><img src="../icon-192.png?v=ls-20261029" alt=""></div>
+  <h1 id="gate-title">Comprobando acceso</h1>
+  <p id="gate-description">Verificando sesión de administrador…</p>
+  <a href="./" class="primary-link" id="gate-link" hidden>Volver al Backoffice</a>
+ </div>
+</div>
+<div class="shell" id="workspace" hidden>
+ <aside class="sidebar" aria-label="Navegación Backoffice">
+  <div class="brand"><div class="brand-mark"><img src="../icon-192.png?v=ls-20261029" alt=""></div><div><strong>La Sala</strong><span>Backoffice</span></div></div>
+  <nav class="sidebar-nav">
+   <a class="nav-item" href="./"><span class="nav-symbol">◉</span> Usuarios</a>
+   <a class="nav-item" href="./control.html"><span class="nav-symbol">◫</span> Control de calidad</a>
+   <a class="nav-item" href="./partidas.html"><span class="nav-symbol">▦</span> Partidas</a>
+   <a class="nav-item" href="./plaguicidas.html"><span class="nav-symbol">◈</span> Plaguicidas</a>
+   <a class="nav-item" href="./especificos.html"><span class="nav-symbol">◎</span> Específicos</a>
+   <a class="nav-item" href="./tareas.html"><span class="nav-symbol">☷</span> Tareas</a>
+   <a class="nav-item selected" aria-current="page" href="./avisos.html"><span class="nav-symbol">♧</span> Avisos</a>
+  </nav>
+  <div class="sidebar-footer"><a href="../">← Volver a ViguerAPP</a></div>
+ </aside>
+ <div class="main-area">
+  <header class="topbar"><div class="breadcrumbs">Backoffice <span>/</span> Avisos</div><div class="topbar-right"><span id="session-user" class="session-user">Administrador</span></div></header>
+  <main class="content av-main">
+   <div class="page-head"><h1>Avisos · Consulta administrativa</h1></div>
+   <p class="av-note">Solo se muestran avisos actualmente conservados en la aplicación. Cada destinatario tiene su propia lista (máximo 30 avisos recientes al crear); algunos avisos se eliminan al consultarlos o evaluarlos. Por tanto, <strong>no es un histórico completo</strong>. Esta pantalla no marca como leído, no resuelve ni envía notificaciones.</p>
+   <section class="av-panel" aria-label="Filtros de avisos">
+    <form id="av-form" class="av-form">
+     <label>Destinatario<input id="av-user" type="search" maxlength="60" placeholder="Todos los usuarios" autocomplete="off"></label>
+     <label>Tipo<select id="av-type"><option value="todos">Todos</option><option value="problema_ejecucion">Problema de ejecución</option><option value="otros">Otros avisos</option></select></label>
+     <label>Estado<select id="av-state"><option value="todos">Todos</option><option value="sin_leer">Sin leer</option><option value="leidos">Leídos</option><option value="pendiente_solucion">Pendiente de solución</option><option value="resueltos">Problemas resueltos</option><option value="evaluados">Evaluados</option></select></label>
+     <label>Buscar<input id="av-search" type="search" maxlength="80" placeholder="Título, mensaje, solución…" autocomplete="off"></label>
+     <button id="av-query" class="button primary" type="submit">Consultar</button>
+    </form>
+   </section>
+   <p id="av-feedback" class="av-alert" role="status" aria-live="polite" hidden></p>
+   <section id="av-results" hidden>
+    <div id="av-stats" class="av-stats" aria-label="Resumen de avisos"></div>
+    <section class="av-panel">
+     <h2>Avisos conservados</h2>
+     <p id="av-count" class="av-note"></p>
+     <div class="av-scroll">
+      <table class="av-table">
+       <thead><tr><th>Fecha</th><th>Destinatario</th><th>Aviso</th><th>Tipo</th><th>Visto / Leído</th><th>Evaluación / solución</th><th>Referencia</th></tr></thead>
+       <tbody id="av-body"></tbody>
+      </table>
+     </div>
+    </section>
+   </section>
+  </main>
+ </div>
+</div>
+</body></html>
