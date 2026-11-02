@@ -7,7 +7,7 @@
   const PDF_WORKER='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   const byId=id=>document.getElementById(id);
   const fmt=value=>Number(value||0).toLocaleString('es-ES',{maximumFractionDigits:2});
-  let busy=false;
+  let busy=false,preview=null,sourceName='';
 
   function status(message,error){
     const el=byId('gs-status');
@@ -97,19 +97,21 @@
     const name=document.createElement('span');name.textContent=label;
     div.append(val,name);parent.appendChild(div);
   }
-  function render(data,file){
-    const m=byId('gs-metrics');m.replaceChildren();
-    metric(m,'Partidas distintas',data.resumen.partidas);
-    metric(m,'Partes de actuación',data.resumen.partes);
-    metric(m,'Plantas en partes (no stock)',data.resumen.plantasEnPartes);
-    metric(m,'Bandejas en partes (no stock)',data.resumen.bandejasEnPartes);
-    byId('gs-source').textContent='Archivo local: '+file.name+' · No se ha guardado ni enviado a Firebase.';
-    const errors=byId('gs-errors');
-    errors.hidden=!data.errores.length;
-    errors.textContent=data.errores.length?'Advertencias de lectura: '+data.errores.join(' '):'';
+  function filtered(){
+    return preview?window.GSAdminTools.filterPartidas(preview.partidas,byId('gs-filter').value):[];
+  }
+  function renderPartidas(partidas){
     const list=byId('gs-parties');list.replaceChildren();
+    const total=preview?.partidas.length||0;
+    byId('gs-filtercount').textContent='Mostrando '+partidas.length+' de '+total+' partidas del PDF.';
+    byId('gs-export').disabled=partidas.length===0;
+    if(!partidas.length){
+      const empty=document.createElement('p');empty.className='gs-empty';
+      empty.textContent='No hay partidas que coincidan con esta búsqueda.';
+      list.append(empty);return;
+    }
     const heads=['Nº Parte','TSI','Nº Plantas','Nº Bandejas','Localización GS','Fec. entrada','Hora','Salida prevista'];
-    for(const partida of data.partidas){
+    for(const partida of partidas){
       const detail=document.createElement('details');detail.className='gs-party';
       const summary=document.createElement('summary');
       summary.textContent='Partida '+partida.numeroPartida+' · '+partida.partes.length+' parte'+(partida.partes.length===1?'':'s');
@@ -129,6 +131,31 @@
       }
       table.appendChild(tbody);wrap.appendChild(table);detail.appendChild(wrap);list.appendChild(detail);
     }
+  }
+  function exportSelection(){
+    if(busy||!preview||!window.GSAdminTools)return;
+    const selection=filtered();
+    if(!selection.length)return;
+    const csv=window.GSAdminTools.csvPartes(selection);
+    const file=new Blob([csv],{type:'text/csv;charset=utf-8'});
+    const url=URL.createObjectURL(file);
+    const link=document.createElement('a');
+    const safeBase=(sourceName.replace(/\.pdf$/i,'').replace(/[^a-zA-Z0-9_-]+/g,'_').slice(0,75)||'GS');
+    link.href=url;link.download=safeBase+'_partidas_filtradas.csv';
+    document.body.append(link);link.click();link.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }
+  function render(data,file){
+    const m=byId('gs-metrics');m.replaceChildren();
+    metric(m,'Partidas distintas',data.resumen.partidas);
+    metric(m,'Partes de actuación',data.resumen.partes);
+    metric(m,'Plantas en partes (no stock)',data.resumen.plantasEnPartes);
+    metric(m,'Bandejas en partes (no stock)',data.resumen.bandejasEnPartes);
+    byId('gs-source').textContent='Archivo local: '+file.name+' · No se ha guardado ni enviado a Firebase.';
+    const errors=byId('gs-errors');
+    errors.hidden=!data.errores.length;
+    errors.textContent=data.errores.length?'Advertencias de lectura: '+data.errores.join(' '):'';
+    renderPartidas(filtered());
     byId('gs-results').hidden=false;
   }
   async function onFile(){
@@ -136,6 +163,9 @@
     const file=byId('gs-file').files?.[0];
     if(!file)return;
     byId('gs-results').hidden=true;
+    preview=null;sourceName='';
+    byId('gs-filter').value='';
+    byId('gs-export').disabled=true;
     if(!/\.pdf$/i.test(file.name)||file.size>15*1024*1024||!file.size){
       status('Selecciona un PDF válido de 15 MB como máximo.',true);return;
     }
@@ -143,6 +173,8 @@
     status('Leyendo documento localmente. No se está importando ningún dato…',false);
     try{
       const parsed=await extract(file);
+      if(!window.GSAdminTools)throw new Error('Las herramientas administrativas GS no están disponibles.');
+      preview=parsed;sourceName=file.name;
       render(parsed,file);
       status('Lectura finalizada: '+parsed.resumen.partes+' partes y '+parsed.resumen.partidas+' partidas. '+(parsed.errores.length?'Revisa las advertencias.':'Sin incidencias de formato detectadas.')+' No se ha importado nada.',Boolean(parsed.errores.length));
     }catch(e){
@@ -152,6 +184,10 @@
   }
   async function boot(){
     byId('gs-file').addEventListener('change',onFile);
+    byId('gs-filter').addEventListener('input',()=>{
+      if(preview&&!busy)renderPartidas(filtered());
+    });
+    byId('gs-export').addEventListener('click',exportSelection);
     try{
       const current=await verifyAdmin(await token());
       byId('session-user').textContent=current;
