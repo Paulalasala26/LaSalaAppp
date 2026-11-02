@@ -79,7 +79,7 @@ async function openPartidas(page) {
   await expect(overlay).toBeVisible();
   await overlay.getByRole('button', { name: 'Sala 2', exact: true }).click();
   await overlay.getByRole('button', { name: '17', exact: true }).click();
-  return { overlay, unexpectedHosts };
+  return { overlay, unexpectedHosts, database };
 }
 
 test('UAT-028: Partidas muestra el registro conocido del invernadero seleccionado', async ({ page }) => {
@@ -118,5 +118,31 @@ test('UAT-031: buscar una partida por número abre el resultado correspondiente'
   await expect(history).toBeVisible();
   await expect(history).toContainText('E2E-PARTIDA-001');
   await expect(history).toContainText('Observación de fixture E2E');
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-030: editar la calle de una partida de prueba persiste después de recargar', async ({ page }) => {
+  const { overlay, unexpectedHosts, database } = await openPartidas(page);
+  await page.locator('#partidas-content-wrap').getByText('E2E-PARTIDA-001', { exact: true }).click();
+  const history = page.locator('#partidas-historial-overlay');
+  await expect(history).toBeVisible();
+  await history.getByRole('button', { name: 'Editar calle' }).click();
+
+  const edit = page.locator('#control-calle-overlay');
+  await expect(edit).toBeVisible();
+  await edit.locator('.ac-tramo-desde').selectOption('19');
+  await edit.locator('.ac-tramo-hasta').selectOption('19');
+  await edit.getByRole('button', { name: 'Guardar' }).click();
+  await expect(edit).toBeHidden();
+  await expect.poll(() => database['lasala-control-items-v1']['e2e-partida-001'].tramos).toEqual([{ desde: 19, hasta: 19 }]);
+
+  await page.reload();
+  await expect(page.locator('#app')).toBeVisible();
+  await page.getByTestId('home-partidas').click();
+  const reloadedMap = page.locator('#partidas-overlay');
+  await expect(reloadedMap).toBeVisible();
+  await reloadedMap.getByRole('button', { name: 'Sala 2', exact: true }).click();
+  await reloadedMap.getByRole('button', { name: '17', exact: true }).click();
+  await expect(page.locator('#partidas-content-wrap')).toContainText('E2E-PARTIDA-001');
   expect(unexpectedHosts).toEqual([]);
 });
