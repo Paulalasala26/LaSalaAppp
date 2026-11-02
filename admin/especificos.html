@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#1558a0">
+<title>ViguerAPP · Backoffice · Específicos</title>
+<link rel="icon" href="../icon-192.png?v=ls-20261029" type="image/png">
+<link rel="stylesheet" href="./styles.css"><link rel="stylesheet" href="./catalog.css">
+<style>
+.es-main{max-width:1250px}.es-panel{border:1px solid #d3e1f0;border-radius:12px;background:white;padding:17px;margin:13px 0}
+.es-note{font-size:12px;line-height:1.6;color:#536b84;margin:5px 0 13px}
+.es-filter{display:grid;grid-template-columns:minmax(140px,1.1fr) minmax(120px,1fr) minmax(120px,1fr) minmax(160px,1.3fr) auto;gap:11px;align-items:end}
+.es-filter label{display:flex;flex-direction:column;gap:6px;font-size:12px;color:#2c547c;font-weight:750;min-width:0}
+.es-filter input,.es-filter select{width:100%;min-width:0;border:1px solid #b8d0e8;border-radius:7px;background:white;color:#16446f;padding:9px 10px;min-height:40px}
+.es-metrics{display:flex;gap:12px;flex-wrap:wrap}.es-metric{background:#f4f8fd;border:1px solid #d6e5f3;border-radius:9px;padding:12px 17px;flex:1;min-width:190px}
+.es-metric strong{display:block;color:#1558a0;font-size:24px}.es-metric span{display:block;color:#4f6c8a;font-size:12px}
+.es-scroll{overflow-x:auto}.es-table{width:100%;min-width:850px;border-collapse:collapse;font-size:12px}
+.es-table th,.es-table td{padding:10px 12px;border-bottom:1px solid #e7eef7;vertical-align:top;text-align:left}
+.es-table th{background:#f5f9fe;color:#355e82}.es-table td{color:#284a67}
+.es-product{white-space:pre-wrap;overflow-wrap:anywhere;min-width:190px;max-width:480px}.es-empty{padding:18px;color:#61788d;font-size:12px}
+.es-feedback{padding:11px 13px;background:#edf5ff;border:1px solid #cfe0f2;border-radius:8px;font-size:12px;color:#204c75;margin:12px 0}.es-feedback.error{background:#fff4f4;border-color:#f1d4d4;color:#983232}
+.es-nowrap{white-space:nowrap}.es-wrap{overflow-wrap:anywhere;max-width:220px}
+@media(max-width:940px){.es-filter{grid-template-columns:repeat(2,minmax(0,1fr))}.es-filter button{grid-column:1/-1}}
+@media(max-width:560px){.es-filter{grid-template-columns:1fr}.es-panel{padding:12px}}
+</style>
+<script src="./especificos.js" defer></script>
+</head>
+<body>
+<div id="access-gate" class="access-gate" role="status" aria-live="polite"><div class="access-panel">
+ <div class="brand-mark"><img src="../icon-192.png?v=ls-20261029" alt=""></div>
+ <h1 id="gate-title">Comprobando acceso</h1>
+ <p id="gate-description">Verificando sesión de administrador…</p>
+ <a href="./" id="gate-link" class="primary-link" hidden>Volver al Backoffice</a>
+</div></div>
+<div class="shell" id="workspace" hidden>
+<aside class="sidebar" aria-label="Menú del Backoffice">
+ <div class="brand"><div class="brand-mark"><img src="../icon-192.png?v=ls-20261029" alt=""></div><div><strong>La Sala</strong><span>Backoffice</span></div></div>
+ <nav class="sidebar-nav">
+  <a class="nav-item" href="./"><span class="nav-symbol">◉</span> Usuarios</a>
+  <a class="nav-item" href="./control.html"><span class="nav-symbol">◫</span> Control de calidad</a>
+  <a class="nav-item" href="./partidas.html"><span class="nav-symbol">▦</span> Partidas</a>
+  <a class="nav-item selected" aria-current="page" href="./especificos.html"><span class="nav-symbol">◎</span> Específicos</a>
+  <a class="nav-item" href="./plaguicidas.html"><span class="nav-symbol">◈</span> Plaguicidas</a>
+ </nav>
+ <div class="sidebar-footer"><a href="../">← Volver a ViguerAPP</a></div>
+</aside>
+<div class="main-area">
+<header class="topbar"><div class="breadcrumbs">Backoffice <span>/</span> Específicos</div><div class="topbar-right"><span id="session-user" class="session-user">Administrador</span></div></header>
+<main class="content es-main">
+<div class="page-head"><h1>Específicos · Registros</h1></div>
+<p class="es-note">Consulta administrativa de específicos <strong>registrados por día, invernadero y calle</strong>. Las celdas con varias partidas vinculadas se muestran sin duplicarlas. No acredita ejecución ni modifica tareas, tratamientos o históricos.</p>
+<section class="es-panel" aria-label="Filtros">
+<form class="es-filter" id="es-form">
+<label>Invernadero<select id="es-inv" required><option value="">Selecciona un invernadero…</option></select></label>
+<label>Desde<input type="date" id="es-from" required min="2026-06-15"></label>
+<label>Hasta<input type="date" id="es-to" required min="2026-06-15"></label>
+<label>Buscar texto o partida vinculada<input type="search" id="es-search" maxlength="80" placeholder="Tratamiento, partida…"></label>
+<button type="submit" class="button primary" id="es-query">Consultar</button>
+</form>
+</section>
+<p id="es-feedback" class="es-feedback" role="status" aria-live="polite" hidden></p>
+<section id="es-results" hidden>
+ <div id="es-metrics" class="es-metrics" aria-label="Resumen"></div>
+ <div class="es-panel">
+  <h2>Específicos registrados por calle</h2>
+  <p id="es-count" class="es-note"></p>
+  <div class="es-scroll"><table class="es-table">
+   <thead><tr><th>Fecha</th><th>Calle</th><th>Específico guardado</th><th>Caldo</th><th>Origen</th><th>Partidas vinculadas</th><th>Nº vínculos</th></tr></thead>
+   <tbody id="es-body"></tbody>
+  </table></div>
+ </div>
+</section>
+</main>
+</div></div>
+</body></html>
