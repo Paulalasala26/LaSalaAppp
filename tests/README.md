@@ -2,10 +2,11 @@
 
 La suite automatiza UAT-001 a UAT-010 (autenticación, restauración/cierre de
 sesión, acceso por rol, navegación y viewport de PC/móvil/tablet), UAT-019 a
-UAT-025 (Control), UAT-028 y UAT-029 (consulta de Partidas y su detalle), y
+UAT-025 (Control), UAT-028, UAT-029 y UAT-031 (consulta, detalle y búsqueda de
+Partidas), y
 UAT-067 a UAT-072, UAT-074, UAT-075 y UAT-092 (entrada a Riego, fechas,
 quincenas, cambio de invernadero, alta/edición y cancelación). Son 28 casos UAT
-distintos en 24 pruebas Playwright; cada prueba lleva los ID que cubre en su
+distintos en 25 pruebas Playwright; cada prueba lleva los ID que cubre en su
 nombre.
 
 Todas las peticiones a la URL de Firebase de la app se interceptan dentro de

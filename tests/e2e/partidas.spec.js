@@ -107,3 +107,16 @@ test('UAT-029: abrir el detalle de una partida y volver al mapa conserva el esta
   await expect(page.locator('#partidas-content-wrap')).toContainText('E2E-PARTIDA-001');
   expect(unexpectedHosts).toEqual([]);
 });
+
+test('UAT-031: buscar una partida por número abre el resultado correspondiente', async ({ page }) => {
+  const { overlay, unexpectedHosts } = await openPartidas(page);
+  const search = overlay.getByPlaceholder('Buscar Nº partida...');
+
+  await search.fill('E2E-PARTIDA-001');
+  await search.press('Enter');
+  const history = page.locator('#partidas-historial-overlay');
+  await expect(history).toBeVisible();
+  await expect(history).toContainText('E2E-PARTIDA-001');
+  await expect(history).toContainText('Observación de fixture E2E');
+  expect(unexpectedHosts).toEqual([]);
+});
