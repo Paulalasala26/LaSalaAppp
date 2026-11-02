@@ -10,6 +10,15 @@ function fixtureDatabase() {
   return {
     'lasala-users-v1': JSON.stringify({ [login.user]: passwordHash }),
     'lasala-roles-v1': JSON.stringify({ [login.user]: 'ADMIN' }),
+    'lasala-especificos-partida-v1': JSON.stringify({
+      'e2e-partida-001': [{
+        fechaISO: '2026-07-27',
+        fechaLabel: '27 jul',
+        trat: 'E2E-TRATAMIENTO',
+        dosis: '1',
+        horario: '17:00'
+      }]
+    }),
     'lasala-control-items-v1': {
       'e2e-partida-001': {
         id: 'e2e-partida-001',
@@ -144,5 +153,17 @@ test('UAT-030: editar la calle de una partida de prueba persiste después de rec
   await reloadedMap.getByRole('button', { name: 'Sala 2', exact: true }).click();
   await reloadedMap.getByRole('button', { name: '17', exact: true }).click();
   await expect(page.locator('#partidas-content-wrap')).toContainText('E2E-PARTIDA-001');
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-032: los Específicos asociados aparecen en la partida correcta', async ({ page }) => {
+  const { overlay, unexpectedHosts } = await openPartidas(page);
+  await overlay.getByRole('button', { name: 'Sala 2', exact: true }).click();
+  await overlay.getByRole('button', { name: '17', exact: true }).click();
+  const map = page.locator('#partidas-content-wrap');
+
+  await expect(map).toContainText('E2E-PARTIDA-001');
+  await expect(map).toContainText('E2E-TRATAMIENTO');
+  await expect(map).toContainText('27 jul');
   expect(unexpectedHosts).toEqual([]);
 });
