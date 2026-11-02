@@ -3,12 +3,19 @@ Total output lines: 2071
 
 # VIGUERAPP / APP R v3 — ESTADO MAESTRO CANÓNICO
 
-**Revisión:** 30/10/2026 (España) · **Responsable del estado:** esta conversación, con verificaciones GitHub/Vercel y confirmaciones expresas del usuario.
+**Revisión:** 02/11/2026 (España) · **Responsable del estado:** esta conversación, con verificaciones GitHub/Vercel y confirmaciones expresas del usuario.
 
 > **LEE ESTO ANTES DE PLANIFICAR O MODIFICAR APP R EN CUALQUIER CHAT O CHATGPT PROJECT.**
 > Este es el **único inventario vivo** de trabajo terminado y pendiente. Los handovers DOCX y otros `docs/*.md` con fechas anteriores son **histórico**, no una nueva lista de tareas. El repositorio es la fuente de código; la confirmación funcional del usuario es la fuente de la prueba de aceptación. **Nunca conviertas un pendiente histórico en pendiente actual sin contrastarlo.**
 
-## 0. CONTINUIDAD ACTUAL — 30/10/2026 (PRIORIDAD SOBRE LOS HISTÓRICOS)
+## 0. CONTINUIDAD ACTUAL — 02/11/2026 (PRIORIDAD SOBRE LOS HISTÓRICOS)
+
+> **PRECEDENCIA IMPORTANTE (30/10):** tras errores al entrar a QC/Partidas/Específicos durante la división de `index.html`, se restauró en TEST el HTML anterior al split (commit `b3bc17863`; HEAD posterior `09114d2d7`). Los intentos de extracción bajo demanda §0.187–§0.189 y las notas posteriores de Tareas/Partidas **son históricos de cambios revertidos, no implementación vigente**. Los archivos extraídos que aún existan en el repositorio no prueban que el HTML los use. El frontend operativo se ha entregado a usuarios para UAT; aquí seguimos **Backoffice / servicios administrativos**. DEV `dev/v1.0` es independiente; no tocar PRD/`main`.
+
+### §0.190 — Backoffice / Panel QC: media de índice global en Carga (02/11/2026)
+**CORREGIDO EN TEST; UAT AUTENTICADA PENDIENTE.** La API de solo lectura `api/admin-qc-dashboard.js` inicializaba `percentSum` y `percentCount` para Túnel, pero no para Carga. Al acumular mediciones QC v5/v6 en Carga, los valores resultaban `NaN` y la comparativa por estadio mostraba «—» pese a existir controles. Se añaden exclusivamente ambos contadores en el acumulador de Carga. Sin cambios en tablas, datos, formulario, frontend operativo, autenticación, filtros, reglas de negocio ni calculadora global. Commit de código `6f75a149b9f6347e17016067e4fceb84ab621284`, rama `test/v1.0`; deploy TEST de ese commit READY. Prueba determinista del módulo real con fixtures en memoria: 2 Carga (30 %, 70 % ⇒ 50 %), 1 Túnel (40 %) y media global 46 % truncada. Siete aserciones correctas incluyendo contadores y caso vacío. No se escribieron datos. **Falta UAT autenticada con controles reales Carga.** DEV/`main` intactos.
+
+
 
 ### §0.189 — Recursos visuales de QC bajo demanda — 30/10/2026 — IMPLEMENTADO LOCALMENTE EN TEST / UAT PENDIENTE
 Se mueven al cargador `ensureControlCodeLoaded()` los estilos de Control/QC (`control-qc-operativo`, `control-ui-empty`, `control-ui-list`, `qc-edit-linea-v3`, `control-ui-cards`) y sus tres scripts de interfaz (`admin/qc-indicadores.js`, `control-qc-operativo.js`, `control-ui-empty.js`). Se descargan una sola vez, antes del módulo QC y antes de mostrar el formulario; el orden de dependencias se conserva. Se mantienen en carga inicial `qc-offline-operarios-store.js` (compartido con Partidas), borradores, fotos, `qc-sync-global.js` y su CSS, que sostienen cola offline/indicador/sincronización global. Backoffice QC mantiene su propia carga de `qc-indicadores.js`.
