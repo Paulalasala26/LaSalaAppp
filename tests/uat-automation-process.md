@@ -43,6 +43,6 @@ Se priorizan casos de prioridad Alta y flujos reutilizados. Una prueba puede cub
 
 ## Estado de partida
 
-La suite actual cubre UAT-001–010, UAT-019–025, UAT-028–031, UAT-067–072, UAT-074, UAT-075 y UAT-092: 30 casos UAT en 26 pruebas Playwright. La hoja ya contenía estados previos para algunos casos; las ejecuciones automatizadas se reportan como evidencia nueva, sin reescribir retrospectivamente quién los probó.
+La suite actual cubre UAT-001–010, UAT-019–025, UAT-028–031, UAT-067–075 y UAT-092: 31 casos UAT en 27 pruebas Playwright. La hoja ya contenía estados previos para algunos casos; las ejecuciones automatizadas se reportan como evidencia nueva, sin reescribir retrospectivamente quién los probó.
 
 La siguiente expansión prioriza lecturas y navegación aislables en Partidas (UAT-030–032), y después contratos de edición sobre registros desechables. Los casos de Firebase real, fotos, concurrencia, desconexión y sincronización requieren un proyecto TEST confirmado y credenciales de prueba; no se simulan como integración real. Los módulos que no existen en este checkout se registran como bloqueados por funcionalidad ausente hasta localizar el código correspondiente.

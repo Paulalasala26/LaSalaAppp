@@ -161,3 +161,29 @@ test('UAT-075: abrir una celda ocupada carga el contexto del riego existente', a
   await expect(page.locator('#riego-grid-wrap')).toContainText('E2E-RIEGO-DIA-30');
   expect(unexpectedHosts).toEqual([]);
 });
+
+test('UAT-073: la cuadrícula y sus acciones siguen utilizables en móvil vertical y horizontal', async ({ page }) => {
+  const database = fixtureDatabase();
+  await page.setViewportSize({ width: 390, height: 844 });
+  const { overlay, unexpectedHosts } = await openRiego(page, database);
+  const grid = page.locator('#riego-grid-wrap');
+  const previous = overlay.getByTestId('riego-quincena-previous');
+  const next = overlay.getByTestId('riego-quincena-next');
+
+  await expect(grid).toBeVisible();
+  await expect(grid).toContainText('30 jun');
+  await expect(grid).toContainText('E2E-RIEGO-DIA-30');
+  await expect(previous).toBeVisible();
+  await expect(next).toBeVisible();
+  let pageWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+  expect(pageWidth).toBeLessThanOrEqual(391);
+
+  await page.setViewportSize({ width: 844, height: 390 });
+  await expect(grid).toContainText('30 jun');
+  await expect(grid).toContainText('E2E-RIEGO-DIA-30');
+  await expect(previous).toBeVisible();
+  await expect(next).toBeVisible();
+  pageWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+  expect(pageWidth).toBeLessThanOrEqual(845);
+  expect(unexpectedHosts).toEqual([]);
+});
