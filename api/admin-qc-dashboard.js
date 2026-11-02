@@ -229,6 +229,50 @@ function buildDashboard(raw,rawRules,filters,legacyRecords=[]){
     totalRows:rows.length,invalidExcluded:invalidCount,unmatchedMeasurements:unmatchedCount
   };
 }
+// Vista administrativa de referencias de Partidas desde controles QC; no es stock.
+function buildPartidas(rows,filters){
+  if(!Array.isArray(rows))throw new Error('QC_RECORDS_INVALID');
+  const grouped=new Map();let sinPartida=0;
+  const short=x=>typeof x==='string'?x.trim().slice(0,160):'';
+  const loc=rec=>{
+    const inv=short(rec.tipo==='carga'?(rec.invernadero||rec.invId):rec.invId);
+    const ranges=Array.isArray(rec.tramos)?rec.tramos.slice(0,40):[];
+    const streets=ranges.length?ranges.filter(plainObject).map(t=>{
+      const a=String(t.desde??''),b=String(t.hasta??'');
+      return a===b?a:a+'–'+b;
+    }).join(', '):
+    rec.calleDesde!=null?String(rec.calleDesde)+(
+      rec.calleHasta!=null&&rec.calleHasta!==rec.calleDesde?'–'+rec.calleHasta:''):'';
+    return (inv?'INV '+inv:'Ubicación no indicada')+(streets?' · C/ '+streets.slice(0,180):'');
+  };
+  for(const rec of rows){
+    const key=String(rec.partida??'').trim().toLocaleUpperCase('es');
+    if(!/^[A-Z0-9._-]{1,60}$/.test(key)){sinPartida++;continue;}
+    if(filters.part&&!key.includes(filters.part))continue;
+    if(!grouped.has(key))grouped.set(key,{partida:key,tunel:0,carga:0,registros:[]});
+    const item=grouped.get(key);
+    item[rec.tipo]++;
+    item.registros.push({
+      id:short(rec.id),fecha:dayToISO(rec.dia),tipo:rec.tipo,
+      clienteVariedad:short(rec.tipo==='tunel'?rec.clienteVariedad:
+        [rec.cliente,rec.variedad].filter(Boolean).join(' — ')),
+      ubicacion:loc(rec)
+    });
+  }
+  const sorted=[...grouped.values()].sort((a,b)=>{
+    const last=g=>g.registros.reduce((v,r)=>r.fecha>v?r.fecha:v,'');
+    return last(b).localeCompare(last(a))||a.partida.localeCompare(b.partida,'es',{numeric:true});
+  });
+  for(const x of sorted)x.registros.sort((a,b)=>b.fecha.localeCompare(a.fecha)||a.id.localeCompare(b.id));
+  const limit=200;
+  return {source:'qc-registros',stock:false,integracionGS:false,
+    from:dayToISO(filters.from),to:dayToISO(filters.to),
+    filterType:filters.stage,filterPartida:filters.part,
+    totals:{partidas:sorted.length,registros:sorted.reduce((v,g)=>v+g.registros.length,0),
+      sinPartida,mostrar:Math.min(sorted.length,limit)},
+    partidas:sorted.slice(0,limit),limit};
+}
+
 async function verifyAdmin(req){
   const auth=req.headers.authorization||'';
   if(!auth.startsWith('Bearer '))throw httpError(401,'UNAUTHORIZED');
@@ -250,6 +294,10 @@ module.exports=async function handler(req,res){
   try{
     const filter=parseQuery(req.query);
     const {token}=await verifyAdmin(req);
+    if(req.query?.modo==='partidas'){
+      const legacy=await fetchLegacyControls(token,filter);
+      return res.status(200).json({ok:true,...buildPartidas(legacy,filter)});
+    }
     const [measurements,legacy]=await Promise.all([
       readKey('lasala-qc-mediciones-v1',token),
       fetchLegacyControls(token,filter)
@@ -263,4 +311,4 @@ module.exports=async function handler(req,res){
   }
 };
 // Exported helpers permit deterministic fixture tests without Firebase writes.
-module.exports._test={dateToDay,dayToISO,parseQuery,validMeasurement,chosenRule,signal,legacyComplete,fetchLegacyControls,buildDashboard};
+module.exports._test={dateToDay,dayToISO,parseQuery,validMeasurement,chosenRule,signal,legacyComplete,fetchLegacyControls,buildDashboard,buildPartidas};
