@@ -292,6 +292,13 @@ module.exports=async function handler(req,res){
     return res.status(405).json({error:'METHOD_NOT_ALLOWED'});
   }
   try{
+    // No convertir un modo desconocido en una consulta QC por defecto.
+    const modo=req.query?.modo;
+    if(modo!==undefined&&modo!==''&&
+       (typeof modo!=='string'||!new Set([
+         'mantenimiento','avisos','tareas','especificos','plaguicidas','partidas'
+       ]).has(modo)))
+      throw httpError(400,'INVALID_MODE');
     // Mantenimiento: consulta ADMIN de tickets y eventos sin activar recurrencias.
     if(req.query?.modo==='mantenimiento'){
       const {token}=await verifyAdmin(req);
