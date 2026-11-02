@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#1558a0">
+<title>ViguerAPP · Backoffice · Tareas</title>
+<link rel="icon" type="image/png" href="../icon-192.png?v=ls-20261029">
+<link rel="stylesheet" href="./styles.css"><link rel="stylesheet" href="./catalog.css">
+<style>
+.ta-main{max-width:1290px}.ta-panel{background:#fff;border:1px solid #d6e4f2;border-radius:11px;margin:13px 0;padding:16px}
+.ta-note{font-size:12px;line-height:1.6;color:#4f677e;margin:8px 0 14px}
+.ta-form{display:grid;grid-template-columns:repeat(3,minmax(130px,1fr)) minmax(180px,1.3fr) auto;gap:11px;align-items:end}
+.ta-form label{display:flex;flex-direction:column;gap:5px;font-size:12px;color:#335b7e;font-weight:750;min-width:0}
+.ta-form input,.ta-form select{min-height:40px;width:100%;min-width:0;border:1px solid #bdd3e8;border-radius:8px;padding:8px 9px;background:#fff;color:#164870}
+.ta-form button{min-height:40px}.ta-form .ta-dates{display:flex;gap:8px}.ta-form .ta-dates input{flex:1;min-width:0}
+.ta-fields{display:flex;flex-wrap:wrap;gap:12px;margin:13px 0}.ta-fields label{flex:1;min-width:170px;font-size:12px;font-weight:650;color:#446a8b}
+.ta-fields input{width:100%;margin-top:5px;min-height:38px;padding:8px 10px;border:1px solid #bdd3e8;border-radius:8px;background:#fff}
+.ta-stats{display:flex;gap:11px;flex-wrap:wrap}.ta-stat{background:#f3f8fe;border:1px solid #d9e8f6;border-radius:9px;padding:12px 16px;flex:1;min-width:175px}
+.ta-stat strong{display:block;font-size:23px;color:#1558a0}.ta-stat span{font-size:12px;color:#58728b}
+.ta-scroll{overflow-x:auto}.ta-table{width:100%;min-width:950px;border-collapse:collapse;font-size:12px}
+.ta-table th,.ta-table td{padding:10px 11px;vertical-align:top;border-bottom:1px solid #edf2f8;text-align:left;color:#2e506d}
+.ta-table th{background:#f6f9fe;color:#3b6485}.ta-title{font-weight:750;min-width:160px;max-width:270px;overflow-wrap:anywhere}
+.ta-title small{display:block;font-weight:450;white-space:pre-wrap;overflow-wrap:anywhere;color:#637b90;margin-top:4px}
+.ta-id{font-size:10px;color:#7a8ca0;overflow-wrap:anywhere;max-width:190px}
+.ta-details{max-width:220px;overflow-wrap:anywhere}.ta-nowrap{white-space:nowrap}.ta-muted{color:#72869c}
+.ta-alert{border:1px solid #d3e4f3;background:#f2f8ff;color:#244e76;border-radius:8px;padding:11px 13px;font-size:12px;margin:12px 0}
+.ta-alert.error{border-color:#f1d1d1;background:#fff4f4;color:#952c2c}
+.ta-empty{padding:17px;font-size:12px;color:#61788d}
+@media(max-width:1050px){.ta-form{grid-template-columns:repeat(2,minmax(0,1fr))}.ta-form button{grid-column:1/-1}}
+@media(max-width:600px){.ta-form{grid-template-columns:1fr}.ta-panel{padding:12px}}
+</style>
+<script src="./tareas.js" defer></script>
+</head>
+<body>
+<div id="access-gate" class="access-gate" role="status" aria-live="polite">
+  <div class="access-panel"><div class="brand-mark"><img src="../icon-192.png?v=ls-20261029" alt=""></div>
+    <h1 id="gate-title">Comprobando acceso</h1><p id="gate-description">Verificando sesión administrativa…</p>
+    <a href="./" class="primary-link" id="gate-link" hidden>Volver al Backoffice</a>
+  </div>
+</div>
+<div class="shell" id="workspace" hidden>
+  <aside class="sidebar" aria-label="Navegación Backoffice">
+    <div class="brand"><div class="brand-mark"><img src="../icon-192.png?v=ls-20261029" alt=""></div><div><strong>La Sala</strong><span>Backoffice</span></div></div>
+    <nav class="sidebar-nav">
+      <a class="nav-item" href="./"><span class="nav-symbol">◉</span> Usuarios</a>
+      <a class="nav-item" href="./control.html"><span class="nav-symbol">◫</span> Control de calidad</a>
+      <a class="nav-item" href="./partidas.html"><span class="nav-symbol">▦</span> Partidas</a>
+      <a class="nav-item" href="./plaguicidas.html"><span class="nav-symbol">◈</span> Plaguicidas</a>
+      <a class="nav-item" href="./especificos.html"><span class="nav-symbol">◎</span> Específicos</a>
+      <a class="nav-item selected" aria-current="page" href="./tareas.html"><span class="nav-symbol">☷</span> Tareas</a>
+    </nav>
+    <div class="sidebar-footer"><a href="../">← Volver a ViguerAPP</a></div>
+  </aside>
+  <div class="main-area">
+    <header class="topbar"><div class="breadcrumbs">Backoffice <span>/</span> Tareas</div><div class="topbar-right"><span id="session-user" class="session-user">Administrador</span></div></header>
+    <main class="content ta-main">
+      <div class="page-head"><h1>Tareas · Consulta administrativa</h1></div>
+      <p class="ta-note">Operativas y Archivo: consulta sin edición, reasignación ni cambios de estado. Los registros se leen de Tareas y el Archivo se determina con las mismas reglas temporales de ViguerAPP. Los tickets de Mantenimiento se gestionan por separado. No se muestran firmas.</p>
+      <section class="ta-panel" aria-label="Filtros de tareas">
+        <form id="ta-form">
+          <div class="ta-form">
+            <label>Sección<select id="ta-view"><option value="operativas">Operativas</option><option value="archivo">Archivo</option></select></label>
+            <label>Estado<select id="ta-status"><option value="todos">Todos los estados</option><option value="pendiente">Pendiente</option><option value="iniciada">Iniciada</option><option value="en_proceso">En proceso</option><option value="completada">Completada</option><option value="anulada">Anulada</option></select></label>
+            <label>Origen<select id="ta-origin"><option value="todos">Todos los orígenes</option><option value="manual">Manual</option><option value="riego">Riego</option><option value="especificos">Específicos</option><option value="pistola">Pistola</option><option value="sin_origen">Histórico sin origen</option></select></label>
+            <label>Buscar<input id="ta-search" type="search" maxlength="80" placeholder="Título, ubicación, usuario, ID…" autocomplete="off"></label>
+            <button id="ta-query" class="button primary" type="submit">Consultar</button>
+          </div>
+          <div class="ta-fields">
+            <label>Asignado a (identificador exacto)<input id="ta-assigned" type="search" maxlength="60" placeholder="Todos los usuarios" autocomplete="off"></label>
+            <label>Desde fecha programada<input id="ta-from" type="date"></label>
+            <label>Hasta fecha programada<input id="ta-to" type="date"></label>
+          </div>
+        </form>
+      </section>
+      <p id="ta-feedback" class="ta-alert" role="status" aria-live="polite" hidden></p>
+      <section id="ta-results" hidden>
+        <div id="ta-stats" class="ta-stats" aria-label="Resumen"></div>
+        <div class="ta-panel">
+          <h2 id="ta-heading">Operativas registradas</h2>
+          <p id="ta-count" class="ta-note"></p>
+          <div class="ta-scroll">
+            <table class="ta-table">
+              <thead><tr><th>Fecha</th><th>Tarea</th><th>Estado</th><th>Origen</th><th>Asignada a</th><th>Ubicación</th><th>Horario</th><th>Referencia</th></tr></thead>
+              <tbody id="ta-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+</body>
+</html>
