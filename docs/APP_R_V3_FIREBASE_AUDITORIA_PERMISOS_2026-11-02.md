@@ -2,7 +2,11 @@
 
 Fecha: **02/11/2026** · Entorno: **TEST** · Rama: **`test/v1.0`** · Proyecto Auth/Realtime DB indicado en código: `la-sala-app-test`.
 
-**Estado:** auditoría estática completada; **reglas desplegadas en Firebase NO verificadas**. Este documento no autoriza, implementa ni despliega reglas de seguridad. La validación funcional y las futuras pruebas con usuarios corresponden al **gestor del Backoffice**. No tocar `dev/v1.0`, `main`, PRD ni `index.html` operativo.
+**Estado (actualizado tras comprobación del usuario): reglas activas de Firebase TEST confirmadas por copia desde Firebase Console y **coincidentes exactamente** con el archivo `database.rules.test.json`. Auditoría de código y matriz de acceso completadas; aún no se han ejecutado pruebas de acceso con tokens reales. **Vulnerabilidad de autorización confirmada en la configuración activa**. Este documento no autoriza, implementa ni despliega reglas de seguridad. La validación funcional y las futuras pruebas con usuarios corresponden al **gestor del Backoffice**. No tocar `dev/v1.0`, `main`, PRD ni `index.html` operativo.
+
+## Actualización de evidencia — confirmación desde consola TEST
+
+**Confirmado por el usuario en esta conversación:** JSON literal de Firebase Console `la-sala-app-test` — pestaña Realtime Database → Reglas. **Coincidencia exacta** con el JSON guardado en GitHub. Esta confirmación convierte el hallazgo de la matriz de *riesgo condicionado* a **vulnerabilidad de control de acceso confirmada en las reglas actuales de TEST**. No se han realizado peticiones para explotar el permiso, ni se conocen accesos indebidos. **Se mantiene prohibido publicar reglas nuevas sin pruebas y autorización.**
 
 ## 1. Evidencias contrastadas
 
@@ -13,11 +17,11 @@ Fecha: **02/11/2026** · Entorno: **TEST** · Rama: **`test/v1.0`** · Proyecto 
 - Los borradores QC y fotos fuera de línea usan **IndexedDB** (`assets/qc-offline-operarios-*.js`) y reenvían posteriormente a `/api/admin-qc-mediciones` y `/api/qc-fotos-sharepoint`. La cola general QC y la cola de Riego usan **localStorage** (`lasala-offline-queue-v1` y `lasala-riego-offline-v1` respectivamente) y sincronizan después por las rutas existentes, incluidas escrituras directas RTDB.
 - Para los controles RTDB oficiales, consultar [Core syntax de Realtime Database](https://firebase.google.com/docs/database/security/core-syntax) y [comportamiento y herencia de reglas](https://firebase.google.com/docs/rules/rules-behavior). La concesión `.read/.write` en un padre **no puede revocarse en sus hijos**; las reglas **no son filtros**. No intentar reforzar nodos descendientes dejando `$other` permisivo en el padre.
   
-**Separación obligatoria:** este archivo versionado es una **candidata/plantilla**; ninguna consulta efectuada en la presente auditoría ha leído la pestaña **Rules** activa del servidor, probado escrituras remotas con credenciales reales o demostrado que esa plantilla se desplegó. Por tanto, el riesgo **está demostrado para el archivo**, no confirmado en los datos reales.
+**Evidencia sobre reglas activas:** tras la primera auditoría, el usuario abrió Firebase Console del proyecto TEST según el procedimiento indicado y copió dos veces el JSON completo de la pestaña **Realtime Database → Reglas**. Se ha comparado su estructura y valores con `database.rules.test.json`: **coincidencia exacta** (usuarios sin lectura/escritura; roles solo lectura autenticada; `$other` lectura y escritura para cualquier `auth.token.appUser`). Se confirma el **problema de autorización de las reglas activas**, no una intrusión ni una prueba de acceso exitoso de un usuario indebido. La copia aportada por el usuario es la fuente de comprobación de la consola; no se ha realizado consulta autenticada directa a la API de gestión de reglas.
 
-## 2. Matriz exacta que produce el archivo versionado, si se desplegara
+## 2. Matriz de las reglas activas de TEST, confirmadas por la consola
 
-Abreviaturas: **L** = lectura; **E** = escritura; **–** = denegado. Son permisos del **archivo**, no del código de interfaz o de los endpoints.
+Abreviaturas: **L** = lectura; **E** = escritura; **–** = denegado. Son permisos de las **reglas copiadas desde Firebase TEST y coincidentes con el archivo**, no del código de interfaz o de los endpoints.
 
 | Nodo de primer nivel | Anónimo / sin claim | ADMIN | TÉCNICO | REGANTE | PEÓN | CARGADOR |
 |---|---|---|---|---|---|---|
@@ -25,15 +29,15 @@ Abreviaturas: **L** = lectura; **E** = escritura; **–** = denegado. Son permis
 | `lasala-roles-v1` | – / – | L / – | L / – | L / – | L / – | L / – |
 | **Cualquier otra clave (`$other`)** | – / – | **L / E** | **L / E** | **L / E** | **L / E** | **L / E** |
 
-**Consecuencia:** un operario autenticado podría, en ese escenario condicional, consultar/modificar por REST datos de otras personas, auditoría y configuraciones de Backoffice, controles QC, tratamientos, asignaciones y avisos, sin entrar en el Backoffice. No equivale a privilegio para cambiar `lasala-roles-v1`, que permanece bloqueado en el archivo. La denegación para usuarios anónimos depende de que las reglas realmente activas no tengan otra concesión.
+**Consecuencia de la configuración activa:** un operario autenticado con claim `appUser` tiene permiso RTDB para consultar/modificar por REST datos de otras personas, auditoría y configuraciones de Backoffice, controles QC, tratamientos, asignaciones y avisos, sin entrar en el Backoffice. No equivale a privilegio para cambiar `lasala-roles-v1`, que permanece bloqueado en el archivo. La denegación para usuarios anónimos depende de que las reglas realmente activas no tengan otra concesión.
 
-**Ensayo lógico estático:** 5 roles × 33 rutas de primer nivel seleccionadas = **165 pares rol/nodo**, de los cuales la plantilla permite escritura en **155** y solo niega escritura para los 5 pares `users` y los 5 pares `roles`. El ensayo **no es el emulador oficial Firebase**, ni verifica el servidor LIVE.
+**Ensayo lógico estático:** 5 roles × 33 rutas de primer nivel seleccionadas = **165 pares rol/nodo**, de los cuales la plantilla permite escritura en **155** y solo niega escritura para los 5 pares `users` y los 5 pares `roles`. El ensayo **no es el emulador oficial Firebase** ni prueba una petición remota por un usuario concreto; la configuración de reglas sí fue comprobada mediante la copia de Firebase Console TEST aportada por el usuario.
 
 ## 3. Inventario funcional de nodos y flujos que deben protegerse
 
 Convenciones: `C` = cliente/browser accede a RTDB directo; `S` = API servidor con token de servicio; `R` = lectura; `W` = escritura. Las columnas de roles indican **un flujo observado o un destinatario funcional**, nunca una decisión de permiso definitivo. **?** significa que la titularidad exacta requiere revisión con el gestor. A falta de confirmación, *no convertir ningún ? en DENY*.
 
-| Nodo o familia RTDB | Uso/flujo identificado en código | Actor funcional / dependencia | Acceso actual en la plantilla `$other` | Decisión segura pendiente |
+| Nodo o familia RTDB | Uso/flujo identificado en código | Actor funcional / dependencia | Acceso confirmado en reglas TEST `$other` | Decisión segura pendiente |
 |---|---|---|---|---|
 | `lasala-users-v1` | Identidades, hashes; `firebase-auth` y API Usuarios (**S R/W**) | ADMIN gestiona por API; login público verifica en servidor | Sin L/E cliente | **Mantener privado**, sin lectura cliente |
 | `lasala-roles-v1` | Roles vigentes; login y API ADMIN (**S R**) y cliente heredado (**C R**) | Cinco roles autenticados + verificación servidor | L para todos, E para nadie | Determinar si lectura browser es imprescindible; nunca permitir E a clientes |
@@ -68,7 +72,7 @@ Convenciones: `C` = cliente/browser accede a RTDB directo; `S` = API servidor co
 
 ## 4. Plan de endurecimiento propuesto — SIN IMPLEMENTAR
 
-**Fase 0 — Verificar servidor (bloqueante):** responsable autorizado abre **Firebase Console → proyecto `la-sala-app-test` → Realtime Database → Rules**, identifica instancia y región, exporta SOLO **texto de reglas y fecha/revisión** (sin tokens ni datos de usuarios) y compara exactamente con `database.rules.test.json`. Si son diferentes, el análisis de permisos actuales se recalcula desde esa versión. No basta un despliegue READY de Vercel.
+**Fase 0 — Verificar reglas TEST (REALIZADA):** el usuario ha copiado el JSON activo de **Firebase Console → `la-sala-app-test` → Realtime Database → Reglas**, coincidente exactamente con `database.rules.test.json`. Queda opcionalmente pendiente recoger fecha/revisión/URL de instancia para trazabilidad; la auditoría no ha usado credenciales para consultar el API Firebase de administración. Un despliegue READY de Vercel no modifica estas reglas.
 
 **Fase 1 — Aislar nodos puramente servidor (propuesta):** tras simulación y confirmación, hacer inaccesibles por cliente `lasala-admin-audit-v1`, `lasala-config-infra-v1`, `lasala-qc-mediciones-v1`, `lasala-qc-fotos-sharepoint-v1`, manteniendo APIs ADMIN y de QC como acceso autorizado. Revisar antes si existe algún consumidor directo que no haya sido inventariado.
 
@@ -102,5 +106,5 @@ Convenciones: `C` = cliente/browser accede a RTDB directo; `S` = API servidor co
 
 - **No se han modificado las reglas versionadas ni las desplegadas**, tampoco datos RTDB, roles, colas offline, `index.html`, `main` o `dev/v1.0`.
 - Entregable de este bloque: mapa técnico de nodos, permisos **teóricos** de la plantilla, riesgos de persistencia monolítica y plan de test/rollout.
-- **Bloqueante real:** sin confirmar la pestaña Rules de la instancia Firebase TEST no se puede afirmar que exista la vulnerabilidad en servidor ni aprobar un plan de reglas operativo.
+- **Confirmación posterior:** el usuario facilitó las reglas actuales de la pestaña Rules de Firebase TEST y coinciden con la plantilla. La **configuración insegura está confirmada**: los cinco roles autenticados cumplen `$other`, que permite leer y escribir otras claves. **Bloqueante siguiente:** definir y ensayar las reglas restrictivas compatibles con cada operación y cola offline; documentar copia/rollback y obtener aprobación expresa antes de publicarlas.
 - El **gestor del Backoffice** es responsable de validar el comportamiento de las pantallas. El endurecimiento y despliegue de reglas requerirán un responsable con acceso autorizado a Firebase y una aprobación separada.
