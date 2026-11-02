@@ -292,6 +292,12 @@ module.exports=async function handler(req,res){
     return res.status(405).json({error:'METHOD_NOT_ALLOWED'});
   }
   try{
+    // Mantenimiento: consulta ADMIN de tickets y eventos sin activar recurrencias.
+    if(req.query?.modo==='mantenimiento'){
+      const {token}=await verifyAdmin(req);
+      const report=await require('../lib/admin-mantenimiento-read').query(token,req.query);
+      return res.status(200).json({ok:true,...report});
+    }
     // Avisos: consulta de los elementos actualmente retenidos; no marca leídos ni evalúa.
     if(req.query?.modo==='avisos'){
       const {token}=await verifyAdmin(req);
