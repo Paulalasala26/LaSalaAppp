@@ -18,10 +18,11 @@
 .gs-party{border:1px solid #d1e0ed;border-radius:9px;background:#fff;margin:10px 0;overflow:hidden}
 .gs-party summary{padding:13px 15px;cursor:pointer;color:#174e87;font-weight:750;background:#f4f8fd}
 .gs-table-wrap{overflow:auto}.gs-table{border-collapse:collapse;width:100%;min-width:790px;font-size:12px}.gs-table th,.gs-table td{padding:9px 11px;border-bottom:1px solid #e3ebf4;text-align:left;white-space:nowrap}.gs-table th{color:#45627d;background:#f8fafc}
-.gs-footnote{font-size:12px;color:#5b6f85;line-height:1.5;margin:8px 0}.gs-warning{border-left:4px solid #c18521;padding:9px 12px;background:#fff8eb;border-radius:5px;color:#66491a;font-size:12px}
+.gs-filterbar{display:flex;gap:11px;align-items:end;flex-wrap:wrap;margin:14px 0}.gs-filterbar label{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:750;color:#315774;flex:1;min-width:180px}.gs-filterbar input{min-height:40px;border:1px solid #bfd2e5;border-radius:8px;padding:8px 10px;color:#1d476c;background:#fff}.gs-filterbar button{min-height:40px}.gs-filtercount{font-size:12px;color:#52677e;margin:5px 0 12px}.gs-empty{padding:16px;color:#60738a;background:#f6f9fd;border-radius:9px}.gs-footnote{font-size:12px;color:#5b6f85;line-height:1.5;margin:8px 0}.gs-warning{border-left:4px solid #c18521;padding:9px 12px;background:#fff8eb;border-radius:5px;color:#66491a;font-size:12px}
 @media(max-width:730px){.gs-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.gs-panel{padding:14px}}
 </style>
 <script src="./gs-reader.js" defer></script>
+<script src="./gs-admin-tools.js" defer></script>
 <script src="./gs.js" defer></script>
 </head>
 <body>
@@ -56,6 +57,13 @@
   <p id="gs-source" class="gs-footnote"></p>
   <div id="gs-errors" class="gs-status error" hidden></div>
   <h2 style="margin-top:20px">Partidas encontradas</h2>
+  <div class="gs-filterbar">
+    <label for="gs-filter">Buscar por partida, parte o TSI
+      <input id="gs-filter" type="search" placeholder="Número de partida, parte o TSI" maxlength="80" autocomplete="off" aria-describedby="gs-filtercount">
+    </label>
+    <button id="gs-export" type="button" class="button ghost" disabled>Exportar CSV de la selección</button>
+  </div>
+  <p id="gs-filtercount" class="gs-filtercount" role="status" aria-live="polite"></p>
   <div id="gs-parties"></div>
 </section>
 </main>
