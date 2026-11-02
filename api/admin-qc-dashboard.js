@@ -292,6 +292,13 @@ module.exports=async function handler(req,res){
     return res.status(405).json({error:'METHOD_NOT_ALLOWED'});
   }
   try{
+    // Plaguicidas reutiliza la API ADMIN existente: límite Hobby de 12 funciones.
+    // No aplica los filtros Túnel/Carga ni lee mediciones QC.
+    if(req.query?.modo==='plaguicidas'){
+      const {token}=await verifyAdmin(req);
+      const report=await require('../lib/admin-plaguicidas-read').query(token,req.query);
+      return res.status(200).json({ok:true,...report});
+    }
     const filter=parseQuery(req.query);
     const {token}=await verifyAdmin(req);
     if(req.query?.modo==='partidas'){
