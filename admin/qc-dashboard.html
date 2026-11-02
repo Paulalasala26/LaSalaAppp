@@ -51,7 +51,7 @@
   <nav class="sidebar-nav">
     <a class="nav-item selected" aria-current="page" href="./qc-dashboard.html"><span class="nav-symbol">▥</span> Panel QC</a>
     <a class="nav-item" href="./control.html"><span class="nav-symbol">◫</span> Registros QC</a>
-    <a class="nav-item" href="./qc-criterios.html"><span class="nav-symbol">≡</span> Criterios QC</a>
+    <a class="nav-item" href="./qc-criterios.html"><span class="nav-symbol">≡</span> Criterios históricos</a>
     <a class="nav-item" href="./gs.html"><span class="nav-symbol">▣</span> Partidas GS</a>
     <a class="nav-item" href="./"><span class="nav-symbol">◉</span> Usuarios</a>
   </nav>
@@ -60,7 +60,7 @@
 <div class="main-area">
   <header class="topbar"><div class="breadcrumbs">Backoffice <span>/</span> QC <span>/</span> Indicadores</div><div class="topbar-right"><span class="session-user" id="session-user">Administrador</span></div></header>
   <main class="content qcd">
-    <div class="page-head"><h1>Panel de calidad</h1><div class="qcd-actions"><a href="./control.html" class="button ghost">Registros QC</a><a href="./qc-criterios.html" class="button ghost">Criterios QC</a></div></div>
+    <div class="page-head"><h1>Panel de calidad</h1><div class="qcd-actions"><a href="./control.html" class="button ghost">Registros QC</a><a href="./qc-criterios.html" class="button ghost">Criterios históricos</a></div></div>
     <form id="qcd-form" class="qcd-panel qcd-filters">
       <label class="qcd-filter" for="qcd-type">Estadio
         <select id="qcd-type"><option value="todos">Túnel y Carga</option><option value="tunel">Túnel</option><option value="carga">Carga</option></select>
@@ -86,29 +86,20 @@
         <section class="qcd-panel">
           <h2>Comparativa por estadio</h2>
           <div class="qcd-scroll"><table class="qcd-table">
-            <thead><tr><th>Estadio</th><th>Controles</th><th>Completados</th><th>Con medición</th><th>Media índice global</th><th>Advertencias</th><th>Alertas</th></tr></thead>
+            <thead><tr><th>Estadio</th><th>Controles</th><th>Completados</th><th>Con porcentaje</th></tr></thead>
             <tbody id="qcd-stages"></tbody>
           </table></div>
-          <p class="qcd-desc">Media aritmética de los índices globales guardados de QC porcentual; no equivale al porcentaje de bandejas defectuosas del conjunto.</p>
         </section>
         <section class="qcd-panel">
-          <h2>Evolución semanal</h2>
+          <h2>Registros por semana</h2>
                     <div id="qcd-trend"></div>
         </section>
       </div>
       <section class="qcd-panel">
-        <h2>Indicadores históricos por característica</h2>
-        <p class="qcd-desc">Solo para mediciones históricas por cantidades. El QC porcentual moderno se resume mediante su índice global; las enfermedades se detallan en la ficha.</p>
-        <div class="qcd-scroll"><table class="qcd-table">
-          <thead><tr><th>Estadio</th><th>Criterio</th><th>Histórico de afectados</th><th>% observado</th><th>Tratamiento</th><th>Tolerancia</th><th>Alertas</th></tr></thead>
-          <tbody id="qcd-options"></tbody>
-        </table></div>
-              </section>
-      <section class="qcd-panel">
         <h2>Partidas y controles registrados</h2>
         <p id="qcd-count" class="qcd-desc"></p>
         <div class="qcd-scroll"><table class="qcd-table">
-          <thead><tr><th>Fecha</th><th>Estadio</th><th>Partida</th><th>Estado</th><th>Medición</th><th>Índice global</th><th>Advertencias</th><th>Alertas</th><th></th></tr></thead>
+          <thead><tr><th>Fecha</th><th>Estadio</th><th>Partida</th><th>Estado</th><th>Porcentaje</th><th>Porcentaje registrado</th><th>Ficha</th></tr></thead>
           <tbody id="qcd-records"></tbody>
         </table></div>
       </section>
