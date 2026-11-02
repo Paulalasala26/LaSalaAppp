@@ -292,6 +292,12 @@ module.exports=async function handler(req,res){
     return res.status(405).json({error:'METHOD_NOT_ALLOWED'});
   }
   try{
+    // Avisos: consulta de los elementos actualmente retenidos; no marca leídos ni evalúa.
+    if(req.query?.modo==='avisos'){
+      const {token}=await verifyAdmin(req);
+      const report=await require('../lib/admin-avisos-read').query(token,req.query);
+      return res.status(200).json({ok:true,...report});
+    }
     // Tareas Operativas/Archivo: consulta ADMIN sin escrituras ni firmas.
     if(req.query?.modo==='tareas'){
       const {token}=await verifyAdmin(req);
