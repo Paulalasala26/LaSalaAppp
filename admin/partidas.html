@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#1558a0">
+<title>ViguerAPP · Backoffice · Partidas registradas</title>
+<link rel="icon" type="image/png" href="../icon-192.png?v=ls-20261029">
+<link rel="stylesheet" href="./styles.css">
+<link rel="stylesheet" href="./catalog.css">
+<style>
+  .bp{max-width:1260px}.bp-panel{background:white;border:1px solid #d5e2ef;border-radius:12px;padding:18px;margin:14px 0}
+  .bp-panel h2{font-size:16px;color:#1558a0;margin:0 0 12px}
+  .bp-note{font-size:12px;color:#50677c;line-height:1.55;margin:6px 0 14px}
+  .bp-form{display:grid;grid-template-columns:minmax(100px,1fr) minmax(130px,1fr) minmax(130px,1fr) minmax(155px,1.4fr) auto;gap:11px;align-items:end}
+  .bp-form label{display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:700;color:#345b7b;min-width:0}
+  .bp-form input,.bp-form select{width:100%;min-width:0;background:white;min-height:40px;padding:7px 10px;border-radius:8px;border:1px solid #bfd3e7;color:#254866}
+  .bp-statrow{display:flex;flex-wrap:wrap;gap:12px}.bp-stat{background:#f2f7fe;border:1px solid #d8e4f1;padding:12px 16px;border-radius:9px;flex:1;min-width:170px}
+  .bp-stat strong{display:block;font-size:24px;color:#1558a0}.bp-stat span{font-size:12px;color:#547087}
+  .bp-party{border:1px solid #d5e2ef;border-radius:9px;overflow:hidden;margin:9px 0}
+  .bp-party summary{padding:12px 15px;background:#f4f8fd;color:#174a78;font-weight:750;cursor:pointer;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+  .bp-party summary span{font-size:11px;color:#5d7590;font-weight:550}
+  .bp-scroll{overflow-x:auto}.bp-table{border-collapse:collapse;width:100%;min-width:740px;font-size:12px}
+  .bp-table th,.bp-table td{text-align:left;padding:10px 13px;border-bottom:1px solid #edf2f7;vertical-align:top}
+  .bp-table th{background:#f8fafd;color:#41688a}
+  .bp-feedback{font-size:13px;padding:10px 12px;border:1px solid #d5e2ef;border-radius:9px;background:#f3f8ff;color:#204d77;margin:12px 0}
+  .bp-feedback.error{background:#fff3f3;color:#9b2525;border-color:#f0d4d4}
+  .bp-empty{font-size:12px;color:#667d92;padding:14px}
+  @media(max-width:850px){.bp-form{grid-template-columns:1fr 1fr}.bp-form button{grid-column:1/-1}.bp-panel{padding:13px}}
+  @media(max-width:550px){.bp-form{grid-template-columns:1fr}}
+</style>
+<script src="./partidas.js" defer></script>
+</head>
+<body>
+<div id="access-gate" class="access-gate" role="status" aria-live="polite">
+  <div class="access-panel">
+    <div class="brand-mark"><img src="../icon-192.png?v=ls-20261029" alt=""></div>
+    <h1 id="gate-title">Comprobando acceso</h1>
+    <p id="gate-description">Verificando la sesión administrativa…</p>
+    <a id="gate-link" href="./" class="primary-link" hidden>Volver al Backoffice</a>
+  </div>
+</div>
+<div class="shell" id="workspace" hidden>
+  <aside class="sidebar" aria-label="Navegación Backoffice">
+    <div class="brand"><div class="brand-mark"><img src="../icon-192.png?v=ls-20261029" alt=""></div><div><strong>ViguerAPP</strong><span>Backoffice</span></div></div>
+    <nav class="sidebar-nav">
+      <a class="nav-item" href="./"><span class="nav-symbol">◉</span> Usuarios</a>
+      <a class="nav-item" href="./historico.html"><span class="nav-symbol">◷</span> Histórico</a>
+      <a class="nav-item" href="./control.html"><span class="nav-symbol">◫</span> Control de calidad</a>
+      <a class="nav-item selected" aria-current="page" href="./partidas.html"><span class="nav-symbol">▦</span> Partidas</a>
+      <a class="nav-item" href="./gs.html"><span class="nav-symbol">▤</span> Partidas GS · PDF</a>
+    </nav>
+    <div class="sidebar-footer"><a href="../">← Volver a ViguerAPP</a></div>
+  </aside>
+  <div class="main-area">
+    <header class="topbar"><div class="breadcrumbs">Backoffice <span>/</span> Partidas</div><div class="topbar-right"><span id="session-user" class="session-user">Administrador</span></div></header>
+    <main class="content bp">
+      <div class="page-head"><h1>Partidas · Consulta administrativa</h1><a class="button ghost" href="./control.html">Registros QC</a></div>
+      <p class="bp-note">Referencias de partidas encontradas en controles de Túnel y Carga. Esta vista es histórica, por período; no acredita ocupación actual, existencias ni datos maestros de GS. Solo consulta, sin edición.</p>
+      <section class="bp-panel" aria-label="Filtros de partidas">
+        <form id="bp-form" class="bp-form">
+          <label>Tipo de control<select id="bp-type"><option value="todos">Todos</option><option value="tunel">QC Túnel</option><option value="carga">QC Carga</option></select></label>
+          <label>Desde<input id="bp-from" type="date" min="2026-06-15" required></label>
+          <label>Hasta<input id="bp-to" type="date" min="2026-06-15" required></label>
+          <label>Nº de partida<input id="bp-search" type="search" maxlength="40" placeholder="Buscar referencia…" autocomplete="off"></label>
+          <button class="button primary" type="submit" id="bp-query">Consultar</button>
+        </form>
+      </section>
+      <p id="bp-feedback" class="bp-feedback" role="status" aria-live="polite" hidden></p>
+      <section id="bp-results" hidden>
+        <div id="bp-stats" class="bp-statrow" aria-label="Resumen del período"></div>
+        <div class="bp-panel">
+          <h2>Partidas registradas</h2>
+          <p id="bp-count" class="bp-note"></p>
+          <div id="bp-parties"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+</body>
+</html>
