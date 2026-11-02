@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
 <meta name="theme-color" content="#1558a0">
-<title>ViguerAPP · Criterios QC</title>
+<title>ViguerAPP · Criterios QC históricos</title>
 <link rel="icon" type="image/png" href="../icon-192.png?v=ls-20261029">
 <link rel="stylesheet" href="./styles.css">
 <link rel="stylesheet" href="./catalog.css">
@@ -41,7 +41,7 @@
   <nav class="sidebar-nav">
     <a href="./qc-dashboard.html" class="nav-item"><span class="nav-symbol">▥</span> Panel QC</a>
     <a href="./control.html" class="nav-item"><span class="nav-symbol">◫</span> Registros QC</a>
-    <a href="./qc-criterios.html" class="nav-item selected" aria-current="page"><span class="nav-symbol">≡</span> Criterios QC</a>
+    <a href="./qc-criterios.html" class="nav-item selected" aria-current="page"><span class="nav-symbol">≡</span> Criterios históricos</a>
     <a href="./gs.html" class="nav-item"><span class="nav-symbol">▣</span> Partidas GS</a>
     <a href="./" class="nav-item"><span class="nav-symbol">◉</span> Usuarios</a>
   </nav>
@@ -59,22 +59,21 @@
   </label>
   <span class="qcr-meta" id="qcr-version">—</span>
 </div>
-<form id="qcr-form" novalidate aria-label="Criterios históricos en solo consulta">
+<div id="qcr-form" aria-label="Criterios históricos en solo consulta">
 <section class="qcr-panel">
-<h2>Objetivo de calidad</h2>
-<label class="qcr-field" for="qcr-threshold">Porcentaje objetivo de calidad (%) 
-<input type="number" min="0" max="100" step="0.01" id="qcr-threshold" inputmode="decimal" placeholder="Sin definir" />
+<h2>Objetivo histórico (inactivo)</h2>
+<label class="qcr-field" for="qcr-threshold">Porcentaje objetivo histórico (%)
+<input type="number" min="0" max="100" step="0.01" id="qcr-threshold" inputmode="decimal" placeholder="Sin definir" disabled />
 </label>
 </section>
 <section class="qcr-panel">
-<h2>Criterios por categoría</h2>
+<h2>Criterios históricos por categoría</h2>
 <div id="qcr-groups" class="qcr-grid"></div>
 <div class="qcr-actions">
-<button id="qcr-save" class="button primary" type="submit" hidden disabled>Guardar</button>
 <a href="./control.html" class="button ghost">Volver</a>
 </div>
 </section>
-</form>
+</div>
 </main>
 </div>
 </div>
