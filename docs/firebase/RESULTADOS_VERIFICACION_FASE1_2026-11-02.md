@@ -23,3 +23,14 @@
 5. Solo tras validación técnica y autorización expresa, decidir publicación limitada TEST y disponer de copia exacta/reversión.
 
 **No se ha ejecutado el emulador oficial**: en este entorno no está instalada la CLI Firebase ni está disponible un clon completo del repositorio; la salida de `index.html` no ha podido inspeccionarse con fiabilidad. **No afirmar que las reglas candidatas estén listas para publicar.** El comodín abierto permanece en la propuesta y la vulnerabilidad general sigue pendiente.
+
+
+## Ampliación — frontend principal recuperado por blob GitHub (02/11/2026)
+
+Se recuperó **íntegro** `index.html` de `test/v1.0` usando `fetch_blob` a partir del SHA de archivo (el lector por ruta retornaba contenido vacío por tamaño): **1.512.939 caracteres / 24.950 líneas**. Búsqueda literal de las cuatro claves de fase 1: **0 coincidencias**. Se identificaron diez scripts externos cargados por el HTML y se leyó su contenido actual:
+
+`assets/firebase-diagnostics.js`, `admin/qc-indicadores.js`, `assets/control-qc-operativo.js`, `assets/control-ui-empty.js`, `assets/qc-offline-operarios-store.js`, `assets/qc-offline-operarios-photos.js`, `assets/qc-offline-operarios-drafts.js`, `assets/qc-sync-global.js`, `assets/fito-series-v3.js`, `assets/qc-editar-linea-v3.js`.
+
+**0 referencias literales** a las cuatro claves en los diez ficheros. En el HTML aparecen al menos 102 líneas con `window.storage` o `actualizarStorageJsonConEtag`: hay accesos directos RTDB relevantes para fase 2, aunque la revisión literal de fase 1 no encuentra los cuatro nodos. Esto **elimina el bloqueo anterior sobre lectura de index.html**, pero no prueba que no existan construcciones dinámicas, otros scripts o acceso indirecto.
+
+**Entorno de ejecución local:** Node 22, npm y Java disponibles. Firebase CLI no instalada, no hay emulador RTDB en caché ni clon del repositorio y la red de la terminal no resuelve github.com. No se ha ejecutado emulador ni prueba de integración con Auth; la validación oficial sigue pendiente. No se han publicado reglas ni cambiado aplicación.
