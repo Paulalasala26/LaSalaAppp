@@ -2,7 +2,7 @@
 
 Antes de tocar código, lee `docs/APP_R_V3_ESTADO_MAESTRO.md` en la rama `dev/v1.0` y confirma el estado real del repositorio, la rama y el diff. Ese documento recoge el contexto funcional vigente; contrástalo con el código actual y no conviertas notas históricas en tareas actuales.
 
-Para el estado de los entornos, lee también `docs/APP_R_V3_ENTORNO_DEV.md`. **No asumas que una validación de consulta equivale a pruebas de escritura, offline o SharePoint.**
+Para los cambios y validaciones específicos de DEV, lee **también** `docs/APP_R_V3_ESTADO_MAESTRO_DEV.md` (anexo vivo de la memoria maestra) y `docs/APP_R_V3_ENTORNO_DEV.md`. **No asumas que una validación de consulta equivale a pruebas de escritura, offline o SharePoint.**
 
 ## Regla de crecimiento del frontend
 

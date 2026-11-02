@@ -40,4 +40,6 @@
 - Tema rojo teja suave exclusivo de DEV en `assets/dev-theme.css`, sin cambios de datos ni lógica.
 - Login, cabeceras principales/QC y Backoffice teñidos; formulario y contenido conservan contraste y estructura.
 - `index.html` añade solo la referencia de estilo; `admin/styles.css` lo importa para todas las pantallas administrativas; pantallas offline enlazan el mismo archivo.
-- Validación visual real en móvil y escritorio pendiente de aceptación del usuario; `test/v1.0` y `main` sin modificar.
+- **Validación visual aceptada por el usuario el 02/11/2026 («ok»):** login, cabeceras generales, QC y Backoffice; tras corrección, también cabeceras dinámicas de **Partidas** (selector, mapa y ficha) y **Control de Riego**. Despliegue final `eb136888c44b2b44c6ac86e69261358a1b800a76` confirmado `READY` y dominio DEV operativo.
+- Los cambios visuales no equivalen a UAT de escritura, offline o fotografías. `test/v1.0` y `main` sin modificar.
+- Registro canónico adicional: `docs/APP_R_V3_ESTADO_MAESTRO_DEV.md`.
