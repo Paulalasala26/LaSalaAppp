@@ -1,7 +1,6 @@
 'use strict';
 // Resumen QC exclusivamente informativo. No modifica mediciones ni registros legacy.
-// El denominador de cada tasa es la suma de bandejas INSPECCIONADAS en registros
-// cuantificados del mismo estadio y periodo: no representa existencias únicas.
+// El panel administrativo consulta los porcentajes de cada inspección sin calcular scoring.
 const {
   verifyFirebaseIdToken,serviceAccount,serviceAccessToken,readKey,validHash,httpError
 }=require('./admin-users')._adminCatalogHelpers;
@@ -150,40 +149,25 @@ async function fetchLegacyControls(token,filters){
   return rows;
 }
 function buildDashboard(raw,rawRules,filters,legacyRecords=[]){
-  if(!plainObject(raw)||!plainObject(rawRules)||!Array.isArray(legacyRecords))
+  // Backoffice QC: consultar porcentajes ya registrados. No scoring, medias ni alertas.
+  // El segundo argumento se conserva solo por compatibilidad de las pruebas anteriores.
+  if(!plainObject(raw)||!Array.isArray(legacyRecords))
     throw new Error('QC DB invalid');
   if(Object.keys(raw).length>50000)throw httpError(503,'TOO_MANY_RECORDS');
-  const partitions={tunel:{records:0,completed:0,pending:0,measured:0,
-      bandejas:0,percentSum:0,percentCount:0,warnings:0,critical:0,flagged:0},
-    carga:{records:0,completed:0,pending:0,measured:0,
-      bandejas:0,percentSum:0,percentCount:0,warnings:0,critical:0,flagged:0}};
-  const options={},weekly=new Map(),rows=[],batches=new Set(),measuredBatches=new Set();
-  let measured=0,completed=0,warningCount=0,criticalCount=0,flaggedCount=0,percentSum=0,percentCount=0;
-  let pendingCriteriaCount=0,invalidCount=0,unmatchedCount=0,inspectedAcrossRecords=0;
-  let hasConfiguredRules=false;
-  for(const type of TYPES){
-    options[type]={};
-    for(const [cat,labels] of Object.entries(OPTIONS)){
-      options[type][cat]={};
-      for(const [key,name] of Object.entries(labels)){
-        const rule=chosenRule(rawRules,type,cat,key);
-        options[type][cat][key]={
-          type,category:cat,categoryLabel:CATEGORIES[cat],option:key,label:name,
-          affected:0,recordCount:0,inspected:0,
-          treatment:rule?.treatment||'pendiente',tolerance:rule?.tolerance??null,
-          warningRecords:0,criticalRecords:0
-        };
-        if((filters.stage==='todos'||filters.stage===type)&&rule?.treatment!=='pendiente'&&rule)
-          hasConfiguredRules=true;
-      }
-    }
-  }
+  const partitions={
+    tunel:{records:0,completed:0,pending:0,registeredPercentages:0},
+    carga:{records:0,completed:0,pending:0,registeredPercentages:0}
+  };
+  const weekly=new Map(),rows=[],partidas=new Set(),measuredPartidas=new Set();
+  let completed=0,registeredPercentages=0,invalidCount=0,unmatchedCount=0;
   const measurementById=new Map();
   for(const [id,value] of Object.entries(raw)){
-    if(!validMeasurement(value,id)&&!validPercentMeasurement(value,id)){invalidCount++;continue}
+    if(!validMeasurement(value,id)&&!validPercentMeasurement(value,id)){
+      invalidCount++;continue;
+    }
     measurementById.set(id,value);
   }
-  const ids=new Set(),matchedQuantified=new Set();
+  const ids=new Set(),matched=new Set();
   for(const rec of legacyRecords){
     if(!plainObject(rec)||!REF_RE.test(rec.id)||!TYPES.has(rec.tipo)||
        !Number.isInteger(rec.dia)||rec.dia<filters.from||rec.dia>filters.to||
@@ -193,87 +177,53 @@ function buildDashboard(raw,rawRules,filters,legacyRecords=[]){
     ids.add(rec.id);
     const type=rec.tipo,part=partitions[type],done=legacyComplete(rec);
     part.records++;
-    if(done){part.completed++;completed++}else part.pending++;
-    if(typeof rec.partida==='string'&&rec.partida.trim())batches.add(rec.partida.trim());
-    const measurement=measurementById.get(rec.id);
-    // Medición válida solo si la partida, estadio y fecha siguen coincidiendo.
-    const quant=measurement&&measurement.legacy.tipo===type&&
-      measurement.legacy.dia===rec.dia&&measurement.legacy.partida===rec.partida?
-      measurement:null;
-    const weekStart=15+Math.floor((rec.dia-15)/7)*7;
-    const weekKey=dayToISO(weekStart);
-    if(!weekly.has(weekKey))weekly.set(weekKey,{
-      weekStart:weekKey,records:0,tunel:0,carga:0,completed:0,
-      measured:0,flagged:0,warnings:0,critical:0
-    });
-    const week=weekly.get(weekKey);
-    week.records++;week[type]++;if(done)week.completed++;
-    let warnings=0,critical=0,pending=0,observed=0;
-    if(quant){
-      matchedQuantified.add(rec.id);
-      measured++;part.measured++;week.measured++;
-      const modern=[5,6].includes(quant.schemaVersion);
-      if(modern){percentSum+=quant.porcentajeInvalidasGlobal;percentCount++;
-        part.percentSum+=quant.porcentajeInvalidasGlobal;part.percentCount++;}
-      const inspected=modern?0:quant.bandejasInspeccionadas;
-      inspectedAcrossRecords+=inspected;part.bandejas+=inspected;
-      if(typeof rec.partida==='string'&&rec.partida.trim())measuredBatches.add(rec.partida.trim());
-      if(!modern)for(const [cat,labels] of Object.entries(OPTIONS)){
-        for(const key of Object.keys(labels)){
-          const stat=options[type][cat][key];
-          stat.inspected+=inspected;
-          const qty=quant.mediciones[cat][key];
-          if(qty===undefined)continue;
-          observed++;stat.affected+=qty;stat.recordCount++;
-          const rule=chosenRule(rawRules,type,cat,key);
-          const level=signal(qty,inspected,rule);
-          if(level==='warning'){warnings++;stat.warningRecords++}
-          if(level==='critical'){critical++;stat.criticalRecords++}
-          if(!rule||rule.treatment==='pendiente')pending++;
-        }
-      }
-      if(pending)pendingCriteriaCount++;
-      part.warnings+=warnings;part.critical+=critical;
-      warningCount+=warnings;criticalCount+=critical;
-      week.warnings+=warnings;week.critical+=critical;
-      if(warnings+critical>0){flaggedCount++;part.flagged++;week.flagged++}
+    if(done){part.completed++;completed++;}else part.pending++;
+    if(typeof rec.partida==='string'&&rec.partida.trim())partidas.add(rec.partida.trim());
+    const candidate=measurementById.get(rec.id);
+    const saved=candidate&&candidate.legacy.tipo===type&&
+      candidate.legacy.dia===rec.dia&&candidate.legacy.partida===rec.partida?
+      candidate:null;
+    if(saved)matched.add(rec.id);
+    const percentage=saved&&[5,6].includes(saved.schemaVersion)?
+      saved.porcentajeInvalidasGlobal:null;
+    if(percentage!==null){
+      registeredPercentages++;part.registeredPercentages++;
+      if(typeof rec.partida==='string'&&rec.partida.trim())
+        measuredPartidas.add(rec.partida.trim());
     }
+    const weekStart=dayToISO(15+Math.floor((rec.dia-15)/7)*7);
+    if(!weekly.has(weekStart))weekly.set(weekStart,{
+      weekStart,records:0,tunel:0,carga:0,completed:0,registeredPercentages:0
+    });
+    const week=weekly.get(weekStart);
+    week.records++;week[type]++;if(done)week.completed++;
+    if(percentage!==null)week.registeredPercentages++;
     rows.push({
       id:rec.id,tipo:type,dia:rec.dia,date:dayToISO(rec.dia),
       partida:typeof rec.partida==='string'?rec.partida:'',
-      done,quantified:!!quant,numBandejasLegacy:rec.numBandejas??null,
-      bandejasInspeccionadas:quant?.schemaVersion===1?quant.bandejasInspeccionadas:null,
-      porcentajeInvalidasGlobal:[5,6].includes(quant?.schemaVersion)?quant.porcentajeInvalidasGlobal:null,
-      enfermedades:[5,6].includes(quant?.schemaVersion)?quant.categorias?.sanidad?.porcentajesEnfermedades||{}:null,
-      measurementSchema:quant?.schemaVersion||null,
-      version:quant?.version||0,updatedAt:quant?.updatedAt||null,
-      warningCount:quant?warnings:null,criticalCount:quant?critical:null,
-      criteriaPending:quant?pending:null,observedOptions:quant?observed:0
+      done,quantified:!!saved,
+      porcentajeInvalidasGlobal:percentage,
+      enfermedades:percentage!==null?saved.categorias?.sanidad?.porcentajesEnfermedades||{}:null,
+      measurementSchema:saved?.schemaVersion||null,
+      version:saved?.version||0,updatedAt:saved?.updatedAt||null
     });
   }
   for(const [id,measurement] of measurementById){
     if(measurement.legacy.dia>=filters.from&&measurement.legacy.dia<=filters.to&&
        (filters.stage==='todos'||filters.stage===measurement.legacy.tipo)&&
        (!filters.part||measurement.legacy.partida.toLocaleUpperCase('es').includes(filters.part))&&
-       !matchedQuantified.has(id))unmatchedCount++;
+       !matched.has(id))unmatchedCount++;
   }
   rows.sort((a,b)=>b.dia-a.dia||
-    b.criticalCount-a.criticalCount||b.warningCount-a.warningCount||
     a.partida.localeCompare(b.partida,'es',{numeric:true})||a.id.localeCompare(b.id));
-  const optionTotals=[];
-  for(const type of TYPES)for(const cat of Object.keys(OPTIONS))for(const k of Object.keys(OPTIONS[cat])){
-    const stat=options[type][cat][k];
-    optionTotals.push({...stat,percent:stat.inspected?stat.affected/stat.inspected*100:null});
-  }
   return {
-    scope:'legacy-and-quantified',from:dayToISO(filters.from),to:dayToISO(filters.to),
+    scope:'registered-percentages',from:dayToISO(filters.from),to:dayToISO(filters.to),
     filterType:filters.stage,filterPart:filters.part,
-    stats:{records:rows.length,partidas:batches.size,completed,pending:rows.length-completed,
-      measured,unmeasured:rows.length-measured,measuredPartidas:measuredBatches.size,
-      inspectedAcrossRecords,percentCount,percentAverage:percentCount?Math.floor(percentSum/percentCount):null,
-      warningCount,criticalCount,flaggedCount,
-      pendingRecordCount:pendingCriteriaCount,hasConfiguredRules},
-    partitions,options:optionTotals,
+    stats:{records:rows.length,partidas:partidas.size,completed,
+      pending:rows.length-completed,registeredPercentages,
+      withoutPercentage:rows.length-registeredPercentages,
+      measuredPartidas:measuredPartidas.size},
+    partitions,
     trend:Array.from(weekly.values()).sort((a,b)=>a.weekStart.localeCompare(b.weekStart)),
     records:rows.slice(0,MAX_ROWS),shownRows:Math.min(rows.length,MAX_ROWS),
     totalRows:rows.length,invalidExcluded:invalidCount,unmatchedMeasurements:unmatchedCount
@@ -300,12 +250,11 @@ module.exports=async function handler(req,res){
   try{
     const filter=parseQuery(req.query);
     const {token}=await verifyAdmin(req);
-    const [measurements,criteria,legacy]=await Promise.all([
+    const [measurements,legacy]=await Promise.all([
       readKey('lasala-qc-mediciones-v1',token),
-      readKey('lasala-qc-reglas-v1',token),
       fetchLegacyControls(token,filter)
     ]);
-    const report=buildDashboard(measurements,criteria,filter,legacy);
+    const report=buildDashboard(measurements,null,filter,legacy);
     return res.status(200).json({ok:true,...report});
   }catch(e){
     const status=e.httpStatus||503;
