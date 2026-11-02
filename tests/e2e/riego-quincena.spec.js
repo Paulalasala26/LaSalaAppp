@@ -43,8 +43,9 @@ function riegoGuardado(database) {
   return typeof raw === 'string' ? JSON.parse(raw) : raw;
 }
 
-async function openRiego(page, database) {
+async function openRiego(page, database, { writeDelayMs = 0 } = {}) {
   const unexpectedHosts = [];
+  const writes = [];
   await page.route(firebaseUrl, async route => {
     const request = route.request();
     const url = new URL(request.url());
@@ -60,6 +61,8 @@ async function openRiego(page, database) {
       return;
     }
     const body = request.postData() ? JSON.parse(request.postData()) : null;
+    writes.push({ method: request.method(), path: path.join('/'), body });
+    if (writeDelayMs) await new Promise(resolve => setTimeout(resolve, writeDelayMs));
     if (request.method() === 'PUT') writeAt(database, path, body);
     else if (request.method() === 'PATCH') writeAt(database, path, { ...(readAt(database, path) || {}), ...body });
     else if (request.method() === 'DELETE') writeAt(database, path, null);
@@ -77,7 +80,7 @@ async function openRiego(page, database) {
   await expect(overlay).toBeVisible();
   await page.locator('#riego-inv-selector-toggle').click();
   await page.locator('[data-rinv="17"]').click();
-  return { overlay, database, unexpectedHosts };
+  return { overlay, database, unexpectedHosts, writes };
 }
 
 async function openManualRiegoOnFutureDay(page) {
@@ -291,6 +294,32 @@ test('UAT-081: limpiar una sala no elimina las selecciones de otras salas ni mod
   await expect(overlay).toBeVisible();
 });
 
+test('UAT-082: quitar un invernadero de la lista agrupada actualiza solo esa selección y el contador', async ({ page }) => {
+  const database = fixtureDatabase();
+  const { overlay, unexpectedHosts } = await openRiego(page, database);
+  await page.locator('#riego-grid-wrap').getByText('1 jul', { exact: true }).first().click();
+  const form = page.locator('#riego-manual-overlay');
+  const selected = form.getByTestId('riego-invernaderos-seleccionados');
+  await expect(selected).toContainText('Seleccionados (1)');
+  await expect(selected).toContainText('Sala 2:');
+  await expect(selected).toContainText('INV 17');
+
+  const secondRoomInv = form.locator('.rmb-inv-chk[data-sala="sala2"]').first();
+  const secondId = await secondRoomInv.getAttribute('value');
+  await secondRoomInv.check();
+  await expect(selected).toContainText('Seleccionados (2)');
+  await expect(selected).toContainText('Sala 2:');
+  await selected.getByTestId('riego-quitar-inv-17').click();
+
+  await expect(selected).toContainText('Seleccionados (1)');
+  await expect(selected).not.toContainText('INV 17');
+  await expect(selected).toContainText(`INV ${secondId}`);
+  await expect(form.locator('.rmb-inv-chk[value="17"]')).not.toBeChecked();
+  await expect(form.locator(`.rmb-inv-chk[value="${secondId}"]`)).toBeChecked();
+  expect(unexpectedHosts).toEqual([]);
+  await expect(overlay).toBeVisible();
+});
+
 test('UAT-087: los tramos configurados en dos salas sobreviven al actualizar la selección', async ({ page }) => {
   const database = fixtureDatabase();
   const { overlay, unexpectedHosts } = await openRiego(page, database);
@@ -424,6 +453,108 @@ test('UAT-089: la instrucción adicional se guarda junto con la programación de
   const renderedCells = await grid.locator(`input[data-rinv="17"][data-dia="${day}"], textarea[data-rinv="17"][data-dia="${day}"]`)
     .evaluateAll(elements => elements.map(element => element.value || element.textContent || ''));
   expect(renderedCells.some(value => value.includes(`20 + * ${note}`))).toBe(true);
+  expect(unexpectedHosts).toEqual([]);
+  await expect(overlay).toBeVisible();
+});
+
+test('UAT-093: Aplicar guarda desde el formulario y deja accesible la acción de guardar de la cuadrícula', async ({ page }) => {
+  const database = fixtureDatabase();
+  const { overlay, unexpectedHosts } = await openRiego(page, database);
+  const { form, grid, day } = await openManualRiegoOnFutureDay(page);
+  const streets = await callesVisiblesDelDia(grid, day);
+
+  await expect(form.getByRole('button', { name: 'Guardar', exact: true })).toHaveCount(0);
+  await form.locator('.rm-agua-min').first().selectOption('10');
+  await form.locator('#rm-guardar-btn').click();
+  await expect(form).toBeHidden();
+  await expect(overlay.locator('button[title="Guardar"]')).toBeVisible();
+  await expect.poll(() => Object.keys(riegoGuardado(database)?.['17']?.[day] || {}).length).toBe(streets.length);
+  expect(Object.values(riegoGuardado(database)['17'][day]).every(value => JSON.stringify(value).includes('10'))).toBe(true);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-094: un riego aplicado reaparece en el mismo invernadero y calle al volver a entrar', async ({ page }) => {
+  const database = fixtureDatabase();
+  const { overlay, unexpectedHosts } = await openRiego(page, database);
+  const { form, grid, day } = await openManualRiegoOnFutureDay(page);
+  const streets = await callesVisiblesDelDia(grid, day);
+  await form.locator('.rm-agua-min').first().selectOption('20');
+  await form.locator('#rm-guardar-btn').click();
+  await expect(form).toBeHidden();
+  await expect.poll(() => Object.keys(riegoGuardado(database)?.['17']?.[day] || {}).length).toBe(streets.length);
+
+  await overlay.getByRole('button', { name: '✕', exact: true }).click();
+  await expect(page.locator('#page-home')).toBeVisible();
+  await page.locator('.home-shortcut-card[onclick="handleQuickAction(\'riego\')"]').click();
+  await expect(overlay).toBeVisible();
+  await page.locator('#riego-inv-selector-toggle').click();
+  await page.locator('[data-rinv="17"]').click();
+  await expect(grid).toContainText('20');
+  expect(Object.keys(riegoGuardado(database)['17'][day]).map(Number).sort((a,b) => a-b)).toEqual(streets);
+  expect(riegoGuardado(database)['18']['30']['2']).toBe('E2E-RIEGO-INV-18');
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-095: un riego aplicado reaparece idéntico después de recargar la aplicación', async ({ page }) => {
+  const database = fixtureDatabase();
+  const { overlay, unexpectedHosts } = await openRiego(page, database);
+  const { form, grid, day } = await openManualRiegoOnFutureDay(page);
+  await form.locator('.rm-agua-min').first().selectOption('30');
+  await form.locator('#rm-guardar-btn').click();
+  await expect(form).toBeHidden();
+  await expect.poll(() => JSON.stringify(riegoGuardado(database)?.['17']?.[day]?.['2'] ?? '')).toContain('30');
+  const saved = JSON.stringify(riegoGuardado(database)['17'][day]);
+
+  await page.reload();
+  await expect(page.locator('#app')).toBeVisible();
+  await page.locator('.home-shortcut-card[onclick="handleQuickAction(\'riego\')"]').click();
+  await expect(overlay).toBeVisible();
+  await page.locator('#riego-inv-selector-toggle').click();
+  await page.locator('[data-rinv="17"]').click();
+  await expect(grid).toContainText('30');
+  expect(JSON.stringify(riegoGuardado(database)['17'][day])).toBe(saved);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-096: editar el agua de un riego conserva el Trabajo y el horario existentes', async ({ page }) => {
+  const database = fixtureDatabase();
+  const seeded = JSON.parse(database['lasala-riego-v1']);
+  seeded['17']['32'] = { '2': '10 + PP + 1º HORA' };
+  database['lasala-riego-v1'] = JSON.stringify(seeded);
+  const { overlay, unexpectedHosts } = await openRiego(page, database);
+  const cell = page.locator(`#riego-grid-wrap textarea[ondblclick*="'17',32"]`);
+  await expect(cell).toHaveValue('10 + PP + 1º HORA');
+  await cell.dblclick();
+  const form = page.locator('#riego-manual-overlay');
+  await expect(form).toBeVisible();
+  await expect(form.locator('.rm-agua-min').first()).toHaveValue('10');
+  await expect(form.locator('.rm-trabajo-chk[value="PP"]').first()).toBeChecked();
+  await expect(form.locator('#rm-horario-trabajo')).toHaveValue('1º HORA');
+  await form.locator('.rm-agua-min').first().selectOption('20');
+  await form.locator('#rm-guardar-btn').click();
+  await expect(form).toBeHidden();
+  await expect.poll(() => {
+    const saved = riegoGuardado(database)?.['17']?.['32']?.['2'];
+    return typeof saved === 'object' ? saved.texto : saved;
+  }).toBe('PP + 1º HORA + 20');
+  expect(unexpectedHosts).toEqual([]);
+  await expect(overlay).toBeVisible();
+});
+
+test('UAT-100: varios clics rápidos en Aplicar producen un único guardado confirmado', async ({ page }) => {
+  const database = fixtureDatabase();
+  const { overlay, unexpectedHosts, writes } = await openRiego(page, database, { writeDelayMs: 250 });
+  const { form, grid, day } = await openManualRiegoOnFutureDay(page);
+  const streets = await callesVisiblesDelDia(grid, day);
+  await form.locator('.rm-agua-min').first().selectOption('30');
+  const button = form.locator('#rm-guardar-btn');
+  await button.evaluate(element => { element.click(); element.click(); element.click(); });
+
+  await expect(form).toBeHidden();
+  await expect.poll(() => writes.filter(write => write.path === 'lasala-riego-v1' && write.method !== 'GET').length).toBe(1);
+  await expect.poll(() => Object.keys(riegoGuardado(database)?.['17']?.[day] || {}).length).toBe(streets.length);
+  expect(Object.keys(riegoGuardado(database)['17'][day]).map(Number).sort((a,b) => a-b)).toEqual(streets);
+  expect(Object.values(riegoGuardado(database)['17'][day]).every(value => JSON.stringify(value).includes('30'))).toBe(true);
   expect(unexpectedHosts).toEqual([]);
   await expect(overlay).toBeVisible();
 });

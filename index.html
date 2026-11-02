@@ -13700,6 +13700,7 @@ function riegoBulkInvSelectorHTML(){
         ${Object.keys(INV_LAYOUT_SALA4).map(id=>`<label style="font-size:10px;display:flex;align-items:center;gap:3px;background:#fff;border:1px solid #ddd;border-radius:5px;padding:3px 7px;cursor:pointer"><input type="checkbox" class="rmb-inv-chk" data-sala="sala4" value="${id}"${rmBulkConfig[id]?' checked':''} onchange="toggleRmBulkInv()"> ${id}</label>`).join('')}
         ${Object.keys(INV_LAYOUT_SALA5).map(id=>`<label style="font-size:10px;display:flex;align-items:center;gap:3px;background:#fff;border:1px solid #ddd;border-radius:5px;padding:3px 7px;cursor:pointer"><input type="checkbox" class="rmb-inv-chk" data-sala="sala5" value="${id}"${rmBulkConfig[id]?' checked':''} onchange="toggleRmBulkInv()"> ${id}</label>`).join('')}
       </div>
+      <div id="rmb-seleccionados" data-testid="riego-invernaderos-seleccionados" style="margin-top:8px"></div>
       <div id="rmb-panels"></div>
     </div>`;
 }
@@ -13734,6 +13735,31 @@ function toggleRmBulkInv(){
   Object.keys(rmBulkConfig).forEach(id=>{ if(!seleccionados.includes(id)) delete rmBulkConfig[id]; });
   seleccionados.forEach(id=>{ if(!rmBulkConfig[id]) rmBulkConfig[id] = {modo:'entero', excluir:{desde:null,hasta:null}, tramos:[]}; });
   renderRmBulkPanels();
+  renderRiegoBulkSeleccionados();
+}
+function quitarRmBulkInvSeleccionado(invId){
+  const chk = Array.from(document.querySelectorAll('.rmb-inv-chk')).find(el=>el.value===String(invId));
+  if(!chk) return;
+  chk.checked = false;
+  toggleRmBulkInv();
+}
+function renderRiegoBulkSeleccionados(){
+  const cont = document.getElementById('rmb-seleccionados');
+  if(!cont) return;
+  const ids = leerRmBulkInvsSeleccionados();
+  if(!ids.length){ cont.innerHTML = ''; return; }
+  const salaPorInv = { ...Object.fromEntries(Object.keys(INV_LAYOUT_SALA1).map(id=>[id,'Sala 1'])),
+    ...Object.fromEntries(Object.keys(INV_LAYOUT_SALA2).map(id=>[id,'Sala 2'])),
+    ...Object.fromEntries(Object.keys(INV_LAYOUT_SALA3).map(id=>[id,'Sala 3'])),
+    ...Object.fromEntries(Object.keys(INV_LAYOUT_SALA4).map(id=>[id,'Sala 4'])),
+    ...Object.fromEntries(Object.keys(INV_LAYOUT_SALA5).map(id=>[id,'Sala 5'])) };
+  const grupos = {};
+  ids.forEach(id=>{ (grupos[salaPorInv[id]||'Otros'] ||= []).push(id); });
+  cont.innerHTML = `<div style="font-size:10px;font-weight:800;color:#1558a0;margin-bottom:5px">Seleccionados (${ids.length})</div>`+
+    Object.entries(grupos).map(([sala,invs])=>`<div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin:3px 0" data-sala-seleccionada="${sala}">
+      <span style="font-size:10px;font-weight:700;color:#555">${sala}:</span>
+      ${invs.map(id=>`<span style="display:inline-flex;align-items:center;gap:3px;background:#e8f1fc;border:1px solid #c7d9f1;border-radius:12px;padding:2px 5px;font-size:10px">INV ${id}<button type="button" data-testid="riego-quitar-inv-${id}" aria-label="Quitar INV ${id}" onclick="quitarRmBulkInvSeleccionado('${id}')" style="border:0;background:transparent;color:#1558a0;font-weight:800;cursor:pointer;padding:0 2px">×</button></span>`).join('')}
+    </div>`).join('');
 }
 function renderRmBulkPanels(){
   const cont = document.getElementById('rmb-panels');
@@ -14095,6 +14121,7 @@ function showRiegoManualForm(){
   renderAguaRows();
   renderAbonoRows();
   renderRmBulkPanels();
+  renderRiegoBulkSeleccionados();
 }
 
 // ── AGUA: filas repetibles ──────────────────────────────────────
@@ -14500,7 +14527,7 @@ function leerInvernaderosBulkSeleccionados(prefix){
 // de ahí también su queja de que "la rectificación no se guarda, solo la
 // explicación" — las calles que sí quedaban dentro del nuevo tramo se
 // guardaban bien, pero el resto del invernadero seguía con el marcaje viejo).
-function aplicarTextoRiegoManual(invId, dia, tramos, texto, callesExtraALimpiar){
+async function aplicarTextoRiegoManual(invId, dia, tramos, texto, callesExtraALimpiar){
   const layout = INV_LAYOUT[invId];
   const allCalles = [...layout.row1, ...layout.row2];
   const callesAfectadas = [];
@@ -14526,14 +14553,14 @@ function aplicarTextoRiegoManual(invId, dia, tramos, texto, callesExtraALimpiar)
     // (el guardado normal no sabe "borrar", así que si se hicieran en dos
     // pasos sueltos una fusión tardía podría resucitar lo que la limpieza
     // acababa de borrar).
-    if(sobrantes.length) guardarRiegoConLimpieza(invId, dia, sobrantes);
-    else saveRiegoData();
+    if(sobrantes.length) await guardarRiegoConLimpieza(invId, dia, sobrantes);
+    else await saveRiegoData();
   } else {
     // Borrar: el guardado normal fusiona con la nube y no sabe "borrar" (la
     // celda ya vacía en local heredaría de la nube el valor antiguo que
     // borramos) — aquí se lee la nube fresca y se borra directamente, igual
     // que en Retroceder.
-    guardarBorradoRiego(invId, dia, [...callesAfectadas, ...sobrantes]);
+    await guardarBorradoRiego(invId, dia, [...callesAfectadas, ...sobrantes]);
   }
   renderRiegoGrid(invId);
   const tramosLabel = tramos.map(({desde,hasta})=>{const s=Math.min(desde,hasta),e=Math.max(desde,hasta); return s===e?`${s}`:`${s}-${e}`;}).join(', ');
@@ -14631,7 +14658,7 @@ async function saveRiegoManual(){
         await aplicarTextoRiegoManualMoviendoDia(invId, contextoOriginal.dia, contextoOriginal.calles, dia, tramos, textoCompleto);
       } else {
         const callesOriginalesMismoDia = (contextoOriginal && contextoOriginal.invId===invId && contextoOriginal.dia===dia) ? contextoOriginal.calles : null;
-        aplicarTextoRiegoManual(invId, dia, tramos, textoCompleto, callesOriginalesMismoDia);
+        await aplicarTextoRiegoManual(invId, dia, tramos, textoCompleto, callesOriginalesMismoDia);
       }
     }
   } finally {
@@ -14692,10 +14719,10 @@ async function borrarRiegoManual(){
   if(!invIds.length){ showToast('Elige al menos un invernadero'); return; }
   // Las tareas de peón ya no se tocan aquí — ver comentario en
   // saveRiegoManual (botón "Generar tareas" en Tareas).
-  invIds.forEach(invId=>{
+  await Promise.all(invIds.map(async invId=>{
     const {tramos} = calcularCallesRmBulk(invId);
-    aplicarTextoRiegoManual(invId, dia, tramos, '');
-  });
+    await aplicarTextoRiegoManual(invId, dia, tramos, '');
+  }));
 }
 function tramosLabelTexto(invId, tramos){
   return tramos.map(({desde,hasta})=>{const s=Math.min(desde,hasta),e=Math.max(desde,hasta); return formatRangoConInv(invId, s, e);}).join(', ');
@@ -14938,17 +14965,17 @@ function abrirPostItRiego(){
     </div>`;
   po.style.display = 'flex';
 }
-function guardarPostItRiego(){
+async function guardarPostItRiego(){
   const nota = document.getElementById('rm-postit-texto').value.trim();
   if(!nota){ showToast('Escribe algo en la nota'); return; }
   document.getElementById('riego-postit-overlay').style.display = 'none';
   const {textoCompleto} = construirPartesRiegoManual();
   const texto = textoCompleto ? `${textoCompleto} + * ${nota}` : `* ${nota}`;
   const dia = parseInt(document.getElementById('rm-dia').value);
-  leerRmBulkInvsSeleccionados().forEach(invId=>{
+  await Promise.all(leerRmBulkInvsSeleccionados().map(async invId=>{
     const {tramos} = calcularCallesRmBulk(invId);
-    aplicarTextoRiegoManual(invId, dia, tramos, texto);
-  });
+    await aplicarTextoRiegoManual(invId, dia, tramos, texto);
+  }));
 }
 // Pulsar la etiqueta de un día en la cuadrícula abre el alta manual con ese
 // día ya puesto (para no tener que elegirlo otra vez en el desplegable).

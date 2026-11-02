@@ -1,6 +1,6 @@
 # Pruebas automatizadas
 
-La suite automatiza 48 casos UAT distintos en 40 pruebas Playwright:
+La suite automatiza 54 casos UAT distintos en 46 pruebas Playwright:
 
 - UAT-001 a UAT-010: autenticación, sesión, roles, navegación y tamaños PC,
   móvil y tablet.
@@ -8,9 +8,10 @@ La suite automatiza 48 casos UAT distintos en 40 pruebas Playwright:
   Control.
 - UAT-028 a UAT-032: consulta, detalle, edición, búsqueda y Específicos
   asociados en Partidas.
-- UAT-067 a UAT-081 y UAT-083 a UAT-092, más UAT-112: fechas, quincenas,
+- UAT-067 a UAT-081, UAT-082, UAT-083 a UAT-096, UAT-100, UAT-112: fechas, quincenas,
   selección de salas e invernaderos, calles, formularios, notas, cancelación,
-  vista móvil y ausencia de tareas ficticias.
+  vista móvil, persistencia, recarga, edición de instrucciones y ausencia de
+  tareas ficticias.
 
 Cada prueba lleva los ID que cubre en su nombre. Los casos no incluidos siguen
 pendientes; una prueba verde solo se atribuye a los ID cuyas condiciones
