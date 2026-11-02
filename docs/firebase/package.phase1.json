@@ -1,0 +1,11 @@
+{
+  "name": "lasala-firebase-security-phase1-tests",
+  "private": true,
+  "scripts": {
+    "test:emulator": "firebase emulators:exec --only database --project demo-lasala-phase1 --config firebase.emulator.phase1.json \"node --test firebase-emulator-phase1.test.cjs\""
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^4.0.0",
+    "firebase-tools": "^14.0.0"
+  }
+}
