@@ -59,7 +59,7 @@ Convenciones: `C` = cliente/browser accede a RTDB directo; `S` = API servidor co
 | `lasala-partidas-v1` | Inventario de Partidas legado (**C R/W**) | Gestión de Partidas, uso por otras pantallas | L/E todos | No confundir con maestro GS ni con APP Ocupación externa; preservar QC/fotos |
 | `lasala-trabajos-v1` | Trabajos Mujeres/Túnel/Externos (**C R/W**) | ADMIN y perfiles operativos; TÉCNICO sin acceso a módulo según UI | L/E todos | Valorar roles exactos y evitar escritura desde un TÉCNICO vía REST |
 | `lasala-checks-v1` | Checks operativos (**C R/W**) | Operarios responsables | L/E todos | No romper marcaje, concurrencia, histórico |
-| `lasala-presencia-v1`, `lasala-clima-*` | Presencia y cuadro/clima (**C R/W` en varios nodos) | Usuarios operativos y supervisión (?) | L/E todos | Separar sensores/lecturas y escrituras manuales |
+| `lasala-presencia-v1`, `lasala-clima-*` | Presencia y cuadro/clima (**C R/W** en varios nodos) | Usuarios operativos y supervisión (?) | L/E todos | Separar sensores/lecturas y escrituras manuales |
 | `lasala-riego-ejecutado-v1`, `lasala-propuestas-riego-v1`, `lasala-indice-abonos-*` | Ejecución, propuestas y cuadros de abonos (**C R/W**) | REGANTE/gestores según función | L/E todos | Resolver rol y tramo de lectura antes de endurecer |
 | `lasala-injerto-asignacion-v1`, `lasala-cargas-asignacion-v1`, `lasala-sala-en-vivo-manual-v1` | Asignaciones y estado sala en vivo (**C R/W**) | ADMIN/TÉCNICO/CARGADOR y perfiles de trabajo según pantalla | L/E todos | Confirmar asignación por usuario/sala e integridad |
 | `lasala-offline-queue-v1` | Cola local `localStorage` (NO RTDB) | Técnico/Cargador y capturas QC | **No aplica a reglas RTDB** | Validar envío al reconectar a API y escritura de referencia QC |
