@@ -3,7 +3,7 @@
 (function(){
   const AUTH='lasala-firebase-auth-v1';
   const KEY='AIzaSyDdDdMg6M1jVIssvGYKsdRA-mRug31Yt_g';
-  const URL_API='/api/admin-partidas',START='2026-06-15';
+  const URL_API='/api/admin-qc-dashboard',START='2026-06-15';
   const el=id=>document.getElementById(id);
   let busy=false;
   const dateLabel=iso=>new Date(iso+'T12:00:00').toLocaleDateString('es-ES');
@@ -108,7 +108,7 @@
     message('Consultando registros de Túnel y Carga…',false);
     try{
       const jwt=await token();
-      const qs=new URLSearchParams(selected);
+      const qs=new URLSearchParams({...selected,modo:'partidas'});
       const r=await fetch(URL_API+'?'+qs.toString(),{
         headers:{Authorization:'Bearer '+jwt},cache:'no-store'
       });
