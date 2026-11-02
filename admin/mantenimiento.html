@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#1558a0">
+<title>ViguerAPP · Backoffice · Mantenimiento</title>
+<link rel="icon" type="image/png" href="../icon-192.png?v=ls-20261029">
+<link rel="stylesheet" href="./styles.css"><link rel="stylesheet" href="./catalog.css">
+<style>
+.mt-main{max-width:1300px}.mt-panel{background:#fff;border:1px solid #d7e5f2;border-radius:11px;margin:14px 0;padding:17px}
+.mt-note{font-size:12px;line-height:1.6;color:#536b84;margin:7px 0 14px}
+.mt-form{display:grid;grid-template-columns:minmax(125px,1fr) minmax(150px,1fr) minmax(165px,1.5fr) minmax(155px,1.4fr) auto;gap:11px;align-items:end}
+.mt-form label,.mt-extra label{display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:750;color:#315c7d;min-width:0}
+.mt-form input,.mt-form select,.mt-extra input{min-height:40px;border:1px solid #bdd3e8;border-radius:8px;background:#fff;color:#204d70;width:100%;min-width:0;padding:8px 10px}
+.mt-extra{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+.mt-stats{display:flex;gap:12px;flex-wrap:wrap}.mt-stat{flex:1;min-width:170px;background:#f2f8fe;border:1px solid #d8e6f3;border-radius:9px;padding:12px 16px}
+.mt-stat strong{display:block;color:#1558a0;font-size:23px}.mt-stat span{font-size:12px;color:#56738a}
+.mt-scroll{overflow-x:auto}.mt-table{border-collapse:collapse;width:100%;min-width:1030px;font-size:12px}
+.mt-table th,.mt-table td{padding:10px 11px;border-bottom:1px solid #e9f0f8;text-align:left;vertical-align:top;color:#2d526f}
+.mt-table th{background:#f6f9fd;color:#396082}
+.mt-title{max-width:270px;min-width:175px;overflow-wrap:anywhere}.mt-title strong{display:block;color:#174c78}
+.mt-title small{display:block;font-weight:400;white-space:pre-wrap;margin-top:5px;color:#698199}
+.mt-nowrap{white-space:nowrap}.mt-wrap{max-width:240px;overflow-wrap:anywhere}
+.mt-id{font-size:10px;color:#71899e;overflow-wrap:anywhere;max-width:180px}
+.mt-feedback{padding:11px 13px;background:#eff6ff;border:1px solid #d3e3f3;border-radius:8px;font-size:12px;color:#254f78;margin:13px 0}
+.mt-feedback.error{background:#fff4f4;border-color:#efcbcb;color:#9a2b2b}
+.mt-empty{padding:16px;font-size:12px;color:#667e91}
+@media(max-width:1000px){.mt-form{grid-template-columns:repeat(2,minmax(0,1fr))}.mt-form button{grid-column:1/-1}}
+@media(max-width:580px){.mt-form,.mt-extra{grid-template-columns:1fr}.mt-panel{padding:12px}}
+</style>
+<script src="./mantenimiento.js" defer></script>
+</head>
+<body>
+<div id="access-gate" class="access-gate" role="status" aria-live="polite">
+ <div class="access-panel"><div class="brand-mark"><img src="../icon-192.png?v=ls-20261029" alt=""></div>
+ <h1 id="gate-title">Comprobando acceso</h1><p id="gate-description">Verificando sesión de administrador…</p>
+ <a href="./" class="primary-link" id="gate-link" hidden>Volver al Backoffice</a>
+ </div>
+</div>
+<div class="shell" id="workspace" hidden>
+ <aside class="sidebar" aria-label="Navegación Backoffice">
+  <div class="brand"><div class="brand-mark"><img src="../icon-192.png?v=ls-20261029" alt=""></div><div><strong>La Sala</strong><span>Backoffice</span></div></div>
+  <nav class="sidebar-nav">
+   <a class="nav-item" href="./"><span class="nav-symbol">◉</span> Usuarios</a>
+   <a class="nav-item" href="./control.html"><span class="nav-symbol">◫</span> Control de calidad</a>
+   <a class="nav-item" href="./partidas.html"><span class="nav-symbol">▦</span> Partidas</a>
+   <a class="nav-item" href="./plaguicidas.html"><span class="nav-symbol">◈</span> Plaguicidas</a>
+   <a class="nav-item" href="./especificos.html"><span class="nav-symbol">◎</span> Específicos</a>
+   <a class="nav-item" href="./tareas.html"><span class="nav-symbol">☷</span> Tareas</a>
+   <a class="nav-item" href="./avisos.html"><span class="nav-symbol">♧</span> Avisos</a>
+   <a class="nav-item selected" aria-current="page" href="./mantenimiento.html"><span class="nav-symbol">◇</span> Mantenimiento</a>
+  </nav>
+  <div class="sidebar-footer"><a href="../">← Volver a ViguerAPP</a></div>
+ </aside>
+ <div class="main-area">
+  <header class="topbar"><div class="breadcrumbs">Backoffice <span>/</span> Mantenimiento</div><div class="topbar-right"><span id="session-user" class="session-user">Administrador</span></div></header>
+  <main class="content mt-main">
+   <div class="page-head"><h1>Mantenimiento · Consulta administrativa</h1></div>
+   <p class="mt-note">Consulta los tickets abiertos y los eventos conservados en el Archivo de Mantenimiento. Las ejecuciones anteriores de tickets recurrentes se muestran por separado. Esta pantalla <strong>no cambia estados, no asigna operarios y no reactiva recurrencias</strong>; los tickets cerrados y archivados siguen íntegros. No se muestran firmas.</p>
+   <section class="mt-panel" aria-label="Filtros de mantenimiento">
+    <form id="mt-form">
+     <div class="mt-form">
+      <label>Sección<select id="mt-view"><option value="activos">Abiertos</option><option value="archivo">Archivo</option></select></label>
+      <label>Estado<select id="mt-state"><option value="todos">Todos</option><option value="sin_asignar">Sin asignar</option><option value="asignado">Asignado</option><option value="en_proceso">En proceso</option><option value="cerrado">Cerrado</option><option value="archivado">Archivado</option><option value="completada">Ejecución histórica</option></select></label>
+      <label>Buscar<input id="mt-search" type="search" maxlength="80" placeholder="Trabajo, invernadero, ID…" autocomplete="off"></label>
+      <label>Operario asignado<input id="mt-assigned" type="search" maxlength="60" placeholder="Todos los operarios" autocomplete="off"></label>
+      <button id="mt-query" class="button primary" type="submit">Consultar</button>
+     </div>
+     <div class="mt-extra">
+      <label>Desde (fecha del registro)<input id="mt-from" type="date"></label>
+      <label>Hasta (fecha del registro)<input id="mt-to" type="date"></label>
+     </div>
+    </form>
+   </section>
+   <p id="mt-feedback" class="mt-feedback" role="status" aria-live="polite" hidden></p>
+   <section id="mt-results" hidden>
+    <div class="mt-stats" id="mt-stats" aria-label="Resumen"></div>
+    <div class="mt-panel">
+     <h2 id="mt-heading">Tickets abiertos</h2><p class="mt-note" id="mt-count"></p>
+     <div class="mt-scroll">
+      <table class="mt-table">
+       <thead><tr><th>Fecha</th><th>Trabajo</th><th>Estado</th><th>Asignados</th><th>Invernadero</th><th>Recurrencia / próxima fecha</th><th>Referencia / archivo</th></tr></thead>
+       <tbody id="mt-body"></tbody>
+      </table>
+     </div>
+    </div>
+   </section>
+  </main>
+ </div>
+</div>
+</body></html>
