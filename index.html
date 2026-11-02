@@ -13654,6 +13654,9 @@ let rmTramos = [{desde:null, hasta:null}];
 // manual normal no mueve nada, y si se marca el mismo riego en varios días
 // distintos por separado (sin editar), cada uno se queda donde está.
 let rmEditContextoOriginal = null;
+let rmEditTextoOriginal = null;
+let rmEditTextoReconstruido = null;
+let rmEditPartesNoReconocidas = [];
 // A petición de Paula (2026-08-06): "añade el mismo recuadro de al
 // seleccionar invernaderos aparezca la opción de Entero/Entero menos/Tramo
 // de calles" — hasta ahora Riego solo tenía esto para UN invernadero
@@ -13903,6 +13906,9 @@ function showRiegoManualForm(){
   rmAbonoRows = [{tiempo:'', cat:'', producto:'', horario:''}];
   rmTramos = inv ? [{desde:allCalles[0], hasta:allCalles[0]}] : [];
   rmEditContextoOriginal = null;
+  rmEditTextoOriginal = null;
+  rmEditTextoReconstruido = null;
+  rmEditPartesNoReconocidas = [];
   rmTrabajoVias = {};
   // El invernadero con el que se abre el formulario (día pulsado en la
   // cuadrícula, arrastre de un tramo, o doble clic para editar) entra en
@@ -14620,8 +14626,17 @@ async function saveRiegoManual(){
   if(btn) btn.disabled = true;
   try{
     const dia = parseInt(document.getElementById('rm-dia').value);
-    const { textoCompleto } = construirPartesRiegoManual();
+    let { textoCompleto } = construirPartesRiegoManual();
     if(!textoCompleto){ showToast('Rellena al menos un campo de riego o de trabajo'); return; }
+    if(rmEditContextoOriginal && rmEditPartesNoReconocidas.length){
+      if(textoCompleto===rmEditTextoReconstruido){
+        // Si no se cambió ningún selector, conservar el texto histórico
+        // completo, incluso los fragmentos que el formulario no interpreta.
+        textoCompleto = rmEditTextoOriginal;
+      } else if(!confirm('Este riego contiene texto antiguo que los selectores no reconocen. ¿Quieres sustituirlo por la nueva instrucción?')){
+        return;
+      }
+    }
     const invIds = leerRmBulkInvsSeleccionados();
     if(!invIds.length){ showToast('Elige al menos un invernadero'); return; }
     for(const invId of invIds){
@@ -16294,7 +16309,13 @@ async function enviarProblemaRiego(){
 // reparten en campos — se dejan en blanco para poder volver a marcarlas. El
 // "?" sí se reconoce como tal aunque venga junto a otros campos de riego.
 function precargarFormularioRiegoDesdeTexto(texto){
-  if(!texto || texto.startsWith('* ')) return;
+  if(!texto) return;
+  rmEditTextoOriginal = texto;
+  if(texto.startsWith('* ')){
+    rmEditTextoReconstruido = '';
+    rmEditPartesNoReconocidas = texto.split(' + ').map(p=>p.trim()).filter(Boolean);
+    return;
+  }
   const nuevasAguas = [];
   const nuevosAbonos = [];
   rmTrabajoVias = {};
@@ -16482,6 +16503,9 @@ function precargarFormularioRiegoDesdeTexto(texto){
   if(nuevasAguas.length){ rmAguaRows = nuevasAguas; renderAguaRows(); }
   if(nuevosAbonos.length){ rmAbonoRows = nuevosAbonos; renderAbonoRows(); }
   renderTrabajoVias();
+  rmEditTextoReconstruido = construirPartesRiegoManual().textoCompleto;
+  const partesReconstruidas = rmEditTextoReconstruido.split(' + ').map(p=>p.trim());
+  rmEditPartesNoReconocidas = texto.split(' + ').map(p=>p.trim()).filter(p=>p && !partesReconstruidas.includes(p));
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -19389,342 +19413,4 @@ function _renderPartidaDetail(p, num, inv){
             <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px">Observaciones</div>
             <textarea id="obs-carga-${num}-${inv}" placeholder="Notas de seguimiento..."
               onblur="saveCheck('${num}','${inv}','obs_carga',this.value)"
-              style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px;color:var(--text);background:#fff;outline:none;resize:vertical;min-height:60px;font-family:inherit">${getCheck(num,inv,'obs_carga')||''}</textarea>
-          </div>
-        </div>
-
-        <!-- ═══ GUARDAR CHECKS + FECHA TÉCNICO ═══ -->
-        <div style="text-align:center;margin-bottom:1.25rem">
-          <button onclick="guardarCambiosCalidad('${num}','${inv}')"
-            style="padding:10px 22px;font-size:12px;font-weight:800;background:var(--verde);color:#fff;border:none;border-radius:10px;cursor:pointer;display:inline-flex;align-items:center;gap:8px">
-            <i class="ti ti-device-floppy" style="font-size:15px"></i> Guardar cambios
-          </button>
-          <div style="font-size:10px;color:var(--muted);margin-top:5px">Guarda los checks de Entrada y Carga junto con la Fecha Técnico en el registro de esta partida.</div>
-        </div>
-
-        <!-- ═══ FOTOGRAFÍAS ═══ -->
-        ${sectionHdr('camera','Fotograf&#237;as','var(--muted)')}
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:1rem">
-          ${fotoSlotHTML(fotoSrc, 'Foto entrada', num, inv, 'entrada')}
-          ${fotoSlotHTML(p.fotoSalida, 'Foto salida', num, inv, 'salida')}
-          <div><div style="width:100%;height:110px;background:var(--amber-light);border:1.5px dashed var(--amber-border);border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--amber);font-size:11px"><i class="ti ti-cloud" style="font-size:22px"></i>Clima</div><div style="font-size:10px;color:var(--muted);margin-top:4px;text-align:center">Gr&#225;fico clima</div></div>
-        </div>
-
-        <!-- ═══ REGISTRO DE RIEGO ═══ -->
-        ${sectionHdr('droplet','Registro de riego','#1558a0')}
-        ${riegoTableHTML}
-
-        <!-- ═══ REGISTRO DE PLAGUICIDAS ═══ -->
-        ${sectionHdr('spray','Registro de plaguicidas','#a32020')}
-        ${fitoTableHTML}
-
-        ${partidaEsPasada(p) ? `
-        <!-- ═══ INFORME POST-MORTEM (solo partidas pasadas) ═══ -->
-        <div style="margin-top:1.5rem;padding-top:1.25rem;border-top:1px solid var(--border);text-align:center">
-          <button onclick="generarInformePostMortem('${num}','${inv}')"
-            style="padding:12px 24px;font-size:13px;font-weight:800;background:#1a1e18;color:#fff;border:none;border-radius:10px;cursor:pointer;display:inline-flex;align-items:center;gap:8px">
-            <i class="ti ti-file-report" style="font-size:16px"></i> Generar informe post-mortem
-          </button>
-          <div style="font-size:10px;color:var(--muted);margin-top:6px">Genera un resumen tipo Word con datos generales, checks de entrada y carga, riegos y plaguicidas.</div>
-          <div id="postmortem-access-${num}-${inv}" style="margin-top:10px"></div>
-        </div>` : ''}
-
-      </div>
-    </div>`;
-
-  overlay.style.display = 'flex';
-}
-
-
-// ────────────────────────────────────────────────────
-// INFORME POST-MORTEM — PDF vía diálogo de impresión del navegador
-// (mismo patrón "imprimir a PDF" que ya usa el Agente de Cargas)
-// ────────────────────────────────────────────────────
-// Genera un documento Word (.doc) real —usando el formato HTML que Word
-// sabe abrir de forma nativa— con el resumen completo de la partida, y deja
-// un botón de acceso para abrirlo/descargarlo e imprimirlo directamente
-// desde Word. No requiere ninguna librería externa.
-function generarInformePostMortem(num, inv){
-  const p = partidasDB.find(x=>x.num===num&&x.inv===inv)||partidasDB.find(x=>x.num===num);
-  if(!p) return;
-  Promise.all([loadChecksData(), loadRiegoData(false), loadFitoData(false)]).then(()=>{
-    const riegoLog = getFullRiegoLog(p);
-    const fitoLog = getFullFitoLog(p);
-    const fotoEntradaSrc = fotoEntrada[p.fotoKey||p.num] || p.fotoEntradaB64 || null;
-    const fotoSalidaSrc = p.fotoSalida || null;
-    const fila = (label, val) => `<tr><td style="border:0.5pt solid #999;padding:4pt 8pt;color:#555;font-size:10pt;white-space:nowrap">${label}</td><td style="border:0.5pt solid #999;padding:4pt 8pt;font-weight:700;font-size:10pt">${val||'—'}</td></tr>`;
-    const checkRow = (label, field) => fila(label, getCheck(num, inv, field));
-    const checkRowCarga = (label, field) => fila(label, getCheck(num, inv, field+'_carga'));
-    const fotoCelda = (src, label) => src
-      ? `<td style="border:0.5pt solid #999;padding:8pt;text-align:center;width:50%"><img src="${fotoSrcCompleta(src)}" style="max-width:100%;max-height:220pt;display:block;margin:0 auto 4pt"><div style="font-size:9pt;color:#555">${label}</div></td>`
-      : `<td style="border:0.5pt solid #999;padding:24pt 8pt;text-align:center;width:50%;color:#999;font-size:9pt;font-style:italic">Sin foto (${label})</td>`;
-
-    const logRows = (log, emptyMsg) => log.length
-      ? log.map(r=>`<tr><td style="border:0.5pt solid #999;padding:4pt 8pt;font-size:10pt">${r.label}</td><td style="border:0.5pt solid #999;padding:4pt 8pt;font-size:10pt">${r.texto}</td><td style="border:0.5pt solid #999;padding:4pt 8pt;font-size:10pt">${r.calles}</td></tr>`).join('')
-      : `<tr><td colspan="3" style="border:0.5pt solid #999;padding:6pt 8pt;font-size:10pt;font-style:italic;color:#888">${emptyMsg}</td></tr>`;
-
-    const hoy = new Date().toLocaleDateString('es-ES');
-    const contentHtml = `
-  <style>
-    #postmortem-print-area{font-family:Calibri,Arial,sans-serif;font-size:11pt;color:#1a1e18}
-    #postmortem-print-area h1{font-size:18pt;margin:0 0 4pt}
-    #postmortem-print-area h2{font-size:12pt;text-transform:uppercase;color:#1a5c2e;border-bottom:1.5pt solid #1a5c2e;padding-bottom:2pt;margin:16pt 0 8pt}
-    #postmortem-print-area .sub{color:#555;font-size:10pt;margin-bottom:14pt}
-    #postmortem-print-area table{border-collapse:collapse;width:100%;margin-bottom:8pt}
-    #postmortem-print-area th{background:#f2f4f0;border:0.5pt solid #999;padding:4pt 8pt;font-size:10pt;text-align:left}
-    #postmortem-print-area footer{margin-top:20pt;padding-top:8pt;border-top:0.5pt solid #999;font-size:9pt;color:#777}
-    @page { size: 21cm 29.7cm; margin: 2.5cm; }
-  </style>
-  <h1>Informe post-mortem — ${p.variedad||'—'} (${p.num})</h1>
-  <div class="sub">${p.cliente||'—'} &middot; INV ${inv} &middot; Calles ${p.calle_inicio||'—'}${p.calle_fin&&p.calle_fin!==p.calle_inicio?' – '+p.calle_fin:''} &middot; Generado el ${hoy}</div>
-
-  <h2>Datos generales</h2>
-  <table>
-    ${fila('Nº partida', p.num)}
-    ${fila('Variedad', p.variedad)}
-    ${fila('Cliente', p.cliente)}
-    ${fila('Entrada INV', p.entrada)}
-    ${fila('Entrega', p.entrega)}
-    ${fila('Pinzado', p.pinzado)}
-    ${fila('Soporte', p.soporte)}
-    ${fila('Calles', (p.calle_inicio||'—')+(p.calle_fin&&p.calle_fin!==p.calle_inicio?' → '+p.calle_fin:''))}
-    ${fila('Fecha Técnico', p.fechaTecnico)}
-  </table>
-
-  <h2>Fotografías</h2>
-  <table>
-    <tr>${fotoCelda(fotoEntradaSrc, 'Foto entrada')}${fotoCelda(fotoSalidaSrc, 'Foto salida')}</tr>
-  </table>
-
-  <h2>Control Calidad Entrada</h2>
-  <table>
-    ${checkRow('Color','color')}
-    ${checkRow('Tamaño','tamano')}
-    ${checkRow('Sanidad','sanidad')}
-    ${checkRow('Flores','flores')}
-    ${checkRow('Raíces','raices')}
-    ${fila('Observaciones', getCheck(num,inv,'obs'))}
-  </table>
-
-  <h2>Control Calidad Carga</h2>
-  <table>
-    ${checkRowCarga('Color','color')}
-    ${checkRowCarga('Tamaño','tamano')}
-    ${checkRowCarga('Sanidad','sanidad')}
-    ${checkRowCarga('Flores','flores')}
-    ${checkRowCarga('Raíces','raices')}
-    ${fila('Observaciones', getCheck(num,inv,'obs_carga'))}
-  </table>
-
-  <h2>Registro de riego</h2>
-  <table><thead><tr><th>Día planta</th><th>Riego aplicado</th><th>Calles</th></tr></thead>
-  <tbody>${logRows(riegoLog, 'Sin registros de riego.')}</tbody></table>
-
-  <h2>Registro de plaguicidas</h2>
-  <table><thead><tr><th>Día planta</th><th>Tratamiento</th><th>Calles</th></tr></thead>
-  <tbody>${logRows(fitoLog, 'Sin registros de plaguicidas.')}</tbody></table>
-
-  <footer>Informe post-mortem generado autom&#225;ticamente por App La Sala — Viveros y Semilleros.</footer>`;
-
-    postMortemReportsCache[num+'|'+inv] = { contentHtml, nombreArchivo: `Informe_postmortem_${p.num}` };
-
-    const accessWrap = document.getElementById('postmortem-access-'+num+'-'+inv);
-    if(accessWrap){
-      accessWrap.innerHTML = `<button onclick="abrirInformePostMortem('${num}','${inv}')"
-        style="display:inline-flex;align-items:center;gap:8px;padding:11px 22px;font-size:13px;font-weight:800;background:#1558a0;color:#fff;border:none;border-radius:10px;cursor:pointer">
-        <i class="ti ti-file-word" style="font-size:16px"></i> Abrir informe para imprimir
-      </button>
-      <div style="font-size:10px;color:var(--muted);margin-top:6px">Se abre el di&#225;logo de impresi&#243;n con el resumen tipo Word de la partida. Elige "Guardar como PDF" o tu impresora.</div>`;
-    }
-    showToast('✓ Informe generado — pulsa "Abrir informe para imprimir"');
-  });
-}
-
-// Guarda el HTML (con formato Word) generado por partida, para que el botón
-// de acceso pueda imprimirlo bajo demanda.
-let postMortemReportsCache = {};
-
-// Muestra el informe en una ventana normal de la app (mismo patrón que
-// Riego/Plaguicidas/Partidas: getOrCreateOverlay), así el usuario SIEMPRE ve
-// el contenido en pantalla, sin depender de que window.print() abra algo
-// visible. Dentro de esa ventana hay un botón "Imprimir" que sí llama a
-// window.print(); solo entonces se oculta el resto de la app vía CSS de
-// impresión, mostrando únicamente el informe.
-function abrirInformePostMortem(num, inv){
-  const report = postMortemReportsCache[num+'|'+inv];
-  if(!report){ showToast('Genera primero el informe'); return; }
-
-  if(!document.getElementById('informe-postmortem-print-style')){
-    const style = document.createElement('style');
-    style.id = 'informe-postmortem-print-style';
-    style.textContent = `
-      @media print {
-        body > *:not(#informe-postmortem-overlay) { display:none !important; }
-        #informe-postmortem-overlay { position:static !important; background:none !important; padding:0 !important; display:block !important; }
-        #informe-postmortem-overlay .no-print { display:none !important; }
-        #informe-postmortem-doc { box-shadow:none !important; max-height:none !important; overflow:visible !important; border-radius:0 !important; max-width:none !important; }
-      }`;
-    document.head.appendChild(style);
-  }
-
-  const overlay = getOrCreateOverlay('informe-postmortem-overlay');
-  overlay.innerHTML = `
-    <div id="informe-postmortem-doc" style="background:#fff;border-radius:14px;max-width:800px;width:100%;max-height:92vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.3)">
-      <div class="no-print" style="background:#1a1e18;color:#fff;padding:1rem 1.5rem;border-radius:14px 14px 0 0;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:5;gap:10px">
-        <div style="font-size:14px;font-weight:800">📄 ${report.nombreArchivo}</div>
-        <div style="display:flex;gap:8px;flex-shrink:0">
-          <button onclick="window.print()" style="padding:7px 16px;background:#1558a0;color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px">
-            <i class="ti ti-printer" style="font-size:14px"></i> Imprimir
-          </button>
-          <button onclick="document.getElementById('informe-postmortem-overlay').style.display='none'" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:7px 12px;cursor:pointer;font-size:12px">✕</button>
-        </div>
-      </div>
-      <div style="padding:1.5rem 2rem">${report.contentHtml}</div>
-    </div>`;
-  overlay.style.display = 'flex';
-}
-
-// ────────────────────────────────────────────────────
-// PINZADO — marcar con fecha
-// ────────────────────────────────────────────────────
-function showPinzarDialog(num, inv){
-  const p = partidasDB.find(x=>x.num===num&&x.inv===inv)||partidasDB.find(x=>x.num===num);
-  const hoy = new Date();
-  const diaHoy = hoy.getDate();
-  const mesHoy = hoy.getMonth()+1;
-  const fechaHoy = String(diaHoy).padStart(2,'0')+'/'+String(mesHoy).padStart(2,'0')+'/'+hoy.getFullYear();
-
-  const mo = getOrCreateOverlay('pinzar-dialog-overlay');
-  mo.innerHTML = `
-    <div style="background:#fff;border-radius:14px;max-width:400px;width:100%;box-shadow:0 8px 40px rgba(0,0,0,.3)">
-      <div style="background:var(--verde);color:#fff;padding:1rem 1.5rem;border-radius:14px 14px 0 0;display:flex;justify-content:space-between;align-items:center">
-        <div style="font-size:15px;font-weight:800"><i class="ti ti-scissors" style="font-size:14px;vertical-align:-1px"></i> Registrar pinzado</div>
-        <button onclick="document.getElementById('pinzar-dialog-overlay').style.display='none'"
-          style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer">✕</button>
-      </div>
-      <div style="padding:1.5rem">
-        <div style="font-size:13px;color:var(--muted);margin-bottom:1.25rem">
-          <b style="color:var(--text)">${p?p.variedad+' — '+p.num:'Partida'}</b><br>
-          Indica el día en que se realizó el pinzado.
-        </div>
-        <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:6px">
-          Fecha de pinzado
-        </label>
-        <div style="display:flex;gap:8px;align-items:center;margin-bottom:1.25rem">
-          <div style="position:relative;flex:1">
-            <input type="text" id="pinzar-fecha" value="${fechaHoy}" placeholder="DD/MM/YYYY"
-              style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;font-weight:700;font-family:monospace;color:var(--text);background:#f2f4f0;outline:none">
-          </div>
-          <button onclick="document.getElementById('pinzar-fecha').value='${fechaHoy}'"
-            style="padding:9px 14px;font-size:11px;font-weight:700;background:var(--verde-light);color:var(--verde);border:1.5px solid var(--verde-border);border-radius:8px;cursor:pointer;white-space:nowrap">
-            Hoy
-          </button>
-        </div>
-        <div style="display:flex;gap:8px;justify-content:flex-end">
-          <button onclick="document.getElementById('pinzar-dialog-overlay').style.display='none'"
-            style="padding:9px 18px;font-size:13px;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:8px;cursor:pointer">
-            Cancelar
-          </button>
-          <button onclick="confirmPinzado('${num}','${inv}')"
-            style="padding:9px 20px;font-size:13px;font-weight:700;background:var(--verde);color:#fff;border:none;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;gap:6px">
-            <i class="ti ti-scissors" style="font-size:14px"></i> Confirmar pinzado
-          </button>
-        </div>
-      </div>
-    </div>`;
-  mo.style.display = 'flex';
-}
-
-async function confirmPinzado(num, inv){
-  const fecha = document.getElementById('pinzar-fecha')?.value?.trim();
-  if(!fecha){ showToast('Indica la fecha'); return; }
-
-  // Update checksData
-  const k = num+'|'+inv;
-  if(!checksData[k]) checksData[k]={};
-  checksData[k]['pinzado'] = 'SI';
-  checksData[k]['pinzadoFechaReal'] = fecha;
-
-  // Update partidasDB
-  const p = partidasDB.find(x=>x.num===num&&x.inv===inv)||partidasDB.find(x=>x.num===num);
-  if(p){ p.pinzadoRealizado = true; p.pinzadoFechaReal = fecha; }
-
-  // Save
-  await persistChecksData();
-  if(p) await savePartidaToStorage(p);
-
-  // Close dialog and refresh detail
-  document.getElementById('pinzar-dialog-overlay').style.display='none';
-  showToast('✓ Pinzado registrado el '+fecha);
-  logHistorial(`Marcó pinzado de ${num} el ${fecha}`);
-
-  // Re-render detail if open
-  const detailOverlay = document.getElementById('partida-detail-overlay');
-  if(detailOverlay && detailOverlay.style.display==='flex' && p){
-    _renderPartidaDetail(p, num, inv);
-  }
-  // Re-render card list if open
-  const listOverlay = document.getElementById('partidas-list-overlay');
-  if(listOverlay && listOverlay.style.display==='flex'){
-    renderPartidasContent(listOverlay, document.getElementById('psearch')?.value||'');
-  }
-}
-
-async function setPinzadoPendiente(num, inv){
-  const k = num+'|'+inv;
-  if(!checksData[k]) checksData[k]={};
-  checksData[k]['pinzado'] = 'PENDIENTE';
-  delete checksData[k]['pinzadoFechaReal'];
-  const p = partidasDB.find(x=>x.num===num&&x.inv===inv)||partidasDB.find(x=>x.num===num);
-  if(p){ p.pinzadoRealizado = false; delete p.pinzadoFechaReal; }
-  await persistChecksData();
-  if(p) await savePartidaToStorage(p);
-  showToast('Pinzado marcado como pendiente');
-  logHistorial(`Deshizo el pinzado de ${num}`);
-  const detailOverlay = document.getElementById('partida-detail-overlay');
-  if(detailOverlay && detailOverlay.style.display==='flex' && p){
-    _renderPartidaDetail(p, num, inv);
-  }
-}
-
-// ── GUARDIA DE DOBLE PULSACIÓN (auditoría 2026-09-11) ──────────────────
-// Todas estas acciones hacen push(...) y LUEGO await persist...(), dejando
-// el formulario en pantalla durante la espera: un segundo toque (muy fácil
-// en móvil, o cuando la red va lenta y parece que no ha pasado nada) vuelve
-// a entrar y crea una copia. Ya pasó de verdad con el "Aplicar" del riego
-// manual, que se arregló con la bandera `guardandoRiegoManual` — pero ese
-// patrón no se había replicado en ningún otro botón.
-//
-// Se envuelven aquí, DESPUÉS de que estén todas definidas, en vez de tocar
-// el cuerpo de cada función: así la protección no puede introducir errores
-// dentro de lógica que ya funciona. Mientras una llamada está en curso, las
-// siguientes se ignoran (return inmediato) hasta que la primera termina.
-function conGuardiaReentrada(fn){
-  let enCurso = false;
-  return async function(...args){
-    if(enCurso) return;
-    enCurso = true;
-    try{ return await fn.apply(this, args); }
-    finally{ enCurso = false; }
-  };
-}
-[
-  'crearTarea',                             // duplicaba la tarea por cada persona marcada
-  'guardarEdicionTarea',
-  'asignarTareasEnLote',
-  'guardarNuevoTrabajo',                    // duplicaba el trabajo
-  'crearTicketMantenimientoConTrabajo',     // duplicaba el lote entero de tickets
-  'confirmarAsignacionesMantenimiento',
-  'guardarNuevoClimaCuadro',
-  'aplicarEspecificoAPartidasSeleccionadas',// duplicaba tareas de fumigación y banners
-  'enviarProblemaRiego',                    // enviaba 2 avisos al técnico de guardia
-  'generarTareasDesdeRiego',
-  'guardarNuevaLineaInvernadero',
-  'guardarNuevaNotaSalaEnVivo'
-].forEach(nombre=>{
-  if(typeof window[nombre] === 'function') window[nombre] = conGuardiaReentrada(window[nombre]);
-});
-
-</script>
-</body>
-</html>
+              style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-siz

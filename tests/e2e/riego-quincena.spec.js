@@ -43,6 +43,11 @@ function riegoGuardado(database) {
   return typeof raw === 'string' ? JSON.parse(raw) : raw;
 }
 
+function textoGuardadoRiego(database, invId, day, street) {
+  const value = riegoGuardado(database)?.[invId]?.[day]?.[street];
+  return value && typeof value === 'object' ? value.texto : value;
+}
+
 async function openRiego(page, database, { writeDelayMs = 0 } = {}) {
   const unexpectedHosts = [];
   const writes = [];
@@ -537,6 +542,51 @@ test('UAT-096: editar el agua de un riego conserva el Trabajo y el horario exist
     const saved = riegoGuardado(database)?.['17']?.['32']?.['2'];
     return typeof saved === 'object' ? saved.texto : saved;
   }).toBe('PP + 1º HORA + 20');
+  expect(unexpectedHosts).toEqual([]);
+  await expect(overlay).toBeVisible();
+});
+
+test('UAT-097: guardar un riego antiguo sin cambios conserva todo el texto no reconocido', async ({ page }) => {
+  const database = fixtureDatabase();
+  const seeded = JSON.parse(database['lasala-riego-v1']);
+  seeded['17']['32'] = { '2': '10 + FORMATO-ANTIGUO' };
+  database['lasala-riego-v1'] = JSON.stringify(seeded);
+  const dialogs = [];
+  page.on('dialog', async dialog => { dialogs.push(dialog.message()); await dialog.dismiss(); });
+  const { overlay, unexpectedHosts } = await openRiego(page, database);
+  const cell = page.locator(`#riego-grid-wrap textarea[ondblclick*="'17',32"]`);
+  await expect(cell).toHaveValue('10 + FORMATO-ANTIGUO');
+  await cell.dblclick();
+  const form = page.locator('#riego-manual-overlay');
+  await expect(form).toBeVisible();
+  await expect(form.locator('.rm-agua-min').first()).toHaveValue('10');
+  await form.locator('#rm-guardar-btn').click();
+  await expect(form).toBeHidden();
+  await expect.poll(() => textoGuardadoRiego(database, '17', '32', '2')).toBe('10 + FORMATO-ANTIGUO');
+  expect(dialogs).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+  await expect(overlay).toBeVisible();
+});
+
+test('UAT-098: cambiar un riego histórico no reconstruible avisa y cancelar conserva el original', async ({ page }) => {
+  const database = fixtureDatabase();
+  const seeded = JSON.parse(database['lasala-riego-v1']);
+  seeded['17']['32'] = { '2': '10 + FORMATO-ANTIGUO' };
+  database['lasala-riego-v1'] = JSON.stringify(seeded);
+  const { overlay, unexpectedHosts } = await openRiego(page, database);
+  const cell = page.locator(`#riego-grid-wrap textarea[ondblclick*="'17',32"]`);
+  await cell.dblclick();
+  const form = page.locator('#riego-manual-overlay');
+  await expect(form).toBeVisible();
+  const dialogs = [];
+  page.once('dialog', async dialog => { dialogs.push(dialog.message()); await dialog.dismiss(); });
+  await form.locator('.rm-agua-min').first().selectOption('20');
+  await form.locator('#rm-guardar-btn').click();
+
+  await expect(form).toBeVisible();
+  expect(dialogs).toHaveLength(1);
+  expect(dialogs[0]).toContain('texto antiguo que los selectores no reconocen');
+  expect(textoGuardadoRiego(database, '17', '32', '2')).toBe('10 + FORMATO-ANTIGUO');
   expect(unexpectedHosts).toEqual([]);
   await expect(overlay).toBeVisible();
 });
