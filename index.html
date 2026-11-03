@@ -4121,10 +4121,28 @@ function calleTramoDeCarga(c){
 // Al filtrar por un invernadero concreto del desplegable ("11A", "11B"...)
 // hay que aceptar cualquiera de los dos lados si el número coincide, ya
 // que no hay forma de saber cuál de los dos es sin esa información.
-function coincideInvernaderoCarga(invIdTramo, filtroSeleccionado){
+// 2026-11-03 (Paula/Vigueras: "el filtro de invernaderos de Check Carga falla"):
+// aceptar los dos lados mezclaba en "INV 10A" las líneas de 10B y al revés. El
+// lado SÍ se puede deducir de la calle: cada lado (10A/10B...) tiene sus calles
+// en INV_LAYOUT, y las de la línea ("10-13-15" = calles 13 a 15) caen en uno solo
+// (comprobado con las ~1.300 líneas reales de invernaderos con A/B: ninguna en
+// ambos lados ni en ninguno). Se pasa el tramo (desde/hasta) para decidirlo; si no
+// hay calle o el layout no la reconoce, se mantiene el comportamiento antiguo
+// (aceptar los dos lados) para no perder líneas.
+function coincideInvernaderoCarga(invIdTramo, filtroSeleccionado, desde, hasta){
   if(invIdTramo === filtroSeleccionado) return true;
   const numeroFiltro = filtroSeleccionado.replace(/[A-Za-z]+$/, '');
-  return invIdTramo === numeroFiltro;
+  if(invIdTramo !== numeroFiltro) return false;
+  if(numeroFiltro === filtroSeleccionado) return true; // invernadero sin lado (12, 15, 5...)
+  const layout = (typeof INV_LAYOUT!=='undefined') ? INV_LAYOUT[filtroSeleccionado] : null;
+  if(!layout || desde==null || isNaN(desde)) return true;
+  const hastaN = (hasta==null || isNaN(hasta)) ? desde : hasta;
+  const calles = [].concat(layout.row1 || [], layout.row2 || []);
+  if(calles.some(k => k>=desde && k<=hastaN)) return true;
+  // ¿el tramo cae en el OTRO lado? entonces no es de este; si no cae en ninguno, se acepta.
+  const otros = Object.keys(INV_LAYOUT).filter(id => id!==filtroSeleccionado && id.replace(/[A-Za-z]+$/, '')===numeroFiltro);
+  const enOtro = otros.some(id => [].concat(INV_LAYOUT[id].row1 || [], INV_LAYOUT[id].row2 || []).some(k => k>=desde && k<=hastaN));
+  return !enOtro;
 }
 function renderPinzarSubSeccionHTML(){
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -5952,7 +5970,7 @@ function renderControlTunelWizardHTML(seccionParam){
   // calle) y sin guiones — igual que su vista clásica.
   const listaMostrada = (esCarga && controlCargaInvFiltro)
     ? listaDia.map(c=>({c, tramo: calleTramoDeCarga(c)}))
-        .filter(x=>x.tramo && coincideInvernaderoCarga(x.tramo.invId, controlCargaInvFiltro))
+        .filter(x=>x.tramo && coincideInvernaderoCarga(x.tramo.invId, controlCargaInvFiltro, x.tramo.desde, x.tramo.hasta))
         .sort((a,b)=> a.tramo.desde - b.tramo.desde)
         .map(x=>x.c)
     : listaDia;
@@ -6324,7 +6342,7 @@ function renderControlChecklistHTML(seccion){
   // para acabar de asignarles la calle, no mezcladas con otro invernadero.
   const listaMostrada = (esSeccionCarga(seccion.key) && controlCargaInvFiltro)
     ? lista.map(c=>({c, tramo: calleTramoDeCarga(c)}))
-        .filter(x=>x.tramo && coincideInvernaderoCarga(x.tramo.invId, controlCargaInvFiltro))
+        .filter(x=>x.tramo && coincideInvernaderoCarga(x.tramo.invId, controlCargaInvFiltro, x.tramo.desde, x.tramo.hasta))
         .sort((a,b)=> a.tramo.desde - b.tramo.desde)
         .map(x=>x.c)
     : (seccion.key==='tunel' && controlTunelInvFiltro)
