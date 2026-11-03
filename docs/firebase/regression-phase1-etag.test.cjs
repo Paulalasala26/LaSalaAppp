@@ -237,3 +237,59 @@ test('QC CARGADOR cannot write Tunel, even with a valid token',async()=>{
   assert.equal(res.body.error,'FORBIDDEN');
   assert.equal(state.puts,0);
 });
+
+const photoApi=require('../../api/qc-fotos-sharepoint.js');
+const PHOTO_ID='12345678-1234-4123-8123-123456789abc';
+const DRIVE_ID='b!ltDlxMPStUSPKosa8hjEBT4XEdc922lLvESLlmS3tQy9OIm9vYUbQaLFfZMlWFvb';
+function photoReq(method='DELETE'){
+  return {method,headers:{authorization:'Bearer synthetic-id-token'},
+    query:{action:'photo-hide',id:'QC1',tipo:'carga',dia:'15',photoId:PHOTO_ID}};
+}
+test('photo API refuses disabled writes before accessing Firebase or Graph',async()=>{
+  const prior=process.env.GRAPH_QC_UPLOAD_ENABLED;
+  delete process.env.GRAPH_QC_UPLOAD_ENABLED;
+  const res=responseSink();
+  try{
+    await withFetch(async()=>{throw Error('No remote calls allowed')},()=>photoApi(photoReq(),res));
+    assert.equal(res.statusCode,423);
+    assert.equal(res.body.error,'SHAREPOINT_UPLOAD_NOT_ENABLED');
+  }finally{
+    if(prior===undefined)delete process.env.GRAPH_QC_UPLOAD_ENABLED;
+    else process.env.GRAPH_QC_UPLOAD_ENABLED=prior;
+  }
+});
+test('photo gallery hide ETag 412 returns 409 and preserves RTDB record',async()=>{
+  actorState.role='TECNICO';
+  const prior=process.env.GRAPH_QC_UPLOAD_ENABLED;
+  process.env.GRAPH_QC_UPLOAD_ENABLED='true';
+  const record={schemaVersion:1,registroId:'QC1',tipo:'carga',dia:15,
+    photoId:PHOTO_ID,sha256:'b'.repeat(64),
+    sharepoint:{driveId:DRIVE_ID,itemId:'validItem_123'}};
+  let puts=0;
+  const mock=async(url,opts={})=>{
+    const method=opts.method||'GET',p=String(url);
+    assert.ok(!p.includes('graph.microsoft.com'),'Never contact SharePoint');
+    if(p.includes('lasala-control-items-v2-carga-q0/QC1.json'))
+      return reply(200,{id:'QC1',tipo:'carga',dia:15,partida:'PART1'});
+    if(p.includes('lasala-qc-fotos-sharepoint-v1/QC1/'+PHOTO_ID+'.json')){
+      if(method==='GET')return reply(200,record,'"photo-v1"');
+      if(method==='PUT'){
+        puts++;
+        assert.equal(opts.headers['if-match'],'"photo-v1"');
+        return reply(412,record,'"photo-v2"');
+      }
+    }
+    throw Error('Unexpected photo request '+method+' '+p);
+  };
+  const res=responseSink();
+  try{
+    await withFetch(mock,()=>photoApi(photoReq(),res));
+    assert.equal(res.statusCode,409);
+    assert.equal(res.body.error,'PHOTO_GALLERY_CHANGED');
+    assert.equal(puts,1);
+    assert.ok(!Object.hasOwn(record,'galleryHidden'));
+  }finally{
+    if(prior===undefined)delete process.env.GRAPH_QC_UPLOAD_ENABLED;
+    else process.env.GRAPH_QC_UPLOAD_ENABLED=prior;
+  }
+});
