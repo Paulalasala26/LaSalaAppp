@@ -36,7 +36,7 @@ La autoridad real de permisos **se migrará** desde `lasala-roles-v1` y asignaci
 - **Legado:** `lasala-riego-v2-<INV>` sigue siendo un string con ETag; `lasala-propuestas-riego-v1` es un array global, y avisos y problemas se originan en otras rutas. **No desplegar** la candidata §0.238: bloquea escrituras globales de índice/propuestas y rompería flujos actuales. El corte requiere backfill/snapshot verificado, reglas privadas aplicadas antes de datos nuevos, cierre comprobado del escritor viejo y rollback real.
 - **Guardias, retención y notificaciones:** confirmar calendario Europe/Madrid y sustituciones con Backoffice; outbox del servidor crea avisos únicamente después de origen confirmado. Mantener cron Tuta de Cloudflare separado, sin duplicados. Nunca reconstruir Push antiguos por importar datos.
 
-## Reglas privadas y seguridad
+## Reglas privadas y seguridad — solo servidor
 
 Se añade la **denegación candidata, solamente en el archivo del emulador** `database.rules.test.candidate.phase2-riego-freeze.json` para `lasala-riego-authority-v3` (`.read=false`, `.write=false` para clientes). Las pruebas del Firebase RTDB Emulator verifican que ningún rol de navegador, incluido ADMIN, pueda leer/escribir allí, pero esto **no despliega una regla real**. Antes de la integración serán obligatorias una auditoría de las reglas desplegadas, roles efectivos del servicio, revocación en caliente, pruebas de rutas legacy y protección frente a escrituras directas por REST. El código servidor con permisos administrativos debe disponer de controles propios, credenciales segregadas, auditoría y mínimos privilegios.
 
