@@ -63,6 +63,10 @@
     "lasala-event-permissions-v2": {
       ".read": false,
       ".write": false
+    },
+    "lasala-alert-event-ledger-v2": {
+      ".read": false,
+      ".write": false
     }
   }
 }
