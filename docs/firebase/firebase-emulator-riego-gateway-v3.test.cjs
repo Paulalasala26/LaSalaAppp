@@ -147,6 +147,46 @@ test('unvalidated irrigation edit persists data but emits no supervisor event',a
  assert.equal(again.eventId,null);
  assert.equal(again.revision,2);
 });
+test('signed actor issues a new edit intent with one server-side CAS',async()=>{
+ await seed('INV_INTENT');
+ const request={token:jwt('FRAN'),invId:'INV_INTENT',
+  commandId:'CMD_NEW',cellKey:'CELL_1',afterText:'36 MIN'};
+ const issued=await gateway.issueIntent(request);
+ assert.equal(issued.status,'committed');
+ assert.equal(issued.commandId,'CMD_NEW');
+ assert.equal(issued.epoch,1);
+ const s=await state('INV_INTENT');
+ assert.equal(s.commands.CMD_NEW.actorUid,UID('FRAN'));
+ assert.equal(s.commands.CMD_NEW.beforeText,'30 MIN');
+ assert.equal(s.commands.CMD_NEW.expectedEpoch,1);
+ assert.equal(s.grid.CELL_1.texto,'30 MIN');
+ const duplicate=await gateway.issueIntent(request);
+ assert.equal(duplicate.status,'already_committed');
+ await assert.rejects(gateway.issueIntent({...request,afterText:'40 MIN'}),
+  {code:'INTENT_ID_CONFLICT'});
+ const committed=await commit('INV_INTENT','CMD_NEW');
+ assert.equal(committed.status,'committed');
+ assert.equal((await state('INV_INTENT')).grid.CELL_1.texto,'36 MIN');
+});
+test('intent issuer enforces JWT actor ACL frozen INV and strict payload',async()=>{
+ await seed('INV_INTENT_DENY');
+ const base={token:jwt('FRAN'),invId:'INV_INTENT_DENY',
+  commandId:'CMD_NEW',cellKey:'CELL_1',afterText:'36 MIN'};
+ await assert.rejects(gateway.issueIntent({...base,token:'fake'}),
+  {code:'UNAUTHORIZED'});
+ await assert.rejects(gateway.issueIntent({...base,actorUid:UID('VIGUERAS')}),
+  {code:'UNTRUSTED_GATEWAY_REQUEST'});
+ await assert.rejects(gateway.issueIntent({...base,cellKey:'INVALID'}),
+  {code:'CELL_NOT_FOUND'});
+ await assert.rejects(gateway.issueIntent({...base,afterText:'30 MIN'}),
+  {code:'NO_CHANGE'});
+ await revoke('INV_INTENT_DENY','FRAN');
+ await assert.rejects(gateway.issueIntent(base),{code:'ACTOR_REVOKED'});
+ await seed('INV_INTENT_FROZEN');
+ await freeze('INV_INTENT_FROZEN');
+ await assert.rejects(gateway.issueIntent({...base,invId:'INV_INTENT_FROZEN'}),
+  {code:'WRITER_NOT_ACTIVE'});
+});
 test('accept proposal and irrigation within same official RTDB compare-and-swap',async()=>{
  await seed('INV_ACCEPT');
  const r=await commit('INV_ACCEPT','CMD_ACCEPT','VIGUERAS');
