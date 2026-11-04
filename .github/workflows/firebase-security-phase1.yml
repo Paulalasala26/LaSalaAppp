@@ -93,6 +93,9 @@ jobs:
       - name: Per-user role INV command authorization and offline error decisions (no network)
         run: node --test docs/firebase/prototype-riego-command-authorization-v3.test.cjs
 
+      - name: Atomic role revocation and proposal TOCTOU commit tests (no network)
+        run: node --test docs/firebase/prototype-riego-toctou-commit-v3.test.cjs
+
       - name: Isolated Firebase REST ETag and migration regression
         run: node --test docs/firebase/prototype-avisos-push-store-v2.test.cjs
 
