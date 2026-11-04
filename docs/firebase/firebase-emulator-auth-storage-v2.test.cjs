@@ -240,3 +240,36 @@ test('event authorization bridge uses real signed JWT and live RTDB roles with r
     await putLegacy('lasala-users-v1',originalUsers);
   }
 });
+
+
+test('official RTDB emulator atomically stages event source and pending outbox once',async()=>{
+  const {ROOT,createDemoAtomicEventLedger}=
+    require('./prototype-atomic-event-ledger-v2.cjs');
+  const ledger=createDemoAtomicEventLedger({
+    transport,now:()=>new Date('2026-11-04T15:00:00Z')
+  });
+  const source={id:'SYNTHETIC_EVT_232',kind:'riego_propuesta_creada',
+    revision:1,actorUid:UID,sourceAuthority:'server-committed-v1',
+    serverVerified:true,persisted:true,transitionCommitted:true,
+    committedAtUtc:'2026-11-04T14:00:00Z',
+    businessProofDigest:'c'.repeat(64)};
+  const plan={idempotencyKey:'riego_propuesta_creada:SYNTHETIC_EVT_232:1',
+    actorUid:UID,recipientUids:[OTHER_UID],outboxRequired:true};
+  const results=await Promise.all(Array.from({length:6},()=>ledger.stage(plan,source)));
+  assert.equal(results.filter(x=>x.result==='staged').length,1);
+  assert.equal(results.filter(x=>x.result==='already_staged').length,5);
+  const id=results[0].eventId;
+  assert.ok(results.every(x=>x.eventId===id));
+  const saved=(await transport.retrieve([ROOT,id])).value;
+  assert.equal(saved.source.businessProofDigest,'c'.repeat(64));
+  assert.equal(saved.source.actorUid,UID);
+  assert.equal(saved.outbox.status,'pending');
+  assert.deepEqual(Object.keys(saved.outbox.deliveries),[OTHER_UID]);
+  assert.equal(saved.outbox.deliveries[OTHER_UID].status,'pending');
+  await assert.rejects(ledger.stage(plan,{...source,businessProofDigest:'d'.repeat(64)}),
+    {code:'EVENT_KEY_CONFLICT'});
+  const browser=dbEnv.authenticatedContext(UID,{appUser:USER,role:'ADMIN'}).database();
+  await assertFails(browser.ref(ROOT+'/'+id).get());
+  await assertFails(browser.ref(ROOT+'/'+id).set({forged:true}));
+  // This test never invokes a Push dispatch or the production DB.
+});
