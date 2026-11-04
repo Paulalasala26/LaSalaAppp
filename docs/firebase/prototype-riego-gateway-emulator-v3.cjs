@@ -84,7 +84,7 @@ function commandRules(s,identity,opId){
      receipt.actorUid!==identity.uid||receipt.fingerprint!==fingerprint||
      receipt.op!==cmd.op||receipt.status!=='committed')
    err('RECEIPT_CONFLICT');
-  if(receipt.eventId!==null&&
+  if(receipt.eventId!=null&&
      (!plain(s.events?.[receipt.eventId])||
       !plain(s.outbox?.[receipt.eventId])))
    err('RECEIPT_EVENT_INTEGRITY_FAILURE');
@@ -156,7 +156,7 @@ function createLocalRiegoGateway({transport,auth,now=()=>new Date(),maxAttempts=
   const {token,invId,commandId}=request;
   return mutate(invId,commandId,token,(s,actor,id)=>{
    const r=commandRules(s,actor,id);
-   if(r.already)return {already:true,output:{eventId:r.receipt.eventId,
+   if(r.already)return {already:true,output:{eventId:r.receipt.eventId??null,
       revision:r.receipt.revision}};
    const {cmd,proposal}=r,instant=now();
    if(!(instant instanceof Date)||!Number.isFinite(instant.getTime()))
@@ -263,9 +263,9 @@ function createLocalRiegoGateway({transport,auth,now=()=>new Date(),maxAttempts=
   const receipt=value.receipts?.[commandId];
   if(!plain(receipt)||receipt.type!=='command'||receipt.actorUid!==actor.uid)
    err('RECEIPT_NOT_FOUND');
-  if(receipt.eventId!==null&&(!plain(value.events?.[receipt.eventId])||
+  if(receipt.eventId!=null&&(!plain(value.events?.[receipt.eventId])||
      !plain(value.outbox?.[receipt.eventId])))err('RECEIPT_EVENT_INTEGRITY_FAILURE');
-  return {status:receipt.status,eventId:receipt.eventId,revision:receipt.revision};
+  return {status:receipt.status,eventId:receipt.eventId??null,revision:receipt.revision};
  }
  return Object.freeze({commit,revoke,freeze,getReceipt});
 }
