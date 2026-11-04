@@ -69,6 +69,9 @@ jobs:
       - name: Backend identity and role bridge regression (no network)
         run: node --test docs/firebase/prototype-event-auth-bridge-v2.test.cjs
 
+      - name: Trusted event and greenhouse resolvers with Madrid guard rotation (no network)
+        run: node --test docs/firebase/prototype-event-resolvers-v2.test.cjs
+
       - name: Isolated Firebase REST ETag and migration regression
         run: node --test docs/firebase/prototype-avisos-push-store-v2.test.cjs
 
