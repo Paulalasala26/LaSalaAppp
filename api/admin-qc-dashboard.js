@@ -329,6 +329,9 @@ module.exports=async function handler(req,res){
       res.setHeader('Content-Type',output.contentType);
       res.setHeader('Content-Disposition',
         (formato==='csv'?'attachment':'inline')+'; filename="'+output.filename+'"');
+      res.setHeader('X-Report-Partial',output.partial?'true':'false');
+      res.setHeader('X-Report-Shown',String(output.shown));
+      res.setHeader('X-Report-Total',String(output.total));
       res.setHeader('Referrer-Policy','no-referrer');
       if(formato==='html'){
         // Informe imprimible estático: sin JavaScript, imágenes ni recursos externos.
