@@ -35,10 +35,10 @@ function structure(state,invId){
     !['legacy','freezing','frozen','v3_active','rollback_hold'].includes(state.fence.phase)||
     !plain(state.catalog)||!plain(state.grid)||
     !plain(state.commands)||
-    !(plain(state.proposals)||(state.version===1&&state.proposals===undefined))||
-    !(plain(state.receipts)||(state.version===1&&state.receipts===undefined))||
-    !(plain(state.events)||(state.version===1&&state.events===undefined))||
-    !(plain(state.outbox)||(state.version===1&&state.outbox===undefined)))
+    !(plain(state.proposals)||state.proposals===undefined)||
+    !(plain(state.receipts)||state.receipts===undefined)||
+    !(plain(state.events)||state.events===undefined)||
+    !(plain(state.outbox)||state.outbox===undefined))
   err('INVALID_AUTHORITY_AGGREGATE');
 }
 function caller(state,identity,{admin=false}={}){
