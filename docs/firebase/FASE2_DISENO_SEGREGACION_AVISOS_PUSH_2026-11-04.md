@@ -111,3 +111,10 @@ Un `PushSubscription` pertenece al origen/navegador y no cambia automáticamente
 **Solo diseño.** No se ha creado un endpoint operativo, publicado reglas, alterado JSON de Firebase, tocado `index.html`, `api/`, `dev/v1.0`, `main` o PRD.
 
 **Bloqueante previo a implementación:** inspeccionar código y credenciales de autenticación del Worker Cloudflare, decidir el encaje del servicio dentro del límite de 12 funciones Vercel, y contrastar la política de destinatarios/emisión con el gestor. A continuación preparar prototipo de API y migrador solo en emulador, con tests aislados y sin datos reales.
+
+
+## Nota de continuidad — auditoría Worker posterior (04/11/2026)
+
+Se localizó una **copia histórica** del código del Worker Cloudflare en SharePoint y se revisó junto a su `wrangler.toml`. Corrige el bloqueo documental anterior que lo consideraba inaccesible, pero **NO acredita el estado de la versión actualmente desplegada**. El respaldo muestra un `POST` sin autenticación, lectura de Firebase **PRD** sin cabecera de autenticación, limpieza de suscripciones mediante PUT global sin ETag y cron semanal Tuta; por tanto no usar dicho Worker como servicio de confianza sin verificar su versión activa. Se ha propuesto unificar los envíos en una API Vercel y preservar el cron tras liberar una función mediante consolidación de `admin-audit-prune` en `admin-audit`.
+
+Referencia prevalente: `docs/firebase/FASE2_AUDITORIA_WORKER_PUSH_ENCAJE_VERCEL_2026-11-04.md`. El emulador Firebase de Fase 1 se verificó **13/13** en GitHub Actions run `41805053676`. Las reglas siguen sin desplegar.
