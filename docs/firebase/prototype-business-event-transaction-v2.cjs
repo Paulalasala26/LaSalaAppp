@@ -73,7 +73,7 @@ function createDemoBusinessEventTransaction({
    const read=await transport.retrieve(path,true);
    if(typeof read.etag!=='string'||!read.etag)reject('MISSING_ETAG');
    checkAggregate(read.value,cmd.invId);
-   const existing=read.value.commands[cmd.id];
+   const existing=read.value.commands?.[cmd.id];
    if(existing!==undefined){
     if(!plain(existing)||existing.fingerprint!==fingerprint)reject('COMMAND_ID_REUSE');
     if(!ID.test(existing.eventId||'')||!plain(read.value.events[existing.eventId])||
