@@ -60,6 +60,9 @@ jobs:
       - name: Audit every frontend alert emitter against security catalog (no network)
         run: node --test docs/firebase/avisos-event-catalog-v2.test.cjs
 
+      - name: Nine-event authorization inventory contract (no network)
+        run: node --test docs/firebase/avisos-authorization-contract-v2.test.cjs
+
       - name: Isolated Firebase REST ETag and migration regression
         run: node --test docs/firebase/prototype-avisos-push-store-v2.test.cjs
 
