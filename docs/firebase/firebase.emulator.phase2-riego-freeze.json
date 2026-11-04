@@ -1,0 +1,14 @@
+{
+  "database": {
+    "rules": "database.rules.test.candidate.phase2-riego-freeze.json"
+  },
+  "emulators": {
+    "database": {
+      "host": "127.0.0.1",
+      "port": 9000
+    },
+    "ui": {
+      "enabled": false
+    }
+  }
+}
