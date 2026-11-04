@@ -72,6 +72,18 @@ function fixtureDatabase() {
         flores: { si: true },
         raices: { ok: true }
       },
+      'e2e-control-current-fortnight-multi-segment': {
+        id: 'e2e-control-current-fortnight-multi-segment',
+        tipo: 'tunel',
+        dia: 30,
+        partida: 'E2E-QUINCENA-VARIOS-TRAMOS',
+        clienteVariedad: 'Fixture de varios tramos',
+        invId: '17',
+        calleDesde: 1,
+        calleHasta: 9,
+        tramos: [{ desde: 1, hasta: 3 }, { desde: 8, hasta: 9 }],
+        numBandejas: 7
+      },
       'e2e-control-current-fortnight-first-day': {
         id: 'e2e-control-current-fortnight-first-day',
         tipo: 'tunel',
@@ -459,5 +471,16 @@ test('UAT-183, UAT-184 y UAT-185: cambiar opciones de Color, Tamaño y Raíces',
   await expect.poll(() => database['lasala-control-items-v1']['e2e-control-current-fortnight'].raices?.ok).toBe(true);
   await card.getByTestId('control-option-e2e-control-current-fortnight-raices-raizVieja').click();
   await expect.poll(() => database['lasala-control-items-v1']['e2e-control-current-fortnight'].raices?.raizVieja).toBe(true);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-152: mostrar los tramos de calle de QC como segmentos separados', async ({ page }) => {
+  const database = fixtureDatabase();
+  const { overlay, unexpectedHosts } = await startControlTest(page, database);
+  const card = overlay.locator('#control-card-e2e-control-current-fortnight-multi-segment');
+
+  await expect(card).toBeVisible();
+  await expect(card).toContainText('C/1701-1703, C/1708-1709');
+  await expect(card).not.toContainText('C/1701-1709');
   expect(unexpectedHosts).toEqual([]);
 });
