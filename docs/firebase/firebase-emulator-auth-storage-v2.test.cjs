@@ -43,7 +43,9 @@ before(async()=>{
   ({publicKey:pub,privateKey:priv}=crypto.generateKeyPairSync('rsa',{modulusLength:2048}));
   const jwk=pub.export({format:'jwk'});jwk.kid='LOCAL_EMULATOR_ONLY';jwk.kty='RSA';jwk.alg='RS256';jwk.use='sig';
   global.fetch=async (input,options={})=>{
-    const address=typeof input==='string'?input:input?.url;
+    const address=typeof input==='string'?input:
+      input instanceof URL?input.href:
+      typeof input?.url==='string'?input.url:String(input);
     if(address===JWKS)return new Response(stringify({keys:[jwk]}),
       {status:200,headers:{'content-type':'application/json'}});
     // The Firebase testing SDK passes Request objects, not necessarily URL strings.
