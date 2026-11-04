@@ -16,12 +16,14 @@ const KEY=/^[A-Za-z0-9_|-]{1,140}$/;
 const plain=x=>x!==null&&typeof x==='object'&&!Array.isArray(x);
 const valid=x=>typeof x==='string'&&ID.test(x)&&
  !['__proto__','constructor','prototype'].includes(x);
+const validCell=x=>typeof x==='string'&&KEY.test(x)&&
+ !['__proto__','constructor','prototype'].includes(x);
 const fail=code=>{throw Object.assign(new Error(code),{code})};
 const copy=x=>JSON.parse(JSON.stringify(x));
 const hash=x=>crypto.createHash('sha256').update(x,'utf8').digest('hex');
 function initial(invId,grid={}){
  if(!valid(invId)||!plain(grid)||Object.keys(grid).some(k=>
-    !KEY.test(k)||typeof grid[k]!=='string'))
+    !validCell(k)||typeof grid[k]!=='string'))
   fail('INVALID_INITIAL_STATE');
  return {schema:SCHEMA,invId,phase:'legacy',version:1,epoch:0,
    v3Writes:0,grid:copy(grid),receipts:{}};
@@ -96,7 +98,7 @@ function createDemoFreezeProtocol({
    let mutation;
    if(op==='WRITE_V3'||op==='LEGACY_WRITE'){
     mutation=await loadTrustedMutation({invId,commandId,op});
-    if(!plain(mutation)||!KEY.test(mutation.cellKey||'')||
+    if(!plain(mutation)||!validCell(mutation.cellKey)||
        !HASH.test(mutation.baseHash||'')||typeof mutation.nextValue!=='string'||
        mutation.nextValue.length>250||
        mutation.nextValue.length===0||mutation.serverVerified!==true)
