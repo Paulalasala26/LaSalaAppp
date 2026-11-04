@@ -45,7 +45,7 @@
   <a class="nav-item" href="./control.html"><span class="nav-symbol">◫</span> Registros QC</a>
   <a class="nav-item" href="./qc-dashboard.html"><span class="nav-symbol">▥</span> Panel QC</a>
   <a class="nav-item" href="./qc-criterios.html"><span class="nav-symbol">≡</span> Criterios históricos</a>
-  <a class="nav-item selected" href="./gs.html" aria-current="page"><span class="nav-symbol">▣</span> Partidas GS · PDF</a>
+  <a class="nav-item selected" href="./gs.html" aria-current="page"><span class="nav-symbol">▣</span> Partidas GS</a>
   <div class="sidebar-label menu-label">OTROS MÓDULOS</div>
   <a class="nav-item" href="./partidas.html"><span class="nav-symbol">▦</span> Partidas</a>
   <a class="nav-item" href="./plaguicidas.html"><span class="nav-symbol">◈</span> Plaguicidas</a>
@@ -59,10 +59,21 @@
 <div class="main-area">
 <header class="topbar"><div class="breadcrumbs">Backoffice <span>/</span> QC <span>/</span> GS</div><div class="topbar-right"><span class="session-user" id="session-user">Administrador</span></div></header>
 <main class="content gs-shell">
-<div class="page-head"><h1>Partidas GS · Previsualización</h1><a href="./control.html" class="button ghost">← Registros QC</a></div>
+<div class="page-head"><h1>Partidas GS · Fuentes</h1><a href="./control.html" class="button ghost">← Registros QC</a></div>
 <section class="gs-panel">
-  <h2>Seleccionar PDF de GS</h2>
-  <p>Primera fase: lectura y comprobación de partidas y partes de actuación. <strong>No importa datos, no crea checks QC y no guarda archivos ni registros en Firebase.</strong></p>
+  <h2>Datos sincronizados desde MySQL GS · TEST</h2>
+  <p>Consulta de solo lectura de una instantánea ya sincronizada. Los datos se muestran separados de las inspecciones y no crean ni modifican controles QC.</p>
+  <div class="gs-filterbar">
+    <label for="gs-db-date">Fecha prevista
+      <input id="gs-db-date" type="date" aria-describedby="gs-db-status">
+    </label>
+    <button id="gs-db-load" type="button" class="button primary">Leer sincronización</button>
+  </div>
+  <div id="gs-db-status" class="gs-status" role="status" aria-live="polite">Selecciona la fecha de la instantánea GS de TEST.</div>
+</section>
+<section class="gs-panel">
+  <h2>Previsualizar PDF de GS</h2>
+  <p>Lectura local del PDF como fuente de consulta. No importa datos ni crea checks QC.</p>
   <label for="gs-file" style="display:block;margin:14px 0 8px;color:#1558a0;font-weight:750;font-size:12px">Archivo GS · Listado Salidas Previstas de Prendimiento</label>
   <input class="gs-upload" type="file" id="gs-file" accept=".pdf,application/pdf" aria-describedby="gs-status">
   <div id="gs-status" class="gs-status" role="status" aria-live="polite">Selecciona un PDF de GS para ver su contenido.</div>
