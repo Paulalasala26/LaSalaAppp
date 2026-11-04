@@ -13902,7 +13902,7 @@ function agruparCallesEnTramos(calles){
 // Se resetea en cada apertura del formulario, igual que el resto del estado.
 let rmTrabajoVias = {};
 
-function showRiegoManualForm(){
+function showRiegoManualForm(contextoEdicion = null){
   const inv = riegoInvSel;
   const layout = inv ? INV_LAYOUT[inv] : null;
   const allCalles = layout ? [...layout.row1, ...layout.row2].sort((a,b)=>a-b) : [];
@@ -13912,7 +13912,9 @@ function showRiegoManualForm(){
   rmAguaRows = [{minutos:'', sal:false, horario:''}];
   rmAbonoRows = [{tiempo:'', cat:'', producto:'', horario:''}];
   rmTramos = inv ? [{desde:allCalles[0], hasta:allCalles[0]}] : [];
-  rmEditContextoOriginal = null;
+  rmEditContextoOriginal = contextoEdicion
+    ? { ...contextoEdicion, calles: [...contextoEdicion.calles] }
+    : null;
   rmEditTextoOriginal = null;
   rmEditTextoReconstruido = null;
   rmEditPartesNoReconocidas = [];
@@ -14116,11 +14118,11 @@ function showRiegoManualForm(){
       </div>
       <!-- BUTTONS (fijos abajo, siempre visibles) -->
       <div style="display:flex;gap:8px;justify-content:space-between;padding:1rem 1.25rem;border-top:1px solid #eee;flex-shrink:0;background:#fff">
-        <button onclick="borrarRiegoManual()" title="Borrar el riego de estos tramos"
+        ${rmEditContextoOriginal ? `<button data-testid="riego-borrar-original" onclick="borrarRiegoManual()" title="Borrar el riego original"
           style="padding:9px 14px;font-size:13px;font-weight:700;background:#fdecea;color:#c62828;border:1px solid #f3c2bd;border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:6px">
           <i class="ti ti-trash" style="font-size:14px"></i> Borrar
-        </button>
-        <div style="display:flex;gap:8px">
+        </button>` : ''}
+        <div data-testid="riego-form-actions" style="display:flex;gap:8px;margin-left:auto">
           <button onclick="document.getElementById('riego-manual-overlay').style.display='none'"
             style="padding:9px 18px;font-size:13px;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:8px;cursor:pointer">Cancelar</button>
           <button id="rm-guardar-btn" onclick="saveRiegoManual()"
@@ -14735,16 +14737,21 @@ async function aplicarTextoRiegoManualMoviendoDia(invId, diaOriginal, callesOrig
 // vacías), o de los invernaderos completos marcados abajo si los hay. Se
 // puede deshacer con "Retroceder", igual que cualquier cambio.
 async function borrarRiegoManual(){
-  if(!confirm('¿Borrar el riego marcado? Se puede deshacer con "Retroceder".')) return;
-  const dia = parseInt(document.getElementById('rm-dia').value);
-  const invIds = leerRmBulkInvsSeleccionados();
-  if(!invIds.length){ showToast('Elige al menos un invernadero'); return; }
-  // Las tareas de peón ya no se tocan aquí — ver comentario en
-  // saveRiegoManual (botón "Generar tareas" en Tareas).
-  await Promise.all(invIds.map(async invId=>{
-    const {tramos} = calcularCallesRmBulk(invId);
-    await aplicarTextoRiegoManual(invId, dia, tramos, '');
-  }));
+  const original = rmEditContextoOriginal;
+  if(!original?.invId || !Number.isInteger(original.dia) || !original.calles?.length){
+    showToast('Solo se puede borrar un riego ya guardado');
+    return;
+  }
+  const callesLabel = formatCallesParaImprimir(original.invId, original.calles);
+  const detalle = `${riegoDiaLabelCorto(original.dia)} · INV ${original.invId} · ${callesLabel}`;
+  if(!confirm(`¿Borrar el riego original?\n${detalle}\nEsta acción no se puede deshacer.`)) return;
+  const borrado = await aplicarTextoRiegoManual(
+    original.invId,
+    original.dia,
+    agruparCallesEnTramos(original.calles),
+    ''
+  );
+  if(borrado) rmEditContextoOriginal = null;
 }
 function tramosLabelTexto(invId, tramos){
   return tramos.map(({desde,hasta})=>{const s=Math.min(desde,hasta),e=Math.max(desde,hasta); return formatRangoConInv(invId, s, e);}).join(', ');
@@ -15066,9 +15073,8 @@ function editarRiegoManualDesdeCelda(invId, dia, calles){
   riegoInvSel = invId;
   const desde = Math.min(...calles), hasta = Math.max(...calles);
   rmPendingConfig = {modo:'tramo', tramos:[{desde, hasta}]};
-  showRiegoManualForm();
+  showRiegoManualForm({ invId, dia, calles });
   document.getElementById('rm-dia').value = dia;
-  rmEditContextoOriginal = { invId, dia, calles: [...calles] };
   const raw = getRiegoCellRaw(invId, dia, calles[0]);
   const infoEl = document.getElementById('rm-info-marcador');
   if(infoEl) infoEl.innerHTML = construirInfoMarcadorRiego(raw);
@@ -18857,6 +18863,8 @@ function showImprimirResumenSelector(tipo){
   resumenTipoActual = tipo;
   const cfg = RESUMEN_CONFIG[tipo];
   const diasQ = riegoQuincenaDias(cfg.quincenaOffset());
+  const hoy = riegoDiaDeHoy();
+  const diaInicial = diasQ.includes(hoy) ? hoy : diasQ[0];
   const invSelActual = cfg.invSelActual();
   const mo = getOrCreateOverlay('imprimir-resumen-overlay');
   mo.innerHTML = `
@@ -18866,6 +18874,12 @@ function showImprimirResumenSelector(tipo){
         <button onclick="document.getElementById('imprimir-resumen-overlay').style.display='none'" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer">✕</button>
       </div>
       <div style="padding:1.25rem;display:flex;flex-direction:column;gap:12px">
+        <div>
+          <label for="rr-dia-select" style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Día de riego</label>
+          <select id="rr-dia-select" data-testid="riego-print-day" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:7px;background:#fff;font-size:12px">
+            ${diasQ.map(d=>`<option value="${d}"${d===diaInicial?' selected':''}>${riegoDiaLabelCorto(d)} — ${riegoDiaSemana(d)}</option>`).join('')}
+          </select>
+        </div>
         <div>
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
             <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Invernaderos</label>
@@ -18881,21 +18895,7 @@ function showImprimirResumenSelector(tipo){
             ${Object.keys(INV_LAYOUT_SALA5).map(id=>`<label style="font-size:11px;display:flex;align-items:center;gap:3px;background:#f2f4f0;border:1px solid #ddd;border-radius:5px;padding:4px 8px;cursor:pointer"><input type="checkbox" class="rr-inv-chk" value="${id}" ${id===invSelActual?'checked':''}> ${id}</label>`).join('')}
           </div>
         </div>
-        <div>
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-            <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Días a imprimir</label>
-            <label style="font-size:11px;font-weight:600;color:${cfg.color};display:flex;align-items:center;gap:4px;cursor:pointer">
-              <input type="checkbox" onchange="document.querySelectorAll('.rr-dia-chk').forEach(c=>c.checked=this.checked)"> Todos
-            </label>
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;max-height:180px;overflow-y:auto;border:1px solid var(--border);border-radius:7px;padding:8px">
-            ${diasQ.map(d=>`
-              <label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer">
-                <input type="checkbox" class="rr-dia-chk" value="${d}" ${d===riegoDiaDeHoy()?'checked':''}> ${riegoDiaLabelCorto(d)}
-              </label>`).join('')}
-          </div>
-        </div>
-        <div style="font-size:11px;color:var(--muted);font-style:italic">Todo lo elegido sale junto, en la misma hoja.</div>
+        <div style="font-size:11px;color:var(--muted);font-style:italic">Se imprimirá el día elegido para los invernaderos seleccionados.</div>
         <div style="display:flex;justify-content:flex-end;gap:8px;padding-top:4px">
           <button onclick="document.getElementById('imprimir-resumen-overlay').style.display='none'"
             style="padding:9px 18px;font-size:13px;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:8px;cursor:pointer">Cancelar</button>
@@ -18909,35 +18909,41 @@ function showImprimirResumenSelector(tipo){
   mo.style.display = 'flex';
 }
 
-// Uno o varios invernaderos, con uno o varios días cada uno — todo junto en
-// una sola hoja continua (sin salto de página forzado por día ni por
-// invernadero, a diferencia de antes que salía una hoja física por día).
+// Imprime un día de riego para uno o varios invernaderos en una sola hoja.
 function imprimirResumen(){
   const cfg = RESUMEN_CONFIG[resumenTipoActual];
   const invIds = leerInvernaderosBulkSeleccionados('rr');
-  const dias = Array.from(document.querySelectorAll('.rr-dia-chk:checked')).map(el=>parseInt(el.value)).sort((a,b)=>a-b);
+  const dia = parseInt(document.getElementById('rr-dia-select')?.value, 10);
   if(!invIds.length){ showToast('Elige al menos un invernadero'); return; }
-  if(!dias.length){ showToast('Elige al menos un día'); return; }
+  if(!Number.isInteger(dia)){ showToast('Elige un día de riego'); return; }
+  const hayRiegos = invIds.some(invId=>{
+    const layout = INV_LAYOUT[invId];
+    if(!layout) return false;
+    const calles = [...layout.row1, ...layout.row2];
+    return cfg.detectBrackets(invId, dia, calles).some(br=>String(br.text||'').trim());
+  });
+  if(!hayRiegos){
+    showToast(`No hay riegos registrados para el ${riegoDiaLabelCorto(dia)} en los invernaderos elegidos.`);
+    return;
+  }
 
   const escapar = v => String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
   const bloquesHTML = invIds.map(invId=>{
     const layout = INV_LAYOUT[invId];
     const allCalles = [...layout.row1, ...layout.row2];
-    const diasHTML = dias.map(dia=>{
-      const brackets = cfg.detectBrackets(invId, dia, allCalles);
-      const filasHTML = brackets.length ? brackets.map(br=>{
+    const brackets = cfg.detectBrackets(invId, dia, allCalles);
+    const filasHTML = brackets.length ? brackets.map(br=>{
         const ordenadas = br.calles.slice().sort((a,b)=>a-b);
         const rango = formatRangoConInv(invId, ordenadas[0], ordenadas[ordenadas.length-1]);
         return `<div class="rs-fila"><b>${escapar(rango)}:</b> ${escapar(br.text)}</div>`;
-      }).join('') : `<div class="rs-vacio">Sin nada marcado</div>`;
-      const fechaLabel = fechaCompletaImprimir({fechaISO: fechaLocalISO(riegoDiaToDate(dia))});
-      return `
+    }).join('') : `<div class="rs-vacio">Sin nada marcado</div>`;
+    const fechaLabel = fechaCompletaImprimir({fechaISO: fechaLocalISO(riegoDiaToDate(dia))});
+    const diasHTML = `
         <div class="rs-dia-bloque">
           <div class="rs-fecha">${escapar(fechaLabel)}</div>
           <div class="rs-contenido">${filasHTML}</div>
         </div>`;
-    }).join('');
     return `
       <div class="rs-inv-bloque">
         <div class="rs-invcalles"><span class="rs-inv-box">INV ${escapar(invId)}</span></div>
@@ -18956,7 +18962,7 @@ function imprimirResumen(){
   doc.open();
   doc.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Resumen ${escapar(cfg.titulo)}</title>
     <style>
-      @page { size: 148mm 210mm; margin: 14mm; }
+      @page { size: A4; margin: 14mm; }
       body { font-family: Arial, Helvetica, sans-serif; margin:0; color:#1a1e18; }
       .rs-inv-bloque { margin-bottom:26px; }
       .rs-inv-bloque:not(:first-child) { border-top:2px solid #ddd; padding-top:18px; }
