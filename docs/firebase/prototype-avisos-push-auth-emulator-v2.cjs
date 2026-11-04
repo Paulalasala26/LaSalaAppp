@@ -19,7 +19,8 @@ function ensureLocal(){
     throw new Error('REAL_SERVICE_CREDENTIALS_FORBIDDEN');
 }
 const err=(status,code)=>Object.assign(new Error(code),{status,code});
-function makeEmulatorTransport({fetchImpl=fetch}={}){
+function makeEmulatorTransport({fetchImpl=fetch,baseUrl}={}){
+  if(baseUrl!==undefined)throw new TypeError('CUSTOM_BASE_URL_FORBIDDEN');
   ensureLocal();
   if(typeof fetchImpl!=='function')throw new TypeError('INVALID_FETCH');
   function address(segments,extra=''){
