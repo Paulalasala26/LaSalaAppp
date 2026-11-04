@@ -356,6 +356,30 @@ test('UAT-139, UAT-141, UAT-142 y UAT-144: el filtro de INV funciona con datos y
   expect(unexpectedHosts).toEqual([]);
 });
 
+test('UAT-133, UAT-134, UAT-155 y UAT-156: consultar fechas pasadas sin permitir altas', async ({ page }) => {
+  const database = fixtureDatabase();
+  const { overlay, unexpectedHosts } = await startControlTest(page, database);
+  await overlay.getByTestId('control-quincena-previous').click();
+  await overlay.locator('button[onclick="cambiarControlDia(15)"]').click();
+  await expect(overlay.getByText('E2E-QUINCENA-ANTERIOR', { exact: true })).toBeVisible();
+  await expect(overlay.getByTestId('control-add-line')).toHaveCount(0);
+
+  await overlay.locator('button[onclick="cambiarControlDia(20)"]').click();
+  await expect(overlay.getByText('Sin líneas para este día todavía.', { exact: true })).toBeVisible();
+  await expect(overlay.getByTestId('control-add-line')).toHaveCount(0);
+
+  await page.evaluate(() => mostrarFormNuevoControlCheck('tunel'));
+  await page.locator('#nc-cliente-variedad').fill('Fixture de alta retroactiva');
+  await page.locator('#nc-partida').fill('E2E-QC-ALTA-RETROACTIVA');
+  await page.locator('#nc-bandejas').fill('10');
+  await overlay.getByRole('button', { name: 'Guardar', exact: true }).click();
+  await expect(page.getByText('No se pueden añadir líneas en una fecha pasada')).toBeVisible();
+  await expect.poll(() => Object.values(database['lasala-control-items-v1']).some(item =>
+    item.partida === 'E2E-QC-ALTA-RETROACTIVA'
+  )).toBe(false);
+  expect(unexpectedHosts).toEqual([]);
+});
+
 test('UAT-148 y UAT-149: buscar una partida existente o inexistente sin perder el estado de Control', async ({ page }) => {
   const database = fixtureDatabase();
   const { overlay, unexpectedHosts } = await startControlTest(page, database);
