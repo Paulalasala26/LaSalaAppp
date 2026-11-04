@@ -27,14 +27,14 @@ function makeEmulatorTransport({fetchImpl=fetch,baseUrl}={}){
     if(!Array.isArray(segments)||!segments.length||segments.some(s=>!VALID_ID.test(s)))
       throw err(400,'INVALID_PATH');
     // Both ns and owner are for official local emulator ONLY. Never re-use in production.
-    const params=new URLSearchParams({ns:NAMESPACE,auth:'owner'});
+    const params=new URLSearchParams({ns:NAMESPACE});
     if(extra)params.set('print',extra);
     return URL_BASE+segments.map(encodeURIComponent).join('/')+'.json?'+params;
   }
   async function retrieve(segments,etag=false){
     const r=await fetchImpl(address(segments),{
       method:'GET',cache:'no-store',
-      headers:etag?{'X-Firebase-ETag':'true'}:{}
+      headers:{Authorization:'Bearer owner',...(etag?{'X-Firebase-ETag':'true'}:{})}
     });
     if(!r.ok)throw err(503,'EMULATOR_READ_'+r.status);
     const tag=etag?r.headers.get('ETag'):null;
@@ -44,7 +44,7 @@ function makeEmulatorTransport({fetchImpl=fetch,baseUrl}={}){
   async function conditionalPut(segments,value,etag){
     if(typeof etag!=='string'||etag.length===0)throw err(503,'ETAG_MISSING');
     const r=await fetchImpl(address(segments,'silent'),{
-      method:'PUT',headers:{'Content-Type':'application/json','if-match':etag},
+      method:'PUT',headers:{Authorization:'Bearer owner','Content-Type':'application/json','if-match':etag},
       body:JSON.stringify(value)
     });
     if(r.status===412)return false;
@@ -70,7 +70,8 @@ function makeEmulatorTransport({fetchImpl=fetch,baseUrl}={}){
       'lasala-roles-v1','lasala-users-v1','lasala-avisos-v2',
       'lasala-push-endpoints-v2','lasala-push-outbox-v2','lasala-push-weekly-v2'].includes(segments[0]))
       throw err(400,'CLEANUP_NOT_ALLOWED');
-    const r=await fetchImpl(address(segments),{method:'DELETE'});
+    const r=await fetchImpl(address(segments),{method:'DELETE',
+      headers:{Authorization:'Bearer owner'}});
     if(!r.ok)throw err(503,'EMULATOR_CLEANUP_FAILED');
   }
   async function seedSynthetic(segments,value){
