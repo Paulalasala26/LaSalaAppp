@@ -1,0 +1,279 @@
+{
+  "schema": "lasala-riego-integration-contract/v1",
+  "referenceBranch": "test/v1.0",
+  "date": "2026-11-04",
+  "status": "DESIGN_ONLY_NOT_APPROVED",
+  "launchAuthorized": false,
+  "liveBackendIntegrated": false,
+  "policyBaseline": "docs/firebase/prototype-riego-command-authorization-v3.cjs",
+  "eventBaseline": "docs/firebase/avisos-event-catalog-v2.json",
+  "operations": [
+    {
+      "op": "READ_RIEGO",
+      "eventKind": null,
+      "frontendEvidence": [
+        "showHojasRiego",
+        "loadRiegoInvData"
+      ],
+      "emission": "lectura",
+      "notes": "Sin Push; lectura sujeta a ámbito real del regante",
+      "readyForDeployment": false
+    },
+    {
+      "op": "EDIT_RIEGO",
+      "eventKind": "riego_validado_modificado",
+      "frontendEvidence": [
+        "saveRiegoInvPatch",
+        "guardarRiegoConLimpieza"
+      ],
+      "emission": "condicional",
+      "notes": "Solo emitir evento si modifica riego ya validado y la transición se confirma",
+      "readyForDeployment": false
+    },
+    {
+      "op": "DELETE_RIEGO",
+      "eventKind": null,
+      "frontendEvidence": [
+        "guardarBorradoRiego",
+        "guardarBorradoRiegoMultiInv"
+      ],
+      "emission": "decisión_pendiente",
+      "notes": "Borrado requiere auditoría y política de aviso; multi-INV no atómico hoy",
+      "readyForDeployment": false
+    },
+    {
+      "op": "CREATE_PROPOSAL",
+      "eventKind": "riego_propuesta_creada",
+      "frontendEvidence": [
+        "enviarPropuestaInminente",
+        "persistPropuestasRiegoData"
+      ],
+      "emission": "evento",
+      "notes": "Técnico sobre ?; riego y propuesta necesitan precondición común",
+      "readyForDeployment": false
+    },
+    {
+      "op": "ACCEPT_PROPOSAL",
+      "eventKind": "riego_propuesta_aceptada",
+      "frontendEvidence": [
+        "aceptarPropuestaRiego",
+        "aplicarPropuestaRiego"
+      ],
+      "emission": "evento",
+      "notes": "Solo VIGUERAS; propuesta y riego en misma unidad transaccional",
+      "readyForDeployment": false
+    },
+    {
+      "op": "ACCEPT_PROPOSAL_EDITED",
+      "eventKind": "riego_propuesta_aceptada_cambios",
+      "frontendEvidence": [
+        "cambiarYAceptarPropuestaRiego",
+        "aplicarPropuestaRiego"
+      ],
+      "emission": "evento",
+      "notes": "Solo VIGUERAS; texto final confirmado y conservado",
+      "readyForDeployment": false
+    },
+    {
+      "op": "REJECT_PROPOSAL",
+      "eventKind": "riego_propuesta_rechazada",
+      "frontendEvidence": [
+        "rechazarPropuestaRiego",
+        "persistPropuestasRiegoData"
+      ],
+      "emission": "evento",
+      "notes": "Solo VIGUERAS; no modificar ? en riego",
+      "readyForDeployment": false
+    },
+    {
+      "op": "MARK_LEAVES",
+      "eventKind": "riego_hojas_marcadas",
+      "frontendEvidence": [
+        "marcarHojasMarcadas"
+      ],
+      "emission": "evento",
+      "notes": "Técnico y Sala 1/2; confirmar origen real",
+      "readyForDeployment": false
+    },
+    {
+      "op": "CORRECT_LEAVES",
+      "eventKind": "riego_hojas_corregidas",
+      "frontendEvidence": [
+        "avisarHojasCorregidas"
+      ],
+      "emission": "evento",
+      "notes": "Solo VIGUERAS; aviso a FRAN y DENNIS desde fuente propia",
+      "readyForDeployment": false
+    },
+    {
+      "op": "REPORT_RIEGO_PROBLEM",
+      "eventKind": "riego_problema_reportado",
+      "frontendEvidence": [
+        "enviarProblemaRiego"
+      ],
+      "emission": "evento",
+      "notes": "Regante de sala propia, riegos de hoy y guardia servidor",
+      "readyForDeployment": false
+    },
+    {
+      "op": "RESOLVE_RIEGO_PROBLEM",
+      "eventKind": "riego_problema_resuelto",
+      "frontendEvidence": [
+        "guardarSolucionProblemaRiego"
+      ],
+      "emission": "evento",
+      "notes": "Técnico asignado; no depender de aviso v1 borrable",
+      "readyForDeployment": false
+    },
+    {
+      "op": "MARK_RIEGO_EXECUTED",
+      "eventKind": null,
+      "frontendEvidence": [
+        "loadRiegoEjecutadoData",
+        "estadoEjecutadoRiego"
+      ],
+      "emission": "decisión_pendiente",
+      "notes": "El prototipo contempla marcar ejecución; falta contrastar función de escritura real y efecto",
+      "readyForDeployment": false
+    }
+  ],
+  "blockingDecisions": [
+    {
+      "id": "B01",
+      "title": "Autoridad y revocación atómica",
+      "owner": "Arquitectura backend",
+      "exitCriteria": "MOVER rol/usuario/ámbito, propuesta, fase/epoch y commit a una misma frontera de serialización; evitar TOCTOU",
+      "status": "BLOCKED",
+      "evidenceRequired": true
+    },
+    {
+      "id": "B02",
+      "title": "Cierre de escritores legacy",
+      "owner": "Seguridad/Firebase",
+      "exitCriteria": "Revisar reglas efectivas, reemplazar wildcard, proteger shards antiguos y bloquear reintentos de clientes previos antes de corte",
+      "status": "BLOCKED",
+      "evidenceRequired": true
+    },
+    {
+      "id": "B03",
+      "title": "Formato y migración del riego",
+      "owner": "Backend/datos",
+      "exitCriteria": "Migrar JSON-string con snapshot/ETag y rollback probado; verificar igualdad por INV sin datos perdidos",
+      "status": "BLOCKED",
+      "evidenceRequired": true
+    },
+    {
+      "id": "B04",
+      "title": "Propuestas y cambios multi-INV",
+      "owner": "Backend/negocio",
+      "exitCriteria": "Unificar aceptación/rechazo/texto final y resolución multi-INV con transacciones y recibos, manteniendo las 9 clases de evento",
+      "status": "BLOCKED",
+      "evidenceRequired": true
+    },
+    {
+      "id": "B05",
+      "title": "Persistencia de problemas y guardias",
+      "owner": "Backend/negocio",
+      "exitCriteria": "Crear registro persistido de problema, resolver guardia Madrid en servidor, conservar reportante y no borrar fuente",
+      "status": "BLOCKED",
+      "evidenceRequired": true
+    },
+    {
+      "id": "B06",
+      "title": "Offline, errores y concurrencia",
+      "owner": "Backend/cliente",
+      "exitCriteria": "Congelar escrituras, preservar operaciones sin recibo, tratar 403/401/412, validar móviles reales sin replay automático",
+      "status": "BLOCKED",
+      "evidenceRequired": true
+    },
+    {
+      "id": "B07",
+      "title": "Outbox y notificaciones",
+      "owner": "Backend/Worker",
+      "exitCriteria": "Publicar solamente fuentes confirmadas, idempotencia, vista campana y Push único sin duplicar Tuta semanal",
+      "status": "BLOCKED",
+      "evidenceRequired": true
+    },
+    {
+      "id": "B08",
+      "title": "Permisos funcionales y UAT",
+      "owner": "Gestor Backoffice",
+      "exitCriteria": "Aprobar matriz exacta por usuario/rol/INV y transiciones; certificar resultados reales de UAT y reversibilidad",
+      "status": "BLOCKED",
+      "evidenceRequired": true
+    }
+  ],
+  "routes": {
+    "irrigationShard": "lasala-riego-v2-<INV> (RTDB JSON string, ETag)",
+    "irrigationIndex": "lasala-riego-v2-index",
+    "proposals": "lasala-propuestas-riego-v1 (JSON array)",
+    "legacyAlerts": "lasala-avisos-usuario-v1 (up to 30 per user)",
+    "pushSubscriptions": "lasala-push-subs-v1",
+    "roles": "lasala-roles-v1",
+    "users": "lasala-users-v1",
+    "offlineQueue": "localStorage:lasala-riego-offline-v1",
+    "problems": "Legacy problem origin embedded in avisos; dedicated persisted business record not established"
+  },
+  "invariants": {
+    "commandRequest": [
+      "op",
+      "referenceId"
+    ],
+    "authoritativeInputs": "SERVER_ONLY",
+    "authorizationAtCommitRequired": true,
+    "outboxCommittedWithBusiness": true,
+    "noClientFirebaseWriteDuringCutover": true,
+    "noAutomaticLegacyOfflineReplay": true,
+    "error403": "DENIED_HOLD",
+    "error412": "RECONCILE_HOLD",
+    "multiInvAtomicityImplemented": false,
+    "guardSubstitutionPolicyApproved": false,
+    "noProductionAccess": true
+  },
+  "deliveryGates": [
+    {
+      "id": "G1",
+      "title": "Contrato y aprobación funcional",
+      "owner": "Backoffice",
+      "status": "BLOCKED"
+    },
+    {
+      "id": "G2",
+      "title": "Fuente transaccional y permisos",
+      "owner": "Backend/Firebase",
+      "status": "BLOCKED"
+    },
+    {
+      "id": "G3",
+      "title": "Riego, propuestas y problemas",
+      "owner": "Backend/negocio",
+      "status": "BLOCKED"
+    },
+    {
+      "id": "G4",
+      "title": "Migración, offline y rollback",
+      "owner": "Backend/UAT",
+      "status": "BLOCKED"
+    },
+    {
+      "id": "G5",
+      "title": "Outbox, campana y Push",
+      "owner": "Backend/Worker",
+      "status": "BLOCKED"
+    },
+    {
+      "id": "G6",
+      "title": "Integración + resultados QA",
+      "owner": "QA/Backoffice",
+      "status": "BLOCKED"
+    }
+  ],
+  "frontendQA": {
+    "separatelyExecuted": true,
+    "reportedTestsLowerBound": 2700,
+    "exactExecutedAndPassedNotVerified": true,
+    "doNotSumWithSecurityTests": true,
+    "preserveIndependentEvidence": true,
+    "doNotModifyFrontendDuringSecurityAudit": true
+  }
+}
