@@ -195,3 +195,48 @@ test('weekly Cron uses privileged ETag insert and cannot duplicate the weekly ba
   assert.equal(Object.keys(all).length,1);
   assert.equal(Object.values(all)[0].events.length,2);
 });
+
+test('event authorization bridge uses real signed JWT and live RTDB roles with revocation',async()=>{
+  const {createEmulatorAuthorizationBridge}=
+    require('./prototype-event-auth-bridge-v2.cjs');
+  const source={id:'EVENT_1',kind:'riego_hojas_marcadas',
+    actorUid:uidForName('FRAN'),persisted:true,serverVerified:true,
+    transitionCommitted:true,revision:1,invIds:['INV_1'],
+    sala:'sala1',markingConfirmed:true};
+  const request={kind:'riego_hojas_marcadas',referenceId:'EVENT_1'};
+  const authAdapter=makeBackendAuth(transport);
+  const bridge=(approved=true)=>createEmulatorAuthorizationBridge({
+    auth:authAdapter,transport,approved,
+    loadTrustedSource:async()=>source,
+    resolveTrustedScope:async()=>({serverVerified:true,authorizedInvIds:['INV_1']})
+  });
+  const originalRoles={FRAN:'TECNICO',DENNIS:'TECNICO',VIGUERAS:'ADMIN',
+    [USER]:'TECNICO',[OTHER]:'TECNICO'};
+  const originalUsers={FRAN:'d'.repeat(64),DENNIS:'c'.repeat(64),
+    VIGUERAS:'e'.repeat(64),[USER]:'a'.repeat(64),[OTHER]:'b'.repeat(64)};
+  try{
+    await putLegacy('lasala-roles-v1',originalRoles);
+    await putLegacy('lasala-users-v1',originalUsers);
+    const token=fakeJwt('FRAN');
+    const output=await bridge()(token,request);
+    assert.deepEqual(output.recipientUids,[uidForName('VIGUERAS')]);
+    assert.equal(output.outboxRequired,true);
+    assert.equal((await transport.retrieve([ROOTS.outbox])).value?.[output.idempotencyKey],undefined);
+    await assert.rejects(bridge(false)(token,request),{code:'BUSINESS_APPROVAL_REQUIRED'});
+    await assert.rejects(bridge()(token,{...request,target:'DENNIS'}),{code:'UNTRUSTED_REQUEST'});
+    source.invIds=['INV_FOREIGN'];
+    await assert.rejects(bridge()(token,request),{code:'INV_SCOPE_DENIED'});
+    source.invIds=['INV_1'];
+    await putLegacy('lasala-roles-v1',{...originalRoles,FRAN:'PEON'});
+    await assert.rejects(bridge()(token,request),{code:'ROLE_DENIED'});
+    await putLegacy('lasala-roles-v1',originalRoles);
+    await putLegacy('lasala-users-v1',{...originalUsers,FRAN:'disabled:'+originalUsers.FRAN});
+    await assert.rejects(bridge()(token,request),{code:'ACTOR_DISABLED'});
+    await putLegacy('lasala-users-v1',{...originalUsers,VIGUERAS:'disabled:'+originalUsers.VIGUERAS});
+    await assert.rejects(bridge()(token,request),{code:'INACTIVE_RECIPIENT'});
+    await assert.rejects(bridge()(fakeJwt('FRAN',{aud:'wrong-project'}),request));
+  }finally{
+    await putLegacy('lasala-roles-v1',originalRoles);
+    await putLegacy('lasala-users-v1',originalUsers);
+  }
+});
