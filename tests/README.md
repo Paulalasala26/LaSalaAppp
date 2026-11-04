@@ -1,6 +1,6 @@
 # Pruebas automatizadas
 
-La suite contiene automatización para 91 casos UAT distintos en 68 pruebas Playwright:
+La suite contiene automatización para 94 casos UAT distintos en 69 pruebas Playwright:
 
 - UAT-001 a UAT-010: autenticación, sesión, roles, navegación y tamaños PC,
   móvil y tablet.
@@ -8,6 +8,8 @@ La suite contiene automatización para 91 casos UAT distintos en 68 pruebas Play
   Control.
 - UAT-127, UAT-138–139, UAT-141–142, UAT-144–149, UAT-153, UAT-157:
   acceso, móvil, filtros, contadores, días vacíos, búsqueda y alta manual.
+- UAT-183–185: seleccionar opciones y conservar los cambios de Color, Tamaño
+  y Raíces.
 - UAT-028 a UAT-032: consulta, detalle, edición, búsqueda y Específicos
   asociados en Partidas.
 - UAT-067 a UAT-110, UAT-112 y UAT-114 a UAT-124: fechas, quincenas,
@@ -38,7 +40,7 @@ pnpm test:e2e
 ```
 
 La prueba se ejecuta en Chromium. La última ejecución completa verificada fue
-62/62 antes de añadir los trece casos QC. La ejecución local más reciente no
+62/62 antes de añadir los dieciséis casos QC. La ejecución local más reciente no
 pudo iniciar el navegador porque el Chromium de Playwright no está instalado
 en este entorno; queda pendiente ejecutar esos dos casos y repetir la suite.
 GitHub Actions conserva el informe, capturas y trazas cuando hay fallos.
