@@ -24,8 +24,10 @@ function fixture(overrides={}){
   const handler=createAuditCronRouter(options);
   return {calls,handler};
 }
-function req({method='GET',job,auth,query,headers}={}){
-  return {method,query:query??(job===undefined?{}:{job}),headers:headers??(auth?{authorization:auth}:{})};
+function req({method='GET',job,auth,query,headers,cron=false}={}){
+  const h={...(headers??(auth?{authorization:auth}:{}))};
+  if(cron)h['user-agent']='vercel-cron/1.0';
+  return {method,query:query??(job===undefined?{}:{job}),headers:h};
 }
 function res(){
   return {headers:{},statusCode:null,body:null,
@@ -54,33 +56,33 @@ test('cron secret is never a valid admin read token',async()=>{
 });
 test('valid cron request prunes exactly once using a service token',async()=>{
   const {calls,handler}=fixture();
-  const out=await call(handler,{job:'prune',auth:'Bearer '+SECRET});
+  const out=await call(handler,{cron:true,auth:'Bearer '+SECRET});
   assert.equal(out.statusCode,200);
   assert.deepEqual(out.body,{ok:true,deleted:2,candidates:3,remaining:1,retention:'1 calendar year'});
   assert.deepEqual([calls.audit,calls.service,calls.sa,calls.prune],[0,1,1,1]);
 });
 test('ADMIN token cannot invoke cron and may not fall through to admin handler',async()=>{
   const {calls,handler}=fixture();
-  const out=await call(handler,{job:'prune',auth:'Bearer VALID_ADMIN_TOKEN'});
+  const out=await call(handler,{cron:true,auth:'Bearer VALID_ADMIN_TOKEN'});
   assert.equal(out.statusCode,401);
   assert.deepEqual([calls.audit,calls.service,calls.prune],[0,0,0]);
 });
 test('anonymous cron is denied without accessing service or database',async()=>{
   const {calls,handler}=fixture();
-  const out=await call(handler,{job:'prune'});
+  const out=await call(handler,{cron:true});
   assert.equal(out.statusCode,401);
   assert.deepEqual([calls.audit,calls.service,calls.prune],[0,0,0]);
 });
 test('wrong cron secret is denied without side effects',async()=>{
   const {calls,handler}=fixture();
-  const out=await call(handler,{job:'prune',auth:'Bearer wrong'});
+  const out=await call(handler,{cron:true,auth:'Bearer wrong'});
   assert.equal(out.statusCode,401);
   assert.deepEqual([calls.audit,calls.service,calls.prune],[0,0,0]);
 });
 test('missing or too short cron secret fails closed',async()=>{
   for(const secret of [undefined,'', '1234567890']){
     const {calls,handler}=fixture({getCronSecret:()=>secret});
-    const out=await call(handler,{job:'prune',auth:'Bearer '+(secret||'')});
+    const out=await call(handler,{cron:true,auth:'Bearer '+(secret||'')});
     assert.equal(out.statusCode,503);
     assert.equal(out.body.error,'CRON_NOT_CONFIGURED');
     assert.equal(calls.prune,0);
@@ -89,7 +91,7 @@ test('missing or too short cron secret fails closed',async()=>{
 test('POST to audit or cron returns 405 before any auth',async()=>{
   for(const q of [{}, {job:'prune'}]){
     const {calls,handler}=fixture();
-    const out=await call(handler,{method:'POST',query:q,auth:'Bearer '+SECRET});
+    const out=await call(handler,{method:'POST',query:q,auth:'Bearer '+SECRET,cron:true});
     assert.equal(out.statusCode,405);assert.equal(out.headers.Allow,'GET');
     assert.deepEqual([calls.audit,calls.prune],[0,0]);
   }
@@ -108,7 +110,7 @@ test('array-valued job rejected, even if it contains prune',async()=>{
 });
 test('unexpected query parameters rejected on cron',async()=>{
   const {calls,handler}=fixture();
-  const out=await call(handler,{query:{job:'prune',uid:'ADMIN'},auth:'Bearer '+SECRET});
+  const out=await call(handler,{cron:true,query:{uid:'ADMIN'},auth:'Bearer '+SECRET});
   assert.equal(out.statusCode,400);assert.equal(calls.prune,0);
 });
 test('blank job parameter never delegates to admin',async()=>{
@@ -123,14 +125,14 @@ test('bad query shape fails closed',async()=>{
 });
 test('service account/token exception yields 503 without leaking details',async()=>{
   const {calls,handler}=fixture({serviceAccessToken:async()=>{throw Error('sensitive fake token')}});
-  const out=await call(handler,{job:'prune',auth:'Bearer '+SECRET});
+  const out=await call(handler,{cron:true,auth:'Bearer '+SECRET});
   assert.equal(out.statusCode,503);assert.deepEqual(out.body,{error:'PRUNE_FAILED'});
   assert.equal(calls.prune,0);
   assert.equal(JSON.stringify(calls.logs).includes('sensitive fake token'),false);
 });
 test('prune exception yields 503 and does not expose database details',async()=>{
   const {calls,handler}=fixture({pruneExpiredAudit:async()=>{calls.prune++;throw Error('sensitive Firebase document')}});
-  const out=await call(handler,{job:'prune',auth:'Bearer '+SECRET});
+  const out=await call(handler,{cron:true,auth:'Bearer '+SECRET});
   assert.equal(out.statusCode,503);assert.deepEqual(out.body,{error:'PRUNE_FAILED'});
   assert.equal(calls.prune,1);
   assert.equal(JSON.stringify(calls.logs).includes('sensitive Firebase document'),false);
@@ -140,7 +142,7 @@ test('missing required injected functions is rejected before handling requests',
 });
 test('read and cron responses carry no-store and nosniff headers',async()=>{
   const {handler}=fixture();
-  for(const input of [{auth:'Bearer VALID_ADMIN_TOKEN'}, {job:'prune',auth:'Bearer '+SECRET}]){
+  for(const input of [{auth:'Bearer VALID_ADMIN_TOKEN'}, {cron:true,auth:'Bearer '+SECRET}]){
     const out=await call(handler,input);
     assert.equal(out.headers['Cache-Control'],'no-store');
     assert.equal(out.headers['X-Content-Type-Options'],'nosniff');
@@ -157,4 +159,23 @@ test('current administrative handler and prune wrapper remain unmodified source'
   assert.match(main,/async function handler\(req,res\)/);
   assert.match(prune,/crypto\.timingSafeEqual/);
   assert.match(prune,/require\('\.\/admin-audit'\)/);
+});
+
+test('existing administrative filters remain routable without cron user-agent',async()=>{
+  const {calls,handler}=fixture();
+  const out=await call(handler,{query:{area:'riego_options'},auth:'Bearer VALID_ADMIN_TOKEN'});
+  assert.equal(out.statusCode,200);
+  assert.deepEqual([calls.audit,calls.prune],[1,0]);
+});
+test('spoofable user-agent alone never authorizes prune',async()=>{
+  const {calls,handler}=fixture();
+  const out=await call(handler,{cron:true,auth:'Bearer anything'});
+  assert.equal(out.statusCode,401);
+  assert.deepEqual([calls.audit,calls.service,calls.prune],[0,0,0]);
+});
+test('cron user-agent is only a routing hint; missing CRON_SECRET fails closed',async()=>{
+  const {calls,handler}=fixture({getCronSecret:()=>undefined});
+  const out=await call(handler,{cron:true,auth:'Bearer example'});
+  assert.equal(out.statusCode,503);
+  assert.deepEqual([calls.audit,calls.prune],[0,0]);
 });
