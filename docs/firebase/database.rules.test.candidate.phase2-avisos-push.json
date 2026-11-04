@@ -51,6 +51,18 @@
     "$other": {
       ".read": "auth != null && auth.token.appUser != null",
       ".write": "auth != null && auth.token.appUser != null"
+    },
+    "lasala-alert-event-sources-v2": {
+      ".read": false,
+      ".write": false
+    },
+    "lasala-invernaderos-catalog-v2": {
+      ".read": false,
+      ".write": false
+    },
+    "lasala-event-permissions-v2": {
+      ".read": false,
+      ".write": false
     }
   }
 }
