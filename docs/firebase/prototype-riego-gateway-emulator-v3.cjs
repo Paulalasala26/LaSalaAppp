@@ -151,6 +151,41 @@ function createLocalRiegoGateway({transport,auth,now=()=>new Date(),maxAttempts=
   }
   err('CAS_EXHAUSTED');
  }
+ async function issueIntent(request){
+  strictRequest(request,['token','invId','commandId','cellKey','afterText']);
+  const {token,invId,commandId,cellKey,afterText}=request;
+  if(!valid(cellKey)||typeof afterText!=='string'||
+     afterText.length>250||afterText.trim().length===0)
+   err('INVALID_INTENT_DATA');
+  return mutate(invId,commandId,token,(s,identity,id)=>{
+   const actor=caller(s,identity);
+   if(s.catalog.active!==true||s.catalog.managerApproved!==true||
+      !/^sala[1-5]$/.test(s.catalog.sala))
+    err('INV_DISABLED');
+   if(s.fence.phase!=='v3_active')err('WRITER_NOT_ACTIVE');
+   if(!Array.isArray(actor.ops)||!actor.ops.includes('EDIT_RIEGO')||
+      !['TECNICO','ADMIN'].includes(actor.role))
+    err('OP_NOT_PERMITTED');
+   const existing=s.commands[id];
+   if(existing!==undefined){
+    if(!plain(existing)||existing.id!==id||existing.invId!==invId||
+       existing.actorUid!==identity.uid||existing.op!=='EDIT_RIEGO'||
+       existing.cellKey!==cellKey||existing.afterText!==afterText)
+     err('INTENT_ID_CONFLICT');
+    return {already:true,output:{commandId:id,epoch:existing.expectedEpoch}};
+   }
+   if(!plain(s.grid[cellKey])||typeof s.grid[cellKey].texto!=='string')
+    err('CELL_NOT_FOUND');
+   if(s.grid[cellKey].texto===afterText)err('NO_CHANGE');
+   const command={id,op:'EDIT_RIEGO',actorUid:identity.uid,
+     invId,cellKey,expectedEpoch:s.fence.epoch,
+     beforeText:s.grid[cellKey].texto,afterText};
+   const next=copy(s);
+   next.commands={...s.commands,[id]:command};
+   return {next,fingerprint:hash(JSON.stringify(command)),
+     output:{commandId:id,epoch:s.fence.epoch}};
+  });
+ }
  async function commit(request){
   strictRequest(request,['token','invId','commandId']);
   const {token,invId,commandId}=request;
@@ -267,6 +302,6 @@ function createLocalRiegoGateway({transport,auth,now=()=>new Date(),maxAttempts=
      !plain(value.outbox?.[receipt.eventId])))err('RECEIPT_EVENT_INTEGRITY_FAILURE');
   return {status:receipt.status,eventId:receipt.eventId??null,revision:receipt.revision};
  }
- return Object.freeze({commit,revoke,freeze,getReceipt});
+ return Object.freeze({issueIntent,commit,revoke,freeze,getReceipt});
 }
 module.exports={ROOT,SCHEMA,createLocalRiegoGateway};
