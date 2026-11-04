@@ -5,7 +5,8 @@
     "test:emulator": "firebase emulators:exec --only database --project demo-lasala-phase1 --config firebase.emulator.phase1.json \"node --test firebase-emulator-phase1.test.cjs\"",
     "test:emulator:phase2": "firebase emulators:exec --only database --project demo-lasala-phase2-alerts --config firebase.emulator.phase2.json \"node --test firebase-emulator-avisos-push-v2.test.cjs\"",
     "test:emulator:auth-storage": "firebase emulators:exec --only database --project demo-lasala-phase2-alerts --config firebase.emulator.phase2.json \"node --test firebase-emulator-auth-storage-v2.test.cjs\"",
-    "test:emulator:riego-freeze": "firebase emulators:exec --only database --project demo-lasala-phase2-riego-freeze --config firebase.emulator.phase2-riego-freeze.json \"node --test firebase-emulator-riego-freeze-v3.test.cjs\""
+    "test:emulator:riego-freeze": "firebase emulators:exec --only database --project demo-lasala-phase2-riego-freeze --config firebase.emulator.phase2-riego-freeze.json \"node --test firebase-emulator-riego-freeze-v3.test.cjs\"",
+    "test:emulator:riego-gateway": "firebase emulators:exec --only database --project demo-lasala-phase2-alerts --config firebase.emulator.phase2.json \"node --test firebase-emulator-riego-gateway-v3.test.cjs\""
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^4.0.0",
