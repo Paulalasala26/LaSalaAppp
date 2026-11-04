@@ -45,7 +45,9 @@ before(async()=>{
   global.fetch=async (url,options={})=>{
     if(String(url)===JWKS)return new Response(stringify({keys:[jwk]}),
       {status:200,headers:{'content-type':'application/json'}});
-    // All other requests MUST originate from the local emulator transport.
+    // The rules-unit-testing library also needs loopback fetch, not just our transport.
+    if(/^http:\/\/(?:127\.0\.0\.1|localhost):9000\//.test(String(url)))
+      return originalFetch(url,options);
     throw new Error('UNEXPECTED_EXTERNAL_FETCH');
   };
   transport=makeEmulatorTransport({fetchImpl:originalFetch});
