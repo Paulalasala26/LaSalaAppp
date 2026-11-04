@@ -111,6 +111,12 @@ jobs:
           CI: 'true'
         run: npm run test:emulator:phase2
 
+      - name: Verify legacy riego writer revocation by INV in isolated RTDB emulator
+        working-directory: docs/firebase
+        env:
+          CI: 'true'
+        run: npm run test:emulator:riego-freeze
+
       - name: Backend JWT and ETag store on official demo RTDB emulator
         working-directory: docs/firebase
         env:
