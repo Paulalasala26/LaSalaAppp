@@ -99,6 +99,9 @@ jobs:
       - name: Consolidated twelve-command nine-event integration and QA contract (no network)
         run: node --test docs/firebase/contrato-integracion-riego-v3.test.cjs
 
+      - name: G1/G2 proposed backend authority ADR and privacy contract (no network)
+        run: node --test docs/firebase/arquitectura-backend-g1-g2-v3.test.cjs
+
       - name: Isolated Firebase REST ETag and migration regression
         run: node --test docs/firebase/prototype-avisos-push-store-v2.test.cjs
 
