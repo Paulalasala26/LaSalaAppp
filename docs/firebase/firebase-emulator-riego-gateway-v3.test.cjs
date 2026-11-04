@@ -144,6 +144,8 @@ test('unvalidated irrigation edit persists data but emits no supervisor event',a
  assert.equal(s.outbox,undefined);
  const again=await commit('INV_RAW','CMD_RAW');
  assert.equal(again.status,'already_committed');
+ assert.equal(again.eventId,null);
+ assert.equal(again.revision,2);
 });
 test('accept proposal and irrigation within same official RTDB compare-and-swap',async()=>{
  await seed('INV_ACCEPT');
