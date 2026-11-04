@@ -1,13 +1,13 @@
 # Pruebas automatizadas
 
-La suite contiene automatización para 86 casos UAT distintos en 66 pruebas Playwright:
+La suite contiene automatización para 88 casos UAT distintos en 67 pruebas Playwright:
 
 - UAT-001 a UAT-010: autenticación, sesión, roles, navegación y tamaños PC,
   móvil y tablet.
 - UAT-019 a UAT-025: lectura, edición, altas, bajas y cambio de quincena en
   Control.
-- UAT-127, UAT-138–139, UAT-141–142, UAT-144 y UAT-148–149: acceso/salida de
-  Check Túnel, tamaños móvil, filtros, días vacíos y búsqueda de partidas.
+- UAT-127, UAT-138–139, UAT-141–142, UAT-144, UAT-148–149, UAT-153 y
+  UAT-157: acceso, tamaños móvil, filtros, días vacíos, búsqueda y alta manual.
 - UAT-028 a UAT-032: consulta, detalle, edición, búsqueda y Específicos
   asociados en Partidas.
 - UAT-067 a UAT-110, UAT-112 y UAT-114 a UAT-124: fechas, quincenas,
