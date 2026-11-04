@@ -66,6 +66,9 @@ jobs:
       - name: Nine-event authorization decision matrix (pure, no network)
         run: node --test docs/firebase/prototype-event-authorization-v2.test.cjs
 
+      - name: Backend identity and role bridge regression (no network)
+        run: node --test docs/firebase/prototype-event-auth-bridge-v2.test.cjs
+
       - name: Isolated Firebase REST ETag and migration regression
         run: node --test docs/firebase/prototype-avisos-push-store-v2.test.cjs
 
