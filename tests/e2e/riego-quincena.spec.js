@@ -163,6 +163,43 @@ test('UAT-069, UAT-070 y UAT-072: la fecha local, la quincena y el dato históri
   expect(unexpectedHosts).toEqual([]);
 });
 
+test('UAT-101 y UAT-102: una celda histórica ocupada abre consulta de solo lectura', async ({ page }) => {
+  const database = fixtureDatabase();
+  const before = database['lasala-riego-v1'];
+  const { overlay, unexpectedHosts, writes } = await openRiego(page, database);
+  const celda = page.locator('#riego-grid-wrap td[ondblclick*="editarRiegoManualDesdeCelda"]').filter({ hasText: 'E2E-RIEGO-DIA-29' });
+  await celda.click();
+
+  const consulta = page.locator('#riego-consulta-overlay');
+  await expect(consulta).toBeVisible();
+  await expect(consulta.getByRole('heading', { name: 'Consultar riego' })).toBeVisible();
+  await expect(consulta.getByTestId('riego-consulta-fecha')).toContainText('29 jun');
+  await expect(consulta.getByTestId('riego-consulta-texto')).toHaveText('E2E-RIEGO-DIA-29');
+  await expect(consulta.locator('#rm-dia, .rm-agua-min, #rm-guardar-btn, [data-testid="riego-consulta-delete"]')).toHaveCount(0);
+  await expect(consulta.getByRole('button')).toHaveCount(1);
+  await consulta.getByRole('button', { name: 'Cerrar consulta' }).click();
+  await expect(consulta).toBeHidden();
+  expect(database['lasala-riego-v1']).toBe(before);
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+  await expect(overlay).toBeVisible();
+});
+
+test('UAT-103: una celda histórica vacía no ofrece alta retroactiva', async ({ page }) => {
+  const database = fixtureDatabase();
+  const before = database['lasala-riego-v1'];
+  const { overlay, unexpectedHosts, writes } = await openRiego(page, database);
+  const filaHistorica = page.locator('#riego-grid-wrap tr').filter({ hasText: '29 jun' }).first();
+  await filaHistorica.locator('td').last().click();
+
+  await expect(page.locator('#riego-manual-overlay')).toBeHidden();
+  await expect(page.locator('#riego-consulta-overlay')).toBeHidden();
+  expect(database['lasala-riego-v1']).toBe(before);
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+  await expect(overlay).toBeVisible();
+});
+
 test('UAT-074 y UAT-092: añadir riego abre el día correcto y cancelar no modifica datos', async ({ page }) => {
   const database = fixtureDatabase();
   const before = database['lasala-riego-v1'];
