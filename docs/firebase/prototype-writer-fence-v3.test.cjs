@@ -22,7 +22,7 @@ function fixture({phase='legacy',epoch=0,failMode=null,maxAttempts=7}={}){
  const transport={
   async retrieve(path,withEtag=false){
    reads++;const row=db.get(path.join('/'));
-   return {value:row?clone(row):null,etag:withEtag?'"'+row.version+'"':undefined};
+   return {value:row?clone(row):null,etag:withEtag?'"'+(row?.version??'null')+'"':undefined};
   },
   async compareAndSwap(path,expectedVersion,next){
    writes++;await Promise.resolve();
