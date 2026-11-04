@@ -84,6 +84,9 @@ jobs:
       - name: Synthetic migration parity and integrity dry-run (pure, no network)
         run: node --test docs/firebase/prototype-migration-dryrun-v3.test.cjs
 
+      - name: Synthetic migration cutover races, offline and proposal reconciliation (no network)
+        run: node --test docs/firebase/prototype-migration-reconciliation-v3.test.cjs
+
       - name: Isolated Firebase REST ETag and migration regression
         run: node --test docs/firebase/prototype-avisos-push-store-v2.test.cjs
 
