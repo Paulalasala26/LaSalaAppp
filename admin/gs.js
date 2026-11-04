@@ -9,8 +9,8 @@
   const fmt=value=>Number(value||0).toLocaleString('es-ES',{maximumFractionDigits:2});
   let busy=false,preview=null,sourceName='';
 
-  function status(message,error){
-    const el=byId('gs-status');
+  function status(message,error,target){
+    const el=byId(target||'gs-status');
     el.textContent=message;
     el.className='gs-status '+(error?'error':'ok');
   }
@@ -110,7 +110,7 @@
       empty.textContent='No hay partidas que coincidan con esta búsqueda.';
       list.append(empty);return;
     }
-    const heads=['Nº Parte','TSI','Nº Plantas','Nº Bandejas','Localización GS','Fec. entrada','Hora','Salida prevista'];
+    const heads=['Nº Parte','TSI','Cliente GS','PAR_NMSM','Denominación TSI','Nº Plantas','Nº Bandejas','Localización GS','Invernaderos catálogo','Fec. entrada','Hora','Salida prevista'];
     for(const partida of partidas){
       const detail=document.createElement('details');detail.className='gs-party';
       const summary=document.createElement('summary');
@@ -124,7 +124,15 @@
       const tbody=document.createElement('tbody');
       for(const p of partida.partes){
         const row=document.createElement('tr');
-        for(const value of [p.numeroParte,p.tsi,fmt(p.plantasEnParte),fmt(p.bandejasEnParte),p.localizacionGS,p.fechaEntrada,p.horaEntrada,p.fechaPrevistaSalida]){
+        const ubicaciones=Array.isArray(p.invernaderos)?p.invernaderos.map(inv=>
+          inv.resuelto_en_catalogo?String(inv.id)+' · '+String(inv.denominacion||''):
+            String(inv.id)+' (sin ficha)'
+        ).join(', '):'';
+        for(const value of [
+          p.numeroParte,p.tsi,p.cliente,p.nombreSemilla,p.tipoSiembra,
+          fmt(p.plantasEnParte),fmt(p.bandejasEnParte),p.localizacionGS,
+          ubicaciones,p.fechaEntrada,p.horaEntrada,p.fechaPrevistaSalida
+        ]){
           cell(row,'td',value);
         }
         tbody.appendChild(row);
@@ -145,13 +153,13 @@
     document.body.append(link);link.click();link.remove();
     setTimeout(()=>URL.revokeObjectURL(url),1000);
   }
-  function render(data,file){
+  function render(data,sourceText){
     const m=byId('gs-metrics');m.replaceChildren();
     metric(m,'Partidas distintas',data.resumen.partidas);
     metric(m,'Partes de actuación',data.resumen.partes);
     metric(m,'Plantas en partes (no stock)',data.resumen.plantasEnPartes);
     metric(m,'Bandejas en partes (no stock)',data.resumen.bandejasEnPartes);
-    byId('gs-source').textContent='Archivo local: '+file.name+' · No se ha guardado ni enviado a Firebase.';
+    byId('gs-source').textContent=sourceText;
     const errors=byId('gs-errors');
     errors.hidden=!data.errores.length;
     errors.textContent=data.errores.length?'Advertencias de lectura: '+data.errores.join(' '):'';
@@ -175,15 +183,101 @@
       const parsed=await extract(file);
       if(!window.GSAdminTools)throw new Error('Las herramientas administrativas GS no están disponibles.');
       preview=parsed;sourceName=file.name;
-      render(parsed,file);
+      render(parsed,'Archivo local: '+file.name+' · Solo lectura; no se ha guardado en Firebase.');
       status('Lectura finalizada: '+parsed.resumen.partes+' partes y '+parsed.resumen.partidas+' partidas. '+(parsed.errores.length?'Revisa las advertencias.':'Sin incidencias de formato detectadas.')+' No se ha importado nada.',Boolean(parsed.errores.length));
     }catch(e){
       console.error('Error de lectura GS',e);
       status(e?.message||'Error al leer el documento. No se ha importado nada.',true);
     }finally{busy=false;byId('gs-file').disabled=false;}
   }
+  function fromMysqlSnapshot(snapshot,date){
+    const sourceParts=snapshot?.partes;
+    if(!sourceParts||typeof sourceParts!=='object'||Array.isArray(sourceParts))
+      throw new Error('La instantánea GS no contiene partes válidos.');
+    const groups=new Map();
+    const rows=Object.values(sourceParts);
+    for(const source of rows){
+      const numeroParte=String(source?.gs_injerto_id??'').trim();
+      const numeroPartida=String(source?.gs_partida??'').trim();
+      if(!numeroParte||!numeroPartida)throw new Error('Parte GS sin número de parte o partida.');
+      const part={
+        numeroParte,numeroPartida,
+        tsi:String(source.id_tipo_siembra??''),
+        plantasEnParte:Number(source.plantas||0),
+        bandejasEnParte:Number(source.bandejas||0),
+        localizacionGS:String(source.invernaderos_gs??''),
+        invernaderos:Array.isArray(source.invernaderos)?source.invernaderos:[],
+        fechaEntrada:source.fecha_entrada??null,
+        horaEntrada:source.hora_entrada??null,
+        fechaPrevistaSalida:source.fecha_prevista??date,
+        observaciones:source.observaciones??null,
+        cliente:source.cliente??null,
+        nombreSemilla:source.nombre_semilla??null,
+        tipoSiembra:source.tipo_siembra??null
+      };
+      if(!Number.isFinite(part.plantasEnParte)||!Number.isFinite(part.bandejasEnParte))
+        throw new Error('Cantidades inválidas en el parte GS '+numeroParte+'.');
+      if(!groups.has(numeroPartida))groups.set(numeroPartida,{numeroPartida,partes:[]});
+      groups.get(numeroPartida).partes.push(part);
+    }
+    const partidas=[...groups.values()].sort((a,b)=>a.numeroPartida.localeCompare(b.numeroPartida,'es',{numeric:true}));
+    const partes=partidas.flatMap(item=>item.partes);
+    const missing=[...new Set(partes.flatMap(p=>(p.invernaderos||[])
+      .filter(inv=>!inv.resuelto_en_catalogo).map(inv=>String(inv.id))))];
+    return {
+      partidas,
+      resumen:{
+        partidas:partidas.length,
+        partes:partes.length,
+        plantasEnPartes:partes.reduce((n,p)=>n+p.plantasEnParte,0),
+        bandejasEnPartes:partes.reduce((n,p)=>n+p.bandejasEnParte,0)
+      },
+      errores:missing.map(id=>'El ID de invernadero '+id+' no tiene ficha en el catálogo GS.')
+    };
+  }
+
+  async function onDatabaseLoad(){
+    if(busy)return;
+    const date=byId('gs-db-date').value;
+    if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(date)){
+      status('Selecciona una fecha prevista válida.',true,'gs-db-status');
+      return;
+    }
+    busy=true;
+    const button=byId('gs-db-load');
+    button.disabled=true;
+    status('Consultando la instantánea GS de TEST…',false,'gs-db-status');
+    try{
+      const jwt=await token();
+      const url='/api/admin-catalog?view=gs&date='+encodeURIComponent(date);
+      const response=await fetch(url,{headers:{Authorization:'Bearer '+jwt},cache:'no-store'});
+      if(response.status===401)throw new Error('LOGIN_REQUIRED');
+      if(response.status===403)throw new Error('NO_PERMISSION');
+      if(response.status===404)throw new Error('SNAPSHOT_NOT_FOUND');
+      if(!response.ok)throw new Error('SERVICE_UNAVAILABLE');
+      const result=await response.json();
+      if(!result.ok||result.date!==date||!result.snapshot)throw new Error('INVALID_RESPONSE');
+      preview=fromMysqlSnapshot(result.snapshot,date);
+      sourceName='GS_MySQL_'+date;
+      byId('gs-filter').value='';
+      render(preview,'Instantánea MySQL GS TEST · '+date+' · Solo lectura; inspecciones QC sin modificar.');
+      status('Lectura correcta: '+preview.resumen.partes+' partes y '+preview.resumen.partidas+' partidas.',false,'gs-db-status');
+    }catch(error){
+      console.error('Error al leer GS TEST',error);
+      const message=error.message==='LOGIN_REQUIRED'?'La sesión ha caducado. Inicia sesión de nuevo.':
+        error.message==='NO_PERMISSION'?'Se necesita el rol ADMIN.':
+        error.message==='SNAPSHOT_NOT_FOUND'?'No hay una sincronización GS para esa fecha.':
+        error.message==='INVALID_RESPONSE'?'La respuesta GS no tiene el formato esperado.':
+        error.message||'No se ha podido leer la sincronización GS.';
+      status(message,true,'gs-db-status');
+    }finally{
+      busy=false;
+      button.disabled=false;
+    }
+  }
   async function boot(){
     byId('gs-file').addEventListener('change',onFile);
+    byId('gs-db-load').addEventListener('click',onDatabaseLoad);
     byId('gs-filter').addEventListener('input',()=>{
       if(preview&&!busy)renderPartidas(filtered());
     });
