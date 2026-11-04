@@ -96,6 +96,9 @@ jobs:
       - name: Atomic role revocation and proposal TOCTOU commit tests (no network)
         run: node --test docs/firebase/prototype-riego-toctou-commit-v3.test.cjs
 
+      - name: Consolidated twelve-command nine-event integration and QA contract (no network)
+        run: node --test docs/firebase/contrato-integracion-riego-v3.test.cjs
+
       - name: Isolated Firebase REST ETag and migration regression
         run: node --test docs/firebase/prototype-avisos-push-store-v2.test.cjs
 
