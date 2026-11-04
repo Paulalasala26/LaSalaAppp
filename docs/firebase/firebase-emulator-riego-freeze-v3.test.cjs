@@ -157,3 +157,25 @@ test('server may open another INV only through privileged lock storage, for cont
   context.database().ref(LOCKS+'/'+ROOT2).set('frozen'));
  await assertFails(db.ref(ROOT2).set('stale pilot write'));
 });
+
+
+test('G1/G2 proposed server-only authoritative aggregate denies every browser role and child path',async()=>{
+ const root='lasala-riego-authority-v3';
+ await env.withSecurityRulesDisabled(async ctx=>
+  ctx.database().ref(root+'/INV_1').set({
+   schema:'lasala-riego-authority/v1',acl:{FRAN:{role:'TECNICO'}},
+   fence:{phase:'v3_active',epoch:2},grid:{CELL_1:'30 MIN'}
+  }));
+ for(const role of [null,...ROLES]){
+  const db=actor(role);
+  for(const target of [root,root+'/INV_1',root+'/INV_1/acl',
+   root+'/INV_1/grid/CELL_1',root+'/INV_UNKNOWN']){
+   await assertFails(db.ref(target).get());
+   await assertFails(db.ref(target).set({forged:true}));
+   await assertFails(db.ref(target).remove());
+  }
+ }
+ const unauthenticated=env.authenticatedContext('without-appuser',{role:'ADMIN'}).database();
+ await assertFails(unauthenticated.ref(root+'/INV_1').get());
+ await assertFails(unauthenticated.ref(root+'/INV_1').set('forged'));
+});
