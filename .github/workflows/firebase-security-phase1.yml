@@ -78,6 +78,9 @@ jobs:
       - name: Single-CAS business mutation and event outbox crash/retry tests (no network)
         run: node --test docs/firebase/prototype-business-event-transaction-v2.test.cjs
 
+      - name: Legacy migration assumption and reversibility guard (no network)
+        run: node --test docs/firebase/plan-migracion-guard-v2.test.cjs
+
       - name: Isolated Firebase REST ETag and migration regression
         run: node --test docs/firebase/prototype-avisos-push-store-v2.test.cjs
 
