@@ -7508,6 +7508,7 @@ function renderControlChecklistHTML(seccion){
   const extraTunelHTML = seccion.key==='tunel' ? `
     <label class="qc-list-option"><i class="ti ti-file-upload"></i> Añadir extensiones<input type="file" accept="application/pdf" onchange="handleExtensionesPdfInput(this)"></label>
     <button type="button" class="qc-list-option" onclick="mostrarComprobarExtensiones()"><i class="ti ti-list-check"></i> Comprobar extensiones</button>` : '';
+  const extraCargaHTML = seccion.key==='carga' ? '<button type="button" class="qc-list-option" onclick="abrirGSCargaFeed()"><i class="ti ti-database"></i> Consultar parte GS</button>' : '';
   const cardsHTML = listaMostrada.length===0
     ? `<div class="qc-list-none">${listaDia.length===0?'Sin partidas para este día.':((seccion.key==='carga'?controlCargaInvFiltro:controlTunelInvFiltro)?'No hay partidas para ese invernadero y día.':'No hay líneas con el estado seleccionado.')}</div>`
     : `<div class="qc-list-cards">${filas}</div>`;
@@ -7520,7 +7521,7 @@ function renderControlChecklistHTML(seccion){
       '<button type="button" onclick="buscarControlPartida(\''+seccion.key+'\')" aria-label="Buscar"><i class="ti ti-search"></i></button></div></div>'+
       syncHTML+
       '<details class="qc-list-more"><summary>Más opciones</summary><div class="qc-list-more-actions">'+
-      pdfAction+extraTunelHTML+'</div>'+pdfInfoHTML+'</details>';
+      pdfAction+extraTunelHTML+extraCargaHTML+'</div>'+pdfInfoHTML+'</details>';
     const total='<div class="qc-work-counter">'+listaInv.length+' partida'+(listaInv.length===1?'':'s')+
       ' · '+numCompletados+' inspeccionada'+(numCompletados===1?'':'s')+'</div>';
     const filtrosInspecciones='<div class="qc-work-list-tools">'+total+filtrosHTML+'</div>';
@@ -24944,6 +24945,7 @@ function conGuardiaReentrada(fn){
 </script>
 <script src="assets/fito-series-v3.js"></script>
 <script src="assets/qc-editar-linea-v3.js?v=109"></script>
+<script src="assets/gs-carga-feed.js?v=1"></script>
 </body>
 </html>
 <!-- VERCEL TEST v1.0 deployment trigger 2026-09-22 -->
