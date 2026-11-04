@@ -12,7 +12,7 @@ const protectedKeys=['lasala-admin-audit-v1','lasala-config-infra-v1','lasala-qc
 before(async()=>{
   // Never accept a production database or an arbitrary remote emulator host.
   assert.match(process.env.FIREBASE_DATABASE_EMULATOR_HOST||'',
-    /^(127\\.0\\.0\\.1|localhost):9000$/,
+    /^(127\.0\.0\.1|localhost):9000$/,
     'Run ONLY on the local RTDB emulator at 127.0.0.1:9000');
   if(process.env.GCLOUD_PROJECT)assert.equal(process.env.GCLOUD_PROJECT,PROJECT_ID);
   env=await initializeTestEnvironment({projectId:PROJECT_ID,
