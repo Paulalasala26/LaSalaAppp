@@ -129,7 +129,7 @@
       "G2 emulator security rules and backend authorization; demonstrate revoked old paths",
       "Authorized backup+ETag manifest, offline device inventory and rollback rehearsal",
       "Server-only shadow mode, no duplicate writes/push",
-      "Pilot one INV after freezing legacy writes and draining offline",
+      "Pilot one INV after old legacy writers are frozen and offline queues drained",
       "Commands/revocations/rollback/alerts validated in real UAT",
       "Gradual migration with owner/approval, feature flags and audit"
     ],
