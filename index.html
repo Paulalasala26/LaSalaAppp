@@ -6385,9 +6385,9 @@ function renderControlChecklistHTML(seccion){
             <i class="ti ti-search" style="font-size:14px"></i>
           </button>
         </div>
-        <button data-testid="control-add-line" onclick="${usaFichaCarga(seccion.key)?'mostrarFormNuevoControlCargaCheck()':`mostrarFormNuevoControlCheck('${seccion.key}')`}" class="btn-elevado" style="padding:9px 16px;font-size:12px;font-weight:700;background:#2e7d32;color:#fff;border:none;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;gap:6px">
+        ${controlDiaSel >= riegoDiaDeHoy() ? `<button data-testid="control-add-line" onclick="${usaFichaCarga(seccion.key)?'mostrarFormNuevoControlCargaCheck()':`mostrarFormNuevoControlCheck('${seccion.key}')`}" class="btn-elevado" style="padding:9px 16px;font-size:12px;font-weight:700;background:#2e7d32;color:#fff;border:none;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;gap:6px">
           <i class="ti ti-plus" style="font-size:14px"></i> Añadir línea
-        </button>
+        </button>` : ''}
         ${seccion.key==='tunel' ? `
         <label style="padding:9px 16px;font-size:12px;font-weight:700;background:#5c8df0;color:#fff;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;gap:6px">
           <i class="ti ti-file-upload" style="font-size:14px"></i> Añadir extensiones
@@ -8142,6 +8142,12 @@ function actualizarCallesControl(){
   hastaSel.innerHTML = opts;
 }
 async function guardarNuevoControlCheck(tipo){
+  // La pantalla oculta el alta al navegar a una fecha pasada, pero una ficha
+  // abierta antes de cambiar de día también debe quedar protegida.
+  if(controlDiaSel < riegoDiaDeHoy()){
+    showToast('No se pueden añadir líneas en una fecha pasada');
+    return;
+  }
   const clienteVariedad = document.getElementById('nc-cliente-variedad')?.value?.trim() || '';
   const partida = document.getElementById('nc-partida')?.value?.trim() || '';
   const numBandejas = document.getElementById('nc-bandejas')?.value?.trim() || '';
