@@ -1,6 +1,6 @@
 # Backoffice — Informes y salida imprimible (04/11/2026)
 
-**Estado:** implementación aislada en `feat/backoffice-informes-export-20261104`, originada desde `test/v1.0`. No se ha unido ni desplegado a TEST/PRD. La validación funcional corresponde al gestor del Backoffice.
+**Estado actualizado (04/11/2026):** backend + interfaz administrativa implementados en rama aislada `feat/backoffice-informes-export-20261104`. GitHub Actions [ejecución 41873736248](https://github.com/Paulalasala26/LaSalaAppp/actions/runs/41873736248) validó 27/27 pruebas antes de añadir aserciones adicionales de cabeceras. La nueva ejecución queda por confirmar. La comprobación Vercel de esta rama figura en fallo por límite de compilaciones (enlace de plataforma `upgradeToPro=build-rate-limit`), no se ha logrado verificar un despliegue READY. **No fusionado ni desplegado en TEST/PRD.** La aceptación funcional corresponde al gestor del Backoffice.
 
 ## Alcance implementado
 
@@ -39,12 +39,20 @@ Los filtros que acepta cada sección **son exactamente los ya admitidos por la c
 /api/admin-qc-dashboard?modo=informes&seccion=partidas&formato=html&from=2026-11-01&to=2026-11-04
 ```
 
+### Integración de la navegación administrativa (rama aislada)
+
+- Nueva página `admin/informes.html` y cliente `admin/informes.js`: acceso autenticado con la misma sesión Firebase, comprobación de ADMIN existente, filtros condicionales para las siete secciones y preparación explícita de CSV o impresión/PDF.
+- Se incorpora la opción «Informes» al menú de las 16 páginas de Backoffice existentes; la nueva pantalla ocupa el destino 17, con selección activa solo en esta página.
+- El navegador descarga exclusivamente mediante `fetch` autenticado a `/api/admin-qc-dashboard?modo=informes`, sin lectura directa de Firebase. Se genera una URL temporal del resultado y se libera al cambiar filtros o salir; no se persisten datos del informe.
+- `X-Report-Partial`, `X-Report-Shown` y `X-Report-Total` permiten avisar en pantalla cuando una consulta está limitada. La página no promete exportación completa ante truncamiento.
+- No se modifica `index.html`, la navegación operativa ni los módulos que están siendo probados por usuarios.
+
 ### Protección de los trabajos paralelos
 
 - No modifica `index.html`, `admin/`, flujos operativos, colas offline, datos ni reglas RTDB, Push, Cloudflare, `main`, DEV ni PRD.
 - No duplica la auditoría de Firebase ni las más de 2700 pruebas funcionales de frontend.
 - El nuevo modo no cambia las respuestas JSON de las consultas administrativas existentes.
-- La incorporación de botones o menú **Informes** en Backoffice y su validación con datos reales quedan fuera de este primer cambio de **backend**.
+- El menú **Informes** ya está preparado en la rama aislada. La validación con datos reales sigue pendiente del gestor y no se ha desplegado.
 - Las salidas usan los límites existentes: 150 registros QC, 200 partidas, 250 tareas, 300 avisos y mantenimiento, 400 celdas Fito/Específicos, según cada consulta. Los totales mostrados indican truncamiento.
 
-**Pruebas incluidas:** `node --test lib/admin-informes-export.test.cjs lib/admin-informes-api.test.cjs` (fixtures, API con auth/RTDB simulados, escape de CSV/HTML, 401/403/405, compatibilidad JSON y fuentes QC). Workflow propio `backoffice-informes-export.yml`, sin secretos, Firebase ni despliegues. Pendiente confirmar CI y aceptación del gestor antes de integrar.
+**Pruebas incluidas:** `node --test lib/admin-informes-export.test.cjs lib/admin-informes-api.test.cjs lib/admin-informes-ui.test.cjs` (fixtures, API con auth/RTDB simulados, escape de CSV/HTML, 401/403/405, cabeceras de resultado, compatibilidad JSON, enlaces consistentes en 17 páginas y filtros). Workflow propio `backoffice-informes-export.yml`, sin secretos, Firebase ni despliegues. Las 27 pruebas anteriores resultaron correctas en CI. Repetir con el último commit antes de integrar. **No fusionar mientras la versión TEST no pueda mantener el despliegue READY y el gestor no haya validado.**
