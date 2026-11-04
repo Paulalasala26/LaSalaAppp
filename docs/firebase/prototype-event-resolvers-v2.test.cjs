@@ -32,8 +32,8 @@ function fixture(kind='riego_problema_reportado',name='REGANTE1'){
   originalProposerName:'FRAN',originalReporterName:'REGANTE1',
   assignedTechnicianUid:uidForName('FRAN'),solutionCommitted:true,
   irrigationCommitted:true};
- const catalog={schema:'lasala-inv-catalog-v2',invernaderos:structuredClone(inverters)};
- const config={schema:'lasala-event-permissions-v2',approvedByBackoffice:true,actors:structuredClone(allowed)};
+ const catalog={schema:'lasala-inv-catalog-v2',invernaderos:JSON.parse(JSON.stringify(inverters))};
+ const config={schema:'lasala-event-permissions-v2',approvedByBackoffice:true,actors:JSON.parse(JSON.stringify(allowed))};
  const roles={...roleName},users=Object.fromEntries(Object.keys(roles).map(n=>[n,'a'.repeat(64)]));
  const requests=[];
  const transport={retrieve:async path=>{
