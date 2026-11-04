@@ -51,6 +51,9 @@ jobs:
       - name: Signed Worker push-gate security prototype (no network)
         run: node --test docs/firebase/prototype-push-worker-gate.test.cjs
 
+      - name: Isolated audit and cron route consolidation regression
+        run: node --test docs/firebase/prototype-admin-audit-cron-router.test.cjs
+
       - name: Install isolated emulator test dependencies
         working-directory: docs/firebase
         run: |
