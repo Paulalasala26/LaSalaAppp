@@ -313,11 +313,16 @@ test('UAT-138: Check Túnel conserva fecha y acciones en móvil horizontal', asy
   await expectControlUsableAtViewport(page, { width: 844, height: 390 });
 });
 
-test('UAT-141 y UAT-142: el filtro de INV limita las partidas y Todos restaura el día completo', async ({ page }) => {
+test('UAT-139, UAT-141, UAT-142 y UAT-144: el filtro de INV funciona con datos y días vacíos', async ({ page }) => {
   const database = fixtureDatabase();
   const { overlay, unexpectedHosts } = await startControlTest(page, database);
   const select = overlay.locator('#control-content-wrap select').first();
 
+  await expect(select.locator('option').first()).toHaveText('Todos los invernaderos');
+  await expect(select.locator('optgroup')).toHaveCount(5);
+  for (const label of ['Sala 1', 'Sala 2', 'Sala 3', 'Sala 4', 'Sala 5']) {
+    await expect(select.locator(`optgroup[label="${label}"]`)).toHaveCount(1);
+  }
   await expect(overlay.getByText('E2E-QUINCENA-INV-18', { exact: true })).toBeVisible();
   await select.selectOption('17');
   await expect(overlay.getByText('E2E-QUINCENA-ACTUAL-DIA-30', { exact: true })).toBeVisible();
@@ -325,5 +330,28 @@ test('UAT-141 y UAT-142: el filtro de INV limita las partidas y Todos restaura e
 
   await select.selectOption('');
   await expect(overlay.getByText('E2E-QUINCENA-INV-18', { exact: true })).toBeVisible();
+
+  await overlay.getByTestId('control-quincena-previous').click();
+  await overlay.locator('button[onclick="cambiarControlDia(20)"]').click();
+  await expect(overlay.getByText('Sin líneas para este día todavía.', { exact: true })).toBeVisible();
+  await expect(overlay.locator('#control-content-wrap select')).toHaveCount(1);
+  await expect(overlay.locator('#control-content-wrap select')).toBeVisible();
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-148 y UAT-149: buscar una partida existente o inexistente sin perder el estado de Control', async ({ page }) => {
+  const database = fixtureDatabase();
+  const { overlay, unexpectedHosts } = await startControlTest(page, database);
+  const search = overlay.locator('#control-buscar-partida');
+
+  await search.fill('E2E-QUINCENA-ACTUAL-DIA-30');
+  await overlay.getByTitle('Buscar').click();
+  await expect(overlay.getByText('E2E-QUINCENA-ACTUAL-DIA-30', { exact: true })).toBeVisible();
+  await expect(overlay.getByTestId('control-quincena-label')).toContainText('Quincena 2');
+
+  await overlay.locator('#control-buscar-partida').fill('E2E-NO-EXISTE');
+  await overlay.getByTitle('Buscar').click();
+  await expect(page.getByText('No se ha encontrado ninguna línea con esa partida')).toBeVisible();
+  await expect(overlay.getByText('E2E-QUINCENA-ACTUAL-DIA-30', { exact: true })).toBeVisible();
   expect(unexpectedHosts).toEqual([]);
 });
