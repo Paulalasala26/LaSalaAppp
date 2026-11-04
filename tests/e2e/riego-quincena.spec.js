@@ -1,5 +1,5 @@
 const { createHash } = require('node:crypto');
-const { test, expect } = require('@playwright/test');
+const { test, expect } = require('./harness');
 
 const firebaseUrl = /^https:\/\/[^/]*(?:firebasedatabase\.app|firebaseio\.com)\//;
 const firebaseHost = 'la-sala-app-default-rtdb.europe-west1.firebasedatabase.app';
@@ -635,8 +635,8 @@ test('UAT-099: guardar varios invernaderos y tramos solo modifica los destinos s
   const { overlay, unexpectedHosts } = await openRiego(page, database);
   const { form, grid, day } = await openManualRiegoOnFutureDay(page);
   const secondRoomInv = form.locator('.rmb-inv-chk[data-sala="sala2"]:not(:checked)').first();
-  await secondRoomInv.check();
   const secondId = await secondRoomInv.getAttribute('value');
+  await secondRoomInv.check();
   const ranges = {};
 
   for (const invId of ['17', secondId]) {
