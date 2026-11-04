@@ -14,13 +14,14 @@ Requiere cabecera `Authorization: Bearer <Firebase ID token>`, usuario activo y 
 |---|---|---|
 | `qc` | Medición guardada + controles QC | Porcentaje global exacto y enfermedades existentes; sin scoring, medias ni alertas |
 | `partidas` | Registros Túnel/Carga | Resumen de controles por partida; **no** stock ni ubicación actual |
+| `riego` | Registro por invernadero de Riego v2 | Fecha, calle, texto y autor registrado; no acredita ejecución |
 | `plaguicidas` | Consulta administrativa Fito v2 | Celdas registradas, sin certificar ejecución ni consumos |
 | `especificos` | Consulta administrativa Específicos v2 | Celdas registradas y vínculos, sin certificar ejecución |
 | `tareas` | Consulta Operativas/Archivo | Sin Mantenimiento, firmas ni datos internos |
 | `avisos` | Avisos actualmente retenidos | No constituye histórico completo (hasta 30 por destinatario) |
 | `mantenimiento` | Tickets y eventos existentes | No ejecuta recurrencias ni expone firmas |
 
-Los filtros que acepta cada sección **son exactamente los ya admitidos por la consulta original**. QC/Partidas requieren `from`/`to` ISO, admiten `tipo=todos|tunel|carga` y `partida`, máximo 91 días. Plaguicidas y Específicos requieren `inv` y fechas según sus validadores. Tareas, Avisos y Mantenimiento mantienen sus filtros originales.
+Los filtros que acepta cada sección **son exactamente los ya admitidos por la consulta original**. QC/Partidas requieren `from`/`to` ISO, admiten `tipo=todos|tunel|carga` y `partida`, máximo 91 días. Riego requiere `inv` y fechas, con máximo 91 días. Plaguicidas y Específicos requieren `inv` y fechas según sus validadores. Tareas, Avisos y Mantenimiento mantienen sus filtros originales.
 
 ### Formatos
 
@@ -41,7 +42,7 @@ Los filtros que acepta cada sección **son exactamente los ya admitidos por la c
 
 ### Integración de la navegación administrativa (rama aislada)
 
-- Nueva página `admin/informes.html` y cliente `admin/informes.js`: acceso autenticado con la misma sesión Firebase, comprobación de ADMIN existente, filtros condicionales para las siete secciones y preparación explícita de CSV o impresión/PDF.
+- Nueva página `admin/informes.html` y cliente `admin/informes.js`: acceso autenticado con la misma sesión Firebase, comprobación de ADMIN existente, filtros condicionales para las ocho secciones y preparación explícita de CSV o impresión/PDF.
 - Se incorpora la opción «Informes» al menú de las 16 páginas de Backoffice existentes; la nueva pantalla ocupa el destino 17, con selección activa solo en esta página.
 - El navegador descarga exclusivamente mediante `fetch` autenticado a `/api/admin-qc-dashboard?modo=informes`, sin lectura directa de Firebase. Se genera una URL temporal del resultado y se libera al cambiar filtros o salir; no se persisten datos del informe.
 - `X-Report-Partial`, `X-Report-Shown` y `X-Report-Total` permiten avisar en pantalla cuando una consulta está limitada. La página no promete exportación completa ante truncamiento.
@@ -53,6 +54,13 @@ Los filtros que acepta cada sección **son exactamente los ya admitidos por la c
 - No duplica la auditoría de Firebase ni las más de 2700 pruebas funcionales de frontend.
 - El nuevo modo no cambia las respuestas JSON de las consultas administrativas existentes.
 - El menú **Informes** ya está preparado en la rama aislada. La validación con datos reales sigue pendiente del gestor y no se ha desplegado.
-- Las salidas usan los límites existentes: 150 registros QC, 200 partidas, 250 tareas, 300 avisos y mantenimiento, 400 celdas Fito/Específicos, según cada consulta. Los totales mostrados indican truncamiento.
+- Las salidas usan los límites existentes: 150 registros QC, 200 partidas, 400 registros de riego, 250 tareas, 300 avisos y mantenimiento, 400 celdas Fito/Específicos, según cada consulta. Los totales mostrados indican truncamiento.
 
 **Pruebas incluidas:** `node --test lib/admin-informes-export.test.cjs lib/admin-informes-api.test.cjs lib/admin-informes-ui.test.cjs` (fixtures, API con auth/RTDB simulados, escape de CSV/HTML, 401/403/405, cabeceras de resultado, compatibilidad JSON, enlaces consistentes en 17 páginas y filtros). Workflow propio `backoffice-informes-export.yml`, sin secretos, Firebase ni despliegues. Las 27 pruebas anteriores resultaron correctas en CI. Repetir con el último commit antes de integrar. **No fusionar mientras la versión TEST no pueda mantener el despliegue READY y el gestor no haya validado.**
+
+### Ampliación — Informe de registros de Riego
+
+- `lib/admin-riego-read.js`: consulta SOLO `lasala-riego-v2-index` y el shard `lasala-riego-v2-<INV>` solicitado, utilizando token de servicio del endpoint ADMIN; respeta formato JSON serializado y el legado de celdas `string`/`{texto,marcadoPor}`. Valida índice, duplicados, fechas e invernadero, con límite de 91 días y 400 filas de salida, total filtrado visible.
+- Se añade `seccion=riego` a los formatos CSV/HTML y al selector administrativo. No se presume ejecución de riego ni se realizan escrituras, recálculos, importaciones o cambios en riego operativo.
+- Suite `lib/admin-riego-read.test.cjs` con datos sintéticos, protección de índice, tratamiento de celdas inválidas, fechas y truncamiento. Se añade a CI del PR.
+- La versión TEST continúa sin fusionar; la prueba de aceptación sigue asignada al gestor del Backoffice.
