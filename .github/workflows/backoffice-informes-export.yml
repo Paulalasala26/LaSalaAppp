@@ -7,9 +7,11 @@ on:
     paths:
       - api/admin-qc-dashboard.js
       - lib/admin-informes-export.js
+      - lib/admin-riego-read.js
+      - lib/admin-riego-read.test.cjs
       - lib/admin-informes-export.test.cjs
       - lib/admin-informes-api.test.cjs
-      - lib/admin-informes-ui.test.cjs
+      - lib/admin-informes-ui.test.cjs lib/admin-riego-read.test.cjs
       - admin/informes.html
       - admin/informes.js
       - admin/*.html
@@ -20,6 +22,8 @@ on:
     paths:
       - api/admin-qc-dashboard.js
       - lib/admin-informes-export.js
+      - lib/admin-riego-read.js
+      - lib/admin-riego-read.test.cjs
       - lib/admin-informes-export.test.cjs
       - lib/admin-informes-api.test.cjs
       - lib/admin-informes-ui.test.cjs
@@ -44,6 +48,7 @@ jobs:
         run: |
           node --check api/admin-qc-dashboard.js
           node --check lib/admin-informes-export.js
+          node --check lib/admin-riego-read.js
           node --check admin/informes.js
       - name: Unit tests (fixtures only)
         run: node --test lib/admin-informes-export.test.cjs lib/admin-informes-api.test.cjs lib/admin-informes-ui.test.cjs
