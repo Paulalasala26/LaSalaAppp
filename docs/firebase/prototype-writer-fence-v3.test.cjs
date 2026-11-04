@@ -45,7 +45,7 @@ function fixture({phase='legacy',epoch=0,failMode=null,maxAttempts=7}={}){
  const mutation=(id,cellKey='2026-11-04|1',base='30 MIN',nextValue='35 MIN')=>{
   mutations[id]={cellKey,baseHash:digest(base),nextValue,serverVerified:true};
  };
- const state=invId=>clone(db.get(ROOT+'/'+invId));
+ const state=(invId='INV_1')=>clone(db.get(ROOT+'/'+invId));
  return {proof,mutations,db,transport,protocol,run,mutation,state,
    get writes(){return writes},get conflicts(){return conflicts},get reads(){return reads}};
 }
