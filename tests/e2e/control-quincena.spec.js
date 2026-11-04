@@ -1,5 +1,5 @@
 const { createHash } = require('node:crypto');
-const { test, expect } = require('@playwright/test');
+const { test, expect } = require('./harness');
 
 const firebaseUrl = /^https:\/\/[^/]*(?:firebasedatabase\.app|firebaseio\.com)\//;
 const expectedFirebaseHost = 'la-sala-app-default-rtdb.europe-west1.firebasedatabase.app';
