@@ -67,6 +67,10 @@
     "lasala-alert-event-ledger-v2": {
       ".read": false,
       ".write": false
+    },
+    "lasala-riego-event-aggregate-demo-v2": {
+      ".read": false,
+      ".write": false
     }
   }
 }
