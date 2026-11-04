@@ -1,6 +1,6 @@
 'use strict';
 // TEST-ONLY architectural prototype. No API route, no deployment, no side effects.
-// Keeps admin-audit GET unchanged. Routes ?job=prune to CRON_SECRET-only pruning.
+// Keeps admin-audit GET unchanged. Routes vercel-cron/1.0 requests to CRON_SECRET-only pruning.
 // Production integration must import the ORIGINAL audit handler and pruneExpiredAudit.
 const crypto=require('node:crypto');
 const RETENTION='1 calendar year';
@@ -19,12 +19,14 @@ function createAuditCronRouter({auditHandler,pruneExpiredAudit,serviceAccount,
     const q=req.query||{};
     if(!q||typeof q!=='object'||Array.isArray(q))
       return res.status(400).json({error:'INVALID_QUERY'});
-    // No job parameter: exact delegation to original ADMIN-only audit handler.
-    if(!Object.prototype.hasOwnProperty.call(q,'job'))
-      return auditHandler(req,res);
-    // Unrecognized / ambiguous query never falls through to a privileged handler.
-    if(q.job!=='prune'||Object.keys(q).length!==1)
+    // Do not rely on undocumented query parameters in vercel.json cron paths.
+    // The user-agent is only a ROUTING HINT; it is spoofable and never authorizes.
+    if(Object.prototype.hasOwnProperty.call(q,'job'))
       return res.status(400).json({error:'INVALID_JOB'});
+    const cronHint=req.headers?.['user-agent']==='vercel-cron/1.0';
+    if(!cronHint)return auditHandler(req,res);
+    if(Object.keys(q).length!==0)
+      return res.status(400).json({error:'INVALID_QUERY'});
     const secret=getCronSecret();
     if(typeof secret!=='string'||secret.length<16)
       return res.status(503).json({error:'CRON_NOT_CONFIGURED'});
