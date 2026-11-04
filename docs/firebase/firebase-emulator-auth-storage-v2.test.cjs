@@ -42,13 +42,18 @@ before(async()=>{
   originalFetch=global.fetch;
   ({publicKey:pub,privateKey:priv}=crypto.generateKeyPairSync('rsa',{modulusLength:2048}));
   const jwk=pub.export({format:'jwk'});jwk.kid='LOCAL_EMULATOR_ONLY';jwk.kty='RSA';jwk.alg='RS256';jwk.use='sig';
-  global.fetch=async (url,options={})=>{
-    if(String(url)===JWKS)return new Response(stringify({keys:[jwk]}),
+  global.fetch=async (input,options={})=>{
+    const address=typeof input==='string'?input:input?.url;
+    if(address===JWKS)return new Response(stringify({keys:[jwk]}),
       {status:200,headers:{'content-type':'application/json'}});
-    // The rules-unit-testing library also needs loopback fetch, not just our transport.
-    if(/^http:\/\/(?:127\.0\.0\.1|localhost):9000\//.test(String(url)))
-      return originalFetch(url,options);
-    throw new Error('UNEXPECTED_EXTERNAL_FETCH');
+    // The Firebase testing SDK passes Request objects, not necessarily URL strings.
+    if(typeof address==='string'&&
+       /^http:\/\/(?:127\.0\.0\.1|localhost):9000(?:\/|\?)/.test(address))
+      return originalFetch(input,options);
+    // Only the hostname, NEVER credentials or query, is eligible for diagnostics.
+    let host='invalid_request';
+    try{host=new URL(address).host}catch(_){}
+    throw new Error('UNEXPECTED_EXTERNAL_FETCH:'+host);
   };
   transport=makeEmulatorTransport({fetchImpl:originalFetch});
   store=createDemoStore({transport});
