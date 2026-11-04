@@ -11,7 +11,7 @@ const newPrivate=[
   'lasala-avisos-v2','lasala-push-subs-v2','lasala-push-endpoints-v2',
   'lasala-push-outbox-v2','lasala-push-weekly-v2','lasala-push-nonces-v2',
   'lasala-alert-event-sources-v2','lasala-invernaderos-catalog-v2',
-  'lasala-event-permissions-v2'
+  'lasala-event-permissions-v2','lasala-alert-event-ledger-v2'
 ];
 const oldPrivate=[
   'lasala-admin-audit-v1','lasala-config-infra-v1',
