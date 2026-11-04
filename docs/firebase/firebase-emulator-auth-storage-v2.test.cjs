@@ -48,9 +48,9 @@ before(async()=>{
       typeof input?.url==='string'?input.url:String(input);
     if(address===JWKS)return new Response(stringify({keys:[jwk]}),
       {status:200,headers:{'content-type':'application/json'}});
-    // The Firebase testing SDK passes Request objects, not necessarily URL strings.
+    // Firebase testing SDK uses Request/URL plus the official local emulator hub on port 4400.
     if(typeof address==='string'&&
-       /^http:\/\/(?:127\.0\.0\.1|localhost):9000(?:\/|\?)/.test(address))
+       /^http:\/\/(?:127\.0\.0\.1|localhost):(?:9000|4400)(?:\/|\?)/.test(address))
       return originalFetch(input,options);
     // Only the hostname, NEVER credentials or query, is eligible for diagnostics.
     let host='invalid_request';
