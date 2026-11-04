@@ -355,3 +355,24 @@ test('UAT-148 y UAT-149: buscar una partida existente o inexistente sin perder e
   await expect(overlay.getByText('E2E-QUINCENA-ACTUAL-DIA-30', { exact: true })).toBeVisible();
   expect(unexpectedHosts).toEqual([]);
 });
+
+test('UAT-153 y UAT-157: abrir un único alta y añadir una partida manual de prueba', async ({ page }) => {
+  const database = fixtureDatabase();
+  const { overlay, unexpectedHosts } = await startControlTest(page, database);
+  const partida = 'E2E-QC-MANUAL-NO-IMPORTADA';
+
+  await overlay.getByTestId('control-add-line').click();
+  const form = overlay.locator('#nuevo-control-form-wrap > div');
+  await expect(form).toHaveCount(1);
+  await expect(form.locator('#nc-partida')).toBeVisible();
+  await overlay.locator('#nc-cliente-variedad').fill('Fixture manual fuera de PDF o GS');
+  await overlay.locator('#nc-partida').fill(partida);
+  await overlay.locator('#nc-bandejas').fill('24');
+  await form.getByRole('button', { name: 'Guardar', exact: true }).click();
+
+  await expect(overlay.getByText(partida, { exact: true })).toBeVisible();
+  await expect.poll(() => Object.values(database['lasala-control-items-v1']).some(item =>
+    item.partida === partida && item.tipo === 'tunel' && item.dia === 30
+  )).toBe(true);
+  expect(unexpectedHosts).toEqual([]);
+});
