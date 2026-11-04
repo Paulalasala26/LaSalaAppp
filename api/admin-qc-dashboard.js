@@ -317,6 +317,7 @@ module.exports=async function handler(req,res){
         }
       }else{
         const readers={
+          riego:'admin-riego-read',
           plaguicidas:'admin-plaguicidas-read',
           especificos:'admin-especificos-read',
           tareas:'admin-tareas-read',
