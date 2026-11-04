@@ -22,7 +22,8 @@ const PRIVATE=[
  'lasala-users-v1','lasala-admin-audit-v1','lasala-config-infra-v1',
  'lasala-qc-mediciones-v1','lasala-qc-fotos-sharepoint-v1',
  'lasala-avisos-v2','lasala-push-subs-v2','lasala-push-outbox-v2',
- 'lasala-riego-event-aggregate-demo-v2','lasala-alert-event-ledger-v2'
+ 'lasala-riego-event-aggregate-demo-v2','lasala-alert-event-ledger-v2',
+ 'lasala-riego-authority-v3'
 ];
 let env;
 const actor=role=>role?env.authenticatedContext('u-'+role,{appUser:'TESTER',role}).database():
