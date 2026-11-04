@@ -591,6 +591,41 @@ test('UAT-098: cambiar un riego histórico no reconstruible avisa y cancelar con
   await expect(overlay).toBeVisible();
 });
 
+test('UAT-099: guardar varios invernaderos y tramos solo modifica los destinos seleccionados', async ({ page }) => {
+  const database = fixtureDatabase();
+  const originalInv17 = JSON.stringify(JSON.parse(database['lasala-riego-v1'])['17']['30']);
+  const originalInv18 = JSON.stringify(JSON.parse(database['lasala-riego-v1'])['18']['30']);
+  const { overlay, unexpectedHosts } = await openRiego(page, database);
+  const { form, grid, day } = await openManualRiegoOnFutureDay(page);
+  const secondRoomInv = form.locator('.rmb-inv-chk[data-sala="sala2"]:not(:checked)').first();
+  await secondRoomInv.check();
+  const secondId = await secondRoomInv.getAttribute('value');
+  const ranges = {};
+
+  for (const invId of ['17', secondId]) {
+    await form.locator(`input[name="rmb-modo-${invId}"]`).nth(2).check();
+    const selects = form.locator(`#rmb-detalle-${invId} .rmb-tramo-row select`);
+    const options = await selects.first().locator('option').evaluateAll(elements => elements.map(el => Number(el.value)));
+    const from = options[1], to = options[3];
+    await selects.first().selectOption(String(from));
+    await selects.nth(1).selectOption(String(to));
+    ranges[invId] = options.filter(street => street >= from && street <= to);
+  }
+  await form.locator('.rm-agua-min').first().selectOption('10');
+  await form.locator('#rm-guardar-btn').click();
+  await expect(form).toBeHidden();
+
+  for (const [invId, expected] of Object.entries(ranges)) {
+    await expect.poll(() => Object.keys(riegoGuardado(database)?.[invId]?.[day] || {}).length).toBe(expected.length);
+    expect(Object.keys(riegoGuardado(database)[invId][day]).map(Number).sort((a,b) => a-b)).toEqual(expected);
+    expect(Object.values(riegoGuardado(database)[invId][day]).every(value => JSON.stringify(value).includes('10'))).toBe(true);
+  }
+  expect(JSON.stringify(riegoGuardado(database)['17']['30'])).toBe(originalInv17);
+  expect(JSON.stringify(riegoGuardado(database)['18']['30'])).toBe(originalInv18);
+  expect(unexpectedHosts).toEqual([]);
+  await expect(overlay).toBeVisible();
+});
+
 test('UAT-100: varios clics rápidos en Aplicar producen un único guardado confirmado', async ({ page }) => {
   const database = fixtureDatabase();
   const { overlay, unexpectedHosts, writes } = await openRiego(page, database, { writeDelayMs: 250 });
