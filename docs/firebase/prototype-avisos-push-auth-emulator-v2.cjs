@@ -93,13 +93,23 @@ function makeBackendAuth(transport,{verifyToken=helpers.verifyFirebaseIdToken}={
     return {appUser,uid:'lasala-'+crypto.createHash('sha256')
       .update(appUser,'utf8').digest('hex').slice(0,40)};
   }
+  function readLegacyMap(value){
+    let map=value;
+    if(typeof map==='string'){
+      try{map=JSON.parse(map)}catch(_){throw err(503,'INVALID_AUTH_STORE')}
+    }
+    if(map===null)return {};
+    if(!map||Array.isArray(map)||typeof map!=='object')
+      throw err(503,'INVALID_AUTH_STORE');
+    return map;
+  }
   async function loadRole(user){
     const {value}=await transport.retrieve(['lasala-roles-v1']);
-    return value&&typeof value==='object'?value[user]||null:null;
+    return readLegacyMap(value)[user]||null;
   }
   async function loadAccount(user){
     const {value}=await transport.retrieve(['lasala-users-v1']);
-    const hash=value&&typeof value==='object'?value[user]:null;
+    const hash=readLegacyMap(value)[user];
     return typeof hash==='string'&&VALID_HASH.test(hash);
   }
   return Object.freeze({verifyIdentity,loadRole,loadAccount});
