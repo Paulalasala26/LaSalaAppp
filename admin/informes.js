@@ -8,6 +8,7 @@
   const groups={
     qc:['from','to','qc-type','partida'],
     partidas:['from','to','qc-type','partida'],
+    riego:['from','to','inv','buscar'],
     plaguicidas:['from','to','inv','buscar'],
     especificos:['from','to','inv','buscar'],
     tareas:['from','to','vista','estado','origen','asignado','buscar'],
@@ -17,6 +18,7 @@
   const notes={
     qc:'Se exportan porcentajes guardados por control, sin scoring, medias o alertas. Intervalo máximo: 91 días.',
     partidas:'Solo partidas referenciadas en QC: no son existencias ni ubicación actual. Intervalo máximo: 91 días.',
+    riego:'Registros de riego por día y calle, sin certificar ejecución. Invernadero obligatorio; máximo 91 días.',
     plaguicidas:'Celdas registradas, sin certificar ejecución ni consumos. Invernadero obligatorio; máximo 366 días.',
     especificos:'Celdas y vínculos registrados, sin certificar ejecución. Invernadero obligatorio; máximo 366 días.',
     tareas:'Operativas y Archivo separados. Sin firmas ni tickets de Mantenimiento. Las fechas son opcionales.',
@@ -101,14 +103,14 @@
     const get=id=>el(id).value.trim();
     if(active.has('from')){
       const from=get('from'),to=get('to');
-      const required=['qc','partidas','plaguicidas','especificos'].includes(section);
+      const required=['qc','partidas','riego','plaguicidas','especificos'].includes(section);
       if(required&&(!from||!to))throw Error('DATES_REQUIRED');
       if(!!from!==!!to)throw Error('DATES_PAIR');
       if(from){
         if(!/^\d{4}-\d{2}-\d{2}$/.test(from)||!/^\d{4}-\d{2}-\d{2}$/.test(to)||
           from<'2026-06-15'||to<from)throw Error('INVALID_DATES');
         const days=(Date.parse(to+'T00:00:00Z')-Date.parse(from+'T00:00:00Z'))/86400000+1;
-        if(days>(section==='qc'||section==='partidas'?91:366))throw Error('DATE_RANGE');
+        if(days>(section==='qc'||section==='partidas'||section==='riego'?91:366))throw Error('DATE_RANGE');
         q.from=from;q.to=to;
       }
     }
