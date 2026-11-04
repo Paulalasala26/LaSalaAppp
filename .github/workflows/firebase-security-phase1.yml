@@ -45,6 +45,9 @@ jobs:
       - name: API regression (in-memory, no network)
         run: node --test docs/firebase/regression-phase1-etag.test.cjs
 
+      - name: Isolated alerts and push security prototype
+        run: node --test docs/firebase/prototype-avisos-push-v2.test.cjs
+
       - name: Install isolated emulator test dependencies
         working-directory: docs/firebase
         run: |
