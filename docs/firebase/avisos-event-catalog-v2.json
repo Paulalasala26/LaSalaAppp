@@ -1,0 +1,144 @@
+{
+  "schema": "lasala-alert-event-catalog/v1",
+  "referenceBranch": "test/v1.0",
+  "referenceFile": "index.html",
+  "analyzedDate": "2026-11-04",
+  "status": "PROVISIONAL_DESIGN_ONLY",
+  "countedDirectNotificarCalls": 10,
+  "events": [
+    {
+      "id": "riego_hojas_marcadas",
+      "function": "marcarHojasMarcadas",
+      "calls": 1,
+      "actor": "TECNICO activo",
+      "recipient": "VIGUERAS (ADMIN activo)",
+      "scope": "Solo Sala 1 o Sala 2; comunicación manual",
+      "source": "No hay evento propio persistido: crear comando/registro con ID servidor antes de encolar",
+      "precondition": "Confirma hojas de esa sala; rol y sala comprobados en backend",
+      "evidence": "index.html 1523-1549, 1800-1805",
+      "status": "PROVISIONAL"
+    },
+    {
+      "id": "riego_hojas_corregidas",
+      "function": "avisarHojasCorregidas",
+      "calls": 2,
+      "actor": "VIGUERAS exactamente (ADMIN activo)",
+      "recipient": "FRAN y DENNIS (TECNICO activos)",
+      "scope": "Aviso general de hojas corregidas, sin sala específica en el dato actual",
+      "source": "No hay evento propio persistido: comando único que encola a dos destinatarios de forma atómica",
+      "precondition": "Actor exacto VIGUERAS, comprobar estado/rastreabilidad de corrección y evitar envíos dobles",
+      "evidence": "index.html 1523-1537, 1810-1818",
+      "status": "PROVISIONAL"
+    },
+    {
+      "id": "riego_problema_resuelto",
+      "function": "guardarSolucionProblemaRiego",
+      "calls": 1,
+      "actor": "TECNICO destinatario del aviso original y activo",
+      "recipient": "reportadoPor del aviso original (REGANTE activo)",
+      "scope": "El problema original conserva uno o varios invId/rangos",
+      "source": "Aviso v1 problema_ejecucion: la versión actual elimina el aviso antes de emitir respuesta; en v2 guardar transición y outbox atómicos",
+      "precondition": "Coincide destinatario, problema existe y sigue pendiente; texto solución no vacío",
+      "evidence": "index.html 1721-1774",
+      "status": "PROVISIONAL"
+    },
+    {
+      "id": "riego_validado_modificado",
+      "function": "saveRiegoInvPatch",
+      "calls": 1,
+      "actor": "Autor del cambio confirmado, activo y habilitado para ese invernadero",
+      "recipient": "VIGUERAS (ADMIN activo)",
+      "scope": "invId y celdas de riego previamente validadas",
+      "source": "Registro de cambios de riego confirmados con antes/ahora y ETag; no confiar solo en avisoSupervisor o campo cliente",
+      "precondition": "El cambio a celdas previamente validadas se ha confirmado en RTDB y es real",
+      "evidence": "index.html 14260-14298, 13538-13562",
+      "status": "PROVISIONAL"
+    },
+    {
+      "id": "riego_propuesta_creada",
+      "function": "enviarPropuestaInminente",
+      "calls": 1,
+      "actor": "TECNICO activo y autorizado para ese invernadero",
+      "recipient": "VIGUERAS (ADMIN activo)",
+      "scope": "invId, dia y calles; contenido actual exactamente ? al guardar",
+      "source": "lasala-propuestas-riego-v1, registro prop_* con estado pendiente y propuestoPor original",
+      "precondition": "Propuesta persistida antes de encolar; celda original y permisos verificados en servidor",
+      "evidence": "index.html 15547-15553, 19336-19383",
+      "status": "PROVISIONAL"
+    },
+    {
+      "id": "riego_propuesta_aceptada",
+      "function": "aceptarPropuestaRiego",
+      "calls": 1,
+      "actor": "VIGUERAS exactamente (ADMIN activo)",
+      "recipient": "propuestoPor inmutable de la propuesta",
+      "scope": "invId, dia, calles de propuesta existente",
+      "source": "lasala-propuestas-riego-v1 con estado aceptada y cambio en riego confirmado",
+      "precondition": "Propuesta pendiente, misma versión, aplicó riego y guardó resultado",
+      "evidence": "index.html 19442-19460",
+      "status": "PROVISIONAL"
+    },
+    {
+      "id": "riego_propuesta_aceptada_cambios",
+      "function": "cambiarYAceptarPropuestaRiego",
+      "calls": 1,
+      "actor": "VIGUERAS exactamente (ADMIN activo)",
+      "recipient": "propuestoPor inmutable de la propuesta",
+      "scope": "invId, dia, calles; texto final cambiado",
+      "source": "lasala-propuestas-riego-v1 con estado aceptada y resultado final confirmado",
+      "precondition": "Cambio aprobado en riego, comparación con propuesta original, idempotencia",
+      "evidence": "index.html 19462-19485",
+      "status": "PROVISIONAL"
+    },
+    {
+      "id": "riego_propuesta_rechazada",
+      "function": "rechazarPropuestaRiego",
+      "calls": 1,
+      "actor": "VIGUERAS exactamente (ADMIN activo)",
+      "recipient": "propuestoPor inmutable de la propuesta",
+      "scope": "invId, dia, calles de propuesta existente",
+      "source": "lasala-propuestas-riego-v1 con estado rechazada",
+      "precondition": "Propuesta pendiente de resolución; no se modifica el signo ? en riego",
+      "evidence": "index.html 19487-19504",
+      "status": "PROVISIONAL"
+    },
+    {
+      "id": "riego_problema_reportado",
+      "function": "enviarProblemaRiego",
+      "calls": 1,
+      "actor": "REGANTE activo, restringido a sala(s) asignada(s)",
+      "recipient": "tecnicoDeGuardia calculado por backend, TÉCNICO activo",
+      "scope": "Solo riegos de hoy y salas propias; puede incluir varios invId y calles",
+      "source": "En v1 el formulario crea directamente aviso tipo problema_ejecucion; en v2 crear registro del problema y aviso/outbox",
+      "precondition": "Entradas existentes verificadas en servidor; sala regante; tipo de problema válido; guardia calculada hora Europe/Madrid",
+      "evidence": "index.html 20377-20459, 17265-17319",
+      "status": "PROVISIONAL"
+    }
+  ],
+  "localOnly": {
+    "function": "avisarNuevasTareas",
+    "reason": "Toast/Notification local en el navegador; NO genera notificarUsuario ni Push, eliminación expresa de avisos por ejecución de tareas a técnicos",
+    "evidence": "index.html 1243-1257, 3650-3655, 3860-3869"
+  },
+  "weeklyCron": {
+    "key": "tuta_weekly",
+    "origin": "Cloudflare Worker scheduled() antiguo, independiente de llamadas index.html",
+    "recipients": "FRAN y DENNIS",
+    "scheduleUTC": "0 7 * * 4",
+    "status": "PRESERVAR SIN DUPLICAR"
+  },
+  "reganteSalas": {
+    "REGANTE1": [
+      "sala1"
+    ],
+    "REGANTE2": [
+      "sala2"
+    ],
+    "REGANTE3": [
+      "sala3",
+      "sala4",
+      "sala5"
+    ]
+  },
+  "note": "Los permisos son candidatos para revisión funcional del gestor Backoffice. Prohibido usar este catálogo como una autorización desplegable hasta verificar fuente/evento en el servidor."
+}
