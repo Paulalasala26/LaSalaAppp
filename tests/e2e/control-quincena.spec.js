@@ -415,3 +415,25 @@ test('UAT-145, UAT-146 y UAT-147: estado y contadores respetan el INV y la vista
   await expect(overlay.getByRole('button', { name: /Completados/ })).toHaveCount(0);
   expect(unexpectedHosts).toEqual([]);
 });
+
+test('UAT-183, UAT-184 y UAT-185: cambiar opciones de Color, Tamaño y Raíces', async ({ page }) => {
+  const database = fixtureDatabase();
+  const { overlay, unexpectedHosts } = await startControlTest(page, database);
+  const card = overlay.locator('#control-card-e2e-control-current-fortnight');
+
+  await card.getByTestId('control-option-e2e-control-current-fortnight-color-ok').click();
+  await expect.poll(() => database['lasala-control-items-v1']['e2e-control-current-fortnight'].color?.ok).toBe(true);
+  await card.getByTestId('control-option-e2e-control-current-fortnight-color-verde').click();
+  await expect.poll(() => database['lasala-control-items-v1']['e2e-control-current-fortnight'].color?.verde).toBe(true);
+
+  await card.getByTestId('control-option-e2e-control-current-fortnight-tamano-ok').click();
+  await expect.poll(() => database['lasala-control-items-v1']['e2e-control-current-fortnight'].tamano?.ok).toBe(true);
+  await card.getByTestId('control-option-e2e-control-current-fortnight-tamano-grande').click();
+  await expect.poll(() => database['lasala-control-items-v1']['e2e-control-current-fortnight'].tamano?.grande).toBe(true);
+
+  await card.getByTestId('control-option-e2e-control-current-fortnight-raices-ok').click();
+  await expect.poll(() => database['lasala-control-items-v1']['e2e-control-current-fortnight'].raices?.ok).toBe(true);
+  await card.getByTestId('control-option-e2e-control-current-fortnight-raices-raizVieja').click();
+  await expect.poll(() => database['lasala-control-items-v1']['e2e-control-current-fortnight'].raices?.raizVieja).toBe(true);
+  expect(unexpectedHosts).toEqual([]);
+});
