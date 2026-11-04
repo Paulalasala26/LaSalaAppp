@@ -21,6 +21,10 @@ const valid=x=>typeof x==='string'&&ID.test(x)&&
 const err=code=>{throw Object.assign(new Error(code),{code})};
 const copy=x=>JSON.parse(JSON.stringify(x));
 const hash=x=>crypto.createHash('sha256').update(x,'utf8').digest('hex');
+function strictRequest(req,keys){
+ if(!plain(req)||Object.keys(req).sort().join('|')!==keys.slice().sort().join('|'))
+  err('UNTRUSTED_GATEWAY_REQUEST');
+}
 function ensureDemo(){
  if(process.env.FIREBASE_DATABASE_EMULATOR_HOST!=='127.0.0.1:9000'||
     process.env.FIREBASE_SERVICE_ACCOUNT_JSON||
@@ -146,7 +150,9 @@ function createLocalRiegoGateway({transport,auth,now=()=>new Date(),maxAttempts=
   }
   err('CAS_EXHAUSTED');
  }
- async function commit({token,invId,commandId}={}){
+ async function commit(request){
+  strictRequest(request,['token','invId','commandId']);
+  const {token,invId,commandId}=request;
   return mutate(invId,commandId,token,(s,actor,id)=>{
    const r=commandRules(s,actor,id);
    if(r.already)return {already:true,output:{eventId:r.receipt.eventId,
@@ -200,7 +206,9 @@ function createLocalRiegoGateway({transport,auth,now=()=>new Date(),maxAttempts=
    return {next,fingerprint:r.fingerprint,output:{eventId,revision:s.version+1}};
   });
  }
- async function revoke({token,invId,targetUid,referenceId}={}){
+ async function revoke(request){
+  strictRequest(request,['token','invId','targetUid','referenceId']);
+  const {token,invId,targetUid,referenceId}=request;
   if(!UID.test(targetUid||''))err('INVALID_TARGET');
   return mutate(invId,referenceId,token,(s,identity,id)=>{
    caller(s,identity,{admin:true});
@@ -222,7 +230,9 @@ function createLocalRiegoGateway({transport,auth,now=()=>new Date(),maxAttempts=
    return {next,fingerprint,output:{epoch:next.fence.epoch}};
   });
  }
- async function freeze({token,invId,referenceId}={}){
+ async function freeze(request){
+  strictRequest(request,['token','invId','referenceId']);
+  const {token,invId,referenceId}=request;
   return mutate(invId,referenceId,token,(s,identity,id)=>{
    caller(s,identity,{admin:true});
    const fingerprint=hash(JSON.stringify(['freeze',id,identity.uid]));
@@ -240,7 +250,9 @@ function createLocalRiegoGateway({transport,auth,now=()=>new Date(),maxAttempts=
    return {next,fingerprint,output:{epoch:next.fence.epoch}};
   });
  }
- async function getReceipt({token,invId,commandId}={}){
+ async function getReceipt(request){
+  strictRequest(request,['token','invId','commandId']);
+  const {token,invId,commandId}=request;
   if(!valid(invId)||!valid(commandId))err('INVALID_REFERENCE');
   const actor=await identity(token),{value}=await transport.retrieve([ROOT,invId]);
   structure(value,invId);
@@ -248,6 +260,8 @@ function createLocalRiegoGateway({transport,auth,now=()=>new Date(),maxAttempts=
   const receipt=value.receipts?.[commandId];
   if(!plain(receipt)||receipt.type!=='command'||receipt.actorUid!==actor.uid)
    err('RECEIPT_NOT_FOUND');
+  if(receipt.eventId!==null&&(!plain(value.events?.[receipt.eventId])||
+     !plain(value.outbox?.[receipt.eventId])))err('RECEIPT_EVENT_INTEGRITY_FAILURE');
   return {status:receipt.status,eventId:receipt.eventId,revision:receipt.revision};
  }
  return Object.freeze({commit,revoke,freeze,getReceipt});
