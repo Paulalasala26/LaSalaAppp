@@ -9,8 +9,11 @@ const VALID_ID=/^[A-Za-z0-9_-]{1,140}$/;
 const plain=x=>x!==null&&typeof x==='object'&&!Array.isArray(x);
 const fail=(code)=>{throw Object.assign(new Error(code),{code})};
 const clone=v=>JSON.parse(JSON.stringify(v));
+const canonical=v=>Array.isArray(v)?v.map(canonical):
+  plain(v)?Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])])):v;
 const hash=v=>crypto.createHash('sha256').update(JSON.stringify(v),'utf8').digest('hex');
-const equal=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+// Firebase REST may reorder object keys. Equality must compare DATA, not insertion order.
+const equal=(a,b)=>JSON.stringify(canonical(a))===JSON.stringify(canonical(b));
 function parseLegacy(raw,key){
   if(raw===null)return {};
   let value=raw;
