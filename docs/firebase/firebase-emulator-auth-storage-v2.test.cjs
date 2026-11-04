@@ -70,7 +70,8 @@ after(async()=>{
 test('guards reject real URLs and presence of service account credentials',()=>{
   assert.equal(NAMESPACE,PROJECT+'-default-rtdb');
   assert.throws(()=>makeEmulatorTransport({fetchImpl:()=>{},baseUrl:
-    'https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app'}),/|/);
+    'https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app'}),
+    /CUSTOM_BASE_URL_FORBIDDEN/);
   const before=process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
   try{
     process.env.FIREBASE_SERVICE_ACCOUNT_JSON='synthetic-no-real-key';
