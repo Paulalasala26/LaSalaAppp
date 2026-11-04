@@ -75,6 +75,9 @@ jobs:
       - name: Atomic event and outbox ledger concurrency regression (no network)
         run: node --test docs/firebase/prototype-atomic-event-ledger-v2.test.cjs
 
+      - name: Single-CAS business mutation and event outbox crash/retry tests (no network)
+        run: node --test docs/firebase/prototype-business-event-transaction-v2.test.cjs
+
       - name: Isolated Firebase REST ETag and migration regression
         run: node --test docs/firebase/prototype-avisos-push-store-v2.test.cjs
 
