@@ -54,10 +54,11 @@ function mockDb(options={}){
       calls.put++;
       assert.ok(new URL(url).searchParams.has('print'));
       assert.equal(request.headers['Content-Type'],'application/json');
-      const oldEtag=etag(path);
+      // Simulated concurrent writer runs BEFORE the server rechecks its current ETag.
       if(typeof options.onPut==='function')options.onPut({path,request,put,get,calls});
+      const currentEtag=etag(path);
       if(options.failPut)return new Response(JSON.stringify({error:'denied'}),{status:403});
-      if(options.conflict||request.headers['if-match']!==oldEtag)
+      if(options.conflict||request.headers['if-match']!==currentEtag)
         return new Response(JSON.stringify({error:'conflict'}),{status:412});
       put(path,JSON.parse(request.body));calls.writes++;
       return new Response('',{status:200});
