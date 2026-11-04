@@ -105,10 +105,10 @@ function makeTrustedEventResolvers({transport,now=()=>new Date()}={}){
    const rooms=REGANTES[actor.name];
    if(!rooms||catalogRooms.size===0)deny('UNKNOWN_REGANTE');
    if([...catalogRooms.values()].some(room=>!rooms.includes(room)))deny('REGANTE_OUT_OF_SCOPE');
-  }else if(['ADMIN','TECNICO'].includes(actor.role)){
-   if(invIds.some(id=>!conf.allowedInvIds.includes(id)&&!conf.allowedSalas.includes(catalogRooms.get(id))))
-      deny('INV_NOT_ASSIGNED');
-  }else deny('ROLE_HAS_NO_RIEGO_SCOPE');
+  }else if(!['ADMIN','TECNICO'].includes(actor.role))deny('ROLE_HAS_NO_RIEGO_SCOPE');
+  // The manager's explicit server-side assignments apply to all roles, regantes too.
+  if(invIds.some(id=>!conf.allowedInvIds.includes(id)&&!conf.allowedSalas.includes(catalogRooms.get(id))))
+   deny('INV_NOT_ASSIGNED');
   if(source.kind==='riego_hojas_marcadas'&&
      (invIds.length===0||!['sala1','sala2'].includes(source.sala)||
       [...catalogRooms.values()].some(room=>room!==source.sala)))deny('MARKED_ROOM_MISMATCH');
