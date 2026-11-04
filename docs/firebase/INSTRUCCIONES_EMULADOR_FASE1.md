@@ -26,3 +26,16 @@ Se ha añadido `.github/workflows/firebase-security-phase1.yml` **exclusivamente
 **Ejecución todavía no verificada:** la creación del workflow en GitHub no constituye prueba de que GitHub Actions lo haya ejecutado; el conector disponible no ofrece la lectura completa de los runs asociados a pushes. Comprobar en la pestaña Actions el resultado y los logs del job `test`. No publicar reglas candidatas si no figura verde toda la suite, sin validar además los accesos reales y autorizar expresamente el cambio.
 
 La ejecución desde terminal sigue disponible con las instrucciones anteriores. Nunca usar la CLI para hacer deploy en TEST.
+
+## Comprobación de ejecución CI — 04/11/2026
+
+**Estado no confirmado:** el conector GitHub accesible en este chat permite consultar los estados clásicos del commit (Vercel correcto), pero **no expone los runs de GitHub Actions asociados a pushes**. Un resultado vacío del conector no permite inferir que el workflow haya fallado ni que no se haya ejecutado. Es necesario comprobar el job `test` en [GitHub Actions — Firebase Security Phase 1](https://github.com/Paulalasala26/LaSalaAppp/actions/workflows/firebase-security-phase1.yml) y revisar sus pasos. No publicar reglas candidatas mientras no conste una ejecución correcta.
+
+Se ha fortalecido `firebase-emulator-phase1.test.cjs` con las siguientes protecciones de ensayo:
+- Verificación obligatoria del host de emulación `127.0.0.1:9000` o `localhost:9000`; rechazo de hosts remotos.
+- Identificador fijo `demo-lasala-phase1` y configuración explícita de host/puerto.
+- Si existe `GCLOUD_PROJECT`, debe ser el mismo proyecto ficticio.
+- Preparación de valores ficticios en los cuatro nodos mediante `withSecurityRulesDisabled` para hacer significativas las lecturas denegadas.
+- Ensayo adicional de GET/PUT/PATCH/DELETE sobre descendientes `/probe` de cada nodo protegido.
+
+**Verificación realizada:** revisión de sintaxis JavaScript de la suite, presencia del filtro de host y ensayo del patrón de aceptación de localhost/rechazo de host externo en un intérprete aislado. **No es ejecución del emulador**, ni prueba las reglas activas.
