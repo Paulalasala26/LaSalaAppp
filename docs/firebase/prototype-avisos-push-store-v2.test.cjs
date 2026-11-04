@@ -295,3 +295,21 @@ test('migration accepts empty legacy snapshots without writing any data',async()
   assert.equal(outcome.createdAlerts,0);assert.equal(outcome.createdPush,0);
   assert.equal(f.calls.put,0);
 });
+
+test('migration treats reordered Firebase JSON fields as identical data',async()=>{
+  const values=legacy();
+  const plan=planMigration({legacyAlerts:values[LEGACY.alerts],legacyPush:values[LEGACY.push],
+    sourceEtags:{alerts:'"synthetic-a"',push:'"synthetic-b"'}});
+  const original=plan.alerts[0];
+  values[ROOTS.alerts]={[original.uid]:{[original.id]:
+    Object.fromEntries(Object.entries(original.record).reverse())}};
+  const f=fixture({db:values});
+  const fresh=await loadMigrationPlan(f.transport);
+  const dry=await executeDemoMigration({transport:f.transport,store:f.store,plan:fresh});
+  assert.equal(dry.dryRun,true);
+  assert.equal(dry.wouldCreateAlerts,2);
+  const out=await executeDemoMigration({transport:f.transport,store:f.store,
+    plan:fresh,approvedForDemo:true,dryRun:false});
+  assert.equal(out.createdAlerts,2);
+  assert.equal(out.complete,true);
+});
