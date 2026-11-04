@@ -187,6 +187,32 @@ test('intent issuer enforces JWT actor ACL frozen INV and strict payload',async(
  await assert.rejects(gateway.issueIntent({...base,invId:'INV_INTENT_FROZEN'}),
   {code:'WRITER_NOT_ACTIVE'});
 });
+test('global session guard rejects revoked JWT and verifier outages before mutations',async()=>{
+ await seed('INV_SESSION_GUARD');
+ let mode='active',checks=0;
+ const guarded=createLocalRiegoGateway({transport,auth,
+  now:()=>new Date('2026-11-04T15:00:00Z'),
+  sessionStatus:async(identity,token)=>{
+   checks++;
+   assert.equal(identity.uid,UID('FRAN'));
+   assert.equal(typeof token,'string');
+   if(mode==='outage')throw new Error('SYNTHETIC_SESSION_PROVIDER_OUTAGE');
+   return mode==='active';
+  }});
+ const token=jwt('FRAN');
+ const intent={token,invId:'INV_SESSION_GUARD',
+  commandId:'CMD_GUARDED',cellKey:'CELL_1',afterText:'38 MIN'};
+ assert.equal((await guarded.issueIntent(intent)).status,'committed');
+ mode='revoked';
+ await assert.rejects(guarded.commit({token,invId:'INV_SESSION_GUARD',
+  commandId:'CMD_GUARDED'}),{code:'SESSION_REVOKED_OR_UNVERIFIED'});
+ assert.equal((await state('INV_SESSION_GUARD')).grid.CELL_1.texto,'30 MIN');
+ mode='outage';
+ await assert.rejects(guarded.commit({token,invId:'INV_SESSION_GUARD',
+  commandId:'CMD_GUARDED'}),{code:'SESSION_STATUS_UNAVAILABLE'});
+ assert.equal((await state('INV_SESSION_GUARD')).version,2);
+ assert.equal(checks,3);
+});
 test('accept proposal and irrigation within same official RTDB compare-and-swap',async()=>{
  await seed('INV_ACCEPT');
  const r=await commit('INV_ACCEPT','CMD_ACCEPT','VIGUERAS');
