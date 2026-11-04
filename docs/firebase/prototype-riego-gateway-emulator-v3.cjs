@@ -96,6 +96,7 @@ function commandRules(s,identity,opId){
   err('NO_CHANGE');
  let proposal=null;
  if(cmd.op!=='EDIT_RIEGO'){
+  if(!valid(cmd.proposalId))err('INVALID_PROPOSAL_REFERENCE');
   proposal=s.proposals?.[cmd.proposalId];
   if(!plain(proposal)||proposal.id!==cmd.proposalId||
      proposal.cellKey!==cmd.cellKey||proposal.state!=='pendiente'||
@@ -179,7 +180,9 @@ function createLocalRiegoGateway({transport,auth,now=()=>new Date(),maxAttempts=
     const recipient=s.acl[recipientUid];
     if(!plain(recipient)||recipient.active!==true||
        recipient.managerApproved!==true||
-       recipient.appUser!== (cmd.op==='EDIT_RIEGO'?'VIGUERAS':recipient.appUser))
+       typeof recipient.appUser!=='string'||
+       uidForName(recipient.appUser)!==recipientUid||
+       (cmd.op==='EDIT_RIEGO'&&recipient.appUser!=='VIGUERAS'))
      err('RECIPIENT_UNAVAILABLE');
     if(cmd.op==='EDIT_RIEGO'&&recipient.role!=='ADMIN')err('SUPERVISOR_UNAVAILABLE');
     const kind=KINDS[cmd.op];
