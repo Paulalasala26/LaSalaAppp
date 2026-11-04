@@ -102,6 +102,9 @@ jobs:
       - name: G1/G2 proposed backend authority ADR and privacy contract (no network)
         run: node --test docs/firebase/arquitectura-backend-g1-g2-v3.test.cjs
 
+      - name: Global revocation CAS race regression across isolated invernaderos (no network)
+        run: node --test docs/firebase/prototype-global-fence-v3.test.cjs
+
       - name: Isolated Firebase REST ETag and migration regression
         run: node --test docs/firebase/prototype-avisos-push-store-v2.test.cjs
 
