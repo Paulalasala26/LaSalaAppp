@@ -1,0 +1,56 @@
+{
+  "rules": {
+    "lasala-users-v1": {
+      ".read": false,
+      ".write": false
+    },
+    "lasala-roles-v1": {
+      ".read": "auth != null && auth.token.appUser != null",
+      ".write": false
+    },
+    "lasala-admin-audit-v1": {
+      ".read": false,
+      ".write": false
+    },
+    "lasala-config-infra-v1": {
+      ".read": false,
+      ".write": false
+    },
+    "lasala-qc-mediciones-v1": {
+      ".read": false,
+      ".write": false
+    },
+    "lasala-qc-fotos-sharepoint-v1": {
+      ".read": false,
+      ".write": false
+    },
+    "lasala-avisos-v2": {
+      ".read": false,
+      ".write": false
+    },
+    "lasala-push-subs-v2": {
+      ".read": false,
+      ".write": false
+    },
+    "lasala-push-endpoints-v2": {
+      ".read": false,
+      ".write": false
+    },
+    "lasala-push-outbox-v2": {
+      ".read": false,
+      ".write": false
+    },
+    "lasala-push-weekly-v2": {
+      ".read": false,
+      ".write": false
+    },
+    "lasala-push-nonces-v2": {
+      ".read": false,
+      ".write": false
+    },
+    "$other": {
+      ".read": "auth != null && auth.token.appUser != null",
+      ".write": "auth != null && auth.token.appUser != null"
+    }
+  }
+}
