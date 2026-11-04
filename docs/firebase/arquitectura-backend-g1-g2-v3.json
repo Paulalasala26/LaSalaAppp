@@ -1,0 +1,223 @@
+{
+  "schema": "lasala-riego-g1-g2-architecture/v1",
+  "version": "proposed-2026-11-04",
+  "branch": "test/v1.0",
+  "status": "TECHNICAL_PROPOSAL_NOT_APPROVED",
+  "deployable": false,
+  "technicalDecision": {
+    "id": "ADR-G1G2-001",
+    "option": "SERVER_ONLY_PER_INV_RTD_BOUNDED_TRANSACTION",
+    "engine": "Firebase Realtime Database",
+    "atomicityBoundary": "lasala-riego-authority-v3/<INV>",
+    "rule": "only trusted backend may read/write authoritative business aggregate",
+    "singleInvAtomicity": "one RTDB transaction per authoritative INV document, rechecks ACL/epoch/transition/business/inbox-outbox and writes receipt with event",
+    "globalRevocationAtomicAcrossInv": false,
+    "multiInvAtomicityImplemented": false,
+    "why": "Avoid independent role/proposal/outbox roots and browser writes which permit time-of-check/time-of-use races",
+    "noClientCompatibilityUntilCutover": true
+  },
+  "aggregate": {
+    "root": "lasala-riego-authority-v3",
+    "path": "lasala-riego-authority-v3/<INV>",
+    "schema": "lasala-riego-authority/v1",
+    "serverOnly": true,
+    "fields": [
+      "schema",
+      "version",
+      "invId",
+      "catalog",
+      "fence",
+      "acl",
+      "grid",
+      "proposals",
+      "problems",
+      "commands",
+      "receipts",
+      "events",
+      "outbox"
+    ],
+    "authorityNotes": {
+      "acl": "Authoritative per-INV grants (not a read-through cache of lasala-roles-v1); Backoffice revocation mutates the same INV transaction",
+      "fence": "Per-INV epoch and phase in same transaction, reject stale commands",
+      "grid": "Canonical irrigation data, preserving legacy values during separately approved migration",
+      "proposals": "State pending/accepted/rejected and final irrigation mutation in same INV transaction",
+      "problems": "Durable original reporter, selected guard, affected INV/cells and state",
+      "commands": "Server-issued immutable authenticated intents, never browser-owned actor/role/destinations",
+      "receipts": "Durable command idempotency result, retries read same receipt",
+      "events": "Immutable business transition proofs referencing receipts, not a Push claim",
+      "outbox": "Pending dispatch instructions created atomically with transition; no push before commit"
+    },
+    "scalabilityGuard": "No unbounded root growth: measure aggregate size/ETag contention; design archive or partition boundaries before UAT without breaking atomicity",
+    "dataOwner": "Trusted backend server identity",
+    "clientDirectRead": false,
+    "clientDirectWrite": false
+  },
+  "identity": {
+    "authProvider": "Firebase Auth ID token verified server-side; validate enabled/revoked status, mapped user and auth freshness",
+    "legacyRoles": "lasala-roles-v1 remains legacy source until approved cutover; never independently authoritative for v3 commits",
+    "backoffice": "Authenticated admin route; role/grant/epoch revocation must serialize through each affected INV transaction",
+    "globalRevocation": "Before acknowledging completion, fence every affected INV and verify each; not instantaneous across INV. Emergency global stop requires separately verified access-control design.",
+    "principalTrust": "User, role, inv, scope, recipient, phase and epoch derived server-side; no client flags trusted",
+    "adminSdk": "Privileged Admin SDK bypasses RTDB rules; enforce application authorization + minimal service credentials"
+  },
+  "api": {
+    "plannedOnly": true,
+    "prefix": "/api/riego-v3",
+    "operations": [
+      {
+        "method": "POST",
+        "route": "/intents",
+        "body": "op + requested domain changes, no trusted actor/grants",
+        "effect": "authenticate/validate, create server-issued immutable command reference in protected store; no business transition"
+      },
+      {
+        "method": "POST",
+        "route": "/intents/{referenceId}/commit",
+        "body": "none (path id only)",
+        "effect": "verify JWT and revalidate authoritative ACL/epoch/business state inside transaction; write data+receipt+event+pending outbox"
+      },
+      {
+        "method": "GET",
+        "route": "/intents/{referenceId}",
+        "body": "none",
+        "effect": "return authorized caller's receipt or pending state; never raw grants"
+      },
+      {
+        "method": "GET",
+        "route": "/invernaderos/{invId}/riego",
+        "body": "none",
+        "effect": "role-scoped read from server, no raw RTDB authority root"
+      },
+      {
+        "method": "POST",
+        "route": "/backoffice/grants",
+        "body": "managed actor/grant changes",
+        "effect": "manager-approved per-INV transactional grant and fence updates with audit trail"
+      }
+    ],
+    "responseModel": {
+      "success": "HTTP 200/201 with committed receipt, eventId and revision",
+      "pending": "HTTP 202 for intent awaiting commit, not saved business data",
+      "unauthorized": "401 reauth hold",
+      "forbidden": "403 denied hold",
+      "conflict": "409 or 412 reconciliation hold",
+      "retryable": "429/503 controlled backoff"
+    },
+    "securityControls": [
+      "method allowlist",
+      "JWT verification and revocation checks",
+      "per-route and per-INV roles",
+      "server-derived immutable identity",
+      "rate limits",
+      "anti-replay intent UUID",
+      "idempotent receipt",
+      "write audit",
+      "no service credentials in browser"
+    ],
+    "clientOutboxOwnership": "local draft only until server receipt; never treat offline draft as committed"
+  },
+  "scope": {
+    "singleInvSupportedByArchitecture": true,
+    "multiInv": "NO_GO until approved coordinator/locking/compensation design with no partially visible effects and recovery tests",
+    "legacyProposalArray": "NO_GO for write coexistence: proposal global array must be moved/normalized before cutover",
+    "guardRotation": "Server Europe/Madrid calculation from committed time; substitutions await Backoffice approval",
+    "worker": "Cloudflare/Tuta schedule independent; no duplicate weekly reminders"
+  },
+  "rollout": {
+    "steps": [
+      "G1 functional matrix and pending business decisions approved",
+      "G2 emulator security rules and backend authorization; demonstrate revoked old paths",
+      "Authorized backup+ETag manifest, offline device inventory and rollback rehearsal",
+      "Server-only shadow mode, no duplicate writes/push",
+      "Pilot one INV after freezing legacy writes and draining offline",
+      "Commands/revocations/rollback/alerts validated in real UAT",
+      "Gradual migration with owner/approval, feature flags and audit"
+    ],
+    "neverDo": [
+      "deploy candidate freeze rules as-is",
+      "allow both legacy and v3 authoritative writers",
+      "use synthetic serverVerified flags as security proof",
+      "replay offline changes automatically after 403",
+      "backfill missing alerts or send historical Push",
+      "alter frontend during independent QA"
+    ]
+  },
+  "functionalApprovals": [
+    {
+      "id": "G1-A01",
+      "decision": "Exact actor/role/grants by INV and regante sala",
+      "owner": "Backoffice",
+      "status": "PENDING"
+    },
+    {
+      "id": "G1-A02",
+      "decision": "Proposal final-text and revert/duplicate rules, including multi-INV",
+      "owner": "Backoffice",
+      "status": "PENDING"
+    },
+    {
+      "id": "G1-A03",
+      "decision": "Deleting irrigation and marking executed: audit/event behavior",
+      "owner": "Backoffice",
+      "status": "PENDING"
+    },
+    {
+      "id": "G1-A04",
+      "decision": "Problem guard substitutions, reporter roles and notification rules",
+      "owner": "Backoffice",
+      "status": "PENDING"
+    },
+    {
+      "id": "G1-A05",
+      "decision": "Offline cutover/lock window and exception handling",
+      "owner": "Backoffice",
+      "status": "PENDING"
+    }
+  ],
+  "technicalGates": [
+    {
+      "id": "G2-T01",
+      "proof": "Server-only RTDB root denies browser reads/writes at root and descendants (emulator)",
+      "status": "DESIGN_TEST_ONLY"
+    },
+    {
+      "id": "G2-T02",
+      "proof": "JWT validity, revocation and user/role/INV ACL transactional mutation in a real trusted backend",
+      "status": "NOT_IMPLEMENTED"
+    },
+    {
+      "id": "G2-T03",
+      "proof": "Legacy direct writers revoked at precise paths, without breaking other modules",
+      "status": "NOT_IMPLEMENTED"
+    },
+    {
+      "id": "G2-T04",
+      "proof": "Single-INV CAS demonstrates role/freeze/proposal/receipt/outbox TOCTOU against official emulator",
+      "status": "NOT_IMPLEMENTED"
+    },
+    {
+      "id": "G2-T05",
+      "proof": "Global revocation and multi-INV partial failure policy approved and tested",
+      "status": "NOT_IMPLEMENTED"
+    },
+    {
+      "id": "G2-T06",
+      "proof": "Aggregate size, retention, backup, observability and replay/rollback measured",
+      "status": "NOT_IMPLEMENTED"
+    }
+  ],
+  "qa": {
+    "frontendIndependent": true,
+    "reportedFrontendTestsLowerBound": 2700,
+    "frontendResultsNotAudited": true,
+    "doNotSumSecurityAndFrontendCounts": true
+  },
+  "compatibility": {
+    "existingContract": "docs/firebase/contrato-integracion-riego-v3.json",
+    "nineEvents": "docs/firebase/avisos-event-catalog-v2.json",
+    "functions": "index.html",
+    "apiOperational": false,
+    "liveFirebaseChanged": false,
+    "mainChanged": false
+  }
+}
