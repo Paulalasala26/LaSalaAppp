@@ -129,6 +129,12 @@ jobs:
           CI: 'true'
         run: npm run test:emulator:riego-freeze
 
+      - name: Signed JWT G2 irrigation gateway and atomic ACL revocation on official RTDB emulator
+        working-directory: docs/firebase
+        env:
+          CI: 'true'
+        run: npm run test:emulator:riego-gateway
+
       - name: Backend JWT and ETag store on official demo RTDB emulator
         working-directory: docs/firebase
         env:
