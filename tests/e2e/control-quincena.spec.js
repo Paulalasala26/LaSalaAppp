@@ -44,6 +44,17 @@ function fixtureDatabase() {
         calleHasta: 1704,
         numBandejas: 8
       },
+      'e2e-control-current-fortnight-other-greenhouse': {
+        id: 'e2e-control-current-fortnight-other-greenhouse',
+        tipo: 'tunel',
+        dia: 30,
+        partida: 'E2E-QUINCENA-INV-18',
+        clienteVariedad: 'Fixture de otro invernadero',
+        invId: '18',
+        calleDesde: 1801,
+        calleHasta: 1801,
+        numBandejas: 6
+      },
       'e2e-control-current-fortnight-first-day': {
         id: 'e2e-control-current-fortnight-first-day',
         tipo: 'tunel',
@@ -300,4 +311,19 @@ test('UAT-010: Control conserva sus acciones principales en viewport de tablet',
 
 test('UAT-138: Check Túnel conserva fecha y acciones en móvil horizontal', async ({ page }) => {
   await expectControlUsableAtViewport(page, { width: 844, height: 390 });
+});
+
+test('UAT-141 y UAT-142: el filtro de INV limita las partidas y Todos restaura el día completo', async ({ page }) => {
+  const database = fixtureDatabase();
+  const { overlay, unexpectedHosts } = await startControlTest(page, database);
+  const select = overlay.locator('#control-content-wrap select').first();
+
+  await expect(overlay.getByText('E2E-QUINCENA-INV-18', { exact: true })).toBeVisible();
+  await select.selectOption('17');
+  await expect(overlay.getByText('E2E-QUINCENA-ACTUAL-DIA-30', { exact: true })).toBeVisible();
+  await expect(overlay.getByText('E2E-QUINCENA-INV-18', { exact: true })).toHaveCount(0);
+
+  await select.selectOption('');
+  await expect(overlay.getByText('E2E-QUINCENA-INV-18', { exact: true })).toBeVisible();
+  expect(unexpectedHosts).toEqual([]);
 });
