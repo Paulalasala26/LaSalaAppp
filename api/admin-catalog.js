@@ -9,6 +9,8 @@ const {
 }=require('./admin-users')._adminCatalogHelpers;
 
 const KEY='lasala-config-infra-v1';
+const TEST_DB='https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app';
+const GS_FEED_KEY='lasala-gs-partes-v1';
 const ROLES_KEY='lasala-roles-v1',USERS_KEY='lasala-users-v1';
 const BASE={
   sala1:['0A','0B','1A','1B','2A','2B','3A','3B','4A','4B','7A','7B','28','29','30','8','5'],
@@ -20,6 +22,20 @@ const BASE={
 const ROOM_RE=/^sala[0-9]{1,3}$/;
 const GREENHOUSE_RE=/^[A-Z0-9][A-Z0-9-]{0,11}$/;
 const OBJECT_RE=/^[a-zA-Z0-9._ -]{1,60}$/;
+function validIsoDate(value){
+  if(typeof value!=='string'||!/^\\d{4}-\\d{2}-\\d{2}$/.test(value))return false;
+  const time=Date.parse(value+'T00:00:00.000Z');
+  return Number.isFinite(time)&&new Date(time).toISOString().slice(0,10)===value;
+}
+async function readGsSnapshot(date,accessToken){
+  const url=TEST_DB+'/'+GS_FEED_KEY+'/by-date/'+encodeURIComponent(date)+'.json';
+  const r=await fetch(url,{
+    headers:{Authorization:'Bearer '+accessToken},
+    cache:'no-store',signal:AbortSignal.timeout(10000)
+  });
+  if(!r.ok)throw new Error('No se puede leer la sincronización GS TEST');
+  return r.json();
+}
 function bodyOf(req){
   let obj=req.body;
   if(typeof obj==='string') {try{obj=JSON.parse(obj);}catch(_){throw httpError(400,'INVALID_BODY');}}
@@ -147,6 +163,14 @@ module.exports=async function handler(req,res){
     ]);
     if(roles[actor]!=='ADMIN'||!validHash(accounts[actor]))
       throw httpError(403,'FORBIDDEN');
+    if(req.method==='GET'&&req.query?.view==='gs'){
+      const date=req.query?.date;
+      if(!validIsoDate(date))throw httpError(400,'INVALID_DATE');
+      const snapshot=await readGsSnapshot(date,accessToken);
+      if(!snapshot||Array.isArray(snapshot)||typeof snapshot!=='object')
+        throw httpError(404,'GS_SNAPSHOT_NOT_FOUND');
+      return res.status(200).json({ok:true,date,snapshot,currentUser:actor,readOnly:true});
+    }
     if(req.method==='GET'){
       const stored=await readKey(KEY,accessToken);
       return res.status(200).json({...safeList(stored),currentUser:actor,
