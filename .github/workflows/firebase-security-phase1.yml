@@ -87,6 +87,9 @@ jobs:
       - name: Synthetic migration cutover races, offline and proposal reconciliation (no network)
         run: node --test docs/firebase/prototype-migration-reconciliation-v3.test.cjs
 
+      - name: Per-invernadero synthetic writer fence, offline cutover and rollback regressions (no network)
+        run: node --test docs/firebase/prototype-writer-fence-v3.test.cjs
+
       - name: Isolated Firebase REST ETag and migration regression
         run: node --test docs/firebase/prototype-avisos-push-store-v2.test.cjs
 
