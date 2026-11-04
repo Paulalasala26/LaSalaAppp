@@ -183,6 +183,21 @@ test('UAT-025: Control muestra los datos de cada quincena al cambiar de periodo'
   expect(unexpectedHosts).toEqual([]);
 });
 
+test('UAT-127: abrir Check Túnel desde Inicio y volver sin perder la sesión', async ({ page }) => {
+  const database = fixtureDatabase();
+  const { overlay, unexpectedHosts } = await startControlTest(page, database);
+
+  await expect(overlay.getByRole('button', { name: 'Check Túnel' })).toBeVisible();
+  await overlay.getByRole('button', { name: '✕ Cerrar' }).click();
+  await expect(overlay).toBeHidden();
+  await expect(page.getByTestId('home-control')).toBeVisible();
+
+  await page.getByTestId('home-control').click();
+  await expect(overlay).toBeVisible();
+  await expect(overlay.getByRole('button', { name: 'Check Túnel' })).toBeVisible();
+  expect(unexpectedHosts).toEqual([]);
+});
+
 test('UAT-020: marcar un check en Control lo guarda y lo conserva al volver a entrar', async ({ page }) => {
   const database = fixtureDatabase();
   const { overlay, unexpectedHosts } = await startControlTest(page, database);
@@ -281,4 +296,8 @@ test('UAT-009: Control conserva sus acciones principales en viewport móvil', as
 
 test('UAT-010: Control conserva sus acciones principales en viewport de tablet', async ({ page }) => {
   await expectControlUsableAtViewport(page, { width: 768, height: 1024 });
+});
+
+test('UAT-138: Check Túnel conserva fecha y acciones en móvil horizontal', async ({ page }) => {
+  await expectControlUsableAtViewport(page, { width: 844, height: 390 });
 });
