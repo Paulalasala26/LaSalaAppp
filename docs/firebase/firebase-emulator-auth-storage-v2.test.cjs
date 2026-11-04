@@ -64,7 +64,7 @@ before(async()=>{
     rules:require('node:fs').readFileSync(
       __dirname+'/database.rules.test.candidate.phase2-avisos-push.json','utf8')
   }});
-  for(const key of rootKeys)await transport.removeSynthetic([key]);
+  // firebase emulators:exec creates a clean, disposable demo database for this run.
   await putLegacy('lasala-roles-v1',{[USER]:'TECNICO',[OTHER]:'TECNICO',
     DENNIS:'TECNICO',FRAN:'TECNICO'});
   await putLegacy('lasala-users-v1',{[USER]:'a'.repeat(64),[OTHER]:'b'.repeat(64),
@@ -72,7 +72,7 @@ before(async()=>{
 });
 after(async()=>{
   try{
-    if(transport)for(const key of rootKeys)await transport.removeSynthetic([key]);
+    // No REST delete: the entire demo emulator is discarded after CI finishes.
     if(dbEnv)await dbEnv.cleanup();
   }finally{if(originalFetch)global.fetch=originalFetch}
 });
