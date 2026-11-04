@@ -43,7 +43,8 @@ function makeEmulatorTransport({fetchImpl=fetch,baseUrl}={}){
   }
   async function conditionalPut(segments,value,etag){
     if(typeof etag!=='string'||etag.length===0)throw err(503,'ETAG_MISSING');
-    const r=await fetchImpl(address(segments,'silent'),{
+    // Conditional PUT is tested without print=silent for emulator compatibility.
+    const r=await fetchImpl(address(segments),{
       method:'PUT',headers:{Authorization:'Bearer owner','Content-Type':'application/json','if-match':etag},
       body:JSON.stringify(value)
     });
