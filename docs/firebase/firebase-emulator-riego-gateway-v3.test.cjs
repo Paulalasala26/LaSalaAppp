@@ -138,7 +138,8 @@ test('unvalidated irrigation edit persists data but emits no supervisor event',a
  assert.equal(result.eventId,null);
  const s=await state('INV_RAW');
  assert.equal(s.grid.CELL_3.texto,'55 MIN');
- assert.equal(s.receipts.CMD_RAW.eventId,null);
+ // RTDB omits null-valued fields when storing objects; no event is persisted.
+ assert.equal(Object.hasOwn(s.receipts.CMD_RAW,'eventId'),false);
  assert.equal(s.events,undefined);
  assert.equal(s.outbox,undefined);
  const again=await commit('INV_RAW','CMD_RAW');
