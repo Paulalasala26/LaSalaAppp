@@ -71,6 +71,10 @@
     "lasala-riego-event-aggregate-demo-v2": {
       ".read": false,
       ".write": false
+    },
+    "lasala-riego-authority-v3": {
+      ".read": false,
+      ".write": false
     }
   }
 }
