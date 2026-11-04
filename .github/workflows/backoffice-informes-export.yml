@@ -51,4 +51,4 @@ jobs:
           node --check lib/admin-riego-read.js
           node --check admin/informes.js
       - name: Unit tests (fixtures only)
-        run: node --test lib/admin-informes-export.test.cjs lib/admin-informes-api.test.cjs lib/admin-informes-ui.test.cjs
+        run: node --test lib/admin-informes-export.test.cjs lib/admin-informes-api.test.cjs lib/admin-informes-ui.test.cjs lib/admin-riego-read.test.cjs
