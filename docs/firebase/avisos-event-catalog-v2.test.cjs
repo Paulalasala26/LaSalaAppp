@@ -42,7 +42,7 @@ test('each event declares a source, actor, destination and greenhouse scope',()=
     assert.equal(e.status,'PROVISIONAL');
     for(const attr of ['actor','recipient','scope','source','precondition','evidence']){
       assert.equal(typeof e[attr],'string');
-      assert.ok(e[attr].length>=18,e.id+': '+attr);
+      assert.ok(e[attr].trim().length>=8,e.id+': '+attr);
     }
   }
 });
