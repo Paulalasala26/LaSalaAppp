@@ -89,7 +89,11 @@ function createDemoBusinessEventTransaction({
    const instant=now();
    if(!(instant instanceof Date)||!Number.isFinite(instant.getTime()))
      reject('INVALID_SERVER_TIME');
-   // RTDB removes empty object children, including events:{} and commands:{}.\n   // Only a pristine v1 aggregate may omit these; after first commit both must exist.\n   const next={...clone(read.value),events:clone(read.value.events||{}),\n     commands:clone(read.value.commands||{})};\n   const after={...before,texto:cmd.nextText,revisadoPorVigueras:false};
+   // Firebase RTDB drops empty object children on initial seed.
+   // Only an initial v1 aggregate may omit events/commands.
+   const next={...clone(read.value),events:clone(read.value.events||{}),
+     commands:clone(read.value.commands||{})};
+   const after={...before,texto:cmd.nextText,revisadoPorVigueras:false};
    next.grid[cmd.day]={...(next.grid[cmd.day]||{}),[cmd.lane]:after};
    const revision=next.version+1;
    // Source and envelope are built in-memory, BEFORE the single CAS. No
