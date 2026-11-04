@@ -296,9 +296,48 @@ module.exports=async function handler(req,res){
     const modo=req.query?.modo;
     if(modo!==undefined&&modo!==''&&
        (typeof modo!=='string'||!new Set([
-         'mantenimiento','avisos','tareas','especificos','plaguicidas','partidas'
+         'mantenimiento','avisos','tareas','especificos','plaguicidas','partidas','informes'
        ]).has(modo)))
       throw httpError(400,'INVALID_MODE');
+    // Exportaciones de informes del Backoffice sobre consultas ya existentes.
+    // Reutiliza la misma autorización ADMIN; no añade función serverless ni escrituras.
+    if(req.query?.modo==='informes'){
+      const exporter=require('../lib/admin-informes-export');
+      const {seccion,formato}=exporter.parseOptions(req.query);
+      const {token}=await verifyAdmin(req);
+      let report;
+      if(seccion==='qc'||seccion==='partidas'){
+        const filter=parseQuery(req.query);
+        const controls=await fetchLegacyControls(token,filter);
+        if(seccion==='partidas'){
+          report=buildPartidas(controls,filter);
+        }else{
+          const measurements=await readKey('lasala-qc-mediciones-v1',token);
+          report=buildDashboard(measurements,null,filter,controls);
+        }
+      }else{
+        const readers={
+          plaguicidas:'admin-plaguicidas-read',
+          especificos:'admin-especificos-read',
+          tareas:'admin-tareas-read',
+          avisos:'admin-avisos-read',
+          mantenimiento:'admin-mantenimiento-read'
+        };
+        report=await require('../lib/'+readers[seccion]).query(token,req.query);
+      }
+      const output=exporter.render(seccion,formato,report,req.query);
+      res.setHeader('Content-Type',output.contentType);
+      res.setHeader('Content-Disposition',
+        (formato==='csv'?'attachment':'inline')+'; filename="'+output.filename+'"');
+      res.setHeader('Referrer-Policy','no-referrer');
+      if(formato==='html'){
+        // Informe imprimible estático: sin JavaScript, imágenes ni recursos externos.
+        res.setHeader('Content-Security-Policy',
+          "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'");
+        res.setHeader('X-Frame-Options','DENY');
+      }
+      return res.status(200).send(output.body);
+    }
     // Mantenimiento: consulta ADMIN de tickets y eventos sin activar recurrencias.
     if(req.query?.modo==='mantenimiento'){
       const {token}=await verifyAdmin(req);
