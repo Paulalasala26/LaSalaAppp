@@ -311,7 +311,8 @@ test('official emulator CAS writes business cell and event/outbox in one node at
   assert.equal(event.source.actorUid,UID);
   assert.equal(event.outbox.status,'pending');
   assert.deepEqual(Object.keys(event.outbox.deliveries),[OTHER_UID]);
-  await assert.rejects(service.execute('CMD_232_WRONG'),/CMD_232/);
+  await assert.rejects(service.execute('CMD_232?target=OTHER'),
+    {code:'INVALID_COMMAND_REFERENCE'});
   const client=dbEnv.authenticatedContext(UID,{appUser:USER,role:'ADMIN'}).database();
   await assertFails(client.ref(ROOT+'/'+invId).get());
   await assertFails(client.ref(ROOT+'/'+invId).set({forged:true}));
