@@ -239,7 +239,7 @@
   async function onDatabaseLoad(){
     if(busy)return;
     const date=byId('gs-db-date').value;
-    if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(date)){
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(date)){
       status('Selecciona una fecha prevista válida.',true,'gs-db-status');
       return;
     }
