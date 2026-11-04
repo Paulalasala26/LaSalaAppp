@@ -1,0 +1,58 @@
+# Isolated security tests only: no deploy, no repository write access, no Firebase credentials.
+name: Firebase RTDB Security Phase 1 (isolated)
+on:
+  push:
+    branches:
+      - test/v1.0
+    paths:
+      - '.github/workflows/firebase-security-phase1.yml'
+      - 'docs/firebase/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: firebase-phase1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    if: github.ref == 'refs/heads/test/v1.0'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout TEST branch (read only)
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Set up Java for Firebase RTDB emulator
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Static permissions matrix
+        run: node docs/firebase/check-candidate-phase1.cjs
+
+      - name: Static service credential contract
+        run: node docs/firebase/check-phase1-api-service-contract.cjs
+
+      - name: API regression (in-memory, no network)
+        run: node --test docs/firebase/regression-phase1-etag.test.cjs
+
+      - name: Install isolated emulator test dependencies
+        working-directory: docs/firebase
+        run: |
+          cp package.phase1.json package.json
+          npm install --ignore-scripts --no-audit --no-fund
+
+      - name: Test candidate rules in demo-only official RTDB emulator
+        working-directory: docs/firebase
+        env:
+          CI: 'true'
+        run: npm run test:emulator
