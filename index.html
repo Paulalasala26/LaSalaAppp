@@ -6275,11 +6275,20 @@ function renderControlChecklistHTML(seccion){
   if(controlDiaSel==null || !diasQ.includes(controlDiaSel)) controlDiaSel = diasQ[0];
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const listaDia = controlChecksData.filter(c=>c.tipo===seccion.key && c.dia===controlDiaSel);
-  const numCompletados = listaDia.filter(controlLineaCompletada).length;
-  const numPendientes = listaDia.length - numCompletados;
-  const lista = controlFiltroEstado==='completados' ? listaDia.filter(controlLineaCompletada)
-    : controlFiltroEstado==='pendientes' ? listaDia.filter(c=>!controlLineaCompletada(c))
+  // Los contadores y el filtro de estado deben usar la misma población que ve
+  // el usuario después de aplicar el filtro de invernadero (QC UAT-145/147).
+  // Antes se contaban todas las tarjetas del día y luego se ocultaban las de
+  // otros INV, dejando cifras que no coincidían con el listado visible.
+  const listaDiaFiltradaPorInv = (esSeccionCarga(seccion.key) && controlCargaInvFiltro)
+    ? listaDia.filter(c=>{ const tramo=calleTramoDeCarga(c); return tramo && coincideInvernaderoCarga(tramo.invId, controlCargaInvFiltro); })
+    : (seccion.key==='tunel' && controlTunelInvFiltro)
+    ? listaDia.filter(c=>{ const tramo=calleTramoDeTunel(c); return tramo && tramo.invId===controlTunelInvFiltro; })
     : listaDia;
+  const numCompletados = listaDiaFiltradaPorInv.filter(controlLineaCompletada).length;
+  const numPendientes = listaDiaFiltradaPorInv.length - numCompletados;
+  const lista = controlFiltroEstado==='completados' ? listaDiaFiltradaPorInv.filter(controlLineaCompletada)
+    : controlFiltroEstado==='pendientes' ? listaDiaFiltradaPorInv.filter(c=>!controlLineaCompletada(c))
+    : listaDiaFiltradaPorInv;
   const pdf = controlPdfsData[seccion.key+'|'+controlDiaSel];
   // Carga bajo demanda (no bloquea este pintado): si el índice dice que hay
   // un PDF para este día pero todavía no está en memoria, se pide en segundo
