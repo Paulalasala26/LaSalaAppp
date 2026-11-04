@@ -55,6 +55,23 @@ function fixtureDatabase() {
         calleHasta: 1801,
         numBandejas: 6
       },
+      'e2e-control-current-fortnight-completed': {
+        id: 'e2e-control-current-fortnight-completed',
+        tipo: 'tunel',
+        dia: 30,
+        partida: 'E2E-QUINCENA-COMPLETADA',
+        clienteVariedad: 'Fixture inspección completada',
+        invId: '17',
+        calleDesde: 1705,
+        calleHasta: 1705,
+        numBandejas: 9,
+        color: { verde: true },
+        tamano: { ok: true },
+        plagas: { ok: true },
+        enfermedades: { ok: true },
+        flores: { si: true },
+        raices: { ok: true }
+      },
       'e2e-control-current-fortnight-first-day': {
         id: 'e2e-control-current-fortnight-first-day',
         tipo: 'tunel',
@@ -374,5 +391,27 @@ test('UAT-153 y UAT-157: abrir un único alta y añadir una partida manual de pr
   await expect.poll(() => Object.values(database['lasala-control-items-v1']).some(item =>
     item.partida === partida && item.tipo === 'tunel' && item.dia === 30
   )).toBe(true);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-145, UAT-146 y UAT-147: estado y contadores respetan el INV y la vista activa', async ({ page }) => {
+  const database = fixtureDatabase();
+  const { overlay, unexpectedHosts } = await startControlTest(page, database);
+  await overlay.locator('#control-content-wrap select').first().selectOption('17');
+
+  await expect(overlay.getByRole('button', { name: 'Todos (3)' })).toBeVisible();
+  await expect(overlay.getByRole('button', { name: '✓ Completados (1)' })).toBeVisible();
+  await expect(overlay.getByRole('button', { name: '○ Pendientes (2)' })).toBeVisible();
+  await overlay.getByRole('button', { name: '✓ Completados (1)' }).click();
+  await expect(overlay.getByText('E2E-QUINCENA-COMPLETADA', { exact: true })).toBeVisible();
+  await expect(overlay.getByText('E2E-QUINCENA-ACTUAL-DIA-30', { exact: true })).toHaveCount(0);
+  await overlay.getByRole('button', { name: '○ Pendientes (2)' }).click();
+  await expect(overlay.getByText('E2E-QUINCENA-COMPLETADA', { exact: true })).toHaveCount(0);
+  await expect(overlay.getByText('E2E-QUINCENA-ACTUAL-DIA-30', { exact: true })).toBeVisible();
+  await expect(overlay.getByText('E2E-QUINCENA-ACTUAL-OTRA-LINEA', { exact: true })).toBeVisible();
+  await expect(overlay.getByText('E2E-QUINCENA-INV-18', { exact: true })).toHaveCount(0);
+
+  await overlay.getByRole('button', { name: /Dashboard del día/ }).click();
+  await expect(overlay.getByRole('button', { name: /Completados/ })).toHaveCount(0);
   expect(unexpectedHosts).toEqual([]);
 });
