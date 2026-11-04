@@ -63,6 +63,9 @@ jobs:
       - name: Nine-event authorization inventory contract (no network)
         run: node --test docs/firebase/avisos-authorization-contract-v2.test.cjs
 
+      - name: Nine-event authorization decision matrix (pure, no network)
+        run: node --test docs/firebase/prototype-event-authorization-v2.test.cjs
+
       - name: Isolated Firebase REST ETag and migration regression
         run: node --test docs/firebase/prototype-avisos-push-store-v2.test.cjs
 
