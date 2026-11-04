@@ -24,7 +24,9 @@ const canonical=x=>{
 function checkAggregate(value,invId){
  if(!plain(value)||value.schema!==SCHEMA||value.invId!==invId||
    !Number.isSafeInteger(value.version)||value.version<1||
-   !plain(value.grid)||!plain(value.events)||!plain(value.commands))
+   !plain(value.grid)||
+   !(plain(value.events)||(value.version===1&&value.events===undefined))||
+   !(plain(value.commands)||(value.version===1&&value.commands===undefined)))
    reject('INVALID_AGGREGATE');
 }
 function trustedMutation(ref,cmd,permit){
@@ -87,8 +89,7 @@ function createDemoBusinessEventTransaction({
    const instant=now();
    if(!(instant instanceof Date)||!Number.isFinite(instant.getTime()))
      reject('INVALID_SERVER_TIME');
-   const next=clone(read.value);
-   const after={...before,texto:cmd.nextText,revisadoPorVigueras:false};
+   // RTDB removes empty object children, including events:{} and commands:{}.\n   // Only a pristine v1 aggregate may omit these; after first commit both must exist.\n   const next={...clone(read.value),events:clone(read.value.events||{}),\n     commands:clone(read.value.commands||{})};\n   const after={...before,texto:cmd.nextText,revisadoPorVigueras:false};
    next.grid[cmd.day]={...(next.grid[cmd.day]||{}),[cmd.lane]:after};
    const revision=next.version+1;
    // Source and envelope are built in-memory, BEFORE the single CAS. No
