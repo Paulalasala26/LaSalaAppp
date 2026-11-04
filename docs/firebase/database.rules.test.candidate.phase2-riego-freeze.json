@@ -75,6 +75,10 @@
     "lasala-riego-write-locks-v3": {
       ".read": false,
       ".write": false
+    },
+    "lasala-riego-authority-v3": {
+      ".read": false,
+      ".write": false
     }
   }
 }
