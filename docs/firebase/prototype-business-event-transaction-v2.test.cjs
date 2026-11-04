@@ -175,3 +175,22 @@ test('no Push or visible alert is emitted from the synthetic aggregate',async()=
  assert.equal(typeof s.dispatch,'undefined');
  assert.equal(h.state.events[Object.keys(h.state.events)[0]].outbox.status,'pending');
 });
+
+
+test('Firebase RTDB omits empty map children of newly seeded aggregate',async()=>{
+ const initial=seed();
+ delete initial.events;
+ delete initial.commands;
+ const h=harness({initial});
+ const out=await h.make().execute('CMD_1');
+ assert.equal(out.status,'committed');
+ assert.equal(h.state.version,2);
+ assert.equal(Object.keys(h.state.events).length,1);
+ assert.equal(Object.keys(h.state.commands).length,1);
+});
+test('missing event index after first commit is corruption, not an empty-map fallback',async()=>{
+ const initial=seed();initial.version=3;delete initial.events;
+ const h=harness({initial});
+ await assert.rejects(h.make().execute('CMD_1'),{code:'INVALID_AGGREGATE'});
+ assert.equal(h.writes,0);
+});
