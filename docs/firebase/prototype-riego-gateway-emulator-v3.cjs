@@ -109,7 +109,8 @@ function commandRules(s,identity,opId){
  }
  return {cmd,actor,proposal,already:false,fingerprint};
 }
-function createLocalRiegoGateway({transport,auth,now=()=>new Date(),maxAttempts=8}={}){
+function createLocalRiegoGateway({transport,auth,now=()=>new Date(),maxAttempts=8,
+  sessionStatus}={}){
  ensureDemo();
  if(typeof transport?.retrieve!=='function'||
     typeof transport?.compareAndSwap!=='function'||
@@ -117,9 +118,18 @@ function createLocalRiegoGateway({transport,auth,now=()=>new Date(),maxAttempts=
     typeof now!=='function'||!Number.isSafeInteger(maxAttempts)||
     maxAttempts<1||maxAttempts>12)
   throw new TypeError('TRUSTED_LOCAL_DEPENDENCIES_REQUIRED');
+ if(sessionStatus!==undefined&&typeof sessionStatus!=='function')
+  throw new TypeError('INVALID_SESSION_STATUS_CHECKER');
  async function identity(token){
   if(typeof token!=='string'||token.length<20)err('UNAUTHORIZED');
-  return auth.verifyIdentity(token);
+  const verified=await auth.verifyIdentity(token);
+  if(sessionStatus){
+   let current=false;
+   try{current=(await sessionStatus(verified,token))===true}
+   catch(_){err('SESSION_STATUS_UNAVAILABLE')}
+   if(!current)err('SESSION_REVOKED_OR_UNVERIFIED');
+  }
+  return verified;
  }
  async function mutate(invId,id,token,prepare){
   if(!valid(invId)||!valid(id))err('INVALID_REFERENCE');
