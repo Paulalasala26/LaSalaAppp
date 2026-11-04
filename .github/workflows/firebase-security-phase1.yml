@@ -68,3 +68,9 @@ jobs:
         env:
           CI: 'true'
         run: npm run test:emulator
+
+      - name: Protect v2 Alerts and Push roots in demo-only RTDB emulator
+        working-directory: docs/firebase
+        env:
+          CI: 'true'
+        run: npm run test:emulator:phase2
