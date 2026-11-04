@@ -273,3 +273,47 @@ test('official RTDB emulator atomically stages event source and pending outbox o
   await assertFails(browser.ref(ROOT+'/'+id).set({forged:true}));
   // This test never invokes a Push dispatch or the production DB.
 });
+
+
+test('official emulator CAS writes business cell and event/outbox in one node atomically',async()=>{
+  const {ROOT,SCHEMA,createDemoBusinessEventTransaction}=
+    require('./prototype-business-event-transaction-v2.cjs');
+  const invId='INV_232';
+  const initial={schema:SCHEMA,invId,version:1,
+    grid:{'2026-11-04':{'1':{texto:'30 MIN',revisadoPorVigueras:true},
+                       '2':{texto:'45 MIN',revisadoPorVigueras:true}}},
+    events:{},commands:{}};
+  assert.equal(await transport.insertIfMissing([ROOT,invId],initial),true);
+  const command={id:'CMD_232',kind:'riego_validado_modificado',invId,
+    day:'2026-11-04',lane:'1',expectedText:'30 MIN',nextText:'35 MIN',
+    actorUid:UID};
+  const permit={authorized:true,businessApproved:true,actorUid:UID,
+    authorizedInvIds:[invId],recipientUids:[OTHER_UID]};
+  const service=createDemoBusinessEventTransaction({
+    transport,loadTrustedCommand:async ref=>{
+      assert.equal(ref,'CMD_232');return command;
+    },
+    authorizeTrustedCommand:async()=>permit,
+    now:()=>new Date('2026-11-04T14:00:00Z')
+  });
+  const outcome=await Promise.all(Array.from({length:7},
+    ()=>service.execute('CMD_232')));
+  assert.equal(outcome.filter(x=>x.status==='committed').length,1);
+  assert.equal(outcome.filter(x=>x.status==='already_committed').length,6);
+  const record=(await transport.retrieve([ROOT,invId])).value;
+  assert.equal(record.version,2);
+  assert.equal(record.grid['2026-11-04']['1'].texto,'35 MIN');
+  assert.equal(record.grid['2026-11-04']['1'].revisadoPorVigueras,false);
+  assert.equal(record.grid['2026-11-04']['2'].texto,'45 MIN');
+  assert.equal(Object.keys(record.events).length,1);
+  assert.equal(Object.keys(record.commands).length,1);
+  const event=record.events[outcome[0].eventId];
+  assert.equal(event.source.actorUid,UID);
+  assert.equal(event.outbox.status,'pending');
+  assert.deepEqual(Object.keys(event.outbox.deliveries),[OTHER_UID]);
+  await assert.rejects(service.execute('CMD_232_WRONG'),/CMD_232/);
+  const client=dbEnv.authenticatedContext(UID,{appUser:USER,role:'ADMIN'}).database();
+  await assertFails(client.ref(ROOT+'/'+invId).get());
+  await assertFails(client.ref(ROOT+'/'+invId).set({forged:true}));
+  assert.equal((await transport.retrieve([ROOT,invId])).value.version,2);
+});
