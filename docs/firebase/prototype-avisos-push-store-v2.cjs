@@ -137,17 +137,21 @@ function createDemoStore({transport,loadAuthorizedSourceEvent}={}){
     if(record.version!==1)fail(400,'INVALID_INITIAL_VERSION');
     return transport.insertIfMissing([ROOTS.endpoints,id],record);
   }
+  const eventId=key=>{
+    if(typeof key!=='string'||!/^[A-Za-z0-9_:-]{3,170}$/.test(key))fail(400,'INVALID_EVENT_KEY');
+    return 'e_'+crypto.createHash('sha256').update(key,'utf8').digest('hex');
+  };
   async function enqueueNotification(key,event){
-    requireId(key);
+    const id=eventId(key);
     if(!plain(event)||!UID.test(event.recipientUid||'')||
       !UID.test(event.actorUid||''))fail(400,'INVALID_NOTIFICATION');
-    return transport.insertIfMissing([ROOTS.outbox,key],{...copy(event),version:1});
+    return transport.insertIfMissing([ROOTS.outbox,id],{...copy(event),version:1});
   }
   async function enqueueWeeklyReminder(key,events){
-    requireId(key);
+    const id=eventId(key);
     if(!Array.isArray(events)||events.length!==2||
       events.some(x=>!plain(x)||!UID.test(x.recipientUid||'')))fail(400,'INVALID_WEEKLY');
-    return transport.insertIfMissing([ROOTS.weekly,key],{events:copy(events),version:1});
+    return transport.insertIfMissing([ROOTS.weekly,id],{events:copy(events),version:1});
   }
   async function getAllAlerts(){
     const {value}=await transport.retrieve([ROOTS.alerts]);
