@@ -4,7 +4,7 @@
 const {
   verifyFirebaseIdToken,serviceAccount,serviceAccessToken,readKey,validHash,httpError
 }=require('./admin-users')._adminCatalogHelpers;
-const DB='https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app';
+const DB='https://la-sala-app-dev-default-rtdb.europe-west1.firebasedatabase.app';
 const KEY='lasala-admin-audit-v1';
 const AREAS=new Set(['users','infrastructure','riego_options']);
 const ACTIONS=new Set(['create','edit','changeRole','resetPassword','deactivate','activate']);

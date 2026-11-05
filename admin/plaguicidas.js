@@ -2,7 +2,7 @@
 // Backoffice: consulta de registros Fito v2 por un invernadero, sin escritura.
 (function(){
 const AUTH='lasala-firebase-auth-v1';
-const API_KEY='AIzaSyDdDdMg6M1jVIssvGYKsdRA-mRug31Yt_g';
+const API_KEY='AIzaSyBsRjw4NuCFg69P7_eqoX037rgjkbadcA0';
 const API='/api/admin-qc-dashboard';
 const START='2026-06-15';
 const el=id=>document.getElementById(id);

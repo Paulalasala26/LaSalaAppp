@@ -417,7 +417,7 @@
    throw Error('La sesión ha cambiado. Conéctate y vuelve a iniciar sesión.');
   let token;
   try{
-   const refresh=await fetch('https://securetoken.googleapis.com/v1/token?key=AIzaSyDdDdMg6M1jVIssvGYKsdRA-mRug31Yt_g',{
+   const refresh=await fetch('https://securetoken.googleapis.com/v1/token?key=AIzaSyBsRjw4NuCFg69P7_eqoX037rgjkbadcA0',{
     method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
     body:new URLSearchParams({grant_type:'refresh_token',refresh_token:auth.refreshToken}).toString(),
     cache:'no-store',signal:AbortSignal.timeout(12000)

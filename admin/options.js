@@ -3,7 +3,7 @@
 // Backoffice TEST: catálogo conectado a los formularios de Riego; sin eliminaciones.
 (function(){
   const KEY='lasala-firebase-auth-v1';
-  const FIREBASE_WEB_API_KEY='AIzaSyDdDdMg6M1jVIssvGYKsdRA-mRug31Yt_g';
+  const FIREBASE_WEB_API_KEY='AIzaSyBsRjw4NuCFg69P7_eqoX037rgjkbadcA0';
   const API='/api/admin-riego-options';
   const ERRORS={
     LOGIN_REQUIRED:'Inicia sesión en ViguerAPP como administrador.',

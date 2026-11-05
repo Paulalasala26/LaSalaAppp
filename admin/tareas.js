@@ -2,7 +2,7 @@
 // Backoffice Tareas: consulta ADMIN; no realizar cambios de estado ni exponer firmas.
 (function(){
   const AUTH='lasala-firebase-auth-v1';
-  const API_KEY='AIzaSyDdDdMg6M1jVIssvGYKsdRA-mRug31Yt_g';
+  const API_KEY='AIzaSyBsRjw4NuCFg69P7_eqoX037rgjkbadcA0';
   const API='/api/admin-qc-dashboard';
   const el=id=>document.getElementById(id);
   const num=value=>Number(value).toLocaleString('es-ES');

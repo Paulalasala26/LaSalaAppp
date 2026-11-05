@@ -9,7 +9,7 @@ const {
 }=require('./admin-users')._adminCatalogHelpers;
 
 const KEY='lasala-config-infra-v1';
-const TEST_DB='https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app';
+const TEST_DB='https://la-sala-app-dev-default-rtdb.europe-west1.firebasedatabase.app';
 const GS_FEED_KEY='lasala-gs-partes-v1';
 const GS_CARGA_FEED_KEY='lasala-gs-carga-v1';
 const ROLES_KEY='lasala-roles-v1',USERS_KEY='lasala-users-v1';

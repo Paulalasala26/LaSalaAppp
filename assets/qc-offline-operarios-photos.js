@@ -134,7 +134,7 @@
    throw Error('La sesión ha cambiado. Abre ViguerAPP con el usuario original.');
   let reply,data;
   try{
-   reply=await fetch('https://securetoken.googleapis.com/v1/token?key=AIzaSyDdDdMg6M1jVIssvGYKsdRA-mRug31Yt_g',{
+   reply=await fetch('https://securetoken.googleapis.com/v1/token?key=AIzaSyBsRjw4NuCFg69P7_eqoX037rgjkbadcA0',{
     method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
     body:new URLSearchParams({grant_type:'refresh_token',refresh_token:auth.refreshToken}).toString(),
     cache:'no-store',signal:AbortSignal.timeout(12000)

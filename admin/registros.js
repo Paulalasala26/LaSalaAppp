@@ -2,8 +2,8 @@
 // Registro de riegos de TEST: sólo lectura. Editar e imprimir derivan al módulo operativo.
 (function(){
   const SESSION='lasala-firebase-auth-v1';
-  const KEY='AIzaSyDdDdMg6M1jVIssvGYKsdRA-mRug31Yt_g';
-  const TEST='https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app';
+  const KEY='AIzaSyBsRjw4NuCFg69P7_eqoX037rgjkbadcA0';
+  const TEST='https://la-sala-app-dev-default-rtdb.europe-west1.firebasedatabase.app';
   const HANDOFF='lasala-backoffice-riego-v1';
   const BACKOFFICE_FILTERS='lasala-backoffice-riego-lista-v1';
   const ANCHOR=Date.UTC(2026,5,15);

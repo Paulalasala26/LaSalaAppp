@@ -5,8 +5,8 @@
 // Los hashes siguen en el formato SHA-256 heredado de la aplicación.
 // Las operaciones están limitadas al administrador verificado por Firebase Auth.
 const crypto = require('node:crypto');
-const PROJECT = 'la-sala-app-test';
-const DB = 'https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app';
+const PROJECT = 'la-sala-app-dev';
+const DB = 'https://la-sala-app-dev-default-rtdb.europe-west1.firebasedatabase.app';
 const GOOGLE_KEYS = 'https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com';
 const SCOPE = 'https://www.googleapis.com/auth/firebase.database https://www.googleapis.com/auth/userinfo.email';
 const USERS_KEY = 'lasala-users-v1';

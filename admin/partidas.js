@@ -2,7 +2,7 @@
 // Backoffice Partidas: solo lectura de referencias QC, sin escrituras ni stock inferido.
 (function(){
   const AUTH='lasala-firebase-auth-v1';
-  const KEY='AIzaSyDdDdMg6M1jVIssvGYKsdRA-mRug31Yt_g';
+  const KEY='AIzaSyBsRjw4NuCFg69P7_eqoX037rgjkbadcA0';
   const URL_API='/api/admin-qc-dashboard',START='2026-06-15';
   const el=id=>document.getElementById(id);
   let busy=false;

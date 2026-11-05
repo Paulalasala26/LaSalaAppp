@@ -2,7 +2,7 @@
 /* Backoffice GS: visor de PDF exclusivamente local. No realiza operaciones de escritura. */
 (function(){
   const AUTH_STORE='lasala-firebase-auth-v1';
-  const FIREBASE_API_KEY='AIzaSyDdDdMg6M1jVIssvGYKsdRA-mRug31Yt_g';
+  const FIREBASE_API_KEY='AIzaSyBsRjw4NuCFg69P7_eqoX037rgjkbadcA0';
   const PDF_JS='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
   const PDF_WORKER='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   const byId=id=>document.getElementById(id);

@@ -2,7 +2,7 @@
 // Backoffice Avisos: lectura exclusivamente; no modificar visto, leido ni resolución.
 (function(){
  const AUTH='lasala-firebase-auth-v1';
- const API_KEY='AIzaSyDdDdMg6M1jVIssvGYKsdRA-mRug31Yt_g';
+ const API_KEY='AIzaSyBsRjw4NuCFg69P7_eqoX037rgjkbadcA0';
  const API='/api/admin-qc-dashboard';
  const el=id=>document.getElementById(id);
  let busy=false;
