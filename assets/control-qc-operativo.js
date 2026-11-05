@@ -779,18 +779,24 @@
             (selected.length===1?'Guardando y enviando fotografía a SharePoint…':
               'Guardando y enviando fotografías a SharePoint…'),'');
           const outcome=await legacyApi?.uploadPhoto?.({files:selected});
-          const saved=Number(outcome?.count)||0;
+          // Las versiones anteriores devuelven el número guardado, no la confirmación SharePoint.
+          const legacyCount=Number.isSafeInteger(outcome)&&outcome>=0?outcome:null;
+          const legacyReturn=legacyCount!==null;
+          const saved=legacyReturn?legacyCount:(Number(outcome?.count)||0);
           const sent=Number(outcome?.sent)||0;
           const pending=Number(outcome?.pending)||Math.max(0,saved-sent);
           const detail=Array.isArray(outcome?.errors)&&outcome.errors.length?
             ' Detalle: '+outcome.errors[0]:'';
           if(!saved){
-            report(detail.trim()||'No se pudo guardar ninguna fotografía en el dispositivo.','error');
+            report(detail.trim()||'No se recibió confirmación de guardado. No consta que la foto esté en SharePoint.','error');
+          }else if(legacyReturn){
+            report(saved+' fotografía(s) guardada(s) localmente; esta versión no confirma envío a SharePoint. '+
+              'Pendientes: '+pending+'. Usa “Sincronizar todo” y actualiza la app.','');
           }else if(sent===saved&&pending===0){
             report('✓ '+sent+' fotografía(s) enviada(s) y verificada(s) en SharePoint.'+detail,'');
           }else if(navigator.onLine===false){
             report(saved+' fotografía(s) guardada(s) en el dispositivo. Pendiente(s): '+pending+
-              '. Usa “Sincronizar todo” cuando vuelva la conexión.','');
+              '. Usa “Sincronizar todo” cuando vuelva la conexión.'+detail,'');
           }else{
             report(sent+' fotografía(s) verificada(s) en SharePoint; '+pending+
               ' permanece(n) segura(s) en este dispositivo. Usa “Sincronizar todo” para reintentar.'+detail,'');
