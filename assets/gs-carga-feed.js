@@ -1,7 +1,7 @@
 'use strict';
 /* Consulta de solo lectura del snapshot diario de GS desde QC Carga. */
 (function () {
-  const API = '/api/gs-carga-v1';
+  const API = '/api/admin-catalog?view=gs-carga';
   let backdrop = null;
   let snapshot = null;
   let visibleLimit = 40;
@@ -108,7 +108,7 @@
     try {
       await ensureFirebaseIdTokenFresh();
       if (!firebaseIdToken) throw new Error('LOGIN_REQUIRED');
-      const response = await fetch(API + '?fecha=' + encodeURIComponent(fecha), {
+      const response = await fetch(API + '&fecha=' + encodeURIComponent(fecha), {
         method: 'GET',
         headers: { Authorization: 'Bearer ' + firebaseIdToken },
         cache: 'no-store'

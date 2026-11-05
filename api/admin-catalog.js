@@ -11,6 +11,7 @@ const {
 const KEY='lasala-config-infra-v1';
 const TEST_DB='https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app';
 const GS_FEED_KEY='lasala-gs-partes-v1';
+const GS_CARGA_FEED_KEY='lasala-gs-carga-v1';
 const ROLES_KEY='lasala-roles-v1',USERS_KEY='lasala-users-v1';
 const BASE={
   sala1:['0A','0B','1A','1B','2A','2B','3A','3B','4A','4B','7A','7B','28','29','30','8','5'],
@@ -35,6 +36,32 @@ async function readGsSnapshot(date,accessToken){
   });
   if(!r.ok)throw new Error('No se puede leer la sincronización GS TEST');
   return r.json();
+}
+async function readGsCargaSnapshot(date,accessToken){
+  const url=TEST_DB+'/'+GS_CARGA_FEED_KEY+'/by-date/'+encodeURIComponent(date)+'.json';
+  const r=await fetch(url,{
+    headers:{Authorization:'Bearer '+accessToken},
+    cache:'no-store',signal:AbortSignal.timeout(10000)
+  });
+  if(!r.ok)throw new Error('No se puede leer el parte GS Carga TEST');
+  return r.json();
+}
+function validateGsCargaSnapshot(snapshot,date){
+  if(!snapshot||Array.isArray(snapshot)||typeof snapshot!=='object'||
+     !snapshot.metadata||snapshot.metadata.module!=='qc_carga'||
+     snapshot.metadata.fecha!==date||!snapshot.lineas||
+     Array.isArray(snapshot.lineas)||typeof snapshot.lineas!=='object')
+    throw httpError(502,'INVALID_GS_SNAPSHOT');
+  const entries=Object.entries(snapshot.lineas);
+  if(!entries.length||entries.length>5000||snapshot.metadata.lineCount!==entries.length)
+    throw httpError(502,'INVALID_GS_SNAPSHOT');
+  for(const [key,line] of entries){
+    if(!line||Array.isArray(line)||typeof line!=='object'||
+       line.id_linea_carga!==key||line.fecha!==date||
+       typeof line.id_carga!=='string'||typeof line.partida!=='string')
+      throw httpError(502,'INVALID_GS_SNAPSHOT');
+  }
+  return snapshot;
 }
 function bodyOf(req){
   let obj=req.body;
@@ -161,8 +188,21 @@ module.exports=async function handler(req,res){
     const [roles,accounts]=await Promise.all([
       readKey(ROLES_KEY,accessToken),readKey(USERS_KEY,accessToken)
     ]);
-    if(roles[actor]!=='ADMIN'||!validHash(accounts[actor]))
+    const gsCargaRead=req.method==='GET'&&req.query?.view==='gs-carga';
+    const role=roles[actor];
+    const authorized=gsCargaRead
+      ? ['ADMIN','TECNICO','CARGADOR'].includes(role)
+      : role==='ADMIN';
+    if(!authorized||!validHash(accounts[actor]))
       throw httpError(403,'FORBIDDEN');
+    if(gsCargaRead){
+      const date=req.query?.fecha;
+      if(!validIsoDate(date))throw httpError(400,'INVALID_DATE');
+      const snapshot=await readGsCargaSnapshot(date,accessToken);
+      if(snapshot==null)throw httpError(404,'GS_SNAPSHOT_NOT_FOUND');
+      const valid=validateGsCargaSnapshot(snapshot,date);
+      return res.status(200).json({metadata:valid.metadata,lineas:valid.lineas});
+    }
     if(req.method==='GET'&&req.query?.view==='gs'){
       const date=req.query?.date;
       if(!validIsoDate(date))throw httpError(400,'INVALID_DATE');
