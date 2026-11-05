@@ -27,8 +27,11 @@
     for(const [cat] of CATS){
       const wrap=active.querySelector('[data-qco-cat="'+cat+'"]');
       const picked=selectedOf(wrap);
-      if(cat==='sanidad')sum+=Math.min(100,sumHealth(wrap));
-      else if(picked.some(k=>k!=='ok'&&k!=='noEvaluada'))sum+=100;
+      // Sanidad pesa igual que los otros cuatro bloques: cualquier enfermedad
+      // activa aporta el 20 % global una sola vez. El desglose por enfermedad
+      // se conserva aparte y no reduce ni duplica el peso del bloque.
+      if(cat==='sanidad'&&picked.some(isDisease))sum+=100;
+      else if(cat!=='sanidad'&&picked.some(k=>k!=='ok'&&k!=='noEvaluada'))sum+=100;
     }
     return Math.floor(sum/CATS.length/10)*10;
   }
