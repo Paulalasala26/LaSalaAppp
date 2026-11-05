@@ -7505,11 +7505,10 @@ function renderControlChecklistHTML(seccion){
   // nada pendiente sin tener que fiarse solo del aviso naranja automático.
   const pendientesGlobal = leerColaOffline().length;
   const addAllowed=puedeCrearLineaControlQC(controlDiaSel);
-  const pdfInfoHTML = pdf ? `<div class="qc-list-pdf-existing"><i class="ti ti-file-check" aria-hidden="true"></i> ${escapar(pdf.nombre)} · <a href="${pdf.pdfB64}" target="_blank" rel="noopener noreferrer">Ver PDF</a></div>` : '';
+  const pdfInfoHTML = pdf ? `<div class="qc-list-pdf-existing"><i class="ti ti-file-check" aria-hidden="true"></i> PDF de referencia: ${escapar(pdf.nombre)} · <a href="${pdf.pdfB64}" target="_blank" rel="noopener noreferrer">Ver PDF</a></div>` : '';
   const syncHTML = pendientesGlobal>0 ? `<button type="button" class="qc-list-sync" onclick="sincronizarControlManual()"><i class="ti ti-refresh"></i> ${pendientesGlobal} pendiente${pendientesGlobal===1?'':'s'} · Sincronizar</button>` : '';
   const extraTunelHTML = seccion.key==='tunel' ? `
-    <label class="qc-list-option"><i class="ti ti-file-upload"></i> Añadir extensiones<input type="file" accept="application/pdf" onchange="handleExtensionesPdfInput(this)"></label>
-    <button type="button" class="qc-list-option" onclick="mostrarComprobarExtensiones()"><i class="ti ti-list-check"></i> Comprobar extensiones</button>` : '';
+    <label class="qc-list-option" title="Importa la fecha de salida, el invernadero y los tramos de calle desde el PDF de extensiones"><i class="ti ti-file-upload"></i> Asignar calles desde PDF<input type="file" accept="application/pdf" onchange="handleExtensionesPdfInput(this)"></label>` : '';
   const cardsHTML = listaMostrada.length===0
     ? `<div class="qc-list-none">${listaDia.length===0?'Sin partidas para este día.':((seccion.key==='carga'?controlCargaInvFiltro:controlTunelInvFiltro)?'No hay partidas para ese invernadero y día.':'No hay líneas con el estado seleccionado.')}</div>`
     : `<div class="qc-list-cards">${filas}</div>`;
