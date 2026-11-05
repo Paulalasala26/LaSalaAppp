@@ -7510,21 +7510,19 @@ function renderControlChecklistHTML(seccion){
   const extraTunelHTML = seccion.key==='tunel' ? `
     <label class="qc-list-option"><i class="ti ti-file-upload"></i> Añadir extensiones<input type="file" accept="application/pdf" onchange="handleExtensionesPdfInput(this)"></label>
     <button type="button" class="qc-list-option" onclick="mostrarComprobarExtensiones()"><i class="ti ti-list-check"></i> Comprobar extensiones</button>` : '';
-  const extraTunelGsHTML = seccion.key==='tunel' ? '<button type="button" class="qc-list-option" onclick="abrirGSTunelFeed()"><i class="ti ti-database"></i> Consultar parte GS</button>' : '';
-  const extraCargaHTML = seccion.key==='carga' ? '<button type="button" class="qc-list-option" onclick="abrirGSCargaFeed()"><i class="ti ti-database"></i> Consultar parte GS</button>' : '';
   const cardsHTML = listaMostrada.length===0
     ? `<div class="qc-list-none">${listaDia.length===0?'Sin partidas para este día.':((seccion.key==='carga'?controlCargaInvFiltro:controlTunelInvFiltro)?'No hay partidas para ese invernadero y día.':'No hay líneas con el estado seleccionado.')}</div>`
     : `<div class="qc-list-cards">${filas}</div>`;
   if(seccion.key==='tunel'||seccion.key==='carga'){
-    const pdfAction=addAllowed ? '<label class="qc-list-option"><i class="ti ti-file-type-pdf"></i> '+(pdf?'Sustituir PDF':'Insertar PDF')+
-      '<input type="file" accept="application/pdf" onchange="handleControlPdfInput(this,\''+seccion.key+'\','+controlDiaSel+')"></label>' : '';
+    const moreOptions=(extraTunelHTML||pdfInfoHTML)
+      ? '<details class="qc-list-more"><summary>Más opciones</summary><div class="qc-list-more-actions">'+extraTunelHTML+'</div>'+pdfInfoHTML+'</details>'
+      : '';
     const operativa=filtroInvHTML+
       '<div class="qc-list-tools"><div class="qc-list-search">'+
       '<input id="control-buscar-partida" type="search" placeholder="Buscar Nº partida" aria-label="Buscar número de partida" onkeydown="if(event.key===\'Enter\'){event.preventDefault();buscarControlPartida(\''+seccion.key+'\')}" />'+
       '<button type="button" onclick="buscarControlPartida(\''+seccion.key+'\')" aria-label="Buscar"><i class="ti ti-search"></i></button></div></div>'+
       syncHTML+
-      '<details class="qc-list-more"><summary>Más opciones</summary><div class="qc-list-more-actions">'+
-      pdfAction+extraTunelHTML+extraTunelGsHTML+extraCargaHTML+'</div>'+pdfInfoHTML+'</details>';
+      moreOptions;
     const total='<div class="qc-work-counter">'+listaInv.length+' partida'+(listaInv.length===1?'':'s')+
       ' · '+numCompletados+' inspeccionada'+(numCompletados===1?'':'s')+'</div>';
     const filtrosInspecciones='<div class="qc-work-list-tools">'+total+filtrosHTML+'</div>';
