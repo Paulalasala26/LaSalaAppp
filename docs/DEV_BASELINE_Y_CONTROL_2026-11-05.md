@@ -32,6 +32,8 @@ El commit de promoción tiene como padres el commit de TEST indicado y el estado
 
 El proyecto Vercel `la-sala-app-dev` generó el despliegue `dpl_7gZwWQXj2dq8HvoiEazotPGotkqN` para el commit de línea base y quedó en estado **READY**. Se comprobó que la aplicación DEV sirve la versión marcada `20261105-dev-baseline-52`, carga el tema DEV y referencia la base Firebase DEV.
 
+Al compartir repositorio, Vercel también creó una vista previa del commit de registro en el proyecto `la-sala-app-test` con `target=null`. La producción de TEST permaneció en `44a75bb` y READY; esa vista previa no es el dominio operativo de TEST.
+
 La validación anterior confirma publicación y separación de configuración. No constituye una aceptación funcional de escritura, trabajo sin conexión ni carga de fotos a SharePoint.
 
 ## Cómo registrar el trabajo desde esta fecha
