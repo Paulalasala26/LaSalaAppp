@@ -63,6 +63,20 @@ function validateGsCargaSnapshot(snapshot,date){
   }
   return snapshot;
 }
+function validateGsTunnelSnapshot(snapshot,date){
+  if(!Array.isArray(snapshot)||!snapshot.length||snapshot.length>5000)
+    throw httpError(502,'INVALID_GS_SNAPSHOT');
+  const lineas={};
+  for(const line of snapshot){
+    if(!line||Array.isArray(line)||typeof line!=='object'||
+       typeof line.gs_injerto_id!=='string'||!line.gs_injerto_id||
+       typeof line.gs_partida!=='string'||!line.gs_partida||
+       Object.prototype.hasOwnProperty.call(lineas,line.gs_injerto_id))
+      throw httpError(502,'INVALID_GS_SNAPSHOT');
+    lineas[line.gs_injerto_id]=line;
+  }
+  return {metadata:{fecha:date,module:'qc_tunel',lineCount:snapshot.length},lineas};
+}
 function bodyOf(req){
   let obj=req.body;
   if(typeof obj==='string') {try{obj=JSON.parse(obj);}catch(_){throw httpError(400,'INVALID_BODY');}}
@@ -189,10 +203,13 @@ module.exports=async function handler(req,res){
       readKey(ROLES_KEY,accessToken),readKey(USERS_KEY,accessToken)
     ]);
     const gsCargaRead=req.method==='GET'&&req.query?.view==='gs-carga';
+    const gsTunnelRead=req.method==='GET'&&req.query?.view==='gs-tunel';
     const role=roles[actor];
     const authorized=gsCargaRead
       ? ['ADMIN','TECNICO','CARGADOR'].includes(role)
-      : role==='ADMIN';
+      : gsTunnelRead
+        ? ['ADMIN','TECNICO'].includes(role)
+        : role==='ADMIN';
     if(!authorized||!validHash(accounts[actor]))
       throw httpError(403,'FORBIDDEN');
     if(gsCargaRead){
@@ -202,6 +219,14 @@ module.exports=async function handler(req,res){
       if(snapshot==null)throw httpError(404,'GS_SNAPSHOT_NOT_FOUND');
       const valid=validateGsCargaSnapshot(snapshot,date);
       return res.status(200).json({metadata:valid.metadata,lineas:valid.lineas});
+    }
+    if(gsTunnelRead){
+      const date=req.query?.fecha;
+      if(!validIsoDate(date))throw httpError(400,'INVALID_DATE');
+      const snapshot=await readGsSnapshot(date,accessToken);
+      if(snapshot==null)throw httpError(404,'GS_SNAPSHOT_NOT_FOUND');
+      const valid=validateGsTunnelSnapshot(snapshot,date);
+      return res.status(200).json(valid);
     }
     if(req.method==='GET'&&req.query?.view==='gs'){
       const date=req.query?.date;

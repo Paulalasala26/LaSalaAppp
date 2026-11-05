@@ -1,7 +1,8 @@
 'use strict';
 /* Consulta de solo lectura del snapshot diario de GS desde QC Carga. */
 (function () {
-  const API = '/api/admin-catalog?view=gs-carga';
+  const API = '/api/admin-catalog?view=';
+  let feedType = 'carga';
   let backdrop = null;
   let snapshot = null;
   let visibleLimit = 40;
@@ -43,8 +44,10 @@
     snapshot = null;
   }
 
-  function open() {
-    if (!['ADMIN', 'TECNICO', 'CARGADOR'].includes(currentUserRole)) {
+  function open(type) {
+    feedType = type === 'tunel' ? 'tunel' : 'carga';
+    const allowedRoles = feedType === 'tunel' ? ['ADMIN', 'TECNICO'] : ['ADMIN', 'TECNICO', 'CARGADOR'];
+    if (!allowedRoles.includes(currentUserRole)) {
       if (typeof showToast === 'function') showToast('No tienes permiso para consultar el parte GS.');
       return;
     }
@@ -58,7 +61,7 @@
     dialog.setAttribute('aria-labelledby', 'gscf-title');
 
     const header = node('header', null, 'gscf-header');
-    const title = node('h2', 'Datos GS · QC Carga');
+    const title = node('h2', feedType === 'tunel' ? 'Datos GS · QC Túnel' : 'Datos GS · QC Carga');
     title.id = 'gscf-title';
     const closeButton = node('button', 'Cerrar', 'gscf-close');
     closeButton.type = 'button';
@@ -108,7 +111,7 @@
     try {
       await ensureFirebaseIdTokenFresh();
       if (!firebaseIdToken) throw new Error('LOGIN_REQUIRED');
-      const response = await fetch(API + '&fecha=' + encodeURIComponent(fecha), {
+      const response = await fetch(API + feedType + '&fecha=' + encodeURIComponent(fecha), {
         method: 'GET',
         headers: { Authorization: 'Bearer ' + firebaseIdToken },
         cache: 'no-store'
@@ -118,7 +121,8 @@
       if (response.status === 401) throw new Error('LOGIN_REQUIRED');
       if (response.status === 403) throw new Error('FORBIDDEN');
       if (!response.ok) throw new Error(data.error || 'SERVICE_UNAVAILABLE');
-      if (!data.metadata || data.metadata.fecha !== fecha || data.metadata.module !== 'qc_carga' ||
+      const expectedModule = feedType === 'tunel' ? 'qc_tunel' : 'qc_carga';
+      if (!data.metadata || data.metadata.fecha !== fecha || data.metadata.module !== expectedModule ||
           !data.lineas || typeof data.lineas !== 'object') throw new Error('INVALID_RESPONSE');
       snapshot = data;
       visibleLimit = 40;
@@ -138,17 +142,23 @@
   }
 
   function renderResults(data, status, results, filterText) {
-    const lines = Object.values(data.lineas).sort((a, b) =>
-      String(a.hora || '').localeCompare(String(b.hora || '')) ||
-      String(a.id_carga || '').localeCompare(String(b.id_carga || '')) ||
-      String(a.id_linea_carga || '').localeCompare(String(b.id_linea_carga || ''))
+    const lines = Object.values(data.lineas).sort((a, b) => feedType === 'tunel'
+      ? String(a.gs_partida || '').localeCompare(String(b.gs_partida || ''), 'es', {numeric:true})
+      : String(a.hora || '').localeCompare(String(b.hora || '')) ||
+        String(a.id_carga || '').localeCompare(String(b.id_carga || '')) ||
+        String(a.id_linea_carga || '').localeCompare(String(b.id_linea_carga || ''))
     );
     const queryText = String(filterText || '').trim().toLocaleLowerCase('es');
-    const filtered = queryText ? lines.filter(line => [line.id_carga, line.partida,
-      line.cliente_carga, line.variedad, line.invernadero, line.ubicacion_pdf]
-      .some(value => String(value || '').toLocaleLowerCase('es').includes(queryText))) : lines;
+    const filtered = queryText ? lines.filter(line => {
+      const fields = feedType === 'tunel'
+        ? [line.gs_injerto_id, line.gs_partida, line.cliente, line.PAR_NMSM, line.tipo_siembra, line.invernaderos_gs]
+        : [line.id_carga, line.partida, line.cliente_carga, line.variedad, line.invernadero, line.ubicacion_pdf];
+      return fields.some(value => String(value || '').toLocaleLowerCase('es').includes(queryText));
+    }) : lines;
     const trays = lines.reduce((total, line) => total + (Number(line.bandejas) || 0), 0);
-    status.textContent = `${data.metadata.lineCount} líneas · ${data.metadata.loadCount} cargas · ${trays.toLocaleString('es-ES')} bandejas`;
+    status.textContent = feedType === 'tunel'
+      ? `${data.metadata.lineCount} partidas · ${trays.toLocaleString('es-ES')} bandejas`
+      : `${data.metadata.lineCount} líneas · ${data.metadata.loadCount} cargas · ${trays.toLocaleString('es-ES')} bandejas`;
     results.replaceChildren();
 
     const search = node('input', null, 'gscf-search');
@@ -161,9 +171,17 @@
     for (const line of current) {
       const card = node('article', null, 'gscf-card');
       const cardHead = node('div', null, 'gscf-card-head');
-      cardHead.append(node('strong', `Partida ${line.partida || '—'}`), node('span', `${line.bandejas ?? '—'} bandejas`));
+      const partida = feedType === 'tunel' ? line.gs_partida : line.partida;
+      cardHead.append(node('strong', `Partida ${partida || '—'}`), node('span', `${line.bandejas ?? '—'} bandejas`));
       const details = node('div', null, 'gscf-card-details');
-      const values = [
+      const values = feedType === 'tunel' ? [
+        ['ID injerto GS', line.gs_injerto_id], ['Cliente', line.cliente],
+        ['Injerto', line.PAR_NMSM], ['Tipo de siembra', line.tipo_siembra],
+        ['Código de siembra', line.id_tipo_siembra], ['Plantas', line.plantas],
+        ['Fecha de entrada', line.fecha_entrada], ['Fecha prevista', line.fecha_prevista],
+        ['Salida real', line.fecha_salida_real], ['Invernaderos GS', line.invernaderos_gs],
+        ['Estado GS', line.estado_gs], ['Observaciones', line.observaciones]
+      ] : [
         ['Carga', line.id_carga], ['Cliente', line.cliente_carga || line.codigo_cliente_carga],
         ['Variedad', line.variedad], ['Hora', line.hora],
         ['Invernadero', line.invernadero ? `${line.id_invernadero || ''} · ${line.invernadero}` : line.id_invernadero],
@@ -199,5 +217,6 @@
     }
   }
 
-  window.abrirGSCargaFeed = open;
+  window.abrirGSCargaFeed = () => open('carga');
+  window.abrirGSTunelFeed = () => open('tunel');
 })();
