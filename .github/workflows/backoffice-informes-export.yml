@@ -1,0 +1,54 @@
+name: Backoffice informes export (isolated)
+
+on:
+  push:
+    branches:
+      - feat/backoffice-informes-export-20261104
+    paths:
+      - api/admin-qc-dashboard.js
+      - lib/admin-informes-export.js
+      - lib/admin-riego-read.js
+      - lib/admin-riego-read.test.cjs
+      - lib/admin-informes-export.test.cjs
+      - lib/admin-informes-api.test.cjs
+      - lib/admin-informes-ui.test.cjs lib/admin-riego-read.test.cjs
+      - admin/informes.html
+      - admin/informes.js
+      - admin/*.html
+      - .github/workflows/backoffice-informes-export.yml
+  pull_request:
+    branches:
+      - test/v1.0
+    paths:
+      - api/admin-qc-dashboard.js
+      - lib/admin-informes-export.js
+      - lib/admin-riego-read.js
+      - lib/admin-riego-read.test.cjs
+      - lib/admin-informes-export.test.cjs
+      - lib/admin-informes-api.test.cjs
+      - lib/admin-informes-ui.test.cjs
+      - admin/informes.html
+      - admin/informes.js
+      - admin/*.html
+      - .github/workflows/backoffice-informes-export.yml
+
+permissions:
+  contents: read
+
+jobs:
+  informes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax (no Firebase access)
+        run: |
+          node --check api/admin-qc-dashboard.js
+          node --check lib/admin-informes-export.js
+          node --check lib/admin-riego-read.js
+          node --check admin/informes.js
+      - name: Unit tests (fixtures only)
+        run: node --test lib/admin-informes-export.test.cjs lib/admin-informes-api.test.cjs lib/admin-informes-ui.test.cjs lib/admin-riego-read.test.cjs

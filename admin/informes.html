@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#1558a0">
+<title>ViguerAPP · Backoffice · Informes</title>
+<link rel="icon" type="image/png" href="../icon-192.png?v=ls-20261029">
+<link rel="stylesheet" href="./styles.css"><link rel="stylesheet" href="./catalog.css">
+<style>
+.inf-main{max-width:1280px}.inf-panel{border:1px solid #d1e0ed;border-radius:12px;background:white;padding:18px;margin:14px 0}
+.inf-fields{display:grid;grid-template-columns:repeat(3,minmax(170px,1fr));gap:12px}
+.inf-fields label{display:flex;flex-direction:column;gap:6px;font-size:12px;color:#315a7b;font-weight:700}
+.inf-fields input,.inf-fields select{height:40px;border:1px solid #bad1e6;background:#fff;border-radius:8px;color:#164970;padding:8px;width:100%;min-width:0}
+.inf-note{font-size:13px;line-height:1.6;color:#526d85;margin:12px 0}
+.inf-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:15px}
+.inf-feedback,.inf-ready{border:1px solid #cbdfea;background:#f2f8ff;border-radius:9px;padding:12px;margin:12px 0}
+.inf-feedback.error{border-color:#edc2c2;background:#fff3f3;color:#913535}
+.inf-ready a{display:inline-block;padding:10px 14px;border-radius:8px;background:#1558a0;color:#fff;text-decoration:none;font-weight:700}
+.inf-ready p{font-size:12px;color:#425c75;line-height:1.5;margin:7px 0}
+.inf-ready .partial{color:#9a4b00;font-weight:750}
+@media(max-width:940px){.inf-fields{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:590px){.inf-fields{grid-template-columns:1fr}.inf-panel{padding:12px}}
+</style>
+<script src="./informes.js" defer></script>
+</head>
+<body>
+<div id="access-gate" class="access-gate" role="status" aria-live="polite">
+ <div class="access-panel"><div class="brand-mark"><img src="../icon-192.png?v=ls-20261029" alt=""></div>
+  <h1 id="gate-title">Comprobando acceso</h1>
+  <p id="gate-description">Verificando sesión de administrador…</p>
+  <a href="./" class="primary-link" id="gate-link" hidden>Volver al Backoffice</a>
+ </div>
+</div>
+<div class="shell" id="workspace" hidden>
+ <aside class="sidebar" aria-label="Navegación Backoffice">
+  <div class="brand"><div class="brand-mark"><img src="../icon-192.png?v=ls-20261029" alt=""></div><div><strong>La Sala</strong><span>Backoffice</span></div></div>
+  <nav class="sidebar-nav" aria-label="Secciones del Backoffice">
+  <div class="sidebar-label menu-label">GENERAL</div>
+  <a class="nav-item" href="./"><span class="nav-symbol">◉</span> Usuarios</a>
+  <a class="nav-item" href="./historico.html"><span class="nav-symbol">◷</span> Histórico</a>
+  <div class="sidebar-label menu-label">RIEGO</div>
+  <a class="nav-item" href="./catalog.html#salas" data-catalog-nav="rooms"><span class="nav-symbol">◧</span> Salas</a>
+  <a class="nav-item" href="./catalog.html#invernaderos" data-catalog-nav="greenhouses"><span class="nav-symbol">▦</span> Invernaderos</a>
+  <a class="nav-item" href="./options.html"><span class="nav-symbol">≡</span> Opciones de riego</a>
+  <a class="nav-item" href="./registros.html"><span class="nav-symbol">▤</span> Registros de riego</a>
+  <div class="sidebar-label menu-label">CONTROL DE CALIDAD</div>
+  <a class="nav-item" href="./control.html"><span class="nav-symbol">◫</span> Registros QC</a>
+  <a class="nav-item" href="./qc-dashboard.html"><span class="nav-symbol">▥</span> Panel QC</a>
+  <a class="nav-item" href="./qc-criterios.html"><span class="nav-symbol">≡</span> Criterios históricos</a>
+  <a class="nav-item" href="./gs.html"><span class="nav-symbol">▣</span> Partidas GS · PDF</a>
+  <div class="sidebar-label menu-label">OTROS MÓDULOS</div>
+  <a class="nav-item" href="./partidas.html"><span class="nav-symbol">▦</span> Partidas</a>
+  <a class="nav-item" href="./plaguicidas.html"><span class="nav-symbol">◈</span> Plaguicidas</a>
+  <a class="nav-item" href="./especificos.html"><span class="nav-symbol">◎</span> Específicos</a>
+  <a class="nav-item" href="./tareas.html"><span class="nav-symbol">☷</span> Tareas</a>
+  <a class="nav-item" href="./avisos.html"><span class="nav-symbol">♧</span> Avisos</a>
+  <a class="nav-item" href="./mantenimiento.html"><span class="nav-symbol">◇</span> Mantenimiento</a>
+  <a class="nav-item selected" href="./informes.html" aria-current="page"><span class="nav-symbol">▤</span> Informes</a>
+</nav>
+  <div class="sidebar-footer"><a href="../">← Volver a ViguerAPP</a></div>
+ </aside>
+ <div class="main-area">
+  <header class="topbar"><div class="breadcrumbs">Backoffice <span>/</span> Informes</div><div class="topbar-right"><span id="session-user" class="session-user">Administrador</span></div></header>
+  <main class="content inf-main">
+<div class="page-head"><h1>Informes e impresiones</h1></div>
+<p class="inf-note">Informes administrativos de solo lectura. Las exportaciones nunca guardan ni cambian datos. Los resultados limitados se identifican como parciales.</p>
+<section class="inf-panel"><form id="inf-form" autocomplete="off">
+<div class="inf-fields"><label data-field="section">Informe<select id="inf-section"><option value="qc">Control de calidad</option><option value="partidas">Partidas (QC)</option><option value="riego">Registros de Riego</option><option value="plaguicidas">Plaguicidas</option><option value="especificos">Específicos</option><option value="tareas">Tareas operativas</option><option value="avisos">Avisos retenidos</option><option value="mantenimiento">Mantenimiento</option></select></label>
+<label data-field="from">Desde<input id="inf-from" type="date" min="2026-06-15"></label>
+<label data-field="to">Hasta<input id="inf-to" type="date" min="2026-06-15"></label>
+<label data-field="inv">Invernadero<input id="inf-inv" type="text" maxlength="16"></label>
+<label data-field="qc-type">Tipo QC<select id="inf-qc-type"><option value="todos">Todos</option><option value="tunel">Túnel</option><option value="carga">Carga</option></select></label>
+<label data-field="partida">Partida<input id="inf-partida" type="search" maxlength="40"></label>
+<label data-field="alert-type">Tipo de aviso<select id="inf-alert-type"><option value="todos">Todos</option><option value="problema_ejecucion">Problemas</option><option value="otros">Otros</option></select></label>
+<label data-field="vista">Vista<select id="inf-vista"></select></label>
+<label data-field="estado">Estado<select id="inf-estado"></select></label>
+<label data-field="origen">Origen<select id="inf-origen"><option value="todos">Todos</option><option value="manual">Manual</option><option value="riego">Riego</option><option value="especificos">Específicos</option><option value="pistola">Pistola</option><option value="sin_origen">Sin origen</option></select></label>
+<label data-field="asignado">Asignado a<input id="inf-asignado" type="search" maxlength="60"></label>
+<label data-field="destinatario">Destinatario<input id="inf-destinatario" type="search" maxlength="60"></label>
+<label data-field="buscar">Buscar<input id="inf-buscar" type="search" maxlength="80"></label></div>
+<p id="inf-scope" class="inf-note" aria-live="polite"></p>
+<div class="inf-actions">
+<button id="inf-csv" type="button" class="button primary">Preparar Excel (CSV)</button>
+<button id="inf-html" type="button" class="button ghost">Preparar impresión / PDF</button>
+</div></form></section>
+<p id="inf-feedback" class="inf-feedback" role="status" aria-live="polite" hidden></p>
+<section id="inf-ready" class="inf-ready" hidden aria-label="Informe preparado">
+<a id="inf-file-link" href="#" rel="noopener noreferrer">Abrir informe</a>
+<p id="inf-count"></p><p id="inf-hint">Para imprimir o guardar como PDF, abre el documento y usa Imprimir del navegador.</p>
+</section>
+</main>
+ </div>
+</div>
+</body></html>
