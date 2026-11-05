@@ -308,7 +308,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 @media(max-width:510px){.mant-cabecera{align-items:center}.mant-cabecera h2{font-size:15px}.mant-cabecera .mant-btn{padding:7px 9px}.mant-grid{grid-template-columns:1fr}.mant-herramientas select{max-width:132px}.mant-form{padding:10px}.mant-ticket{padding:10px}}
 
 </style>
-<link rel="stylesheet" href="assets/qc-sync-global.css?v=114">
+<link rel="stylesheet" href="assets/qc-sync-global.css?v=115">
 <!-- Diagnóstico RTDB opcional: activo únicamente con ?fbdiag=1 en TEST -->
 <script src="assets/firebase-diagnostics.js"></script>
 <link rel="stylesheet" href="assets/control-qc-operativo.css?v=112">
@@ -323,7 +323,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 <script src="assets/qc-offline-operarios-store.js" defer></script>
 <script src="assets/qc-offline-operarios-photos.js?v=115" defer></script>
 <script src="assets/qc-offline-operarios-drafts.js?v=113" defer></script>
-<script src="assets/qc-sync-global.js?v=117" defer></script>
+<script src="assets/qc-sync-global.js?v=118" defer></script>
 </head>
 <body>
 
@@ -380,13 +380,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
   <div class="topbar">
     <div class="topbar-brand"><img class="app-brand-icon" src="icon-192.png?v=ls-20261029" alt="">ViguerAPP</div>
     <div class="topbar-right">
-      <div id="qc-global-sync-anchor"></div>
       <a id="admin-settings-link" class="logout-btn" href="/admin/" style="display:none" aria-label="Abrir Backoffice de usuarios" title="Administración de usuarios"><i class="ti ti-settings" style="font-size:22px" aria-hidden="true"></i></a>
       <button type="button" id="header-avisos-btn" class="logout-btn header-avisos-btn" style="display:none" onclick="mostrarModuloAvisos()" aria-label="Abrir Avisos" title="Avisos"><i class="ti ti-bell" style="font-size:22px" aria-hidden="true"></i><span id="header-avisos-dot" class="header-avisos-dot" aria-hidden="true" hidden></span></button>
       <button type="button" class="logout-btn" onclick="doLogout()" aria-label="Cerrar sesión" title="Cerrar sesión"><i class="ti ti-door-exit" style="font-size:23px" aria-hidden="true"></i></button>
     </div>
   </div>
-  <div id="qc-global-sync-panel"></div>
   <!-- HOME -->
   <div id="page-home" class="pg" style="display:block">
     <div id="page-home-inner" style="max-width:none;width:100%;margin:0 auto;padding:2rem clamp(1.25rem,4vw,3rem)">
@@ -1378,9 +1376,10 @@ async function actualizarCampanaAvisos(){
   const dot=document.getElementById('header-avisos-dot');
   if(!btn||!dot)return;
   const usuario=currentUser;
-  const habilitado=!!usuario&&(currentUserRole==='ADMIN'||currentUserRole==='TECNICO');
+  const habilitado=!!usuario&&(currentUserRole==='ADMIN'||currentUserRole==='TECNICO'||currentUserRole==='CARGADOR');
   btn.style.display=habilitado?'grid':'none';
   if(!habilitado){dot.hidden=true;btn.title='Avisos';btn.setAttribute('aria-label','Abrir Avisos');return;}
+  if(currentUserRole==='CARGADOR'){dot.hidden=true;btn.title='Sincronización QC';btn.setAttribute('aria-label','Abrir sincronización QC');return;}
   try{
     const r=await window.storage.get(AVISOS_USUARIO_KEY);
     if(currentUser!==usuario||!(currentUserRole==='ADMIN'||currentUserRole==='TECNICO'))return;
@@ -1521,10 +1520,11 @@ async function alternarPushDesdeModuloAvisos(){
   await actualizarEstadoPushModuloAvisos();
 }
 function mostrarModuloAvisos(){
-  if(currentUserRole!=='TECNICO'&&currentUserRole!=='ADMIN')return;
+  if(currentUserRole!=='TECNICO'&&currentUserRole!=='ADMIN'&&currentUserRole!=='CARGADOR')return;
+  const esCargador=currentUserRole==='CARGADOR';
   const esAdmin=currentUserRole==='ADMIN';
   const esVigueras=esAdmin&&currentUser==='VIGUERAS';
-  const accionesHTML=esAdmin ? (esVigueras ? `
+  const accionesHTML=esCargador ? '' : esAdmin ? (esVigueras ? `
           <section class="avisos-modulo-seccion" aria-label="Gestión de riego">
             <div class="avisos-modulo-titulo">Gestión de riego</div>
             <button type="button" class="avisos-modulo-boton" onclick="showPropuestasRiegoModule()">
@@ -1562,6 +1562,12 @@ function mostrarModuloAvisos(){
       </header>
       <main class="control-ui-content">
         <div class="avisos-modulo-grupo">
+          ${esCargador ? `
+          <section class="avisos-modulo-seccion" aria-label="Sincronización QC">
+            <div class="avisos-modulo-titulo">Sincronización QC</div>
+            <div id="avisos-sync-anchor"></div>
+            <div id="avisos-sync-panel"></div>
+          </section>` : `
           <section class="avisos-modulo-seccion" aria-label="Notificaciones">
             <div class="avisos-modulo-titulo">Notificaciones</div>
             <button type="button" class="avisos-modulo-boton" onclick="alternarPushDesdeModuloAvisos()">
@@ -1572,13 +1578,16 @@ function mostrarModuloAvisos(){
               <i class="ti ti-inbox" aria-hidden="true"></i>
               <span>Consultar avisos ${esAdmin?'<span id="notificaciones-admin-badge"></span>':''}</span>
             </button>
+            <div id="avisos-sync-anchor"></div>
+            <div id="avisos-sync-panel"></div>
           </section>
-          ${accionesHTML}
+          ${accionesHTML}`}
         </div>
       </main>
     </div>`;
   overlay.style.display='flex';
-  actualizarEstadoPushModuloAvisos();
+  void window.QCGlobalSync?.refresh?.();
+  if(!esCargador)actualizarEstadoPushModuloAvisos();
   if(esAdmin){
     actualizarBadgeNotificacionesAdmin();
     if(esVigueras)actualizarBadgePropuestasRiego();

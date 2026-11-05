@@ -34,20 +34,25 @@
  }
  function refsLabel(items,tipo){return items.filter(x=>x?.ref?.tipo===tipo).length;}
  function show(){
-  const anchor=$('qc-global-sync-anchor'),host=$('qc-global-sync-panel');
+  const anchor=$('avisos-sync-anchor'),host=$('avisos-sync-panel');
   if(!anchor||!host)return;
   const state=snapshot();
   anchor.replaceChildren();host.replaceChildren();
   if(!user||!validSession()||!ALLOWED.has(role))return;
-  const toggle=text('button',null,'qc-sync-badge');
+  const toggle=text('button',null,'avisos-modulo-boton qc-sync-trigger');
   toggle.type='button';
-  toggle.setAttribute('aria-label',state.total+' elementos QC pendientes de sincronizar');
+  toggle.setAttribute('aria-label',state.total?
+    state.total+' elementos QC por sincronizar'+(state.photos.length?' · '+state.photos.length+' fotos pendientes':''):
+    'Sin pendientes de sincronización QC');
   toggle.setAttribute('aria-expanded',String(opened));
   const glyph=document.createElement('i');
   glyph.className='ti '+(lastErrors.length?'ti-alert-triangle':'ti-upload');
   glyph.setAttribute('aria-hidden','true');
-  toggle.append(glyph,text('span',state.total?String(state.total)+' por sincronizar':
-    lastErrors.length?'Revisar sincronización':'Sin pendientes'));
+  toggle.append(glyph,text('span',state.total?String(state.total)+' por sincronizar':'Sin pendientes'));
+  if(state.photos.length){
+    const dot=text('span');dot.className='qc-sync-dot';dot.setAttribute('aria-hidden','true');
+    toggle.append(dot);
+  }
   toggle.addEventListener('click',()=>{opened=!opened;show();});
   anchor.append(toggle);
   if(!opened)return;
@@ -149,8 +154,8 @@
  function stop(){
   runId++;user='';role='';opened=false;lastErrors=[];
   if(interval){clearInterval(interval);interval=null;}
-  $('qc-global-sync-anchor')?.replaceChildren();
-  $('qc-global-sync-panel')?.replaceChildren();
+  $('avisos-sync-anchor')?.replaceChildren();
+  $('avisos-sync-panel')?.replaceChildren();
  }
  window.addEventListener('online',()=>{void refresh(true);});
  window.addEventListener('offline',show);
