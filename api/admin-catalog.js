@@ -64,18 +64,37 @@ function validateGsCargaSnapshot(snapshot,date){
   return snapshot;
 }
 function validateGsTunnelSnapshot(snapshot,date){
-  if(!Array.isArray(snapshot)||!snapshot.length||snapshot.length>5000)
+  let entries;
+  if(Array.isArray(snapshot)){
+    entries=snapshot.map(line=>[null,line]);
+  }else if(snapshot&&typeof snapshot==='object'){
+    let source=snapshot;
+    for(const key of ['partes','lineas','items','records','data']){
+      if(source[key]!=null){source=source[key];break;}
+    }
+    if(Array.isArray(source)){
+      entries=source.map(line=>[null,line]);
+    }else if(source&&typeof source==='object'&&!Array.isArray(source)){
+      entries=Object.entries(source).filter(([key])=>!['metadata','meta'].includes(key));
+    }
+  }
+  if(!entries||entries.length>5000)
     throw httpError(502,'INVALID_GS_SNAPSHOT');
   const lineas={};
-  for(const line of snapshot){
-    if(!line||Array.isArray(line)||typeof line!=='object'||
-       typeof line.gs_injerto_id!=='string'||!line.gs_injerto_id||
-       typeof line.gs_partida!=='string'||!line.gs_partida||
-       Object.prototype.hasOwnProperty.call(lineas,line.gs_injerto_id))
+  for(const [fallbackId,line] of entries){
+    if(!line||Array.isArray(line)||typeof line!=='object')
       throw httpError(502,'INVALID_GS_SNAPSHOT');
-    lineas[line.gs_injerto_id]=line;
+    const rawId=line.gs_injerto_id??line.id??fallbackId;
+    const rawPartida=line.gs_partida??line.partida;
+    if(rawId==null||String(rawId).trim()===''||rawPartida==null||
+       String(rawPartida).trim()==='')
+      throw httpError(502,'INVALID_GS_SNAPSHOT');
+    const id=String(rawId).trim();
+    if(Object.prototype.hasOwnProperty.call(lineas,id))
+      throw httpError(502,'INVALID_GS_SNAPSHOT');
+    lineas[id]={...line,gs_injerto_id:id,gs_partida:String(rawPartida).trim()};
   }
-  return {metadata:{fecha:date,module:'qc_tunel',lineCount:snapshot.length},lineas};
+  return {metadata:{fecha:date,module:'qc_tunel',lineCount:entries.length},lineas};
 }
 function bodyOf(req){
   let obj=req.body;

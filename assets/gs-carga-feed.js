@@ -132,7 +132,9 @@
         GS_SNAPSHOT_NOT_FOUND: 'No hay un parte GS sincronizado para esa fecha.',
         LOGIN_REQUIRED: 'La sesión ha caducado. Vuelve a iniciar sesión e inténtalo de nuevo.',
         FORBIDDEN: 'Tu usuario no tiene permiso para consultar estos datos.',
-        INVALID_RESPONSE: 'La respuesta del servidor no tiene el formato esperado.'
+        INVALID_RESPONSE: 'La respuesta del servidor no tiene el formato esperado.',
+        INVALID_GS_SNAPSHOT: 'El snapshot de Túnel existe, pero tiene un formato de datos no reconocido.',
+        SERVICE_UNAVAILABLE: 'No se pudo leer el snapshot de Túnel desde Firebase TEST.'
       };
       status.textContent = messages[error.message] || 'No se pudo consultar GS. Inténtalo de nuevo.';
     } finally {
