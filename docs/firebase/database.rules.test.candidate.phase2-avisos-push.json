@@ -75,6 +75,10 @@
     "lasala-riego-authority-v3": {
       ".read": false,
       ".write": false
+    },
+    "lasala-revocation-barrier-demo-v3": {
+      ".read": false,
+      ".write": false
     }
   }
 }
