@@ -273,15 +273,9 @@
   requireSession();
   if(!(await remoteState(original,token,digest))){
    requireSession();
-   // Recuperar un intento anterior exige DOS decisiones: GET remoto por UUID
-   // y autorización explícita para reutilizar exactamente la misma foto.
-   // El servidor usa nombre inmutable UUID+hash y comprueba los bytes:
-   // si SharePoint la tenía aunque faltase índice Firebase, la recupera.
-   if(original.status==='ENVIO_INCIERTO'&&!confirm(
-    'No hay confirmación de esta foto en el índice. Puede existir ya en SharePoint. '+
-    '¿Reintentar la MISMA fotografía y el MISMO identificador? '+
-    'El servidor comprobará el archivo existente para evitar duplicados.'))
-    throw Error('Envío anterior aún sin confirmar. Foto local conservada, sin reenvío.');
+   // Reutilizar el UUID original es idempotente: el servidor comprueba el
+   // nombre y el hash del archivo existente y nunca lo sobrescribe si difiere.
+   // La confirmación única del botón Sincronizar todo autoriza este reintento.
    // Sólo un POST por intento y siempre tras un GET remoto.
    const imageData=await asDataUrl(original.blob);
    if(!navigator.onLine)throw Error('Sin conexión. Foto conservada.');
