@@ -7256,7 +7256,9 @@ function calleLabelDeCheckControl(c, escapar, sinAsignarHTML){
     const t = calleTramoDeCarga(c);
     return t ? `INV ${escapar(t.invId)} — ${escapar(t.label)}` : sinAsignarHTML;
   }
-  return c.invId ? `INV ${escapar(c.invId)} — ${escapar(formatTramosLabel(c.invId, (c.tramos&&c.tramos.length)?c.tramos:[{desde:c.calleDesde,hasta:c.calleHasta}]))}` : sinAsignarHTML;
+  if(c.invId) return `INV ${escapar(c.invId)} — ${escapar(formatTramosLabel(c.invId, (c.tramos&&c.tramos.length)?c.tramos:[{desde:c.calleDesde,hasta:c.calleHasta}]))}`;
+  if(c.invernaderosGS) return `Invernaderos GS ${escapar(c.invernaderosGS)}`;
+  return sinAsignarHTML;
 }
 function mostrarListadoPartidasControl(titulo, lineas){
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -8584,7 +8586,7 @@ function qcAltaFechaContextoValida(ctx){
 function qcAltaCatalogo(){
   const visto=new Set(),pares=[];
   controlChecksData.forEach(c=>{
-    if(!c || !(c.origenPdf===true ||
+    if(!c || !(c.origenPdf===true || c.origenGS?.fuente==='gs' ||
       (c.origenAltaQC?.fuente==='manual' && c.origenAltaQC?.catalogoControlado===true)))return;
     let cliente=String(c.cliente||'').trim();
     let variedad=String(c.variedad||'').trim();
