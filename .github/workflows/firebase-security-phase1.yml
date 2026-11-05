@@ -111,6 +111,9 @@ jobs:
       - name: Compare global and per-INV CAS contention (no network)
         run: node --test docs/firebase/prototype-cas-scope-comparison-v3.test.cjs
 
+      - name: Resumable cross-INV revocation barrier regression (pure, no network)
+        run: node --test docs/firebase/prototype-revocation-barrier-v3.test.cjs
+
       - name: Isolated Firebase REST ETag and migration regression
         run: node --test docs/firebase/prototype-avisos-push-store-v2.test.cjs
 
