@@ -111,7 +111,7 @@
     try {
       await ensureFirebaseIdTokenFresh();
       if (!firebaseIdToken) throw new Error('LOGIN_REQUIRED');
-      const response = await fetch(API + feedType + '&fecha=' + encodeURIComponent(fecha), {
+      const response = await fetch(API + 'gs-' + feedType + '&fecha=' + encodeURIComponent(fecha), {
         method: 'GET',
         headers: { Authorization: 'Bearer ' + firebaseIdToken },
         cache: 'no-store'
