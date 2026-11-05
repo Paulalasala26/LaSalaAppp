@@ -147,6 +147,12 @@ jobs:
           CI: 'true'
         run: npm run test:emulator:riego-gateway
 
+      - name: Durable cross-INV revocation barrier on official demo RTDB emulator
+        working-directory: docs/firebase
+        env:
+          CI: 'true'
+        run: npm run test:emulator:revocation-barrier
+
       - name: Backend JWT and ETag store on official demo RTDB emulator
         working-directory: docs/firebase
         env:
