@@ -39,22 +39,23 @@
   const state=snapshot();
   anchor.replaceChildren();host.replaceChildren();
   if(!user||!validSession()||!ALLOWED.has(role))return;
-  if(!state.total&&!lastErrors.length){opened=false;return;}
   const toggle=text('button',null,'qc-sync-badge');
   toggle.type='button';
   toggle.setAttribute('aria-label',state.total+' elementos QC pendientes de sincronizar');
   toggle.setAttribute('aria-expanded',String(opened));
   toggle.append(text('span',lastErrors.length?'!':'↥'),
-    text('span',state.total?String(state.total)+' por sincronizar':'Revisar datos locales'));
+    text('span',state.total?String(state.total)+' por sincronizar':
+      lastErrors.length?'Revisar sincronización':'Sin pendientes'));
   toggle.addEventListener('click',()=>{opened=!opened;show();});
   anchor.append(toggle);
   if(!opened)return;
   const panel=text('section',null,'qc-sync-panel');
   panel.setAttribute('aria-label','Sincronización de Control de Calidad');
   panel.append(text('h3','Sincronización pendiente'));
-  panel.append(text('p',(navigator.onLine===false?'Sin conexión. Todo permanece en este dispositivo.':
-    'Conexión disponible. Los elementos aún no se han enviado.')+
-    ' Pendientes: '+state.total+'.'));
+  panel.append(text('p',state.total?
+    (navigator.onLine===false?'Sin conexión. Todo permanece en este dispositivo.':
+      'Conexión disponible. Los elementos aún no se han enviado.')+' Pendientes: '+state.total+'.':
+    'No hay elementos QC pendientes guardados en este dispositivo.'));
   const desc=text('div',null,'qc-sync-details');
   const rows=[
    ['QC Túnel · Inspecciones',refsLabel(state.drafts,'tunel')],
@@ -70,11 +71,11 @@
   panel.append(desc);
   if(state.uncertain)panel.append(text('p',
     state.uncertain+' envío(s) anterior(es) por verificar. Se comprobarán en SharePoint antes de reintentar el mismo archivo.','qc-sync-warning'));
-  const action=text('button','Sincronizar todo','qc-sync-action');
+  const action=text('button',state.total?'Sincronizar todo':'Sin pendientes','qc-sync-action');
   action.type='button';action.disabled=busy||navigator.onLine===false||!state.total;
   action.addEventListener('click',()=>{void synchronize();});
   panel.append(action);
-  const status=text('p','Orden: inspecciones → fotos a SharePoint. Cada elemento se verifica antes de retirarlo del dispositivo.','qc-sync-status');
+  const status=text('p',state.total?'Orden: inspecciones → fotos a SharePoint. Cada elemento se verifica antes de retirarlo del dispositivo.':'Se mostrará aquí cuando haya fotos o inspecciones guardadas para sincronizar.','qc-sync-status');
   status.id='qc-global-sync-status';status.setAttribute('role','status');panel.append(status);
   if(lastErrors.length){
     const errors=text('details',null,'qc-sync-errors');
