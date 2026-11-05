@@ -1,6 +1,6 @@
 'use strict';
-// ViguerAPP TEST: fotos QC de operarios guardadas solo en este dispositivo.
-// Captura local sin red; envío a SharePoint TEST únicamente manual, confirmado y verificado.
+// ViguerAPP TEST: fotos QC primero protegidas en IndexedDB y luego verificadas en SharePoint.
+// Sin red, se conservan en este dispositivo hasta pulsar Sincronizar todo.
 (function(){
  const DB='viguerapp-qc-operarios-photos-test-v1',STORE='photos';
  const LIMIT=30,MAX_BYTES=2450000,RE_ID=/^[A-Za-z0-9_-]{1,180}$/,RE_PART=/^[A-Za-z0-9._-]{1,100}$/;
@@ -185,6 +185,33 @@
    throw Error('Conflicto de identidad/imagen. Mantener foto local y no reenviar.');
   return true;
  }
+ function uploadFailureMessage(body,status){
+  const code=typeof body?.error==='string'?body.error:'';
+  if(code==='SHAREPOINT_UPLOAD_NOT_ENABLED')
+   return 'La subida a SharePoint está desactivada. La foto se conserva en este dispositivo.';
+  if(code==='UNAUTHORIZED'||code==='LOGIN_REQUIRED')
+   return 'La sesión caducó. Vuelve a iniciar sesión; la foto sigue en este dispositivo.';
+  if(code==='FORBIDDEN')
+   return 'Este usuario no tiene permiso para enviar fotos QC.';
+  if(code==='CONTROL_READ_FAILED'||code==='CONTROL_RECORD_CHANGED')
+   return 'No se pudo verificar la inspección en QC. La foto sigue en este dispositivo.';
+  if(code==='GRAPH_NOT_CONFIGURED'||code==='GRAPH_ID_MISMATCH')
+   return 'La conexión de SharePoint no está configurada correctamente.';
+  if(code==='GRAPH_TOKEN_FAILED')
+   return 'SharePoint rechazó la autenticación de la aplicación.';
+  if(/PERMISSION_DENIED/.test(code))
+   return 'La aplicación no tiene permisos suficientes en la biblioteca SharePoint.';
+  if(/PHOTO_INDEX_WRITE_FAILED|PHOTO_INDEX_ETAG_MISSING/.test(code))
+   return 'El archivo pudo llegar a SharePoint, pero no quedó confirmada su ficha. Se conservará local y se comprobará antes de reenviar.';
+  if(/PHOTO_(?:ID|FILENAME)_CONFLICT/.test(code))
+   return 'Hay un conflicto con el identificador de esta foto. Se conserva local para revisión.';
+  if(code==='INVALID_IMAGE'||code==='IMAGE_FORMAT_MISMATCH'||code==='PHOTO_TOO_LARGE')
+   return 'SharePoint rechazó el formato o tamaño de la imagen. La copia local se conserva.';
+  if(/FOLDER|LIBRARY|ROOT|CHILD_FOLDER/.test(code))
+   return 'No se pudo acceder a la carpeta de destino de SharePoint. La foto se conserva localmente.';
+  if(code)console.warn('QC_PHOTO_UPLOAD_FAILED',code,status);
+  return 'SharePoint no confirmó la subida (HTTP '+status+'). La foto se conserva en este dispositivo.';
+ }
  // Borrar local solo si la misma fotografía, propietario y captura siguen presentes.
  async function removeAfterConfirmed(photo){
   const connection=await db();
@@ -271,11 +298,7 @@
     body=await response.json();
    }catch(_){throw Error('Envío sin confirmar. NO reintentar sin comprobar servidor. Foto local conservada.');}
    if(!response.ok||body?.ok!==true){
-    const reason=body?.error==='SHAREPOINT_UPLOAD_NOT_ENABLED'?'La subida de fotos a SharePoint está desactivada en TEST.':
-      body?.error==='PHOTO_INDEX_CONFLICT'||body?.error==='PHOTO_ID_CONFLICT'?
-      'Conflicto de fotografía en servidor.':'Subida no confirmada (HTTP '+response.status+
-       (body?.error?' · '+body.error:'')+').';
-    throw Error(reason+' Fotografía conservada localmente.');
+    throw Error(uploadFailureMessage(body,response.status));
    }
    if(body.photoId!==original.photoId||body.record?.sha256!==digest)
     throw Error('La respuesta del servidor no coincide. Foto local conservada.');
@@ -411,23 +434,53 @@
  async function galleryCapture(ref,files){
   requireSession();
   if(!refValid(ref))throw Error('Inspección no autorizada.');
-  let done=0;
-  for(const file of Array.from(files||[])){
-   if(items.length>=LIMIT)throw Error(done?
-    'Guardadas '+done+' fotos. Límite de '+LIMIT+' pendientes por usuario en este dispositivo.':
-    'Límite de '+LIMIT+' fotos pendientes por usuario en este dispositivo.');
-   if(typeof crypto?.randomUUID!=='function')throw Error('El dispositivo no admite identificadores seguros.');
-   const blob=await compressed(file);
-   requireSession();
-   const photo={photoId:crypto.randomUUID(),owner,role,
-    ref:{id:ref.id,tipo:ref.tipo,dia:ref.dia,partida:ref.partida},
-    blob,capturedAt:new Date().toISOString(),status:'PENDIENTE_LOCAL'};
-   await operation('readwrite',st=>st.add(photo));
-   items.push(photo);done++;
-   window.dispatchEvent(new Event('qc-local-updated'));
+  const selected=Array.from(files||[]);
+  let saved=0,sent=0,tokenValue=null,canSend=navigator.onLine!==false&&!sending;
+  const errors=[];
+  const ownsSending=canSend;
+  if(ownsSending)sending=true;
+  try{
+   for(const file of selected){
+    requireSession();
+    if(items.length>=LIMIT){
+     errors.push('Límite de '+LIMIT+' fotos pendientes en este dispositivo.');
+     break;
+    }
+    if(typeof crypto?.randomUUID!=='function'){
+     errors.push('El dispositivo no admite identificadores seguros.');
+     break;
+    }
+    let blob;
+    try{blob=await compressed(file);}
+    catch(e){errors.push(e?.message||'No se pudo procesar una fotografía.');continue;}
+    requireSession();
+    const photo={photoId:crypto.randomUUID(),owner,role,
+     ref:{id:ref.id,tipo:ref.tipo,dia:ref.dia,partida:ref.partida},
+     blob,capturedAt:new Date().toISOString(),status:'PENDIENTE_LOCAL'};
+    try{await operation('readwrite',st=>st.add(photo));}
+    catch(e){errors.push(e?.message||'No se pudo guardar una fotografía en este dispositivo.');continue;}
+    items.push(photo);saved++;
+    summary();window.dispatchEvent(new Event('qc-local-updated'));
+    // Guardar primero en IndexedDB hace que una caída de red durante Graph
+    // nunca pierda la captura. En línea, enviar y verificar cada foto antes
+    // de empezar con la siguiente.
+    if(canSend){
+     try{
+      if(!tokenValue)tokenValue=await userToken();
+      requireSession();
+      await sendOne(photo,tokenValue);
+      sent++;
+     }catch(e){
+      errors.push(e?.message||'La foto queda guardada localmente, pendiente de SharePoint.');
+      if(navigator.onLine===false||/sesión/i.test(String(e?.message||'')))canSend=false;
+     }
+    }
+   }
+  }finally{
+   if(ownsSending)sending=false;
+   summary();
   }
-  summary();
-  return done;
+  return {count:saved,sent,pending:Math.max(0,saved-sent),errors};
  }
  async function galleryLocal(ref){
   requireSession();

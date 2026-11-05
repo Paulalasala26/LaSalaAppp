@@ -773,11 +773,28 @@
         photoBusy=true;
         cameraButton.disabled=true;galleryButton.disabled=true;
         try{
-          report(selected.length===1?'Guardando fotografía en el dispositivo…':
-            'Guardando '+selected.length+' fotografías en el dispositivo…','');
+          report(navigator.onLine===false?
+            (selected.length===1?'Sin conexión: guardando fotografía en este dispositivo…':
+              'Sin conexión: guardando fotografías en este dispositivo…'):
+            (selected.length===1?'Guardando y enviando fotografía a SharePoint…':
+              'Guardando y enviando fotografías a SharePoint…'),'');
           const outcome=await legacyApi?.uploadPhoto?.({files:selected});
-          report(outcome?.sent?'Fotografías confirmadas en SharePoint.':
-            'Fotografías guardadas en este dispositivo. Pendientes de SharePoint.','');
+          const saved=Number(outcome?.count)||0;
+          const sent=Number(outcome?.sent)||0;
+          const pending=Number(outcome?.pending)||Math.max(0,saved-sent);
+          const detail=Array.isArray(outcome?.errors)&&outcome.errors.length?
+            ' Detalle: '+outcome.errors[0]:'';
+          if(!saved){
+            report(detail.trim()||'No se pudo guardar ninguna fotografía en el dispositivo.','error');
+          }else if(sent===saved&&pending===0){
+            report('✓ '+sent+' fotografía(s) enviada(s) y verificada(s) en SharePoint.'+detail,'');
+          }else if(navigator.onLine===false){
+            report(saved+' fotografía(s) guardada(s) en el dispositivo. Pendiente(s): '+pending+
+              '. Usa “Sincronizar todo” cuando vuelva la conexión.','');
+          }else{
+            report(sent+' fotografía(s) verificada(s) en SharePoint; '+pending+
+              ' permanece(n) segura(s) en este dispositivo. Usa “Sincronizar todo” para reintentar.'+detail,'');
+          }
         }catch(e){
           report(e?.message||'No se han podido guardar las fotografías.','error');
         }finally{

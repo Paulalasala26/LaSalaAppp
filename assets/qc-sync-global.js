@@ -9,7 +9,10 @@
  const $=id=>document.getElementById(id);
  const text=(tag,value,cls)=>{
   const n=document.createElement(tag);
-  if(value!==undefined)n.textContent=String(value);
+  if(value!==undefined&&value!==null){
+   const rendered=String(value);
+   if(rendered!=='null'&&rendered!=='undefined')n.textContent=rendered;
+  }
   if(cls)n.className=cls;
   return n;
  };
@@ -29,7 +32,7 @@
    uncertain:d.filter(x=>x.status==='ENVIO_INCIERTO').length+
      p.filter(x=>x.status==='ENVIO_INCIERTO').length};
  }
- function refsLabel(items,tipo){return items.filter(x=>x.ref.tipo===tipo).length;}
+ function refsLabel(items,tipo){return items.filter(x=>x?.ref?.tipo===tipo).length;}
  function show(){
   const anchor=$('qc-global-sync-anchor'),host=$('qc-global-sync-panel');
   if(!anchor||!host)return;

@@ -3316,10 +3316,9 @@ async function listarFotosInspeccionQC(id){
 }
 async function agregarFotosInspeccionQC(input,id){
   await qcPhotoReady();
-  const count=await window.QCOfflinePhotos.galleryCapture(qcPhotoRef(id),input.files);
-  showToast('✓ '+count+' foto(s) guardadas en este dispositivo');
+  const outcome=await window.QCOfflinePhotos.galleryCapture(qcPhotoRef(id),input.files);
   window.dispatchEvent(new Event('qc-local-updated'));
-  return {count,sent:false};
+  return outcome;
 }
 async function enviarFotosPendientesQC(id){
   await qcPhotoReady();
