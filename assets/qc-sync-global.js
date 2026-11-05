@@ -43,9 +43,11 @@
   toggle.type='button';
   toggle.setAttribute('aria-label',state.total+' elementos QC pendientes de sincronizar');
   toggle.setAttribute('aria-expanded',String(opened));
-  toggle.append(text('span',lastErrors.length?'!':'↥'),
-    text('span',state.total?String(state.total)+' por sincronizar':
-      lastErrors.length?'Revisar sincronización':'Sin pendientes'));
+  const glyph=document.createElement('i');
+  glyph.className='ti '+(lastErrors.length?'ti-alert-triangle':'ti-upload');
+  glyph.setAttribute('aria-hidden','true');
+  toggle.append(glyph,text('span',state.total?String(state.total)+' por sincronizar':
+    lastErrors.length?'Revisar sincronización':'Sin pendientes'));
   toggle.addEventListener('click',()=>{opened=!opened;show();});
   anchor.append(toggle);
   if(!opened)return;
