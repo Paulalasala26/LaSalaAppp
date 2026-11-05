@@ -6539,10 +6539,10 @@ function renderControlCardConGuionesHTML(grupo, seccion){
   controlGuionActivo[groupKey] = activo.id;
   const idx = grupo.indexOf(activo);
   const pagerHTML = `
-    <div style="display:flex;align-items:center;justify-content:center;gap:10px;padding:6px 10px;background:#fff3dc;border:1.5px solid #e0c080;border-bottom:none;border-radius:12px 12px 0 0;font-size:11px;font-weight:800;color:#7a5000">
-      <button onclick="cambiarGuionControl('${groupKey}',-1)" title="Registro anterior" style="background:none;border:none;font-size:18px;font-weight:900;color:#7a5000;cursor:pointer;padding:0 6px;line-height:1">&#8249;</button>
-      <span>Registro ${idx+1} de ${grupo.length} · ${riegoDiaToDate(activo.dia).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit'})} · ${activo.numBandejas||'—'} bandejas</span>
-      <button onclick="cambiarGuionControl('${groupKey}',1)" title="Registro siguiente" style="background:none;border:none;font-size:18px;font-weight:900;color:#7a5000;cursor:pointer;padding:0 6px;line-height:1">&#8250;</button>
+    <div style="display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:8px;padding:8px 10px;background:#eaf3ff;border:1.5px solid #b7d2f2;border-bottom:none;border-radius:12px 12px 0 0;color:#1558a0">
+      <button type="button" onclick="cambiarGuionControl('${groupKey}',-1)" aria-label="Registro anterior" title="Ir al registro anterior" style="justify-self:start;display:flex;align-items:center;gap:5px;min-height:40px;padding:0 10px;border:0;border-radius:8px;background:#1558a0;color:#fff;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap"><span aria-hidden="true">&#8249;</span><span>Anterior</span></button>
+      <div style="min-width:0;text-align:center;line-height:1.25;font-size:12px;font-weight:800"><div>Registro ${idx+1} de ${grupo.length}</div><div style="margin-top:3px;font-size:11px;font-weight:700;color:#426487">${riegoDiaToDate(activo.dia).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit'})} · ${activo.numBandejas||'—'} bandejas</div></div>
+      <button type="button" onclick="cambiarGuionControl('${groupKey}',1)" aria-label="Registro siguiente" title="Ir al registro siguiente" style="justify-self:end;display:flex;align-items:center;gap:5px;min-height:40px;padding:0 10px;border:0;border-radius:8px;background:#1558a0;color:#fff;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap"><span>Siguiente</span><span aria-hidden="true">&#8250;</span></button>
     </div>`;
   const cardHTML = (seccion.key==='carga' ? renderControlCargaCardHTML(activo, seccion) : renderControlCardHTML(activo, seccion))
     .replace('border-radius:12px;', 'border-radius:0 0 12px 12px;');
