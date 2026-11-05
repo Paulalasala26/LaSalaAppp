@@ -108,6 +108,9 @@ jobs:
       - name: Deterministic global CAS contention and retry exhaustion (no network)
         run: node --test docs/firebase/prototype-global-fence-load-v3.test.cjs
 
+      - name: Compare global and per-INV CAS contention (no network)
+        run: node --test docs/firebase/prototype-cas-scope-comparison-v3.test.cjs
+
       - name: Isolated Firebase REST ETag and migration regression
         run: node --test docs/firebase/prototype-avisos-push-store-v2.test.cjs
 
