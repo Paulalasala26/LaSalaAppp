@@ -215,6 +215,15 @@ def sync_test(by_date, controls_by_shard, start: date, end: date, credentials_pa
                     if not (isinstance(value, dict) and value.get("tipo") == "carga_injerto"
                             and value.get("dia") in day_for_shard)
                 }
+                preserve = ("observaciones", "color", "tamano", "sanidad", "flores",
+                            "raices", "sanidadEnfermedades", "creadoPor", "creadoEn",
+                            "actualizadoPor", "actualizadoEn")
+                for key, fresh in incoming.items():
+                    previous = current.get(key)
+                    if isinstance(previous, dict):
+                        for field in preserve:
+                            if field in previous and field not in fresh:
+                                fresh[field] = previous[field]
                 retained.update(incoming)
                 return retained or None
 
