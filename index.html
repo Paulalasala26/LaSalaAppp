@@ -7498,7 +7498,7 @@ function renderControlChecklistHTML(seccion){
   // verlas todas al filtrar por invernadero.
   const gruposYaPintados = new Set();
   const filas = listaMostrada.map(c=>{
-    if(seccion.key==='carga' || !c.partida) return renderControlCardHTML(c, seccion);
+    if(seccion.key==='carga' || seccion.key==='carga_injerto' || !c.partida) return renderControlCardHTML(c, seccion);
     const groupKey = seccion.key+'|'+c.partida;
     if(gruposYaPintados.has(groupKey)) return '';
     const grupo = controlLineasFiltradasInv(controlChecksData.filter(x=>x.tipo===seccion.key && x.partida===c.partida),seccion.key).sort((a,b)=>a.dia-b.dia);
@@ -7521,7 +7521,7 @@ function renderControlChecklistHTML(seccion){
   const cardsHTML = listaMostrada.length===0
     ? `<div class="qc-list-none">${listaDia.length===0?'Sin partidas para este día.':((seccion.key==='carga'?controlCargaInvFiltro:controlTunelInvFiltro)?'No hay partidas para ese invernadero y día.':'No hay líneas con el estado seleccionado.')}</div>`
     : `<div class="qc-list-cards">${filas}</div>`;
-  if(seccion.key==='tunel'||seccion.key==='carga'){
+  if(seccion.key==='tunel'||seccion.key==='carga'||seccion.key==='carga_injerto'){
     const moreOptions=(extraTunelHTML||pdfInfoHTML)
       ? '<details class="qc-list-more"><summary>Más opciones</summary><div class="qc-list-more-actions">'+extraTunelHTML+'</div>'+pdfInfoHTML+'</details>'
       : '';
