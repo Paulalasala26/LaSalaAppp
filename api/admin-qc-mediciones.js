@@ -273,7 +273,7 @@ function validateEvaluationV8(input){
     throw httpError(400,'INVALID_MEASUREMENTS');
   const root=source.raicesInjerto;
   if(!root||typeof root!=='object'||Array.isArray(root)||
-     Object.keys(root).join('|')!=='opciones'||!Array.isArray(root.opciones)||
+     Object.keys(root).sort().join('|')!=='opciones'||!Array.isArray(root.opciones)||
      root.opciones.length>1||root.opciones.some(v=>!OPTIONS_RAICES_INJERTO.includes(v)))
     throw httpError(400,'INVALID_GRAFT_ROOT');
   const baseCategories={...source};delete baseCategories.raicesInjerto;
