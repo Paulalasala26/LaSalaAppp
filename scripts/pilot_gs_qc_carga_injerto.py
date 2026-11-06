@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import getpass
 import json
+import re
 import sys
 from datetime import date, datetime, timezone
 from decimal import Decimal
@@ -41,6 +42,8 @@ FEED_ROOT = "lasala-gs-carga-injerto-v1/by-date"
 SHARD_PREFIX = "lasala-control-items-v2-carga_injerto-q"
 INDEX_PATH = "lasala-control-items-v2-index"
 DB_ANCHOR = date(2026, 6, 15)
+PART_RE = re.compile(r'^[A-Za-z0-9._-]{1,100}$')
+LINE_RE = re.compile(r'^[A-Za-z0-9_-]{1,180}$')
 
 SQL_INJERTO = """
 SELECT
@@ -137,16 +140,16 @@ def build_payloads(rows: list[dict[str, Any]], start: date, end: date):
         if not start <= fecha_obj <= end:
             raise ValueError(f"GS devolvió una fecha fuera del rango: {fecha}")
         gs_id = str(item["id_linea_carga"])
-        if not gs_id or "/" in gs_id:
-            raise ValueError(f"ID de línea GS no válido: {gs_id!r}")
+        if not LINE_RE.fullmatch(gs_id):
+            raise ValueError(f"ID de línea GS no válido para QC: {gs_id!r}")
         if gs_id in by_date.setdefault(fecha, {}):
             raise ValueError(f"Clave de línea duplicada en GS: {gs_id}")
 
         item["id_linea_carga"] = gs_id
         item["id_carga"] = str(item["id_carga"])
         item["partida"] = str(item["partida"]).strip()
-        if not item["partida"]:
-            raise ValueError(f"Línea GS sin partida: {gs_id}")
+        if not PART_RE.fullmatch(item["partida"]):
+            raise ValueError(f"Partida GS no válida para QC ({gs_id}): {item['partida']!r}")
         by_date[fecha][gs_id] = item
 
         day = day_index(fecha_obj)
@@ -230,9 +233,13 @@ def sync_test(by_date, controls_by_shard, start: date, end: date, credentials_pa
             ref.transaction(replace_range)
             count = len(db.reference(shard, app=app).get() or {})
             q_text = shard.rsplit("q", 1)[1]
-            db.reference(f"{INDEX_PATH}/shards/carga_injerto|{q_text}", app=app).set({
-                "key": shard, "tipo": "carga_injerto", "q": int(q_text), "count": count
-            })
+            index_ref = db.reference(f"{INDEX_PATH}/shards/carga_injerto|{q_text}", app=app)
+            if count:
+                index_ref.set({
+                    "key": shard, "tipo": "carga_injerto", "q": int(q_text), "count": count
+                })
+            else:
+                index_ref.delete()
 
         for offset in range((end - start).days + 1):
             fecha = start.fromordinal(start.toordinal() + offset)
