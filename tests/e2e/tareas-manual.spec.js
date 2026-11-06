@@ -197,6 +197,51 @@ test('UAT-1311: el alta manual rechaza una calle ajena al invernadero sin guarda
   expect(writes.filter(write => write.key === 'lasala-tareas-v1')).toHaveLength(0);
 });
 
+test('UAT-1323: en móvil, los asignables se pliegan y dejan Cancelar y Crear a la vista', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const { database, writes } = await installFixture(page);
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  await overlay.getByRole('button', { name: 'Nueva tarea' }).click();
+
+  const form = overlay.locator('#nueva-tarea-form-wrap');
+  const details = form.locator('#nt-asignado-details');
+  const summary = form.locator('#nt-asignado-summary');
+  const chips = form.locator('#nt-asignado-chips');
+  const cancel = form.getByRole('button', { name: 'Cancelar' });
+  const create = form.getByRole('button', { name: 'Crear y asignar' });
+  await expect(summary).toBeVisible();
+  await expect(details).not.toHaveAttribute('open', '');
+  await expect(chips.locator('[data-nt-asignado-chip="PEON1"]')).toBeHidden();
+  await expect(cancel).toBeVisible();
+  await expect(create).toBeVisible();
+
+  await summary.click();
+  await expect(details).toHaveAttribute('open', '');
+  await form.locator('[data-nt-asignado-chip="PEON1"]').click();
+  await form.locator('[data-nt-asignado-chip="REGANTE1"]').click();
+  await expect(summary).toContainText('2 seleccionados');
+  await summary.click();
+  await expect(chips.locator('[data-nt-asignado-chip="PEON1"]')).toBeHidden();
+  await expect(cancel).toBeVisible();
+  await expect(create).toBeVisible();
+
+  const detailBox = await details.boundingBox();
+  const cancelBox = await cancel.boundingBox();
+  const createBox = await create.boundingBox();
+  expect(detailBox).not.toBeNull();
+  expect(cancelBox).not.toBeNull();
+  expect(createBox).not.toBeNull();
+  expect(detailBox.y + detailBox.height).toBeLessThanOrEqual(cancelBox.y);
+  expect(cancelBox.x + cancelBox.width).toBeLessThanOrEqual(createBox.x);
+  expect(createBox.y + createBox.height).toBeLessThanOrEqual(844);
+
+  await cancel.click();
+  await expect(form).toBeEmpty();
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([]);
+  expect(writes.filter(write => write.key === 'lasala-tareas-v1')).toHaveLength(0);
+});
+
 test('UAT-1237–1238: cerrar y reabrir Tareas varias veces no duplica vistas ni escribe datos', async ({ page }) => {
   const { database, writes } = await installFixture(page);
   const pageErrors = [];
