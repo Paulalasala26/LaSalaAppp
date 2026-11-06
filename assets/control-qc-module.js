@@ -2200,8 +2200,9 @@ let controlCargaInvFiltro = '';
 let controlTunelInvFiltro = '';
 
 function renderControlFiltroInvHTML(tipo){
-  const actual=tipo==='carga'?controlCargaInvFiltro:controlTunelInvFiltro;
-  const cambiar=tipo==='carga'?'cambiarControlCargaInvFiltro':'cambiarControlTunelInvFiltro';
+  const esCarga=tipo==='carga'||tipo==='carga_injerto';
+  const actual=esCarga?controlCargaInvFiltro:controlTunelInvFiltro;
+  const cambiar=esCarga?'cambiarControlCargaInvFiltro':'cambiarControlTunelInvFiltro';
   // Mismo orden que QC Carga: títulos de Sala no clicables (<optgroup>).
   const salas=[['Sala 1',ALL_INV_IDS_SALA1],['Sala 2',ALL_INV_IDS],
     ['Sala 3',ALL_INV_IDS_SALA3],['Sala 4',ALL_INV_IDS_SALA4],['Sala 5',ALL_INV_IDS_SALA5]];
@@ -2224,7 +2225,7 @@ function renderControlFiltroYAltaHTML(tipo,dia,wizard=false){
       '<i class="ti ti-plus" aria-hidden="true"></i> Añadir línea</button>'
     : '';
   return '<div class="qc-alta-toolbar" style="display:flex;flex-wrap:nowrap;align-items:flex-end;gap:8px;min-width:0;margin-bottom:11px">'+
-    '<div style="flex:1 1 0;min-width:0">'+renderControlFiltroInvHTML(tipo)+'</div>'+alta+'</div>'+
+    '<div style="flex:1 1 0;min-width:0">'+renderControlFiltroInvHTML(tipo==='carga_injerto'?'carga':tipo)+'</div>'+alta+'</div>'+
     '<div id="nuevo-control-form-wrap"></div>';
 }
 function controlLineasFiltradasInv(lista,tipo){
@@ -3208,7 +3209,7 @@ function mostrarComprobarExtensiones(){
 // Se comprueban los permisos de nuevo en el servidor (no basta con ocultar el botón).
 function puedeCuantificarControl(c){
   return !!c&&(currentUserRole==='ADMIN'||currentUserRole==='TECNICO'||
-    (currentUserRole==='CARGADOR'&&c.tipo==='carga'))&&
+    (currentUserRole==='CARGADOR'&&(c.tipo==='carga'||c.tipo==='carga_injerto')))&&
     /^[A-Za-z0-9_-]{1,180}$/.test(String(c.id||''));
 }
 function enlacePartidaCuantificadaHTML(c){
