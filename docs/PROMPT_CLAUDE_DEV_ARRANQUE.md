@@ -30,11 +30,13 @@ Si careces de acceso efectivo a GitHub/Vercel o no puedes leer un archivo comple
 
 Lee en este orden, **en la rama exacta dev/v1.0**, sin sustituir los archivos por resúmenes de chat:
 
-1. `docs/APP_R_V3_ESTADO_MAESTRO.md`: histórico y estado maestro canónico. Es grande: léelo íntegro, con paginación real si el cliente limita la longitud. Nunca sobreescribas contenido truncado.
-2. `docs/APP_R_V3_ESTADO_MAESTRO_DEV.md`: anexo maestro del entorno de desarrollo y validaciones DEV.
-3. `docs/APP_R_V3_ENTORNO_DEV.md`: separación entre entornos, restricciones y estado.
-4. `docs/PROMPT_NUEVOS_DESARROLLADORES.md`: reglas de modularidad, seguridad y continuidad.
-5. **Este documento**, los archivos implicados por cada tarea y sus dependencias reales.
+1. `docs/DEV_BASELINE_Y_CONTROL_2026-11-05.md`: línea base, commits y registro de promociones.
+2. `docs/GUIA_CLAUDE_DEV_Y_RESTAURACION.md`: arranque del agente y pasos verificables para que el titular restaure el código DEV.
+3. `docs/APP_R_V3_ESTADO_MAESTRO.md`: histórico y estado maestro canónico. Es grande: léelo íntegro, con paginación real si el cliente limita la longitud. Nunca sobreescribas contenido truncado.
+4. `docs/APP_R_V3_ESTADO_MAESTRO_DEV.md`: anexo maestro del entorno de desarrollo y validaciones DEV.
+5. `docs/APP_R_V3_ENTORNO_DEV.md`: separación entre entornos, restricciones y estado.
+6. `docs/PROMPT_NUEVOS_DESARROLLADORES.md`: reglas de modularidad, seguridad y continuidad.
+7. **Este documento**, los archivos implicados por cada tarea y sus dependencias reales.
 
 El contenido de `docs/QC_FRONTEND_FASE_PENDIENTE.md` y otros documentos antiguos puede reflejar fases SUPERADAS o modelos obsoletos. **No ejecutes pendientes históricos sin contrastarlos con el código actual y con la validación reciente del usuario.** La confirmación expresa del usuario prevalece para determinar si una funcionalidad fue aceptada, no para saltar las comprobaciones de seguridad.
 
@@ -145,7 +147,7 @@ Prohibido «reconstruir de memoria» código desaparecido; recuperar desde Git/b
 No hagas commits, archivos, despliegues ni cambios. Responde en español, breve y preciso, con este esquema:
 
 **A. Identificación comprobada:** repositorio, rama actual, SHA HEAD, estado limpio/sucio y entorno DEV de destino.
-**B. Fuentes leídas:** nombres de los cuatro documentos y cualquier lectura incompleta.
+**B. Fuentes leídas:** nombres de los documentos obligatorios de línea base, restauración, estado maestro y entorno; indica cualquier lectura incompleta.
 **C. Riesgos inmediatos:** divergencias entre ramas, integraciones deshabilitadas, limitaciones reales de acceso o validación.
 **D. Compromiso operativo:** «No modificaré TEST ni PRD. No tocaré código ni datos hasta recibir una tarea concreta. Haré backup, cambio mínimo, validación y esperaré aceptación antes de seguir».
 **E. Última línea:** «Listo para recibir el primer bloque de desarrollo en DEV».
