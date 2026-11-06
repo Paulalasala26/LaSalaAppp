@@ -19,6 +19,7 @@
 const CONTROL_SECCIONES = [
   {key:'tunel', label:'QC Túnel', icon:'ti-building-warehouse', color:'linear-gradient(135deg,#5c8df0,#3fc6b0)', conCheck:true},
   {key:'carga', label:'QC Carga normal', icon:'ti-truck', color:'linear-gradient(135deg,#f5a35c,#f0715c)', conCheck:true},
+  {key:'carga_injerto', label:'QC Carga Injerto', icon:'ti-seedling', color:'linear-gradient(135deg,#7b5cf0,#3fa864)', conCheck:true},
   {key:'invernadero', label:'Check Invernadero', icon:'ti-plant-2', color:'linear-gradient(135deg,#1a5c2e,#3fa864)', conCheck:false},
   {key:'fechas', label:'Check Fechas', icon:'ti-calendar-event', color:'linear-gradient(135deg,#7b5cf0,#5c8df0)', conCheck:false},
   {key:'productos', label:'Check Prueba de Productos', icon:'ti-flask', color:'linear-gradient(135deg,#c47f00,#e0a530)', conCheck:false},
@@ -739,7 +740,7 @@ function controlV2ShardKey(tipo,q){
   return `${CONTROL_ITEMS_V2_PREFIX}${tipo}-q${q}`;
 }
 function controlV2ShardDeItem(item){
-  if(!item || (item.tipo!=='tunel' && item.tipo!=='carga' && item.tipo!=='ubicacion')) return null;
+  if(!item || (item.tipo!=='tunel' && item.tipo!=='carga' && item.tipo!=='carga_injerto' && item.tipo!=='ubicacion')) return null;
   const q=controlV2QDeDia(item.dia);
   return q==null ? null : controlV2ShardKey(item.tipo,q);
 }
@@ -875,7 +876,7 @@ async function actualizarControlV2IndexConteos(shardKeys){
       if(!etag || !idx || typeof idx!=='object') return false;
       if(!idx.shards) idx.shards={};
       for(const key of claves){
-        const m=/^lasala-control-items-v2-(tunel|carga|ubicacion)-q(\d+)$/.exec(key);
+        const m=/^lasala-control-items-v2-(tunel|carga|carga_injerto|ubicacion)-q(\d+)$/.exec(key);
         if(!m) continue;
         const tipo=m[1], q=parseInt(m[2],10), k=tipo+'|'+q;
         idx.shards[k]={...(idx.shards[k]||{}),key,tipo,q,count:conteos[key]};
@@ -1623,11 +1624,11 @@ async function controlShowControlModule(){
   });
 }
 async function seleccionarSeccionControl(sec){
-  if(currentUserRole==='CARGADOR' && sec!==null && sec!=='carga')return;
+  if(currentUserRole==='CARGADOR' && sec!==null && sec!=='carga' && sec!=='carga_injerto')return;
   if(sec===controlSeccion)return;
   return navegarControlQC(async()=>{
     const offset=riegoQuincenaOffsetActual();
-    if(sec==='tunel'||sec==='carga'){
+    if(sec==='tunel'||sec==='carga'||sec==='carga_injerto'){
       const ok=await loadControlSeccionSlice(sec,offset,false);
       if(!ok){ avisarFalloCarga(); return; }
     }
@@ -2112,7 +2113,7 @@ function qcEstadoCuantificado(c){
 }
 function controlLineaFinalizadaQC(c){return controlLineaCompletada(c)||qcEstadoCuantificado(c);}
 function marcarControlQCMedido(ref){
-  if(!ref||!['tunel','carga'].includes(ref.tipo))return;
+  if(!ref||!['tunel','carga','carga_injerto'].includes(ref.tipo))return;
   const key=claveEstadosQC(ref.tipo,ref.dia);
   const entry=controlQCEstados.get(key);
   if(entry){
@@ -2128,7 +2129,7 @@ function marcarControlQCMedido(ref){
 }
 async function cargarEstadosQCDia(tipo,dia,registros){
   if(!registros.length||!(currentUserRole==='ADMIN'||currentUserRole==='TECNICO'||
-      (currentUserRole==='CARGADOR'&&tipo==='carga')))return;
+      (currentUserRole==='CARGADOR'&&(tipo==='carga'||tipo==='carga_injerto'))))return;
   const key=claveEstadosQC(tipo,dia);
   if(controlQCEstadosCargando.has(key))return;
   const vistos=new Set();
@@ -2217,7 +2218,7 @@ function renderControlFiltroInvHTML(tipo){
 function renderControlFiltroYAltaHTML(tipo,dia,wizard=false){
   const accion=tipo==='tunel' ? "mostrarFormNuevoControlCheck('tunel',"+(wizard?'true':'false')+")" :
     'mostrarFormNuevoControlCargaCheck()';
-  const alta=puedeCrearLineaControlQC(dia)
+  const alta=tipo!=='carga_injerto'&&puedeCrearLineaControlQC(dia)
     ? '<button type="button" class="qc-list-add" onclick="'+accion+'" '+
       'style="flex:0 0 auto;width:auto;min-height:42px;padding:9px 11px;font-size:12px;white-space:nowrap;background:#1558a0;color:#fff;border:0;border-radius:8px;cursor:pointer;align-self:flex-end">'+
       '<i class="ti ti-plus" aria-hidden="true"></i> Añadir línea</button>'
@@ -2227,10 +2228,11 @@ function renderControlFiltroYAltaHTML(tipo,dia,wizard=false){
     '<div id="nuevo-control-form-wrap"></div>';
 }
 function controlLineasFiltradasInv(lista,tipo){
-  const selected=tipo==='carga'?controlCargaInvFiltro:controlTunelInvFiltro;
+  const esCarga=tipo==='carga'||tipo==='carga_injerto';
+  const selected=esCarga?controlCargaInvFiltro:controlTunelInvFiltro;
   if(!selected)return lista;
-  return lista.map(c=>({c,part:tipo==='carga'?calleTramoDeCarga(c):calleTramoDeTunel(c)}))
-    .filter(({part})=>part&&(tipo==='carga'?coincideInvernaderoCarga(part.invId,selected):part.invId===selected))
+  return lista.map(c=>({c,part:esCarga?calleTramoDeCarga(c):calleTramoDeTunel(c)}))
+    .filter(({part})=>part&&(esCarga?coincideInvernaderoCarga(part.invId,selected):part.invId===selected))
     .sort((a,b)=>a.part.desde-b.part.desde).map(x=>x.c);
 }
 async function cambiarControlCargaInvFiltro(v){
@@ -2486,11 +2488,11 @@ function renderControlChecklistHTML(seccion){
   const lista = controlFiltroEstado==='completados' ? listaInv.filter(controlLineaFinalizadaQC)
     : controlFiltroEstado==='pendientes' ? listaInv.filter(c=>!controlLineaFinalizadaQC(c))
     : listaInv;
-  const pdf = controlPdfsData[seccion.key+'|'+controlDiaSel];
+  const pdf = seccion.key==='carga_injerto' ? null : controlPdfsData[seccion.key+'|'+controlDiaSel];
   // Carga bajo demanda (no bloquea este pintado): si el índice dice que hay
   // un PDF para este día pero todavía no está en memoria, se pide en segundo
   // plano y se repinta cuando llegue (ver cargarControlPdfDia).
-  cargarControlPdfDia(seccion.key, controlDiaSel);
+  if(seccion.key!=='carga_injerto')cargarControlPdfDia(seccion.key, controlDiaSel);
   // La misma estructura operativa se mantiene incluso si el día no tiene partidas.
 
   const filtrosHTML = '<label class="qc-list-state"><span>Estado</span><select class="qc-list-select" onchange="cambiarControlFiltroEstado(this.value)" aria-label="Filtrar por estado">'+[
@@ -3406,12 +3408,17 @@ function renderControlCardCompactHTML(c,seccion){
       </details>
     </article>`;
 }
+function renderControlCargaInjertoCardHTML(c){
+  const esc=v=>String(v==null?'':v).replace(/[&<>\"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[ch]));
+  return `<article id="control-card-${esc(c.id)}" class="qc-card-compact"><div class="qc-card-main">${renderControlIdentidadQC(c)}${renderControlDatosQC(c)}${renderControlAbrirInspeccionHTML(c)}</div></article>`;
+}
 function renderControlCardHTML(c, seccion){
   // Carga tiene una ficha distinta (Cliente/Partida/Variedad/Nº bandejas/
   // Invernadero como campos separados, sin calle) — se despacha a su propia
   // función ANTES de tocar nada más, para no arriesgar ni una coma del
   // render de Túnel, que Paula pidió expresamente no tocar (2026-07-31,
   // "el check de túneles está perfecto, no modifiques nada de ahí").
+  if(c.tipo === 'carga_injerto') return renderControlCargaInjertoCardHTML(c);
   if(c.tipo === 'carga') return renderControlCargaCardHTML(c, seccion);
   if(puedeCuantificarControl(c)) return renderControlCardCompactHTML(c,seccion);
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
