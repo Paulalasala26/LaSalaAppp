@@ -104,6 +104,7 @@ function validPercentMeasurement(value,id){
          Object.keys(diseases).some(k=>!selected.includes(k))||
          Object.values(diseases).some(n=>!Number.isInteger(n)||n<10||n>100||n%10))return false;
     }else if(choices.length!==1)return false;
+    if((schema===7||schema===8)&&day>=155&&category==='firmeza'&&choices.includes('noEvaluada'))return false;
   }
   return true;
 }
