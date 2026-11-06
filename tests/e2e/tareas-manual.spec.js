@@ -202,9 +202,15 @@ test('UAT-1237–1238: cerrar y reabrir Tareas varias veces no duplica vistas ni
   expect(pageErrors).toEqual([]);
 });
 
-test('UAT-1316–1317, UAT-1320–1321: guardar tareas manuales conserva IDs y no fusiona títulos iguales', async ({ page }) => {
+test('UAT-1312–1314, UAT-1316–1317, UAT-1320–1321: alta manual conserva fecha, turno, descripción larga, prioridad e IDs', async ({ page }) => {
   const { database, writes } = await installFixture(page);
   const title = 'E2E tarea repetida';
+  const description = 'Descripción extensa del caso automatizado. '.repeat(8).trim();
+  const tomorrowISO = (() => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
+  })();
 
   async function createTask(expectedCountLabel) {
     await page.locator('#tareas-overlay').getByRole('button', { name: 'Nueva tarea' }).click();
@@ -212,13 +218,9 @@ test('UAT-1316–1317, UAT-1320–1321: guardar tareas manuales conserva IDs y n
     await form.locator('#nt-titulo').fill(title);
     await form.locator('#nt-inv').selectOption('0A');
     await form.locator('#nt-calles').fill('1-2');
-    await form.locator('#nt-fecha').evaluate(input => {
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      input.value = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
-    });
+    await form.locator('#nt-fecha').evaluate((input, value) => { input.value = value; }, tomorrowISO);
     await form.locator('#nt-turno').selectOption('Mañana');
-    await form.locator('#nt-desc').fill('Descripción del caso automatizado');
+    await form.locator('#nt-desc').fill(description);
     await form.locator('#nt-prioridad').check();
     await form.locator('[data-nt-asignado-chip="PEON1"]').click();
     await form.getByRole('button', { name: 'Crear y asignar' }).click();
@@ -231,11 +233,12 @@ test('UAT-1316–1317, UAT-1320–1321: guardar tareas manuales conserva IDs y n
   expect(saved).toHaveLength(1);
   expect(saved[0]).toMatchObject({
     titulo: title,
-    descripcion: 'Descripción del caso automatizado',
+    descripcion: description,
     asignadoA: 'PEON1',
     origen: 'manual',
     inv: '0A',
     calles: '1-2',
+    fechaISO: tomorrowISO,
     turno: 'Mañana',
     prioridad: 'alta',
     estado: 'pendiente'
@@ -253,6 +256,9 @@ test('UAT-1316–1317, UAT-1320–1321: guardar tareas manuales conserva IDs y n
   await openTasks(page);
   await page.locator('#tareas-overlay').getByRole('button', { name: 'Tareas de mañana' }).click();
   await expect(page.locator('#tareas-overlay').getByText(title, { exact: false })).toHaveCount(2);
+  saved = JSON.parse(database['lasala-tareas-v1']);
+  expect(saved).toHaveLength(2);
+  expect(saved.every(task => task.fechaISO === tomorrowISO && task.turno === 'Mañana' && task.descripcion === description && task.prioridad === 'alta')).toBe(true);
   expect(writes.filter(write => write.key === 'lasala-tareas-v1')).toHaveLength(2);
 });
 
