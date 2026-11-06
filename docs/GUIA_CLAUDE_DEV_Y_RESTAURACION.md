@@ -125,7 +125,7 @@ git rev-parse origin/dev/v1.0
 git ls-remote --heads origin backup/dev-v1.0-baseline-2026-11-05
 ```
 
-Los dos SHA deben coincidir entre sí y con el SHA de la rama de respaldo. Si no coinciden, no continúes.
+El SHA de `origin/dev/v1.0` debe coincidir con el SHA de `origin/backup/dev-v1.0-handoff-2026-11-06`. Comprueba la línea base inmutable por separado: `backup/dev-v1.0-baseline-2026-11-05` debe seguir en `87814f3cdd0d7f09ff9c774c3d3cdeda7c0ac2bb`; no compares este SHA con el de `dev`, porque la copia de traspaso incluye commits de documentación posteriores. Si alguna comprobación falla, no continúes.
 
 Después, espera a que el proyecto Vercel `la-sala-app-dev` despliegue ese SHA y quede READY. Comprueba https://la-sala-app-dev.vercel.app. No uses la Preview de TEST como resultado de la restauración. Si el error está en Firebase o en la configuración de Vercel/SharePoint y no en el código, esta restauración no lo resolverá.
 
