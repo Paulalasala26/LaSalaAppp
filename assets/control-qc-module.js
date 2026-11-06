@@ -18,7 +18,7 @@
 // ════════════════════════════════════════════════════════════════
 const CONTROL_SECCIONES = [
   {key:'tunel', label:'QC Túnel', icon:'ti-building-warehouse', color:'linear-gradient(135deg,#5c8df0,#3fc6b0)', conCheck:true},
-  {key:'carga', label:'QC Carga', icon:'ti-truck', color:'linear-gradient(135deg,#f5a35c,#f0715c)', conCheck:true},
+  {key:'carga', label:'QC Carga normal', icon:'ti-truck', color:'linear-gradient(135deg,#f5a35c,#f0715c)', conCheck:true},
   {key:'invernadero', label:'Check Invernadero', icon:'ti-plant-2', color:'linear-gradient(135deg,#1a5c2e,#3fa864)', conCheck:false},
   {key:'fechas', label:'Check Fechas', icon:'ti-calendar-event', color:'linear-gradient(135deg,#7b5cf0,#5c8df0)', conCheck:false},
   {key:'productos', label:'Check Prueba de Productos', icon:'ti-flask', color:'linear-gradient(135deg,#c47f00,#e0a530)', conCheck:false},
@@ -1497,7 +1497,7 @@ function qcImprimirDia(){
  const filtradas=controlLineasFiltradasInv(controlChecksData.filter(c=>c.tipo===tipo&&c.dia===dia),tipo);
  const lista=controlFiltroEstado==='completados'?filtradas.filter(controlLineaFinalizadaQC):controlFiltroEstado==='pendientes'?filtradas.filter(c=>!controlLineaFinalizadaQC(c)):filtradas;
  if(!lista.length){showToast('No hay inspecciones para imprimir.');return;}
- window.__controlListadoActual={titulo:(tipo==='tunel'?'QC Túnel':'QC Carga')+' · '+riegoDiaLabelCorto(dia),lineas:lista};
+ window.__controlListadoActual={titulo:(tipo==='tunel'?'QC Túnel':'QC Carga normal')+' · '+riegoDiaLabelCorto(dia),lineas:lista};
  imprimirListadoPartidasControl();
 }
 function qcPanel(title,content,cls){
@@ -1589,7 +1589,7 @@ async function controlShowControlModule(){
     ]);
     if(!v2ok) await loadControlChecksData(false);
     if(esCargador && !(await loadControlSeccionSlice('carga',controlQuincenaOffset,false))){
-      throw new Error('No se pudieron cargar los datos de QC Carga.');
+      throw new Error('No se pudieron cargar los datos de QC Carga normal.');
     }
   };
   let terminado=false;
