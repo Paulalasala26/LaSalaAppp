@@ -444,7 +444,7 @@ module.exports=async function handler(req,res){
       ...((v5||v6||v7||v8)?{
         categorias:checked.categorias,porcentajeInvalidasGlobal:checked.porcentajeInvalidasGlobal,
         legacyMediciones:before.legacyMediciones||before.mediciones||null,
-        ...((before.legacyCategorias||before.categorias&&![5,6,7].includes(before.schemaVersion))?
+        ...((before.legacyCategorias||before.categorias&&![5,6,7,8].includes(before.schemaVersion))?
           {legacyCategorias:before.legacyCategorias||before.categorias}:{})
       }:isPercent?{categorias:checked,
         legacyMediciones:before.legacyMediciones||before.mediciones||null,
