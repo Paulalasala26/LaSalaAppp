@@ -82,7 +82,7 @@
     for(const r of records.slice(0,120)){
       const item=text('div',undefined,'item'),left=text('div'),right=text('div',day(r.dia),'date');
       left.append(text('strong',r.partida));
-      const info=(r.tipo==='tunel'?'QC Túnel':'QC Carga')+
+      const info=(r.tipo==='tunel'?'QC Túnel':'QC Carga normal')+
         (r.bandejas?' · '+r.bandejas+' bandejas':'')+
         (r.inv?' · INV '+r.inv:'')+
         (r.calle!==null?' · Calle '+r.calle:'');
@@ -124,7 +124,7 @@
         // envío manual usando el ID original validado por el servidor.
         if(localPhotoCount&&window.QCOfflinePhotos)
           window.QCOfflinePhotos.renderSaved($('photo-rescue'));
-        $('status').textContent='No hay partidas preparadas o la copia ha caducado (24 h). Conéctate y abre QC Túnel o QC Carga.'+
+        $('status').textContent='No hay partidas preparadas o la copia ha caducado (24 h). Conéctate y abre QC Túnel o QC Carga normal.'+
           (localDraftCount?' Hay '+localDraftCount+' borradores de cantidades locales.':'')+
           (localPhotoCount?' Hay '+localPhotoCount+' fotos locales pendientes; se conservarán al caducar esta consulta.':'');
         return;

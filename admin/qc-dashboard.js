@@ -14,7 +14,7 @@
     n.toLocaleString('es-ES',{maximumFractionDigits:2})+' %':'—';
   const readableDate=iso=>new Date(iso+'T12:00:00')
     .toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric'});
-  const stageName=type=>type==='tunel'?'Túnel':'Carga';
+  const stageName=type=>type==='tunel'?'Túnel':'Carga normal';
   function node(tag,text,cls){
     const x=document.createElement(tag);
     if(text!==null&&text!==undefined)x.textContent=String(text);
@@ -139,7 +139,7 @@
       ' controles en el filtro · mostrando '+formatInt(data.shownRows)+
       ' (máximo 150 por consulta). El mismo nº de partida puede aparecer varias veces.';
     if(!data.records.length){
-      emptyRow(root,7,'No hay controles de Túnel/Carga en el periodo seleccionado.');
+      emptyRow(root,7,'No hay controles de Túnel/Carga normal en el periodo seleccionado.');
       return;
     }
     for(const row of data.records){

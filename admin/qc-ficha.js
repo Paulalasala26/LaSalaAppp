@@ -222,7 +222,7 @@
   }
   function renderIdentity(r){
     const root=el('qcu-fields');root.replaceChildren();
-    const tipo=r.tipo==='tunel'?'Túnel':'Carga';
+    const tipo=r.tipo==='tunel'?'Túnel':'Carga normal';
     field(root,'Partida',r.partida||'—');
     field(root,'Estadio',tipo);
     field(root,'Fecha de control',labelDate(r.dia));

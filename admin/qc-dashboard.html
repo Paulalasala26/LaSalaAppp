@@ -39,7 +39,7 @@
 @media(max-width:1050px){.qcd-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.qcd-grid{grid-template-columns:1fr}}
 @media(max-width:650px){.qcd-panel{padding:13px}.qcd-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.qcd-filters{grid-template-columns:1fr}.qcd-barline{grid-template-columns:85px minmax(60px,1fr) 78px;gap:7px}.qcd-metric b{font-size:21px}}
 </style>
-<script src="./qc-dashboard.js" defer></script>
+<script src="./qc-dashboard.js?v=20261106-qc-carga-normal" defer></script>
 </head>
 <body>
 <div id="access-gate" class="access-gate" role="status" aria-live="polite">
@@ -79,7 +79,7 @@
     <div class="page-head"><h1>Panel de calidad</h1><div class="qcd-actions"><a href="./control.html" class="button ghost">Registros QC</a><a href="./qc-criterios.html" class="button ghost">Criterios históricos</a></div></div>
     <form id="qcd-form" class="qcd-panel qcd-filters">
       <label class="qcd-filter" for="qcd-type">Estadio
-        <select id="qcd-type"><option value="todos">Túnel y Carga</option><option value="tunel">Túnel</option><option value="carga">Carga</option></select>
+        <select id="qcd-type"><option value="todos">Túnel y Carga normal</option><option value="tunel">Túnel</option><option value="carga">Carga normal</option></select>
       </label>
       <label class="qcd-filter" for="qcd-from">Desde
         <input type="date" id="qcd-from" min="2026-06-15" required>

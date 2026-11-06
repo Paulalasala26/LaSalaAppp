@@ -61,7 +61,7 @@
     for(const rec of subset.slice(0,40)){
       const row=node('div');row.className='item';
       const left=node('div'),name=node('strong',rec.partida);
-      const detail=node('span',(rec.tipo==='carga'?'Carga':'Túnel')+
+      const detail=node('span',(rec.tipo==='carga'?'Carga normal':'Túnel')+
         ' · '+(rec.numBandejas||'—')+' bandejas'+
         (rec.invernadero?' · INV '+rec.invernadero:'')+
         (rec.calleDesde!=null?' · Calle '+rec.calleDesde:'')+

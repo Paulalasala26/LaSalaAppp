@@ -692,7 +692,7 @@
    const card=el('div');card.className='item';
    const area=el('div');
    area.append(el('strong',d.ref.partida),
-    el('span',(d.ref.tipo==='tunel'?'QC Túnel':'QC Carga')+
+    el('span',(d.ref.tipo==='tunel'?'QC Túnel':'QC Carga normal')+
      ' · Inspección '+d.ref.id),
     el('span',[5,6].includes(d.schemaVersion)?'Evaluación porcentual':'Medición histórica'));
    decorate(area,d.ref);

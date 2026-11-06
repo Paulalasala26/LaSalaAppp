@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="./control.css">
   <script src="./qc-photo-queue.js" defer></script>
   <script src="./qc-offline-snapshot.js" defer></script>
-  <script src="./control.js" defer></script>
+  <script src="./control.js?v=20261106-qc-carga-normal" defer></script>
 </head>
 <body class="qc-backoffice">
   <div id="access-gate" class="access-gate" role="status" aria-live="polite">
@@ -76,7 +76,7 @@
         <div id="qc-feedback" class="operation-feedback" role="status" aria-live="polite" hidden></div>
         <form id="qc-form" class="qc-filters">
           <div><label for="qc-type">Tipo de control</label>
-            <select id="qc-type"><option value="todos">Todos</option><option value="tunel">QC Túnel</option><option value="carga">QC Carga</option></select></div>
+            <select id="qc-type"><option value="todos">Todos</option><option value="tunel">QC Túnel</option><option value="carga">QC Carga normal</option></select></div>
           <div><label for="qc-from">Desde</label><input id="qc-from" type="date" min="2026-06-15" required></div>
           <div><label for="qc-to">Hasta</label><input id="qc-to" type="date" min="2026-06-15" required></div>
           <div><label for="qc-state">Estado</label>

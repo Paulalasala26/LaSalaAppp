@@ -355,7 +355,7 @@
       const row=node('tr'),when=node('td');
       row.dataset.qcId=rec.id;
       when.append(node('span',localDate(rec.iso),'qc-main'));
-      when.append(node('span',rec.tipo==='tunel'?'Check Túnel':'Check Carga','qc-secondary'));
+      when.append(node('span',rec.tipo==='tunel'?'Check Túnel':'Check Carga normal','qc-secondary'));
       row.append(when,node('td',rec.partida||'—','qc-main'),node('td',clientVariety(rec)||'—'),
         node('td',locationText(rec)));
       const status=node('td');
@@ -382,7 +382,7 @@
   function detail(rec){
     el('qc-modal-title').textContent='Partida '+(rec.partida||'sin número');
     const body=el('qc-modal-body'),grid=node('div',null,'qc-detail-grid');
-    addField(grid,'Tipo',rec.tipo==='tunel'?'Check Túnel':'Check Carga');
+    addField(grid,'Tipo',rec.tipo==='tunel'?'Check Túnel':'Check Carga normal');
     addField(grid,'Fecha',localDate(rec.iso));
     addField(grid,'Nº partida',rec.partida);
     if(rec.tipo==='carga'){

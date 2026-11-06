@@ -416,7 +416,7 @@
   for(const ref of refs.values()){
    const card=text('div');card.className='item';
    const area=text('div');
-   area.append(text('strong',ref.partida),text('span',ref.tipo==='tunel'?'QC Túnel':'QC Carga'));
+   area.append(text('strong',ref.partida),text('span',ref.tipo==='tunel'?'QC Túnel':'QC Carga normal'));
    decorate(area,ref,false);
    card.append(area);parent.append(card);
   }

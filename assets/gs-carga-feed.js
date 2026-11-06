@@ -1,5 +1,5 @@
 'use strict';
-/* Consulta de solo lectura del snapshot diario de GS desde QC Carga. */
+/* Consulta de solo lectura del snapshot diario de GS desde QC Carga normal. */
 (function () {
   const API = '/api/admin-catalog?view=';
   let feedType = 'carga';

@@ -66,9 +66,9 @@
   const desc=text('div',null,'qc-sync-details');
   const rows=[
    ['QC Túnel · Inspecciones',refsLabel(state.drafts,'tunel')],
-   ['QC Carga · Inspecciones',refsLabel(state.drafts,'carga')],
+   ['QC Carga normal · Inspecciones',refsLabel(state.drafts,'carga')],
    ['QC Túnel · Fotos',refsLabel(state.photos,'tunel')],
-   ['QC Carga · Fotos',refsLabel(state.photos,'carga')]
+   ['QC Carga normal · Fotos',refsLabel(state.photos,'carga')]
   ];
   for(const [name,count]of rows){
    if(!count)continue;

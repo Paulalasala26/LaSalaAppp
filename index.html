@@ -321,9 +321,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 <script src="assets/control-qc-operativo.js?v=114" defer></script>
 <script src="assets/control-ui-empty.js?v=080" defer></script>
 <script src="assets/qc-offline-operarios-store.js" defer></script>
-<script src="assets/qc-offline-operarios-photos.js?v=115" defer></script>
-<script src="assets/qc-offline-operarios-drafts.js?v=113" defer></script>
-<script src="assets/qc-sync-global.js?v=118" defer></script>
+<script src="assets/qc-offline-operarios-photos.js?v=116" defer></script>
+<script src="assets/qc-offline-operarios-drafts.js?v=114" defer></script>
+<script src="assets/qc-sync-global.js?v=119" defer></script>
 </head>
 <body>
 
@@ -5023,7 +5023,7 @@ async function eliminarTrabajoConfirmado(id){
 // ════════════════════════════════════════════════════════════════
 const CONTROL_SECCIONES = [
   {key:'tunel', label:'QC Túnel', icon:'ti-building-warehouse', color:'linear-gradient(135deg,#5c8df0,#3fc6b0)', conCheck:true},
-  {key:'carga', label:'QC Carga', icon:'ti-truck', color:'linear-gradient(135deg,#f5a35c,#f0715c)', conCheck:true},
+  {key:'carga', label:'QC Carga normal', icon:'ti-truck', color:'linear-gradient(135deg,#f5a35c,#f0715c)', conCheck:true},
   {key:'invernadero', label:'Check Invernadero', icon:'ti-plant-2', color:'linear-gradient(135deg,#1a5c2e,#3fa864)', conCheck:false},
   {key:'fechas', label:'Check Fechas', icon:'ti-calendar-event', color:'linear-gradient(135deg,#7b5cf0,#5c8df0)', conCheck:false},
   {key:'productos', label:'Check Prueba de Productos', icon:'ti-flask', color:'linear-gradient(135deg,#c47f00,#e0a530)', conCheck:false},
@@ -6502,7 +6502,7 @@ function qcImprimirDia(){
  const filtradas=controlLineasFiltradasInv(controlChecksData.filter(c=>c.tipo===tipo&&c.dia===dia),tipo);
  const lista=controlFiltroEstado==='completados'?filtradas.filter(controlLineaFinalizadaQC):controlFiltroEstado==='pendientes'?filtradas.filter(c=>!controlLineaFinalizadaQC(c)):filtradas;
  if(!lista.length){showToast('No hay inspecciones para imprimir.');return;}
- window.__controlListadoActual={titulo:(tipo==='tunel'?'QC Túnel':'QC Carga')+' · '+riegoDiaLabelCorto(dia),lineas:lista};
+ window.__controlListadoActual={titulo:(tipo==='tunel'?'QC Túnel':'QC Carga normal')+' · '+riegoDiaLabelCorto(dia),lineas:lista};
  imprimirListadoPartidasControl();
 }
 function qcPanel(title,content,cls){
@@ -24953,7 +24953,7 @@ function conGuardiaReentrada(fn){
 </script>
 <script src="assets/fito-series-v3.js"></script>
 <script src="assets/qc-editar-linea-v3.js?v=109"></script>
-<script src="assets/gs-carga-feed.js?v=4"></script>
+<script src="assets/gs-carga-feed.js?v=5"></script>
 </body>
 </html>
 <!-- VERCEL TEST v1.0 deployment trigger 2026-09-22 -->
