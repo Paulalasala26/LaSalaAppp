@@ -71,7 +71,7 @@ La suite contiene automatización para 615 casos UAT distintos en 257 pruebas Pl
   búsqueda una partida ya salida; UAT-756 iguala las bandas de un INV desigual;
   UAT-765 marca y nombra los huecos de una calle ocupada.
 - UAT-1237–1238, UAT-1302–1303, UAT-1305–1306, UAT-1309–1310,
-  UAT-1315–1321, UAT-1493–1494, UAT-1496–1498, UAT-1501–1503, UAT-1508–1509, UAT-1510, UAT-1513–1526, UAT-1531–1534, UAT-1536–1537, UAT-1540–1544, UAT-1546–1550, UAT-1551, UAT-1553–1564: Tareas se abre y cierra
+  UAT-1315–1321, UAT-1493–1494, UAT-1496–1498, UAT-1501–1503, UAT-1505–1506, UAT-1508–1509, UAT-1510, UAT-1513–1526, UAT-1531–1534, UAT-1536–1537, UAT-1540–1544, UAT-1546–1550, UAT-1551, UAT-1553–1564: Tareas se abre y cierra
   sin duplicados ni escrituras; el alta manual valida, cancela, persiste IDs
   independientes por tarea y reparto a PEÓN/REGANTE; Mantenimiento valida tipo e INV,
   crea un ticket por invernadero y conserva prioridad, fecha y recurrencia; valida intervalos, bloquea duplicados y permite reintentar un guardado fallido sin perder el formulario.
