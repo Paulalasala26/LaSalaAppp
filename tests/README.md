@@ -1,6 +1,6 @@
 # Pruebas automatizadas
 
-La suite contiene automatización para 621 casos UAT distintos en 258 pruebas Playwright (22,5 % de los 2.754 casos; quedan 2.133 sin cobertura). La última ejecución completa pasó 258/258 (2,6 min, dos workers):
+La suite contiene automatización para 622 casos UAT distintos en 258 pruebas Playwright (22,6 % de los 2.754 casos; quedan 2.132 sin cobertura). La última ejecución completa pasó 258/258 (2,6 min, dos workers):
 
 - UAT-001 a UAT-010: autenticación, sesión, roles, navegación y tamaños PC,
   móvil y tablet.
@@ -70,7 +70,7 @@ La suite contiene automatización para 621 casos UAT distintos en 258 pruebas Pl
   el mapa y la ocupación por ID único al cambiar de periodo. UAT-747 recupera por
   búsqueda una partida ya salida; UAT-756 iguala las bandas de un INV desigual;
   UAT-765 marca y nombra los huecos de una calle ocupada.
-- UAT-1237–1238, UAT-1302–1303, UAT-1305–1321,
+- UAT-1237–1238, UAT-1302–1303, UAT-1305–1322,
   UAT-1493–1494, UAT-1496–1498, UAT-1501–1503, UAT-1505–1506, UAT-1508–1509, UAT-1510, UAT-1513–1526, UAT-1531–1534, UAT-1536–1537, UAT-1540–1544, UAT-1546–1550, UAT-1551, UAT-1553–1564: Tareas se abre y cierra
   sin duplicados ni escrituras; el alta manual valida, cancela, persiste IDs
   independientes por tarea y reparto a PEÓN/REGANTE; Mantenimiento valida tipo e INV,
@@ -117,4 +117,4 @@ La prueba se ejecuta en Chromium. La última corrida completa pasó 258/258 en 2
 En este entorno, Chromium está en el caché local de Playwright; si Playwright no lo detecta automáticamente, define
 `PLAYWRIGHT_BROWSERS_PATH` con esa carpeta antes de ejecutar la suite.
 El workflow [UAT Playwright](../.github/workflows/uat-playwright.yml) ejecuta la suite en push/PR y conserva siempre los informes JSON/HTML; las capturas y trazas se adjuntan cuando hay fallos. Su ejecución remota se confirmará cuando el cambio llegue a GitHub.
-Tras cada corrida, `node tests/export-uat-results.cjs` genera `test-results/uat-results.csv`: 621 filas, una por UAT cubierto, fecha, resultado, prueba, archivo, línea y duración. `PASA_FIXTURE` significa que pasó con Firebase interceptado en memoria; no equivale a una validación de Firebase TEST/PRD ni se debe copiar como OK manual.
+Tras cada corrida, `node tests/export-uat-results.cjs` genera `test-results/uat-results.csv`: 622 filas, una por UAT cubierto, fecha, resultado, prueba, archivo, línea y duración. `PASA_FIXTURE` significa que pasó con Firebase interceptado en memoria; no equivale a una validación de Firebase TEST/PRD ni se debe copiar como OK manual.

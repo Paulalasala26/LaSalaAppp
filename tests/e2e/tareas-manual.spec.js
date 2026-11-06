@@ -218,7 +218,7 @@ test('UAT-1237–1238: cerrar y reabrir Tareas varias veces no duplica vistas ni
   expect(pageErrors).toEqual([]);
 });
 
-test('UAT-1312–1314, UAT-1316–1317, UAT-1320–1321: alta manual conserva fecha, turno, descripción larga, prioridad e IDs', async ({ page }) => {
+test('UAT-1312–1314, UAT-1316–1317, UAT-1320–1322: alta manual conserva datos y no se duplica al cerrar y reabrir Tareas', async ({ page }) => {
   const { database, writes } = await installFixture(page);
   const title = 'E2E tarea repetida';
   const description = 'Descripción extensa del caso automatizado. '.repeat(8).trim();
@@ -260,6 +260,15 @@ test('UAT-1312–1314, UAT-1316–1317, UAT-1320–1321: alta manual conserva fe
     estado: 'pendiente'
   });
   expect(saved[0].id).toBeTruthy();
+
+  await page.locator('#tareas-overlay').getByRole('button', { name: /Cerrar/ }).click();
+  await expect(page.locator('#tareas-overlay')).toBeHidden();
+  await openTasks(page);
+  await page.locator('#tareas-overlay').getByRole('button', { name: 'Tareas de mañana' }).click();
+  await expect(page.locator('#tareas-overlay').getByText(title, { exact: false })).toHaveCount(1);
+  saved = JSON.parse(database['lasala-tareas-v1']);
+  expect(saved).toHaveLength(1);
+  expect(writes.filter(write => write.key === 'lasala-tareas-v1')).toHaveLength(1);
 
   await createTask('2 pendientes');
   saved = JSON.parse(database['lasala-tareas-v1']);
