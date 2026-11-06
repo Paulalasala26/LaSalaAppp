@@ -5,8 +5,8 @@ module.exports = defineConfig({
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
-  workers: process.env.CI ? 2 : undefined,
-  reporter: [['list'], ['html', { open: 'never' }]],
+  workers: 2,
+  reporter: [['list'], ['json', { outputFile: 'test-results/report.json' }], ['html', { open: 'never' }]],
   outputDir: 'test-results',
   use: {
     baseURL: 'http://127.0.0.1:4173',
@@ -17,10 +17,4 @@ module.exports = defineConfig({
     timezoneId: 'Europe/Madrid'
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
-  webServer: {
-    command: 'node tests/serve.mjs',
-    url: 'http://127.0.0.1:4173',
-    reuseExistingServer: !process.env.CI,
-    timeout: 30_000
-  }
 });

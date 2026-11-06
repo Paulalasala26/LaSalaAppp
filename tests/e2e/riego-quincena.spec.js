@@ -1,15 +1,15 @@
 const { createHash } = require('node:crypto');
-const { test, expect } = require('@playwright/test');
+const { test, expect } = require('./harness');
 
 const firebaseUrl = /^https:\/\/[^/]*(?:firebasedatabase\.app|firebaseio\.com)\//;
 const firebaseHost = 'la-sala-app-default-rtdb.europe-west1.firebasedatabase.app';
 const login = { user: 'E2E_RIEGO_ADMIN', password: 'e2e-only-password' };
 
-function fixtureDatabase() {
+function fixtureDatabase({ user = login.user, role = 'ADMIN' } = {}) {
   const passwordHash = createHash('sha256').update(login.password).digest('hex');
   return {
-    'lasala-users-v1': JSON.stringify({ [login.user]: passwordHash }),
-    'lasala-roles-v1': JSON.stringify({ [login.user]: 'ADMIN' }),
+    'lasala-users-v1': JSON.stringify({ [user]: passwordHash }),
+    'lasala-roles-v1': JSON.stringify({ [user]: role }),
     'lasala-riego-v1': JSON.stringify({
       '17': {
         '28': { '2': 'E2E-RIEGO-DIA-28' },
@@ -17,7 +17,8 @@ function fixtureDatabase() {
         '30': { '2': 'E2E-RIEGO-DIA-30' },
         '31': { '2': 'E2E-RIEGO-DIA-31' }
       },
-      '18': { '30': { '2': 'E2E-RIEGO-INV-18' } }
+      '18': { '30': { '2': 'E2E-RIEGO-INV-18' } },
+      '1A': { '141': { '2': 'E2E-RIEGO-INV-1A-19OCT', '3': 'E2E-RIEGO-INV-1A-19OCT' } }
     })
   };
 }
@@ -38,6 +39,11 @@ function writeAt(object, path, value) {
   }
 }
 
+function firebaseEtag(value) {
+  if (value == null) return 'null_etag';
+  return `"${createHash('sha1').update(JSON.stringify(value)).digest('hex')}"`;
+}
+
 function riegoGuardado(database) {
   const raw = database['lasala-riego-v1'];
   return typeof raw === 'string' ? JSON.parse(raw) : raw;
@@ -48,9 +54,22 @@ function textoGuardadoRiego(database, invId, day, street) {
   return value && typeof value === 'object' ? value.texto : value;
 }
 
-async function openRiego(page, database, { writeDelayMs = 0 } = {}) {
+async function openRiego(page, database, {
+  writeDelayMs = 0,
+  user = login.user,
+  loginFirst = true,
+  quickAction = 'riego',
+  fixedTime = '2026-06-30T10:00:00+02:00'
+} = {}) {
   const unexpectedHosts = [];
   const writes = [];
+  let networkAvailable = true;
+  const corsHeaders = {
+    'access-control-allow-origin': '*',
+    'access-control-allow-methods': 'GET, PUT, PATCH, DELETE, OPTIONS',
+    'access-control-allow-headers': 'Content-Type, If-Match, X-Firebase-ETag',
+    'access-control-expose-headers': 'ETag'
+  };
   await page.route(firebaseUrl, async route => {
     const request = route.request();
     const url = new URL(request.url());
@@ -59,33 +78,50 @@ async function openRiego(page, database, { writeDelayMs = 0 } = {}) {
       await route.abort();
       return;
     }
+    if (!networkAvailable && request.method() !== 'OPTIONS') {
+      await route.abort('internetdisconnected');
+      return;
+    }
     const path = url.pathname.replace(/^\//, '').replace(/\.json$/, '').split('/').filter(Boolean).map(decodeURIComponent);
     const value = readAt(database, path);
+    if (request.method() === 'OPTIONS') {
+      await route.fulfill({ status: 204, headers: corsHeaders });
+      return;
+    }
     if (request.method() === 'GET') {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(value) });
+      const headers = request.headers()['x-firebase-etag'] === 'true' ? { etag: firebaseEtag(value) } : {};
+      await route.fulfill({ status: 200, contentType: 'application/json', headers: { ...corsHeaders, ...headers }, body: JSON.stringify(value) });
       return;
     }
     const body = request.postData() ? JSON.parse(request.postData()) : null;
     writes.push({ method: request.method(), path: path.join('/'), body });
     if (writeDelayMs) await new Promise(resolve => setTimeout(resolve, writeDelayMs));
+    const ifMatch = request.headers()['if-match'];
+    if (ifMatch && ifMatch !== firebaseEtag(readAt(database, path))) {
+      await route.fulfill({ status: 412, contentType: 'application/json', headers: corsHeaders, body: JSON.stringify({ error: 'etag mismatch' }) });
+      return;
+    }
     if (request.method() === 'PUT') writeAt(database, path, body);
     else if (request.method() === 'PATCH') writeAt(database, path, { ...(readAt(database, path) || {}), ...body });
     else if (request.method() === 'DELETE') writeAt(database, path, null);
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
+    await route.fulfill({ status: 200, contentType: 'application/json', headers: { ...corsHeaders, etag: firebaseEtag(readAt(database, path)) }, body: JSON.stringify(body) });
   });
-  await page.clock.setFixedTime(new Date('2026-06-30T10:00:00+02:00'));
+  await page.clock.setFixedTime(new Date(fixedTime));
   await page.goto('/');
-  await page.locator('#login-user').evaluate((select, user) => select.add(new Option('Usuario E2E Riego', user)), login.user);
-  await page.locator('#login-user').selectOption(login.user);
-  await page.locator('#login-pass').fill(login.password);
-  await page.getByRole('button', { name: 'Iniciar sesión' }).click();
+  if(loginFirst){
+    await page.locator('#login-user').evaluate((select, value) => select.add(new Option(`Usuario ${value}`, value)), user);
+    await page.locator('#login-user').selectOption(user);
+    await page.locator('#login-pass').fill(login.password);
+    await page.getByRole('button', { name: 'Iniciar sesión' }).click();
+  }
   await expect(page.locator('#app')).toBeVisible();
-  await page.locator('.home-shortcut-card[onclick="handleQuickAction(\'riego\')"]').click();
+  if (quickAction === 'hojas-riego') await page.getByRole('button', { name: 'Hojas de riego' }).click();
+  else await page.locator(`.home-shortcut-card[onclick="handleQuickAction('${quickAction}')"]`).click();
   const overlay = page.locator('#riego-overlay');
   await expect(overlay).toBeVisible();
   await page.locator('#riego-inv-selector-toggle').click();
   await page.locator('[data-rinv="17"]').click();
-  return { overlay, database, unexpectedHosts, writes };
+  return { overlay, database, unexpectedHosts, writes, setNetworkAvailable: value => { networkAvailable = !!value; } };
 }
 
 async function openManualRiegoOnFutureDay(page) {
@@ -99,6 +135,13 @@ async function openManualRiegoOnFutureDay(page) {
   const form = page.locator('#riego-manual-overlay');
   await expect(form).toBeVisible();
   return { form, grid, day: await form.locator('#rm-dia').inputValue() };
+}
+
+async function openImprimirRiego(page, overlay) {
+  await overlay.getByRole('button', { name: 'Imprimir' }).click();
+  const selector = page.locator('#imprimir-resumen-overlay');
+  await expect(selector).toBeVisible();
+  return selector;
 }
 
 async function callesVisiblesDelDia(grid, day) {
@@ -117,7 +160,178 @@ test('UAT-067: entrar desde Inicio en Riego y volver conserva la sesión', async
   await expect(page.locator('#app')).toBeVisible();
 });
 
-test('UAT-068: Riego carga los registros del invernadero en la quincena actual', async ({ page }) => {
+test('UAT-018: dos sesiones guardan cambios de Riego en celdas distintas', async ({ page, context }) => {
+  const database = fixtureDatabase();
+  const passwordHash = createHash('sha256').update(login.password).digest('hex');
+  database['lasala-users-v1'] = JSON.stringify({ [login.user]: passwordHash, E2E_RIEGO_ADMIN_2: passwordHash });
+  database['lasala-roles-v1'] = JSON.stringify({ [login.user]: 'ADMIN', E2E_RIEGO_ADMIN_2: 'ADMIN' });
+  const otherPage = await context.newPage();
+  try {
+    const first = await openRiego(page, database, { writeDelayMs: 150 });
+    // Mantener la sesión que ya tiene la primera pestaña y arrancar la
+    // segunda como otro usuario antes de cargar su propio estado JS.
+    await page.evaluate(() => localStorage.setItem('lasala-sesion-v1', JSON.stringify({ user: 'E2E_RIEGO_ADMIN_2', ts: Date.now() })));
+    const second = await openRiego(otherPage, database, { writeDelayMs: 150, user: 'E2E_RIEGO_ADMIN_2', loginFirst: false });
+    const firstGrid = page.locator('#riego-grid-wrap');
+    const secondGrid = otherPage.locator('#riego-grid-wrap');
+    const day = await firstGrid.locator('input[data-rinv="17"][readonly]').evaluateAll(elements =>
+      elements.find(element => Number(element.dataset.dia) > 31)?.dataset.dia
+    );
+    const firstRow = firstGrid.locator(`tr:has(input[data-rinv="17"][data-dia="${day}"])`).first();
+    const secondRow = secondGrid.locator(`tr:has(input[data-rinv="17"][data-dia="${day}"])`).first();
+    await firstRow.locator('td').first().click();
+    await secondRow.locator('td').first().click();
+    const firstForm = page.locator('#riego-manual-overlay');
+    const secondForm = otherPage.locator('#riego-manual-overlay');
+    for (const [form, street, minutes] of [[firstForm, '2', '10'], [secondForm, '3', '20']]) {
+      await form.locator('input[name="rmb-modo-17"]').nth(2).check();
+      const range = form.locator('#rmb-detalle-17 .rmb-tramo-row select');
+      await range.first().selectOption(street);
+      await range.nth(1).selectOption(street);
+      await form.locator('.rm-agua-min').first().selectOption(minutes);
+    }
+
+    await Promise.all([
+      firstForm.locator('#rm-guardar-btn').click(),
+      secondForm.locator('#rm-guardar-btn').click()
+    ]);
+    await expect.poll(() => first.writes.length + second.writes.length).toBeGreaterThanOrEqual(3);
+    const saved = riegoGuardado(database)?.['17']?.[day] || {};
+    expect(saved['2']).toBeTruthy();
+    expect(saved['3']).toBeTruthy();
+    expect(textoGuardadoRiego(database, '17', day, '2')).toContain('10');
+    expect(textoGuardadoRiego(database, '17', day, '3')).toContain('20');
+    expect(first.unexpectedHosts).toEqual([]);
+    expect(second.unexpectedHosts).toEqual([]);
+  } finally {
+    await otherPage.close();
+  }
+});
+
+test('UAT-125: dos sesiones guardan riegos simultáneos en invernaderos diferentes', async ({ page, context }) => {
+  const database = fixtureDatabase();
+  const passwordHash = createHash('sha256').update(login.password).digest('hex');
+  database['lasala-users-v1'] = JSON.stringify({ [login.user]: passwordHash, E2E_RIEGO_ADMIN_2: passwordHash });
+  database['lasala-roles-v1'] = JSON.stringify({ [login.user]: 'ADMIN', E2E_RIEGO_ADMIN_2: 'ADMIN' });
+  const otherPage = await context.newPage();
+  try {
+    const first = await openRiego(page, database, { writeDelayMs: 150 });
+    await page.evaluate(() => localStorage.setItem('lasala-sesion-v1', JSON.stringify({ user: 'E2E_RIEGO_ADMIN_2', ts: Date.now() })));
+    const second = await openRiego(otherPage, database, { writeDelayMs: 150, user: 'E2E_RIEGO_ADMIN_2', loginFirst: false });
+    await otherPage.locator('#riego-inv-selector-toggle').click();
+    await otherPage.locator('[data-rinv="18"]').click();
+
+    const day = await page.locator('#riego-grid-wrap input[data-rinv="17"][readonly]').evaluateAll(elements =>
+      elements.find(element => Number(element.dataset.dia) > 31)?.dataset.dia
+    );
+    const firstRow = page.locator(`#riego-grid-wrap tr:has(input[data-rinv="17"][data-dia="${day}"])`).first();
+    const secondRow = otherPage.locator(`#riego-grid-wrap tr:has(input[data-rinv="18"][data-dia="${day}"])`).first();
+    await firstRow.locator('td').first().click();
+    await secondRow.locator('td').first().click();
+    const firstForm = page.locator('#riego-manual-overlay');
+    const secondForm = otherPage.locator('#riego-manual-overlay');
+    for (const [form, invId, street, minutes] of [[firstForm, '17', '2', '10'], [secondForm, '18', '2', '20']]) {
+      await form.locator(`input[name="rmb-modo-${invId}"]`).nth(2).check();
+      const range = form.locator(`#rmb-detalle-${invId} .rmb-tramo-row select`);
+      await range.first().selectOption(street);
+      await range.nth(1).selectOption(street);
+      await form.locator('.rm-agua-min').first().selectOption(minutes);
+    }
+    await Promise.all([firstForm.locator('#rm-guardar-btn').click(), secondForm.locator('#rm-guardar-btn').click()]);
+    await expect.poll(() => first.writes.length + second.writes.length).toBeGreaterThanOrEqual(3);
+
+    const saved = riegoGuardado(database);
+    expect(textoGuardadoRiego(database, '17', day, '2')).toContain('10');
+    expect(textoGuardadoRiego(database, '18', day, '2')).toContain('20');
+    expect(saved['17'][day]['2']).toBeTruthy();
+    expect(saved['18'][day]['2']).toBeTruthy();
+    expect(first.unexpectedHosts).toEqual([]);
+    expect(second.unexpectedHosts).toEqual([]);
+  } finally {
+    await otherPage.close();
+  }
+});
+
+test('UAT-126: una edición concurrente de la misma celda Riego avisa y conserva el dato remoto', async ({ page, context }) => {
+  const database = fixtureDatabase();
+  const passwordHash = createHash('sha256').update(login.password).digest('hex');
+  database['lasala-users-v1'] = JSON.stringify({ [login.user]: passwordHash, E2E_RIEGO_ADMIN_2: passwordHash });
+  database['lasala-roles-v1'] = JSON.stringify({ [login.user]: 'ADMIN', E2E_RIEGO_ADMIN_2: 'ADMIN' });
+  const otherPage = await context.newPage();
+  try {
+    const first = await openRiego(page, database);
+    await page.evaluate(() => localStorage.setItem('lasala-sesion-v1', JSON.stringify({ user: 'E2E_RIEGO_ADMIN_2', ts: Date.now() })));
+    const second = await openRiego(otherPage, database, { user: 'E2E_RIEGO_ADMIN_2', loginFirst: false });
+    const day = await page.locator('#riego-grid-wrap input[data-rinv="17"][readonly]').evaluateAll(elements =>
+      elements.find(element => Number(element.dataset.dia) > 31)?.dataset.dia
+    );
+    const firstRow = page.locator(`#riego-grid-wrap tr:has(input[data-rinv="17"][data-dia="${day}"])`).first();
+    const secondRow = otherPage.locator(`#riego-grid-wrap tr:has(input[data-rinv="17"][data-dia="${day}"])`).first();
+    await firstRow.locator('td').first().click();
+    await secondRow.locator('td').first().click();
+    const firstForm = page.locator('#riego-manual-overlay');
+    const secondForm = otherPage.locator('#riego-manual-overlay');
+    for (const [form, minutes] of [[firstForm, '10'], [secondForm, '20']]) {
+      await form.locator('input[name="rmb-modo-17"]').nth(2).check();
+      const range = form.locator('#rmb-detalle-17 .rmb-tramo-row select');
+      await range.first().selectOption('2');
+      await range.nth(1).selectOption('2');
+      await form.locator('.rm-agua-min').first().selectOption(minutes);
+    }
+    await firstForm.locator('#rm-guardar-btn').click();
+    await expect.poll(() => textoGuardadoRiego(database, '17', day, '2')).toContain('10');
+    const remotoAntesDelConflicto = riegoGuardado(database)?.['17']?.[day]?.['2'];
+
+    await secondForm.locator('#rm-guardar-btn').click();
+    await expect(otherPage.locator('#aviso-fallo-guardado')).toContainText('misma celda de Riego');
+    expect(riegoGuardado(database)?.['17']?.[day]?.['2']).toEqual(remotoAntesDelConflicto);
+    expect(first.unexpectedHosts).toEqual([]);
+    expect(second.unexpectedHosts).toEqual([]);
+  } finally {
+    await otherPage.close();
+  }
+});
+
+test('UAT-016–017: Riego conserva un cambio sin conexión y lo sincroniza al recuperar la red', async ({ page, context }) => {
+  const database = fixtureDatabase();
+  const seeded = JSON.parse(database['lasala-riego-v1']);
+  seeded['17']['32'] = { '2': '10 + PP + 1º HORA' };
+  database['lasala-riego-v1'] = JSON.stringify(seeded);
+  const { unexpectedHosts, setNetworkAvailable } = await openRiego(page, database);
+  const cell = page.locator(`#riego-grid-wrap textarea[ondblclick*="'17',32"]`);
+  await expect(cell).toHaveValue('10 + PP + 1º HORA');
+  await cell.dblclick();
+  const form = page.locator('#riego-manual-overlay');
+  await expect(form).toBeVisible();
+
+  await context.setOffline(true);
+  setNetworkAvailable(false);
+  expect(await page.evaluate(() => navigator.onLine)).toBe(false);
+  await form.locator('.rm-agua-min').first().selectOption('20');
+  await form.locator('#rm-guardar-btn').click();
+  await expect(form).toBeHidden();
+  await expect(page.locator('#aviso-fallo-guardado')).toContainText('Sin conexión');
+  await expect.poll(() => page.evaluate(() => {
+    const queue = JSON.parse(localStorage.getItem('lasala-offline-queue-v1') || '[]');
+    return queue.filter(action => action.fn === 'aplicarSnapshotRiegoPendiente').length;
+  })).toBe(1);
+  expect(textoGuardadoRiego(database, '17', '32', '2')).toBe('10 + PP + 1º HORA');
+
+  await page.evaluate(() => {
+    window.__e2eOnlineEvents = 0;
+    window.addEventListener('online', () => { window.__e2eOnlineEvents++; });
+  });
+  setNetworkAvailable(true);
+  await context.setOffline(false);
+  expect(await page.evaluate(() => navigator.onLine)).toBe(true);
+  await expect.poll(() => page.evaluate(() => window.__e2eOnlineEvents)).toBe(1);
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('lasala-offline-queue-v1') || '[]'))).toEqual([]);
+  await expect.poll(() => textoGuardadoRiego(database, '17', '32', '2')).toBe('PP + 1º HORA + 20');
+  await expect(page.locator('#aviso-fallo-guardado')).toBeHidden();
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-011 y UAT-068: Riego carga los registros del invernadero en la quincena actual', async ({ page }) => {
   const database = fixtureDatabase();
   const { overlay, unexpectedHosts } = await openRiego(page, database);
 
@@ -127,7 +341,7 @@ test('UAT-068: Riego carga los registros del invernadero en la quincena actual',
   expect(unexpectedHosts).toEqual([]);
 });
 
-test('UAT-071: cambiar de invernadero no arrastra datos del anterior', async ({ page }) => {
+test('UAT-015 y UAT-071: cambiar de invernadero no arrastra datos del anterior', async ({ page }) => {
   const database = fixtureDatabase();
   const { overlay, unexpectedHosts } = await openRiego(page, database);
   const grid = page.locator('#riego-grid-wrap');
@@ -160,6 +374,258 @@ test('UAT-069, UAT-070 y UAT-072: la fecha local, la quincena y el dato históri
   await expect(label).toContainText('Quincena 2');
   await expect(page.locator('#riego-grid-wrap')).toContainText('E2E-RIEGO-DIA-30');
   await expect(page.locator('#riego-grid-wrap')).not.toContainText('E2E-RIEGO-DIA-28');
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-101 y UAT-102: una celda histórica ocupada abre consulta de solo lectura', async ({ page }) => {
+  const database = fixtureDatabase();
+  const before = database['lasala-riego-v1'];
+  const { overlay, unexpectedHosts, writes } = await openRiego(page, database);
+  const celda = page.locator('#riego-grid-wrap td[ondblclick*="editarRiegoManualDesdeCelda"]').filter({ hasText: 'E2E-RIEGO-DIA-29' });
+  await celda.click();
+
+  const consulta = page.locator('#riego-consulta-overlay');
+  await expect(consulta).toBeVisible();
+  await expect(consulta.getByRole('heading', { name: 'Consultar riego' })).toBeVisible();
+  await expect(consulta.getByTestId('riego-consulta-fecha')).toContainText('29 jun');
+  await expect(consulta.getByTestId('riego-consulta-texto')).toHaveText('E2E-RIEGO-DIA-29');
+  await expect(consulta.locator('#rm-dia, .rm-agua-min, #rm-guardar-btn, [data-testid="riego-consulta-delete"]')).toHaveCount(0);
+  await expect(consulta.getByRole('button')).toHaveCount(1);
+  await consulta.getByRole('button', { name: 'Cerrar consulta' }).click();
+  await expect(consulta).toBeHidden();
+  expect(database['lasala-riego-v1']).toBe(before);
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+  await expect(overlay).toBeVisible();
+});
+
+test('UAT-103: una celda histórica vacía no ofrece alta retroactiva', async ({ page }) => {
+  const database = fixtureDatabase();
+  const before = database['lasala-riego-v1'];
+  const { overlay, unexpectedHosts, writes } = await openRiego(page, database);
+  const filaHistorica = page.locator('#riego-grid-wrap tr').filter({ hasText: '29 jun' }).first();
+  await filaHistorica.locator('td').last().click();
+
+  await expect(page.locator('#riego-manual-overlay')).toBeHidden();
+  await expect(page.locator('#riego-consulta-overlay')).toBeHidden();
+  expect(database['lasala-riego-v1']).toBe(before);
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+  await expect(overlay).toBeVisible();
+});
+
+test('UAT-104: VIGUERAS puede abrir y editar un riego histórico autorizado', async ({ page }) => {
+  const database = fixtureDatabase({ user: 'VIGUERAS', role: 'ADMIN' });
+  const { overlay, unexpectedHosts } = await openRiego(page, database, { user: 'VIGUERAS' });
+  const celda = page.locator('#riego-grid-wrap td[ondblclick*="editarRiegoManualDesdeCelda"]').filter({ hasText: 'E2E-RIEGO-DIA-29' });
+  await celda.dblclick();
+
+  const form = page.locator('#riego-manual-overlay');
+  await expect(form).toBeVisible();
+  await expect(form.locator('#rm-dia')).toHaveValue('29');
+  await expect(form.getByTestId('riego-borrar-original')).toBeVisible();
+  expect(unexpectedHosts).toEqual([]);
+  await expect(overlay).toBeVisible();
+});
+
+test('UAT-105: REGANTE consulta las instrucciones de Hojas de riego sin controles de edición', async ({ page }) => {
+  const database = fixtureDatabase({ user: 'REGANTE2', role: 'REGANTE' });
+  const { overlay, unexpectedHosts, writes } = await openRiego(page, database, {
+    user: 'REGANTE2',
+    quickAction: 'hojas-riego'
+  });
+  const celda = page.locator('#riego-grid-wrap td').filter({ hasText: 'E2E-RIEGO-DIA-31' }).first();
+  await celda.click();
+
+  const consulta = page.locator('#riego-consulta-overlay');
+  await expect(consulta).toBeVisible();
+  await expect(consulta.getByTestId('riego-consulta-texto')).toHaveText('E2E-RIEGO-DIA-31');
+  await expect(consulta.locator('#rm-dia, .rm-agua-min, #rm-guardar-btn, [data-testid="riego-borrar-original"]')).toHaveCount(0);
+  expect(writes.filter(write => write.method !== 'GET')).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+  await expect(overlay).toBeVisible();
+});
+
+test('UAT-106: el alta manual no muestra una acción para borrar registros', async ({ page }) => {
+  const database = fixtureDatabase();
+  const { overlay, unexpectedHosts, writes } = await openRiego(page, database);
+  const { form } = await openManualRiegoOnFutureDay(page);
+
+  await expect(form.getByTestId('riego-borrar-original')).toHaveCount(0);
+  await expect(form.getByRole('button', { name: 'Aplicar' })).toBeVisible();
+  expect(writes.filter(write => write.method !== 'GET')).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+  await expect(overlay).toBeVisible();
+});
+
+test('UAT-107, UAT-108 y UAT-110: borrar identifica y elimina solo el riego original', async ({ page }) => {
+  const database = fixtureDatabase();
+  const originalInv18 = JSON.stringify(riegoGuardado(database)['18']['30']);
+  const originalInv17Day31 = JSON.stringify(riegoGuardado(database)['17']['31']);
+  const { overlay, unexpectedHosts } = await openRiego(page, database);
+  const celda = page.locator('#riego-grid-wrap td[ondblclick*="editarRiegoManualDesdeCelda"]').filter({ hasText: 'E2E-RIEGO-DIA-30' });
+  await celda.dblclick();
+  const form = page.locator('#riego-manual-overlay');
+  await expect(form.getByTestId('riego-borrar-original')).toBeVisible();
+
+  await form.locator('.rmb-inv-chk[value="18"]').check();
+  await form.locator('#rm-dia').selectOption('31');
+  let confirmation = '';
+  page.once('dialog', async dialog => {
+    confirmation = dialog.message();
+    await dialog.accept();
+  });
+  await form.getByTestId('riego-borrar-original').click();
+
+  expect(confirmation).toContain('30 jun');
+  expect(confirmation).toContain('INV 17');
+  expect(confirmation).toContain('C/1702');
+  expect(confirmation).not.toContain('INV 18');
+  expect(confirmation).not.toContain('1 jul');
+  await expect.poll(() => riegoGuardado(database)?.['17']?.['30']?.['2']).toBeUndefined();
+  expect(JSON.stringify(riegoGuardado(database)['18']['30'])).toBe(originalInv18);
+  expect(JSON.stringify(riegoGuardado(database)['17']['31'])).toBe(originalInv17Day31);
+  expect(unexpectedHosts).toEqual([]);
+  await expect(overlay).toBeVisible();
+});
+
+test('UAT-109: cancelar el borrado deja intacto el riego original', async ({ page }) => {
+  const database = fixtureDatabase();
+  const before = database['lasala-riego-v1'];
+  const { overlay, unexpectedHosts, writes } = await openRiego(page, database);
+  const celda = page.locator('#riego-grid-wrap td[ondblclick*="editarRiegoManualDesdeCelda"]').filter({ hasText: 'E2E-RIEGO-DIA-30' });
+  await celda.dblclick();
+  const form = page.locator('#riego-manual-overlay');
+  page.once('dialog', dialog => dialog.dismiss());
+  await form.getByTestId('riego-borrar-original').click();
+
+  await expect(form).toBeVisible();
+  expect(database['lasala-riego-v1']).toBe(before);
+  expect(writes.filter(write => write.method !== 'GET')).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+  await expect(overlay).toBeVisible();
+});
+
+test('UAT-114, UAT-115, UAT-116 y UAT-124: imprimir abre un selector diario y alinea las acciones', async ({ page }) => {
+  const database = fixtureDatabase();
+  const { overlay, unexpectedHosts } = await openRiego(page, database);
+  const urlBefore = page.url();
+  const selector = await openImprimirRiego(page, overlay);
+  const daySelect = selector.getByTestId('riego-print-day');
+
+  await expect(selector.getByText('Día de riego', { exact: true })).toBeVisible();
+  await expect(daySelect.locator('option')).toHaveCount(14);
+  await expect(daySelect).toHaveValue('30');
+  await expect(selector.getByText('Días a imprimir', { exact: true })).toHaveCount(0);
+  await expect(selector.locator('.rr-dia-chk')).toHaveCount(0);
+  expect(await selector.locator('label').evaluateAll(labels => {
+    const day = labels.findIndex(label => label.textContent.trim() === 'Día de riego');
+    const greenhouses = labels.findIndex(label => label.textContent.trim() === 'Invernaderos');
+    return day >= 0 && greenhouses > day;
+  })).toBe(true);
+  expect(await selector.getByRole('button', { name: 'Imprimir' }).evaluate(button => getComputedStyle(button.parentElement).justifyContent)).toBe('flex-end');
+  expect(page.url()).toBe(urlBefore);
+
+  await selector.getByRole('button', { name: 'Cancelar' }).click();
+  const { form } = await openManualRiegoOnFutureDay(page);
+  expect(await form.getByTestId('riego-form-actions').evaluate(el => el.style.marginLeft)).toBe('auto');
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-117 y UAT-118: la impresión ofrece solo los días de la quincena y elige el primero si hoy queda fuera', async ({ page }) => {
+  const database = fixtureDatabase();
+  const { overlay, unexpectedHosts } = await openRiego(page, database);
+  await overlay.getByTestId('riego-quincena-previous').click();
+  await expect(overlay.getByTestId('riego-quincena-label')).toContainText('Quincena 1');
+  const selector = await openImprimirRiego(page, overlay);
+  const daySelect = selector.getByTestId('riego-print-day');
+  const options = await daySelect.locator('option').evaluateAll(elements => elements.map(el => Number(el.value)));
+
+  expect(options).toEqual(Array.from({ length: 14 }, (_, index) => 15 + index));
+  await expect(daySelect).toHaveValue('15');
+  await daySelect.selectOption('28');
+  await expect(daySelect).toHaveValue('28');
+  await expect(selector.locator('select')).toHaveCount(1);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-119 y UAT-120: la impresión usa el día y los invernaderos elegidos aunque no se abrieran antes', async ({ page }) => {
+  const database = fixtureDatabase();
+  const { overlay, unexpectedHosts } = await openRiego(page, database);
+  const selector = await openImprimirRiego(page, overlay);
+  await selector.locator('.rr-inv-chk[value="17"]').check();
+  await selector.locator('.rr-inv-chk[value="18"]').check();
+  await selector.getByTestId('riego-print-day').selectOption('30');
+  await selector.getByRole('button', { name: 'Imprimir' }).click();
+
+  const iframe = page.locator('#print-resumen-iframe');
+  await expect(iframe).toBeAttached();
+  await expect.poll(() => iframe.evaluate(frame => frame.contentDocument.body.innerText)).toContain('E2E-RIEGO-DIA-30');
+  const previewText = await iframe.evaluate(frame => frame.contentDocument.body.innerText);
+  expect(previewText).toContain('INV 17');
+  expect(previewText).toContain('INV 18');
+  expect(previewText).toContain('E2E-RIEGO-INV-18');
+  expect(previewText).not.toContain('E2E-RIEGO-DIA-29');
+  expect(unexpectedHosts).toEqual([]);
+  await expect(overlay).toBeVisible();
+});
+
+test('UAT-121: la vista previa de INV 1A conserva los riegos y calles de la quincena 19/10–01/11', async ({ page }) => {
+  const database = fixtureDatabase();
+  const { overlay, unexpectedHosts } = await openRiego(page, database, { fixedTime: '2026-10-25T10:00:00+01:00' });
+  await expect(overlay.getByTestId('riego-quincena-label')).toContainText('19 oct — 1 nov');
+  const selector = await openImprimirRiego(page, overlay);
+  await selector.locator('.rr-inv-chk[value="17"]').uncheck();
+  await selector.locator('.rr-inv-chk[value="1A"]').check();
+  await selector.getByTestId('riego-print-day').selectOption('141');
+  await selector.getByRole('button', { name: 'Imprimir' }).click();
+
+  const iframe = page.locator('#print-resumen-iframe');
+  await expect(iframe).toBeAttached();
+  await expect.poll(() => iframe.evaluate(frame => frame.contentDocument.body.innerText)).toContain('E2E-RIEGO-INV-1A-19OCT');
+  const previewText = await iframe.evaluate(frame => frame.contentDocument.body.innerText);
+  expect(previewText).toContain('19 OCTUBRE 2026');
+  expect(previewText).toContain('C/102-103');
+  expect(previewText).not.toContain('INV 17');
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-122: imprimir un día sin riegos muestra aviso y no crea una hoja vacía', async ({ page }) => {
+  const database = fixtureDatabase();
+  const { overlay, unexpectedHosts } = await openRiego(page, database);
+  const selector = await openImprimirRiego(page, overlay);
+  await selector.locator('.rr-inv-chk[value="17"]').check();
+  await selector.getByTestId('riego-print-day').selectOption('32');
+  await selector.getByRole('button', { name: 'Imprimir' }).click();
+
+  await expect(page.locator('#app-toast')).toContainText('No hay riegos registrados');
+  await expect(page.locator('#print-resumen-iframe')).toHaveCount(0);
+  await expect(selector).toBeVisible();
+  expect(unexpectedHosts).toEqual([]);
+  await expect(overlay).toBeVisible();
+});
+
+test('UAT-123: la vista previa contiene fecha, invernadero, calles e instrucciones en A4', async ({ page }) => {
+  const database = fixtureDatabase();
+  const { overlay, unexpectedHosts } = await openRiego(page, database);
+  const selector = await openImprimirRiego(page, overlay);
+  await selector.locator('.rr-inv-chk[value="17"]').check();
+  await selector.getByTestId('riego-print-day').selectOption('30');
+  await selector.getByRole('button', { name: 'Imprimir' }).click();
+
+  const iframe = page.locator('#print-resumen-iframe');
+  await expect(iframe).toBeAttached();
+  await expect.poll(() => iframe.evaluate(frame => frame.contentDocument.body.innerText)).toContain('E2E-RIEGO-DIA-30');
+  const preview = await iframe.evaluate(frame => ({
+    text: frame.contentDocument.body.innerText,
+    pageRule: [...frame.contentDocument.styleSheets].flatMap(sheet => [...sheet.cssRules]).find(rule => rule.cssText.includes('@page'))?.cssText || ''
+  }));
+  expect(preview.text).toContain('30 JUNIO 2026');
+  expect(preview.text).toContain('INV 17');
+  expect(preview.text).toContain('C/1702');
+  expect(preview.text).toContain('E2E-RIEGO-DIA-30');
+  expect(preview.pageRule.toLowerCase()).toContain('a4');
+  expect(preview.text).not.toContain('E2E-RIEGO-DIA-29');
   expect(unexpectedHosts).toEqual([]);
 });
 
@@ -478,7 +944,7 @@ test('UAT-093: Aplicar guarda desde el formulario y deja accesible la acción de
   expect(unexpectedHosts).toEqual([]);
 });
 
-test('UAT-094: un riego aplicado reaparece en el mismo invernadero y calle al volver a entrar', async ({ page }) => {
+test('UAT-013 y UAT-094: un riego aplicado reaparece en el mismo invernadero y calle al volver a entrar', async ({ page }) => {
   const database = fixtureDatabase();
   const { overlay, unexpectedHosts } = await openRiego(page, database);
   const { form, grid, day } = await openManualRiegoOnFutureDay(page);
@@ -500,7 +966,7 @@ test('UAT-094: un riego aplicado reaparece en el mismo invernadero y calle al vo
   expect(unexpectedHosts).toEqual([]);
 });
 
-test('UAT-095: un riego aplicado reaparece idéntico después de recargar la aplicación', async ({ page }) => {
+test('UAT-014 y UAT-095: un riego aplicado reaparece idéntico después de recargar la aplicación', async ({ page }) => {
   const database = fixtureDatabase();
   const { overlay, unexpectedHosts } = await openRiego(page, database);
   const { form, grid, day } = await openManualRiegoOnFutureDay(page);
@@ -521,7 +987,7 @@ test('UAT-095: un riego aplicado reaparece idéntico después de recargar la apl
   expect(unexpectedHosts).toEqual([]);
 });
 
-test('UAT-096: editar el agua de un riego conserva el Trabajo y el horario existentes', async ({ page }) => {
+test('UAT-012 y UAT-096: editar el agua de un riego conserva el Trabajo y el horario existentes', async ({ page }) => {
   const database = fixtureDatabase();
   const seeded = JSON.parse(database['lasala-riego-v1']);
   seeded['17']['32'] = { '2': '10 + PP + 1º HORA' };
@@ -598,8 +1064,8 @@ test('UAT-099: guardar varios invernaderos y tramos solo modifica los destinos s
   const { overlay, unexpectedHosts } = await openRiego(page, database);
   const { form, grid, day } = await openManualRiegoOnFutureDay(page);
   const secondRoomInv = form.locator('.rmb-inv-chk[data-sala="sala2"]:not(:checked)').first();
-  await secondRoomInv.check();
   const secondId = await secondRoomInv.getAttribute('value');
+  await secondRoomInv.check();
   const ranges = {};
 
   for (const invId of ['17', secondId]) {

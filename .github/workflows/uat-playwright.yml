@@ -1,0 +1,60 @@
+name: UAT Playwright
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: uat-playwright-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: UAT aislado en Chromium
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: true
+    steps:
+      - name: Obtener el código
+        uses: actions/checkout@v4
+
+      - name: Instalar pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+          run_install: false
+
+      - name: Instalar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
+
+      - name: Instalar Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Ejecutar la suite UAT
+        run: pnpm test:e2e
+
+      - name: Exportar estados UAT para revisión
+        if: always() && hashFiles('test-results/report.json') != ''
+        run: node tests/export-uat-results.cjs
+
+      - name: Guardar informe JSON/HTML y trazas
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: uat-playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 14
