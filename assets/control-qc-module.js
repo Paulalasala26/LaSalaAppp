@@ -1492,7 +1492,7 @@ function qcMoverDia(delta,modo){
 }
 function qcImprimirDia(){
  const tipo=controlSeccion;
- if(tipo!=='tunel'&&tipo!=='carga')return;
+ if(tipo!=='tunel'&&tipo!=='carga'&&tipo!=='carga_injerto')return;
  const dia=controlDiaSel;
  if(!Number.isInteger(dia))return;
  const filtradas=controlLineasFiltradasInv(controlChecksData.filter(c=>c.tipo===tipo&&c.dia===dia),tipo);
@@ -1715,7 +1715,7 @@ function renderControlContent(overlay){
     </button>`;
   };
   const navHTML=controlSeccion===null ? '' : `<nav class="control-ui-nav" aria-label="Apartados de Control de Calidad">
-        ${CONTROL_SECCIONES.filter(s=>currentUserRole!=='CARGADOR'||s.key==='carga').map(navBtn).join('')}
+        ${CONTROL_SECCIONES.filter(s=>currentUserRole!=='CARGADOR'||s.key==='carga'||s.key==='carga_injerto').map(navBtn).join('')}
       </nav>`;
   overlay.innerHTML=`
     <div class="control-ui-shell${controlSeccion==='tunel'?' qc-tunel-work':controlSeccion==='carga'?' qc-carga-work':''}">
@@ -1771,7 +1771,7 @@ function renderControlContent(overlay){
 function renderControlResumenHTML(){
   return `
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
-      ${CONTROL_SECCIONES.filter(s=>currentUserRole!=='CARGADOR'||s.key==='carga').map(s=>{
+      ${CONTROL_SECCIONES.filter(s=>currentUserRole!=='CARGADOR'||s.key==='carga'||s.key==='carga_injerto').map(s=>{
         const totalV2 = s.conCheck ? controlV2TotalTipo(s.key) : null;
         const n = s.conCheck ? (totalV2==null ? controlChecksData.filter(c=>c.tipo===s.key).length : totalV2) : null;
         const pendiente=controlSeccionEsProximamente(s);
@@ -2085,7 +2085,7 @@ async function cambiarControlQuincena(delta){
   const siguiente=Math.max(0,controlQuincenaOffset+delta);
   if(siguiente===controlQuincenaOffset)return;
   return navegarControlQC(async()=>{
-    if(controlSeccion==='tunel'||controlSeccion==='carga'){
+    if(controlSeccion==='tunel'||controlSeccion==='carga'||controlSeccion==='carga_injerto'){
       const ok=await loadControlSeccionSlice(controlSeccion,siguiente,false);
       if(!ok){avisarFalloCarga();return;}
     }
