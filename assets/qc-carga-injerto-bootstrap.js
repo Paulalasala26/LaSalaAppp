@@ -125,22 +125,7 @@
 
   window.renderControlContent=function(overlay){
     normalizarRegistrosInjerto();
-    const result=originalRenderContent(overlay);
-    if(currentUserRole==='CARGADOR'&&controlSeccion!==null){
-      const nav=overlay?.querySelector('.control-ui-nav');
-      if(nav&&!nav.querySelector('[data-qc-tab="'+TYPE+'"]')){
-        const button=document.createElement('button');
-        button.type='button';button.className='control-ui-tab'+(controlSeccion===TYPE?' is-active':'');
-        button.dataset.qcTab=TYPE;
-        button.title='QC Carga Injerto';
-        button.setAttribute('aria-label','QC Carga Injerto');
-        button.innerHTML='<i class="ti ti-seedling" aria-hidden="true"></i><span>QC Carga Injerto</span>';
-        if(controlSeccion===TYPE)button.setAttribute('aria-current','page');
-        button.addEventListener('click',()=>window.seleccionarSeccionControl(TYPE));
-        nav.appendChild(button);
-      }
-    }
-    return result;
+    return originalRenderContent(overlay);
   };
 
   window.marcarControlQCMedido=function(ref){
