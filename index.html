@@ -2819,7 +2819,7 @@ function buildTareaCard(t){
 function showNuevaTareaForm(){
   const wrap = document.getElementById('nueva-tarea-form-wrap');
   if(!wrap) return;
-  const asignables = Object.keys(USERS);
+  const asignables = Object.keys(USERS).filter(u => !['ADMIN','TECNICO'].includes(USER_ROLES[u]));
   const hoyISO = new Date().toISOString().slice(0,10);
   const invOptions = `<option value="">Invernadero (opcional)</option>`+
     `<optgroup label="Sala 1">${ALL_INV_IDS_SALA1.map(id=>`<option value="${id}">${id}</option>`).join('')}</optgroup>`+
@@ -2906,7 +2906,7 @@ function showEditarTareaForm(id){
   if(!t){ showToast('No se encontró la tarea'); return; }
   const wrap = document.getElementById('nueva-tarea-form-wrap');
   if(!wrap) return;
-  const asignables = Object.keys(USERS);
+  const asignables = Object.keys(USERS).filter(u => !['ADMIN','TECNICO'].includes(USER_ROLES[u]));
   const invOptions = `<option value="">Invernadero (opcional)</option>`+
     `<optgroup label="Sala 1">${ALL_INV_IDS_SALA1.map(iid=>`<option value="${iid}" ${t.inv===iid?'selected':''}>${iid}</option>`).join('')}</optgroup>`+
     `<optgroup label="Sala 2">${ALL_INV_IDS.map(iid=>`<option value="${iid}" ${t.inv===iid?'selected':''}>${iid}</option>`).join('')}</optgroup>`+

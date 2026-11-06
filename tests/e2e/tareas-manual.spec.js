@@ -145,7 +145,7 @@ async function openTasks(page) {
   await expect(page.locator('#tareas-overlay')).toBeVisible();
 }
 
-test('UAT-1302–1303, UAT-1309–1310 y UAT-1315: abrir, validar y cancelar un alta manual no guarda tareas', async ({ page }) => {
+test('UAT-1302–1303, UAT-1307–1310 y UAT-1315: abrir, validar y cancelar un alta manual solo ofrece ejecutores operativos', async ({ page }) => {
   const { database, writes } = await installFixture(page);
 
   await openTasks(page);
@@ -161,6 +161,9 @@ test('UAT-1302–1303, UAT-1309–1310 y UAT-1315: abrir, validar y cancelar un 
   await expect(form.locator('#nt-desc')).toBeVisible();
   await expect(form.locator('#nt-prioridad')).toBeVisible();
   await expect(form.locator('[data-nt-asignado-chip="PEON1"]')).toBeVisible();
+  await expect(form.locator('[data-nt-asignado-chip="REGANTE1"]')).toBeVisible();
+  await expect(form.locator('[data-nt-asignado-chip="E2E_ADMIN"]')).toHaveCount(0);
+  await expect(form.locator('[data-nt-asignado-chip="E2E_TECH"]')).toHaveCount(0);
 
   await form.getByRole('button', { name: 'Crear y asignar' }).click();
   await expect(page.locator('#app-toast')).toContainText('Indica al menos un título y a quién se asigna');
