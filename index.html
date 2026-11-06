@@ -131,11 +131,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 }
 .control-ui-close:hover{background:#0d427a}
 .control-ui-nav{
-  position:relative;display:flex;gap:6px;align-items:center;flex-wrap:nowrap;
-  overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;
+  position:relative;display:block;overflow:visible;
   padding:6px 11px;background:#e8f0fb;border-bottom:1px solid #b0c8e0;
-  flex-shrink:0;min-height:45px;min-width:0;overscroll-behavior-x:contain;
+  flex-shrink:0;min-height:45px;min-width:0;
 }
+.control-ui-select{
+  display:block;box-sizing:border-box;width:100%;min-height:44px;
+  padding:8px 12px;border:1px solid #bbd1e8;border-radius:7px;
+  background:#fff;color:#1558a0;font-family:inherit;font-size:15px;font-weight:700;
+  cursor:pointer;
+}
+.control-ui-select:focus{outline:2px solid #4d90d0;outline-offset:1px}
 .control-ui-tab{
   flex:0 0 auto;min-height:32px;display:inline-flex;align-items:center;gap:6px;
   background:#fff;border:1px solid #bbd1e8;border-radius:7px;
@@ -6677,18 +6683,11 @@ function renderControlContent(overlay){
   const navScrollAnterior=navAnterior ? navAnterior.scrollLeft : 0;
   const cambioSeccion=controlUltimaSeccionRenderizada!==controlSeccion;
   controlUltimaSeccionRenderizada=controlSeccion;
-  const navBtn=s=>{
-    const activo=controlSeccion===s.key;
-    const pendiente=controlSeccionEsProximamente(s);
-    return `<button type="button" class="control-ui-tab${activo?' is-active':''}"
-      ${pendiente ? 'disabled aria-disabled="true"' : `onclick="seleccionarSeccionControl('${s.key}')"`}
-      ${activo?'aria-current="page"':''}
-      title="${pendiente?'Próximamente':s.label}">
-      <i class="ti ${s.icon}" aria-hidden="true"></i><span>${s.label}</span>
-    </button>`;
-  };
+  const opcionesControl=CONTROL_SECCIONES.filter(s=>currentUserRole!=='CARGADOR'||s.key==='carga'||s.key==='carga_injerto');
   const navHTML=controlSeccion===null ? '' : `<nav class="control-ui-nav" aria-label="Apartados de Control de Calidad">
-        ${CONTROL_SECCIONES.filter(s=>currentUserRole!=='CARGADOR'||s.key==='carga').map(navBtn).join('')}
+        <select class="control-ui-select" aria-label="Tipo de control" onchange="seleccionarSeccionControl(this.value)">
+          ${opcionesControl.map(s=>`<option value="${s.key}" ${controlSeccion===s.key?'selected':''}>${s.label}</option>`).join('')}
+        </select>
       </nav>`;
   overlay.innerHTML=`
     <div class="control-ui-shell${controlSeccion==='tunel'?' qc-tunel-work':controlSeccion==='carga'?' qc-carga-work':''}">
