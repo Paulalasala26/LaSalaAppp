@@ -77,7 +77,7 @@ function validPercentMeasurement(value,id){
   if(schema>=6&&Object.hasOwn(value,'bandejasInspeccionadas'))return false;
   if(schema===6&&type!=='tunel'||schema===7&&type!=='carga'||schema===8&&type!=='carga_injerto')return false;
   const expected={...CATEGORIES};
-  if(schema===7||schema===8&&day>=155)expected.firmeza='Firmeza';
+  if((schema===7||schema===8)&&day>=155)expected.firmeza='Firmeza';
   if(schema===8)expected.raicesInjerto='Raíces en punto de injerto';
   if(Object.keys(value.categorias).sort().join('|')!==Object.keys(expected).sort().join('|'))return false;
   const options={
@@ -270,7 +270,7 @@ function buildPartidas(rows,filters){
     const key=String(rec.partida??'').trim().toLocaleUpperCase('es');
     if(!/^[A-Z0-9._-]{1,60}$/.test(key)){sinPartida++;continue;}
     if(filters.part&&!key.includes(filters.part))continue;
-    if(!grouped.has(key))grouped.set(key,{partida:key,tunel:0,carga:0,registros:[]});
+    if(!grouped.has(key))grouped.set(key,{partida:key,tunel:0,carga:0,carga_injerto:0,registros:[]});
     const item=grouped.get(key);
     item[rec.tipo]++;
     item.registros.push({
