@@ -23,6 +23,11 @@
     CONTROL_SECCIONES.splice(index<0?CONTROL_SECCIONES.length:index+1,0,section);
   }
 
+  // En el menú de Control de Calidad dejamos solo controles operativos.
+  for(let i=CONTROL_SECCIONES.length-1;i>=0;i--){
+    if(!['tunel','carga',TYPE].includes(CONTROL_SECCIONES[i].key))CONTROL_SECCIONES.splice(i,1);
+  }
+
   window.controlV2ShardDeItem=function(item){
     if(item&&item.tipo===TYPE){
       const q=controlV2QDeDia(item.dia);
