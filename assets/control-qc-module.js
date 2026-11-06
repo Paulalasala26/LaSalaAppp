@@ -1732,7 +1732,7 @@ function renderControlContent(overlay){
           ${controlDesdeBackoffice ? `<button type="button" onclick="volverAlListadoControlBackoffice()"
             style="background:#1558a0;border:1px solid #a8c4e8;color:#fff;border-radius:7px;font-size:12px;font-weight:800;padding:7px 11px;cursor:pointer;white-space:nowrap"
             title="Volver al listado de Control del Backoffice">← Backoffice</button>` : ''}
-          ${(controlSeccion==='tunel'||controlSeccion==='carga')?'<button type="button" class="qc-work-print" onclick="qcImprimirDia()" aria-label="Imprimir listado del día" title="Imprimir listado del día"><i class="ti ti-printer" aria-hidden="true"></i></button>':''}
+          ${(controlSeccion==='tunel'||controlSeccion==='carga'||controlSeccion==='carga_injerto')?'<button type="button" class="qc-work-print" onclick="qcImprimirDia()" aria-label="Imprimir listado del día" title="Imprimir listado del día"><i class="ti ti-printer" aria-hidden="true"></i></button>':''}
           <span class="control-ui-section-label" aria-live="polite">${controlSeccion ? (CONTROL_SECCIONES.find(s=>s.key===controlSeccion)?.label || '') : 'Resumen'}</span>
           <button type="button" class="control-ui-close" onclick="cerrarControlModule()"
             title="Cerrar Control de Calidad" aria-label="Cerrar Control de Calidad">&times;</button>
@@ -2409,7 +2409,7 @@ function exportarControlCSV(tipo, dia){
 }
 function renderControlDashboardDiaHTML(seccion, listaDia){
   if(!listaDia.length){
-    const inv=seccion.key==='carga'?controlCargaInvFiltro:controlTunelInvFiltro;
+    const inv=(seccion.key==='carga'||seccion.key==='carga_injerto')?controlCargaInvFiltro:controlTunelInvFiltro;
     return `<div style="text-align:center;padding:2rem;color:var(--muted);font-style:italic;font-size:13px">${inv?'Sin partidas para este invernadero y día.':'Sin líneas para este día todavía.'}</div>`;
   }
   const total = listaDia.length;
@@ -2527,7 +2527,7 @@ function renderControlChecklistHTML(seccion){
   // verlas todas al filtrar por invernadero.
   const gruposYaPintados = new Set();
   const filas = listaMostrada.map(c=>{
-    if(seccion.key==='carga' || !c.partida) return renderControlCardHTML(c, seccion);
+    if(seccion.key==='carga'||seccion.key==='carga_injerto'||!c.partida) return renderControlCardHTML(c, seccion);
     const groupKey = seccion.key+'|'+c.partida;
     if(gruposYaPintados.has(groupKey)) return '';
     const grupo = controlLineasFiltradasInv(controlChecksData.filter(x=>x.tipo===seccion.key && x.partida===c.partida),seccion.key).sort((a,b)=>a.dia-b.dia);
@@ -2548,7 +2548,7 @@ function renderControlChecklistHTML(seccion){
   const extraTunelHTML = seccion.key==='tunel' ? `
     <label class="qc-list-option" title="Importa la fecha de salida, el invernadero y los tramos de calle desde el PDF de extensiones"><i class="ti ti-file-upload"></i> Asignar calles desde PDF<input type="file" accept="application/pdf" onchange="handleExtensionesPdfInput(this)"></label>` : '';
   const cardsHTML = listaMostrada.length===0
-    ? `<div class="qc-list-none">${listaDia.length===0?'Sin partidas para este día.':((seccion.key==='carga'?controlCargaInvFiltro:controlTunelInvFiltro)?'No hay partidas para ese invernadero y día.':'No hay líneas con el estado seleccionado.')}</div>`
+    ? `<div class="qc-list-none">${listaDia.length===0?'Sin partidas para este día.':(((seccion.key==='carga'||seccion.key==='carga_injerto')?controlCargaInvFiltro:controlTunelInvFiltro)?'No hay partidas para ese invernadero y día.':'No hay líneas con el estado seleccionado.')}</div>`
     : `<div class="qc-list-cards">${filas}</div>`;
   if(seccion.key==='tunel'||seccion.key==='carga'){
     const moreOptions=(extraTunelHTML||pdfInfoHTML)
