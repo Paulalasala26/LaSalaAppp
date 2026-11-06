@@ -218,7 +218,7 @@ test('UAT-1237–1238: cerrar y reabrir Tareas varias veces no duplica vistas ni
   expect(pageErrors).toEqual([]);
 });
 
-test('UAT-1312–1314, UAT-1316–1317, UAT-1320–1322: alta manual conserva datos y no se duplica al cerrar y reabrir Tareas', async ({ page }) => {
+test('UAT-1312–1314, UAT-1316–1317, UAT-1320–1322, UAT-1324–1325: alta manual conserva datos, origen y estado, sin duplicarse al reabrir', async ({ page }) => {
   const { database, writes } = await installFixture(page);
   const title = 'E2E tarea repetida';
   const description = 'Descripción extensa del caso automatizado. '.repeat(8).trim();
@@ -285,6 +285,104 @@ test('UAT-1312–1314, UAT-1316–1317, UAT-1320–1322: alta manual conserva da
   expect(saved).toHaveLength(2);
   expect(saved.every(task => task.fechaISO === tomorrowISO && task.turno === 'Mañana' && task.descripcion === description && task.prioridad === 'alta')).toBe(true);
   expect(writes.filter(write => write.key === 'lasala-tareas-v1')).toHaveLength(2);
+});
+
+test('UAT-1326–1330: editar una tarea manual pendiente conserva su ID y mueve solo los datos cambiados', async ({ page }) => {
+  const todayISO = new Date().toISOString().slice(0, 10);
+  const tomorrowISO = (() => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return tomorrow.toISOString().slice(0, 10);
+  })();
+  const taskId = 'e2e-manual-edit-1326';
+  const task = {
+    id: taskId,
+    titulo: 'E2E tarea editable',
+    descripcion: 'Descripción original',
+    asignadoA: 'PEON1',
+    origen: 'manual',
+    categoria: 'manual',
+    inv: '0A',
+    calles: '1-2',
+    fechaISO: tomorrowISO,
+    fecha: 'mañana',
+    turno: 'Mañana',
+    prioridad: 'normal',
+    estado: 'pendiente'
+  };
+  const { database, writes } = await installFixture(page, { 'lasala-tareas-v1': JSON.stringify([task]) });
+  const overlay = page.locator('#tareas-overlay');
+
+  async function openEdit(dateView) {
+    await overlay.getByRole('button', { name: dateView }).click();
+    const row = overlay.locator('.tarea-card').filter({ hasText: /E2E tarea/ });
+    await expect(row).toHaveCount(1);
+    await row.getByRole('button', { name: 'Editar' }).click();
+    return overlay.locator('#nueva-tarea-form-wrap');
+  }
+  async function save(form) {
+    const previousWrites = writes.filter(write => write.key === 'lasala-tareas-v1').length;
+    await form.getByRole('button', { name: 'Guardar cambios' }).click();
+    await expect.poll(() => writes.filter(write => write.key === 'lasala-tareas-v1').length).toBe(previousWrites + 1);
+    await expect(page.locator('#app-toast')).toContainText('Cambios guardados');
+  }
+  function savedTask() {
+    const saved = JSON.parse(database['lasala-tareas-v1']);
+    expect(saved).toHaveLength(1);
+    expect(saved[0].id).toBe(taskId);
+    return saved[0];
+  }
+
+  await openTasks(page);
+  let form = await openEdit('Tareas de mañana');
+  await expect(form.locator('#et-titulo')).toHaveValue(task.titulo);
+  await expect(form.locator('#et-desc')).toHaveValue(task.descripcion);
+  await expect(form.locator('#et-inv')).toHaveValue(task.inv);
+  await expect(form.locator('#et-calles')).toHaveValue(task.calles);
+  await expect(form.locator('#et-fecha')).toHaveValue(tomorrowISO);
+  await expect(form.locator('#et-turno')).toHaveValue(task.turno);
+  await expect(form.locator('#et-prioridad')).not.toBeChecked();
+  await expect(form.locator('[data-et-asignado-chip="PEON1"]')).toHaveClass(/chip-asignado-on/);
+
+  await form.locator('#et-titulo').fill('E2E tarea renombrada');
+  await save(form);
+  expect(savedTask()).toMatchObject({ titulo: 'E2E tarea renombrada', asignadoA: 'PEON1', fechaISO: tomorrowISO });
+
+  form = await openEdit('Tareas de mañana');
+  await form.locator('#et-desc').fill('Descripción actualizada y prioridad alta');
+  await form.locator('#et-prioridad').check();
+  await save(form);
+  expect(savedTask()).toMatchObject({
+    titulo: 'E2E tarea renombrada',
+    descripcion: 'Descripción actualizada y prioridad alta',
+    prioridad: 'alta',
+    fechaISO: tomorrowISO,
+    asignadoA: 'PEON1'
+  });
+
+  form = await openEdit('Tareas de mañana');
+  await form.locator('#et-fecha').fill(todayISO);
+  await save(form);
+  expect(savedTask()).toMatchObject({ fechaISO: todayISO, descripcion: 'Descripción actualizada y prioridad alta', prioridad: 'alta' });
+  await overlay.getByRole('button', { name: 'Tareas de mañana' }).click();
+  await expect(overlay.getByText('E2E tarea renombrada', { exact: false })).toHaveCount(0);
+
+  form = await openEdit('Tareas de hoy');
+  await form.locator('#et-inv').selectOption('0B');
+  await form.locator('#et-calles').fill('3-4');
+  await save(form);
+  expect(savedTask()).toMatchObject({
+    id: taskId,
+    titulo: 'E2E tarea renombrada',
+    inv: '0B',
+    calles: '3-4',
+    fechaISO: todayISO,
+    asignadoA: 'PEON1',
+    descripcion: 'Descripción actualizada y prioridad alta',
+    prioridad: 'alta'
+  });
+  expect(writes.filter(write => write.key === 'lasala-tareas-v1')).toHaveLength(4);
+  await expect(overlay.locator('.tarea-card').filter({ hasText: 'E2E tarea renombrada' })).toHaveCount(1);
 });
 
 test('UAT-1305–1306, UAT-1318–1319: repartir un alta manual crea una tarea independiente por destinatario', async ({ page }) => {
