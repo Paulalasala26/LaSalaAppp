@@ -28,6 +28,17 @@
     if(!['tunel','carga',TYPE].includes(CONTROL_SECCIONES[i].key))CONTROL_SECCIONES.splice(i,1);
   }
 
+  function normalizarRegistrosInjerto(){
+    controlChecksData.forEach(record=>{
+      if(record?.tipo!==TYPE)return;
+      const inv=String(record.invId??'').trim();
+      const desde=String(record.calleDesde??'').trim();
+      const hasta=String(record.calleHasta??'').trim();
+      if(/^\\d{1,2}$/.test(inv)&&/^\\d{1,3}$/.test(desde)&&/^\\d{1,3}$/.test(hasta))
+        record.invernadero=inv+'-'+desde+'-'+hasta;
+    });
+  }
+
   window.controlV2ShardDeItem=function(item){
     if(item&&item.tipo===TYPE){
       const q=controlV2QDeDia(item.dia);
@@ -113,6 +124,7 @@
   };
 
   window.renderControlContent=function(overlay){
+    normalizarRegistrosInjerto();
     const result=originalRenderContent(overlay);
     if(currentUserRole==='CARGADOR'&&controlSeccion!==null){
       const nav=overlay?.querySelector('.control-ui-nav');
