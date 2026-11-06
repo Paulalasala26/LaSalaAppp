@@ -8,7 +8,8 @@
     ['tamano','Tamaño',{grande:'Grande',pequeno:'Pequeño',ok:'OK'}],
     ['sanidad','Sanidad',{ok:'OK',enferma:'Enferma',enfermedad1:'Enfermedad 1',enfermedad2:'Enfermedad 2',enfermedad3:'Enfermedad 3',enfermedad4:'Enfermedad 4'}],
     ['flores','Flores',{si:'Sí',no:'No',ok:'OK'}],
-    ['raices','Raíces',{pocaRaiz:'Poca raíz',raizVariedad:'Raíz en variedad',ok:'OK'}]
+    ['raices','Raíces',{pocaRaiz:'Poca raíz',raizVariedad:'Raíz en variedad',raizVieja:'Raíz vieja',ok:'OK'}],
+    ['firmeza','Firmeza',{duro:'Duro',tierno:'Tierno',ok:'OK'}]
   ];
   CATS.forEach(cat=>{cat[2].noEvaluada='No evaluada'});
   const STATUS=Object.freeze({
@@ -20,7 +21,7 @@
     const data=measurement?.mediciones;
     // V5: un porcentaje de toda la evaluación, sin porcentajes por el resto
     // de categorías; enfermedades con estimación propia y posible solapamiento.
-    if([5,6].includes(measurement?.schemaVersion)&&
+    if([5,6,7].includes(measurement?.schemaVersion)&&
        measurement?.categorias&&Number.isInteger(measurement.porcentajeInvalidasGlobal)){
       const rows=[];
       for(const [cat,name,labels] of CATS){
@@ -41,7 +42,7 @@
         optionLabel:'Total inválidas',count:null,pct:measurement.porcentajeInvalidasGlobal,
         percentDisplay:measurement.porcentajeInvalidasGlobal,treatment:'informativo',
         treatmentLabel:'Informativo',tolerance:null,level:'neutral',
-        description:'Índice global de los cinco bloques'});
+        description:'Índice global de '+(measurement.schemaVersion===7?(measurement.categorias?.firmeza?'seis':'cinco'):'cinco')+' bloques'});
       return {available:true,inspected,rows,evaluatedCount:rows.length,
         configuredCount:0,warningCount:0,criticalCount:0,objective:null,hasRules:false};
     }
