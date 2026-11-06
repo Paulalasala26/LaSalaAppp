@@ -17,6 +17,7 @@ const OPTIONS_CARGA_BASE=Object.freeze({
   sanidad:['ok','enferma'],flores:['si','no','ok'],raices:['pocaRaiz','raizVieja','ok']
 });
 const OPTIONS_CARGA_V7=Object.freeze({...OPTIONS_CARGA_BASE,firmeza:['ok','duro','tierno']});
+const OPTIONS_RAICES_INJERTO=Object.freeze(['si','no']);
 function categoryIssue(category,values,total){
   const notEvaluated=values.noEvaluada||0;
   if(category!=='raices'){
@@ -35,7 +36,7 @@ function categoryIssue(category,values,total){
   if(affected>maximum)return 'Faltan '+(affected-maximum)+' bandejas por clasificar.';
   return '';
 }
-  const TYPES=new Set(['tunel','carga']);
+  const TYPES=new Set(['tunel','carga','carga_injerto']);
 const RE_ID=/^[A-Za-z0-9_-]{1,180}$/;
 const PART_RE=/^[A-Za-z0-9._-]{1,100}$/;
 function inputOf(req){
@@ -261,6 +262,34 @@ function validateEvaluationV7(input){
     throw httpError(400,'FIRMEZA_REQUIRED');
   return checked;
 }
+function validateEvaluationV8(input){
+  if(input.tipo!=='carga_injerto'||Object.prototype.hasOwnProperty.call(input,'bandejasInspeccionadas'))
+    throw httpError(400,'INVALID_MEASUREMENTS');
+  const baseOptions=input.dia>=155?OPTIONS_CARGA_V7:OPTIONS_CARGA_BASE;
+  const source=input.categorias;
+  const expected={...baseOptions,raicesInjerto:OPTIONS_RAICES_INJERTO};
+  if(!source||typeof source!=='object'||Array.isArray(source)||
+     Object.keys(source).sort().join('|')!==Object.keys(expected).sort().join('|'))
+    throw httpError(400,'INVALID_MEASUREMENTS');
+  const root=source.raicesInjerto;
+  if(!root||typeof root!=='object'||Array.isArray(root)||
+     Object.keys(root).join('|')!=='opciones'||!Array.isArray(root.opciones)||
+     root.opciones.length>1||root.opciones.some(v=>!OPTIONS_RAICES_INJERTO.includes(v)))
+    throw httpError(400,'INVALID_GRAFT_ROOT');
+  const baseCategories={...source};delete baseCategories.raicesInjerto;
+  const baseHasIssue=Object.entries(baseCategories).some(([cat,item])=>
+    Array.isArray(item?.opciones)&&item.opciones.some(k=>cat==='sanidad'?SANIDAD_DISEASE_KEYS.includes(k):
+      cat==='flores'?k==='si':k!=='ok'&&k!=='noEvaluada'));
+  const graftHasIssue=root.opciones.includes('si');
+  const global=input.porcentajeInvalidasGlobal;
+  if(!Number.isInteger(global)||global<0||global>100||global%10!==0)
+    throw httpError(400,'INVALID_GLOBAL_PERCENT');
+  const checked=validateEvaluationV5({...input,bandejasInspeccionadas:1,
+    categorias:baseCategories,porcentajeInvalidasGlobal:baseHasIssue?global:0},baseOptions);
+  if(!baseHasIssue&&!graftHasIssue&&global!==0)throw httpError(400,'INVALID_GLOBAL_PERCENT');
+  return {...checked,categorias:{...checked.categorias,raicesInjerto:{opciones:root.opciones}},
+    porcentajeInvalidasGlobal:global};
+}
 function pathFor(id){return DB+'/'+PREFIX+'/'+encodeURIComponent(id)+'.json';}
 function sourcePath(ref){
   const q=Math.floor((ref.dia-15)/14);
@@ -287,7 +316,7 @@ async function legacyRecord(ref,token){
 function validateStored(entry,ref,partida){
   if(entry===null)return {version:0};
   if(!entry||typeof entry!=='object'||Array.isArray(entry)||
-     ![1,2,3,4,5,6,7].includes(entry.schemaVersion)||!Number.isInteger(entry.version)||entry.version<1||
+     ![1,2,3,4,5,6,7,8].includes(entry.schemaVersion)||!Number.isInteger(entry.version)||entry.version<1||
      entry.legacy?.id!==ref.id||entry.legacy?.tipo!==ref.tipo||
      entry.legacy?.dia!==ref.dia||entry.legacy?.partida!==partida)
     throw httpError(409,'SAVED_CONFLICT');
@@ -303,7 +332,7 @@ async function checkQCActor(req,ref){
   ]);
   const role=roles[actor];
   const authorized=role==='ADMIN'||role==='TECNICO'||
-    (role==='CARGADOR'&&ref.tipo==='carga');
+    (role==='CARGADOR'&&(ref.tipo==='carga'||ref.tipo==='carga_injerto'));
   if(!authorized||!validHash(accounts[actor]))throw httpError(403,'FORBIDDEN');
   return {actor,token};
 }
@@ -335,7 +364,8 @@ async function consultarEstadosQC(req,res,data){
       try{
         const stored=validateStored(value,{id:ref.id,tipo:q.tipo,dia:q.dia},ref.partida);
         if(stored.version<1)return false;
-        if(stored.schemaVersion===7)validateEvaluationV7({...stored,tipo:q.tipo,dia:q.dia});
+        if(stored.schemaVersion===8)validateEvaluationV8({...stored,tipo:q.tipo,dia:q.dia});
+        else if(stored.schemaVersion===7)validateEvaluationV7({...stored,tipo:q.tipo,dia:q.dia});
          else if(stored.schemaVersion===6)validateEvaluationV6(stored);
          else if(stored.schemaVersion===5)validateEvaluationV5(stored);
         else if(stored.schemaVersion===4)validateGlobalCategorias(stored);
@@ -390,10 +420,11 @@ module.exports=async function handler(req,res){
       Object.prototype.hasOwnProperty.call(request.categorias?.sanidad||{},'porcentajesEnfermedades');
     // No interpretar formatos antiguos como v4: esos borradores siguen protegidos.
     const v4=request.schemaVersion===4,v5=request.schemaVersion===5,
-      v6=request.schemaVersion===6,v7=request.schemaVersion===7;
-    if((v4||v5||v6||v7)&&!isPercent||v4&&hasDiseaseBreakdown)
+      v6=request.schemaVersion===6,v7=request.schemaVersion===7,v8=request.schemaVersion===8;
+    if((v4||v5||v6||v7||v8)&&!isPercent||v4&&hasDiseaseBreakdown||v8&&request.tipo!=='carga_injerto')
       throw httpError(400,'INVALID_MEASUREMENTS');
-    const checked=v7?validateEvaluationV7(request):
+    const checked=v8?validateEvaluationV8(request):
+      v7?validateEvaluationV7(request):
       v6?validateEvaluationV6(request):
       v5?validateEvaluationV5(request):
       v4?validateGlobalCategorias(request):
@@ -407,10 +438,10 @@ module.exports=async function handler(req,res){
     if(before.version!==request.version)throw httpError(409,'CONCURRENT_MODIFICATION');
     const now=new Date().toISOString();
     const next={
-      schemaVersion:v7?7:v6?6:v5?5:v4?4:hasDiseaseBreakdown?3:isPercent?2:1,version:before.version+1,
+      schemaVersion:v8?8:v7?7:v6?6:v5?5:v4?4:hasDiseaseBreakdown?3:isPercent?2:1,version:before.version+1,
       legacy:{...ref,partida:source.partida},
-      ...(!v6&&!v7?{bandejasInspeccionadas:request.bandejasInspeccionadas}:{}),
-      ...((v5||v6||v7)?{
+      ...(!v6&&!v7&&!v8?{bandejasInspeccionadas:request.bandejasInspeccionadas}:{}),
+      ...((v5||v6||v7||v8)?{
         categorias:checked.categorias,porcentajeInvalidasGlobal:checked.porcentajeInvalidasGlobal,
         legacyMediciones:before.legacyMediciones||before.mediciones||null,
         ...((before.legacyCategorias||before.categorias&&![5,6,7].includes(before.schemaVersion))?
