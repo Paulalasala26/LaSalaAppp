@@ -9,12 +9,14 @@ const {
 const DB='https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app';
 const PREFIX='lasala-qc-mediciones-v1';
 const OPTIONS=Object.freeze({
-  color:['verde','amarillo','verdeClaro','ok'],
-  tamano:['grande','pequeno','ok'],
-  sanidad:['ok','enferma'],
-  flores:['si','no','ok'],
-  raices:['pocaRaiz','raizVariedad','ok']
+  color:['verde','amarillo','verdeClaro','ok'],tamano:['grande','pequeno','ok'],
+  sanidad:['ok','enferma'],flores:['si','no','ok'],raices:['pocaRaiz','raizVariedad','ok']
 });
+const OPTIONS_CARGA_BASE=Object.freeze({
+  color:['verde','amarillo','verdeClaro','ok'],tamano:['grande','pequeno','ok'],
+  sanidad:['ok','enferma'],flores:['si','no','ok'],raices:['pocaRaiz','raizVieja','ok']
+});
+const OPTIONS_CARGA_V7=Object.freeze({...OPTIONS_CARGA_BASE,firmeza:['ok','duro','tierno']});
 function categoryIssue(category,values,total){
   const notEvaluated=values.noEvaluada||0;
   if(category!=='raices'){
@@ -193,17 +195,17 @@ function validateGlobalCategorias(input){
 }
 // Modelo v5: un porcentaje de inválidas para toda la inspección; solo Sanidad
 // desglosa enfermedades individualmente. Los demás grupos tienen estado único.
-function validateEvaluationV5(input){
+function validateEvaluationV5(input,options=OPTIONS){
   if(!validQty(input.bandejasInspeccionadas))throw httpError(400,'INVALID_INSPECTED');
   const source=input.categorias;
   if(!source||typeof source!=='object'||Array.isArray(source)||
-     Object.keys(source).sort().join('|')!==Object.keys(OPTIONS).sort().join('|'))
+     Object.keys(source).sort().join('|')!==Object.keys(options).sort().join('|'))
     throw httpError(400,'INVALID_MEASUREMENTS');
   const total=input.porcentajeInvalidasGlobal;
   if(!Number.isInteger(total)||total<0||total>100||total%10!==0)
     throw httpError(400,'INVALID_GLOBAL_PERCENT');
   const clean={};let hasIssue=false;
-  for(const [cat,allowed] of Object.entries(OPTIONS)){
+  for(const [cat,allowed] of Object.entries(options)){
     const item=source[cat],isHealth=cat==='sanidad';
     if(!item||typeof item!=='object'||Array.isArray(item)||
        Object.keys(item).sort().join('|')!==(isHealth?'opciones|porcentajesEnfermedades':'opciones'))
@@ -250,6 +252,15 @@ function validateEvaluationV6(input){
     throw httpError(400,'INVALID_MEASUREMENTS');
   return validateEvaluationV5({...input,bandejasInspeccionadas:1});
 }
+function validateEvaluationV7(input){
+  if(input.tipo!=='carga'||Object.prototype.hasOwnProperty.call(input,'bandejasInspeccionadas'))
+    throw httpError(400,'INVALID_MEASUREMENTS');
+  const options=input.dia>=155?OPTIONS_CARGA_V7:OPTIONS_CARGA_BASE;
+  const checked=validateEvaluationV5({...input,bandejasInspeccionadas:1},options);
+  if(input.dia>=155&&checked.categorias.firmeza.opciones.includes('noEvaluada'))
+    throw httpError(400,'FIRMEZA_REQUIRED');
+  return checked;
+}
 function pathFor(id){return DB+'/'+PREFIX+'/'+encodeURIComponent(id)+'.json';}
 function sourcePath(ref){
   const q=Math.floor((ref.dia-15)/14);
@@ -276,7 +287,7 @@ async function legacyRecord(ref,token){
 function validateStored(entry,ref,partida){
   if(entry===null)return {version:0};
   if(!entry||typeof entry!=='object'||Array.isArray(entry)||
-     ![1,2,3,4,5,6].includes(entry.schemaVersion)||!Number.isInteger(entry.version)||entry.version<1||
+     ![1,2,3,4,5,6,7].includes(entry.schemaVersion)||!Number.isInteger(entry.version)||entry.version<1||
      entry.legacy?.id!==ref.id||entry.legacy?.tipo!==ref.tipo||
      entry.legacy?.dia!==ref.dia||entry.legacy?.partida!==partida)
     throw httpError(409,'SAVED_CONFLICT');
@@ -324,8 +335,9 @@ async function consultarEstadosQC(req,res,data){
       try{
         const stored=validateStored(value,{id:ref.id,tipo:q.tipo,dia:q.dia},ref.partida);
         if(stored.version<1)return false;
-        if(stored.schemaVersion===6)validateEvaluationV6(stored);
-        else if(stored.schemaVersion===5)validateEvaluationV5(stored);
+        if(stored.schemaVersion===7)validateEvaluationV7({...stored,tipo:q.tipo,dia:q.dia});
+         else if(stored.schemaVersion===6)validateEvaluationV6(stored);
+         else if(stored.schemaVersion===5)validateEvaluationV5(stored);
         else if(stored.schemaVersion===4)validateGlobalCategorias(stored);
         else if(stored.schemaVersion===3)validateDiseaseCategorias(stored);
         else if(stored.schemaVersion===2)validateCategorias(stored);
@@ -377,10 +389,12 @@ module.exports=async function handler(req,res){
     const hasDiseaseBreakdown=isPercent&&
       Object.prototype.hasOwnProperty.call(request.categorias?.sanidad||{},'porcentajesEnfermedades');
     // No interpretar formatos antiguos como v4: esos borradores siguen protegidos.
-    const v4=request.schemaVersion===4,v5=request.schemaVersion===5,v6=request.schemaVersion===6;
-    if((v4||v5||v6)&&!isPercent||v4&&hasDiseaseBreakdown)
+    const v4=request.schemaVersion===4,v5=request.schemaVersion===5,
+      v6=request.schemaVersion===6,v7=request.schemaVersion===7;
+    if((v4||v5||v6||v7)&&!isPercent||v4&&hasDiseaseBreakdown)
       throw httpError(400,'INVALID_MEASUREMENTS');
-    const checked=v6?validateEvaluationV6(request):
+    const checked=v7?validateEvaluationV7(request):
+      v6?validateEvaluationV6(request):
       v5?validateEvaluationV5(request):
       v4?validateGlobalCategorias(request):
       hasDiseaseBreakdown?validateDiseaseCategorias(request):
@@ -393,13 +407,13 @@ module.exports=async function handler(req,res){
     if(before.version!==request.version)throw httpError(409,'CONCURRENT_MODIFICATION');
     const now=new Date().toISOString();
     const next={
-      schemaVersion:v6?6:v5?5:v4?4:hasDiseaseBreakdown?3:isPercent?2:1,version:before.version+1,
+      schemaVersion:v7?7:v6?6:v5?5:v4?4:hasDiseaseBreakdown?3:isPercent?2:1,version:before.version+1,
       legacy:{...ref,partida:source.partida},
-      ...(!v6?{bandejasInspeccionadas:request.bandejasInspeccionadas}:{}),
-      ...((v5||v6)?{
+      ...(!v6&&!v7?{bandejasInspeccionadas:request.bandejasInspeccionadas}:{}),
+      ...((v5||v6||v7)?{
         categorias:checked.categorias,porcentajeInvalidasGlobal:checked.porcentajeInvalidasGlobal,
         legacyMediciones:before.legacyMediciones||before.mediciones||null,
-        ...((before.legacyCategorias||before.categorias&&![5,6].includes(before.schemaVersion))?
+        ...((before.legacyCategorias||before.categorias&&![5,6,7].includes(before.schemaVersion))?
           {legacyCategorias:before.legacyCategorias||before.categorias}:{})
       }:isPercent?{categorias:checked,
         legacyMediciones:before.legacyMediciones||before.mediciones||null,
