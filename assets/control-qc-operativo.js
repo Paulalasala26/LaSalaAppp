@@ -524,7 +524,7 @@
       if(!saved)return {state:'absent'};
       if(!Number.isInteger(saved.version)||saved.version<=previousVersion)
         return {state:'different'};
-      const expectedSchema=ref.tipo==='carga'?7:6;
+      const expectedSchema=ref.tipo==='carga_injerto'?8:ref.tipo==='carga'?7:6;
       const same=saved.schemaVersion===expectedSchema&&
         saved.porcentajeInvalidasGlobal===expected.porcentajeInvalidasGlobal&&
         Object.keys(expected.categorias).every(cat=>JSON.stringify(saved.categorias?.[cat])===JSON.stringify(expected.categorias[cat]));
