@@ -61,7 +61,7 @@
     dialog.setAttribute('aria-labelledby', 'gscf-title');
 
     const header = node('header', null, 'gscf-header');
-    const title = node('h2', feedType === 'tunel' ? 'Datos GS · QC Túnel' : 'Datos GS · QC Carga');
+    const title = node('h2', feedType === 'tunel' ? 'Datos GS · QC Túnel' : 'Datos GS · QC Carga normal');
     title.id = 'gscf-title';
     const closeButton = node('button', 'Cerrar', 'gscf-close');
     closeButton.type = 'button';
