@@ -25,6 +25,17 @@ Pega este encargo al iniciar el trabajo:
 
 ### Comprobación inicial
 
+Si Claude aún no tiene una copia local, en PowerShell:
+
+```powershell
+git clone https://github.com/Paulalasala26/LaSalaAppp.git
+Set-Location .\LaSalaAppp
+git fetch origin --prune
+git switch --track -c dev/v1.0 origin/dev/v1.0
+```
+
+Si el repositorio ya está clonado, abre PowerShell en su carpeta y cambia a `dev/v1.0` antes de continuar.
+
 En PowerShell, desde la carpeta local del repositorio:
 
 ```powershell
