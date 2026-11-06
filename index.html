@@ -2860,6 +2860,30 @@ function showNuevaTareaForm(){
       </div>
     </div>`;
 }
+function validarUbicacionTareaManual(inv, calles){
+  const texto = String(calles||'').trim();
+  if(!texto) return true;
+  const layout = INV_LAYOUT[String(inv||'').trim()];
+  if(!layout) return false;
+  const normalizado = texto.toLocaleLowerCase('es-ES')
+    .replace(/\bcalles?\b/g,'')
+    .replace(/c\s*\/\s*/g,'')
+    .replace(/[–—]/g,'-')
+    .replace(/\by\b/g,',')
+    .replace(/\ba\b/g,'-')
+    .trim();
+  const tramos = normalizado.split(/[;,]/).map(x=>x.trim()).filter(Boolean);
+  if(!tramos.length) return false;
+  const validas = new Set([...layout.row1,...layout.row2].map(Number));
+  for(const tramo of tramos){
+    const match = tramo.match(/^(\d+)(?:\s*-\s*(\d+))?$/);
+    if(!match) return false;
+    const desde = Number(match[1]), hasta = Number(match[2]||match[1]);
+    if(desde>hasta) return false;
+    for(let calle=desde; calle<=hasta; calle++) if(!validas.has(calle)) return false;
+  }
+  return true;
+}
 async function crearTarea(){
   const titulo = document.getElementById('nt-titulo')?.value?.trim();
   // Asignar a varias personas a la vez (a petición de Paula, 2026-08-11) —
@@ -2878,6 +2902,7 @@ async function crearTarea(){
   const fechaRaw = document.getElementById('nt-fecha')?.value;
   const fecha = fechaRaw ? new Date(fechaRaw+'T00:00:00').toLocaleDateString('es-ES',{day:'2-digit',month:'short'}).replace('.','') : '';
   if(!titulo||!asignados.length){ showToast('Indica al menos un título y a quién se asigna'); return; }
+  if(!validarUbicacionTareaManual(inv,calles)){ showToast('Invernadero o calle no válido; revisa el catálogo de ubicaciones'); return; }
   asignados.forEach(asignadoA=>{
     tareasData.push({
       id: 'tarea_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),

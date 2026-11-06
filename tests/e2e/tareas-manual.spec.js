@@ -181,6 +181,22 @@ test('UAT-1302–1303, UAT-1307–1310 y UAT-1315: abrir, validar y cancelar un 
   expect(writes).toEqual([]);
 });
 
+test('UAT-1311: el alta manual rechaza una calle ajena al invernadero sin guardar', async ({ page }) => {
+  const { database, writes } = await installFixture(page);
+  await openTasks(page);
+  await page.locator('#tareas-overlay').getByRole('button', { name: 'Nueva tarea' }).click();
+  const form = page.locator('#nueva-tarea-form-wrap');
+  await form.locator('#nt-titulo').fill('E2E ubicación inválida');
+  await form.locator('#nt-inv').selectOption('0A');
+  await form.locator('#nt-calles').fill('999');
+  await form.locator('[data-nt-asignado-chip="PEON1"]').click();
+  await form.getByRole('button', { name: 'Crear y asignar' }).click();
+
+  await expect(page.locator('#app-toast')).toContainText('calle no válido');
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([]);
+  expect(writes.filter(write => write.key === 'lasala-tareas-v1')).toHaveLength(0);
+});
+
 test('UAT-1237–1238: cerrar y reabrir Tareas varias veces no duplica vistas ni escribe datos', async ({ page }) => {
   const { database, writes } = await installFixture(page);
   const pageErrors = [];
