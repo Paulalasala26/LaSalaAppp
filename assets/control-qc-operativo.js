@@ -4,14 +4,23 @@
   const API='/api/admin-qc-mediciones';
   const AUTH='lasala-firebase-auth-v1';
   const API_KEY='AIzaSyDdDdMg6M1jVIssvGYKsdRA-mRug31Yt_g';
-  const CATS=[
+  const CATS_TUNEL=[
     ['color','Color',[['verde','Verde'],['amarillo','Amarillo'],['verdeClaro','Verde claro'],['ok','OK']]],
     ['tamano','Tamaño',[['grande','Grande'],['pequeno','Pequeño'],['ok','OK']]],
     ['sanidad','Sanidad',[['ok','OK'],['enfermedad1','Enfermedad 1'],['enfermedad2','Enfermedad 2'],['enfermedad3','Enfermedad 3'],['enfermedad4','Enfermedad 4']]],
     ['flores','Flores',[['ok','Ok'],['si','Con flores']]],
     ['raices','Raíces',[['pocaRaiz','Poca raíz'],['raizVariedad','Raíz en variedad'],['ok','OK']]]
   ];
-  CATS.forEach(cat=>cat[2].push(['noEvaluada','No evaluada']));
+  const CATS_CARGA_BASE=[
+    ['color','Color',[['verde','Verde'],['amarillo','Amarillo'],['verdeClaro','Verde claro'],['ok','OK']]],
+    ['tamano','Tamaño',[['grande','Grande'],['pequeno','Pequeño'],['ok','OK']]],
+    ['sanidad','Sanidad',[['ok','OK'],['enfermedad1','Enfermedad 1'],['enfermedad2','Enfermedad 2'],['enfermedad3','Enfermedad 3'],['enfermedad4','Enfermedad 4']]],
+    ['flores','Flores',[['ok','Ok'],['si','Con flores']]],
+    ['raices','Raíces',[['pocaRaiz','Poca raíz'],['raizVieja','Raíz vieja'],['ok','OK']]]
+  ];
+  const CAT_FIRMEZA=['firmeza','Firmeza',[['ok','OK'],['duro','Duro'],['tierno','Tierno']]];
+  let CATS=CATS_TUNEL;
+  [...CATS_TUNEL,...CATS_CARGA_BASE,CAT_FIRMEZA].forEach(cat=>cat[2].push(['noEvaluada','No evaluada']));
   const HEALTH_KEYS=['enfermedad1','enfermedad2','enfermedad3','enfermedad4'];
   const isDisease=k=>HEALTH_KEYS.includes(k);
   const selectedOf=wrap=>Array.from(wrap.querySelectorAll('input[type="checkbox"]:checked')).map(b=>b.value);
@@ -19,8 +28,8 @@
     n+(p.closest('.qco-health-row')?.querySelector('input[type="checkbox"]')?.checked?Number(p.value):0),0);
   const hasProblems=()=>!!active&&CATS.some(([cat])=>
     selectedOf(active.querySelector('[data-qco-cat="'+cat+'"]')).some(k=>k!=='ok'&&k!=='noEvaluada'));
-  // Cinco bloques con el mismo peso. Sanidad agrega primero todas las enfermedades
-  // y participa una sola vez. No evaluada y OK no suman; el resto, incidencia 100.
+  // Cada bloque evaluado pesa igual. Carga incorpora Firmeza desde el corte de producción;
+  // Sanidad participa una sola vez, aunque haya varias enfermedades.
   function suggestedGlobal(){
     if(!active)return 0;
     let sum=0;
@@ -33,7 +42,7 @@
       if(cat==='sanidad'&&picked.some(isDisease))sum+=100;
       else if(cat!=='sanidad'&&picked.some(k=>k!=='ok'&&k!=='noEvaluada'))sum+=100;
     }
-    return Math.floor(sum/CATS.length/10)*10;
+    return Math.round((sum/CATS.length)/10)*10;
   }
   // El usuario puede cambiar el total calculado; no se recalcula al restaurar
   // ni al guardar, solo al editar algún estado o porcentaje de enfermedad.
@@ -368,15 +377,22 @@
     const total=saved?strCount(saved.bandejasInspeccionadas):strCount(rec?.numBandejas);
     active.querySelector('.qco-total input').value=total===null?'':String(total);
     active.querySelector('.qco-total-value').textContent=total===null?'No disponible':total.toLocaleString('es-ES');
-    const savedV5=[5,6].includes(saved?.schemaVersion);
+    const savedV5=[5,6,7].includes(saved?.schemaVersion);
     const aggregate=active.querySelector('.qco-global-percent');
      for(const [cat] of CATS){
       const wrap=active.querySelector('[data-qco-cat="'+cat+'"]');
       const old=saved?.mediciones?.[cat];
       let chosen=saved?.categorias?.[cat]?.opciones;
-      if(!Array.isArray(chosen))chosen=old?Object.keys(old).filter(k=>Number(old[k])>0):['ok'];
-      chosen=normalizeOptions(cat,chosen);
       let issue='';
+      if(!Array.isArray(chosen)){
+        if(cat==='firmeza'){chosen=[];issue='Firmeza no estaba registrada. Selecciona un estado para registrar Firmeza.';}
+        else chosen=old?Object.keys(old).filter(k=>Number(old[k])>0):['ok'];
+      }
+      chosen=normalizeOptions(cat,chosen);
+      if(cat==='raices'&&record?.tipo==='carga'&&chosen.includes('raizVariedad')){
+        issue='Raíces histórica «Raíz en variedad» no equivale a «Raíz vieja». Selecciona el estado actual.';
+        chosen=[];
+      }
       if(chosen.includes('noEvaluada')){
         issue='Esta categoría estaba sin evaluar. Selecciona un estado para actualizarla.';chosen=[];
       }
@@ -498,7 +514,8 @@
       if(!saved)return {state:'absent'};
       if(!Number.isInteger(saved.version)||saved.version<=previousVersion)
         return {state:'different'};
-      const same=saved.schemaVersion===6&&
+      const expectedSchema=ref.tipo==='carga'?7:6;
+      const same=saved.schemaVersion===expectedSchema&&
         saved.porcentajeInvalidasGlobal===expected.porcentajeInvalidasGlobal&&
         Object.keys(expected.categorias).every(cat=>JSON.stringify(saved.categorias?.[cat])===JSON.stringify(expected.categorias[cat]));
       return same?{state:'confirmed',value:saved}:{state:'different'};
@@ -546,7 +563,7 @@
         method:'POST',headers:{Authorization:'Bearer '+jwt,'Content-Type':'application/json'},
         body:JSON.stringify({
           id:record.id,tipo:record.tipo,dia:record.dia,partida:record.partida,
-          schemaVersion:6,version,
+          schemaVersion:record.tipo==='carga'?7:6,version,
           categorias:checked.categorias,porcentajeInvalidasGlobal:checked.porcentajeInvalidasGlobal
         }),cache:'no-store'
       });
@@ -563,7 +580,7 @@
       const data=await r.json();
       if(!data.ok||!Number.isInteger(data.version))throw Error('INVALID_RESPONSE');
       version=data.version;original=JSON.stringify(snapshot());initialSnapshot=original;
-      savedMeasurement={schemaVersion:6,version,
+      savedMeasurement={schemaVersion:record.tipo==='carga'?7:6,version,
         categorias:checked.categorias,porcentajeInvalidasGlobal:checked.porcentajeInvalidasGlobal};
       confirmed=true;
     }catch(err){
@@ -863,6 +880,7 @@
     }
     const thisSequence=++sequence;
     record={id:rec.id,tipo:rec.tipo,dia:rec.dia,partida:rec.partida};
+    CATS=rec.tipo==='carga'?(rec.dia>=155?[...CATS_CARGA_BASE,CAT_FIRMEZA]:CATS_CARGA_BASE):CATS_TUNEL;
     legacyApi=context||null;
     savedMeasurement=null;currentRules=null;loading=true;savedForList=null;
     active=build(rec);
