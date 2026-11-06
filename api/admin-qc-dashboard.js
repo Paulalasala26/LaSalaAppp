@@ -13,7 +13,7 @@ const OPTIONS={
   raices:{pocaRaiz:'Poca raíz',raizVariedad:'Raíz en variedad',ok:'OK'}
 };
 const CATEGORIES={color:'Color',tamano:'Tamaño',sanidad:'Sanidad',flores:'Flores',raices:'Raíces'};
-const TYPES=new Set(['tunel','carga']);
+const TYPES=new Set(['tunel','carga','carga_injerto']);
 const TREATMENTS=new Set(['pendiente','informativo','incidencia','critico']);
 const REF_RE=/^[A-Za-z0-9_-]{1,180}$/;
 const PART_RE=/^[A-Za-z0-9._-]{1,100}$/;
@@ -65,24 +65,44 @@ function validMeasurement(value,id){
   return true;
 }
 function validPercentMeasurement(value,id){
-  if(!plainObject(value)||![5,6].includes(value.schemaVersion)||
+  if(!plainObject(value)||![5,6,7,8].includes(value.schemaVersion)||
      !plainObject(value.legacy)||value.legacy.id!==id||!REF_RE.test(id)||
      !TYPES.has(value.legacy.tipo)||!Number.isInteger(value.legacy.dia)||
      !PART_RE.test(value.legacy.partida)||!plainObject(value.categorias)||
-     Object.keys(value.categorias).sort().join('|')!==Object.keys(CATEGORIES).sort().join('|')||
      !Number.isInteger(value.porcentajeInvalidasGlobal)||
      value.porcentajeInvalidasGlobal<0||value.porcentajeInvalidasGlobal>100||
      value.porcentajeInvalidasGlobal%10!==0)return false;
-  if(value.schemaVersion===5&&(!Number.isSafeInteger(value.bandejasInspeccionadas)||
-     value.bandejasInspeccionadas<1))return false;
-  if(value.schemaVersion===6&&Object.hasOwn(value,'bandejasInspeccionadas'))return false;
-  for(const category of Object.keys(CATEGORIES)){
+  const schema=value.schemaVersion,type=value.legacy.tipo,day=value.legacy.dia;
+  if(schema===5&&(!Number.isSafeInteger(value.bandejasInspeccionadas)||value.bandejasInspeccionadas<1))return false;
+  if(schema>=6&&Object.hasOwn(value,'bandejasInspeccionadas'))return false;
+  if(schema===6&&type!=='tunel'||schema===7&&type!=='carga'||schema===8&&type!=='carga_injerto')return false;
+  const expected={...CATEGORIES};
+  if(schema===7||schema===8&&day>=155)expected.firmeza='Firmeza';
+  if(schema===8)expected.raicesInjerto='Raíces en punto de injerto';
+  if(Object.keys(value.categorias).sort().join('|')!==Object.keys(expected).sort().join('|'))return false;
+  const options={
+    color:['verde','amarillo','verdeClaro','ok'],
+    tamano:['grande','pequeno','ok'],
+    sanidad:['ok','enfermedad1','enfermedad2','enfermedad3','enfermedad4'],
+    flores:['ok','si'],
+    raices:schema>=7?['pocaRaiz','raizVieja','ok']:['pocaRaiz','raizVariedad','ok'],
+    firmeza:['ok','duro','tierno'],
+    raicesInjerto:['si','no']
+  };
+  for(const category of Object.keys(expected)){
     const entry=value.categorias[category],choices=entry?.opciones;
-    if(!Array.isArray(choices)||!choices.length)return false;
+    if(!plainObject(entry)||!Array.isArray(choices))return false;
+    if(category==='raicesInjerto'&&schema===8){
+      if(choices.length>1||choices.some(k=>!options[category].includes(k)))return false;
+      continue;
+    }
+    if(!choices.length||choices.some(k=>!options[category].includes(k)&&k!=='noEvaluada'))return false;
     if(category==='sanidad'){
       const diseases=entry.porcentajesEnfermedades;
-      if(!plainObject(diseases)||Object.keys(diseases).some(k=>!/^enfermedad[1-4]$/.test(k)))return false;
-      if(Object.values(diseases).some(n=>!Number.isInteger(n)||n<10||n>100||n%10))return false;
+      const selected=choices.filter(k=>/^enfermedad[1-4]$/.test(k));
+      if(!plainObject(diseases)||Object.keys(diseases).length!==selected.length||
+         Object.keys(diseases).some(k=>!selected.includes(k))||
+         Object.values(diseases).some(n=>!Number.isInteger(n)||n<10||n>100||n%10))return false;
     }else if(choices.length!==1)return false;
   }
   return true;
@@ -116,7 +136,7 @@ async function fetchLegacyControls(token,filters){
     throw httpError(503,'INVALID_CONTROL_INDEX');
   const qMin=Math.max(0,Math.floor((filters.from-15)/14));
   const qMax=Math.floor((filters.to-15)/14);
-  const types=filters.stage==='todos'?['tunel','carga']:[filters.stage],wanted=[];
+  const types=filters.stage==='todos'?['tunel','carga','carga_injerto']:[filters.stage],wanted=[];
   for(const type of types){
     for(let q=qMin;q<=qMax;q++){
       const meta=index.shards[type+'|'+q];
@@ -156,7 +176,8 @@ function buildDashboard(raw,rawRules,filters,legacyRecords=[]){
   if(Object.keys(raw).length>50000)throw httpError(503,'TOO_MANY_RECORDS');
   const partitions={
     tunel:{records:0,completed:0,pending:0,registeredPercentages:0},
-    carga:{records:0,completed:0,pending:0,registeredPercentages:0}
+    carga:{records:0,completed:0,pending:0,registeredPercentages:0},
+    carga_injerto:{records:0,completed:0,pending:0,registeredPercentages:0}
   };
   const weekly=new Map(),rows=[],partidas=new Set(),measuredPartidas=new Set();
   let completed=0,registeredPercentages=0,invalidCount=0,unmatchedCount=0;
@@ -184,7 +205,7 @@ function buildDashboard(raw,rawRules,filters,legacyRecords=[]){
       candidate.legacy.dia===rec.dia&&candidate.legacy.partida===rec.partida?
       candidate:null;
     if(saved)matched.add(rec.id);
-    const percentage=saved&&[5,6].includes(saved.schemaVersion)?
+    const percentage=saved&&[5,6,7,8].includes(saved.schemaVersion)?
       saved.porcentajeInvalidasGlobal:null;
     if(percentage!==null){
       registeredPercentages++;part.registeredPercentages++;
@@ -193,7 +214,7 @@ function buildDashboard(raw,rawRules,filters,legacyRecords=[]){
     }
     const weekStart=dayToISO(15+Math.floor((rec.dia-15)/7)*7);
     if(!weekly.has(weekStart))weekly.set(weekStart,{
-      weekStart,records:0,tunel:0,carga:0,completed:0,registeredPercentages:0
+      weekStart,records:0,tunel:0,carga:0,carga_injerto:0,completed:0,registeredPercentages:0
     });
     const week=weekly.get(weekStart);
     week.records++;week[type]++;if(done)week.completed++;
