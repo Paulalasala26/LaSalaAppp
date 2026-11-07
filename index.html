@@ -17158,8 +17158,37 @@ const RIEGO_ABONO_TIPOS = {
   TINJ: ['T31','T35','T35 SAL','T41','T41 SAL','T5','T6','T7','T8'],
   SINJ: ['ISO3','ISO2','ISO2 SAL','ISO1','I0','I1'],
   MINJ: ['M14','M14 SAL','M15','M15 SAL','M16','M17','M18'],
-  SAL: []
+  SAL: [],
+  // 2026-11-07: categorías nuevas traídas de la versión más actualizada (main,
+  // 2026-11-05, a petición de Paula). Sus productos son solo valores por
+  // defecto: el Backoffice (api/admin-riego-options.js) aún no las gestiona.
+  PIMIENTO: ['P1','P1.5','P2','P3','P4'],
+  SANDIA_PREINJERTO: ['S1','S2','S3','S41'],
+  LECHUGA: ['L14','L15','L16','L17','L18','L20'],
+  ESCAROLA: ['ESC14','ESC15','ESC16','ESC17','ESC18'],
+  APIO: ['A3','A4','A5','A6','A7','A8']
 };
+// Lo que se MUESTRA en el desplegable "Categoría". El valor guardado (key) no
+// cambia nunca para TINJ/SINJ/MINJ/SAL (así los datos ya guardados siguen
+// igual); solo se renombra la etiqueta.
+const RIEGO_ABONO_CATEGORIAS = [
+  {key:'TINJ', label:'TINJ: TOMATE'},
+  {key:'MINJ', label:'MINJ: MELÓN'},
+  {key:'SINJ', label:'SINJ: INJERTO DE SANDÍA'},
+  {key:'SAL', label:'SAL'},
+  {key:'PIMIENTO', label:'PIMIENTO'},
+  {key:'SANDIA_PREINJERTO', label:'SANDÍA PREINJERTO'},
+  {key:'LECHUGA', label:'LECHUGA'},
+  {key:'ESCAROLA', label:'ESCAROLA'},
+  {key:'APIO', label:'APIO'}
+];
+function opcionesCategoriaAbonoHTML(sel){
+  return RIEGO_ABONO_CATEGORIAS.map(k=>`<option value="${k.key}"${k.key===sel?' selected':''}>${k.label}</option>`).join('');
+}
+// Categorías sin productos todavía: el desplegable avisa en vez de quedar vacío.
+function placeholderProductoAbono(cat){
+  return (cat && cat!=='SAL' && !(RIEGO_ABONO_TIPOS[cat] || []).length) ? 'Sin productos aún' : 'Producto';
+}
 const RIEGO_FITOSANITARIOS = ['PROPLANT','PREVICUR ENERGY','DAGONIS','NIMROD','LALSTOP','RAZORMIN','RIDOMIL','VERIMARK','LYRUL'];
 // "LASTOP" era el nombre antes de renombrarse a "LALSTOP" — los datos ya
 // guardados con el nombre antiguo tienen que seguir reconociéndose igual al
@@ -17392,7 +17421,9 @@ function opcionesRiegoConocidas(grupo,defaults){
 }
 function opcionesRiegoSelectHTML(grupo,defaults,seleccion=''){
   const elegido=String(seleccion||'');
-  const lista=opcionesRiegoTest===null
+  // Un grupo que el catálogo del Backoffice todavía no contiene (p.ej. las
+  // categorías de Abono nuevas de 2026-11-07) usa sus valores por defecto.
+  const lista=(opcionesRiegoTest===null || !opcionesRiegoTest.some(x=>x.group===grupo))
     ? defaults.map((v,i)=>({value:String(v),label:String(v),order:i}))
     : opcionesRiegoTest.filter(x=>x.group===grupo&&x.active)
       .sort((a,b)=>a.order-b.order||a.value.localeCompare(b.value,'es',{numeric:true}));
@@ -18005,13 +18036,10 @@ function renderAbonoRows(){
         </select>
         <select class="rm-abono-cat" onchange="updateAbonoTipoOptionsRow(this)" style="width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;background:#fff;outline:none">
           <option value="">Categoría</option>
-          <option value="TINJ"${r.cat==='TINJ'?' selected':''}>TINJ</option>
-          <option value="SINJ"${r.cat==='SINJ'?' selected':''}>SINJ</option>
-          <option value="MINJ"${r.cat==='MINJ'?' selected':''}>MINJ</option>
-          <option value="SAL"${r.cat==='SAL'?' selected':''}>SAL</option>
+          ${opcionesCategoriaAbonoHTML(r.cat)}
         </select>
         <select class="rm-abono-producto" ${r.cat==='SAL'?'disabled':''} style="width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;background:#fff;outline:none">
-          <option value="">Producto</option>
+          <option value="">${placeholderProductoAbono(r.cat)}</option>
           ${opcionesRiegoSelectHTML('abono_'+r.cat.toLowerCase(),opciones,r.producto)}
         </select>
         ${rmAbonoRows.length>1 ? `<button type="button" onclick="quitarAbonoRow(${i})" style="width:26px;height:26px;background:#fdecea;color:#c62828;border:1px solid #f3c2bd;border-radius:6px;cursor:pointer;font-size:12px">✕</button>` : '<span></span>'}
@@ -18031,7 +18059,7 @@ function updateAbonoTipoOptionsRow(catSelect){
   }
   sel.disabled = false;
   const opciones = RIEGO_ABONO_TIPOS[cat] || [];
-  sel.innerHTML = `<option value="">Producto</option>` + opcionesRiegoSelectHTML('abono_'+cat.toLowerCase(),opciones);
+  sel.innerHTML = `<option value="">${placeholderProductoAbono(cat)}</option>` + opcionesRiegoSelectHTML('abono_'+cat.toLowerCase(),opciones);
 }
 function agregarAbonoRow(){
   rmAbonoRows = leerAbonoRowsDesdeDOM();
@@ -18093,13 +18121,10 @@ function renderTrabajoVias(){
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
         <select onchange="actualizarCatTrabajoVia('${code}',this.value)" style="width:100%;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:11px;background:#fff;outline:none">
           <option value="">Categoría</option>
-          <option value="TINJ"${v.cat==='TINJ'?' selected':''}>TINJ</option>
-          <option value="SINJ"${v.cat==='SINJ'?' selected':''}>SINJ</option>
-          <option value="MINJ"${v.cat==='MINJ'?' selected':''}>MINJ</option>
-          <option value="SAL"${v.cat==='SAL'?' selected':''}>SAL</option>
+          ${opcionesCategoriaAbonoHTML(v.cat)}
         </select>
         <select onchange="actualizarProductoTrabajoVia('${code}',this.value)" ${v.cat==='SAL'?'disabled':''} style="width:100%;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:11px;background:#fff;outline:none">
-          <option value="">Producto</option>
+          <option value="">${placeholderProductoAbono(v.cat)}</option>
           ${opcionesRiegoSelectHTML('abono_'+v.cat.toLowerCase(),opciones,v.producto)}
         </select>
       </div>` : ''}
