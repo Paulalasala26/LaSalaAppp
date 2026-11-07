@@ -2248,9 +2248,6 @@ function renderTareasGestorFullScreen(overlay){
         <button onclick="generarTareasDesdeRiego()" title="Borra las tareas de peón pendientes/iniciadas y las reconstruye desde lo que hay escrito ahora mismo en Riego" style="padding:9px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid rgba(255,255,255,.4);background:transparent;color:#fff;display:flex;align-items:center;gap:7px;white-space:nowrap">
           <i class="ti ti-refresh" style="font-size:14px"></i> Generar tareas
         </button>
-        <button onclick="avanzarRiegoReganteDia()" title="Avanza las hojas de riego de los regantes al día siguiente" style="padding:9px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid rgba(255,255,255,.4);background:transparent;color:#fff;display:flex;align-items:center;gap:7px;white-space:nowrap">
-          <i class="ti ti-calendar-check" style="font-size:14px"></i> Generar hojas riego
-        </button>
         <button onclick="showImprimirTareasSelector(tareasData.filter(t=>USER_ROLES[t.asignadoA]==='PEON' && !esTareaDeAyer(t) && t.estado!=='completada'))" style="padding:9px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid rgba(255,255,255,.4);background:transparent;color:#fff;display:flex;align-items:center;gap:7px;white-space:nowrap">
           <i class="ti ti-printer" style="font-size:14px"></i> Imprimir tareas de peones
         </button>
