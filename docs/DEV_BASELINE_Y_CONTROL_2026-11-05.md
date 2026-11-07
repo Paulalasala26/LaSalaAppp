@@ -43,6 +43,7 @@ A partir de esta línea base, los cambios nuevos se desarrollan primero en `dev/
 | Fecha y hora (Madrid) | Commit DEV | Cambio solicitado | Áreas/archivos | Validación en DEV | Promoción DEV → TEST | Commit/fecha TEST |
 |---|---|---|---|---|---|---|
 | 05/11/2026 18:14 | `f26909f` | Línea base trasladada desde TEST | Aplicación completa; configuración conservada para DEV | Vercel READY; separación Firebase comprobada | No aplica: importación desde TEST | `44a75bb` · commit fuente |
+| 07/11/2026 11:57 | `10ced17` | Riego > Abono: categorías y productos nuevos de la versión más actualizada (`main`, 05/11) | Solo `index.html`: `RIEGO_ABONO_TIPOS`, `RIEGO_ABONO_CATEGORIAS`, desplegables de Abono y de abono foliar, y valores por defecto en `opcionesRiegoSelectHTML` cuando el catálogo del Backoffice no tiene el grupo. Backup previo: `backup/dev-v1.0-before-abono-categorias-2026-11-07` (`d5870e6`) | Hecho en código. Sintaxis de los 5 scripts inline correcta; simulación aislada 13/13. **Pendiente:** Vercel READY del SHA y prueba manual del usuario. Sin prueba funcional real | No promovido | — |
 
 Para cada promoción DEV → TEST:
 
