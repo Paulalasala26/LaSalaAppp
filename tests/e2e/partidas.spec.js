@@ -272,7 +272,7 @@ function firebaseEtag(value) {
   return `"${createHash('sha1').update(JSON.stringify(value)).digest('hex')}"`;
 }
 
-async function openPartidas(page, { loginFirst = true, user = login.user, writeDelayMs = 0, database = fixtureDatabase(), selectInv = true, failWriteStatus = 0, failWritePath = '', failWrites = 0 } = {}) {
+async function openPartidas(page, { loginFirst = true, user = login.user, writeDelayMs = 0, database = fixtureDatabase(), selectInv = true, failWriteStatus = 0, failWritePath = '', failWriteState = { remaining: 0 } } = {}) {
   const unexpectedHosts = [], writes = [];
   const corsHeaders = {
     'access-control-allow-origin': '*',
@@ -307,8 +307,8 @@ async function openPartidas(page, { loginFirst = true, user = login.user, writeD
       await route.fulfill({ status: 412, contentType: 'application/json', headers: corsHeaders, body: JSON.stringify({ error: 'etag mismatch' }) });
       return;
     }
-    if (failWritePath && path.join('/') === failWritePath && failWrites > 0) {
-      failWrites -= 1;
+    if (failWritePath && path.join('/') === failWritePath && failWriteState.remaining > 0) {
+      failWriteState.remaining -= 1;
       await route.fulfill({ status: failWriteStatus || 500, contentType: 'application/json', headers: corsHeaders, body: JSON.stringify({ error: 'forced fixture failure' }) });
       return;
     }
@@ -1016,7 +1016,7 @@ test('UAT-046: recorrer partidas seguidas mantiene cada Específico en su partid
   expect(unexpectedHosts).toEqual([]);
 });
 test('UAT-2424: si falla la escritura de la tarea del Específico, deja el proceso pendiente y reintentar no duplica', async ({ page }) => {
-  const options = { failWritePath: 'lasala-tareas-v1', failWrites: 3 };
+  const options = { failWritePath: 'lasala-tareas-v1', failWriteState: { remaining: 3 } };
   const { overlay, database, writes, unexpectedHosts } = await openPartidas(page, options);
   const associationsBefore = JSON.parse(database['lasala-especificos-partida-v1']);
   await overlay.locator('button').filter({ hasText: 'Añadir Específico aquí' }).click();
@@ -1035,7 +1035,7 @@ test('UAT-2424: si falla la escritura de la tarea del Específico, deja el proce
   expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([]);
   expect(JSON.parse(database['lasala-especificos-v1'])).toEqual({});
   expect(JSON.parse(database['lasala-especificos-partida-v1'])).toEqual(associationsBefore);
-  await expect.poll(() => options.failWrites).toBe(0);
+  await expect.poll(() => options.failWriteState.remaining).toBe(0);
 
   await dialog.getByRole('button', { name: 'Aplicar', exact: true }).click();
   await expect(dialog).toBeHidden();
