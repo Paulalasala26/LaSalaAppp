@@ -3651,14 +3651,33 @@ function imprimirHojaFitoConDatos(datos){
       .ov-firma { text-align:center; }
     </style></head><body>${pagina}</body></html>`);
   doc.close();
-  const dispararImpresion = () => { iframe.contentWindow.focus(); iframe.contentWindow.print(); };
   const bgImg = doc.querySelector('.hf-bg');
-  if(bgImg && !bgImg.complete){
-    bgImg.addEventListener('load', dispararImpresion, {once:true});
-    bgImg.addEventListener('error', dispararImpresion, {once:true});
-    setTimeout(dispararImpresion, 3000);
+  let impresionResuelta = false;
+  let timeoutCarga = null;
+  const falloPlantilla = () => {
+    if(impresionResuelta) return;
+    impresionResuelta = true;
+    clearTimeout(timeoutCarga);
+    showToast('No se pudo cargar la plantilla de impresión. No se abrió el documento.');
+    iframe.remove();
+  };
+  const dispararImpresion = () => {
+    if(impresionResuelta) return;
+    if(!bgImg || !bgImg.complete || bgImg.naturalWidth<=0){ falloPlantilla(); return; }
+    impresionResuelta = true;
+    clearTimeout(timeoutCarga);
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
+  };
+  if(!bgImg){
+    falloPlantilla();
+  } else if(bgImg.complete){
+    if(bgImg.naturalWidth>0) setTimeout(dispararImpresion, 200);
+    else falloPlantilla();
   } else {
-    setTimeout(dispararImpresion, 200);
+    bgImg.addEventListener('load', dispararImpresion, {once:true});
+    bgImg.addEventListener('error', falloPlantilla, {once:true});
+    timeoutCarga = setTimeout(falloPlantilla, 3000);
   }
 }
 // Mismo patrón que autoAsignarTareasRiego (cada peón recibe su propia copia,
