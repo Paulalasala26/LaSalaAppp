@@ -2357,7 +2357,8 @@ async function eliminarTicketMantenimientoConfirmado(id, titulo){
     if(!r){ avisarFalloGuardado(); return; }
     let cloud = JSON.parse(r.value);
     cloud = cloud.filter(x=>x.id!==id);
-    await window.storage.set(MANTENIMIENTO_KEY, JSON.stringify(cloud));
+    const ok = await window.storage.set(MANTENIMIENTO_KEY, JSON.stringify(cloud));
+    if(!ok){ avisarFalloGuardado(); return; }
     mantenimientoData = cloud;
   }catch(e){ avisarFalloGuardado(); return; }
   mantSeleccionadas.delete(id);

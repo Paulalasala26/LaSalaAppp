@@ -750,6 +750,37 @@ test('UAT-1557: doble clic en Crear registra un ticket una sola vez', async ({ p
   expect(writes.filter(write => write.key === 'lasala-mantenimiento-v1')).toHaveLength(1);
 });
 
+test('UAT-2425: si falla el archivado de Mantenimiento el ticket sigue activo y no anuncia éxito', async ({ page }) => {
+  const ticket = {
+    id: 'e2e-maint-archive-error',
+    titulo: 'E2E archivado con error',
+    descripcion: 'Fixture para error remoto',
+    prioridad: 'normal',
+    estado: 'sin_asignar',
+    asignados: [],
+    creadoEn: '2026-11-09'
+  };
+  const options = { failMantenimientoWrites: 3 };
+  const { database, writes } = await installFixture(page, {
+    'lasala-mantenimiento-v1': JSON.stringify([ticket])
+  }, options);
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  await overlay.getByRole('button', { name: 'Mantenimiento de Parcelas' }).click();
+  const card = overlay.locator('.tarea-card').filter({ hasText: ticket.titulo });
+  await expect(card).toBeVisible();
+
+  page.on('dialog', dialog => dialog.accept());
+  await card.locator('button[title="Eliminar"]').click();
+
+  await expect(page.locator('#aviso-fallo-guardado')).toContainText('No se ha podido guardar el último cambio');
+  await expect(page.locator('#app-toast')).not.toContainText('Ticket eliminado');
+  await expect(card).toBeVisible();
+  expect(options.failMantenimientoWrites).toBe(0);
+  expect(JSON.parse(database['lasala-mantenimiento-v1'])).toEqual([ticket]);
+  expect(writes.filter(write => write.key === 'lasala-mantenimiento-v1')).toHaveLength(0);
+});
+
 test('UAT-1558–1559: error de guardado conserva el formulario y permite reintentar sin duplicados', async ({ page }) => {
   const options = { failMantenimientoWrites: 3 };
   const { database, writes } = await installFixture(page, {}, options);
