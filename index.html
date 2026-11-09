@@ -15369,7 +15369,7 @@ function renderRiegoGrid(invId){
   const layout = INV_LAYOUT[invId];
   if(!layout){ wrap.innerHTML='<p style="padding:2rem;color:#888">Sin datos.</p>'; return; }
 
-  // REGANTE solo ve el día actual con fuentes mucho más grandes (responsivo según pantalla)
+  // REGANTE solo ve hoy y mañana con fuentes mucho más grandes (responsivo según pantalla)
   const esReganteSoloLectura = riegoSoloLectura && currentUserRole === 'REGANTE';
   const diaRegante = esReganteSoloLectura ? riegoReganteDiaCargar() : null;
   const esMovil = esPantallaMovil();
@@ -15398,9 +15398,15 @@ function renderRiegoGrid(invId){
   }
 
   let diasQ = riegoQuincenaDias(riegoQuincenaOffset);
-  // REGANTE solo ve el día actual
+  // REGANTE ve DOS días (traído de main, 2026-11-05, a petición de Paula): el
+  // día actual y el siguiente. diaRegante es el "día de mañana"
+  // (riegoReganteDiaCargar nunca devuelve menos que mañana; si se adelanta,
+  // la ventana avanza con él). Se construye aparte de la quincena para que
+  // hoy y mañana salgan aunque caigan en quincenas distintas; los datos no
+  // dependen de la quincena porque cada shard Riego v2 es de un invernadero
+  // completo (todos sus días).
   if(esReganteSoloLectura && diaRegante){
-    diasQ = diasQ.filter(d => d === diaRegante);
+    diasQ = [diaRegante - 1, diaRegante];
   }
 
   function buildSection(calles, secLabel){
