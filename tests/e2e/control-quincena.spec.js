@@ -3219,3 +3219,53 @@ test('UAT-152: mostrar los tramos de calle de QC como segmentos separados', asyn
   await expect(card).not.toContainText('C/1701-1709');
   expect(unexpectedHosts).toEqual([]);
 });
+
+
+test('UAT-2433: las dos pantallas leen la última evaluación QC v6 confirmada tras fallar un guardado', async ({ page, context }) => {
+  const database = fixtureDatabase();
+  const first = await startControlTest(page, database);
+  const id = 'e2e-control-current-fortnight';
+  const firstCard = first.overlay.locator(`#control-card-${id}`);
+
+  await firstCard.getByTestId(`qc-v6-${id}-color-ok`).click();
+  await firstCard.getByTestId(`qc-v6-${id}-save`).click();
+  await expect.poll(() => database['lasala-control-items-v1'][id]?.qcV6?.color).toBe('ok');
+  const confirmed = structuredClone(database['lasala-control-items-v1'][id].qcV6);
+
+  const secondPage = await context.newPage();
+  try {
+    const second = await startControlSecondaryTest(secondPage, database);
+    const secondCard = second.overlay.locator(`#control-card-${id}`);
+    await expect(secondCard.getByTestId(`qc-v6-${id}-color-ok`)).toHaveAttribute('aria-pressed', 'true');
+    await secondCard.getByTestId(`qc-v6-${id}-tamano-grande`).click();
+    second.unexpectedHosts.setNetworkAvailable(false);
+    await secondCard.getByTestId(`qc-v6-${id}-save`).click();
+    await expect(secondPage.locator('#aviso-fallo-guardado')).toContainText('No se ha podido guardar el último cambio');
+    second.unexpectedHosts.setNetworkAvailable(true);
+    expect(database['lasala-control-items-v1'][id].qcV6).toEqual(confirmed);
+
+    await Promise.all([page.reload(), secondPage.reload()]);
+    const [firstReloaded, secondReloaded] = await Promise.all([
+      openControlTunnel(page),
+      openControlTunnel(secondPage)
+    ]);
+    const cards = [
+      firstReloaded.locator(`#control-card-${id}`),
+      secondReloaded.locator(`#control-card-${id}`)
+    ];
+    for (const card of cards) {
+      await expect(card.getByTestId(`qc-v6-${id}-color-ok`)).toHaveAttribute('aria-pressed', 'true');
+      await expect(card.getByTestId(`qc-v6-${id}-tamano-grande`)).toHaveAttribute('aria-pressed', 'false');
+    }
+    const views = await Promise.all(cards.map(card => card.evaluate(element => ({
+      color: element.querySelector('[data-testid$="-color-ok"]')?.getAttribute('aria-pressed'),
+      size: element.querySelector('[data-testid$="-tamano-grande"]')?.getAttribute('aria-pressed')
+    }))));
+    expect(views[0]).toEqual(views[1]);
+    expect(database['lasala-control-items-v1'][id].qcV6).toEqual(confirmed);
+    expect(first.unexpectedHosts).toEqual([]);
+    expect(second.unexpectedHosts).toEqual([]);
+  } finally {
+    await secondPage.close();
+  }
+});
