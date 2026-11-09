@@ -42,11 +42,12 @@
   const oldLoadStatuses=window.cargarEstadosQCDia;
   const oldApply=window.aplicarControlCheckOpcion;
 
+  let afterSection=CONTROL_SECCIONES.findIndex(section=>section.key==='carga_injerto');
   keys.forEach(key=>{
     if(CONTROL_SECCIONES.some(section=>section.key===key))return;
     const section={key,label:TYPES[key].label,icon:TYPES[key].icon,color:TYPES[key].color,conCheck:true};
-    const after=CONTROL_SECCIONES.findIndex(item=>item.key==='carga_injerto');
-    CONTROL_SECCIONES.splice(after<0?CONTROL_SECCIONES.length:after+1,0,section);
+    afterSection+=1;
+    CONTROL_SECCIONES.splice(afterSection<0?CONTROL_SECCIONES.length:afterSection,0,section);
   });
 
   window.controlV2ShardDeItem=function(item){
@@ -95,7 +96,7 @@
   };
 
   window.renderControlFiltroYAltaHTML=function(type){
-    if(!keySet.has(type))return oldToolbar(type,...arguments);
+    if(!keySet.has(type))return oldToolbar(...arguments);
     return '<div class="qc-preinjerto-toolbar" aria-label="Partidas de preinjerto por fecha de entrega"></div>'+
       '<div id="nuevo-control-form-wrap"></div>';
   };
