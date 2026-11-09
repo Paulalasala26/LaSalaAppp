@@ -18666,6 +18666,7 @@ async function saveEspecificosPartidaData(){
 }
 let especificosInvSel = null;
 let especificosQuincenaOffset = 0;
+let especificosQuincenaOffsetInicializado = false;
 const ESPECIFICO_TRATAMIENTOS = ['TC','MB','PP'];
 const ESPECIFICO_DOSIS = ['0.5','1','2','3'];
 const ESPECIFICO_HORARIOS = ['POR LA MAÑANA','17:00','18:00','19:00','19:30','20:00'];
@@ -18754,7 +18755,10 @@ function getEspecifico(invId,dia,calle){
 // showEspecificoManualForm), no se tocó esa lógica.
 function showEspecificoResumenModule(){
   Promise.all([loadEspecificosData(false), loadPresenciaData(), loadTareasData(false)]).then(()=>{
-    especificosQuincenaOffset = riegoQuincenaOffsetActual();
+    if(!especificosQuincenaOffsetInicializado){
+      especificosQuincenaOffset = riegoQuincenaOffsetActual();
+      especificosQuincenaOffsetInicializado = true;
+    }
     const overlay = getOrCreateOverlay('especifico-resumen-overlay');
     overlay.style.padding = '0';
     overlay.innerHTML = `
@@ -18851,7 +18855,10 @@ function showEspecificosModule(){
 
     // Cargar datos en background
     Promise.all([loadEspecificosData(false), loadPresenciaData(), loadTareasData(false)]).then(()=>{
+      if(!especificosQuincenaOffsetInicializado){
       especificosQuincenaOffset = riegoQuincenaOffsetActual();
+      especificosQuincenaOffsetInicializado = true;
+    }
       const html = `
         <div style="background:#fff;border-radius:0;width:100vw;height:100vh;max-width:100vw;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.3)">
           <div style="background:#2e7d32;color:#fff;padding:.85rem 1.25rem;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;gap:10px">
