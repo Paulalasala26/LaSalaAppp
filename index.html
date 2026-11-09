@@ -5626,7 +5626,7 @@ function avisarGuardadoLocalPendiente(n){
   }
   b.style.background = '#c47f00';
   b.style.color = '#fff';
-  b.innerHTML = `⚠ El guardado remoto no se confirmó. ${n} cambio${n===1?'':'s'} queda${n===1?'':'n'} guardado${n===1?'':'s'} en este dispositivo, pendiente${n===1?'':'s'} de sincronización.`;
+  b.innerHTML = `⚠ Sin conexión o respuesta de error del servidor. El guardado remoto no se confirmó. ${n} cambio${n===1?'':'s'} queda${n===1?'':'n'} guardado${n===1?'':'s'} en este dispositivo, pendiente${n===1?'':'s'} de sincronización.`;
   b.style.display = 'block';
 }
 // Solo funciones "aplicar valor concreto" (no toggles) son seguras de
