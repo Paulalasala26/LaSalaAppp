@@ -264,7 +264,7 @@ test('UAT-2391: abrir Tareas inmediatamente después de Plaguicidas mantiene lim
   await logInAs(page, 'E2E_ADMIN');
 
   const plaguicidas = page.locator('#fito-overlay');
-  const plaguicidasShortcut = page.locator('#quick-access-block .home-shortcut-card[onclick="handleQuickAction('plaguicidas')"]');
+  const plaguicidasShortcut = page.locator(`#quick-access-block .home-shortcut-card[onclick="handleQuickAction('plaguicidas')"]`);
   await plaguicidasShortcut.click();
   await expect(plaguicidas).toBeVisible();
   await expect(plaguicidas).toContainText('Plaguicidas');
@@ -273,7 +273,7 @@ test('UAT-2391: abrir Tareas inmediatamente después de Plaguicidas mantiene lim
   await expect(page.locator('#page-home')).toBeVisible();
 
   const tareas = page.locator('#tareas-overlay');
-  await page.locator('#quick-access-block .home-shortcut-card[onclick="handleQuickAction('tareas')"]').click();
+  await page.locator(`#quick-access-block .home-shortcut-card[onclick="handleQuickAction('tareas')"]`).click();
   await expect(tareas).toBeVisible();
   await expect(tareas).toContainText('Resumen de Tareas');
   await expect(tareas).not.toContainText('Plaguicidas');
