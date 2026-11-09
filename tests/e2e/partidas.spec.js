@@ -1077,3 +1077,29 @@ test('UAT-2424: si falla Tareas después de confirmar el Específico por partida
   expect(unexpectedHosts).toEqual([]);
   expect(writes.filter(write => write.path === 'lasala-tareas-v1')).toHaveLength(4);
 });
+
+
+test('UAT-2432: tras fallar el guardado, el historial conserva QC de la última ubicación confirmada', async ({ page }) => {
+  const database = fixtureDatabase();
+  database['lasala-riego-v1'] = JSON.stringify({
+    '17': { '57': { '18': 'E2E-QC-UBICACION-CONFIRMADA', '2': 'E2E-QC-OTRA-UBICACION' } }
+  });
+  const { overlay, unexpectedHosts, writes } = await openPartidas(page, { database, failWriteStatus: 500 });
+  const original = structuredClone(database['lasala-control-items-v1']['e2e-partida-001']);
+  const card = overlay.locator(`#partidas-content-wrap [ondragstart="iniciarArrastrePartida('e2e-partida-001')"]`);
+
+  await card.locator('button[onclick^="seleccionarPartidaParaMover"]').click();
+  await overlay.locator('#partidas-content-wrap [onclick="clicCeldaVaciaPartidas(\'17\',2)"]').first().click();
+  await expect(page.locator('#aviso-fallo-guardado')).toContainText('El guardado remoto no se confirmó');
+  expect(database['lasala-control-items-v1']['e2e-partida-001']).toEqual(original);
+
+  await overlay.locator('#partidas-content-wrap').getByText('E2E-PARTIDA-001', { exact: true }).click();
+  const history = page.locator('#partidas-historial-overlay');
+  await expect(history).toBeVisible();
+  await expect(history.getByTestId('partidas-historial-ubicacion-pendiente')).toHaveText('Ubicación pendiente: el historial muestra la última ubicación confirmada.');
+  await expect(history).toContainText('E2E-QC-UBICACION-CONFIRMADA');
+  await expect(history).not.toContainText('E2E-QC-OTRA-UBICACION');
+  expect(await page.evaluate(() => window.__partidaHistorialActual.c.calleDesde)).toBe(18);
+  expect(writes.some(write => write.path.startsWith('lasala-control-items-v1'))).toBe(true);
+  expect(unexpectedHosts).toEqual([]);
+});

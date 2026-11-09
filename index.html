@@ -5493,6 +5493,8 @@ async function guardarControlItemAtomico(id, item){
 // justo antes de llamar a persistControlChecksData(). Guardar solo relee
 // este conjunto, así que no hace falta que cada sitio recuerde pasar nada.
 let controlChecksDirtyIds = new Set();
+// El historial usa la última ubicación confirmada mientras un movimiento queda pendiente.
+const controlChecksHistorialUbicacionConfirmada = new Map();
 function marcarControlCheckSucio(id){ controlChecksDirtyIds.add(id); }
 // Caché de 30s (a petición de Paula, 2026-09-04, "¿podemos optimizar aún
 // más?" tras el ahorro de datos de Riego/Tareas/Fotos) — este nodo pesa
@@ -5567,6 +5569,7 @@ async function persistControlChecksData(ids){
     return guardarControlItemAtomico(id, item || null); // null = ya no existe en local -> borrar en la nube
   }));
   const ok = resultados.every(Boolean);
+  if(ok) objetivo.forEach(id=>controlChecksHistorialUbicacionConfirmada.delete(String(id)));
   if(!ok){
     const conflictos = objetivo.filter(id=>controlChecksConflictedIds.has(id));
     const fallidos = objetivo.filter(id=>!controlChecksConflictedIds.has(id));
@@ -9658,9 +9661,12 @@ async function aplicarMoverPartidaACalle(id, invId, tramo, posManualVal){
   marcarControlCheckSucio(id);
   const ok = await persistControlChecksData();
   if(ok){
+    controlChecksHistorialUbicacionConfirmada.delete(String(id));
     desencolarAccion(qid);
     showToast('✓ Partida movida');
   } else {
+    const key = String(id);
+    if(!controlChecksHistorialUbicacionConfirmada.has(key)) controlChecksHistorialUbicacionConfirmada.set(key, antes);
     avisarGuardadoLocalPendiente(leerColaOffline().length);
   }
   return ok;
@@ -10208,9 +10214,14 @@ function togglePartidaEnSeleccionEspecifico(id){
 async function mostrarHistorialPartida(id){
   const c = controlChecksData.find(x=>x.id===id);
   if(!c) return;
+  const ubicacionConfirmada = controlChecksHistorialUbicacionConfirmada.get(String(id)) || null;
+  const cHistorial = ubicacionConfirmada ? {...c, ...ubicacionConfirmada} : c;
+  const historialInvId = ubicacionConfirmada ? ubicacionConfirmada.invId : c.invId;
   await Promise.all([loadRiegoData(false), loadFitoData(false), loadEspecificosData(false)]);
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const tramos = (c.tramos && c.tramos.length) ? c.tramos : [{desde:c.calleDesde, hasta:c.calleHasta}];
+  const tramos = ubicacionConfirmada
+    ? ((ubicacionConfirmada.tramos && ubicacionConfirmada.tramos.length) ? ubicacionConfirmada.tramos : [{desde:ubicacionConfirmada.calleDesde, hasta:ubicacionConfirmada.calleHasta}])
+    : ((c.tramos && c.tramos.length) ? c.tramos : [{desde:c.calleDesde, hasta:c.calleHasta}]);
   const calles = [];
   tramos.forEach(t=>{
     if(t.desde==null) return;
@@ -10255,14 +10266,14 @@ async function mostrarHistorialPartida(id){
   // calles de la partida hayan llevado lo mismo ese día.
   const eventosVistos = new Set();
   const eventos = [];
-  if(c.invId && calles.length){
+  if(historialInvId && calles.length){
     for(let dia=diaDesde; dia<=diaHasta; dia++){
       calles.forEach(calle=>{
-        const r = getRiego(c.invId, dia, calle);
+        const r = getRiego(historialInvId, dia, calle);
         if(r){ const k=`${dia}|Riego|${r}`; if(!eventosVistos.has(k)){ eventosVistos.add(k); eventos.push({dia, tipo:'Riego', color:'#1558a0', texto:r}); } }
-        const f = getFito(c.invId, dia, calle);
+        const f = getFito(historialInvId, dia, calle);
         if(f){ const k=`${dia}|Plaguicidas|${f}`; if(!eventosVistos.has(k)){ eventosVistos.add(k); eventos.push({dia, tipo:'Plaguicidas', color:'#c47f00', texto:f}); } }
-        const e = getEspecifico(c.invId, dia, calle);
+        const e = getEspecifico(historialInvId, dia, calle);
         if(e){ const k=`${dia}|Específicos|${e}`; if(!eventosVistos.has(k)){ eventosVistos.add(k); eventos.push({dia, tipo:'Específicos', color:'#1a5c2e', texto:e}); } }
       });
     }
@@ -10316,14 +10327,14 @@ async function mostrarHistorialPartida(id){
               <div style="font-size:10px;color:var(--muted);margin-top:3px">${escapar(f.label)}</div>
             </div>`).join('')}
         </div>` : '';
-  window.__partidaHistorialActual = { c, cargaSalida, eventos, resumenCategoriasHTML, tipoPlanta, diaDesde, fotosPartida, pre, pres };
+  window.__partidaHistorialActual = { c:cHistorial, cargaSalida, eventos, resumenCategoriasHTML, tipoPlanta, diaDesde, fotosPartida, pre, pres };
   const mo = getOrCreateOverlay('partidas-historial-overlay');
   mo.innerHTML = `
     <div style="background:#fff;border-radius:14px;max-width:640px;width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.3)">
       <div style="background:linear-gradient(135deg,#0f5c4a,#1a9c78);color:#fff;padding:1.1rem 1.5rem;border-radius:14px 14px 0 0;position:sticky;top:0">
         <div style="font-size:17px;font-weight:800">${escapar(c.partida)||'— Sin partida —'}</div>
         <div style="font-size:12px;opacity:.9;margin-top:2px">${escapar(c.clienteVariedad)||''}${tipoPlanta?' · '+escapar(tipoPlanta):''}</div>
-        <div style="font-size:11px;opacity:.85;margin-top:2px">${c.fentrega?`📅 Entrega ${escapar(c.fentrega)} · `:''}INV ${escapar(c.invId)||'—'} · Día 1 (salida de Túnel): ${escapar(riegoDiaLabelCorto(diaDesde))}</div>
+        <div style="font-size:11px;opacity:.85;margin-top:2px">${c.fentrega?`📅 Entrega ${escapar(c.fentrega)} · `:''}INV ${escapar(historialInvId)||'—'} · Día 1 (salida de Túnel): ${escapar(riegoDiaLabelCorto(diaDesde))}</div>
       </div>
       <div style="padding:1.25rem 1.5rem">
         ${pres.length ? pres.map(pre=>`
@@ -10352,6 +10363,7 @@ async function mostrarHistorialPartida(id){
           ${cargaSalida.observaciones ? escapar(cargaSalida.observaciones) : '<span style="font-style:italic;color:var(--muted)">Sin observaciones</span>'}
         </div>` : `<div style="font-size:12px;color:var(--muted);font-style:italic;margin-bottom:1.25rem">Todavía no tiene parte de carga.</div>`}
         ${fotosHTML}
+        ${ubicacionConfirmada ? '<div data-testid="partidas-historial-ubicacion-pendiente" style="padding:8px 10px;margin-bottom:10px;background:#fff3cd;color:#7a4b00;border:1px solid #f0c36d;border-radius:7px;font-size:12px;font-weight:700">Ubicación pendiente: el historial muestra la última ubicación confirmada.</div>' : ''}
         <div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Historial de riegos, plaguicidas y específicos</div>
         ${eventosHTML}
       </div>
