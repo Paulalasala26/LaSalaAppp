@@ -634,3 +634,40 @@ test('UAT-2413: PEÓN imprime su lista e inicia una tarea desde Inicio sin error
   expect(pageErrors).toEqual([]);
 });
 
+
+
+test('UAT-2414: PEÓN abre Mantenimiento directamente desde Inicio sin duplicar tickets ni escrituras', async ({ page }) => {
+  const pageErrors = [];
+  const maintenanceWrites = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
+  page.on('request', request => {
+    if (request.method() === 'PUT' && request.url().includes('/lasala-mantenimiento-v1.json')) maintenanceWrites.push(request);
+  });
+  const ticket = {
+    id: 'e2e-uat-2414-ticket',
+    titulo: 'E2E mantenimiento PEON UAT-2414',
+    descripcion: 'Ticket de fixture asignado directamente',
+    prioridad: 'normal',
+    estado: 'asignado',
+    asignados: ['E2E_PEON'],
+    creadoEn: new Date().toISOString().slice(0, 10)
+  };
+
+  await installAuthFixture(page, { 'lasala-mantenimiento-v1': JSON.stringify([ticket]) });
+  await expect(page.locator('#page-home')).toBeVisible();
+  await page.getByRole('button', { name: 'Salir' }).click();
+  await expect(page.locator('#login-screen')).toBeVisible();
+  await logInAs(page, 'E2E_PEON');
+  await expect(page.locator('#peon-tareas-inline')).toContainText('No tienes tareas asignadas.');
+
+  const maintenanceButton = page.locator('#btn-mantenimiento-peon');
+  await expect(maintenanceButton).toBeEnabled();
+  await maintenanceButton.click();
+  const overlay = page.locator('#mant-peon-overlay');
+  await expect(overlay).toBeVisible();
+  await expect(overlay).toContainText(ticket.titulo);
+  await expect(overlay.locator('.tarea-card')).toHaveCount(1);
+  expect(maintenanceWrites).toHaveLength(0);
+  expect(pageErrors).toEqual([]);
+});
+
