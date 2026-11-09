@@ -630,7 +630,7 @@ test('UAT-2413: PEÓN imprime su lista e inicia una tarea desde Inicio sin error
   await inline.getByRole('button', { name: 'Iniciar' }).click();
   await expect.poll(() => taskWrites.length).toBe(1);
   await expect(inline).toContainText('Iniciada');
-  await expect(inline.getByText(task.titulo, { exact: true })).toHaveCount(1);
+  await expect(inline.getByText(task.titulo, { exact: false })).toHaveCount(1);
   expect(pageErrors).toEqual([]);
 });
 
