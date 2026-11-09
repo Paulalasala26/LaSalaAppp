@@ -145,6 +145,56 @@ async function openTasks(page) {
   await expect(page.locator('#tareas-overlay')).toBeVisible();
 }
 
+test('UAT-2412: ADMIN abre Tareas directamente desde Home y carga Operativas y Mantenimiento con sus registros', async ({ page }) => {
+  const tomorrowISO = (() => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
+  })();
+  const tasks = [{
+    id: 'e2e-uat-2412-task',
+    titulo: 'E2E operativa UAT-2412',
+    descripcion: 'Registro de fixture para apertura directa',
+    asignadoA: 'PEON1',
+    origen: 'manual',
+    categoria: 'manual',
+    inv: '0A',
+    calles: '1-2',
+    fechaISO: tomorrowISO,
+    fecha: 'mañana',
+    turno: 'Mañana',
+    prioridad: 'normal',
+    estado: 'pendiente'
+  }];
+  const tickets = [{
+    id: 'e2e-uat-2412-ticket',
+    titulo: 'E2E mantenimiento UAT-2412 INV 0A',
+    descripcion: 'Ticket de fixture',
+    prioridad: 'normal',
+    estado: 'sin_asignar',
+    asignados: [],
+    creadoEn: new Date().toISOString().slice(0, 10)
+  }];
+  const { database, writes } = await installFixture(page, {
+    'lasala-tareas-v1': JSON.stringify(tasks),
+    'lasala-mantenimiento-v1': JSON.stringify(tickets)
+  });
+
+  await expect(page.locator('#page-home')).toBeVisible();
+  await expect(page.locator('#tareas-overlay')).toBeHidden();
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  await expect(overlay).toContainText('Resumen de Tareas');
+  await overlay.getByRole('button', { name: 'Tareas de mañana' }).click();
+  await expect(overlay.getByText('E2E operativa UAT-2412', { exact: true })).toBeVisible();
+
+  await overlay.getByRole('button', { name: 'Mantenimiento de Parcelas' }).click();
+  await expect(overlay).toContainText('E2E mantenimiento UAT-2412 INV 0A');
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual(tasks);
+  expect(JSON.parse(database['lasala-mantenimiento-v1'])).toEqual(tickets);
+  expect(writes).toEqual([]);
+});
+
 test('UAT-1302–1303, UAT-1307–1310 y UAT-1315: abrir, validar y cancelar un alta manual solo ofrece ejecutores operativos', async ({ page }) => {
   const { database, writes } = await installFixture(page);
 
