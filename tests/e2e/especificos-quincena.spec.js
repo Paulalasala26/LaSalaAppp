@@ -134,7 +134,7 @@ test('UAT-2385: desde Partidas, abrir Específicos conserva la quincena futura y
   await partidas.getByRole('button',{name:'Resumen',exact:true}).click();
   const summary=page.locator('#especifico-resumen-overlay');
   await expect(summary).toBeVisible();
-  const period=summary.locator('#especificos-quincena-bar');
+  const period=summary.locator('#resumen-especificos-quincena-bar');
   await period.locator('button').last().click();
   const futureLabel=(await period.innerText()).split('·').at(-1).trim();
   await expect(summary).toContainText('E2E-ESPECIFICO-FUTURO-INV17');
