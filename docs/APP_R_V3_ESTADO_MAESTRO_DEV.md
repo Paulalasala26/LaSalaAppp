@@ -1,6 +1,6 @@
 # APP R v3 — Anexo maestro DEV
-**Última actualización:** 02/11/2026 (España)
-**Rama exclusiva:** `dev/v1.0` · **Estado:** cambios visuales validados por el usuario
+**Última actualización:** 09/11/2026 (España)
+**Rama exclusiva:** `dev/v1.0` · **Estado:** cambios visuales y Riego > Abono validados por el usuario
 
 > Anexo de continuidad de `docs/APP_R_V3_ESTADO_MAESTRO.md` para los cambios realizados exclusivamente en DEV. Leer ambos: la memoria maestra general conserva todo el histórico, y este anexo añade los hitos exclusivos de DEV sin reescribir ni recortar ese histórico.
 
@@ -17,6 +17,18 @@
 - Código: commit inicial `51ab905b1b85fff8c0bcb97f2b7bc7f12764eef2`; corrección final `eb136888c44b2b44c6ac86e69261358a1b800a76`.
 - Vercel DEV: `https://la-sala-app-dev.vercel.app`, último commit visual verificado como `READY`.
 - `test/v1.0` y `main` **no modificados**.
+
+## DEV — Riego > Abono: categorías y productos nuevos — VALIDADO 09/11/2026
+
+**Objetivo:** traer a DEV las categorías y productos de Abono de la versión más actualizada (`main`, 05/11/2026), adaptados a la arquitectura de DEV (catálogo de opciones del Backoffice y almacenamiento de Riego por tramos).
+
+- Solo `index.html`: `RIEGO_ABONO_TIPOS` (+ PIMIENTO, SANDÍA PREINJERTO, LECHUGA, ESCAROLA, APIO), `RIEGO_ABONO_CATEGORIAS` (etiquetas `TINJ: TOMATE`, `MINJ: MELÓN`, `SINJ: INJERTO DE SANDÍA`; el valor guardado no cambia), desplegables de Abono y de abono foliar, y valores por defecto en `opcionesRiegoSelectHTML` cuando el catálogo del Backoffice no contiene el grupo.
+- Código: `10ced17`; registro en la tabla de control: `6f64f5f`. Backup previo recuperable: `backup/dev-v1.0-before-abono-categorias-2026-11-07` (`d5870e6`).
+- Comprobaciones técnicas previas: sintaxis de los 5 scripts inline correcta; simulación aislada 13/13 con el código real extraído; DEV servía un `index.html` idéntico al del commit.
+- **Aceptación del usuario:** «Validado» (09/11/2026), tras la prueba manual en DEV indicada en la entrega.
+- **Límite conocido:** el Backoffice (`api/admin-riego-options.js`) no gestiona las categorías nuevas; sus productos son valores por defecto del código, como en `main`. Si se añaden esos grupos al Backoffice, desplegar antes el frontend (`validGroups` descartaría todo el catálogo si encuentra un grupo desconocido).
+- La aceptación no cubre escritura de datos reales, sincronización offline, impresión ni fotografías SharePoint. No hay verificación del estado READY de Vercel para este SHA.
+- `test/v1.0` y `main` **no modificados**; no promovido a TEST.
 
 ## Guardarraíles
 
