@@ -1782,9 +1782,9 @@ test('UAT-055: dos usuarios adjuntan PDFs a días distintos sin perder índices'
     expect(JSON.parse(database['lasala-control-pdf-v1-tunel-30']).nombre).toBe('e2e-concurrent-30.pdf');
     expect(JSON.parse(database['lasala-control-pdf-v1-tunel-31']).nombre).toBe('e2e-concurrent-31.pdf');
     expect(first.unexpectedHosts).toEqual([]);
-    expect(second.unexpectedHosts).toEqual([]);
+    expect(secondUnexpectedHosts).toEqual([]);
   } finally {
-    await secondPage.close();
+    await secondContext.close();
   }
 });
 
