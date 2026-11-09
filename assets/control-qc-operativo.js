@@ -424,7 +424,7 @@
         if(chosen.includes('enferma')&&cat==='sanidad'){
           issue='Sanidad histórica «Enferma» sin diagnóstico. Selecciona la enfermedad real.';chosen=[];
         }else if(chosen.includes('ok')&&defectKeys.length){
-          issue=name+': OK e incidencias no son compatibles.';chosen=[];
+          issue=(CATS.find(([key])=>key===cat)?.[1]||cat)+': OK e incidencias no son compatibles.';chosen=[];
         }
       }else if(chosen.length>1){
         issue='Medición anterior con varias opciones: selecciona un único estado.';chosen=[];
@@ -501,7 +501,9 @@
     const v=snapshot(),errors=[];
     const global=v.porcentajeInvalidasGlobal;
     const hasIssue=Object.entries(v.categorias).some(([cat,i])=>i.opciones.some(k=>
-      cat==='raicesInjerto'?k==='si':cat==='flores'?k==='si':cat==='sanidad'?isDisease(k):k!=='ok'&&k!=='noEvaluada'));
+      cat==='raicesInjerto'?k==='si':cat==='flores'?k==='si':
+      isMultiCategory(cat)?isPercentOption(cat,k):
+      cat==='segado'?k==='noSegado':k!=='ok'&&k!=='noEvaluada'));
     if(!Number.isInteger(global)||global<0||global>100||global%10!==0||
        !hasIssue&&global!==0)
       errors.push('Porcentaje global incorrecto.');
@@ -541,7 +543,7 @@
       if(!saved)return {state:'absent'};
       if(!Number.isInteger(saved.version)||saved.version<=previousVersion)
         return {state:'different'};
-      const expectedSchema=ref.tipo==='carga_injerto'?8:ref.tipo==='carga'?7:6;
+      const expectedSchema=ref.tipo==='preinjerto_patron'?9:ref.tipo==='carga_injerto'?8:ref.tipo==='carga'?7:6;
       const same=saved.schemaVersion===expectedSchema&&
         saved.porcentajeInvalidasGlobal===expected.porcentajeInvalidasGlobal&&
         Object.keys(expected.categorias).every(cat=>JSON.stringify(saved.categorias?.[cat])===JSON.stringify(expected.categorias[cat]));
