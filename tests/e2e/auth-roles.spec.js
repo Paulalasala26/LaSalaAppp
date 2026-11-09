@@ -551,3 +551,38 @@ test('UAT-2027–2028: lecturas simultáneas con ETag no pierden avisos ni alter
   expect(guardados.E2E_TECNICO[2]).toMatchObject({ tipo: 'problema_ejecucion', resuelto: false, solucion: '' });
   expect(guardados.E2E_ADMIN).toEqual([]);
 });
+
+
+test('UAT-2417: reabrir Partidas y Específicos varias veces no duplica vistas ni cuadrículas', async ({ page }) => {
+  const pageErrors = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
+  await installAuthFixture(page);
+  await logInAs(page, 'E2E_ADMIN');
+
+  const partidas = page.locator('#partidas-overlay');
+  const specificos = page.locator('#especificos-overlay');
+  const partidasShortcut = page.locator(`#quick-access-block .home-shortcut-card[onclick="handleQuickAction('partidas')"]`);
+  const specificosShortcut = page.locator(`#quick-access-block .home-shortcut-card[onclick="handleQuickAction('especificos')"]`);
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await partidasShortcut.click();
+    await expect(partidas).toBeVisible();
+    await expect(page.locator('#partidas-overlay')).toHaveCount(1);
+    await expect(page.locator('#partidas-content-wrap')).toHaveCount(1);
+    await expect(partidas).toContainText('Elige un invernadero');
+    await partidas.getByRole('button', { name: 'Sala 2', exact: true }).click();
+    await partidas.getByRole('button', { name: '17', exact: true }).click();
+    await expect(page.locator('#partidas-content-wrap')).toBeVisible();
+    await partidas.getByRole('button', { name: /✕ Cerrar/ }).click();
+    await expect(partidas).toBeHidden();
+
+    await specificosShortcut.click();
+    await expect(specificos).toBeVisible();
+    await expect(page.locator('#especificos-overlay')).toHaveCount(1);
+    await expect(page.locator('#especificos-grid-wrap')).toHaveCount(1);
+    await specificos.getByRole('button', { name: /✕/ }).last().click();
+    await expect(specificos).toBeHidden();
+  }
+
+  expect(pageErrors).toEqual([]);
+});
