@@ -810,7 +810,7 @@ test('UAT-718: cada sala lista sus invernaderos reales sin duplicados y en orden
   expect(unexpectedHosts).toEqual([]);
 });
 
-test('UAT-722–725: cambiar de INV desde el mapa conserva la sesión y aísla los registros', async ({ page }) => {
+test('UAT-722–725 y UAT-2392: cambiar de INV incluso entre salas desde el mapa conserva la sesión y aísla los registros', async ({ page }) => {
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(error.message));
   const { overlay, unexpectedHosts, writes } = await openPartidas(page);
@@ -838,6 +838,7 @@ test('UAT-722–725: cambiar de INV desde el mapa conserva la sesión y aísla l
   await expect(map).toContainText('INV.51');
   await expect(map).toContainText('E2E-PARTIDA-003');
   await expect(map).not.toContainText('E2E-PARTIDA-001');
+  await expect(map).not.toContainText('E2E-PARTIDA-002');
 
   expect(writes).toEqual([]);
   expect(pageErrors).toEqual([]);
