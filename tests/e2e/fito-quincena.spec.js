@@ -908,3 +908,25 @@ test('UAT-038: borrar un tratamiento de prueba y guardar lo elimina también tra
   await expect(page.locator('#fito-grid-wrap input[data-finv="17"][data-fdia="32"][data-frc="2"]')).toHaveValue('');
   expect(reloaded.unexpectedHosts).toEqual([]);
 });
+
+
+test('UAT-2430: si no carga la plantilla fitosanitaria no imprime ni modifica datos',async({page})=>{
+  const database=fixtureDatabase();
+  await page.addInitScript(()=>{
+    window.__e2ePrintCalls=0;
+    window.print=()=>{ window.parent.__e2ePrintCalls=(window.parent.__e2ePrintCalls||0)+1; };
+  });
+  const {unexpectedHosts,writes}=await openFito(page,database);
+  const original=JSON.stringify(database);
+  await page.route('**/assets/hoja-plaguicidas.jpg',route=>route.fulfill({status:404,body:'plantilla ausente'}));
+  await page.evaluate(()=>imprimirHojaFitoConDatos({
+    fechaISO:'2026-06-30',horario:'10:00',producto:'E2E-PLANTILLA',dosis:'1 cc/l',
+    caldoLitros:25,caldoLabel:'25L CUBA DE RUEDAS',objetivos:[]
+  }));
+  await expect(page.locator('#app-toast')).toHaveText('No se pudo cargar la plantilla de impresión. No se abrió el documento.');
+  await expect(page.locator('#print-fito-iframe')).toHaveCount(0);
+  expect(await page.evaluate(()=>window.__e2ePrintCalls||0)).toBe(0);
+  expect(JSON.stringify(database)).toBe(original);
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
