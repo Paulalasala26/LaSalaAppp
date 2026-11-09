@@ -1061,14 +1061,14 @@ async function loadTareasData(forzar){
   try{ const r=await window.storage.get(TAREAS_KEY); if(r){ tareasData=JSON.parse(r.value); tareasDataCargadaEn = Date.now(); } }catch(e){}
   await limpiarTareasVencidas();
 }
-async async function persistTareasData(){
+async function persistTareasData(){
   try{
     const r = await window.storage.get(TAREAS_KEY);
     // Si la lectura falla, r es null — igual que si no hubiera tareas.
     // Tratarlo como "sin tareas de verdad" borraría las de otros
     // dispositivos/usuarios que esta sesión no tenga en memoria. Se aborta
     // en vez de asumir que la nube está vacía.
-    if(!r){ avisarFalloGuardado(); return; }
+    if(!r){ avisarFalloGuardado(); return false; }
     const cloud = JSON.parse(r.value);
     const map = {};
     cloud.forEach(t=>map[t.id]=t);
@@ -2915,7 +2915,8 @@ async function crearTarea(){
   const fechaRaw = document.getElementById('nt-fecha')?.value;
   const fecha = fechaRaw ? new Date(fechaRaw+'T00:00:00').toLocaleDateString('es-ES',{day:'2-digit',month:'short'}).replace('.','') : '';
   if(!titulo||!asignados.length){ showToast('Indica al menos un título y a quién se asigna'); return; }
-  if(!validarUbicaci  const tareasAntes = tareasData;
+  if(!validarUbicacionTareaManual(inv,calles)){ showToast('Invernadero o calle no válido; revisa el catálogo de ubicaciones'); return; }
+  const tareasAntes = tareasData.slice();
   const nuevas = asignados.map(asignadoA=>({
     id: 'tarea_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
     titulo, descripcion, asignadoA, asignadoPor: currentUser||'—',
@@ -2932,12 +2933,6 @@ async function crearTarea(){
     showToast('No se confirmó ninguna tarea. Ninguna asignación quedó guardada: '+asignados.join(', '));
     return false;
   }
-l,
-      visto: false,
-      creadoEn: new Date().toLocaleString('es-ES')
-    });
-  });
-  await persistTareasData();
   logHistorial(`Creó la tarea "${titulo}" y la asignó a ${asignados.join(', ')}`);
   showToast('✓ Tarea creada y asignada a '+asignados.join(', '));
   showTareasModule();
