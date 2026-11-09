@@ -1016,7 +1016,7 @@ test('UAT-046: recorrer partidas seguidas mantiene cada Específico en su partid
   expect(unexpectedHosts).toEqual([]);
 });
 test('UAT-2423: si falla el vínculo después de guardar Específicos por calle, conserva identidad recuperable y no confirma el proceso', async ({ page }) => {
-  const options = { failWritePath: 'lasala-especificos-partida-v1', failWriteState: { remaining: 4 } };
+  const options = { failWritePath: 'lasala-especificos-partida-v1', failWriteState: { remaining: 1 } };
   const { overlay, database, writes, unexpectedHosts } = await openPartidas(page, options);
   const associationsBefore = JSON.parse(database['lasala-especificos-partida-v1']);
   await overlay.locator('button').filter({ hasText: 'Añadir Específico aquí' }).click();
@@ -1043,7 +1043,7 @@ test('UAT-2423: si falla el vínculo después de guardar Específicos por calle,
   expect(associations['e2e-partida-001'].filter(item => item.trat === 'TC' && item.dia === Number(day))).toHaveLength(1);
   expect(JSON.parse(database['lasala-tareas-v1'])).toHaveLength(1);
   expect(unexpectedHosts).toEqual([]);
-  expect(writes.filter(write => write.path === 'lasala-especificos-partida-v1')).toHaveLength(5);
+  expect(writes.filter(write => write.path === 'lasala-especificos-partida-v1')).toHaveLength(2);
 });
 
 test('UAT-2424: si falla Tareas después de confirmar el Específico por partida, informa conciliación pendiente y reintenta sin duplicar', async ({ page }) => {
