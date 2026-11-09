@@ -501,8 +501,8 @@ module.exports=async function handler(req,res){
     const next={
       schemaVersion:v9?9:v8?8:v7?7:v6?6:v5?5:v4?4:hasDiseaseBreakdown?3:isPercent?2:1,version:before.version+1,
       legacy:{...ref,partida:source.partida},
-      ...(!v6&&!v7&&!v8?{bandejasInspeccionadas:request.bandejasInspeccionadas}:{}),
-      ...((v5||v6||v7||v8)?{
+      ...(!v6&&!v7&&!v8&&!v9?{bandejasInspeccionadas:request.bandejasInspeccionadas}:{}),
+      ...((v5||v6||v7||v8||v9)?{
         categorias:checked.categorias,porcentajeInvalidasGlobal:checked.porcentajeInvalidasGlobal,
         legacyMediciones:before.legacyMediciones||before.mediciones||null,
         ...((before.legacyCategorias||before.categorias&&![5,6,7,8].includes(before.schemaVersion))?
