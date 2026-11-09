@@ -53,6 +53,8 @@
   const order=['preinjerto_patron','preinjerto_variedad','tunel','carga','carga_injerto'];
   const orderIndex=new Map(order.map((key,index)=>[key,index]));
   CONTROL_SECCIONES.sort((a,b)=>(orderIndex.get(a.key)??99)-(orderIndex.get(b.key)??99));
+  const cargaInjerto=CONTROL_SECCIONES.find(section=>section.key==='carga_injerto');
+  if(cargaInjerto)cargaInjerto.icon='ti-truck';
 
   window.controlV2ShardDeItem=function(item){
     if(item&&keySet.has(item.tipo)){
