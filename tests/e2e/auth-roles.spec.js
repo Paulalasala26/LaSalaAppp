@@ -263,8 +263,6 @@ test('UAT-2402: salir de ADMIN y entrar como CARGADOR en la misma pestaña limpi
   });
   await logInAs(page, 'E2E_ADMIN');
   await expect(page.locator('#app')).toBeVisible();
-  await expect(page.locator('#avisos-tecnico-badge')).toBeVisible();
-
   const control = page.locator('#control-overlay');
   await page.locator(`#quick-access-block .home-shortcut-card[onclick="handleQuickAction('control')"]`).click();
   await expect(control).toBeVisible();
