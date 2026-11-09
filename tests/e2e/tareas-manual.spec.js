@@ -6,6 +6,14 @@ const firebaseUrl = /^https:\/\/[^/]*(?:firebasedatabase\.app|firebaseio\.com)\/
 const password = 'e2e-only-password';
 const passwordHash = createHash('sha256').update(password).digest('hex');
 
+async function fechaISOEnNavegador(page, offsetDays = 0) {
+  return page.evaluate(days => {
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }, offsetDays);
+}
+
 async function installFixture(page, initialData = {}, options = {}) {
   const database = {
     'lasala-users-v1': JSON.stringify({ E2E_ADMIN: passwordHash, E2E_TECH: passwordHash, PEON1: passwordHash, REGANTE1: passwordHash }),
@@ -168,11 +176,7 @@ test('UAT-2415: un doble clic rápido en Tareas deja una sola vista funcional y 
 });
 
 test('UAT-2412: ADMIN abre Tareas directamente desde Home y carga Operativas y Mantenimiento con sus registros', async ({ page }) => {
-  const tomorrowISO = (() => {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    return `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
-  })();
+  const tomorrowISO = await fechaISOEnNavegador(page, 1);
   const tasks = [{
     id: 'e2e-uat-2412-task',
     titulo: 'E2E operativa UAT-2412',
@@ -339,11 +343,7 @@ test('UAT-1312–1314, UAT-1316–1317, UAT-1320–1322, UAT-1324–1325: alta m
   const { database, writes } = await installFixture(page);
   const title = 'E2E tarea repetida';
   const description = 'Descripción extensa del caso automatizado. '.repeat(8).trim();
-  const tomorrowISO = (() => {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    return `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
-  })();
+  const tomorrowISO = await fechaISOEnNavegador(page, 1);
 
   async function createTask(expectedCountLabel) {
     await page.locator('#tareas-overlay').getByRole('button', { name: 'Nueva tarea' }).click();
@@ -405,12 +405,8 @@ test('UAT-1312–1314, UAT-1316–1317, UAT-1320–1322, UAT-1324–1325: alta m
 });
 
 test('UAT-1326–1330 y UAT-2418: editar una tarea manual pendiente tras abrir Tareas desde Inicio conserva su ID y mueve solo los datos cambiados', async ({ page }) => {
-  const todayISO = new Date().toISOString().slice(0, 10);
-  const tomorrowISO = (() => {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    return tomorrow.toISOString().slice(0, 10);
-  })();
+  const todayISO = await fechaISOEnNavegador(page, 0);
+  const tomorrowISO = await fechaISOEnNavegador(page, 1);
   const taskId = 'e2e-manual-edit-1326';
   const task = {
     id: taskId,
