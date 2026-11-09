@@ -149,24 +149,38 @@
 
   function renderControlTemplatePreview(type){
     const config=TYPES[type];
-    const categories=config.categories.map(category=>
-      '<section style="margin:0 0 11px">'+
-      '<div style="font-size:10px;font-weight:800;color:var(--text);text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px;display:flex;align-items:center;gap:5px">'+
-      '<i class="ti '+category.icon+'" aria-hidden="true"></i>'+category.label+'</div>'+
-      '<div style="display:flex;flex-wrap:wrap;gap:6px">'+category.options.map(([key,label])=>
-        '<button type="button" disabled style="padding:6px 12px;border-radius:999px;font-size:11px;font-weight:700;border:1.5px solid transparent;background:'+category.tint+';color:var(--text);opacity:.85">'+label+'</button>'
-      ).join('')+'</div></section>'
-    ).join('');
+    const percentOptions=Array.from({length:11},(_,index)=>index*10);
+    const categories=config.categories.map(category=>{
+      const multi=category.key==='plagas'||category.key==='enfermedades';
+      const options=category.options.map(([key,label])=>{
+        const percent=multi&&key!=='ok'
+          ?'<select class="qco-disease-select" aria-label="'+label+' · porcentaje" disabled>'+
+            '<option selected>— %</option>'+percentOptions.map(value=>'<option>'+value+' %</option>').join('')+'</select>'
+          :'';
+        return '<div class="qco-option'+(multi&&key!=='ok'?' qco-health-row':'')+'" data-option="'+key+'">'+
+          '<label><input type="checkbox" disabled><span>'+label+'</span></label>'+percent+'</div>';
+      }).join('');
+      return '<fieldset class="qco-cat"><legend>'+category.label+'</legend>'+options+
+        (multi?'<div class="qco-work-counter">Suma de incidencias: máximo 100 %</div>':'')+'</fieldset>';
+    }).join('');
     return '<section class="qc-work-panel qc-preinjerto-template">'+
-      '<h3 class="qc-work-title"><i class="ti '+config.icon+'" aria-hidden="true"></i> Plantilla de Control de Calidad · Patrón</h3>'+
-      '<div style="font-size:12px;color:var(--muted);margin-bottom:12px">Vista previa de los controles que se aplicarán a cada partida. Las opciones se activarán al cargar las líneas.</div>'+
+      '<div class="qc-work-counter" style="margin:0 0 9px">Sin líneas de Patrón para esta fecha. Plantilla de vista previa; se activará al cargar las partidas.</div>'+
+      '<div class="qco-inline"><div class="qco-dialog" role="region" aria-label="Plantilla cuantitativa de QC Preinjerto Patrón">'+
+      '<header class="qco-header"><div class="qco-title">QC Preinjerto Patrón · Porcentajes</div></header>'+
+      '<div class="qco-body"><div class="qco-feedback" role="note">Cada bloque simple lleva una selección. Plagas y Enfermedades permiten varias incidencias con porcentaje.</div>'+
       categories+
-      '<div class="qc-work-counter">6 controles obligatorios para completar el check</div>'+
-      '</section>';
+      '<section class="qco-global-result"><strong class="qco-global-heading">Porcentaje global de inválidas</strong>'+
+      '<div class="qco-global-row"><span>Inválidas · Total evaluación</span>'+
+      '<select class="qco-global-percent" aria-label="Porcentaje global de inválidas" disabled>'+
+      percentOptions.map(value=>'<option value="'+value+'"'+(value===0?' selected':'')+'>'+value+' %</option>').join('')+
+      '</select></div><div class="qco-global-review">El valor se propondrá a partir de los bloques evaluados y podrá ajustarse en cada línea.</div></section>'+
+      '<div class="qco-footer"><button type="button" class="qco-save" disabled>Guardar</button></div>'+
+      '</div></div></div></section>';
   }
 
   window.renderControlSeccionHTML=function(section){
-    const html=oldRenderSection?oldRenderSection(section):'';
+    const rendered=oldRenderSection?oldRenderSection(section):'';
+    const html=typeof rendered==='string'?rendered:'';
     if(section?.key!=='preinjerto_patron')return html;
     const hasLines=controlChecksData.some(record=>record?.tipo===section.key&&record.dia===controlDiaSel);
     return hasLines?html:html+renderControlTemplatePreview(section.key);
