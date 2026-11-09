@@ -41,6 +41,7 @@
   const oldComplete=window.controlLineaCompletada;
   const oldFinalized=window.controlLineaFinalizadaQC;
   const oldLoadStatuses=window.cargarEstadosQCDia;
+  const oldMarkMeasured=window.marcarControlQCMedido;
   const oldApply=window.aplicarControlCheckOpcion;
 
   let afterSection=CONTROL_SECCIONES.findIndex(section=>section.key==='carga_injerto');
@@ -169,6 +170,16 @@
     if(section?.key!=='preinjerto_patron')return html;
     const hasLines=controlChecksData.some(record=>record?.tipo===section.key&&record.dia===controlDiaSel);
     return hasLines?html:html+renderControlTemplatePreview(section.key);
+  };
+
+  window.marcarControlQCMedido=function(ref){
+    if(ref?.tipo!=='preinjerto_patron')return oldMarkMeasured?oldMarkMeasured(ref):undefined;
+    if(!ref)return;
+    const key=claveEstadosQC(ref.tipo,ref.dia),entry=controlQCEstados.get(key);
+    if(entry){entry.estados[ref.id]=true;entry.partidas[ref.id]=ref.partida;entry.at=Date.now();}
+    const overlay=document.getElementById('control-overlay');
+    if(overlay&&controlSeccion===ref.tipo&&controlDiaSel===ref.dia&&!document.querySelector('#qco-inline'))
+      window.renderControlContent(overlay);
   };
 
   window.controlLineaCompletada=function(record){
