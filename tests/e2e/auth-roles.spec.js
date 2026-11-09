@@ -257,6 +257,31 @@ test('UAT-007, UAT-1949, UAT-1951–1953 y UAT-1954–1960: los accesos de Inici
   }
 });
 
+test('UAT-2391: abrir Tareas inmediatamente después de Plaguicidas mantiene limpia la navegación', async ({ page }) => {
+  const pageErrors = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
+  await installAuthFixture(page);
+  await logInAs(page, 'E2E_ADMIN');
+
+  const plaguicidas = page.locator('#fito-overlay');
+  const plaguicidasShortcut = page.locator('#quick-access-block .home-shortcut-card[onclick="handleQuickAction('plaguicidas')"]');
+  await plaguicidasShortcut.click();
+  await expect(plaguicidas).toBeVisible();
+  await expect(plaguicidas).toContainText('Plaguicidas');
+  await plaguicidas.getByRole('button', { name: /✕/ }).last().click();
+  await expect(plaguicidas).toBeHidden();
+  await expect(page.locator('#page-home')).toBeVisible();
+
+  const tareas = page.locator('#tareas-overlay');
+  await page.locator('#quick-access-block .home-shortcut-card[onclick="handleQuickAction('tareas')"]').click();
+  await expect(tareas).toBeVisible();
+  await expect(tareas).toContainText('Resumen de Tareas');
+  await expect(tareas).not.toContainText('Plaguicidas');
+  await expect(plaguicidas).toBeHidden();
+  await expect(page.locator('#fito-manual-overlay')).toBeHidden();
+  expect(pageErrors).toEqual([]);
+});
+
 test('UAT-707–708 y UAT-1961–1962: QC y Partidas abren uno después del otro sin duplicar vistas ni errores', async ({ page }) => {
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(error.message));
