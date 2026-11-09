@@ -634,7 +634,8 @@ test('UAT-2422: un error 5xx al guardar ubicación no confirma el movimiento ni 
   await expect(overlay).toContainText('Seleccionada: E2E-PARTIDA-001');
   await overlay.locator('#partidas-content-wrap [onclick="clicCeldaVaciaPartidas(\'17\',2)"]').first().click();
 
-  await expect(page.locator('#app-toast')).toContainText(/error|no se pudo|fall/i);
+  await expect(page.locator('#aviso-fallo-guardado')).toContainText('El guardado remoto no se confirmó');
+  await expect(page.locator('#app-toast')).not.toContainText('Partida movida');
   expect(items['e2e-partida-001']).toEqual(movingBefore);
   expect(items['e2e-partida-002']).toEqual(otherBefore);
   expect(writes.some(write => write.path.startsWith('lasala-control-items-v1'))).toBe(true);

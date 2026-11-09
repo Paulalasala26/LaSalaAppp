@@ -5626,7 +5626,7 @@ function avisarGuardadoLocalPendiente(n){
   }
   b.style.background = '#c47f00';
   b.style.color = '#fff';
-  b.innerHTML = `📴 Sin conexión — ${n} cambio${n===1?'':'s'} guardado${n===1?'':'s'} en este dispositivo, se sincronizará${n===1?'':'n'} solo${n===1?'':'s'} en cuanto vuelva la señal.`;
+  b.innerHTML = `⚠ El guardado remoto no se confirmó. ${n} cambio${n===1?'':'s'} queda${n===1?'':'n'} guardado${n===1?'':'s'} en este dispositivo, pendiente${n===1?'':'s'} de sincronización.`;
   b.style.display = 'block';
 }
 // Solo funciones "aplicar valor concreto" (no toggles) son seguras de
@@ -9626,11 +9626,15 @@ async function aplicarMoverPartidaACalle(id, invId, tramo, posManualVal){
   c.posManual = posManualVal;
   registrarMovimientoPartidas([{id, antes, despues: snapshotUbicacionPartida(c)}]);
   renderPartidasMapaContent(document.getElementById('partidas-overlay'));
-  showToast('✓ Partida movida');
   const qid = encolarAccionOffline('aplicarMoverPartidaACalle', [id, invId, tramo, posManualVal]);
   marcarControlCheckSucio(id);
   const ok = await persistControlChecksData();
-  if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
+  if(ok){
+    desencolarAccion(qid);
+    showToast('✓ Partida movida');
+  } else {
+    avisarGuardadoLocalPendiente(leerColaOffline().length);
+  }
   return ok;
 }
 // Calcula, para un invernadero, en qué fila (0 = más alejada del pasillo) le
