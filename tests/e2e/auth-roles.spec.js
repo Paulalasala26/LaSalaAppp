@@ -654,6 +654,7 @@ test('UAT-2414: PEÓN abre Mantenimiento directamente desde Inicio sin duplicar 
   };
 
   await installAuthFixture(page, { 'lasala-mantenimiento-v1': JSON.stringify([ticket]) });
+  await logInAs(page, 'E2E_ADMIN');
   await expect(page.locator('#page-home')).toBeVisible();
   await page.getByRole('button', { name: 'Salir' }).click();
   await expect(page.locator('#login-screen')).toBeVisible();
