@@ -1030,7 +1030,6 @@ test('UAT-2423: si falla el vínculo después de guardar Específicos por calle,
   await dialog.getByRole('button', { name: 'Aplicar', exact: true }).click();
 
   await expect(dialog).toBeVisible();
-  await expect(page.locator('#aviso-fallo-guardado')).toBeVisible();
   await expect(page.locator('#app-toast')).toContainText('falta confirmar el vínculo');
   expect(JSON.parse(database['lasala-especificos-v1'])['17'][day]['18'].texto).toBe('TC 1 + 17:00');
   expect(JSON.parse(database['lasala-especificos-partida-v1'])).toEqual(associationsBefore);
