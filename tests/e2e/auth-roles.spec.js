@@ -257,6 +257,33 @@ test('UAT-007, UAT-1949, UAT-1951–1953 y UAT-1954–1960: los accesos de Inici
   }
 });
 
+test('UAT-2402: salir de ADMIN y entrar como CARGADOR en la misma pestaña limpia avisos y datos administrativos', async ({ page }) => {
+  await installAuthFixture(page, {
+    'lasala-avisos-usuario-v1': JSON.stringify({ E2E_ADMIN: [{ id: 'admin-previo', mensaje: 'Dato administrativo anterior', visto: true, leido: false }] })
+  });
+  await logInAs(page, 'E2E_ADMIN');
+  await expect(page.locator('#app')).toBeVisible();
+  await expect(page.locator('#avisos-tecnico-badge')).toBeVisible();
+
+  const control = page.locator('#control-overlay');
+  await page.locator(`#quick-access-block .home-shortcut-card[onclick="handleQuickAction('control')"]`).click();
+  await expect(control).toBeVisible();
+  await expect(control).toContainText('Check Túnel');
+  await page.getByRole('button', { name: 'Salir' }).click();
+  await expect(page.locator('#login-screen')).toBeVisible();
+  await expect(page.locator('#app')).toBeHidden();
+
+  await logInAs(page, 'E2E_CARGADOR');
+  await expect(page.locator('#page-home')).toBeVisible();
+  await expect(page.locator('#avisos-tecnico-badge')).toHaveCount(0);
+  await expect(control).toBeHidden();
+  await expect(page.locator('#quick-access-block')).not.toContainText('Control de Calidad');
+  await expect(page.locator('#quick-access-block')).not.toContainText('Historial');
+  await expect(page.locator('#quick-access-block')).toContainText('Cargas de camión');
+  await expect(page.getByText('Dato administrativo anterior', { exact: true })).toHaveCount(0);
+  await expect(page.locator('#login-screen')).toBeHidden();
+});
+
 test('UAT-2391: abrir Tareas inmediatamente después de Plaguicidas mantiene limpia la navegación', async ({ page }) => {
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(error.message));
