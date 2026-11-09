@@ -774,7 +774,7 @@ test('UAT-2425: si falla el archivado de Mantenimiento el ticket sigue activo y 
   await card.locator('button[title="Eliminar"]').click();
 
   await expect(page.locator('#aviso-fallo-guardado')).toContainText('No se ha podido guardar el último cambio');
-  await expect(page.locator('#app-toast')).not.toContainText('Ticket eliminado');
+  await expect(page.locator('#app-toast')).toHaveCount(0);
   await expect(card).toBeVisible();
   expect(options.failMantenimientoWrites).toBe(0);
   expect(JSON.parse(database['lasala-mantenimiento-v1'])).toEqual([ticket]);
