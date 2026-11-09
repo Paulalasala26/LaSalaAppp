@@ -408,7 +408,8 @@
       if(!Array.isArray(chosen)){
         if(cat==='firmeza'){chosen=[];issue='Firmeza no estaba registrada. Selecciona un estado para registrar Firmeza.';}
         else if(cat==='raicesInjerto')chosen=[];
-        else chosen=old?Object.keys(old).filter(k=>Number(old[k])>0):['ok'];
+        else chosen=old?Object.keys(old).filter(k=>Number(old[k])>0):
+          (record?.tipo==='preinjerto_patron'&&cat==='segado'?['segado']:['ok']);
       }
       chosen=normalizeOptions(cat,chosen);
       if(cat==='raices'&&record?.tipo==='carga'&&chosen.includes('raizVariedad')){
