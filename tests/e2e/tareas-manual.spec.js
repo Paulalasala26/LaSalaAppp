@@ -523,7 +523,7 @@ test('UAT-1305–1306, UAT-1318–1319: repartir un alta manual crea una tarea i
 });
 
 test('UAT-2426: si falla el guardado del alta manual para varios destinatarios no anuncia éxito ni confirma asignaciones', async ({ page }) => {
-  const options = { failTareasWrites: 1 };
+  const options = { failTareasWrites: 3 };
   const { database, writes } = await installFixture(page, {}, options);
   await openTasks(page);
   await page.locator('#tareas-overlay').getByRole('button', { name: 'Nueva tarea' }).click();
