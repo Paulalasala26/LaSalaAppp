@@ -272,7 +272,7 @@ function firebaseEtag(value) {
   return `"${createHash('sha1').update(JSON.stringify(value)).digest('hex')}"`;
 }
 
-async function openPartidas(page, { loginFirst = true, user = login.user, writeDelayMs = 0, database = fixtureDatabase(), selectInv = true } = {}) {
+async function openPartidas(page, { loginFirst = true, user = login.user, writeDelayMs = 0, database = fixtureDatabase(), selectInv = true, failWriteStatus = 0 } = {}) {
   const unexpectedHosts = [], writes = [];
   const corsHeaders = {
     'access-control-allow-origin': '*',
@@ -305,6 +305,10 @@ async function openPartidas(page, { loginFirst = true, user = login.user, writeD
     const ifMatch = request.headers()['if-match'];
     if (ifMatch && ifMatch !== firebaseEtag(readAt(database, path))) {
       await route.fulfill({ status: 412, contentType: 'application/json', headers: corsHeaders, body: JSON.stringify({ error: 'etag mismatch' }) });
+      return;
+    }
+    if (failWriteStatus && path[0] === 'lasala-control-items-v1') {
+      await route.fulfill({ status: failWriteStatus, contentType: 'application/json', headers: corsHeaders, body: JSON.stringify({ error: 'forced fixture failure' }) });
       return;
     }
     if (request.method() === 'PUT') writeAt(database, path, body);
@@ -616,6 +620,25 @@ test('UAT-779, UAT-783 y UAT-788: mover a una calle vacía conserva identidad y 
   const reloadedCard = reloadedOverlay.locator(`#partidas-content-wrap [ondragstart="iniciarArrastrePartida('${id}')"]`);
   await expect(reloadedCard).toBeVisible();
   await expect(reloadedOverlay.locator('#partidas-content-wrap').getByText('E2E-PARTIDA-001', { exact: true })).toHaveCount(1);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-2422: un error 5xx al guardar ubicación no confirma el movimiento ni altera otras partidas', async ({ page }) => {
+  const { overlay, unexpectedHosts, database, writes } = await openPartidas(page, { failWriteStatus: 500 });
+  const items = database['lasala-control-items-v1'];
+  const movingBefore = structuredClone(items['e2e-partida-001']);
+  const otherBefore = structuredClone(items['e2e-partida-002']);
+  const card = overlay.locator(`#partidas-content-wrap [ondragstart="iniciarArrastrePartida('e2e-partida-001')"]`);
+
+  await card.locator('button[onclick^="seleccionarPartidaParaMover"]').click();
+  await expect(overlay).toContainText('Seleccionada: E2E-PARTIDA-001');
+  await overlay.locator('#partidas-content-wrap [onclick="clicCeldaVaciaPartidas(\'17\',2)"]').first().click();
+
+  await expect(page.locator('#app-toast')).toContainText(/error|no se pudo|fall/i);
+  expect(items['e2e-partida-001']).toEqual(movingBefore);
+  expect(items['e2e-partida-002']).toEqual(otherBefore);
+  expect(writes.some(write => write.path.startsWith('lasala-control-items-v1'))).toBe(true);
+  await expect(overlay.locator('#partidas-content-wrap')).toContainText('E2E-PARTIDA-001');
   expect(unexpectedHosts).toEqual([]);
 });
 
