@@ -123,6 +123,30 @@ test('UAT-043: borrar un Específico de prueba no lo recupera al recargar',async
   expect(unexpectedHosts).toEqual([]);expect(reloaded.unexpectedHosts).toEqual([]);
 });
 
+test('UAT-2411: abrir Específicos directamente antes de Partidas deja operativos Cuadrícula y Resumen',async({page})=>{
+  const pageErrors=[];
+  page.on('pageerror',error=>pageErrors.push(error.message));
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openSpecifics(page,database);
+  await expect(page.locator('#especificos-grid-wrap [data-einv="17"][data-edia="30"][data-erc="18"]')).toHaveValue('E2E-ESPECIFICO-INV17');
+  await overlay.locator('button[onclick*="especificos-overlay"]').click();
+  await expect(overlay).toBeHidden();
+
+  const partidas=page.locator('#partidas-overlay');
+  await page.getByTestId('home-partidas').click();
+  await expect(partidas).toBeVisible();
+  await partidas.getByRole('button',{name:'Sala 2',exact:true}).click();
+  await partidas.getByRole('button',{name:'17',exact:true}).click();
+  await partidas.getByRole('button',{name:'Resumen',exact:true}).click();
+  const summary=page.locator('#especifico-resumen-overlay');
+  await expect(summary).toBeVisible();
+  await expect(summary).toContainText('Resumen de Específicos');
+  await expect(summary.locator('#resumen-especificos-quincena-bar')).toContainText('Quincena');
+  expect(pageErrors).toEqual([]);
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
 test('UAT-2390: cambiar de ADMIN a REGANTE con Específicos abierto cierra las acciones de la sesión anterior',async({page})=>{
   const database=fixtureDatabase();
   const {overlay,unexpectedHosts,writes}=await openSpecifics(page,database);
