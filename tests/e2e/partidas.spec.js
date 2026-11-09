@@ -220,6 +220,37 @@ test('UAT-735–741: Partidas respeta la entrada/salida semanal y cuenta IDs dis
   expect(unexpectedHosts).toEqual([]);
 });
 
+test('UAT-2388: la salida el primer día de la quincena siguiente quita la ocupación al avanzar el filtro', async ({ page }) => {
+  const database = fixtureDatabase();
+  database['lasala-control-items-v1'] = {
+    'e2e-salida-primer-dia-quincena-siguiente': {
+      id: 'e2e-salida-primer-dia-quincena-siguiente',
+      tipo: 'tunel',
+      dia: 64,
+      partida: 'E2E-SALIDA-PRIMER-DIA-SIGUIENTE',
+      invId: '17',
+      calleDesde: 11,
+      calleHasta: 11,
+      salioDesdeSemanaNumerada: 2
+    }
+  };
+  const { overlay, writes, unexpectedHosts } = await openPartidas(page, { database });
+  const map = overlay.locator('#partidas-content-wrap');
+  const label = overlay.getByTestId('partidas-quincena-label');
+
+  await expect(label).toContainText('Quincena 1');
+  await expect(map).toContainText('E2E-SALIDA-PRIMER-DIA-SIGUIENTE');
+  await overlay.getByTestId('partidas-quincena-next').click();
+  await expect(label).toContainText('Quincena 2');
+  await expect(map).not.toContainText('E2E-SALIDA-PRIMER-DIA-SIGUIENTE');
+  await overlay.getByTestId('partidas-quincena-previous').click();
+  await expect(label).toContainText('Quincena 1');
+  await expect(map).toContainText('E2E-SALIDA-PRIMER-DIA-SIGUIENTE');
+
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
 function readAt(object, path) {
   return path.reduce((value, part) => value == null ? null : value[part], object) ?? null;
 }
