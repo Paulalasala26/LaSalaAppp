@@ -1015,8 +1015,8 @@ test('UAT-046: recorrer partidas seguidas mantiene cada Específico en su partid
   await expect(second).not.toContainText('E2E-TRATAMIENTO 1');
   expect(unexpectedHosts).toEqual([]);
 });
-test('UAT-2424: si falla la escritura de la tarea del Específico, deja el proceso pendiente y reintentar no duplica', async ({ page }) => {
-  const options = { failWritePath: 'lasala-tareas-v1', failWriteState: { remaining: 3 } };
+test('UAT-2423: si falla el vínculo después de guardar Específicos por calle, conserva identidad recuperable y no confirma el proceso', async ({ page }) => {
+  const options = { failWritePath: 'lasala-especificos-partida-v1', failWriteState: { remaining: 4 } };
   const { overlay, database, writes, unexpectedHosts } = await openPartidas(page, options);
   const associationsBefore = JSON.parse(database['lasala-especificos-partida-v1']);
   await overlay.locator('button').filter({ hasText: 'Añadir Específico aquí' }).click();
@@ -1031,10 +1031,41 @@ test('UAT-2424: si falla la escritura de la tarea del Específico, deja el proce
 
   await expect(dialog).toBeVisible();
   await expect(page.locator('#aviso-fallo-guardado')).toBeVisible();
-  await expect(page.locator('#app-toast')).not.toContainText('Específico aplicado');
-  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([]);
-  expect(JSON.parse(database['lasala-especificos-v1'])).toEqual({});
+  await expect(page.locator('#app-toast')).toContainText('falta confirmar el vínculo');
+  expect(JSON.parse(database['lasala-especificos-v1'])['17'][day]['18'].texto).toBe('TC 1 + 17:00');
   expect(JSON.parse(database['lasala-especificos-partida-v1'])).toEqual(associationsBefore);
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([]);
+  await expect.poll(() => options.failWriteState.remaining).toBe(0);
+
+  await dialog.getByRole('button', { name: 'Aplicar', exact: true }).click();
+  await expect(dialog).toBeHidden();
+  const associations = JSON.parse(database['lasala-especificos-partida-v1']);
+  expect(associations['e2e-partida-001'].filter(item => item.trat === 'TC' && item.dia === Number(day))).toHaveLength(1);
+  expect(JSON.parse(database['lasala-tareas-v1'])).toHaveLength(1);
+  expect(unexpectedHosts).toEqual([]);
+  expect(writes.filter(write => write.path === 'lasala-especificos-partida-v1')).toHaveLength(5);
+});
+
+test('UAT-2424: si falla Tareas después de confirmar el Específico por partida, informa conciliación pendiente y reintenta sin duplicar', async ({ page }) => {
+  const options = { failWritePath: 'lasala-tareas-v1', failWriteState: { remaining: 3 } };
+  const { overlay, database, writes, unexpectedHosts } = await openPartidas(page, options);
+  await overlay.locator('button').filter({ hasText: 'Añadir Específico aquí' }).click();
+  await page.locator(`#partidas-content-wrap div[onclick="togglePartidaEnSeleccionEspecifico('e2e-partida-001')"]`).click();
+  await page.getByRole('button', { name: 'Aplicar específico →' }).click();
+  const dialog = page.locator('#especifico-por-partidas-overlay');
+  await dialog.locator('#eap-trat').selectOption('TC');
+  await dialog.locator('#eap-dosis').selectOption('1');
+  await dialog.locator('#eap-horario').selectOption('17:00');
+  const day = await dialog.locator('#eap-dia').inputValue();
+  await dialog.getByRole('button', { name: 'Aplicar', exact: true }).click();
+
+  await expect(dialog).toBeVisible();
+  await expect(page.locator('#aviso-fallo-guardado')).toBeVisible();
+  await expect(page.locator('#app-toast')).toContainText('conciliación pendiente');
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([]);
+  expect(JSON.parse(database['lasala-especificos-v1'])['17'][day]['18'].texto).toBe('TC 1 + 17:00');
+  const firstAssociations = JSON.parse(database['lasala-especificos-partida-v1'])['e2e-partida-001'];
+  expect(firstAssociations.filter(item => item.trat === 'TC' && item.dia === Number(day))).toHaveLength(1);
   await expect.poll(() => options.failWriteState.remaining).toBe(0);
 
   await dialog.getByRole('button', { name: 'Aplicar', exact: true }).click();
@@ -1042,9 +1073,8 @@ test('UAT-2424: si falla la escritura de la tarea del Específico, deja el proce
   const tasks = JSON.parse(database['lasala-tareas-v1']);
   expect(tasks).toHaveLength(1);
   expect(tasks[0]).toMatchObject({ categoria: 'especifico', inv: '17', titulo: 'TC 1' });
-  const associations = JSON.parse(database['lasala-especificos-partida-v1']);
-  expect(associations['e2e-partida-001'].filter(item => item.trat === 'TC' && item.dia === Number(day))).toHaveLength(1);
-  expect(JSON.parse(database['lasala-especificos-v1'])['17'][day]['18'].texto).toBe('TC 1 + 17:00');
+  const retryAssociations = JSON.parse(database['lasala-especificos-partida-v1'])['e2e-partida-001'];
+  expect(retryAssociations.filter(item => item.trat === 'TC' && item.dia === Number(day))).toHaveLength(1);
   expect(unexpectedHosts).toEqual([]);
   expect(writes.filter(write => write.path === 'lasala-tareas-v1')).toHaveLength(4);
 });
