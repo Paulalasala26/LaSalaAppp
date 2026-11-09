@@ -930,3 +930,24 @@ test('UAT-2430: si no carga la plantilla fitosanitaria no imprime ni modifica da
   expect(writes).toEqual([]);
   expect(unexpectedHosts).toEqual([]);
 });
+
+test('UAT-2431: sin tratamiento Específico registrado válido no se genera documento ni alta',async({page})=>{
+  const database=fixtureDatabase();
+  await page.addInitScript(()=>{
+    window.__e2ePrintCalls=0;
+    window.print=()=>{ window.parent.__e2ePrintCalls=(window.parent.__e2ePrintCalls||0)+1; };
+  });
+  const {unexpectedHosts,writes}=await openFito(page,database);
+  const original=JSON.stringify(database);
+  const result=await page.evaluate(()=>imprimirHojaEspecificoConDatos({
+    fechaISO:'2026-06-30',trat:'E2E-NO-REGISTRADO',dosis:'1',caldoLitros:25,
+    filas:[{invId:'17',calles:'INV 17 CALLES 1-2'}]
+  }));
+  await expect(page.locator('#app-toast')).toHaveText('No hay un tratamiento Específico registrado válido. No se imprimió el documento.');
+  expect(result).toBe(false);
+  await expect(page.locator('#print-especifico-iframe')).toHaveCount(0);
+  expect(await page.evaluate(()=>window.__e2ePrintCalls||0)).toBe(0);
+  expect(JSON.stringify(database)).toBe(original);
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
