@@ -12,7 +12,7 @@ function fixtureDatabase(){
     'lasala-roles-v1':JSON.stringify({[login.user]:'ADMIN'}),
     'lasala-tareas-v1':'[]',
     'lasala-fito-v1':JSON.stringify({
-      '17':{'29':{'2':'Tratamiento legado: azufre 1 g/l, revisión técnica'},'30':{'2':'E2E-FITO-INV17','3':{texto:'E2E-ORDEN 1 cc/l',caldoLitros:25,caldoLabel:'25L CUBA DE RUEDAS',tipoTrat:'Cañón',primerDia:true,esperaCarga:true,orden:4},'4':{texto:'E2E-HISTORICO-LECTURA 1 cc/l',caldoLitros:25,caldoLabel:'25L CUBA DE RUEDAS'},'5':{texto:'E2E-HISTORICO-SIN-DOSIS',caldoLitros:25,caldoLabel:'25L CUBA DE RUEDAS',tipoTrat:'Cañón'}},'32':{'2':'E2E-FITO-DELETE'}},
+      '17':{'29':{'2':'Tratamiento legado: azufre 1 g/l, revisión técnica'},'30':{'2':'E2E-FITO-INV17','3':{texto:'E2E-ORDEN 1 cc/l',caldoLitros:25,caldoLabel:'25L CUBA DE RUEDAS',tipoTrat:'Cañón',primerDia:true,esperaCarga:true,orden:4},'4':{texto:'E2E-HISTORICO-LECTURA 1 cc/l',caldoLitros:25,caldoLabel:'25L CUBA DE RUEDAS'},'5':{texto:'E2E-HISTORICO-SIN-DOSIS',caldoLitros:25,caldoLabel:'25L CUBA DE RUEDAS',tipoTrat:'Cañón'}},'32':{'2':'E2E-FITO-DELETE'},'45':{'3':'E2E-SERIE-CONTINUA 1 cc/l'}},
       '18':{'30':{'2':'E2E-FITO-INV18'}}
     })
   };
@@ -163,6 +163,19 @@ test('UAT-484–485: Plaguicidas cambia de quincena sin perder el invernadero y 
   await next.click();
   await expect(label).not.toHaveText(earliestLabel);
   await expect(grid).toContainText('INV.17');
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-2384: Plaguicidas lee la continuidad entre quincenas sin completar jornadas vacías',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  const grid=overlay.locator('#fito-grid-wrap');
+  await expect(grid.locator('[data-finv="17"][data-fdia="30"][data-frc="2"]')).toHaveValue('E2E-FITO-INV17');
+
+  await overlay.locator('#fito-quincena-bar button').last().click();
+  await expect(grid.locator('[data-finv="17"][data-fdia="45"][data-frc="3"]')).toHaveValue('E2E-SERIE-CONTINUA 1 cc/l');
+  await expect(grid.locator('[data-finv="17"][data-fdia="44"][data-frc="3"]')).toHaveValue('');
+  expect(writes).toEqual([]);
   expect(unexpectedHosts).toEqual([]);
 });
 
