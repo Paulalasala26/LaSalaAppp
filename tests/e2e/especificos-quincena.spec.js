@@ -145,6 +145,7 @@ test('UAT-2385: desde Partidas, abrir Específicos conserva la quincena futura y
   await expect(reopened.locator('#especificos-quincena-bar')).toContainText(futureLabel);
   await reopened.locator('button[data-einv="17"]').click();
   await expect(reopened.locator('#especificos-grid-wrap [data-einv="17"][data-edia="45"][data-erc="18"]')).toHaveValue('E2E-ESPECIFICO-FUTURO-INV17');
+  await reopened.locator('button[onclick*="especificos-overlay"]').click();
 
   await page.getByRole('button',{name:'Salir'}).click();
   await page.locator('#login-user').selectOption(regante.user);
