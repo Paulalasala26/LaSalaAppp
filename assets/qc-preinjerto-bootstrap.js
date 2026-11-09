@@ -33,6 +33,7 @@
   const oldSelect=window.seleccionarSeccionControl;
   const oldPeriod=window.cambiarControlQuincena;
   const oldCard=window.renderControlCardHTML;
+  const oldRenderSection=window.renderControlSeccionHTML;
   const oldToolbar=window.renderControlFiltroYAltaHTML;
   const oldFilterLines=window.controlLineasFiltradasInv;
   const oldQuantifiable=window.puedeCuantificarControl;
@@ -125,7 +126,7 @@
         '<i class="ti '+category.icon+'" aria-hidden="true"></i>'+category.label+'</div>'+
         '<div style="display:flex;flex-wrap:wrap;gap:6px">'+options+'</div></section>';
     }).join('');
-    const plants=value=>typeof plantasVista==='function'?plantasVista(value):(esc(value)||'—');
+    const plants=value=>{if(value==null||String(value).trim()==='')return '—';const formatted=typeof plantasVista==='function'?plantasVista(value):value;return esc(formatted==null||formatted===''?value:formatted)||'—';};
     const status=window.controlLineaCompletada(record)?'<span class="qc-card-medido">✓ Completado</span>':'';
     const id='control-card-'+esc(record.id);
     return '<article id="'+id+'" class="qc-card-compact qc-preinjerto-card"><div class="qc-card-main">'+
@@ -140,6 +141,31 @@
       '</div>'+categories+
       '<label class="qc-card-observaciones">Observaciones<input type="text" value="'+esc(record.observaciones)+'" placeholder="Sin observaciones" onchange="guardarControlObservaciones(\''+esc(record.id)+'\',this.value)" /></label>'+
       '</div></article>';
+  };
+
+  function renderControlTemplatePreview(type){
+    const config=TYPES[type];
+    const categories=config.categories.map(category=>
+      '<section style="margin:0 0 11px">'+
+      '<div style="font-size:10px;font-weight:800;color:var(--text);text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px;display:flex;align-items:center;gap:5px">'+
+      '<i class="ti '+category.icon+'" aria-hidden="true"></i>'+category.label+'</div>'+
+      '<div style="display:flex;flex-wrap:wrap;gap:6px">'+category.options.map(([key,label])=>
+        '<button type="button" disabled style="padding:6px 12px;border-radius:999px;font-size:11px;font-weight:700;border:1.5px solid transparent;background:'+category.tint+';color:var(--text);opacity:.85">'+label+'</button>'
+      ).join('')+'</div></section>'
+    ).join('');
+    return '<section class="qc-work-panel qc-preinjerto-template">'+
+      '<h3 class="qc-work-title"><i class="ti '+config.icon+'" aria-hidden="true"></i> Plantilla de Control de Calidad · Patrón</h3>'+
+      '<div style="font-size:12px;color:var(--muted);margin-bottom:12px">Vista previa de los controles que se aplicarán a cada partida. Las opciones se activarán al cargar las líneas.</div>'+
+      categories+
+      '<div class="qc-work-counter">6 controles obligatorios para completar el check</div>'+
+      '</section>';
+  }
+
+  window.renderControlSeccionHTML=function(section){
+    const html=oldRenderSection?oldRenderSection(section):'';
+    if(section?.key!=='preinjerto_patron')return html;
+    const hasLines=controlChecksData.some(record=>record?.tipo===section.key&&record.dia===controlDiaSel);
+    return hasLines?html:html+renderControlTemplatePreview(section.key);
   };
 
   window.controlLineaCompletada=function(record){
