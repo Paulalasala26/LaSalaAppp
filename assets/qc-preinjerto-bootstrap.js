@@ -93,6 +93,8 @@
   };
 
   window.puedeCuantificarControl=function(record){
+    if(record?.tipo==='preinjerto_patron')
+      return ['ADMIN','TECNICO'].includes(currentUserRole);
     if(record&&keySet.has(record.tipo))return false;
     return oldQuantifiable?oldQuantifiable(record):false;
   };
@@ -109,6 +111,7 @@
   };
 
   window.renderControlCardHTML=function(record,section){
+    if(record?.tipo==='preinjerto_patron')return oldCard(record,section);
     if(!record||!keySet.has(record.tipo))return oldCard(record,section);
     const esc=value=>String(value==null?'':value).replace(/[&<>"']/g,char=>({
       '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
@@ -169,6 +172,10 @@
   };
 
   window.controlLineaCompletada=function(record){
+    if(record?.tipo==='preinjerto_patron'){
+      const entry=controlQCEstados.get(claveEstadosQC(record.tipo,record.dia));
+      return entry?.estados?.[record.id]===true;
+    }
     if(!record||!keySet.has(record.tipo))return oldComplete(record);
     return TYPES[record.tipo].categories.every(category=>
       record[category.key]&&Object.values(record[category.key]).some(Boolean));
@@ -192,7 +199,53 @@
   };
 
   window.cargarEstadosQCDia=async function(type,day,records){
-    if(keySet.has(type))return;
-    return oldLoadStatuses(type,day,records);
+    if(type!=='preinjerto_patron'){
+      if(keySet.has(type))return;
+      return oldLoadStatuses(type,day,records);
+    }
+    if(!records?.length||!['ADMIN','TECNICO'].includes(currentUserRole))return;
+    const key=claveEstadosQC(type,day);
+    if(controlQCEstadosCargando.has(key))return;
+    const unique=new Map();
+    records.forEach(record=>{
+      if(/^[A-Za-z0-9_-]{1,180}$/.test(String(record.id))&&
+         /^[A-Za-z0-9._-]{1,100}$/.test(String(record.partida||'')))unique.set(record.id,record);
+    });
+    const refs=Array.from(unique.values());
+    if(!refs.length)return;
+    const signature=refs.map(record=>record.id+':'+record.partida).sort().join('|');
+    const previous=controlQCEstados.get(key);
+    if(previous?.signature===signature&&Date.now()-previous.at<120000)return;
+    if(Date.now()-(controlQCEstadosUltimoError.get(key)||0)<30000)return;
+    controlQCEstadosCargando.add(key);
+    const user=currentUser;
+    try{
+      if(!(await ensureFirebaseIdTokenFresh())||!firebaseIdToken)throw Error('LOGIN_REQUIRED');
+      const states=Object.create(null);
+      for(let i=0;i<refs.length;i+=60){
+        const response=await fetch('/api/admin-qc-mediciones',{
+          method:'POST',
+          headers:{Authorization:'Bearer '+firebaseIdToken,'Content-Type':'application/json'},
+          body:JSON.stringify({modo:'estados',tipo, dia,registros:refs.slice(i,i+60).map(({id,partida})=>({id,partida}))}),
+          cache:'no-store'
+        });
+        if(!response.ok)throw Error('QC_STATUS_UNAVAILABLE');
+        const data=await response.json();
+        if(!data.ok||data.tipo!==type||data.dia!==day||!data.estados)throw Error('QC_STATUS_INVALID');
+        Object.entries(data.estados).forEach(([id,value])=>{states[id]=value===true;});
+      }
+      if(user!==currentUser)return;
+      const partidas=Object.create(null);
+      refs.forEach(record=>{partidas[record.id]=record.partida;});
+      controlQCEstados.set(key,{signature,estados:states,partidas,at:Date.now()});
+      controlQCEstadosUltimoError.delete(key);
+      const overlay=document.getElementById('control-overlay');
+      if(overlay&&overlay.style.display==='flex'&&controlSeccion===type&&controlDiaSel===day&&
+         !document.querySelector('#qco-inline'))window.renderControlContent(overlay);
+    }catch(_){
+      controlQCEstadosUltimoError.set(key,Date.now());
+    }finally{
+      controlQCEstadosCargando.delete(key);
+    }
   };
 })();
