@@ -591,7 +591,10 @@ test('UAT-2417: reabrir Partidas y Específicos varias veces no duplica vistas n
 
 
 test('UAT-2413: PEÓN imprime su lista e inicia una tarea desde Inicio sin errores ni duplicados', async ({ page }) => {
-  const todayISO = new Date().toISOString().slice(0, 10);
+  const todayISO = await page.evaluate(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  });
   const task = {
     id: 'e2e-uat-2413-task',
     titulo: 'E2E tarea PEON UAT-2413',
