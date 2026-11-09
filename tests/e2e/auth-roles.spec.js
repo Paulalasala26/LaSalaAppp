@@ -672,3 +672,32 @@ test('UAT-2414: PEÓN abre Mantenimiento directamente desde Inicio sin duplicar 
   expect(pageErrors).toEqual([]);
 });
 
+
+
+test('UAT-2416: abrir Control y Partidas a la vez comparte la carga QC y deja ambas vistas listas', async ({ page }) => {
+  const pageErrors = [];
+  let qcScriptRequests = 0;
+  page.on('pageerror', error => pageErrors.push(error.message));
+  await installAuthFixture(page);
+  await logInAs(page, 'E2E_ADMIN');
+
+  await page.route('**/qc-v6.js', async route => {
+    qcScriptRequests++;
+    await new Promise(resolve => setTimeout(resolve, 150));
+    await route.continue();
+  });
+  await page.evaluate(() => {
+    handleQuickAction('control');
+    handleQuickAction('partidas');
+  });
+
+  const control = page.locator('#control-overlay');
+  const partidas = page.locator('#partidas-overlay');
+  await expect(control).toBeVisible();
+  await expect(partidas).toBeVisible();
+  await expect(control).toContainText('Check Túnel');
+  await expect(partidas).toContainText('Elige un invernadero');
+  expect(qcScriptRequests).toBe(1);
+  expect(pageErrors).toEqual([]);
+});
+
