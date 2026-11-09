@@ -2044,7 +2044,7 @@ test('UAT-062: al recargar, una sesión ve el cambio reciente de otro usuario y 
   }
 });
 
-test('UAT-027 y UAT-218: edición concurrente de una línea avisa y no sobrescribe', async ({ page, context }) => {
+test('UAT-027, UAT-218 y UAT-2421: edición concurrente QC rechazada por ETag conserva el cambio local hasta resolver', async ({ page, context }) => {
   const database = fixtureDatabase();
   const first = await startControlTest(page, database);
   const secondPage = await context.newPage();
@@ -2060,6 +2060,7 @@ test('UAT-027 y UAT-218: edición concurrente de una línea avisa y no sobrescri
   expect(saved.color?.verde).toBe(true);
   expect(saved.tamano?.grande).not.toBe(true);
   await expect(secondPage.locator('#aviso-fallo-guardado')).toContainText('Otra persona guardó cambios');
+  await expect(secondPage.getByTestId('control-option-e2e-control-current-fortnight-tamano-grande')).toContainText('✓');
   expect(first.unexpectedHosts).toEqual([]);
   expect(second.unexpectedHosts).toEqual([]);
 });
