@@ -588,3 +588,49 @@ test('UAT-2417: reabrir Partidas y Específicos varias veces no duplica vistas n
 
   expect(pageErrors).toEqual([]);
 });
+
+
+test('UAT-2413: PEÓN imprime su lista e inicia una tarea desde Inicio sin errores ni duplicados', async ({ page }) => {
+  const todayISO = new Date().toISOString().slice(0, 10);
+  const task = {
+    id: 'e2e-uat-2413-task',
+    titulo: 'E2E tarea PEON UAT-2413',
+    descripcion: 'Tarea de fixture para comprobar la pantalla PEÓN',
+    asignadoA: 'E2E_PEON',
+    origen: 'riego',
+    categoria: 'trabajo',
+    inv: '0A',
+    calles: '1-2',
+    fechaISO: todayISO,
+    fecha: 'hoy',
+    turno: 'Mañana',
+    prioridad: 'normal',
+    estado: 'pendiente'
+  };
+  const pageErrors = [];
+  const taskWrites = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
+  page.on('request', request => {
+    if (request.method() === 'PUT' && request.url().includes('/lasala-tareas-v1.json')) taskWrites.push(request);
+  });
+
+  await installAuthFixture(page, { 'lasala-tareas-v1': JSON.stringify([task]) });
+  await logInAs(page, 'E2E_PEON');
+  const inline = page.locator('#peon-tareas-inline');
+  await expect(inline).toContainText(task.titulo);
+
+  await inline.getByRole('button', { name: 'Imprimir tareas' }).click();
+  const printSelector = page.locator('#imprimir-tareas-selector-overlay');
+  await expect(printSelector).toBeVisible();
+  await expect(printSelector).toContainText('Sala 1');
+  await expect(printSelector.locator('.it-dia-chk')).toHaveCount(1);
+  await printSelector.getByRole('button', { name: 'Cancelar' }).click();
+  await expect(printSelector).toBeHidden();
+
+  await inline.getByRole('button', { name: 'Iniciar' }).click();
+  await expect.poll(() => taskWrites.length).toBe(1);
+  await expect(inline).toContainText('Iniciada');
+  await expect(inline.getByText(task.titulo, { exact: true })).toHaveCount(1);
+  expect(pageErrors).toEqual([]);
+});
+
