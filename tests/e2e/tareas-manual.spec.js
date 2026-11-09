@@ -423,6 +423,7 @@ test('UAT-1326–1330 y UAT-2418: editar una tarea manual pendiente tras abrir T
     estado: 'pendiente'
   };
   const { database, writes } = await installFixture(page, { 'lasala-tareas-v1': JSON.stringify([task]) });
+  await expect(page.locator('#page-home')).toBeVisible();
   const overlay = page.locator('#tareas-overlay');
 
   async function openEdit(dateView) {
