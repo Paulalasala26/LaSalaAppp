@@ -19543,6 +19543,15 @@ function imprimirHojaEspecificoManual(){
 // renderResumenQuincenaTratamientos/imprimirHojaResumen).
 // datos: {fechaISO, trat, dosis, caldoLitros, horario, filas:[{invId,calles,tipo,obs}]}
 function imprimirHojaEspecificoConDatos(datos){
+  const tratamientoValido = ESPECIFICO_TRATAMIENTOS.includes(String(datos?.trat||'').trim());
+  const dosisValida = ESPECIFICO_DOSIS.includes(String(datos?.dosis||'').trim());
+  const caldoValido = Number.isFinite(Number(datos?.caldoLitros)) && Number(datos.caldoLitros)>0;
+  const filasValidas = Array.isArray(datos?.filas) && datos.filas.length>0 &&
+    datos.filas.every(f=>String(f?.invId||'').trim() && String(f?.calles||'').trim());
+  if(!tratamientoValido || !dosisValida || !caldoValido || !filasValidas){
+    showToast('No hay un tratamiento Específico registrado válido. No se imprimió el documento.');
+    return false;
+  }
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const fechaLabel = fechaCompletaImprimir({fechaISO: datos.fechaISO});
   const caldoLabel = (FITO_CALDO_OPCIONES.find(o=>o.litros===datos.caldoLitros)||{}).label || (datos.caldoLitros?`${datos.caldoLitros}L`:'');
