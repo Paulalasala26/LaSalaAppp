@@ -5446,6 +5446,7 @@ function controlItemUrl(id){ return `${CLOUD_DB_URL}/${CONTROL_ITEMS_KEY}/${enco
 // dispositivos que editaron la misma versión no pueden sobrescribirse.
 const controlChecksEtags = new Map();
 const controlChecksConflictedIds = new Set();
+const controlChecksServerErrorStatus = new Map();
 async function leerControlItemEtag(id){
   const res = await fetchConReintentos(controlItemUrl(id), { headers:{'X-Firebase-ETag':'true'} });
   const etag = res.headers.get('ETag');
@@ -5458,6 +5459,7 @@ async function leerControlItemEtag(id){
 // línea vive como un documento normal de Firebase, no como texto dentro de
 // un string, así que un guardado no necesita tocar ni leer los demás.
 async function guardarControlItemAtomico(id, item){
+  controlChecksServerErrorStatus.delete(String(id));
   if(controlChecksConflictedIds.has(id)) return false;
   try{
     // Un alta nueva solo se acepta si el nodo sigue vacío. Para las líneas
@@ -5470,7 +5472,10 @@ async function guardarControlItemAtomico(id, item){
       try{
         res = await fetch(controlItemUrl(id), opciones);
         if(res.status===412) break; // conflicto: nunca repetir con una versión obsoleta
-        if(!res.ok) throw new Error('HTTP '+res.status);
+        if(!res.ok){
+          controlChecksServerErrorStatus.set(String(id), res.status);
+          throw new Error('HTTP '+res.status);
+        }
         break;
       }catch(e){
         if(intento===3) throw e;
@@ -5484,6 +5489,7 @@ async function guardarControlItemAtomico(id, item){
     const nextEtag = res.headers.get('ETag');
     if(nextEtag) controlChecksEtags.set(id, nextEtag);
     else if(item===null) controlChecksEtags.delete(id);
+    controlChecksServerErrorStatus.delete(String(id));
     return true;
   }catch(e){ return false; }
 }
@@ -6554,12 +6560,22 @@ async function aplicarControlQcV6(id, value){
   const c = controlChecksData.find(x=>x.id===id);
   if(!puedeEditarControlItem(c)){ avisarControlSinAcceso(); return false; }
   if(c.qcV6?.version!==6) return false;
+  const confirmado = QC_V6.clone(c.qcV6);
   c.qcV6 = QC_V6.clone(value);
   renderControlContent(document.getElementById('control-overlay'));
   const qid = encolarAccionOffline('aplicarControlQcV6', [id, value]);
   marcarControlCheckSucio(id);
   const ok = await persistControlChecksData();
-  if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
+  if(ok) desencolarAccion(qid);
+  else if((controlChecksServerErrorStatus.get(String(id))||0)>=500){
+    // Un HTTP 5xx online no es un guardado en cola: se revierte el optimista,
+    // se descarta este intento y ambas pantallas siguen leyendo la versión confirmada.
+    c.qcV6 = confirmado;
+    controlQcV6Drafts[id] = QC_V6.clone(confirmado);
+    controlChecksDirtyIds.delete(id);
+    desencolarAccion(qid);
+    renderControlContent(document.getElementById('control-overlay'));
+  } else avisarGuardadoLocalPendiente(leerColaOffline().length);
   return ok;
 }
 async function guardarControlQcV6(id){
