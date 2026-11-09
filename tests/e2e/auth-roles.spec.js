@@ -684,7 +684,7 @@ test('UAT-2416: abrir Control y Partidas a la vez comparte la carga QC y deja am
   await page.route('**/qc-v6.js', async route => {
     qcScriptRequests++;
     await new Promise(resolve => setTimeout(resolve, 150));
-    await route.continue();
+    await route.fallback();
   });
   await page.evaluate(() => {
     handleQuickAction('control');
