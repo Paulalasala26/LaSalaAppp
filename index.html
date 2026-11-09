@@ -6690,7 +6690,7 @@ function renderControlContent(overlay){
         </select>
       </nav>`;
   overlay.innerHTML=`
-    <div class="control-ui-shell${controlSeccion==='tunel'||controlSeccion==='carga_injerto'?' qc-tunel-work':controlSeccion==='carga'?' qc-carga-work':''}">
+    <div class="control-ui-shell${controlSeccion==='tunel'||controlSeccion==='carga_injerto'||controlSeccion==='preinjerto_variedad'||controlSeccion==='preinjerto_patron'?' qc-tunel-work':controlSeccion==='carga'?' qc-carga-work':''}">
       <header class="control-ui-header">
         <button type="button" class="control-ui-home" onclick="seleccionarSeccionControl(null)"
           aria-label="Volver al resumen de Control de Calidad" title="Volver al resumen">
@@ -24954,6 +24954,7 @@ function conGuardiaReentrada(fn){
 <script src="assets/qc-editar-linea-v3.js?v=109"></script>
 <script src="assets/gs-carga-feed.js?v=5"></script>
 <script src="assets/qc-carga-injerto-bootstrap.js?v=2" defer></script>
+<script src="assets/qc-preinjerto-bootstrap.js?v=1" defer></script>
 </body>
 </html>
 <!-- VERCEL TEST v1.0 deployment trigger 2026-09-22 -->
