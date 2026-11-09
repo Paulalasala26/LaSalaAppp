@@ -272,7 +272,7 @@ function firebaseEtag(value) {
   return `"${createHash('sha1').update(JSON.stringify(value)).digest('hex')}"`;
 }
 
-async function openPartidas(page, { loginFirst = true, user = login.user, writeDelayMs = 0, database = fixtureDatabase(), selectInv = true, failWriteStatus = 0 } = {}) {
+async function openPartidas(page, { loginFirst = true, user = login.user, writeDelayMs = 0, database = fixtureDatabase(), selectInv = true, failWriteStatus = 0, failWritePath = '', failWrites = 0 } = {}) {
   const unexpectedHosts = [], writes = [];
   const corsHeaders = {
     'access-control-allow-origin': '*',
@@ -305,6 +305,11 @@ async function openPartidas(page, { loginFirst = true, user = login.user, writeD
     const ifMatch = request.headers()['if-match'];
     if (ifMatch && ifMatch !== firebaseEtag(readAt(database, path))) {
       await route.fulfill({ status: 412, contentType: 'application/json', headers: corsHeaders, body: JSON.stringify({ error: 'etag mismatch' }) });
+      return;
+    }
+    if (failWritePath && path.join('/') === failWritePath && failWrites > 0) {
+      failWrites -= 1;
+      await route.fulfill({ status: failWriteStatus || 500, contentType: 'application/json', headers: corsHeaders, body: JSON.stringify({ error: 'forced fixture failure' }) });
       return;
     }
     if (failWriteStatus) {
@@ -1009,4 +1014,36 @@ test('UAT-046: recorrer partidas seguidas mantiene cada Específico en su partid
   await expect(second).toContainText('E2E-TRATAMIENTO-OTRO');
   await expect(second).not.toContainText('E2E-TRATAMIENTO 1');
   expect(unexpectedHosts).toEqual([]);
+});
+test('UAT-2424: si falla la escritura de la tarea del Específico, deja el proceso pendiente y reintentar no duplica', async ({ page }) => {
+  const options = { failWritePath: 'lasala-tareas-v1', failWrites: 3 };
+  const { overlay, database, writes, unexpectedHosts } = await openPartidas(page, options);
+  await overlay.locator('button').filter({ hasText: 'Añadir Específico aquí' }).click();
+  await page.locator(`#partidas-content-wrap div[onclick="togglePartidaEnSeleccionEspecifico('e2e-partida-001')"]`).click();
+  await page.getByRole('button', { name: 'Aplicar específico →' }).click();
+  const dialog = page.locator('#especifico-por-partidas-overlay');
+  await dialog.locator('#eap-trat').selectOption('TC');
+  await dialog.locator('#eap-dosis').selectOption('1');
+  await dialog.locator('#eap-horario').selectOption('17:00');
+  const day = await dialog.locator('#eap-dia').inputValue();
+  await dialog.getByRole('button', { name: 'Aplicar', exact: true }).click();
+
+  await expect(dialog).toBeVisible();
+  await expect(page.locator('#aviso-fallo-guardado')).toBeVisible();
+  await expect(page.locator('#app-toast')).not.toContainText('Específico aplicado');
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([]);
+  expect(JSON.parse(database['lasala-especificos-v1'])).toEqual({});
+  expect(JSON.parse(database['lasala-especificos-partida-v1'])['e2e-partida-001'] || []).toHaveLength(0);
+  await expect.poll(() => options.failWrites).toBe(0);
+
+  await dialog.getByRole('button', { name: 'Aplicar', exact: true }).click();
+  await expect(dialog).toBeHidden();
+  const tasks = JSON.parse(database['lasala-tareas-v1']);
+  expect(tasks).toHaveLength(1);
+  expect(tasks[0]).toMatchObject({ categoria: 'especifico', inv: '17', titulo: 'TC 1' });
+  const associations = JSON.parse(database['lasala-especificos-partida-v1']);
+  expect(associations['e2e-partida-001'].filter(item => item.trat === 'TC' && item.dia === Number(day))).toHaveLength(1);
+  expect(JSON.parse(database['lasala-especificos-v1'])['17'][day]['18'].texto).toBe('TC 1 + 17:00');
+  expect(unexpectedHosts).toEqual([]);
+  expect(writes.filter(write => write.path === 'lasala-tareas-v1')).toHaveLength(4);
 });
