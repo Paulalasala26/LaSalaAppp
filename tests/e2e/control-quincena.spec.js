@@ -3253,7 +3253,7 @@ test('UAT-2433: las dos pantallas leen la última evaluación QC v6 confirmada t
     await secondCard.getByTestId(`qc-v6-${id}-tamano-grande`).click();
     second.unexpectedHosts.setWriteFailure(true);
     await secondCard.getByTestId(`qc-v6-${id}-save`).click();
-    await expect(secondPage.locator('#aviso-fallo-guardado')).toContainText('Sin conexión o respuesta de error del servidor');
+    await expect(secondPage.locator('#aviso-fallo-guardado')).toContainText('No se ha podido guardar el último cambio');
     second.unexpectedHosts.setWriteFailure(false);
     expect(database['lasala-control-items-v1'][id].qcV6).toEqual(confirmed);
 
