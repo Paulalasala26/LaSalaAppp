@@ -243,6 +243,7 @@ function firebaseEtag(value) {
 async function interceptFirebase(page, database, writeDelayMs = 0) {
   const unexpectedHosts = [];
   let networkAvailable = true;
+  let failWrites = false;
   const corsHeaders = {
     'access-control-allow-origin': '*',
     'access-control-allow-methods': 'GET, PUT, PATCH, DELETE, OPTIONS',
@@ -280,6 +281,10 @@ async function interceptFirebase(page, database, writeDelayMs = 0) {
       return;
     }
 
+    if (failWrites && ['PUT', 'PATCH', 'DELETE'].includes(method)) {
+      await route.fulfill({ status: 500, contentType: 'application/json', headers: corsHeaders, body: JSON.stringify({ error: 'e2e write failure' }) });
+      return;
+    }
     const body = request.postData() ? JSON.parse(request.postData()) : null;
     if (writeDelayMs) await new Promise(resolve => setTimeout(resolve, writeDelayMs));
     const current = readAt(database, path);
@@ -296,6 +301,10 @@ async function interceptFirebase(page, database, writeDelayMs = 0) {
   });
   Object.defineProperty(unexpectedHosts, 'setNetworkAvailable', {
     value: value => { networkAvailable = !!value; },
+    enumerable: false
+  });
+  Object.defineProperty(unexpectedHosts, 'setWriteFailure', {
+    value: value => { failWrites = !!value; },
     enumerable: false
   });
   return unexpectedHosts;
@@ -1714,9 +1723,9 @@ test('UAT-051: dos usuarios suben fotos a líneas distintas sin perder ninguna',
     await expect(first.overlay.locator(`#control-card-${firstId} img[title="Ver foto"]`)).toBeVisible();
     await expect(second.overlay.locator(`#control-card-${secondId} img[title="Ver foto"]`)).toBeVisible();
     expect(first.unexpectedHosts).toEqual([]);
-    expect(secondUnexpectedHosts).toEqual([]);
+    expect(second.unexpectedHosts).toEqual([]);
   } finally {
-    await secondContext.close();
+    await secondPage.close();
   }
 });
 
@@ -1782,9 +1791,9 @@ test('UAT-055: dos usuarios adjuntan PDFs a días distintos sin perder índices'
     expect(JSON.parse(database['lasala-control-pdf-v1-tunel-30']).nombre).toBe('e2e-concurrent-30.pdf');
     expect(JSON.parse(database['lasala-control-pdf-v1-tunel-31']).nombre).toBe('e2e-concurrent-31.pdf');
     expect(first.unexpectedHosts).toEqual([]);
-    expect(secondUnexpectedHosts).toEqual([]);
+    expect(second.unexpectedHosts).toEqual([]);
   } finally {
-    await secondContext.close();
+    await secondPage.close();
   }
 });
 
@@ -3221,7 +3230,7 @@ test('UAT-152: mostrar los tramos de calle de QC como segmentos separados', asyn
 });
 
 
-test('UAT-2433: las dos pantallas leen la última evaluación QC v6 confirmada tras fallar un guardado', async ({ page, browser }) => {
+test('UAT-2433: las dos pantallas leen la última evaluación QC v6 confirmada tras fallar un guardado', async ({ page, context }) => {
   const database = fixtureDatabase();
   const first = await startControlTest(page, database);
   const firstCard = await createNewTunnelLine(first.overlay, '26X92433');
@@ -3235,22 +3244,17 @@ test('UAT-2433: las dos pantallas leen la última evaluación QC v6 confirmada t
   await expect.poll(() => database['lasala-control-items-v1'][id]?.qcV6?.color).toBe('ok');
   const confirmed = structuredClone(database['lasala-control-items-v1'][id].qcV6);
 
-  const secondContext = await browser.newContext();
-  const secondPage = await secondContext.newPage();
-  let secondUnexpectedHosts;
+  const secondPage = await context.newPage();
   try {
-    secondUnexpectedHosts = await interceptFirebase(secondPage, database);
-    await secondPage.clock.setFixedTime(new Date('2026-06-30T10:00:00+02:00'));
-    await secondPage.goto('/');
-    await loginControlRole(secondPage, login.user);
-    const secondOverlay = await openControlTunnel(secondPage);
+    const second = await startControlSecondaryTest(secondPage, database);
+    const secondOverlay = second.overlay;
     const secondCard = secondOverlay.locator(`#control-card-${id}`);
     await expect(secondCard.getByTestId(`qc-v6-${id}-color-ok`)).toHaveAttribute('aria-pressed', 'true');
     await secondCard.getByTestId(`qc-v6-${id}-tamano-grande`).click();
-    secondUnexpectedHosts.setNetworkAvailable(false);
+    second.unexpectedHosts.setWriteFailure(true);
     await secondCard.getByTestId(`qc-v6-${id}-save`).click();
     await expect(secondPage.locator('#aviso-fallo-guardado')).toContainText('Sin conexión o respuesta de error del servidor');
-    secondUnexpectedHosts.setNetworkAvailable(true);
+    second.unexpectedHosts.setWriteFailure(false);
     expect(database['lasala-control-items-v1'][id].qcV6).toEqual(confirmed);
 
     await Promise.all([page.reload(), secondPage.reload()]);
