@@ -9906,7 +9906,7 @@ async function aplicarEspecificoAPartidasSeleccionadas(){
   const ids = [...partidasEspecificoSeleccion];
   const semanaDelDia = partidasSemanaDeFecha(riegoDiaToDate(dia));
   const especificosPrevios = clonarSnapshotDato(especificosData);
-  const asociacionesPrevias = clonarSnapshotDato(especificosPartidaData);
+  const tareasPorAsignar = [];
   for(const id of ids){
     const c = controlChecksData.find(x=>x.id===id);
     if(!c || !c.invId) continue;
@@ -9914,23 +9914,8 @@ async function aplicarEspecificoAPartidasSeleccionadas(){
     if(!calles.length) continue;
     const layout = INV_LAYOUT[c.invId];
     const allCalles = layout ? [...layout.row1, ...layout.row2] : calles;
-    // A petición de Paula (2026-08-18): "si no fuera la calle entera deberá
-    // aparecer en observaciones el número de partida" — para que el
-    // Resumen/Cuadrícula (que leen especificosData por calle, no por
-    // partida) puedan distinguir cuando varias partidas comparten la misma
-    // calle. Se comprueba, calle por calle, si hay OTRA partida ocupando
-    // esa misma calle esa semana; si la hay, se deja la observación con el
-    // código de esta partida (mismo formato que ya reconoce
-    // resolverPartidaPorObsEspecifico).
     const bloquesInv = calcularBloquesPartidasInvBase(c.invId, semanaDelDia);
     const callesLabel = formatCallesConEnteroParaImprimir(c.invId, calles);
-    const tareaGuardada = await autoAsignarTareaEspecifico(c.invId, dia, callesLabel, tratDosis, horario, '', {producto:trat, dosis, caldoLabel, gastoLabel});
-    if(!tareaGuardada){
-      especificosData = especificosPrevios;
-      especificosPartidaData = asociacionesPrevias;
-      showToast('No se aplicaron los Específicos: falta confirmar la tarea del regante. Revisa el aviso y reintenta.');
-      return;
-    }
     calles.forEach(calle=>{
       if(!allCalles.includes(calle)) return;
       const compartida = bloquesInv.some(b=>b.entry.id!==id && b.calles.includes(calle));
@@ -9938,20 +9923,39 @@ async function aplicarEspecificoAPartidasSeleccionadas(){
       setEspecifico(c.invId, dia, calle, textoCalle, {caldoLitros, caldoLabel});
     });
     if(!especificosPartidaData[id]) especificosPartidaData[id] = [];
-    // invId/dia/calles guardados en el propio banner (a petición de Paula,
-    // 2026-08-18: "se debe de poder borrar tanto de ahí como de la
-    // cuadrícula") — sin esto, borrar el banner no sabía qué celdas de
-    // especificosData había que vaciar también.
-    especificosPartidaData[id].push({trat, dosis, horario, fechaLabel, fechaISO, invId:c.invId, dia, calles});
+    const registroExistente = especificosPartidaData[id].some(registro=>
+      registro.trat===trat && registro.dosis===dosis && registro.horario===horario &&
+      registro.fechaISO===fechaISO && registro.invId===c.invId && Number(registro.dia)===dia &&
+      JSON.stringify(registro.calles||[])===JSON.stringify(calles)
+    );
+    if(!registroExistente) especificosPartidaData[id].push({trat, dosis, horario, fechaLabel, fechaISO, invId:c.invId, dia, calles});
+    tareasPorAsignar.push({invId:c.invId, callesLabel});
   }
-  await saveEspecificosData();
-  await saveEspecificosPartidaData();
+  const especificosGuardados = await saveEspecificosData();
+  if(!especificosGuardados){
+    especificosData = especificosPrevios;
+    showToast('No se completó el guardado de Específicos. Revisa el aviso e inténtalo de nuevo.');
+    return;
+  }
+  const asociacionesGuardadas = await saveEspecificosPartidaData();
+  if(!asociacionesGuardadas){
+    showToast('Específico guardado; falta confirmar el vínculo de la partida. Reintenta para completar.');
+    return;
+  }
+  for(const tarea of tareasPorAsignar){
+    const tareaGuardada = await autoAsignarTareaEspecifico(tarea.invId, dia, tarea.callesLabel, tratDosis, horario, '', {producto:trat, dosis, caldoLabel, gastoLabel});
+    if(!tareaGuardada){
+      showToast('Específico guardado; conciliación pendiente: no se confirmó la tarea del regante. Reintenta para completar.');
+      return;
+    }
+  }
   document.getElementById('especifico-por-partidas-overlay').style.display = 'none';
   partidasEspecificoModo = false;
   partidasEspecificoSeleccion = new Set();
   showToast(`✓ Específico aplicado a ${ids.length} partida${ids.length===1?'':'s'}`);
   renderPartidasMapaContent(document.getElementById('partidas-overlay'));
 }
+
 // Editar/eliminar un banner de específico ya aplicado a una partida (a
 // petición de Paula, 2026-08-11: "al pincharle se debe de poder editar") —
 // edita el propio registro de especificosPartidaData (la anotación visual),
@@ -18684,7 +18688,8 @@ async function saveEspecificosPartidaData(){
       if(!resultado.conflict||intento===4){avisarFalloGuardado();return false;}
     }
     if(!guardadoCompleto)return false;
-  }catch(e){ avisarFalloGuardado(); }
+  }catch(e){ avisarFalloGuardado(); return false; }
+  return true;
 }
 let especificosInvSel = null;
 let especificosQuincenaOffset = 0;
@@ -18743,6 +18748,7 @@ async function saveEspecificosData(){
   }catch(e){ avisarFalloGuardado(); return; }
   showToast('✓ Específicos guardado');
   logHistorial(`Guardó específicos${especificosInvSel?' de INV '+especificosInvSel:''}`);
+  return true;
 }
 // Mismo cambio que setFito/getFito (a petición de Paula, 2026-07-31): el
 // caldo se guarda SIEMPRE en la propia celda, no solo en la tarea que se le
