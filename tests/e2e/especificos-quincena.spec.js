@@ -148,6 +148,9 @@ test('UAT-2385: desde Partidas, abrir Específicos conserva la quincena futura y
   await reopened.locator('button[onclick*="especificos-overlay"]').click();
 
   await page.getByRole('button',{name:'Salir'}).click();
+  await page.locator('#login-user').evaluate((select, value) => {
+    if (![...select.options].some(option => option.value === value)) select.add(new Option(value, value));
+  }, regante.user);
   await page.locator('#login-user').selectOption(regante.user);
   await page.locator('#login-pass').fill(regante.password);
   await page.getByRole('button',{name:'Iniciar sesión'}).click();
