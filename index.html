@@ -135,9 +135,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
   padding:6px 11px;background:#e8f0fb;border-bottom:1px solid #b0c8e0;
   flex-shrink:0;min-height:45px;min-width:0;
 }
+.control-ui-select-wrap{position:relative;display:block;width:100%;min-width:0}
+.control-ui-select-icon{
+  position:absolute;left:12px;top:50%;z-index:1;transform:translateY(-50%);
+  font-size:18px;color:#1558a0;pointer-events:none
+}
 .control-ui-select{
   display:block;box-sizing:border-box;width:100%;min-height:44px;
-  padding:8px 12px;border:1px solid #bbd1e8;border-radius:7px;
+  padding:8px 12px 8px 38px;border:1px solid #bbd1e8;border-radius:7px;
   background:#fff;color:#1558a0;font-family:inherit;font-size:15px;font-weight:700;
   cursor:pointer;
 }
@@ -6684,10 +6689,14 @@ function renderControlContent(overlay){
   const cambioSeccion=controlUltimaSeccionRenderizada!==controlSeccion;
   controlUltimaSeccionRenderizada=controlSeccion;
   const opcionesControl=CONTROL_SECCIONES.filter(s=>currentUserRole!=='CARGADOR'||s.key==='carga'||s.key==='carga_injerto');
+  const seccionActiva=CONTROL_SECCIONES.find(s=>s.key===controlSeccion);
   const navHTML=controlSeccion===null ? '' : `<nav class="control-ui-nav" aria-label="Apartados de Control de Calidad">
-        <select class="control-ui-select" aria-label="Tipo de control" onchange="seleccionarSeccionControl(this.value)">
-          ${opcionesControl.map(s=>`<option value="${s.key}" ${controlSeccion===s.key?'selected':''}>${s.label}</option>`).join('')}
-        </select>
+        <label class="control-ui-select-wrap">
+          <i class="ti ${seccionActiva?.icon||'ti-clipboard-check'} control-ui-select-icon" aria-hidden="true"></i>
+          <select class="control-ui-select" aria-label="Tipo de control" onchange="seleccionarSeccionControl(this.value)">
+            ${opcionesControl.map(s=>`<option value="${s.key}" ${controlSeccion===s.key?'selected':''}>${s.label}</option>`).join('')}
+          </select>
+        </label>
       </nav>`;
   overlay.innerHTML=`
     <div class="control-ui-shell${controlSeccion==='tunel'||controlSeccion==='carga_injerto'||controlSeccion==='preinjerto_variedad'||controlSeccion==='preinjerto_patron'?' qc-tunel-work':controlSeccion==='carga'?' qc-carga-work':''}">
@@ -24954,7 +24963,7 @@ function conGuardiaReentrada(fn){
 <script src="assets/qc-editar-linea-v3.js?v=109"></script>
 <script src="assets/gs-carga-feed.js?v=5"></script>
 <script src="assets/qc-carga-injerto-bootstrap.js?v=2" defer></script>
-<script src="assets/qc-preinjerto-bootstrap.js?v=1" defer></script>
+<script src="assets/qc-preinjerto-bootstrap.js?v=2" defer></script>
 </body>
 </html>
 <!-- VERCEL TEST v1.0 deployment trigger 2026-09-22 -->
