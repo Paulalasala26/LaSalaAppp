@@ -1073,9 +1073,12 @@ async function persistTareasData(){
     const map = {};
     cloud.forEach(t=>map[t.id]=t);
     tareasData.forEach(t=>map[t.id]=t);
-    tareasData = Object.values(map);
-    await window.storage.set(TAREAS_KEY, JSON.stringify(tareasData));
-  }catch(e){ avisarFalloGuardado(); }
+    const merged = Object.values(map);
+    const ok = await window.storage.set(TAREAS_KEY, JSON.stringify(merged));
+    if(!ok){ avisarFalloGuardado(); return false; }
+    tareasData = merged;
+    return true;
+  }catch(e){ avisarFalloGuardado(); return false; }
 }
 function estadoTareaLabel(estado){
   if(estado==='completada') return '✓ Completada';
@@ -2912,14 +2915,24 @@ async function crearTarea(){
   const fechaRaw = document.getElementById('nt-fecha')?.value;
   const fecha = fechaRaw ? new Date(fechaRaw+'T00:00:00').toLocaleDateString('es-ES',{day:'2-digit',month:'short'}).replace('.','') : '';
   if(!titulo||!asignados.length){ showToast('Indica al menos un título y a quién se asigna'); return; }
-  if(!validarUbicacionTareaManual(inv,calles)){ showToast('Invernadero o calle no válido; revisa el catálogo de ubicaciones'); return; }
-  asignados.forEach(asignadoA=>{
-    tareasData.push({
-      id: 'tarea_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
-      titulo, descripcion, asignadoA, asignadoPor: currentUser||'—',
-      origen: 'manual',
-      inv, calles, fecha, fechaISO: fechaRaw||null, turno,
-      prioridad, estado:'pendiente', horaInicio:null, horaFin:null, firmante:null,
+  if(!validarUbicaci  const tareasAntes = tareasData;
+  const nuevas = asignados.map(asignadoA=>({
+    id: 'tarea_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
+    titulo, descripcion, asignadoA, asignadoPor: currentUser||'—',
+    origen: 'manual',
+    inv, calles, fecha, fechaISO: fechaRaw||null, turno,
+    prioridad, estado:'pendiente', horaInicio:null, horaFin:null, firmante:null,
+    visto: false,
+    creadoEn: new Date().toLocaleString('es-ES')
+  }));
+  tareasData = [...tareasData, ...nuevas];
+  const guardado = await persistTareasData();
+  if(!guardado){
+    tareasData = tareasAntes;
+    showToast('No se confirmó ninguna tarea. Ninguna asignación quedó guardada: '+asignados.join(', '));
+    return false;
+  }
+l,
       visto: false,
       creadoEn: new Date().toLocaleString('es-ES')
     });

@@ -41,6 +41,11 @@ async function installFixture(page, initialData = {}, options = {}) {
         await route.fulfill({ status: 500, contentType: 'text/plain', headers: corsHeaders, body: 'Simulated Firebase write failure' });
         return;
       }
+      if (key === 'lasala-tareas-v1' && options.failTareasWrites > 0) {
+        options.failTareasWrites -= 1;
+        await route.fulfill({ status: 500, contentType: 'text/plain', headers: corsHeaders, body: 'Simulated Firebase write failure' });
+        return;
+      }
       writes.push({ key, body: route.request().postData() });
       database[key] = JSON.parse(route.request().postData() || 'null');
       await route.fulfill({ status: 200, contentType: 'application/json', headers: corsHeaders, body: JSON.stringify(database[key]) });
@@ -515,6 +520,25 @@ test('UAT-1305–1306, UAT-1318–1319: repartir un alta manual crea una tarea i
   expect(saved.map(task => task.asignadoA).sort()).toEqual(['PEON1', 'REGANTE1']);
   expect(saved.every(task => task.titulo === 'E2E tarea multiusuario' && task.origen === 'manual')).toBe(true);
   expect(writes.filter(write => write.key === 'lasala-tareas-v1')).toHaveLength(1);
+});
+
+test('UAT-2426: si falla el guardado del alta manual para varios destinatarios no anuncia éxito ni confirma asignaciones', async ({ page }) => {
+  const options = { failTareasWrites: 1 };
+  const { database, writes } = await installFixture(page, {}, options);
+  await openTasks(page);
+  await page.locator('#tareas-overlay').getByRole('button', { name: 'Nueva tarea' }).click();
+  const form = page.locator('#nueva-tarea-form-wrap');
+  await form.locator('#nt-titulo').fill('E2E alta parcial');
+  await form.locator('[data-nt-asignado-chip="PEON1"]').click();
+  await form.locator('[data-nt-asignado-chip="REGANTE1"]').click();
+  await form.getByRole('button', { name: 'Crear y asignar' }).click();
+
+  await expect(page.locator('#app-toast')).toContainText('No se confirmó ninguna tarea');
+  await expect(page.locator('#app-toast')).toContainText('PEON1, REGANTE1');
+  expect(options.failTareasWrites).toBe(0);
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([]);
+  expect(writes.filter(write => write.key === 'lasala-tareas-v1')).toHaveLength(0);
+  await expect(form).toBeVisible();
 });
 
 test('UAT-1493–1494, UAT-1496, UAT-1501–1503, UAT-1509 y UAT-1510: ADMIN y TÉCNICO abren Mantenimiento en móvil sin duplicados ni escrituras', async ({ page }) => {
