@@ -70,7 +70,7 @@
 
     const note = node('p', 'Consulta de solo lectura. No crea inspecciones ni modifica los controles QC.', 'gscf-note');
     const form = node('form', null, 'gscf-form');
-    const label = node('label', 'Fecha del parte GS');
+    const label = node('label', 'Día de preparación QC');
     const date = node('input');
     date.type = 'date';
     date.value = localToday();
@@ -184,7 +184,9 @@
         ['Salida real', line.fecha_salida_real], ['Invernaderos GS', line.invernaderos_gs],
         ['Estado GS', line.estado_gs], ['Observaciones', line.observaciones]
       ] : [
-        ['Carga', line.id_carga], ['Cliente', line.cliente_carga || line.codigo_cliente_carga],
+        ['Carga', line.id_carga], ['Día de preparación QC', line.fecha],
+        ['Carga GS', line.fecha_carga], ['Entrega cliente', line.fecha_entrega],
+        ['Cliente', line.cliente_carga || line.codigo_cliente_carga],
         ['Variedad', line.variedad], ['Hora', line.hora],
         ['Invernadero', line.invernadero ? `${line.id_invernadero || ''} · ${line.invernadero}` : line.id_invernadero],
         ['Ubicación GS', line.ubicacion_pdf], ['Carros / notas', (line.carros || []).map(c => [c.codigo, c.nota].filter(Boolean).join(' · ')).filter(Boolean).join(', ') || line.carros_raw]
@@ -222,3 +224,4 @@
   window.abrirGSCargaFeed = () => open('carga');
   window.abrirGSTunelFeed = () => open('tunel');
 })();
+
