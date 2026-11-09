@@ -4,12 +4,13 @@ const { test, expect } = require('./harness');
 const firebaseUrl = /^https:\/\/[^/]*(?:firebasedatabase\.app|firebaseio\.com)\//;
 const firebaseHost = 'la-sala-app-default-rtdb.europe-west1.firebasedatabase.app';
 const login = { user: 'E2E_ESPECIFICOS_ADMIN', password: 'e2e-only-password' };
+const regante = { user: 'E2E_ESPECIFICOS_REGANTE', password: 'e2e-only-password' };
 
 function fixtureDatabase(){
   const hash=createHash('sha256').update(login.password).digest('hex');
   return {
-    'lasala-users-v1':JSON.stringify({[login.user]:hash}),
-    'lasala-roles-v1':JSON.stringify({[login.user]:'ADMIN'}),
+    'lasala-users-v1':JSON.stringify({[login.user]:hash,[regante.user]:hash}),
+    'lasala-roles-v1':JSON.stringify({[login.user]:'ADMIN',[regante.user]:'REGANTE'}),
     'lasala-especificos-v1':JSON.stringify({'17':{'30':{'18':'E2E-ESPECIFICO-INV17','17':'E2E-ESPECIFICO-DELETE'}},'18':{'30':{'18':'E2E-ESPECIFICO-INV18'}}})
   };
 }
@@ -120,4 +121,37 @@ test('UAT-043: borrar un Específico de prueba no lo recupera al recargar',async
   const reloaded=await openSpecifics(page,database,{loginFirst:false});
   await expect(page.locator('#especificos-grid-wrap [data-einv="17"][data-edia="30"][data-erc="17"]')).toHaveValue('');
   expect(unexpectedHosts).toEqual([]);expect(reloaded.unexpectedHosts).toEqual([]);
+});
+
+test('UAT-2385: desde Partidas, abrir Específicos conserva la quincena futura y aplica permisos',async({page})=>{
+  const database=fixtureDatabase();
+  database['lasala-especificos-v1']=JSON.stringify({'17':{'45':{'18':'E2E-ESPECIFICO-FUTURO-INV17'}}});
+  const {overlay,unexpectedHosts,writes}=await openSpecifics(page,database);
+  await overlay.locator('button[onclick*="especificos-overlay"]').click();
+  await page.getByTestId('home-partidas').click();
+  const partidas=page.locator('#partidas-overlay');
+  await expect(partidas).toBeVisible();
+  await partidas.getByRole('button',{name:'Resumen',exact:true}).click();
+  const summary=page.locator('#especifico-resumen-overlay');
+  await expect(summary).toBeVisible();
+  const period=summary.locator('#resumen-especificos-quincena-bar');
+  await period.locator('button').last().click();
+  const futureLabel=(await period.innerText()).split('·').at(-1).trim();
+  await expect(summary).toContainText('E2E-ESPECIFICO-FUTURO-INV17');
+  await summary.locator('button[onclick*="especifico-resumen-overlay"]').click();
+  await partidas.getByRole('button',{name:/Cerrar/}).click();
+  await page.getByTestId('home-especificos').click();
+  const reopened=page.locator('#especificos-overlay');
+  await expect(reopened.locator('#especificos-quincena-bar')).toContainText(futureLabel);
+  await reopened.locator('button[data-einv="17"]').click();
+  await expect(reopened.locator('#especificos-grid-wrap [data-einv="17"][data-edia="45"][data-erc="18"]')).toHaveValue('E2E-ESPECIFICO-FUTURO-INV17');
+
+  await page.getByRole('button',{name:'Salir'}).click();
+  await page.locator('#login-user').selectOption(regante.user);
+  await page.locator('#login-pass').fill(regante.password);
+  await page.getByRole('button',{name:'Iniciar sesión'}).click();
+  await expect(page.locator('#app')).toBeVisible();
+  await expect(page.getByTestId('home-especificos')).toBeHidden();
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
 });
