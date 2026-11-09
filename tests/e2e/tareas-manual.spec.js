@@ -399,7 +399,7 @@ test('UAT-1312–1314, UAT-1316–1317, UAT-1320–1322, UAT-1324–1325: alta m
   expect(writes.filter(write => write.key === 'lasala-tareas-v1')).toHaveLength(2);
 });
 
-test('UAT-1326–1330: editar una tarea manual pendiente conserva su ID y mueve solo los datos cambiados', async ({ page }) => {
+test('UAT-1326–1330 y UAT-2418: editar una tarea manual pendiente tras abrir Tareas desde Inicio conserva su ID y mueve solo los datos cambiados', async ({ page }) => {
   const todayISO = new Date().toISOString().slice(0, 10);
   const tomorrowISO = (() => {
     const tomorrow = new Date();
