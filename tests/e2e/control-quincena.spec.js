@@ -3224,8 +3224,8 @@ test('UAT-152: mostrar los tramos de calle de QC como segmentos separados', asyn
 test('UAT-2433: las dos pantallas leen la última evaluación QC v6 confirmada tras fallar un guardado', async ({ page, context }) => {
   const database = fixtureDatabase();
   const first = await startControlTest(page, database);
-  const id = 'e2e-control-current-fortnight';
-  const firstCard = first.overlay.locator(`#control-card-${id}`);
+  const firstCard = await createNewTunnelLine(first.overlay, '26X992433');
+  const id = (await firstCard.getAttribute('id')).replace('control-card-', '');
 
   await firstCard.getByTestId(`qc-v6-${id}-color-ok`).click();
   await firstCard.getByTestId(`qc-v6-${id}-save`).click();
