@@ -1,6 +1,6 @@
 # APP R v3 — Anexo maestro DEV
 **Última actualización:** 09/11/2026 (España)
-**Rama exclusiva:** `dev/v1.0` · **Estado:** cambios visuales y Riego > Abono validados por el usuario
+**Rama exclusiva:** `dev/v1.0` · **Estado:** cambios visuales, Riego > Abono y Hojas de riego REGANTE (2 días) validados por el usuario
 
 > Anexo de continuidad de `docs/APP_R_V3_ESTADO_MAESTRO.md` para los cambios realizados exclusivamente en DEV. Leer ambos: la memoria maestra general conserva todo el histórico, y este anexo añade los hitos exclusivos de DEV sin reescribir ni recortar ese histórico.
 
@@ -28,6 +28,19 @@
 - **Aceptación del usuario:** «Validado» (09/11/2026), tras la prueba manual en DEV indicada en la entrega.
 - **Límite conocido:** el Backoffice (`api/admin-riego-options.js`) no gestiona las categorías nuevas; sus productos son valores por defecto del código, como en `main`. Si se añaden esos grupos al Backoffice, desplegar antes el frontend (`validGroups` descartaría todo el catálogo si encuentra un grupo desconocido).
 - La aceptación no cubre escritura de datos reales, sincronización offline, impresión ni fotografías SharePoint. No hay verificación del estado READY de Vercel para este SHA.
+- `test/v1.0` y `main` **no modificados**; no promovido a TEST.
+
+## DEV — Hojas de riego (REGANTE): ver 2 días, hoy y mañana — VALIDADO 09/11/2026
+
+**Objetivo:** traer a DEV el cambio de `main` (`ab26f02`, 05/11/2026): el REGANTE ve el día actual y el siguiente, en lugar de solo el de mañana.
+
+- Solo `index.html`, función `renderRiegoGrid`: `diasQ = [diaRegante - 1, diaRegante]`, construido aparte de la quincena. Los datos no dependen de la quincena porque cada shard Riego v2 contiene todos los días de un invernadero.
+- Corrige además que el REGANTE se quedaba sin ningún día cuando mañana caía en otra quincena (último día de la quincena).
+- Código: `14195e7`; registro en la tabla de control: `bef3091`. Backup previo recuperable: `backup/dev-v1.0-before-regante-2dias-2026-11-09` (`3e63f05`).
+- Comprobaciones técnicas previas: sintaxis de los 5 scripts inline correcta; simulación aislada 11/11 con el `renderRiegoGrid` real (el control con el código anterior falla como se espera); DEV servía un `index.html` idéntico al del commit.
+- **Aceptación del usuario:** «Validado» (09/11/2026), tras la prueba manual en DEV indicada en la entrega.
+- **Límite conocido:** si el día guardado del REGANTE en el navegador está adelantado, la ventana se desplaza con él y no muestra hoy (igual que en `main`); en DEV ningún botón lo adelanta (`avanzarRiegoReganteDia` sin llamadas).
+- La aceptación no cubre escritura de datos, sincronización offline, impresión ni fotografías SharePoint. No hay verificación del estado READY de Vercel para este SHA.
 - `test/v1.0` y `main` **no modificados**; no promovido a TEST.
 
 ## Guardarraíles
