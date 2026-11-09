@@ -145,6 +145,23 @@ async function openTasks(page) {
   await expect(page.locator('#tareas-overlay')).toBeVisible();
 }
 
+test('UAT-2415: un doble clic rápido en Tareas deja una sola vista funcional y no duplica operaciones', async ({ page }) => {
+  const { database, writes } = await installFixture(page);
+  await expect(page.locator('#page-home')).toBeVisible();
+
+  const shortcut = page.locator(`#quick-access-block .home-shortcut-card[onclick="handleQuickAction('tareas')"]`);
+  await shortcut.dblclick({ delay: 50 });
+
+  const overlay = page.locator('#tareas-overlay');
+  await expect(overlay).toBeVisible();
+  await expect(page.locator('#tareas-overlay')).toHaveCount(1);
+  await expect(overlay.getByText('Resumen de Tareas', { exact: true })).toHaveCount(1);
+  await expect(overlay.getByRole('button', { name: 'Mantenimiento de Parcelas' })).toHaveCount(1);
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([]);
+  expect(JSON.parse(database['lasala-mantenimiento-v1'])).toEqual([]);
+  expect(writes).toEqual([]);
+});
+
 test('UAT-2412: ADMIN abre Tareas directamente desde Home y carga Operativas y Mantenimiento con sus registros', async ({ page }) => {
   const tomorrowISO = (() => {
     const tomorrow = new Date();
