@@ -18679,15 +18679,16 @@ function changeEspecificosQuincena(delta){
   if(wrapResumen) wrapResumen.outerHTML = renderResumenQuincenaTratamientos('especifico');
 }
 function renderEspecificosQuincenaBar(){
-  const bar = document.getElementById('especificos-quincena-bar');
-  if(!bar) return;
-  bar.innerHTML = `
+  const bars = document.querySelectorAll('#especificos-quincena-bar, #resumen-especificos-quincena-bar');
+  if(!bars.length) return;
+  const html = `
     <button onclick="changeEspecificosQuincena(-1)" ${especificosQuincenaOffset<=0?'disabled style="opacity:.35;cursor:default"':''}
       style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:5px;width:22px;height:22px;cursor:pointer;font-size:13px;line-height:1">&#8249;</button>
     <span style="font-size:11px;font-weight:700">Quincena ${especificosQuincenaOffset+1} &middot; ${riegoQuincenaLabel(especificosQuincenaOffset)}</span>
     <button onclick="changeEspecificosQuincena(1)"
       style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:5px;width:22px;height:22px;cursor:pointer;font-size:13px;line-height:1">&#8250;</button>
   `;
+  bars.forEach(bar => { bar.innerHTML = html; });
 }
 
 let especificosDataCargadaEn = 0;
@@ -18762,7 +18763,7 @@ function showEspecificoResumenModule(){
           <div>
             <div style="font-size:16px;font-weight:800">📊 Resumen de Específicos</div>
             <div style="font-size:11px;opacity:.7;margin:1px 0 4px">Lo aplicado en la quincena</div>
-            <div id="especificos-quincena-bar" style="display:flex;align-items:center;gap:8px"></div>
+            <div id="resumen-especificos-quincena-bar" style="display:flex;align-items:center;gap:8px"></div>
           </div>
           <button onclick="document.getElementById('especifico-resumen-overlay').style.display='none'" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 11px;cursor:pointer;font-size:13px">✕</button>
         </div>
