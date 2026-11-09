@@ -3227,7 +3227,10 @@ test('UAT-2433: las dos pantallas leen la última evaluación QC v6 confirmada t
   const firstCard = await createNewTunnelLine(first.overlay, '26X92433');
   const id = (await firstCard.getAttribute('id')).replace('control-card-', '');
 
-  await firstCard.getByTestId(`qc-v6-${id}-color-ok`).click();
+  for (const [category, option] of [['color','ok'],['tamano','ok'],['flores','ok'],['raices','ok']]) {
+    await firstCard.getByTestId(`qc-v6-${id}-${category}-${option}`).click();
+  }
+  await firstCard.getByTestId(`qc-v6-${id}-sanidad-ok`).click();
   await firstCard.getByTestId(`qc-v6-${id}-save`).click();
   await expect.poll(() => database['lasala-control-items-v1'][id]?.qcV6?.color).toBe('ok');
   const confirmed = structuredClone(database['lasala-control-items-v1'][id].qcV6);
