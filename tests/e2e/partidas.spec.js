@@ -1018,6 +1018,7 @@ test('UAT-046: recorrer partidas seguidas mantiene cada Específico en su partid
 test('UAT-2424: si falla la escritura de la tarea del Específico, deja el proceso pendiente y reintentar no duplica', async ({ page }) => {
   const options = { failWritePath: 'lasala-tareas-v1', failWrites: 3 };
   const { overlay, database, writes, unexpectedHosts } = await openPartidas(page, options);
+  const associationsBefore = JSON.parse(database['lasala-especificos-partida-v1']);
   await overlay.locator('button').filter({ hasText: 'Añadir Específico aquí' }).click();
   await page.locator(`#partidas-content-wrap div[onclick="togglePartidaEnSeleccionEspecifico('e2e-partida-001')"]`).click();
   await page.getByRole('button', { name: 'Aplicar específico →' }).click();
@@ -1033,7 +1034,7 @@ test('UAT-2424: si falla la escritura de la tarea del Específico, deja el proce
   await expect(page.locator('#app-toast')).not.toContainText('Específico aplicado');
   expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([]);
   expect(JSON.parse(database['lasala-especificos-v1'])).toEqual({});
-  expect(JSON.parse(database['lasala-especificos-partida-v1'])['e2e-partida-001'] || []).toHaveLength(0);
+  expect(JSON.parse(database['lasala-especificos-partida-v1'])).toEqual(associationsBefore);
   await expect.poll(() => options.failWrites).toBe(0);
 
   await dialog.getByRole('button', { name: 'Aplicar', exact: true }).click();
