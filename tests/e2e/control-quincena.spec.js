@@ -688,10 +688,18 @@ test('UAT-2393: la búsqueda de QC Carga no se hereda en el buscador global de P
   await partidas.getByRole('button', { name: '17', exact: true }).click();
   const globalSearch = partidas.getByPlaceholder('Buscar Nº partida...');
   await expect(globalSearch).toHaveValue('');
+  await globalSearch.fill('E2E-CARGA-QUINCENA-ACTUAL');
+  await globalSearch.press('Enter');
+  await expect(page.getByText('No se ha encontrado ninguna partida con ese número')).toBeVisible();
+  const history = page.locator('#partidas-historial-overlay');
+  await expect(history).toBeHidden();
+
   await globalSearch.fill('E2E-QUINCENA-ACTUAL-DIA-30');
   await globalSearch.press('Enter');
-  await expect(partidas.locator('#partidas-content-wrap')).toContainText('E2E-QUINCENA-ACTUAL-DIA-30');
-  await expect(partidas.locator('#partidas-content-wrap')).not.toContainText('E2E-CARGA-QUINCENA-ACTUAL');
+  await expect(history).toBeVisible();
+  await expect(history).toContainText('E2E-QUINCENA-ACTUAL-DIA-30');
+  await history.getByRole('button', { name: 'Cerrar' }).click();
+  await expect(history).toBeHidden();
   expect(pageErrors).toEqual([]);
   expect(unexpectedHosts).toEqual([]);
 });
