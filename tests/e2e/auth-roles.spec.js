@@ -267,6 +267,8 @@ test('UAT-2402: salir de ADMIN y entrar como CARGADOR en la misma pestaña limpi
   await page.locator(`#quick-access-block .home-shortcut-card[onclick="handleQuickAction('control')"]`).click();
   await expect(control).toBeVisible();
   await expect(control).toContainText('Check Túnel');
+  await control.getByRole('button', { name: /✕ Cerrar/ }).click();
+  await expect(control).toBeHidden();
   await page.getByRole('button', { name: 'Salir' }).click();
   await expect(page.locator('#login-screen')).toBeVisible();
   await expect(page.locator('#app')).toBeHidden();
