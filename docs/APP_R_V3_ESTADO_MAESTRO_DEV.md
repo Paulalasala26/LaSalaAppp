@@ -1,6 +1,6 @@
 # APP R v3 — Anexo maestro DEV
 **Última actualización:** 09/11/2026 (España)
-**Rama exclusiva:** `dev/v1.0` · **Estado:** cambios visuales, Riego > Abono y Hojas de riego REGANTE (2 días) validados por el usuario
+**Rama exclusiva:** `dev/v1.0` · **Estado:** cambios visuales, Riego > Abono y Hojas de riego REGANTE (2 días) y Tareas desde Riego (ENTERO) validados por el usuario
 
 > Anexo de continuidad de `docs/APP_R_V3_ESTADO_MAESTRO.md` para los cambios realizados exclusivamente en DEV. Leer ambos: la memoria maestra general conserva todo el histórico, y este anexo añade los hitos exclusivos de DEV sin reescribir ni recortar ese histórico.
 
@@ -41,6 +41,19 @@
 - **Aceptación del usuario:** «Validado» (09/11/2026), tras la prueba manual en DEV indicada en la entrega.
 - **Límite conocido:** si el día guardado del REGANTE en el navegador está adelantado, la ventana se desplaza con él y no muestra hoy (igual que en `main`); en DEV ningún botón lo adelanta (`avanzarRiegoReganteDia` sin llamadas).
 - La aceptación no cubre escritura de datos, sincronización offline, impresión ni fotografías SharePoint. No hay verificación del estado READY de Vercel para este SHA.
+- `test/v1.0` y `main` **no modificados**; no promovido a TEST.
+
+## DEV — Tareas de peón desde Riego: calles en blanco no cuentan para ENTERO — VALIDADO 09/11/2026
+
+**Objetivo:** traer a DEV el cambio de `main` (`ce26bdf`, 01/10/2026): al decidir ENTERO / ENTERO MENOS en las tareas de peón, las calles sin ningún texto ese día no cuentan como «falta». Caso real: INV 18 con calles 1-3 y 31-36 marcadas decía «ENTERO MENOS C/1804-1818 / C/1819-1830» en vez de «ENTERO».
+
+- Solo `index.html`: `callesConRiegoMarcadoDia`, parámetro `universo` en `formatCallesConEnteroParaTareaPeon` y su uso en **los dos caminos** que calculan la etiqueta en DEV: `generarTareasDesdeRiego` (botón) y `planTareasRiegoParaDias` (conciliación automática al guardar Riego). `main` solo tenía el primero; ambos deben dar la misma etiqueta para que la conciliación no reescriba las tareas.
+- Del commit `170be4f` de `main` no se traslada nada a este bloque: «Generar tareas conserva manuales e iniciadas» ya existe en DEV con otra implementación (categoría `riego`, anular y archivar, ETag). Siguen fuera: reajuste de tareas al borrar un tratamiento (DEV usa «anular y archivar»; requiere rediseño), `normalizarBandejasPdf` (Control > Túnel) y botones «Hojas marcadas» de Salas 3-5.
+- Código: `8f6f17c`; registro en la tabla de control: `b3d8ada`. Backup previo recuperable: `backup/dev-v1.0-before-tareas-entero-2026-11-09` (`4108a52`).
+- Comprobaciones técnicas previas: sintaxis de los 5 scripts inline correcta; simulación aislada 12/12 con el código real (el control con el código anterior reproduce el caso real de INV 18); DEV servía un `index.html` idéntico al del commit.
+- **Aceptación del usuario:** «Validado» (09/11/2026), tras la prueba manual en DEV indicada en la entrega.
+- **Efectos conocidos:** si ese día solo hay marcado un tramo y el resto está en blanco, la tarea dice «ENTERO» (criterio de `main`). Las tareas pendientes con la etiqueta antigua se reescriben al guardar Riego de ese invernadero/día o al pulsar «Generar tareas». Una tarea iniciada con la etiqueta antigua y Riego editado después da conflicto de conciliación (revisión ADMIN).
+- La aceptación no cubre escritura masiva de datos, sincronización offline, impresión ni fotografías SharePoint. No hay verificación del estado READY de Vercel para este SHA.
 - `test/v1.0` y `main` **no modificados**; no promovido a TEST.
 
 ## Guardarraíles
