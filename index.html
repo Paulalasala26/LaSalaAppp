@@ -9905,6 +9905,8 @@ async function aplicarEspecificoAPartidasSeleccionadas(){
   const fechaISO = fechaLocalISO(riegoDiaToDate(dia));
   const ids = [...partidasEspecificoSeleccion];
   const semanaDelDia = partidasSemanaDeFecha(riegoDiaToDate(dia));
+  const especificosPrevios = clonarSnapshotDato(especificosData);
+  const asociacionesPrevias = clonarSnapshotDato(especificosPartidaData);
   for(const id of ids){
     const c = controlChecksData.find(x=>x.id===id);
     if(!c || !c.invId) continue;
@@ -9921,14 +9923,20 @@ async function aplicarEspecificoAPartidasSeleccionadas(){
     // código de esta partida (mismo formato que ya reconoce
     // resolverPartidaPorObsEspecifico).
     const bloquesInv = calcularBloquesPartidasInvBase(c.invId, semanaDelDia);
+    const callesLabel = formatCallesConEnteroParaImprimir(c.invId, calles);
+    const tareaGuardada = await autoAsignarTareaEspecifico(c.invId, dia, callesLabel, tratDosis, horario, '', {producto:trat, dosis, caldoLabel, gastoLabel});
+    if(!tareaGuardada){
+      especificosData = especificosPrevios;
+      especificosPartidaData = asociacionesPrevias;
+      showToast('No se aplicaron los Específicos: falta confirmar la tarea del regante. Revisa el aviso y reintenta.');
+      return;
+    }
     calles.forEach(calle=>{
       if(!allCalles.includes(calle)) return;
       const compartida = bloquesInv.some(b=>b.entry.id!==id && b.calles.includes(calle));
       const textoCalle = compartida ? `${texto} — PARTIDA ${c.partida}` : texto;
       setEspecifico(c.invId, dia, calle, textoCalle, {caldoLitros, caldoLabel});
     });
-    const callesLabel = formatCallesConEnteroParaImprimir(c.invId, calles);
-    await autoAsignarTareaEspecifico(c.invId, dia, callesLabel, tratDosis, horario, '', {producto:trat, dosis, caldoLabel, gastoLabel});
     if(!especificosPartidaData[id]) especificosPartidaData[id] = [];
     // invId/dia/calles guardados en el propio banner (a petición de Paula,
     // 2026-08-18: "se debe de poder borrar tanto de ahí como de la
@@ -19456,10 +19464,16 @@ async function autoAsignarTareaEspecifico(invId, dia, callesLabel, titulo, horar
   };
   // Asignar al regante de la sala correspondiente (REGANTE1 para Sala1, REGANTE2 para Sala2)
   const reganteAsignar = reganteDelaSala(invId);
+  const tareasPrevias = clonarSnapshotDato(tareasData);
   fusionarOCrear(reganteAsignar);
-  await persistTareasData();
+  const guardado = await persistTareasData();
+  if(!guardado){
+    tareasData = tareasPrevias;
+    return false;
+  }
   logHistorial(`Auto-asignó tarea de específico desde INV ${invId}`);
   refreshTareasViews();
+  return true;
 }
 // Imprimir hoja de específico directamente desde el formulario de alta manual
 // (igual que el botón "Imprimir hoja" de Plaguicidas) — usa los mismos datos
