@@ -1714,9 +1714,9 @@ test('UAT-051: dos usuarios suben fotos a líneas distintas sin perder ninguna',
     await expect(first.overlay.locator(`#control-card-${firstId} img[title="Ver foto"]`)).toBeVisible();
     await expect(second.overlay.locator(`#control-card-${secondId} img[title="Ver foto"]`)).toBeVisible();
     expect(first.unexpectedHosts).toEqual([]);
-    expect(second.unexpectedHosts).toEqual([]);
+    expect(secondUnexpectedHosts).toEqual([]);
   } finally {
-    await secondPage.close();
+    await secondContext.close();
   }
 });
 
@@ -3221,7 +3221,7 @@ test('UAT-152: mostrar los tramos de calle de QC como segmentos separados', asyn
 });
 
 
-test('UAT-2433: las dos pantallas leen la última evaluación QC v6 confirmada tras fallar un guardado', async ({ page, context }) => {
+test('UAT-2433: las dos pantallas leen la última evaluación QC v6 confirmada tras fallar un guardado', async ({ page, browser }) => {
   const database = fixtureDatabase();
   const first = await startControlTest(page, database);
   const firstCard = await createNewTunnelLine(first.overlay, '26X92433');
@@ -3235,16 +3235,22 @@ test('UAT-2433: las dos pantallas leen la última evaluación QC v6 confirmada t
   await expect.poll(() => database['lasala-control-items-v1'][id]?.qcV6?.color).toBe('ok');
   const confirmed = structuredClone(database['lasala-control-items-v1'][id].qcV6);
 
-  const secondPage = await context.newPage();
+  const secondContext = await browser.newContext();
+  const secondPage = await secondContext.newPage();
+  let secondUnexpectedHosts;
   try {
-    const second = await startControlSecondaryTest(secondPage, database);
-    const secondCard = second.overlay.locator(`#control-card-${id}`);
+    secondUnexpectedHosts = await interceptFirebase(secondPage, database);
+    await secondPage.clock.setFixedTime(new Date('2026-06-30T10:00:00+02:00'));
+    await secondPage.goto('/');
+    await loginControlRole(secondPage, login.user);
+    const secondOverlay = await openControlTunnel(secondPage);
+    const secondCard = secondOverlay.locator(`#control-card-${id}`);
     await expect(secondCard.getByTestId(`qc-v6-${id}-color-ok`)).toHaveAttribute('aria-pressed', 'true');
     await secondCard.getByTestId(`qc-v6-${id}-tamano-grande`).click();
-    second.unexpectedHosts.setNetworkAvailable(false);
+    secondUnexpectedHosts.setNetworkAvailable(false);
     await secondCard.getByTestId(`qc-v6-${id}-save`).click();
-    await expect(secondPage.locator('#aviso-fallo-guardado')).toContainText('No se ha podido guardar el último cambio');
-    second.unexpectedHosts.setNetworkAvailable(true);
+    await expect(secondPage.locator('#aviso-fallo-guardado')).toContainText('Sin conexión o respuesta de error del servidor');
+    secondUnexpectedHosts.setNetworkAvailable(true);
     expect(database['lasala-control-items-v1'][id].qcV6).toEqual(confirmed);
 
     await Promise.all([page.reload(), secondPage.reload()]);
