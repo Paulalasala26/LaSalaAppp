@@ -667,6 +667,35 @@ test('UAT-258–263: buscar partidas y presentar la inspección y ubicación de 
   expect(unexpectedHosts).toEqual([]);
 });
 
+test('UAT-2393: la búsqueda de QC Carga no se hereda en el buscador global de Partidas', async ({ page }) => {
+  const pageErrors = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
+  const database = fixtureDatabase();
+  const { overlay, unexpectedHosts } = await startControlTest(page, database);
+  await overlay.getByRole('button', { name: 'Check Carga Injerto' }).click();
+  const cargaSearch = overlay.locator('#control-buscar-partida');
+  await cargaSearch.fill('E2E-CARGA-QUINCENA-ACTUAL');
+  await cargaSearch.press('Enter');
+  await expect(overlay.locator('#control-card-e2e-control-carga-current-fortnight')).toBeVisible();
+  await expect(overlay.locator('#control-card-e2e-control-current-fortnight')).toHaveCount(0);
+
+  await overlay.getByRole('button', { name: /✕/ }).last().click();
+  await expect(overlay).toBeHidden();
+  await page.getByTestId('home-partidas').click();
+  const partidas = page.locator('#partidas-overlay');
+  await expect(partidas).toBeVisible();
+  await partidas.getByRole('button', { name: 'Sala 2', exact: true }).click();
+  await partidas.getByRole('button', { name: '17', exact: true }).click();
+  const globalSearch = partidas.getByPlaceholder('Buscar Nº partida...');
+  await expect(globalSearch).toHaveValue('');
+  await globalSearch.fill('E2E-QUINCENA-ACTUAL-DIA-30');
+  await globalSearch.press('Enter');
+  await expect(partidas.locator('#partidas-content-wrap')).toContainText('E2E-QUINCENA-ACTUAL-DIA-30');
+  await expect(partidas.locator('#partidas-content-wrap')).not.toContainText('E2E-CARGA-QUINCENA-ACTUAL');
+  expect(pageErrors).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
 test('UAT-285 y UAT-291: editar los datos de Carga conserva la ubicación heredada si no se modifica', async ({ page }) => {
   const database = fixtureDatabase();
   const { overlay, unexpectedHosts } = await startControlTest(page, database);
