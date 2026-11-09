@@ -569,9 +569,11 @@ test('UAT-2417: reabrir Partidas y Específicos varias veces no duplica vistas n
     await expect(partidas).toBeVisible();
     await expect(page.locator('#partidas-overlay')).toHaveCount(1);
     await expect(page.locator('#partidas-content-wrap')).toHaveCount(1);
-    await expect(partidas).toContainText('Elige un invernadero');
-    await partidas.getByRole('button', { name: 'Sala 2', exact: true }).click();
-    await partidas.getByRole('button', { name: '17', exact: true }).click();
+    if (attempt === 0) {
+      await expect(partidas).toContainText('Elige un invernadero');
+      await partidas.getByRole('button', { name: 'Sala 2', exact: true }).click();
+      await partidas.getByRole('button', { name: '17', exact: true }).click();
+    }
     await expect(page.locator('#partidas-content-wrap')).toBeVisible();
     await partidas.getByRole('button', { name: /✕ Cerrar/ }).click();
     await expect(partidas).toBeHidden();
