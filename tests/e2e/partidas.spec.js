@@ -307,7 +307,7 @@ async function openPartidas(page, { loginFirst = true, user = login.user, writeD
       await route.fulfill({ status: 412, contentType: 'application/json', headers: corsHeaders, body: JSON.stringify({ error: 'etag mismatch' }) });
       return;
     }
-    if (failWriteStatus && path[0] === 'lasala-control-items-v1') {
+    if (failWriteStatus) {
       await route.fulfill({ status: failWriteStatus, contentType: 'application/json', headers: corsHeaders, body: JSON.stringify({ error: 'forced fixture failure' }) });
       return;
     }
