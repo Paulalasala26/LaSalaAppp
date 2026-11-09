@@ -12497,10 +12497,21 @@ function formatCallesParaTareaPeon(invId, calles){
 // tramo suelto) pero usando formatCallesParaTareaPeon para partir por zona
 // cuando el tramo (o lo que falta, en el caso "ENTERO MENOS") cruza la
 // frontera arriba/abajo del invernadero.
-function formatCallesConEnteroParaTareaPeon(invId, calles){
+// universo (traído de main, ce26bdf, 2026-10-01, a petición de Vigueras): por
+// defecto se compara contra TODAS las calles físicas del invernadero, pero el
+// llamador puede pasar solo las calles que de verdad tienen algo marcado ese
+// día (callesConRiegoMarcadoDia). Un hueco de calles sin ningún texto no cuenta
+// como "falta": antes hacía que la tarea dijera "ENTERO MENOS C/x-y" en vez de
+// "ENTERO".
+function callesConRiegoMarcadoDia(invId, dia){
+  const layout = INV_LAYOUT[invId];
+  if(!layout || dia==null) return undefined; // sin dato: comportamiento de siempre
+  return [...layout.row1, ...layout.row2].filter(c=>!!getRiego(invId, dia, c));
+}
+function formatCallesConEnteroParaTareaPeon(invId, calles, universo){
   const layout = INV_LAYOUT[invId];
   if(!layout || !calles.length) return formatCallesParaTareaPeon(invId, calles);
-  const todas = [...layout.row1, ...layout.row2];
+  const todas = universo || [...layout.row1, ...layout.row2];
   const setCalles = new Set(calles);
   const faltantes = todas.filter(c=>!setCalles.has(c));
   if(faltantes.length===0) return 'ENTERO';
@@ -18699,7 +18710,7 @@ function planTareasRiegoParaDias(invId,dias){
           horario:horario||'', asignadoA:peonDelaSala(invId), esFoliar:!!esFoliar
         };
         const key=claveTareaPlanRiego(tarea);
-        if(!plan.has(key))plan.set(key,{...tarea,callesNumeros:new Set()});
+        if(!plan.has(key))plan.set(key,{...tarea,callesNumeros:new Set(),diaOrigen:d});
         (br.calles||[]).forEach(c=>plan.get(key).callesNumeros.add(Number(c)));
       };
       add(parsed.tituloFumi,'1º HORA',true);
@@ -18707,8 +18718,10 @@ function planTareasRiegoParaDias(invId,dias){
     }
   }
   return [...plan.values()].map(p=>{
-    const calles=formatCallesConEnteroParaTareaPeon(invId,[...p.callesNumeros].sort((a,b)=>a-b));
-    const {callesNumeros,...rest}=p;
+    // Mismo universo que usa generarTareasDesdeRiego (calles con algo marcado ese
+    // día): si no, la conciliación reescribiría la etiqueta que generó el botón.
+    const calles=formatCallesConEnteroParaTareaPeon(invId,[...p.callesNumeros].sort((a,b)=>a-b),callesConRiegoMarcadoDia(invId,p.diaOrigen));
+    const {callesNumeros,diaOrigen,...rest}=p;
     return {...rest,calles,categoria:'riego',origenTarea:'riego'};
   });
 }
@@ -18948,7 +18961,7 @@ async function generarTareasDesdeRiego(){
             tareasData.push({
               id: 'tarea_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
               titulo: tituloExpandido, descripcion:'', asignadoA:peonAsignado, asignadoPor: currentUser||'—',
-              inv: invId, calles: '', _callesNumeros:[...br.calles], fecha: riegoDiaLabelCorto(dia), fechaISO, turno:'',
+              inv: invId, calles: '', _callesNumeros:[...br.calles], _diaOrigen: dia, fecha: riegoDiaLabelCorto(dia), fechaISO, turno:'',
               horario: horarioTarea||'', esFoliar: !!esFoliar, categoria:'riego', origenTarea:'riego',
               prioridad:'normal', estado:'pendiente', horaInicio:null, horaFin:null, firmante:null,
               visto:false, creadoEn: new Date().toLocaleString('es-ES')
@@ -18976,8 +18989,11 @@ async function generarTareasDesdeRiego(){
   // ENTERO/ENTERO MENOS/tramo una única vez sobre la unión real de calles.
   tareasData.forEach(t=>{
     if(!t._callesNumeros) return;
-    t.calles = formatCallesConEnteroParaTareaPeon(t.inv, t._callesNumeros);
+    // Universo = calles con algo marcado ese día (ver callesConRiegoMarcadoDia;
+    // ce26bdf de main): las calles en blanco no cuentan para decidir ENTERO.
+    t.calles = formatCallesConEnteroParaTareaPeon(t.inv, t._callesNumeros, callesConRiegoMarcadoDia(t.inv, t._diaOrigen));
     delete t._callesNumeros;
+    delete t._diaOrigen;
   });
   const generadasRiego=tareasData.filter(t=>t.categoria==='riego'&&t.estado==='pendiente'&&!esTareaArchivada(t));
   const txTareas=await actualizarStorageJsonConEtag(TAREAS_KEY,[],fresh=>{
