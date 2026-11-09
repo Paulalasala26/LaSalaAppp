@@ -6690,7 +6690,7 @@ function renderControlContent(overlay){
         </select>
       </nav>`;
   overlay.innerHTML=`
-    <div class="control-ui-shell${controlSeccion==='tunel'?' qc-tunel-work':controlSeccion==='carga'?' qc-carga-work':''}">
+    <div class="control-ui-shell${controlSeccion==='tunel'||controlSeccion==='carga_injerto'?' qc-tunel-work':controlSeccion==='carga'?' qc-carga-work':''}">
       <header class="control-ui-header">
         <button type="button" class="control-ui-home" onclick="seleccionarSeccionControl(null)"
           aria-label="Volver al resumen de Control de Calidad" title="Volver al resumen">
