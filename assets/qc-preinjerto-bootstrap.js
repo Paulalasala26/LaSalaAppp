@@ -147,53 +147,9 @@
       '</div></article>';
   };
 
-  function renderControlTemplatePreview(type){
-    const config=TYPES[type];
-    const percentOptions=Array.from({length:11},(_,index)=>index*10);
-    const categories=config.categories.map(category=>{
-      const multi=category.key==='plagas'||category.key==='enfermedades';
-      const options=category.options.map(([key,label])=>{
-        const percent=multi&&key!=='ok'
-          ?'<select class="qco-disease-select" aria-label="'+label+' · porcentaje" disabled>'+
-            '<option selected>— %</option>'+percentOptions.map(value=>'<option>'+value+' %</option>').join('')+'</select>'
-          :'';
-        return '<div class="qco-option'+(multi&&key!=='ok'?' qco-health-row':'')+'" data-option="'+key+'">'+
-          '<label><input type="checkbox" disabled><span>'+label+'</span></label>'+percent+'</div>';
-      }).join('');
-      return '<fieldset class="qco-cat"><legend>'+category.label+'</legend>'+options+
-        (multi?'<div class="qco-work-counter">Suma de incidencias: máximo 100 %</div>':'')+'</fieldset>';
-    }).join('');
-    return '<section class="qc-work-panel qc-preinjerto-template">'+
-      '<div class="qc-work-counter" style="margin:0 0 9px">Sin líneas de Patrón para esta fecha. Plantilla de vista previa; se activará al cargar las partidas.</div>'+
-      '<div class="qco-inline"><div class="qco-dialog" role="region" aria-label="Plantilla cuantitativa de QC Preinjerto Patrón">'+
-      '<header class="qco-header"><div class="qco-title">QC Preinjerto Patrón · Porcentajes</div></header>'+
-      '<div class="qco-body"><div class="qco-feedback" role="note">Cada bloque simple lleva una selección. Plagas y Enfermedades permiten varias incidencias con porcentaje.</div>'+
-      categories+
-      '<section class="qco-global-result"><strong class="qco-global-heading">Porcentaje global de inválidas</strong>'+
-      '<div class="qco-global-row"><span>Inválidas · Total evaluación</span>'+
-      '<select class="qco-global-percent" aria-label="Porcentaje global de inválidas" disabled>'+
-      percentOptions.map(value=>'<option value="'+value+'"'+(value===0?' selected':'')+'>'+value+' %</option>').join('')+
-      '</select></div><div class="qco-global-review">El valor se propondrá a partir de los bloques evaluados y podrá ajustarse en cada línea.</div></section>'+
-      '<div class="qco-footer"><button type="button" class="qco-save" disabled>Guardar</button></div>'+
-      '</div></div></div></section>';
-  }
-
   window.renderControlSeccionHTML=function(section){
     const rendered=oldRenderSection?oldRenderSection(section):'';
-    const html=typeof rendered==='string'?rendered:'';
-    if(section?.key!=='preinjerto_patron')return html;
-    const hasLines=controlChecksData.some(record=>record?.tipo===section.key&&record.dia===controlDiaSel);
-    return hasLines?html:html+renderControlTemplatePreview(section.key);
-  };
-
-  window.marcarControlQCMedido=function(ref){
-    if(ref?.tipo!=='preinjerto_patron')return oldMarkMeasured?oldMarkMeasured(ref):undefined;
-    if(!ref)return;
-    const key=claveEstadosQC(ref.tipo,ref.dia),entry=controlQCEstados.get(key);
-    if(entry){entry.estados[ref.id]=true;entry.partidas[ref.id]=ref.partida;entry.at=Date.now();}
-    const overlay=document.getElementById('control-overlay');
-    if(overlay&&controlSeccion===ref.tipo&&controlDiaSel===ref.dia&&!document.querySelector('#qco-inline'))
-      window.renderControlContent(overlay);
+    return typeof rendered==='string'?rendered:'';
   };
 
   window.controlLineaCompletada=function(record){
