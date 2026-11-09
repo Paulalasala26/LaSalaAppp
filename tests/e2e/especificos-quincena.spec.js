@@ -123,6 +123,28 @@ test('UAT-043: borrar un Específico de prueba no lo recupera al recargar',async
   expect(unexpectedHosts).toEqual([]);expect(reloaded.unexpectedHosts).toEqual([]);
 });
 
+test('UAT-2390: cambiar de ADMIN a REGANTE con Específicos abierto cierra las acciones de la sesión anterior',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openSpecifics(page,database);
+  await expect(page.locator('#especificos-grid-wrap [data-einv="17"][data-edia="30"][data-erc="18"]')).toHaveValue('E2E-ESPECIFICO-INV17');
+
+  await page.evaluate(()=>doLogout());
+  await expect(page.locator('#login-screen')).toBeVisible();
+  await page.locator('#login-user').evaluate((select,user)=>{
+    if(![...select.options].some(option=>option.value===user))select.add(new Option(user,user));
+  },regante.user);
+  await page.locator('#login-user').selectOption(regante.user);
+  await page.locator('#login-pass').fill(regante.password);
+  await page.getByRole('button',{name:'Iniciar sesión'}).click();
+
+  await expect(page.locator('#app')).toBeVisible();
+  await expect(overlay).toBeHidden();
+  await expect(page.getByTestId('home-especificos')).toBeHidden();
+  await expect(page.locator('#especificos-grid-wrap')).toBeHidden();
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
 test('UAT-2385: desde Partidas, abrir Específicos conserva la quincena futura y aplica permisos',async({page})=>{
   const database=fixtureDatabase();
   database['lasala-especificos-v1']=JSON.stringify({'17':{'45':{'18':'E2E-ESPECIFICO-FUTURO-INV17'}}});

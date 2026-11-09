@@ -674,6 +674,7 @@ function showLoginAlert(msg,type){
   el.style.border='1px solid';el.style.display='block';
 }
 function doLogout(){
+  document.querySelectorAll('[id$="-overlay"]').forEach(overlay=>{overlay.style.display='none';});
   currentUser=null;currentUserRole=null;document.getElementById('app').style.display='none';
   document.getElementById('login-screen').style.display='flex';
   document.getElementById('login-pass').value='';document.getElementById('login-user').value='';
