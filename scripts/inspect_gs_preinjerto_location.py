@@ -70,14 +70,12 @@ def main() -> int:
                 for row in columns
                 if str(row["DATA_TYPE"]).casefold() in TEXT_TYPES
             ]
-            key_columns = [
-                name for name in text_columns
-                if any(token in name.casefold() for token in ("part", "npa", "par"))
-                or name.casefold() == "id"
-            ]
+            # GS sometimes exposes custom table columns as C0/C1/...;
+            # search every text column with exact ID equality so a generic
+            # column such as C0 is not silently skipped.
             matches: list[dict[str, Any]] = []
             searched: list[str] = []
-            for name in key_columns:
+            for name in text_columns:
                 escaped = name.replace("`", "``")
                 query = (
                     f"SELECT * FROM `{MYSQL_DATABASE}`.`{TABLE}` "
@@ -102,7 +100,7 @@ def main() -> int:
                 "exists": True,
                 "targets": list(TARGETS),
                 "columns": columns,
-                "candidateKeyColumnsSearched": searched,
+                "textColumnsSearched": searched,
                 "locationLikeColumns": [
                     str(row["COLUMN_NAME"])
                     for row in columns
