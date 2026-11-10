@@ -43,11 +43,11 @@ Se priorizan casos de prioridad Alta y flujos reutilizados. Un resultado de fixt
 
 ## Estado al 10 de noviembre de 2026
 
-- Última suite completa registrada al actualizar este procedimiento: [GitHub Actions #140](https://github.com/Paulalasala26/LaSalaAppp/actions/runs/42820885032), 323/323 pruebas aprobadas y 722 IDs UAT únicos.
-- Último smoke: [GitHub Actions #76](https://github.com/Paulalasala26/LaSalaAppp/actions/runs/42820884967), ocho pruebas en 8,9 segundos; incluye UAT-025 y UAT-234–239 para cambio de quincena y aislamiento QC.
-- Sidecar acumulado en SharePoint: 805 IDs, 780 `PASA_FIXTURE` y 25 `FALLA_FIXTURE`.
-- Snapshot de la matriz: 805 filas con evidencia fixture; 1.949 siguen pendientes y 13 sin estado.
-- El smoke #76 quedó registrado en SharePoint para UAT-025, UAT-129 y UAT-234–239. La prueba automática confirma funciones de la aplicación sobre datos simulados. No certifica permisos/datos de Firebase TEST/PRD, integraciones reales con SharePoint, cámara nativa ni interacción física.
+- Última suite completa registrada al actualizar este procedimiento: [GitHub Actions #142](https://github.com/Paulalasala26/LaSalaAppp/actions/runs/42825469549), 324/324 pruebas aprobadas y 726 IDs UAT únicos.
+- Último smoke: [GitHub Actions #78](https://github.com/Paulalasala26/LaSalaAppp/actions/runs/42825469502), ocho pruebas en 8,3 segundos; incluye UAT-025 y UAT-234–239 para cambio de quincena y aislamiento QC.
+- Sidecar acumulado en SharePoint: 809 IDs, 784 `PASA_FIXTURE` y 25 `FALLA_FIXTURE`.
+- Snapshot de la matriz: 809 filas con evidencia fixture; 1.945 siguen pendientes y 13 sin estado.
+- La suite #142 quedó registrada en SharePoint para UAT-1232, UAT-1233, UAT-1235 y UAT-1236; el smoke #78 sigue registrado para UAT-025, UAT-129 y UAT-234–239. La prueba automática confirma funciones de la aplicación sobre datos simulados. No certifica permisos/datos de Firebase TEST/PRD, integraciones reales con SharePoint, cámara nativa ni interacción física.
 - Brechas reproducibles UAT-509 y UAT-510 identifican límites pendientes de mezcla; UAT-125 y UAT-508 ya pasan estable en fixture. UAT-1234, UAT-1739 y UAT-2045 también pasan en sus recorridos directos de Tareas, Archivo y Avisos.
 
 ## Archivos y evidencia
