@@ -414,12 +414,16 @@ test('UAT-1240: REGANTE ve su tarea manual desde Mis tareas', async ({ page }) =
   expect(writes).toEqual([]);
 });
 
-test('UAT-1302–1303, UAT-1307–1310 y UAT-1315: abrir, validar y cancelar un alta manual solo ofrece ejecutores operativos', async ({ page }) => {
+test('UAT-1247, UAT-1302–1303, UAT-1307–1310 y UAT-1315: abrir, validar y cancelar un alta manual solo ofrece ejecutores operativos', async ({ page }) => {
   const { database, writes } = await installFixture(page);
 
   await openTasks(page);
   await expect(page.locator('#tareas-overlay')).toContainText('Resumen de Tareas');
-  await page.locator('#tareas-overlay').getByRole('button', { name: 'Nueva tarea' }).click();
+  const overlay = page.locator('#tareas-overlay');
+  const todayTab = overlay.getByRole('button', { name: 'Tareas de hoy' });
+  await todayTab.click();
+  await expect(todayTab).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+  await overlay.getByRole('button', { name: 'Nueva tarea' }).click();
 
   const form = page.locator('#nueva-tarea-form-wrap');
   await expect(form.locator('#nt-titulo')).toBeVisible();
@@ -445,7 +449,10 @@ test('UAT-1302–1303, UAT-1307–1310 y UAT-1315: abrir, validar y cancelar un 
 
   await form.locator('[data-nt-asignado-chip="PEON1"]').click();
   await form.getByRole('button', { name: 'Cancelar' }).click();
-  await expect(form).toBeEmpty();
+  await expect(form).toBeHidden();
+  await expect(overlay).toBeVisible();
+  await expect(todayTab).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+  await expect(overlay.getByRole('button', { name: 'Nueva tarea' })).toBeVisible();
   expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([]);
   expect(writes).toEqual([]);
 });
