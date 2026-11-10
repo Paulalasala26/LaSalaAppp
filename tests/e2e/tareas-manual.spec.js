@@ -1028,3 +1028,29 @@ test('UAT-1739 y UAT-2434: Archivo vacío no registra la anulación fallida ni o
   await expect(row).toContainText('Pendiente');
   expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([task]);
 });
+
+test('UAT-1268–1280: Operativas permite filtrar por fecha y buscar tareas', async ({ page }) => {
+  test.fail(true, 'La vista Operativas actual se divide en secciones por fecha y no tiene filtros combinados de fecha ni búsqueda.');
+  const todayISO = await fechaISOEnNavegador(page);
+  const tomorrowISO = await fechaISOEnNavegador(page, 1);
+  const tasks = [
+    { id: 'e2e-uat-1268-today', titulo: 'E2E FILTRO HOY UAT-1268', descripcion: 'Búsqueda de descripción UAT-1276', asignadoA: 'PEON1', origen: 'manual', categoria: 'manual', inv: '0A', calles: '1', fechaISO: todayISO, turno: 'Mañana', prioridad: 'normal', estado: 'pendiente' },
+    { id: 'e2e-uat-1268-tomorrow', titulo: 'E2E FILTRO MAÑANA UAT-1270', descripcion: 'Tarea futura', asignadoA: 'PEON1', origen: 'manual', categoria: 'manual', inv: '0B', calles: '2', fechaISO: tomorrowISO, turno: 'Mañana', prioridad: 'normal', estado: 'pendiente' }
+  ];
+  const { database, writes } = await installFixture(page, { 'lasala-tareas-v1': JSON.stringify(tasks) });
+
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  await overlay.getByRole('button', { name: 'Tareas de hoy' }).click();
+  const pane = overlay.locator('#tareas-gestor-content-wrap');
+  await expect(pane).toContainText('E2E FILTRO HOY UAT-1268');
+  await expect(pane.locator('.tarea-card:visible')).toHaveCount(1);
+
+  const controls = await pane.evaluate(element => ({
+    search: Boolean(element.querySelector('input[type="search"], input[placeholder*="buscar" i], input[aria-label*="buscar" i], [data-testid*="search"]')),
+    dateFilter: Boolean(element.querySelector('input[type="date"], select:not(#lote-asignado-select), [data-testid*="date-filter"]'))
+  }));
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual(tasks);
+  expect(writes).toEqual([]);
+  expect(controls).toEqual({ search: true, dateFilter: true });
+});
