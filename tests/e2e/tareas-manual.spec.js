@@ -221,6 +221,73 @@ test('UAT-1234 y UAT-2412: Tareas abre Operativas y Mantenimiento en la primera 
   expect(writes).toEqual([]);
 });
 
+test('UAT-1232, UAT-1233, UAT-1235 y UAT-1236: ADMIN y TÉCNICO recorren Operativas, Mantenimiento y Archivo sin duplicar tareas', async ({ page }) => {
+  const pageErrors = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
+  const tomorrowISO = await fechaISOEnNavegador(page, 1);
+  const tasks = [{
+    id: 'e2e-uat-1232-task',
+    titulo: 'E2E operativa UAT-1232',
+    descripcion: 'Tarea aislada para recorrer secciones',
+    asignadoA: 'PEON1',
+    origen: 'manual',
+    categoria: 'manual',
+    inv: '0A',
+    calles: '1-2',
+    fechaISO: tomorrowISO,
+    fecha: 'mañana',
+    turno: 'Mañana',
+    prioridad: 'normal',
+    estado: 'pendiente'
+  }];
+  const { database, writes } = await installFixture(page, {
+    'lasala-tareas-v1': JSON.stringify(tasks)
+  });
+
+  const assertOperativas = async () => {
+    const overlay = page.locator('#tareas-overlay');
+    const tomorrow = overlay.getByRole('button', { name: 'Tareas de mañana' });
+    await expect(tomorrow).toBeVisible();
+    await tomorrow.click();
+    await expect(overlay.getByText('E2E operativa UAT-1232', { exact: true })).toBeVisible();
+    await expect(overlay.locator('.tarea-card:visible')).toHaveCount(1);
+  };
+
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  await expect(overlay).toContainText('Resumen de Tareas');
+  await assertOperativas();
+
+  await overlay.getByRole('button', { name: 'Mantenimiento de Parcelas' }).click();
+  await expect(overlay.getByRole('heading', { name: /Mantenimiento de Parcelas/ })).toBeVisible();
+  await expect(overlay).toContainText('0 tickets abiertos');
+  await assertOperativas();
+
+  await overlay.getByRole('button', { name: 'Archivo' }).click();
+  await expect(overlay.locator('#tareas-archivo-anuladas')).toContainText('Anuladas y archivadas');
+  await assertOperativas();
+  await overlay.getByRole('button', { name: /✕ Cerrar/ }).click();
+  await expect(overlay).toBeHidden();
+
+  await page.getByRole('button', { name: 'Salir' }).click();
+  await expect(page.locator('#login-screen')).toBeVisible();
+  await page.locator('#login-user').evaluate((select, value) => {
+    if (![...select.options].some(option => option.value === value)) select.add(new Option(value, value));
+  }, 'E2E_TECH');
+  await page.locator('#login-user').selectOption('E2E_TECH');
+  await page.locator('#login-pass').fill(password);
+  await page.locator('#login-btn').click();
+  await expect(page.locator('#page-home')).toBeVisible();
+
+  await openTasks(page);
+  await expect(page.locator('#tareas-overlay')).toContainText('Resumen de Tareas');
+  await assertOperativas();
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual(tasks);
+  expect(JSON.parse(database['lasala-mantenimiento-v1'])).toEqual([]);
+  expect(writes).toEqual([]);
+  expect(pageErrors).toEqual([]);
+});
+
 test('UAT-1302–1303, UAT-1307–1310 y UAT-1315: abrir, validar y cancelar un alta manual solo ofrece ejecutores operativos', async ({ page }) => {
   const { database, writes } = await installFixture(page);
 
