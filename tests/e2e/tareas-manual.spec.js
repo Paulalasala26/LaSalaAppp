@@ -231,7 +231,7 @@ test('UAT-1232: ADMIN abre Tareas con Operativas seleccionada por defecto', asyn
   await expect(operativas).toHaveCSS('background-color', 'rgb(255, 255, 255)');
 });
 
-test('UAT-1233, UAT-1235, UAT-1236, UAT-1242, UAT-1243, UAT-1246, UAT-1495, UAT-1499, UAT-1500 y UAT-1745: ADMIN y TÉCNICO recorren secciones sin heredar permisos ni duplicar tareas', async ({ page }) => {
+test('UAT-1233, UAT-1244, UAT-1235, UAT-1236, UAT-1242, UAT-1243, UAT-1246, UAT-1495, UAT-1499, UAT-1500 y UAT-1745: ADMIN y TÉCNICO recorren secciones sin heredar permisos ni duplicar tareas', async ({ page }) => {
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(error.message));
   const tomorrowISO = await fechaISOEnNavegador(page, 1);
@@ -279,6 +279,13 @@ test('UAT-1233, UAT-1235, UAT-1236, UAT-1242, UAT-1243, UAT-1246, UAT-1495, UAT-
   await openTasks(page);
   const overlay = page.locator('#tareas-overlay');
   await expect(overlay).toContainText('Resumen de Tareas');
+  const today = overlay.getByRole('button', { name: 'Tareas de hoy' });
+  await today.click();
+  await expect(today).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+  const pane = overlay.locator('#tareas-gestor-content-wrap');
+  await expect(pane).toContainText(/no hay tareas|sin tareas/i);
+  await expect(pane.locator('.tarea-card:visible')).toHaveCount(0);
+  await expect(overlay.getByRole('button', { name: 'Nueva tarea' })).toBeVisible();
   await assertOperativas();
 
   const maintenance = overlay.getByRole('button', { name: 'Mantenimiento de Parcelas' });
