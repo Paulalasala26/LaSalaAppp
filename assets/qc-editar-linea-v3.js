@@ -386,7 +386,7 @@
     const edit={actualizadoPor:String(currentUser||''),actualizadoEn:new Date().toISOString(),campos};
     const qid=encolarAccionOffline('aplicarEditarControlPreinjertoPatron',[line.id,edit]);
     line.partida=campos.partida;line.cliente=campos.cliente;line.variedad=campos.variedad;
-    line.clienteVariedad=campos.cliente+' — '+campos.variedad;
+    line.clienteVariedad=campos.variedad?campos.cliente+' — '+campos.variedad:campos.cliente;
     line.numBandejas=campos.numBandejas;
     if(Object.prototype.hasOwnProperty.call(campos,'PAR_CAS')){
       line.PAR_CAS=campos.PAR_CAS;line.invId=campos.invId;
