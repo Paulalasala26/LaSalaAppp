@@ -74,6 +74,28 @@ async function logInAs(page, user, pass = password) {
   await page.locator('#login-btn').click();
 }
 
+test('UAT-1999 y UAT-2000: punto rojo solo con aviso técnico no leído', async ({ page }) => {
+  const users = Object.fromEntries(Object.keys(roleUsers).map(user => [user, passwordHash]));
+  await installAuthFixture(page, {
+    'lasala-users-v1': JSON.stringify({ ...users, VIGUERAS: passwordHash }),
+    'lasala-roles-v1': JSON.stringify({ ...roleUsers, VIGUERAS: 'ADMIN' }),
+    'lasala-avisos-usuario-v1': JSON.stringify({
+      E2E_TECNICO: [{ id: 'aviso-no-leido', mensaje: 'Aviso sin leer', fecha: '10/11/2026', visto: true, leido: false, evaluacion: null }],
+      VIGUERAS: []
+    })
+  });
+
+  await logInAs(page, 'E2E_TECNICO');
+  const tecnicoBadge = page.locator('#avisos-tecnico-badge span[aria-label]');
+  await expect(tecnicoBadge).toHaveAttribute('aria-label', '1 avisos sin leer');
+  await expect(tecnicoBadge).toHaveCSS('background-color', 'rgb(198, 40, 40)');
+
+  await page.getByRole('button', { name: 'Salir' }).click();
+  await logInAs(page, 'VIGUERAS');
+  await expect(page.locator('#topbar-notificaciones')).toBeVisible();
+  await expect(page.locator('#notificaciones-vigueras-badge span')).toHaveCount(0);
+});
+
 test('UAT-1989, UAT-1990, UAT-1991 y UAT-1992: campana junto a logout para ADMIN y TÉCNICO', async ({ page }) => {
   await installAuthFixture(page, {
     'lasala-users-v1': JSON.stringify({ E2E_ADMIN: passwordHash, E2E_TECNICO: passwordHash, VIGUERAS: passwordHash }),
