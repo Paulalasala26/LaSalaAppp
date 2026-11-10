@@ -1820,6 +1820,7 @@ async function persistMantenimientoData(){
 async function showTareasModule(){
   if(tareasModuleOpening) return;
   tareasModuleOpening = true;
+  tareasGestorVista = null;
   try{
     await loadTareasData(false);
     const overlay = getOrCreateOverlay('tareas-overlay');
