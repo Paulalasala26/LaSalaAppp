@@ -3427,14 +3427,19 @@ test('UAT-391, UAT-393–394 y UAT-398: dos miniaturas de una inspección y gale
   ];
   expect(new Set(thumbnailSources).size).toBe(3);
 
+  const fullSources = await page.evaluate(({ firstId, secondId }) => [
+    ...controlFotosData[firstId].map(fotoSrcCompleta),
+    fotoSrcCompleta(controlFotosData[secondId][0])
+  ], { firstId, secondId });
   await page.setViewportSize({ width: 320, height: 760 });
   const enlarged = page.locator('#control-foto-ampliada-overlay');
-  for (const thumbnail of [firstThumbnails.nth(0), firstThumbnails.nth(1), secondThumbnails.first()]) {
-    const source = await thumbnail.getAttribute('src');
+  const thumbnailsToOpen = [firstThumbnails.nth(0), firstThumbnails.nth(1), secondThumbnails.first()];
+  for (let i = 0; i < thumbnailsToOpen.length; i++) {
+    const thumbnail = thumbnailsToOpen[i];
     await thumbnail.click();
     await expect(enlarged).toBeVisible();
     const image = enlarged.locator('img');
-    await expect(image).toHaveAttribute('src', source);
+    await expect(image).toHaveAttribute('src', fullSources[i]);
     const box = await image.boundingBox();
     expect(box).not.toBeNull();
     expect(box.x).toBeGreaterThanOrEqual(0);
