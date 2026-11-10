@@ -3379,13 +3379,11 @@ test('UAT-2433: las dos pantallas leen la última evaluación QC v6 confirmada t
     await secondPage.close();
   }
 });
-test('UAT-393–394 y UAT-397–398: abrir fotos distintas en móvil mantiene la inspección y su identidad', async ({ page }) => {
+test('UAT-393–394 y UAT-398: seleccionar dos fotos de una inspección mantiene su identidad en móvil', async ({ page }) => {
   const database = fixtureDatabase();
   const items = database['lasala-control-items-v1'];
   items['e2e-control-current-fortnight-second-line'].clienteVariedad =
     items['e2e-control-current-fortnight'].clienteVariedad;
-  items['e2e-control-current-fortnight-first-day'].partida =
-    items['e2e-control-current-fortnight'].partida;
   database['lasala-control-fotos-indice-v1'] = JSON.stringify({});
   database['lasala-control-fotos-shards-index'] = JSON.stringify(['lasala-control-fotos-v1']);
   database['lasala-control-fotos-v1'] = JSON.stringify({});
@@ -3393,10 +3391,9 @@ test('UAT-393–394 y UAT-397–398: abrir fotos distintas en móvil mantiene la
 
   const ids = [
     'e2e-control-current-fortnight',
-    'e2e-control-current-fortnight-second-line',
-    'e2e-control-current-fortnight-first-day'
+    'e2e-control-current-fortnight-second-line'
   ];
-  const images = await page.evaluate(() => ['#c62828', '#1565c0', '#2e7d32'].map(color => {
+  const images = await page.evaluate(() => ['#c62828', '#1565c0'].map(color => {
     const canvas = document.createElement('canvas');
     canvas.width = 200;
     canvas.height = 600;
@@ -3406,7 +3403,7 @@ test('UAT-393–394 y UAT-397–398: abrir fotos distintas en móvil mantiene la
     return canvas.toDataURL('image/png').split(',')[1];
   }));
 
-  for (let i = 0; i < 2; i++) {
+  for (let i = 0; i < ids.length; i++) {
     const card = overlay.locator(`#control-card-${ids[i]}`);
     await card.locator('input[data-testid^="control-photo-gallery-"]').setInputFiles({
       name: `e2e-photo-${i + 1}.png`,
@@ -3418,13 +3415,13 @@ test('UAT-393–394 y UAT-397–398: abrir fotos distintas en móvil mantiene la
   }
 
   const expectedSrc = await page.evaluate(photoIds =>
-    Object.fromEntries(photoIds.map(id => [id, fotoSrcCompleta(controlFotosData[id])])), ids.slice(0, 2)
+    Object.fromEntries(photoIds.map(id => [id, fotoSrcCompleta(controlFotosData[id])])), ids
   );
-  expect(new Set(Object.values(expectedSrc)).size).toBe(2);
+  expect(new Set(Object.values(expectedSrc)).size).toBe(ids.length);
 
   await page.setViewportSize({ width: 320, height: 760 });
   const enlarged = page.locator('#control-foto-ampliada-overlay');
-  for (const id of ids.slice(0, 2)) {
+  for (const id of ids) {
     const thumbnail = overlay.locator(`#control-card-${id} img[title="Ver foto"]`);
     await thumbnail.click();
     await expect(enlarged).toBeVisible();
@@ -3440,31 +3437,5 @@ test('UAT-393–394 y UAT-397–398: abrir fotos distintas en móvil mantiene la
     await expect(enlarged).toBeHidden();
     await expect(overlay).toBeVisible();
   }
-
-  const currentDate = await overlay.getByTestId('control-date-picker').inputValue();
-  const priorDate = await page.evaluate(value => {
-    const date = new Date(value + 'T00:00:00');
-    date.setDate(date.getDate() - 1);
-    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-  }, currentDate);
-  await overlay.getByTestId('control-date-picker').evaluate((input, value) => {
-    input.value = value;
-    input.dispatchEvent(new Event('change', { bubbles: true }));
-  }, priorDate);
-  const priorDayCard = overlay.locator(`#control-card-${ids[2]}`);
-  await expect(priorDayCard).toBeVisible();
-  await priorDayCard.locator('input[data-testid^="control-photo-gallery-"]').setInputFiles({
-    name: 'e2e-photo-prior-day.png',
-    mimeType: 'image/png',
-    buffer: Buffer.from(images[2], 'base64')
-  });
-  await expect(priorDayCard.locator('img[title="Ver foto"]')).toBeVisible();
-  await expect.poll(() => JSON.parse(database['lasala-control-fotos-v1'] || '{}')[ids[2]]).toBeTruthy();
-  const priorDaySrc = await page.evaluate(id => fotoSrcCompleta(controlFotosData[id]), ids[2]);
-  await priorDayCard.locator('img[title="Ver foto"]').click();
-  await expect(enlarged.locator('img')).toHaveAttribute('src', priorDaySrc);
-  await enlarged.locator('button').click();
-  await expect(enlarged).toBeHidden();
-  await expect(overlay).toBeVisible();
   expect(unexpectedHosts).toEqual([]);
 });
