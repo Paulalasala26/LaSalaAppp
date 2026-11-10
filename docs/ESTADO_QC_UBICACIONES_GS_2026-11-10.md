@@ -124,3 +124,17 @@ Se analizó **offline**, sin consultas contra GS ni Firebase, la exportación `g
 - El script de Preinjerto de GitHub ahora comprueba que existan las columnas `PAR_CAS`, `PAR_UBIC` y `Cliente Final` en la extracción, contabiliza su cobertura y muestra un aviso si `PAR_CAS` llega sin valores. Commit correctivo final `c4c19a350e4c34c60bba251fa87bf333713562d2`.
 
 **Diagnóstico siguiente sin tocar datos:** verificar en el JSON local si `PAR_CAS` y `PAR_UBIC` aparecen *como propiedades* de `26C02436`; después sustituir el script local por el de GitHub y repetir una extracción GS read-only del mismo período para comprobar si vuelve el código `016`. No sincronizar Preinjerto con Firebase hasta resolver discrepancia. No desplegar Vercel.
+
+## Investigación sobre ubicación de Preinjerto: contraste export GS histórico
+
+Se ha contrastado el export estático `gs.zip` (19 CSV de GS, corte histórico anterior) con la extracción local actual del 10–15/11/2026. No se ha accedido a MySQL en directo.
+
+**Hallazgos comprobados en los CSV:**
+
+- La tabla `partidas` contiene `PAR_CAS` y `PAR_UBIC`. Para partidas `26P*/26WE*/26C*/26VE*` con `PAR_FECS` del 10 al 15 de noviembre, el corte histórico contiene **20 partidas**, de las cuales **17 tienen `PAR_CAS`** y **ninguna `PAR_UBIC`**. En la extracción en vivo posterior del usuario hay **145 partidas**, **0 con `PAR_CAS`** y **0 con `PAR_UBIC`**. Son cortes distintos y NO deben mezclarse como si fueran el mismo estado de GS.
+- Ejemplos del CSV histórico: `26C02436 → PAR_CAS=016`, `26C02653 → 028`, `26P02545 → 007`, `26C02635 → 062`; este último tiene `PAR_CLF=INVERNADERO 9`. El `PAR_CAS` bruto y la frase `INVERNADERO 9` no deben identificarse entre sí sin evidencia.
+- `p-extension` tiene `PEX_NPA` (partida), `PEX_FEC` (fecha del movimiento), `PEX_IDE`, `PEX_SDE`, `PEX_FDE` (destino de ubicación). El corte histórico contiene movimientos para partidas P/C, pero el análisis por fecha muestra que casi todos son **posteriores a `PAR_FECS`** (P: 844 posteriores y 2 mismo día; C: 1634 posteriores y 2 anteriores). Por tanto **no sirve deducir desde el movimiento posterior una calle correspondiente al QC preinjerto inicial**.
+- `p-injertos.PIN_LOCA` corresponde al circuito Túnel y `p-carga_pca_par.C3/C4/C5` al de Carga, no a una localización probada de Preinjerto.
+- El inventario de esquema mencionado previamente incluye `partidas_par_ubic`, pero su **relación y significado no se han verificado** en las fuentes CSV disponibles; no inventar JOIN ni completar calles desde su nombre.
+
+**Conclusión:** la ausencia actual 0/145 de `PAR_CAS` no permite concluir que GS jamás lo informe; de hecho, el export histórico sí tiene valores para algunas de las mismas partidas. La calle de Preinjerto no queda demostrada ni con `PAR_UBIC` ni con `p-extension` en el momento de siembra. Antes de modificar el conector, comparar un mismo ID entre instantáneas y verificar un origen real de calle con su fecha efectiva. No se ejecutaron consultas ni escrituras en GS/Firebase, ni se desplegó Vercel.
