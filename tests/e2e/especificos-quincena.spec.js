@@ -409,7 +409,6 @@ test('UAT-993 y UAT-994: Específicos permanece utilizable en móvil y al reduci
 
 
 test('UAT-1014: una pulsación en una celda vacía abre Añadir específico',async({page})=>{
-  test.fail(true,'La cuadrícula actual permite edición directa; el formulario se abre desde el encabezado del día.');
   const database=fixtureDatabase();
   const {overlay,unexpectedHosts}=await openSpecifics(page,database);
   const empty=overlay.locator('#especificos-grid-wrap input[data-einv="17"][data-edia="29"][data-erc="18"]');
