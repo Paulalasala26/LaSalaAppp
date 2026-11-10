@@ -171,7 +171,7 @@ test('UAT-2415: un doble clic rápido en Tareas deja una sola vista funcional y 
   await expect(overlay.getByText('Resumen de Tareas', { exact: true })).toHaveCount(1);
   await expect(overlay.getByRole('button', { name: 'Mantenimiento de Parcelas' })).toHaveCount(1);
   expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([]);
-  expect(JSON.parse(database['lasala-mantenimiento-v1'])).toEqual([closedTicket]);
+  expect(JSON.parse(database['lasala-mantenimiento-v1'])).toEqual([]);
   expect(writes).toEqual([]);
 });
 
@@ -322,7 +322,7 @@ test('UAT-1233, UAT-1235, UAT-1236, UAT-1242, UAT-1243, UAT-1246, UAT-1495 y UAT
   await expect(page.locator('#tareas-overlay').getByRole('button', { name: /Respaldo JSON/ })).toHaveCount(0);
   await assertOperativas();
   expect(JSON.parse(database['lasala-tareas-v1'])).toEqual(tasks);
-  expect(JSON.parse(database['lasala-mantenimiento-v1'])).toEqual([]);
+  expect(JSON.parse(database['lasala-mantenimiento-v1'])).toEqual([closedTicket]);
   expect(writes).toEqual([]);
   expect(pageErrors).toEqual([]);
 });
