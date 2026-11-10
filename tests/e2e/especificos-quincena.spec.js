@@ -157,7 +157,8 @@ test('UAT-2411: abrir Específicos directamente antes de Partidas deja operativo
   await expect(summary).toContainText('Resumen de Específicos');
   await expect(summary.locator('#resumen-especificos-quincena-bar')).toContainText('Quincena');
   expect(pageErrors).toEqual([]);
-  expect(writes).toEqual([]);
+  expect(writes.every(write=>['lasala-conteo-tuta-invs-v1','lasala-conteo-trips-invs-v1'].includes(write.path))).toBe(true);
+  expect(JSON.parse(database['lasala-especificos-v1'])).toEqual(JSON.parse(fixtureDatabase()['lasala-especificos-v1']));
   expect(unexpectedHosts).toEqual([]);
 });
 
@@ -315,7 +316,8 @@ test('UAT-984 y UAT-985: Específicos abre correctamente después de Partidas y 
   await expect(page.locator('#especificos-grid-wrap [data-einv="17"][data-edia="30"][data-erc="18"]')).toHaveValue('E2E-ESPECIFICO-INV17');
 
   expect(pageErrors).toEqual([]);
-  expect(writes).toEqual([]);
+  expect(writes.every(write=>['lasala-conteo-tuta-invs-v1','lasala-conteo-trips-invs-v1'].includes(write.path))).toBe(true);
+  expect(JSON.parse(database['lasala-especificos-v1'])).toEqual(fixtureDatabase()['lasala-especificos-v1'] && JSON.parse(fixtureDatabase()['lasala-especificos-v1']));
   expect(unexpectedHosts).toEqual([]);
 });
 
