@@ -423,7 +423,7 @@ test('UAT-1015 y UAT-1019: una pulsación en una celda ocupada abre Editar y per
   const database=fixtureDatabase();
   const original=database['lasala-especificos-v1'];
   const {overlay,unexpectedHosts}=await openSpecifics(page,database);
-  const occupied=overlay.locator('#especificos-grid-wrap input[data-einv="17"][data-edia="30"][data-erc="18"]');
+  const occupied=overlay.locator('#especificos-grid-wrap [data-einv="17"][data-edia="30"][data-erc="18"]').first();
   await occupied.click();
   const editor=page.locator('#especifico-manual-overlay');
   await expect(editor).toBeVisible();
