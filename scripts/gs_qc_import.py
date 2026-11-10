@@ -381,6 +381,26 @@ def _merge_gs(existing: dict[str, Any] | None, incoming: dict[str, Any]) -> dict
             if key not in location_fields or has_location(merged[key]) or not has_location(value):
                 continue
         merged[key] = value
+    # Conserva las correcciones puntuales de APP sobre los valores fuente GS.
+    correction = merged.get("edicionQC")
+    correction_fields = correction.get("campos") if isinstance(correction, dict) else None
+    if (merged.get("tipo") in ("preinjerto_patron", "preinjerto_variedad")
+            and isinstance(correction_fields, dict)):
+        editable = ("partida", "cliente", "variedad", "numBandejas", "invId",
+                    "calleDesde", "calleHasta", "PAR_CAS", "PAR_UBIC")
+        for field in editable:
+            if field in correction_fields:
+                merged[field] = correction_fields[field]
+        if "cliente" in correction_fields or "variedad" in correction_fields:
+            customer = _text(merged.get("cliente"))
+            variety = _text(merged.get("variedad"))
+            merged["clienteVariedad"] = f"{customer} — {variety}" if variety else customer
+        if "PAR_CAS" in correction_fields or "PAR_UBIC" in correction_fields:
+            details = dict(merged.get("gsDetalles") or {})
+            for field in ("PAR_CAS", "PAR_UBIC"):
+                if field in correction_fields:
+                    details[field] = correction_fields[field] or None
+            merged["gsDetalles"] = details
     # Mantiene los campos de QC aun si una versión antigua tenía alguno ausente.
     for key in ("color", "tamano", "sanidad", "flores", "raices", "grosor",
                 "firmeza", "segado", "plagas", "enfermedades"):
