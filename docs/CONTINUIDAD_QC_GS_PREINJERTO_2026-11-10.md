@@ -117,3 +117,8 @@ El código de Túnel/Carga ya aplica esta regla: `puedeCrearLineaControlQC` y `b
 Primer bloque implementado en `test/v1.0` (commits `b784820`, `f0f1354`, `7220494`). Cada tarjeta Carga Injerto tiene «Editar partida» para ADMIN, TÉCNICO y CARGADOR. Se pueden corregir partida, cliente, variedad, bandejas y ubicación en ViguerAPP; fecha/hora GS quedan de solo lectura. Las correcciones se guardan como `edicionQC` y el conector las reaplica en sincronizaciones posteriores, sin modificar GS. La regla de fechas se cumple al no permitir cambiar la fecha de origen. No se ha desplegado ni escrito en Firebase.
 
 Pendiente: revisión funcional en TEST cuando se publique/actualice la app. Siguiente bloque por separado: editor de Preinjerto Patrón.
+
+
+## Editor específico: QC Preinjerto Patrón (10/11/2026)
+
+Segundo bloque en `test/v1.0` (commits `1afbb08`, `43955a2`, `8c25e38`, `c4873d0`). Reutiliza el lápiz existente de la tarjeta y el modal común del editor QC; la edición de códigos GS conserva `PAR_CAS` y `PAR_UBIC` como códigos brutos, sin inferir el nombre del invernadero. Fecha de siembra y entrega quedan bloqueadas. El conector reaplica los campos de `edicionQC` sobre las siguientes importaciones GS. No se desplegó Vercel ni se escribió en GS/Firebase. Revisión funcional en TEST pendiente. Siguiente bloque: Preinjerto Variedad.
