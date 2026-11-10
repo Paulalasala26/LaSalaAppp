@@ -441,7 +441,9 @@ test('UAT-2015: Avisos vacío muestra un estado claro y no activa el punto rojo'
   await expect(panel).toContainText('No tienes avisos.');
 });
 
-test('UAT-2009, UAT-2010, UAT-2012–2014, UAT-2022, UAT-2030, UAT-2038 y UAT-2039: leer un aviso no lo evalúa ni resuelve', async ({ page }) => {
+test('UAT-2009, UAT-2010, UAT-2012–2014, UAT-2022, UAT-2030, UAT-2038, UAT-2039 y UAT-2045: leer un aviso no lo evalúa ni resuelve aunque falte descripción', async ({ page }) => {
+  const pageErrors = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
   const avisos = [
     { id: 'aviso-a', mensaje: 'Primer aviso', fecha: '04/11/2026', visto: true, leido: false, evaluacion: null },
     { id: 'aviso-b', mensaje: 'Segundo aviso', fecha: '04/11/2026', visto: true, leido: false, tipo: 'problema_ejecucion', resuelto: false, solucion: '', problemaData: { reportadoPor: 'E2E_REGANTE', problema: 'OTRO', problemaOtro: 'Prueba' } }
@@ -479,6 +481,7 @@ test('UAT-2009, UAT-2010, UAT-2012–2014, UAT-2022, UAT-2030, UAT-2038 y UAT-20
   await expect(page.locator('#avisos-tecnico-badge span[aria-label]')).toHaveCount(0);
   await page.reload();
   await expect(page.locator('#avisos-tecnico-badge span[aria-label]')).toHaveCount(0);
+  expect(pageErrors).toEqual([]);
 });
 
 test('UAT-2023, UAT-2025, UAT-2026 y UAT-2029: recuperar el foco refresca solo los avisos del usuario', async ({ page }) => {
