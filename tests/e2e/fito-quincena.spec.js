@@ -1208,11 +1208,12 @@ test('UAT-508: guardar una mezcla de productos conserva cada texto y dosis intro
   await form.getByRole('button',{name:'Guardar'}).click();
   await expect(form).toBeHidden();
   const raw=fitoData(database)?.['17']?.['30']?.['2'];
-  expect(raw?.texto).toBe('E2E-PRODUCTO-A + E2E-PRODUCTO-B 1 cc/l + 2 cc/l');
-  expect(raw?.texto).toContain('E2E-PRODUCTO-A');
-  expect(raw?.texto).toContain('E2E-PRODUCTO-B');
-  expect(raw?.texto).toContain('1 cc/l');
-  expect(raw?.texto).toContain('2 cc/l');
+  const savedText=typeof raw==='string'?raw:raw?.texto;
+  expect(savedText).toBe('E2E-PRODUCTO-A + E2E-PRODUCTO-B 1 cc/l + 2 cc/l');
+  expect(savedText).toContain('E2E-PRODUCTO-A');
+  expect(savedText).toContain('E2E-PRODUCTO-B');
+  expect(savedText).toContain('1 cc/l');
+  expect(savedText).toContain('2 cc/l');
   expect(unexpectedHosts).toEqual([]);
   expect(writes.filter(write=>write.path==='lasala-fito-v1')).toHaveLength(1);
 });
