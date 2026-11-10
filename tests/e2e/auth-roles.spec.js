@@ -74,7 +74,7 @@ async function logInAs(page, user, pass = password) {
   await page.locator('#login-btn').click();
 }
 
-test('UAT-1998: ADMIN muestra el punto rojo con una notificación pendiente', async ({ page }) => {
+test('UAT-1997 y UAT-1998: campana ADMIN con punto rojo y navegación por teclado', async ({ page }) => {
   const users = Object.fromEntries(Object.keys(roleUsers).map(user => [user, passwordHash]));
   await installAuthFixture(page, {
     'lasala-users-v1': JSON.stringify({ ...users, VIGUERAS: passwordHash }),
@@ -85,13 +85,37 @@ test('UAT-1998: ADMIN muestra el punto rojo con una notificación pendiente', as
   });
 
   await logInAs(page, 'VIGUERAS');
-  await expect(page.locator('#topbar-notificaciones')).toBeVisible();
+  const bell = page.locator('#topbar-notificaciones');
   const badge = page.locator('#notificaciones-vigueras-badge span[aria-label]');
+  await expect(bell).toBeVisible();
   await expect(badge).toHaveAttribute('aria-label', '1 notificaciones sin leer');
   await expect(badge).toHaveCSS('background-color', 'rgb(198, 40, 40)');
   const box = await badge.boundingBox();
   expect(box.width).toBeLessThanOrEqual(9);
   expect(box.height).toBeLessThanOrEqual(9);
+
+  const focusByTab = async target => {
+    await page.evaluate(() => { if (document.activeElement instanceof HTMLElement) document.activeElement.blur(); });
+    for (let i = 0; i < 24; i++) {
+      await page.keyboard.press('Tab');
+      if (await target.evaluate(el => el === document.activeElement)) return true;
+    }
+    return false;
+  };
+  expect(await focusByTab(bell)).toBe(true);
+  expect(await bell.evaluate(el => el.matches(':focus-visible') && getComputedStyle(el).outlineStyle !== 'none')).toBe(true);
+  await page.keyboard.press('Enter');
+  const notifications = page.locator('#notificaciones-vigueras-overlay');
+  await expect(notifications).toBeVisible();
+  await notifications.getByRole('button').first().click();
+  await expect(notifications).toBeHidden();
+
+  const logout = page.getByRole('button', { name: 'Salir' });
+  expect(await focusByTab(logout)).toBe(true);
+  expect(await logout.evaluate(el => el.matches(':focus-visible') && getComputedStyle(el).outlineStyle !== 'none')).toBe(true);
+  await page.keyboard.press('Space');
+  await expect(page.locator('#login-screen')).toBeVisible();
+  await expect(page.locator('#app')).toBeHidden();
 });
 
 test('UAT-1999 y UAT-2000: punto rojo solo con aviso técnico no leído', async ({ page }) => {
