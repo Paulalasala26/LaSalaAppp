@@ -461,7 +461,7 @@
     }catch(error){qcpSetError(error.message);return false;}
     state.busy=true;const button=document.getElementById('qcp-save');if(button)button.disabled=true;
     try{
-      const ok=await applyPreinjertoPatron(line,campos);
+      const ok=await applyPreinjerto(line,campos);
       if(ok)root.qcpCancelarUbicacion();
       else qcpSetError('Corrección guardada localmente o pendiente de sincronizar.');
       return ok;
