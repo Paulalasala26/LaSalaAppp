@@ -1995,12 +1995,7 @@ function renderControlWizardFinalHTML(c){
       ${wizardCabeceraPartidaHTML(c)}
       <div style="text-align:center;font-size:44px;margin-bottom:4px">✅</div>
       <div style="text-align:center;font-size:17px;font-weight:800;color:#2e7d32;margin-bottom:24px">Evaluación completa</div>
-      <div data-qc-legacy-extras="${c.id}" style="margin-bottom:16px">
-        <div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:7px">Observaciones (opcional)</div>
-        <input type="text" value="${escapar(c.observaciones)}" placeholder="Escribe aquí si hace falta..."
-          onchange="guardarControlObservaciones('${c.id}', this.value)"
-          style="width:100%;padding:16px;border:2px solid var(--border);border-radius:12px;font-size:15px">
-      </div>
+      ${c.observaciones?'<div data-qc-legacy-extras="${c.id}" class="qc-card-observaciones-historicas" style="margin-bottom:16px;white-space:pre-wrap;color:var(--muted);font-size:12px"><strong>Observaciones históricas:</strong> '+escapar(c.observaciones)+'</div>':''}
       <div data-qc-legacy-extras="${c.id}" style="margin-bottom:24px;text-align:center">
         ${fotoHTML}
         <label style="display:inline-flex;align-items:center;gap:8px;padding:15px 24px;background:#eaf5ea;border:2px solid #a5d6a7;border-radius:12px;cursor:pointer;font-size:14px;font-weight:700;color:#2e7d32">
@@ -3418,10 +3413,7 @@ function renderControlCardCompactHTML(c,seccion){
           </div>
           ${pdfHTML}
           <div data-qc-legacy-extras="${c.id}" class="qc-card-evidence">
-            <label class="qc-card-observaciones">Observaciones
-              <input type="text" value="${esc(c.observaciones)}" placeholder="Sin observaciones"
-                onchange="guardarControlObservaciones('${c.id}',this.value)" />
-            </label>
+            ${c.observaciones?'<div class="qc-card-observaciones-historicas" style="white-space:pre-wrap;padding:8px 10px;color:var(--muted);font-size:11px"><strong>Observaciones históricas:</strong> '+esc(c.observaciones)+'</div>':''}
 
           </div>
         </div>
@@ -3509,12 +3501,7 @@ function renderControlCardHTML(c, seccion){
       ${anclaCuantificacionControlHTML(c)}
       ${categoriasHTML ? `<div style="margin-top:12px">${categoriasHTML}</div>` : ''}
       <div data-qc-legacy-extras="${c.id}" style="margin-top:6px;display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">
-        <div style="flex:1;min-width:180px">
-          <div style="font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Observaciones</div>
-          <input type="text" value="${escapar(c.observaciones)}" placeholder="Sin observaciones"
-            onchange="guardarControlObservaciones('${c.id}', this.value)"
-            style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px">
-        </div>
+        ${c.observaciones?'<div class="qc-card-observaciones-historicas" style="white-space:pre-wrap;flex:1;min-width:180px;padding:8px 10px;color:var(--muted);font-size:11px"><strong>Observaciones históricas:</strong> '+escapar(c.observaciones)+'</div>':''}
         <div style="display:flex;align-items:center">
           ${fotoHTML}
           <label style="display:inline-flex;align-items:center;gap:6px;padding:8px 12px;background:#eaf5ea;border:1.5px solid #a5d6a7;border-radius:8px;cursor:pointer;font-size:11px;font-weight:700;color:#2e7d32;white-space:nowrap">
@@ -3590,12 +3577,7 @@ function renderControlCargaCardHTML(c, seccion){
       ${anclaCuantificacionControlHTML(c)}
       ${categoriasHTML ? `<div style="margin-top:12px">${categoriasHTML}</div>` : ''}
       <div data-qc-legacy-extras="${c.id}" style="margin-top:6px;display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">
-        <div style="flex:1;min-width:180px">
-          <div style="font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Observaciones</div>
-          <input type="text" value="${escapar(c.observaciones)}" placeholder="Sin observaciones"
-            onchange="guardarControlObservaciones('${c.id}', this.value)"
-            style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px">
-        </div>
+        ${c.observaciones?'<div class="qc-card-observaciones-historicas" style="white-space:pre-wrap;flex:1;min-width:180px;padding:8px 10px;color:var(--muted);font-size:11px"><strong>Observaciones históricas:</strong> '+escapar(c.observaciones)+'</div>':''}
         <div style="display:flex;align-items:center">
           ${fotoHTML}
           <label style="display:inline-flex;align-items:center;gap:6px;padding:8px 12px;background:#eaf5ea;border:1.5px solid #a5d6a7;border-radius:8px;cursor:pointer;font-size:11px;font-weight:700;color:#2e7d32;white-space:nowrap">
