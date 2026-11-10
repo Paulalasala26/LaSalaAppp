@@ -42,9 +42,11 @@ jobs:
       - name: Instalar Chromium
         run: pnpm exec playwright install --with-deps chromium
 
-      - name: Ejecutar el spec afectado de Control QC en PR
+      - name: Ejecutar Control QC y el chequeo breve de marca en PR
         if: github.event_name == 'pull_request'
-        run: pnpm exec playwright test tests/e2e/control-quincena.spec.js --grep-invert "concurren|offline"
+        run: |
+          pnpm exec playwright test tests/e2e/control-quincena.spec.js --grep-invert "concurren|offline"
+          pnpm exec playwright test tests/e2e/auth-roles.spec.js --grep "UAT-1983"
 
       - name: Ejecutar la suite UAT completa fuera de PR
         if: github.event_name != 'pull_request'
