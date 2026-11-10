@@ -35,7 +35,6 @@ SELECT
     pi.PIN_FECS AS fecha_salida_real,
     pa.PAR_CAS AS PAR_CAS,
     pi.PIN_LOCA AS PIN_LOCA,
-    pi.PIN_LOCA AS invernaderos_gs,
     pi.PIN_EST AS estado_gs,
     pi.PIN_OBS AS codigo_observacion,
     pi.PIN_OBSP AS observaciones
@@ -68,45 +67,7 @@ def json_seguro(valor):
     return valor
 
 
-def separar_ids_invernadero(valor):
-    if valor is None:
-        return []
-
-    ids = []
-    for token in str(valor).split("-"):
-        token = token.strip()
-        if token and token not in ids:
-            ids.append(token)
-
-    return ids
-
-
-def consultar_catalogo_invernaderos(cursor, ids):
-    if not ids:
-        return {}
-
-    marcadores = ", ".join(["%s"] * len(ids))
-    sql = f"""
-        SELECT
-            CAST(id AS CHAR) AS inv_id,
-            INV_DENO AS denominacion,
-            INV_ALM AS almacen
-        FROM `invernaderos`
-        WHERE CAST(id AS CHAR) IN ({marcadores})
-    """
-
-    cursor.execute(sql, tuple(ids))
-
-    return {
-        str(fila["inv_id"]).strip(): {
-            "denominacion": fila["denominacion"],
-            "almacen": fila["almacen"],
-        }
-        for fila in cursor.fetchall()
-    }
-
-
-def crear_payload(filas, catalogo, fecha):
+def crear_payload(filas, fecha):
     partes = {}
 
     for fila in filas:
@@ -119,17 +80,11 @@ def crear_payload(filas, catalogo, fecha):
         if source_id in partes:
             raise ValueError(f"ID GS duplicado en el resultado: {source_id}")
 
-        ids = separar_ids_invernadero(parte.get("invernaderos_gs"))
+        # Ubicaciones literales: PAR_CAS es el código bruto de invernadero y
+        # PIN_LOCA es la calle del registro de p-injertos de PIN_FECP.
+        # No deducir ubicaciones de observaciones ni tratar PIN_LOCA como
+        # identificador de invernadero para consultar su catálogo.
         parte["gs_injerto_id"] = source_id
-        parte["invernaderos"] = [
-            {
-                "id": inv_id,
-                "denominacion": catalogo.get(inv_id, {}).get("denominacion"),
-                "almacen": catalogo.get(inv_id, {}).get("almacen"),
-                "resuelto_en_catalogo": inv_id in catalogo,
-            }
-            for inv_id in ids
-        ]
 
         partes[source_id] = parte
 
@@ -236,21 +191,9 @@ def main():
             print(f"No hay partes con PIN_FECP = {fecha}. No se sincroniza.")
             return 0
 
-        ids_invernadero = sorted({
-            inv_id
-            for fila in filas
-            for inv_id in separar_ids_invernadero(
-                fila.get("invernaderos_gs")
-            )
-        })
-
-        catalogo = consultar_catalogo_invernaderos(
-            cursor,
-            ids_invernadero,
-        )
         cursor.close()
 
-        payload = crear_payload(filas, catalogo, fecha)
+        payload = crear_payload(filas, fecha)
 
         salida = Path(f"pilot_gs_qc_tunel_{fecha}.json")
         salida.write_text(
@@ -260,17 +203,6 @@ def main():
 
         print(f"Lectura correcta: {len(filas)} partes.")
         print(f"JSON local: {salida.resolve()}")
-
-        ids_sin_ficha = [
-            inv_id
-            for inv_id in ids_invernadero
-            if inv_id not in catalogo
-        ]
-        if ids_sin_ficha:
-            print(
-                "IDs de invernadero sin ficha en GS: "
-                + ", ".join(ids_sin_ficha)
-            )
 
         if args.sync_test:
             ruta = sincronizar_firebase_test(
