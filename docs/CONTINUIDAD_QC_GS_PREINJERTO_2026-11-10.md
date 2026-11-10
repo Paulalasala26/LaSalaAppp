@@ -110,3 +110,10 @@ Commits: `d9e841b` (IndexedDB/adaptador), `1addd4c` (referencia del frontend), `
 El código de Túnel/Carga ya aplica esta regla: `puedeCrearLineaControlQC` y `bloquearAltaPasadaControlQC` impiden altas/movimientos a pasado; `qc107Guardar` permite guardar una corrección cuando el día elegido sigue siendo el día original, aunque sea anterior a hoy.
 
 **Decisión de alcance:** mantener Carga Injerto y ambos Preinjertos sin edición genérica de datos de partida hasta diseñar un editor específico por estadio/fuente. No ocultar esto bajo una restricción de fecha ni alterar campos que vengan de su fuente. Si aparece una corrección urgente de esos QC, tramitarla en la fuente o con un procedimiento administrativo específico.
+
+
+## Editor específico: QC Carga Injerto (10/11/2026)
+
+Primer bloque implementado en `test/v1.0` (commits `b784820`, `f0f1354`, `7220494`). Cada tarjeta Carga Injerto tiene «Editar partida» para ADMIN, TÉCNICO y CARGADOR. Se pueden corregir partida, cliente, variedad, bandejas y ubicación en ViguerAPP; fecha/hora GS quedan de solo lectura. Las correcciones se guardan como `edicionQC` y el conector las reaplica en sincronizaciones posteriores, sin modificar GS. La regla de fechas se cumple al no permitir cambiar la fecha de origen. No se ha desplegado ni escrito en Firebase.
+
+Pendiente: revisión funcional en TEST cuando se publique/actualice la app. Siguiente bloque por separado: editor de Preinjerto Patrón.
