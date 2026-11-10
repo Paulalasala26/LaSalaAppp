@@ -473,6 +473,8 @@
     return originalAssignLocation?.(id);
   };
 
+  if(typeof ACCIONES_OFFLINE_REPLAYABLES==='object')
+    ACCIONES_OFFLINE_REPLAYABLES.aplicarEditarControlPreinjertoPatron=root.aplicarEditarControlPreinjertoPatron;
   root.mostrarEditarControlCargaInjerto=showCargaInjerto;
 
 })(window);
