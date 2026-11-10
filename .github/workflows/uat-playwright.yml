@@ -44,7 +44,7 @@ jobs:
 
       - name: Ejecutar el spec afectado de Control QC en PR
         if: github.event_name == 'pull_request'
-        run: pnpm exec playwright test tests/e2e/control-quincena.spec.js
+        run: pnpm exec playwright test tests/e2e/control-quincena.spec.js --grep-invert "concurren|offline"
 
       - name: Ejecutar la suite UAT completa fuera de PR
         if: github.event_name != 'pull_request'
