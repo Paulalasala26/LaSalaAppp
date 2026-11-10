@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
   group: uat-playwright-${{ github.ref }}
@@ -42,11 +43,29 @@ jobs:
       - name: Instalar Chromium
         run: pnpm exec playwright install --with-deps chromium
 
-      - name: Ejecutar Control QC y el chequeo breve de marca en PR
+      - name: Detectar specs modificados en PR
+        id: scope
         if: github.event_name == 'pull_request'
-        run: |
-          pnpm exec playwright test tests/e2e/control-quincena.spec.js --grep-invert "concurren|offline"
-          pnpm exec playwright test tests/e2e/auth-roles.spec.js --grep "UAT-1983|UAT-1989|UAT-1998|UAT-1999"
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+            const paths = new Set(files.map(file => file.filename));
+            const workflowChanged = paths.has('.github/workflows/uat-playwright.yml');
+            core.setOutput('control', String(workflowChanged || paths.has('index.html') || paths.has('tests/e2e/control-quincena.spec.js')));
+            core.setOutput('auth', String(workflowChanged || paths.has('index.html') || paths.has('tests/e2e/auth-roles.spec.js')));
+
+      - name: Ejecutar Control QC en PR
+        if: github.event_name == 'pull_request' && steps.scope.outputs.control == 'true'
+        run: pnpm exec playwright test tests/e2e/control-quincena.spec.js --grep-invert "concurren|offline"
+
+      - name: Ejecutar checks breves de auth en PR
+        if: github.event_name == 'pull_request' && steps.scope.outputs.auth == 'true'
+        run: pnpm exec playwright test tests/e2e/auth-roles.spec.js --grep "UAT-1983|UAT-1989|UAT-1998|UAT-1999"
 
       - name: Ejecutar la suite UAT completa fuera de PR
         if: github.event_name != 'pull_request'
