@@ -72,7 +72,8 @@
     }[ch]));
     return '<article id="control-card-'+e(record.id)+'" class="qc-card-compact">'+
       '<div class="qc-card-main">'+renderControlIdentidadQC(record)+
-      renderControlDatosQC(record)+renderControlAbrirInspeccionHTML(record)+'</div></article>';
+      renderControlDatosQC(record)+renderControlAbrirInspeccionHTML(record)+'</div>'+
+      '<div class="qc-card-actionbar"><button type="button" class="qc-card-edit" onclick="mostrarEditarControlCargaInjerto(\''+e(record.id)+'\')" aria-label="Editar partida Carga Injerto">Editar partida</button></div></article>';
   };
 
   window.cargarControlPdfDia=function(type,day){
