@@ -3257,8 +3257,11 @@ async function qcPhotoReady(){
 }
 function qcPhotoRef(id){
   const c=controlChecksData.find(x=>x.id===id);
-  if(!c||!['tunel','carga'].includes(c.tipo)||
-     !/^[A-Za-z0-9_-]{1,180}$/.test(id))throw Error('Inspección no disponible.');
+  const tiposConInspeccionFotos=['tunel','carga','carga_injerto','preinjerto_patron','preinjerto_variedad'];
+  if(!c||!tiposConInspeccionFotos.includes(c.tipo)||
+     !/^[A-Za-z0-9_-]{1,180}$/.test(String(id))||
+     !Number.isInteger(c.dia)||typeof c.partida!=='string')
+    throw Error('Inspección no disponible.');
   return {id:c.id,tipo:c.tipo,dia:c.dia,partida:c.partida};
 }
 function qcPhotoBlobSrc(key,blob){
@@ -3368,7 +3371,7 @@ function abrirMedicionesControl(id){
     saveObservations:value=>guardarControlObservaciones(c.id,value),
     listPhotos:()=>listarFotosInspeccionQC(c.id),
     openPhoto:photo=>ampliarFotoInspeccionQC(photo),
-    uploadPhoto:input=>agregarFotosInspeccionQC(input,c.id),
+    uploadPhoto:['tunel','carga'].includes(c.tipo)?input=>agregarFotosInspeccionQC(input,c.id):null,
     deletePhoto:photoId=>eliminarFotoInspeccionQC(c.id,photoId)
   });
 }
