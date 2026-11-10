@@ -172,4 +172,148 @@
   };
   root.mostrarEditarControlCheck=show;
   root.mostrarEditarControlCargaCheck=show;
+
+  // Editor específico Carga Injerto. La fecha/hora de la carga proceden de GS
+  // y se mantienen inmutables; los campos corregidos en APP se guardan aparte
+  // para que una sincronización posterior del conector no los pise.
+  let qciState=null;
+  function qciLocation(c){
+    const tr=calleTramoDeCargaDirecta(c);
+    return {
+      inv:String(tr?.invId??c.invId??'').trim(),
+      from:String(tr?.desde??c.calleDesde??'').trim(),
+      to:String(tr?.hasta??c.calleHasta??'').trim()
+    };
+  }
+  function qciInvOptions(current){
+    const known=!!INV_LAYOUT[current.inv];
+    let html=selectInv(known?current.inv:'');
+    if(!known&&current.inv){
+      html='<option value="__GS_ORIGINAL__" selected>Conservar ubicación GS · INV '+esc(current.inv)+'</option>'+
+        html.replace('<option value="">— Seleccionar —</option>','');
+    }
+    return html;
+  }
+  function qciStreetOptions(inv,current){
+    const layout=INV_LAYOUT[inv];
+    const nums=layout?[...new Set([...layout.row1,...layout.row2])].sort((a,b)=>a-b):[];
+    let html='<option value="">— Calle —</option>';
+    if(current&& !nums.includes(Number(current)))
+      html+='<option value="'+esc(current)+'" selected>'+esc(current)+' (GS)</option>';
+    html+=nums.map(n=>'<option value="'+n+'"'+(String(n)===String(current)?' selected':'')+'>'+n+'</option>').join('');
+    return html;
+  }
+  function qciSetError(message){
+    const el=document.getElementById('qci-error');if(el)el.textContent=message;
+  }
+  async function showCargaInjerto(id){
+    const line=controlChecksData.find(x=>x.id===id);
+    if(!line||line.tipo!=='carga_injerto'){showToast('No se ha encontrado la línea de Carga Injerto.');return;}
+    if(!['ADMIN','TECNICO','CARGADOR'].includes(currentUserRole)){showToast('No tienes permiso para editar esta partida.');return;}
+    const original=qciLocation(line),known=!!INV_LAYOUT[original.inv];
+    qciState={id,busy:false,original,invOption:known?original.inv:(original.inv?'__GS_ORIGINAL__':'')};
+    const overlay=getOrCreateOverlay('control-editar-injerto-overlay');
+    overlay.innerHTML='<div class="qc107-modal" role="dialog" aria-label="Editar partida Carga Injerto">'+
+      '<h2>Editar partida · Carga Injerto</h2>'+
+      '<section class="qc107-section"><h3>Datos GS</h3><div class="qc107-grid">'+
+      field('Fecha y hora (no editable)','<input type="text" disabled value="'+esc(riegoDiaLabelCorto(line.dia)+' · '+(line.hora||''))+'">')+
+      field('Nº de partida','<input id="qci-partida" type="text" maxlength="100" value="'+esc(line.partida)+'">')+
+      field('Cliente','<input id="qci-cliente" type="text" maxlength="180" value="'+esc(line.cliente)+'">')+
+      field('Variedad','<input id="qci-variedad" type="text" maxlength="180" value="'+esc(line.variedad)+'">')+
+      field('Bandejas','<input id="qci-bandejas" type="number" min="1" step="1" value="'+esc(line.numBandejas)+'">')+
+      '</div></section><section class="qc107-section"><h3>Ubicación corregida en APP</h3>'+
+      '<div class="qc107-location-current">Actual: '+esc(controlQCInfoVisual(line).inv)+' · Calle '+esc(controlQCInfoVisual(line).calles)+'</div>'+
+      '<div class="qc107-grid">'+
+      field('Invernadero','<select id="qci-inv" onchange="qciCambiarInv()">'+qciInvOptions(original)+'</select>')+
+      field('Calle desde','<select id="qci-from">'+qciStreetOptions(original.inv,original.from)+'</select>')+
+      field('Calle hasta','<select id="qci-to">'+qciStreetOptions(original.inv,original.to)+'</select>')+
+      '</div><p class="qc107-note">La corrección queda en ViguerAPP; no modifica GS. La fecha y hora originales se conservan.</p>'+
+      '</section><div id="qci-error" role="alert"></div>'+
+      '<div class="qc107-actions"><button type="button" class="qc107-cancel" onclick="qciCancelar()">Cancelar</button>'+
+      '<button type="button" id="qci-save" class="qc107-save" onclick="qciGuardar()">Guardar</button></div></div>';
+    overlay.style.display='flex';
+    if(qciState.invOption==='__GS_ORIGINAL__'){
+      document.getElementById('qci-from').disabled=true;
+      document.getElementById('qci-to').disabled=true;
+    }
+  }
+  root.qciCambiarInv=function(){
+    if(!qciState)return;
+    const inv=read('qci-inv'),from=document.getElementById('qci-from'),to=document.getElementById('qci-to');
+    if(inv==='__GS_ORIGINAL__'){
+      if(from){from.disabled=true;from.innerHTML=qciStreetOptions(qciState.original.inv,qciState.original.from);}
+      if(to){to.disabled=true;to.innerHTML=qciStreetOptions(qciState.original.inv,qciState.original.to);}
+      return;
+    }
+    if(from){from.disabled=false;from.innerHTML=qciStreetOptions(inv,'');}
+    if(to){to.disabled=false;to.innerHTML=qciStreetOptions(inv,'');}
+  };
+  root.qciCancelar=function(){
+    const overlay=document.getElementById('control-editar-injerto-overlay');
+    if(overlay)overlay.style.display='none';
+    qciState=null;
+  };
+  root.qciGuardar=async function(){
+    const state=qciState;if(!state||state.busy)return false;
+    const line=controlChecksData.find(x=>x.id===state.id);
+    if(!line||line.tipo!=='carga_injerto')return false;
+    const fail=message=>{qciSetError(message);return false;};
+    const partida=read('qci-partida').trim().toUpperCase();
+    if(!/^[A-Za-z0-9._-]{1,100}$/.test(partida))return fail('Nº de partida no válido.');
+    const bandejas=Number(read('qci-bandejas'));
+    if(!Number.isSafeInteger(bandejas)||bandejas<=0)return fail('Indica bandejas enteras positivas.');
+    const cliente=read('qci-cliente').trim(),variedad=read('qci-variedad').trim();
+    if(cliente.length>180||variedad.length>180)return fail('Cliente o variedad superan el máximo permitido.');
+    const selectedInv=read('qci-inv');
+    let location;
+    if(selectedInv==='__GS_ORIGINAL__'){
+      location={invId:String(line.invId??''),calleDesde:line.calleDesde??null,calleHasta:line.calleHasta??null};
+    }else if(!selectedInv&&!state.original.inv){
+      location={invId:'',calleDesde:null,calleHasta:null};
+    }else{
+      const from=read('qci-from'),to=read('qci-to'),layout=INV_LAYOUT[selectedInv];
+      if(!layout||!from||!to)return fail('Indica un invernadero y ambas calles.');
+      const allowed=[...layout.row1,...layout.row2],a=Number(from),b=Number(to);
+      if(!Number.isInteger(a)||!Number.isInteger(b)||!allowed.includes(a)||!allowed.includes(b))
+        return fail('Las calles no pertenecen al invernadero.');
+      location={invId:selectedInv,calleDesde:Math.min(a,b),calleHasta:Math.max(a,b)};
+    }
+    const target=location.invId&&location.calleDesde!==null&&location.calleHasta!==null
+      ?{invId:String(location.invId),desde:Number(location.calleDesde),hasta:Number(location.calleHasta)}:null;
+    if(controlChecksData.some(other=>{
+      if(other.id===line.id||other.tipo!=='carga_injerto'||other.dia!==line.dia||
+         String(other.partida||'').trim().toUpperCase()!==partida||!target)return false;
+      const t=calleTramoDeCargaDirecta(other);
+      return t&&String(t.invId)===target.invId&&t.desde===target.desde&&t.hasta===target.hasta;
+    }))return fail('Ya existe otra línea con la misma partida, fecha y ubicación.');
+    const fields={partida,cliente,variedad,numBandejas:bandejas,
+      invId:String(location.invId||''),calleDesde:location.calleDesde,calleHasta:location.calleHasta};
+    const edit={actualizadoPor:String(currentUser||''),actualizadoEn:new Date().toISOString(),campos:fields};
+    state.busy=true;const button=document.getElementById('qci-save');if(button)button.disabled=true;
+    try{
+      const ok=await root.aplicarEditarControlCargaInjerto(line.id,edit);
+      if(ok){qciCancelar();return true;}
+      return fail('Cambios guardados localmente o pendientes. Comprueba la sincronización antes de repetir.');
+    }catch(e){return fail('No se ha podido guardar la corrección.');}
+    finally{state.busy=false;if(button&&button.isConnected)button.disabled=false;}
+  };
+  root.aplicarEditarControlCargaInjerto=async function(id,edit){
+    const line=controlChecksData.find(x=>x.id===id);
+    const fields=edit&&edit.campos;
+    if(!line||line.tipo!=='carga_injerto'||!fields)return false;
+    const qid=encolarAccionOffline('aplicarEditarControlCargaInjerto',[id,edit]);
+    line.partida=fields.partida;line.cliente=fields.cliente;line.variedad=fields.variedad;
+    line.clienteVariedad=fields.cliente;line.numBandejas=fields.numBandejas;
+    line.invId=fields.invId;line.calleDesde=fields.calleDesde;line.calleHasta=fields.calleHasta;
+    line.invernadero=fields.invId&&fields.calleDesde!==null&&fields.calleHasta!==null
+      ?fields.invId+'-'+fields.calleDesde+'-'+fields.calleHasta:'';
+    line.edicionQC=edit;
+    renderControlContent(document.getElementById('control-overlay'));
+    marcarControlCheckSucio(id);
+    const ok=await persistControlChecksData();
+    if(ok)desencolarAccion(qid);else avisarGuardadoLocalPendiente(leerColaOffline().length);
+    return ok;
+  };
+  root.mostrarEditarControlCargaInjerto=showCargaInjerto;
+
 })(window);
