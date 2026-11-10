@@ -1070,3 +1070,142 @@ test('UAT-1268–1297: Operativas permite filtrar por fecha, estado, origen, sal
   expect(writes).toEqual([]);
   expect(controls).toEqual({ search: true, dateFilter: true, advanced: true, status: true, origin: true, room: true, assignee: true, clear: true });
 });
+
+test('UAT-1734, UAT-1735, UAT-1736–1737, UAT-1740, UAT-1742 y UAT-1744: Archivo conserva navegación y consulta entre sesiones', async ({ page }) => {
+  const todayISO = await fechaISOEnNavegador(page);
+  const cancelled = {
+    id: 'e2e-uat-1734-cancelled',
+    titulo: 'E2E tarea anulada UAT-1734',
+    descripcion: 'Histórico solo consulta',
+    asignadoA: 'PEON1',
+    origen: 'manual',
+    categoria: 'manual',
+    inv: '0A',
+    calles: '1-2',
+    fechaISO: todayISO,
+    anuladaISO: todayISO,
+    motivoAnulacion: 'Prueba de archivo',
+    turno: 'Mañana',
+    prioridad: 'normal',
+    estado: 'anulada'
+  };
+  const active = {
+    id: 'e2e-uat-1734-active',
+    titulo: 'E2E tarea activa UAT-1734',
+    asignadoA: 'PEON1',
+    origen: 'manual',
+    categoria: 'manual',
+    inv: '0A',
+    calles: '1-2',
+    fechaISO: todayISO,
+    turno: 'Mañana',
+    prioridad: 'normal',
+    estado: 'pendiente'
+  };
+  const ticket = {
+    id: 'e2e-uat-1734-ticket',
+    titulo: 'E2E ticket activo UAT-1737',
+    descripcion: 'Mantenimiento de fixture',
+    prioridad: 'normal',
+    estado: 'sin_asignar',
+    asignados: [],
+    creadoEn: todayISO
+  };
+  const { database, writes } = await installFixture(page, {
+    'lasala-tareas-v1': JSON.stringify([cancelled, active]),
+    'lasala-mantenimiento-v1': JSON.stringify([ticket])
+  });
+
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  const archive = overlay.locator('#tareas-archivo-anuladas');
+  const openArchive = async () => {
+    await overlay.getByRole('button', { name: 'Archivo' }).click();
+    await expect(archive).toBeVisible();
+    await expect(archive).toContainText('Anuladas y archivadas');
+    await expect(archive).toContainText(cancelled.titulo);
+    await expect(archive.getByText(cancelled.titulo, { exact: true })).toHaveCount(1);
+  };
+
+  await overlay.getByRole('button', { name: 'Tareas de hoy' }).click();
+  await expect(overlay).toContainText(active.titulo);
+  await openArchive();
+  await expect(archive).not.toContainText(active.titulo);
+  await overlay.getByRole('button', { name: 'Tareas de hoy' }).click();
+  await expect(overlay).toContainText(active.titulo);
+  await overlay.getByRole('button', { name: 'Mantenimiento de Parcelas' }).click();
+  await expect(overlay).toContainText(ticket.titulo);
+  await openArchive();
+  await openArchive();
+
+  await overlay.getByRole('button', { name: /✕ Cerrar/ }).click();
+  await expect(overlay).toBeHidden();
+  await openTasks(page);
+  await openArchive();
+
+  await page.getByRole('button', { name: 'Salir' }).click();
+  await expect(page.locator('#login-screen')).toBeVisible();
+  await page.reload();
+  await page.locator('#login-user').evaluate((select, value) => {
+    if (![...select.options].some(option => option.value === value)) select.add(new Option(value, value));
+  }, 'E2E_TECH');
+  await page.locator('#login-user').selectOption('E2E_TECH');
+  await page.locator('#login-pass').fill(password);
+  await page.locator('#login-btn').click();
+  await expect(page.locator('#page-home')).toBeVisible();
+  await openTasks(page);
+  await openArchive();
+  await expect(archive.getByRole('button', { name: 'Anular' })).toHaveCount(0);
+
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([cancelled, active]);
+  expect(JSON.parse(database['lasala-mantenimiento-v1'])).toEqual([ticket]);
+  expect(writes).toEqual([]);
+});
+
+test('UAT-1746–1747: Archivo separa y conserva secciones de completadas y anuladas', async ({ page }) => {
+  test.fail(true, 'Archivo actual lista tareas anuladas; no incluye una sección histórica de tareas completadas.');
+  const todayISO = await fechaISOEnNavegador(page);
+  const completed = {
+    id: 'e2e-uat-1746-completed',
+    titulo: 'E2E tarea completada UAT-1746',
+    asignadoA: 'PEON1',
+    origen: 'manual',
+    categoria: 'manual',
+    inv: '0A',
+    calles: '1-2',
+    fechaISO: todayISO,
+    completadaISO: todayISO,
+    turno: 'Mañana',
+    prioridad: 'normal',
+    estado: 'completada'
+  };
+  const cancelled = {
+    id: 'e2e-uat-1746-cancelled',
+    titulo: 'E2E tarea anulada UAT-1746',
+    asignadoA: 'PEON1',
+    origen: 'manual',
+    categoria: 'manual',
+    inv: '0A',
+    calles: '1-2',
+    fechaISO: todayISO,
+    anuladaISO: todayISO,
+    turno: 'Mañana',
+    prioridad: 'normal',
+    estado: 'anulada'
+  };
+  const { database, writes } = await installFixture(page, {
+    'lasala-tareas-v1': JSON.stringify([completed, cancelled])
+  });
+
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  await overlay.getByRole('button', { name: 'Archivo' }).click();
+  const archive = overlay.locator('#tareas-archivo-anuladas');
+  await expect(archive).toContainText(completed.titulo);
+  await expect(archive.getByText(completed.titulo, { exact: true })).toHaveCount(1);
+  await expect(archive).toContainText('Completadas');
+  await expect(archive).toContainText('Anuladas y archivadas');
+  await expect(archive).toContainText(cancelled.titulo);
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([completed, cancelled]);
+  expect(writes).toEqual([]);
+});
