@@ -801,3 +801,56 @@ test('UAT-1558–1559: error de guardado conserva el formulario y permite reinte
   expect(JSON.parse(database['lasala-mantenimiento-v1'])).toHaveLength(1);
   expect(writes.filter(write => write.key === 'lasala-mantenimiento-v1')).toHaveLength(1);
 });
+
+test('UAT-2434: Archivo no registra una anulación fallida ni oculta la tarea activa', async ({ page }) => {
+  const fechaISO = await fechaISOEnNavegador(page, 0);
+  const task = {
+    id: 'e2e-uat-2434-task',
+    titulo: 'E2E tarea activa UAT-2434',
+    descripcion: 'Fixture para probar una anulación fallida',
+    asignadoA: 'PEON1',
+    origen: 'manual',
+    categoria: 'manual',
+    inv: '0A',
+    calles: '1-2',
+    fechaISO,
+    fecha: 'hoy',
+    turno: 'Mañana',
+    prioridad: 'normal',
+    estado: 'pendiente'
+  };
+  const options = { failTareasWrites: 3 };
+  const { database, writes } = await installFixture(page, {
+    'lasala-tareas-v1': JSON.stringify([task])
+  }, options);
+  let taskPutAttempts = 0;
+  page.on('request', request => {
+    if (request.method() === 'PUT' && request.url().includes('/lasala-tareas-v1.json')) taskPutAttempts++;
+  });
+
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  await overlay.getByRole('button', { name: 'Tareas de hoy' }).click();
+  let row = overlay.locator('.tarea-card').filter({ hasText: task.titulo });
+  await expect(row).toBeVisible();
+
+  page.once('dialog', dialog => dialog.accept());
+  await row.getByRole('button', { name: 'Anular' }).click();
+  await expect(page.locator('#app-toast')).toContainText('sigue activa', { timeout: 10000 });
+  expect(options.failTareasWrites).toBe(0);
+  expect(taskPutAttempts).toBe(3);
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([task]);
+  expect(writes.filter(write => write.key === 'lasala-tareas-v1')).toHaveLength(0);
+
+  await overlay.getByRole('button', { name: 'Archivo' }).click();
+  const archived = overlay.locator('#tareas-archivo-anuladas');
+  await expect(archived).toContainText('Anuladas y archivadas');
+  await expect(archived).toContainText('No hay registros.');
+  await expect(archived).not.toContainText(task.titulo);
+
+  await overlay.getByRole('button', { name: 'Tareas de hoy' }).click();
+  row = overlay.locator('.tarea-card').filter({ hasText: task.titulo });
+  await expect(row).toBeVisible();
+  await expect(row).toContainText('Pendiente');
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([task]);
+});
