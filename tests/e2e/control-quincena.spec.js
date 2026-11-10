@@ -1410,7 +1410,7 @@ test('UAT-221–222 y UAT-343–344: QC Túnel y Carga conservan consultables su
   expect(unexpectedHosts).toEqual([]);
 });
 
-test('UAT-224: consultar extensiones incluye los guiones de Túnel y no modifica ni mezcla Carga', async ({ page }) => {
+test('UAT-224 y UAT-460: consultar extensiones incluye los guiones de Túnel y no modifica ni mezcla Carga', async ({ page }) => {
   const database = fixtureDatabase();
   const items = database['lasala-control-items-v1'];
   const current = items['e2e-control-current-fortnight'];
