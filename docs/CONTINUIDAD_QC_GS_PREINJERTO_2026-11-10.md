@@ -63,3 +63,8 @@ La primera ejecución confirmó el esquema `id`, `id2`, `C0`–`C5`, pero el lec
 ### Resultado de `partidas_par_ubic` (10/11/2026)
 
 El usuario ejecutó la versión corregida del lector. La tabla existe y tiene `id` varchar (PK), `id2` int (PK), `C0` varchar y `C1`–`C5` decimal; no hay columnas con nombres de ubicación. La igualdad exacta para `26C02436` y `26C02653` no encontró filas en `id` ni `C0`. Esto descarta una relación directa por esos códigos en las columnas de texto consultadas, pero no una relación indirecta mediante `id2` u otra tabla. Pendiente autorización específica para ampliar la búsqueda de metadatos y relaciones. Sin escrituras.
+
+
+### Búsqueda ampliada autorizada de fuente de ubicaciones (10/11/2026)
+
+El usuario autorizó inspección de metadatos `information_schema` para tablas/columnas de ubicación y SELECT limitados a las partidas `26C02436` y `26C02653` en tablas candidatas. Se añadió `scripts/inspect_gs_preinjerto_location_sources.py` en commit `3558a09e17e17d5b91d62536c4ed731f57f4ded8`. El script lista esquemas/comentarios de columnas y relaciones FK con `partidas`; luego busca los dos IDs por igualdad exacta en columnas de texto clave de tablas candidatas, con límite de 20 filas por columna. Sin escrituras. Pendiente ejecutar y analizar la salida.
