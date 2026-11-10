@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import getpass
 import json
+import re
 import sys
 from datetime import date, timedelta, datetime, timezone
 from decimal import Decimal
@@ -147,8 +148,19 @@ def read_rows(desde: date, hasta: date) -> list[dict[str, Any]]:
 
 
 def write_snapshot(rows: list[dict[str, Any]], desde: date, hasta: date) -> Path:
+    # Detecta versiones antiguas del SELECT: un campo ausente no equivale a
+    # un campo presente pero vacío en GS.
+    required = {"PAR_CAS", "PAR_UBIC", "Cliente Final"}
+    if rows:
+        missing = sorted(required.difference(rows[0]))
+        if missing:
+            raise ValueError(
+                "El SELECT de Preinjerto no devuelve las columnas de ubicación: "
+                + ", ".join(missing) + ". Actualiza el conector desde test/v1.0."
+            )
     records: dict[str, dict[str, Any]] = {}
     counts = {"patron": 0, "variedad": 0}
+    coverage = {"parCas": 0, "parUbic": 0, "clienteFinalInv": 0}
     for source in rows:
         row = {key: json_value(value) for key, value in source.items()}
         part = str(row.get("PARTIDA") or "").strip()
@@ -159,6 +171,13 @@ def write_snapshot(rows: list[dict[str, Any]], desde: date, hasta: date) -> Path
             raise ValueError(f"Partida duplicada devuelta por GS: {part}")
         records[part] = row
         counts[category] += 1
+        if str(row.get("PAR_CAS") or "").strip() not in ("", "0"):
+            coverage["parCas"] += 1
+        if str(row.get("PAR_UBIC") or "").strip() not in ("", "0"):
+            coverage["parUbic"] += 1
+        final = str(row.get("Cliente Final") or "").strip()
+        if re.fullmatch(r"INVERNADERO\\s+[A-Za-z0-9_-]+", final, re.IGNORECASE):
+            coverage["clienteFinalInv"] += 1
 
     payload = {
         "metadata": {
@@ -171,6 +190,7 @@ def write_snapshot(rows: list[dict[str, Any]], desde: date, hasta: date) -> Path
             "total": len(records),
             "patron": counts["patron"],
             "variedad": counts["variedad"],
+            "ubicaciones": coverage,
             "readOnlySource": True,
         },
         "partidas": records,
@@ -240,6 +260,14 @@ def main() -> int:
         f"total={metadata['total']} patron={metadata['patron']} "
         f"variedad={metadata['variedad']} desde={args.desde} hasta={args.hasta}"
     )
+    print(
+        "Ubicaciones GS: "
+        f"PAR_CAS={metadata['ubicaciones']['parCas']} "
+        f"PAR_UBIC={metadata['ubicaciones']['parUbic']} "
+        f"Cliente_Final_INV={metadata['ubicaciones']['clienteFinalInv']}"
+    )
+    if metadata["total"] and not metadata["ubicaciones"]["parCas"]:
+        print("AVISO: ninguna partida trae PAR_CAS; verificar la fuente antes de sincronizar.")
     print(f"Instantánea: {output}")
     if args.sync_test:
         if not args.firebase_credentials:
