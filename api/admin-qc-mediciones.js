@@ -18,6 +18,12 @@ const OPTIONS_CARGA_BASE=Object.freeze({
 });
 const OPTIONS_CARGA_V7=Object.freeze({...OPTIONS_CARGA_BASE,firmeza:['ok','duro','tierno']});
 const OPTIONS_RAICES_INJERTO=Object.freeze(['si','no']);
+const OPTIONS_PREINJERTO_VARIEDAD=Object.freeze({
+  color:['verde','amarillo','verdeClaro','ok'],tamano:['grande','pequeno','ok'],
+  grosor:['fino','ok','grueso'],firmeza:['ok','duro','tierno'],
+  plagas:['ok','tuta','minador','pulgon','oruga','trips'],
+  enfermedades:['ok','alternaria','mildiu','oidio','botrytis','didymella']
+});
 const OPTIONS_PREINJERTO_PATRON=Object.freeze({
   grosor:['fino','ok','grueso'],firmeza:['ok','duro','tierno'],
   segado:['segado','noSegado'],
@@ -43,7 +49,7 @@ function categoryIssue(category,values,total){
   if(affected>maximum)return 'Faltan '+(affected-maximum)+' bandejas por clasificar.';
   return '';
 }
-  const TYPES=new Set(['tunel','carga','carga_injerto','preinjerto_patron']);
+  const TYPES=new Set(['tunel','carga','carga_injerto','preinjerto_patron','preinjerto_variedad']);
 const RE_ID=/^[A-Za-z0-9_-]{1,180}$/;
 const PART_RE=/^[A-Za-z0-9._-]{1,100}$/;
 function inputOf(req){
@@ -297,11 +303,13 @@ function validateEvaluationV8(input){
   return {...checked,categorias:{...checked.categorias,raicesInjerto:{opciones:root.opciones}},
     porcentajeInvalidasGlobal:global};
 }
-// v9: Preinjerto Patrón. Seis bloques, selección única salvo desglose de plagas/enfermedades.
+// v9: Preinjerto Patrón y Variedad. Cada tipo conserva sus categorías propias.
 function validateEvaluationV9(input){
-  if(input.tipo!=='preinjerto_patron'||Object.prototype.hasOwnProperty.call(input,'bandejasInspeccionadas'))
+  if(!['preinjerto_patron','preinjerto_variedad'].includes(input.tipo)||
+     Object.prototype.hasOwnProperty.call(input,'bandejasInspeccionadas'))
     throw httpError(400,'INVALID_MEASUREMENTS');
-  const source=input.categorias,options=OPTIONS_PREINJERTO_PATRON;
+  const source=input.categorias;
+  const options=input.tipo==='preinjerto_variedad'?OPTIONS_PREINJERTO_VARIEDAD:OPTIONS_PREINJERTO_PATRON;
   if(!source||typeof source!=='object'||Array.isArray(source)||
      Object.keys(source).sort().join('|')!==Object.keys(options).sort().join('|'))
     throw httpError(400,'INVALID_MEASUREMENTS');
@@ -481,7 +489,7 @@ module.exports=async function handler(req,res){
     // No interpretar formatos antiguos como v4: esos borradores siguen protegidos.
     const v9=request.schemaVersion===9,v4=request.schemaVersion===4,v5=request.schemaVersion===5,
       v6=request.schemaVersion===6,v7=request.schemaVersion===7,v8=request.schemaVersion===8;
-    if((v4||v5||v6||v7||v8||v9)&&!isPercent||v4&&hasDiseaseBreakdown||v8&&request.tipo!=='carga_injerto'||v9&&request.tipo!=='preinjerto_patron')
+    if((v4||v5||v6||v7||v8||v9)&&!isPercent||v4&&hasDiseaseBreakdown||v8&&request.tipo!=='carga_injerto'||v9&&!['preinjerto_patron','preinjerto_variedad'].includes(request.tipo))
       throw httpError(400,'INVALID_MEASUREMENTS');
     const checked=v9?validateEvaluationV9(request):
       v8?validateEvaluationV8(request):
@@ -550,3 +558,4 @@ module.exports=async function handler(req,res){
     return res.status(status).json({error:e.code});
   }
 };
+
