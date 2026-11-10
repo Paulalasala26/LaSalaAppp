@@ -520,3 +520,41 @@ test('UAT-1028: volver de Resumen a Cuadrícula no hereda filtros indebidos',asy
   await expect(overlay.locator('#especificos-grid-wrap')).toBeVisible();
   expect(unexpectedHosts).toEqual([]);
 });
+
+
+test('UAT-1031, UAT-1036, UAT-1037 y UAT-1038: alta desde calle muestra campos básicos de Específicos',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openSpecifics(page,database);
+  await overlay.locator('#especificos-grid-wrap td[title="Pulsa para añadir un específico este día"]').first().click();
+  const editor=page.locator('#especifico-manual-overlay');
+  await expect(editor).toBeVisible();
+  await expect(editor).toContainText('Añadir específico');
+  for(const id of ['#esp-trat','#esp-dosis','#esp-horario','#esp-caldo']) await expect(editor.locator(id)).toBeVisible();
+  const treatmentOptions=await editor.locator('#esp-trat option').count();
+  expect(treatmentOptions).toBeGreaterThan(1);
+  const [treatment,dose]=await Promise.all([
+    editor.locator('#esp-trat').evaluate(el=>{const r=el.parentElement.getBoundingClientRect();return {x:r.x,y:r.y};}),
+    editor.locator('#esp-dosis').evaluate(el=>{const r=el.parentElement.getBoundingClientRect();return {x:r.x,y:r.y};})
+  ]);
+  expect(Math.abs(treatment.y-dose.y)).toBeLessThan(3);
+  expect(dose.x).toBeGreaterThan(treatment.x);
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-1033–1035: formulario desde calle fija la ubicación y no ofrece alcance global',async({page})=>{
+  test.fail(true,'El formulario desde calle aún muestra selectores de sala/invernadero y modos globales.');
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openSpecifics(page,database);
+  await overlay.locator('#especificos-grid-wrap td[title="Pulsa para añadir un específico este día"]').first().click();
+  const editor=page.locator('#especifico-manual-overlay');
+  await expect(editor).toBeVisible();
+  const observed=await editor.evaluate(element=>({
+    fixedLocation:!element.querySelector('.esp-sala-chk,.esp-inv-chk')&&/INV\s*17/.test(element.innerText),
+    roomSelectors:element.querySelectorAll('.esp-sala-chk,.esp-inv-chk').length,
+    scopeModes:element.querySelectorAll('#esp-bulk-panels input[type="radio"]').length
+  }));
+  expect(observed).toEqual({fixedLocation:true,roomSelectors:0,scopeModes:0});
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
