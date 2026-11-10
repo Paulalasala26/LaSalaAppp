@@ -16,7 +16,7 @@ const SHA=/^[0-9a-f]{64}$/i;
 const GRAPH_ITEM=/^[A-Za-z0-9!_=-]{8,220}$/;
 function refOf(q){
   const dia=typeof q?.dia==='string'&&/^\d+$/.test(q.dia)?Number(q.dia):q?.dia;
-  if(!REF_ID.test(q?.id)||!['tunel','carga'].includes(q?.tipo)||
+  if(!REF_ID.test(q?.id)||!['tunel','carga','carga_injerto','preinjerto_patron','preinjerto_variedad'].includes(q?.tipo)||
     !Number.isInteger(dia)||dia<15||dia>4000)throw httpError(400,'INVALID_REFERENCE');
   return {id:q.id,tipo:q.tipo,dia};
 }
