@@ -138,3 +138,18 @@ Se ha contrastado el export estático `gs.zip` (19 CSV de GS, corte histórico a
 - El inventario de esquema mencionado previamente incluye `partidas_par_ubic`, pero su **relación y significado no se han verificado** en las fuentes CSV disponibles; no inventar JOIN ni completar calles desde su nombre.
 
 **Conclusión:** la ausencia actual 0/145 de `PAR_CAS` no permite concluir que GS jamás lo informe; de hecho, el export histórico sí tiene valores para algunas de las mismas partidas. La calle de Preinjerto no queda demostrada ni con `PAR_UBIC` ni con `p-extension` en el momento de siembra. Antes de modificar el conector, comparar un mismo ID entre instantáneas y verificar un origen real de calle con su fecha efectiva. No se ejecutaron consultas ni escrituras en GS/Firebase, ni se desplegó Vercel.
+
+## Investigación del volcado GS histórico (10/11/2026)
+
+Fuente inspeccionada **sin consultar GS**: volcado local `gs.zip` con archivos `sala12 partidas.csv` y `sala12 p-extension.csv`, fechados el **15/10/2026** según las marcas del ZIP. No equivale a una fotografía actual de GS. Se coteja con el snapshot real extraído por el usuario el 10/11/2026, que contiene 145 partidas (27 Patrón, 118 Variedad) y cero ubicaciones entre `PAR_CAS`, `PAR_UBIC` y `Cliente Final`.
+
+**Hallazgos:**
+
+1. En `partidas.csv` del 15/10 hay registros futuros concretos con `PAR_CAS` rellenado: `26C02436 → 016`; `26C02653 → 028`. Esas partidas figuran entre las 15 primeras del snapshot actual de Preinjerto, donde `PAR_CAS` está vacío. **Hay una discrepancia entre versiones de datos que debe aclararse antes de asumir que `PAR_CAS` no se usa o que la consulta lo pierde.**
+2. El volcado histórico tiene solo **20** partidas con prefijos `26P/26WE/26C/26VE` y `PAR_FECS` del 10 al 15/11 (12 Patrón, 8 Variedad); **17/20** tienen `PAR_CAS` y **0/20** `PAR_UBIC`. Las 145 partidas de la extracción real actual no son equivalentes al subconjunto de octubre, por evolución posterior de la base de datos y/o diferencias en los registros disponibles.
+3. `p-extension.csv` contiene una relación `PEX_NPA` (código de partida) con `PEX_FEC` y campos `PEX_IDE`, `PEX_SDE`, `PEX_FDE`, `PEX_CDE` de destino, y `PEX_IOR`, `PEX_SOR`, `PEX_FOR`, `PEX_COR` de origen. Son **candidatos de movimientos/ubicaciones**, no una prueba directa de la ubicación actual antes de la operación. Los 20 registros futuros de la muestra histórica carecían de filas asociadas en `p-extension`.
+4. En el conjunto de partidas 2026 del volcado, `p-extension` contiene al menos una fila para **909/1062** partidas Patrón y **1736/1979** Variedad. De las 2690 filas con `PEX_IDE` en el subconjunto examinado, **2686** tienen `PEX_FEC` posterior a `PAR_FECS`; esto apoya que los movimientos suelen registrarse después de la siembra, no necesariamente con la planificación futura.
+
+**Implicación técnica:** no es correcto rellenar automáticamente `PAR_UBIC` a partir de `p-extension`, ni adjudicar la última `PEX_IDE/PEX_SDE` sin analizar el tipo de movimiento, multiplicidad, orden, cantidad y significado de cada columna. Conviene primero resolver por qué `PAR_CAS` pasa de valores históricos no vacíos a vacío en el snapshot reciente para códigos idénticos, y determinar el evento GS que establece ubicación de calle para Preinjerto.
+
+**Estado:** sin cambios en SELECT/importador de Preinjerto y sin nuevos despliegues, consultas GS ni escrituras Firebase por el asistente. Los 145 registros no se han sincronizado en esta fase.
