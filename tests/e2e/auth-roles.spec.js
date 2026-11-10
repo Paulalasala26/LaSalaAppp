@@ -83,9 +83,12 @@ test('UAT-1983, UAT-1984 y UAT-1985: marca visible en Home, login y favicon', as
 
   const favicon = await page.locator('link[rel="icon"]').getAttribute('href');
   expect(favicon).toMatch(/(?:^|\/)icon-192\.png$/);
-  const faviconResponse = await page.request.get(new URL(favicon, page.url()).toString());
-  expect(faviconResponse.ok()).toBe(true);
-  expect(faviconResponse.headers()['content-type']).toContain('image/png');
+  const faviconResponse = await page.evaluate(async path => {
+    const response = await fetch(path);
+    return { ok: response.ok, type: response.headers.get('content-type') };
+  }, favicon);
+  expect(faviconResponse.ok).toBe(true);
+  expect(faviconResponse.type).toContain('image/png');
 
   await logInAs(page, 'E2E_ADMIN');
   const homeLogo = page.locator('#app .topbar-brand img[alt="La Sala"]');
