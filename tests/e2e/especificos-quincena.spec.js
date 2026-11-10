@@ -25,7 +25,7 @@ function firebaseEtag(value){return value==null?'null_etag':`"${createHash('sha1
 function specificsData(database){const value=database['lasala-especificos-v1'];return typeof value==='string'?JSON.parse(value):value;}
 function textoEspecifico(database,dia,calle){const value=specificsData(database)?.['17']?.[dia]?.[calle];return value&&typeof value==='object'?value.texto:value;}
 
-async function openSpecifics(page,database,{loginFirst=true,writeDelayMs=0}={}){
+async function openSpecifics(page,database,{loginFirst=true,writeDelayMs=0,now='2026-06-30T10:00:00+02:00'}={}){
   const unexpectedHosts=[],writes=[];
   const corsHeaders={
     'access-control-allow-origin':'*',
@@ -53,7 +53,7 @@ async function openSpecifics(page,database,{loginFirst=true,writeDelayMs=0}={}){
     else if(request.method()==='DELETE')writeAt(database,path,null);
     await route.fulfill({status:200,contentType:'application/json',headers:{...corsHeaders,etag:firebaseEtag(readAt(database,path))},body:JSON.stringify(body)});
   });
-  await page.clock.setFixedTime(new Date('2026-06-30T10:00:00+02:00'));
+  await page.clock.setFixedTime(new Date(now));
   await page.goto('/');
   if(loginFirst){
     await page.locator('#login-user').evaluate((select,user)=>select.add(new Option(user,user)),login.user);
@@ -202,6 +202,48 @@ test('UAT-2385: desde Partidas, abrir Específicos conserva la quincena futura y
   await page.getByRole('button',{name:'Iniciar sesión'}).click();
   await expect(page.locator('#app')).toBeVisible();
   await expect(page.getByTestId('home-especificos')).toBeHidden();
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+
+test('UAT-1004–1008: cambiar de quincena en Específicos conserva el INV y vuelve al periodo exacto',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openSpecifics(page,database);
+  const period=overlay.locator('#especificos-quincena-bar');
+  const initial=(await period.innerText()).replace(/\\s+/g,' ').trim();
+
+  await period.locator('button').last().click();
+  const next=(await period.innerText()).replace(/\\s+/g,' ').trim();
+  expect(next).not.toBe(initial);
+  await expect(overlay.locator('#especificos-grid-wrap')).toBeVisible();
+  await expect(overlay.locator('button[data-einv="17"]')).toBeVisible();
+
+  await period.locator('button').first().click();
+  await expect.poll(async()=> (await period.innerText()).replace(/\\s+/g,' ').trim()).toBe(initial);
+  await period.locator('button').first().click();
+  const previous=(await period.innerText()).replace(/\\s+/g,' ').trim();
+  expect(previous).not.toBe(initial);
+  await period.locator('button').last().click();
+  await expect.poll(async()=> (await period.innerText()).replace(/\\s+/g,' ').trim()).toBe(initial);
+
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-1009: la navegación de quincena en Específicos cruza de año sin saltos',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openSpecifics(page,database,{now:'2026-12-31T10:00:00+01:00'});
+  const period=overlay.locator('#especificos-quincena-bar');
+  const yearEnd=(await period.innerText()).replace(/\\s+/g,' ').trim();
+
+  await period.locator('button').last().click();
+  const nextYear=(await period.innerText()).replace(/\\s+/g,' ').trim();
+  expect(nextYear).not.toBe(yearEnd);
+  expect(nextYear).toContain('2027');
+
+  await period.locator('button').first().click();
+  await expect.poll(async()=> (await period.innerText()).replace(/\\s+/g,' ').trim()).toBe(yearEnd);
   expect(writes).toEqual([]);
   expect(unexpectedHosts).toEqual([]);
 });
