@@ -1694,6 +1694,7 @@ async function avisarHojasCorregidas(){
 // cada refresco (refreshTareasViews llama a renderTareasContent
 // directamente, sin pasar por aquí, para no perder en qué sección estaba).
 let tareasGestorVista = null; // null (resumen) | 'antiguas' | 'hoy' | 'manana' | 'mantenimiento'
+let tareasModuleOpening = false; // evita aperturas duplicadas al hacer doble clic
 async function irATareasGestorVista(v){
   tareasGestorVista = v;
   tareasSeleccionadas.clear();
@@ -1816,8 +1817,11 @@ async function persistMantenimientoData(){
     return true;
   }catch(e){ avisarFalloGuardado(); return false; }
 }
-function showTareasModule(){
-  loadTareasData(false).then(async ()=>{
+async function showTareasModule(){
+  if(tareasModuleOpening) return;
+  tareasModuleOpening = true;
+  try{
+    await loadTareasData(false);
     const overlay = getOrCreateOverlay('tareas-overlay');
     const esGestor = currentUserRole!=='REGANTE' && currentUserRole!=='PEON';
     if(!esGestor) await avisarNuevasTareas(currentUser);
@@ -1825,7 +1829,9 @@ function showTareasModule(){
     tareasGestorVista = null;
     renderTareasContent(overlay, esGestor);
     overlay.style.display='flex';
-  });
+  }finally{
+    tareasModuleOpening = false;
+  }
 }
 function showMantenimientoPeonModule(){
   loadMantenimientoData().then(()=>{
