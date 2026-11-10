@@ -220,13 +220,20 @@ def sync_test(by_date, controls_by_shard, start: date, end: date, credentials_pa
                 }
                 preserve = ("observaciones", "color", "tamano", "sanidad", "flores",
                             "raices", "sanidadEnfermedades", "creadoPor", "creadoEn",
-                            "actualizadoPor", "actualizadoEn")
+                            "actualizadoPor", "actualizadoEn", "edicionQC")
                 for key, fresh in incoming.items():
                     previous = current.get(key)
                     if isinstance(previous, dict):
                         for field in preserve:
                             if field in previous and field not in fresh:
                                 fresh[field] = previous[field]
+                        correction = previous.get("edicionQC") if isinstance(previous, dict) else None
+                        if isinstance(correction, dict) and isinstance(correction.get("campos"), dict):
+                            fresh["edicionQC"] = correction
+                            for field in ("partida", "cliente", "variedad", "numBandejas",
+                                          "invId", "calleDesde", "calleHasta"):
+                                if field in correction["campos"]:
+                                    fresh[field] = correction["campos"][field]
                 retained.update(incoming)
                 return retained or None
 
