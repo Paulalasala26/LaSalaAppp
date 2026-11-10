@@ -3446,8 +3446,8 @@ test('UAT-391 y UAT-395: añadir dos fotos y continuar la evaluación tras cerra
   database['lasala-control-fotos-shards-index'] = JSON.stringify(['lasala-control-fotos-v1']);
   database['lasala-control-fotos-v1'] = JSON.stringify({});
   const { overlay, unexpectedHosts } = await startControlTest(page, database);
-  const id = 'e2e-control-current-fortnight';
-  const card = overlay.locator(`#control-card-${id}`);
+  const card = await createNewTunnelLine(overlay, '26X39101');
+  const id = (await card.getAttribute('id')).replace('control-card-', '');
   const selectedColor = card.getByTestId(`qc-v6-${id}-color-ok`);
   await selectedColor.click();
   await expect(selectedColor).toHaveAttribute('aria-pressed', 'true');
