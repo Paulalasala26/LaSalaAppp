@@ -163,6 +163,15 @@ test('UAT-2415: un doble clic rápido en Tareas deja una sola vista funcional y 
   await expect(page.locator('#page-home')).toBeVisible();
 
   const shortcut = page.locator(`#quick-access-block .home-shortcut-card[onclick="handleQuickAction('tareas')"]`);
+  await page.evaluate(() => {
+    window.__tareasViewTransitions = [];
+    const original = window.irATareasGestorVista;
+    window.irATareasGestorVista = function (vista) {
+      window.__tareasViewTransitions.push({ vista, stack: new Error().stack });
+      return original.apply(this, arguments);
+    };
+    console.log('UAT-2415 view before click', window.tareasGestorVista);
+  });
   await shortcut.dblclick({ delay: 50 });
 
   const overlay = page.locator('#tareas-overlay');
