@@ -1142,6 +1142,8 @@ test('UAT-1734, UAT-1735, UAT-1736–1737, UAT-1740, UAT-1742 y UAT-1744: Archiv
   await expect(overlay).toBeHidden();
   await openTasks(page);
   await openArchive();
+  await overlay.getByRole('button', { name: /✕ Cerrar/ }).click();
+  await expect(overlay).toBeHidden();
 
   await page.getByRole('button', { name: 'Salir' }).click();
   await expect(page.locator('#login-screen')).toBeVisible();
