@@ -414,15 +414,17 @@ test('UAT-1240: REGANTE ve su tarea manual desde Mis tareas', async ({ page }) =
   expect(writes).toEqual([]);
 });
 
-test('UAT-1247, UAT-1302–1303, UAT-1307–1310 y UAT-1315: abrir, validar y cancelar un alta manual solo ofrece ejecutores operativos', async ({ page }) => {
+test('UAT-1247 y UAT-1248, UAT-1302–1303, UAT-1307–1310 y UAT-1315: abrir, validar y cancelar un alta manual solo ofrece ejecutores operativos', async ({ page }) => {
   const { database, writes } = await installFixture(page);
 
+  await page.setViewportSize({ width: 390, height: 560 });
   await openTasks(page);
   await expect(page.locator('#tareas-overlay')).toContainText('Resumen de Tareas');
   const overlay = page.locator('#tareas-overlay');
   const todayTab = overlay.getByRole('button', { name: 'Tareas de hoy' });
   await todayTab.click();
   await expect(todayTab).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+  await expect(overlay.getByRole('button', { name: 'Nueva tarea' })).toBeVisible();
   await overlay.getByRole('button', { name: 'Nueva tarea' }).click();
 
   const form = page.locator('#nueva-tarea-form-wrap');
