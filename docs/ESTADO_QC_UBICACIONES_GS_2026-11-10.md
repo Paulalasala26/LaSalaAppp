@@ -76,3 +76,11 @@ Se revisó `index.html` en `test/v1.0`: `controlQCInfoVisual(c)` solo mostraba `
 Commit frontend: `211e2f455df3ad4e700c818c1d0965d6600c7fcb`. Pruebas locales aisladas: 09/11→código GS 064/calle 27; 11/11→código GS 064/calle 30; ubicación manual prioritaria; datos GS anidados; ausencia de ubicación.
 
 **Pendientes:** confirmar que `gs_qc_import.py` en el equipo Windows es la versión que alimenta `invId` y `calleDesde` desde `PAR_CAS` y `PIN_LOCA`; comprobar si los registros TEST tienen realmente esos campos en Firebase. El nuevo código de presentación **no está desplegado por el asistente** y no aparecerá en el sitio Vercel hasta que se publique una versión nueva. No se ha tocado producción.
+
+## Incidencia de visualización tras sincronización (10/11/2026)
+
+El usuario comprobó APP R TEST en la tarjeta QC Túnel de `26X02342` para el 11/11. La tarjeta mostraba correctamente **6 bandejas**, pero **Invernadero: —** y **Calle: —**. Se adjuntó captura en la conversación.
+
+La revisión estática de `assets/control-qc-module.js` de `test/v1.0` confirmó que `controlQCInfoVisual(c)` contempla `c.PAR_CAS`, `c.gsDetalles?.PAR_CAS`, `c.PIN_LOCA`, `c.gsDetalles?.PIN_LOCA` y `c.calleDesde/calleHasta`; la tarjeta utiliza esa función para ambos rótulos. No se ha verificado qué versión exacta de ese JS se sirve desde Vercel, ni el contenido final del registro leído por el navegador. Hipótesis pendientes: despliegue/caché obsoleto o lectura de un registro diferente. **No asumir que la sincronización garantiza visualización.** No se ha desplegado Vercel.
+
+Siguiente diagnóstico recomendado: comprobar en navegador la versión efectiva del asset y si el item QC de 11/11 tiene `PAR_CAS=064`, `PIN_LOCA=30`, `invId` y `calleDesde`. No repetir la extracción GS ni importar otra vez sin motivo.
