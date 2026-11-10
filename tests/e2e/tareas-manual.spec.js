@@ -163,21 +163,11 @@ test('UAT-2415: un doble clic rápido en Tareas deja una sola vista funcional y 
   await expect(page.locator('#page-home')).toBeVisible();
 
   const shortcut = page.locator(`#quick-access-block .home-shortcut-card[onclick="handleQuickAction('tareas')"]`);
-  await page.evaluate(() => {
-    window.__tareasViewTransitions = [];
-    const original = window.irATareasGestorVista;
-    window.irATareasGestorVista = function (vista) {
-      window.__tareasViewTransitions.push({ vista, stack: new Error().stack });
-      return original.apply(this, arguments);
-    };
-    console.log('UAT-2415 view before click', window.tareasGestorVista);
-  });
   await shortcut.dblclick({ delay: 50 });
 
   const overlay = page.locator('#tareas-overlay');
   await expect(overlay).toBeVisible();
   await expect(page.locator('#tareas-overlay')).toHaveCount(1);
-  console.log('UAT-2415 diagnosis', await page.evaluate(() => ({ role: currentUserRole, vista: tareasGestorVista, transitions: window.__tareasViewTransitions, overlayText: document.getElementById('tareas-overlay')?.innerText })));
   await expect(overlay.getByText('Resumen de Tareas', { exact: true })).toHaveCount(1);
   await expect(overlay.getByRole('button', { name: 'Mantenimiento de Parcelas' })).toHaveCount(1);
   expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([]);
