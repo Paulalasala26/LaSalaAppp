@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Read-only, indexed lookup for Preinjerto locations in GS.
 
-Reads the two approved partidas by primary key, checks whether p-injertos.PIN_PAR
-has a leading index, and only then looks up those exact IDs. It skips an
-unindexed source rather than triggering a full-table scan. No Firebase access.
+Checks only the two target IDs. It inspects indexes on p-injertos and
+p-injertos_pin_comp, and runs exact lookups only when the searched key is the
+leading column of an index. Unindexed tables are skipped to avoid full scans.
+No Firebase access.
 """
 from __future__ import annotations
 
@@ -20,6 +21,11 @@ except ImportError:
 from pilot_gs_qc_preinjerto import MYSQL_DATABASE, MYSQL_HOST, MYSQL_PORT, get_mysql_credentials
 
 TARGETS = ("26C02436", "26C02653")
+TABLES = ("p-injertos", "p-injertos_pin_comp")
+
+
+def leading_index(indexes: list[dict[str, Any]], column: str) -> bool:
+    return any(row["COLUMN_NAME"] == column and int(row["SEQ_IN_INDEX"]) == 1 for row in indexes)
 
 
 def main() -> int:
@@ -50,21 +56,20 @@ def main() -> int:
 
             cursor.execute(
                 """
-                SELECT INDEX_NAME, COLUMN_NAME, SEQ_IN_INDEX
+                SELECT TABLE_NAME, INDEX_NAME, COLUMN_NAME, SEQ_IN_INDEX
                 FROM information_schema.STATISTICS
                 WHERE TABLE_SCHEMA = %s
-                  AND TABLE_NAME = 'p-injertos'
-                ORDER BY INDEX_NAME, SEQ_IN_INDEX
+                  AND TABLE_NAME IN (%s, %s)
+                ORDER BY TABLE_NAME, INDEX_NAME, SEQ_IN_INDEX
                 """,
-                (MYSQL_DATABASE,),
+                (MYSQL_DATABASE, *TABLES),
             )
-            indexes = cursor.fetchall()
-            has_pin_par_leading_index = any(
-                row["COLUMN_NAME"] == "PIN_PAR" and int(row["SEQ_IN_INDEX"]) == 1
-                for row in indexes
-            )
+            all_indexes = cursor.fetchall()
+            by_table: dict[str, list[dict[str, Any]]] = {name: [] for name in TABLES}
+            for row in all_indexes:
+                by_table[row["TABLE_NAME"]].append(row)
 
-            if has_pin_par_leading_index:
+            if leading_index(by_table["p-injertos"], "PIN_PAR"):
                 cursor.execute(
                     """
                     SELECT id, PIN_PAR AS partida, PIN_FECP AS fecha,
@@ -75,21 +80,50 @@ def main() -> int:
                     """,
                     TARGETS,
                 )
-                injertos: dict[str, Any] = {
-                    "status": "consultado_por_indice",
-                    "rows": cursor.fetchall(),
-                }
+                pin_rows = cursor.fetchall()
+                pin_status = "consultado_por_indice"
             else:
-                injertos = {
-                    "status": "omitido_sin_indice_lider_PIN_PAR",
-                    "rows": [],
-                }
+                pin_rows = []
+                pin_status = "omitido_sin_indice_lider_PIN_PAR"
+
+            if leading_index(by_table["p-injertos_pin_comp"], "C0"):
+                cursor.execute(
+                    """
+                    SELECT id AS id_parte_injerto, id2,
+                           C0 AS partida_componente,
+                           C3 AS id_invernadero, C4 AS calle_desde, C5 AS calle_hasta
+                    FROM `p-injertos_pin_comp`
+                    WHERE C0 IN (%s, %s)
+                    LIMIT 20
+                    """,
+                    TARGETS,
+                )
+                comp_rows = cursor.fetchall()
+                comp_status = "consultado_por_indice"
+            else:
+                comp_rows = []
+                comp_status = "omitido_sin_indice_lider_C0"
 
             print(json.dumps({
                 "database": MYSQL_DATABASE,
                 "targets": list(TARGETS),
                 "partidas": partidas,
-                "p_injertos": injertos,
+                "p_injertos": {
+                    "status": pin_status,
+                    "leadingIndexColumns": sorted({
+                        row["COLUMN_NAME"] for row in by_table["p-injertos"]
+                        if int(row["SEQ_IN_INDEX"]) == 1
+                    }),
+                    "rows": pin_rows,
+                },
+                "p_injertos_pin_comp": {
+                    "status": comp_status,
+                    "leadingIndexColumns": sorted({
+                        row["COLUMN_NAME"] for row in by_table["p-injertos_pin_comp"]
+                        if int(row["SEQ_IN_INDEX"]) == 1
+                    }),
+                    "rows": comp_rows,
+                },
                 "readOnly": True,
                 "firebase": "sin_acceso",
             }, ensure_ascii=False, indent=2, default=str))
