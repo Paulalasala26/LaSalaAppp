@@ -1,6 +1,6 @@
 # Pruebas automatizadas
 
-La suite contiene automatización para 666 casos UAT distintos en 288 pruebas Playwright (24,2 % de los 2.754 casos; quedan 2.088 sin cobertura). La última ejecución completa pasó 288/288 (4,5 min, dos workers):
+La suite contiene automatización para 670 casos UAT distintos en 289 pruebas Playwright (24,3 % de los 2.754 casos; quedan 2.084 sin cobertura). La última ejecución completa pasó 289/289 (3,2 min, dos workers):
 
 - UAT-001 a UAT-010: autenticación, sesión, roles, navegación y tamaños PC,
   móvil y tablet.
@@ -18,6 +18,7 @@ La suite contiene automatización para 666 casos UAT distintos en 288 pruebas Pl
 - UAT-528–533: selección de invernaderos por origen y sala, retención de objetivos y bloqueo de Pistola entre salas.
 - UAT-534–537, UAT-539–541 y UAT-548: alcance de Entero/Entero menos/tramos, observaciones y validación de selecciones inválidas.
 - UAT-542–544, UAT-546 y UAT-549: persistencia de tramos por INV, conflicto con Específicos y aislamiento de una jornada de una calle.
+- UAT-998, UAT-999, UAT-1001 y UAT-1003: Específicos cambia de INV sin mezclar datos y presenta una cuadrícula vacía sin registros inventados.
 - UAT-1004–1009: Específicos cambia entre quincenas conservando INV y periodo de retorno, y cruza diciembre/enero sin escrituras.
 - UAT-018 a UAT-027 y UAT-125–126: concurrencia en Riego y Control, lectura, edición, altas, bajas, cambio de quincena y
   concurrencia entre líneas y campos de Control.
@@ -114,8 +115,8 @@ pnpm exec playwright install chromium
 pnpm test:e2e
 ```
 
-La prueba se ejecuta en Chromium. La última corrida completa pasó 288/288 en 4,5 min; el informe JSON y el CSV se regeneran al ejecutar la suite. Se fijan dos workers por defecto: UAT-018 falló una vez con ocho procesos paralelos, pero pasó aislada y en las últimas corridas completas con dos.
+La prueba se ejecuta en Chromium. La última corrida completa pasó 289/289 en 3,2 min; el informe JSON y el CSV se regeneran al ejecutar la suite. Se fijan dos workers por defecto: UAT-018 falló una vez con ocho procesos paralelos, pero pasó aislada y en las últimas corridas completas con dos.
 En este entorno, Chromium está en el caché local de Playwright; si Playwright no lo detecta automáticamente, define
 `PLAYWRIGHT_BROWSERS_PATH` con esa carpeta antes de ejecutar la suite.
-El workflow [UAT Playwright](../.github/workflows/uat-playwright.yml) ejecuta la suite en push/PR y conserva siempre los informes JSON/HTML; las capturas y trazas se adjuntan cuando hay fallos. Su ejecución remota se confirmará cuando el cambio llegue a GitHub.
-Tras cada corrida, `node tests/export-uat-results.cjs` genera `test-results/uat-results.csv`: 666 filas, una por UAT cubierto, fecha, resultado, prueba, archivo, línea y duración. `PASA_FIXTURE` significa que pasó con Firebase interceptado en memoria; no equivale a una validación de Firebase TEST/PRD ni se debe copiar como OK manual.
+El workflow [UAT Playwright](../.github/workflows/uat-playwright.yml) ejecuta la suite en push/PR y conserva siempre los informes JSON/HTML; las capturas y trazas se adjuntan cuando hay fallos. La última ejecución remota pasó 289/289 en GitHub Actions, run 42738472292.
+Tras cada corrida, `node tests/export-uat-results.cjs` genera `test-results/uat-results.csv`: 670 filas, una por UAT cubierto, fecha, resultado, prueba, archivo, línea y duración. `PASA_FIXTURE` significa que pasó con Firebase interceptado en memoria; no equivale a una validación de Firebase TEST/PRD ni se debe copiar como OK manual.
