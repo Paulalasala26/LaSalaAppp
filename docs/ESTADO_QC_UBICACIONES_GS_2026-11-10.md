@@ -153,3 +153,12 @@ Fuente inspeccionada **sin consultar GS**: volcado local `gs.zip` con archivos `
 **Implicación técnica:** no es correcto rellenar automáticamente `PAR_UBIC` a partir de `p-extension`, ni adjudicar la última `PEX_IDE/PEX_SDE` sin analizar el tipo de movimiento, multiplicidad, orden, cantidad y significado de cada columna. Conviene primero resolver por qué `PAR_CAS` pasa de valores históricos no vacíos a vacío en el snapshot reciente para códigos idénticos, y determinar el evento GS que establece ubicación de calle para Preinjerto.
 
 **Estado:** sin cambios en SELECT/importador de Preinjerto y sin nuevos despliegues, consultas GS ni escrituras Firebase por el asistente. Los 145 registros no se han sincronizado en esta fase.
+
+
+## Validación de discrepancia y Excel Preinjerto (10/11/2026)
+
+El usuario descargó el script actual de `test/v1.0` en el conector local y ejecutó una extracción solo lectura para 10–15/11/2026. Resultado: **145 partidas**, 27 Patrón, 118 Variedad; cobertura `PAR_CAS=100`, `PAR_UBIC=0`, `Cliente_Final_INV=0`. No hubo escritura Firebase.
+
+El JSON previo no contenía como propiedades `PAR_CAS` ni `PAR_UBIC`. El script de rama actual valida que ambas estén presentes antes de serializar; por ello, aquel JSON se produjo con un script anterior o distinto. La nueva extracción confirma para dos IDs que también están en el CSV histórico: `26C02436 → PAR_CAS=016` y `26C02653 → PAR_CAS=028`; en ambos casos `PAR_UBIC` está vacío. En la Excel adjunta, la columna `Tipo de Siembra` da `0026` y `0028`, respectivamente. Son campos separados; no usar esos valores como ubicaciones.
+
+La Excel contiene una tabla de 190 filas y 24 columnas, sin campos explícitos de invernadero/calle ni las columnas `PAR_CAS`/`PAR_UBIC`. Así, la discrepancia del código bruto `PAR_CAS` queda resuelta y la Excel no aporta una fuente de calles. **La fuente real de calles de Preinjerto sigue sin acreditarse.** `partidas_par_ubic` continúa como candidato sin clave ni semántica verificadas. El siguiente avance requiere una inspección GS de solo lectura autorizada de su esquema y, si procede, filas para partidas conocidas; no inferir la calle desde `Tipo de Siembra`, observaciones o movimientos posteriores. Sin sincronización Firebase ni despliegue Vercel.
