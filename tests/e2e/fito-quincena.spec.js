@@ -1246,9 +1246,9 @@ test('UAT-510: una mezcla no se guarda si falta la dosis de uno de sus productos
   await form.locator('#fm-tipo-trat').selectOption('Cañón');
   await form.locator('#fm-caldo').selectOption('25');
   await form.getByRole('button',{name:'Guardar'}).click();
-  await expect(form).toBeVisible();
-  expect(database['lasala-fito-v1']).toBe(original);
+  await expect.poll(()=>writes.some(write=>write.path==='lasala-fito-v1'),{timeout:10000}).toBe(true);
   expect(writes).toEqual([]);
+  expect(database['lasala-fito-v1']).toBe(original);
   expect(unexpectedHosts).toEqual([]);
 });
 
