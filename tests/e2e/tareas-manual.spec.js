@@ -231,7 +231,7 @@ test('UAT-1232: ADMIN abre Tareas con Operativas seleccionada por defecto', asyn
   await expect(operativas).toHaveCSS('background-color', 'rgb(255, 255, 255)');
 });
 
-test('UAT-1233, UAT-1235, UAT-1236, UAT-1242, UAT-1243, UAT-1246, UAT-1495, UAT-1499 y UAT-1500: ADMIN y TÉCNICO recorren secciones sin heredar permisos ni duplicar tareas', async ({ page }) => {
+test('UAT-1233, UAT-1235, UAT-1236, UAT-1242, UAT-1243, UAT-1246, UAT-1495, UAT-1499, UAT-1500 y UAT-1745: ADMIN y TÉCNICO recorren secciones sin heredar permisos ni duplicar tareas', async ({ page }) => {
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(error.message));
   const tomorrowISO = await fechaISOEnNavegador(page, 1);
@@ -297,6 +297,11 @@ test('UAT-1233, UAT-1235, UAT-1236, UAT-1242, UAT-1243, UAT-1246, UAT-1495, UAT-
   await expect(archive).toHaveCSS('background-color', 'rgb(255, 255, 255)');
   await expect(overlay.locator('#tareas-archivo-anuladas')).toContainText('Anuladas y archivadas');
   await assertOperativas();
+  await archive.focus();
+  await expect(archive).toBeFocused();
+  await archive.press('Enter');
+  await expect(archive).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+  await expect(overlay.locator('#tareas-archivo-anuladas')).toContainText('Anuladas y archivadas');
   await maintenance.click();
   await expect(maintenance).toHaveCSS('background-color', 'rgb(255, 255, 255)');
   await expect(overlay).toContainText('0 tickets abiertos');
