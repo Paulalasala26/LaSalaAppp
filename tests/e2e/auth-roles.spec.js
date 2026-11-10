@@ -74,6 +74,25 @@ async function logInAs(page, user, pass = password) {
   await page.locator('#login-btn').click();
 }
 
+test('UAT-1983, UAT-1984 y UAT-1985: marca visible en Home, login y favicon', async ({ page }) => {
+  await installAuthFixture(page);
+
+  const loginLogo = page.locator('#login-screen img[alt="La Sala"]');
+  await expect(loginLogo).toBeVisible();
+  expect(await loginLogo.evaluate(img => img.naturalWidth)).toBeGreaterThan(0);
+
+  const favicon = await page.locator('link[rel="icon"]').getAttribute('href');
+  expect(favicon).toMatch(/(?:^|\/)icon-192\.png$/);
+  const faviconResponse = await page.request.get(new URL(favicon, page.url()).toString());
+  expect(faviconResponse.ok()).toBe(true);
+  expect(faviconResponse.headers()['content-type']).toContain('image/png');
+
+  await logInAs(page, 'E2E_ADMIN');
+  const homeLogo = page.locator('#app .topbar-brand img[alt="La Sala"]');
+  await expect(homeLogo).toBeVisible();
+  expect(await homeLogo.evaluate(img => img.naturalWidth)).toBeGreaterThan(0);
+});
+
 test('UAT-001: credenciales válidas abren la pantalla principal', async ({ page }) => {
   await installAuthFixture(page);
   await logInAs(page, 'E2E_ADMIN');
