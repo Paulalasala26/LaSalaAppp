@@ -37,7 +37,7 @@
   }
   async function show(id){
     const c=controlChecksData.find(x=>x.id===id);
-    if(c?.tipo==='preinjerto_patron')return showPreinjertoPatron(id);
+    if(c&&['preinjerto_patron','preinjerto_variedad'].includes(c.tipo))return showPreinjerto(id);
     if(!c||!['tunel','carga'].includes(c.tipo))return;
     const state={id,tipo:c.tipo,busy:false,serial:Date.now()+Math.random()};ctx=state;
     const overlay=getOrCreateOverlay('control-editar-overlay');
@@ -327,14 +327,15 @@
   function qcpSetError(message){
     const el=document.getElementById('qcp-error');if(el)el.textContent=message;
   }
-  async function showPreinjertoPatron(id){
+  async function showPreinjerto(id){
     const line=controlChecksData.find(x=>x.id===id);
-    if(!line||line.tipo!=='preinjerto_patron'){showToast('No se ha encontrado la partida de Preinjerto Patrón.');return;}
+    if(!line||!['preinjerto_patron','preinjerto_variedad'].includes(line.tipo)){showToast('No se ha encontrado la partida de Preinjerto.');return;}
+    const label=line.tipo==='preinjerto_patron'?'Preinjerto Patrón':'Preinjerto Variedad';
     if(!['ADMIN','TECNICO'].includes(currentUserRole)){showToast('No tienes permiso para editar esta partida.');return;}
     qcpState={id,busy:false};
     const overlay=qcpOverlay();
-    overlay.innerHTML='<div class="qc107-modal" role="dialog" aria-label="Editar Preinjerto Patrón">'+
-      '<h2>Editar partida · Preinjerto Patrón</h2>'+
+    overlay.innerHTML='<div class="qc107-modal" role="dialog" aria-label="Editar '+label+'">'+
+      '<h2>Editar partida · '+label+'</h2>'+
       '<section class="qc107-section"><h3>Datos GS</h3><div class="qc107-grid">'+
       field('Fechas de origen (no editables)','<input type="text" disabled value="'+esc((line.fSiembra||'—')+' · Entrega '+(line.fEntrega||'—'))+'">')+
       field('Nº de partida','<input id="qcp-partida" type="text" maxlength="100" value="'+esc(line.partida)+'">')+
@@ -382,9 +383,9 @@
     }
     return campos;
   }
-  async function applyPreinjertoPatron(line,campos){
+  async function applyPreinjerto(line,campos){
     const edit={actualizadoPor:String(currentUser||''),actualizadoEn:new Date().toISOString(),campos};
-    const qid=encolarAccionOffline('aplicarEditarControlPreinjertoPatron',[line.id,edit]);
+    const qid=encolarAccionOffline('aplicarEditarControlPreinjerto',[line.id,edit]);
     line.partida=campos.partida;line.cliente=campos.cliente;line.variedad=campos.variedad;
     line.clienteVariedad=campos.variedad?campos.cliente+' — '+campos.variedad:campos.cliente;
     line.numBandejas=campos.numBandejas;
@@ -400,13 +401,13 @@
     if(ok)desencolarAccion(qid);else avisarGuardadoLocalPendiente(leerColaOffline().length);
     return ok;
   }
-  root.aplicarEditarControlPreinjertoPatron=async function(id,edit){
+  root.aplicarEditarControlPreinjerto=async function(id,edit){
     const line=controlChecksData.find(x=>x.id===id),campos=edit?.campos;
-    if(!line||line.tipo!=='preinjerto_patron'||!campos)return false;
+    if(!line||!['preinjerto_patron','preinjerto_variedad'].includes(line.tipo)||!campos)return false;
     // Las acciones pendientes de red se reproducen con el mismo registro de cola;
     // no volver a encolar al reintentar desde el sincronizador offline.
     if(arguments.length>2)return false;
-    return applyPreinjertoPatron(line,campos);
+    return applyPreinjerto(line,campos);
   };
   root.qcpGuardar=async function(){
     const state=qcpState;if(!state||state.busy)return false;
@@ -417,21 +418,22 @@
     catch(error){qcpSetError(error.message);return false;}
     state.busy=true;const button=document.getElementById('qcp-save');if(button)button.disabled=true;
     try{
-      const ok=await applyPreinjertoPatron(line,campos);
+      const ok=await applyPreinjerto(line,campos);
       if(ok)root.qcpCancelar();
       else qcpSetError('Corrección guardada localmente o pendiente de sincronizar.');
       return ok;
     }catch(_){qcpSetError('No se ha podido guardar la corrección.');return false;}
     finally{state.busy=false;if(button&&button.isConnected)button.disabled=false;}
   };
-  async function showPreinjertoPatronUbicacion(id){
+  async function showPreinjertoUbicacion(id){
     const line=controlChecksData.find(x=>x.id===id);
-    if(!line||line.tipo!=='preinjerto_patron')return false;
+    if(!line||!['preinjerto_patron','preinjerto_variedad'].includes(line.tipo))return false;
+    const label=line.tipo==='preinjerto_patron'?'Preinjerto Patrón':'Preinjerto Variedad';
     if(!['ADMIN','TECNICO'].includes(currentUserRole)){showToast('No tienes permiso para editar esta ubicación.');return false;}
     qcpState={id,busy:false,locationOnly:true};
     const overlay=getOrCreateOverlay('control-calle-overlay');
-    overlay.innerHTML='<div class="qc107-modal" role="dialog" aria-label="Editar ubicación Preinjerto Patrón">'+
-      '<h2>Editar ubicación GS · Preinjerto Patrón</h2>'+
+    overlay.innerHTML='<div class="qc107-modal" role="dialog" aria-label="Editar ubicación '+label+'">'+
+      '<h2>Editar ubicación GS · '+label+'</h2>'+
       '<section class="qc107-section"><h3>Códigos de origen</h3><div class="qc107-grid">'+
       field('PAR_CAS · código GS','<input id="qcp-par-cas" type="text" maxlength="20" value="'+esc(qcpRaw(line,'PAR_CAS'))+'">')+
       field('PAR_UBIC · ubicación GS','<input id="qcp-par-ubic" type="text" inputmode="numeric" maxlength="10" value="'+esc(qcpRaw(line,'PAR_UBIC'))+'">')+
@@ -469,12 +471,15 @@
   const originalAssignLocation=root.mostrarAsignarCalleControl;
   root.mostrarAsignarCalleControl=function(id){
     const line=controlChecksData.find(x=>x.id===id);
-    if(line?.tipo==='preinjerto_patron')return showPreinjertoPatronUbicacion(id);
+    if(line&&['preinjerto_patron','preinjerto_variedad'].includes(line.tipo))return showPreinjertoUbicacion(id);
     return originalAssignLocation?.(id);
   };
 
-  if(typeof ACCIONES_OFFLINE_REPLAYABLES==='object')
-    ACCIONES_OFFLINE_REPLAYABLES.aplicarEditarControlPreinjertoPatron=root.aplicarEditarControlPreinjertoPatron;
+  root.aplicarEditarControlPreinjertoPatron=root.aplicarEditarControlPreinjerto;
+  if(typeof ACCIONES_OFFLINE_REPLAYABLES==='object'){
+    ACCIONES_OFFLINE_REPLAYABLES.aplicarEditarControlPreinjerto=root.aplicarEditarControlPreinjerto;
+    ACCIONES_OFFLINE_REPLAYABLES.aplicarEditarControlPreinjertoPatron=root.aplicarEditarControlPreinjerto;
+  }
   root.mostrarEditarControlCargaInjerto=showCargaInjerto;
 
 })(window);
