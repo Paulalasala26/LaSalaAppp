@@ -994,7 +994,7 @@ function ordenarTareasPorHorario(lista){
     return String(a.id).localeCompare(String(b.id));
   });
 }
-function esTareaVencidaParaBorrar(t){ const d=diasDesdeFechaTarea(t); return d!=null && d>=2; }
+function esTareaVencidaParaBorrar(t){ const d=diasDesdeFechaTarea(t); return t.estado!=='anulada' && d!=null && d>=2; }
 // Las tareas de PEÓN/REGANTE con más de 1 día de retraso sobre su fecha se
 // borran solas (a los 2 días); el día intermedio quedan un día en "Tareas de
 // ayer", que solo ven ADMIN/TÉCNICO — el peón/regante deja de verlas en
@@ -1929,6 +1929,7 @@ function buildTareaGestorRow(t, conSeleccion){
       <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
         <button onclick="showEditarTareaForm('${t.id}')" title="Editar" style="padding:5px 10px;font-size:10.5px;font-weight:700;background:#eef4fb;color:#1558a0;border:1px solid #a8c4e8;border-radius:6px;cursor:pointer">✏️ Editar</button>
         <button onclick="imprimirTareaSuelta('${t.id}')" title="Imprimir" style="padding:5px 10px;font-size:10.5px;font-weight:700;background:#eef9f0;color:#2e7d32;border:1px solid #a8dcb0;border-radius:6px;cursor:pointer">🖨️ Imprimir</button>
+        <button onclick="anularTarea('${t.id}')" title="Anular" style="padding:5px 10px;font-size:10.5px;font-weight:700;background:#fff8e1;color:#8a5a00;border:1px solid #f0c060;border-radius:6px;cursor:pointer">↪ Anular</button>
         <button onclick="eliminarTarea('${t.id}')" title="Eliminar" style="padding:5px 10px;font-size:10.5px;font-weight:700;background:#fdecea;color:#c62828;border:1px solid #f0b0b0;border-radius:6px;cursor:pointer">🗑️ Eliminar</button>
       </div>
     </div>`;
@@ -2373,6 +2374,7 @@ const TAREAS_GESTOR_VISTAS = [
   {key:'antiguas', label:'Tareas antiguas', icon:'ti-clock', color:'linear-gradient(135deg,#a32020,#d9432f)'},
   {key:'hoy', label:'Tareas de hoy', icon:'ti-calendar-event', color:'linear-gradient(135deg,#1558a0,#2a72c4)'},
   {key:'manana', label:'Tareas de mañana', icon:'ti-calendar-plus', color:'linear-gradient(135deg,#1a5c2e,#3fa864)'},
+  {key:'archivo', label:'Archivo', icon:'ti-archive', color:'linear-gradient(135deg,#64748b,#334155)'},
   {key:'mantenimiento', label:'Mantenimiento de Parcelas', icon:'ti-plant-2', color:'linear-gradient(135deg,#7b5cf0,#5c8df0)'},
   {key:'indice', label:'Índice Abonos', icon:'ti-clipboard-list', color:'linear-gradient(135deg,#a35d00,#d98c1f)'}
 ];
@@ -2385,11 +2387,12 @@ const TAREAS_GESTOR_VISTAS = [
 function renderTareasGestorFullScreen(overlay){
   overlay.style.padding = '0';
   const porFecha = {antiguas:[], hoy:[], manana:[]};
-  tareasData.forEach(t=>{ porFecha[categoriaFechaTarea(t)].push(t); });
+  tareasData.forEach(t=>{ if(t.estado!=='anulada') porFecha[categoriaFechaTarea(t)].push(t); });
   const counts = {
     antiguas: porFecha.antiguas.filter(t=>t.estado!=='completada').length,
     hoy: porFecha.hoy.filter(t=>t.estado!=='completada').length,
     manana: porFecha.manana.filter(t=>t.estado!=='completada').length,
+    archivo: tareasData.filter(t=>t.estado==='anulada' || (t.estado==='completada' && (diasDesdeFechaTarea(t)||0)>=2)).length,
     mantenimiento: mantenimientoData.filter(t=>t.estado!=='cerrado').length,
     indice: 0
   };
@@ -2435,11 +2438,11 @@ function renderTareasGestorFullScreen(overlay){
   if(wrapNuevoTG) wrapNuevoTG.scrollTop = scrollTopAnteriorTG;
 }
 function renderTareasGestorResumenHTML(counts){
-  const subLabel = key => key==='mantenimiento' ? (counts[key]===1?'ticket abierto':'tickets abiertos') : key==='indice' ? 'agua y abono' : (counts[key]===1?'pendiente':'pendientes');
+  const subLabel = key => key==='mantenimiento' ? (counts[key]===1?'ticket abierto':'tickets abiertos') : key==='archivo' ? (counts[key]===1?'registro histórico':'registros históricos') : key==='indice' ? 'agua y abono' : (counts[key]===1?'pendiente':'pendientes');
   return `
     <div style="margin-bottom:1.5rem">
       <h2 style="font-size:22px;font-weight:800;color:var(--text);margin-bottom:4px">Resumen de Tareas</h2>
-      <p style="font-size:13px;color:var(--muted)">Vista general por fecha, más Mantenimiento de Parcelas.</p>
+      <p style="font-size:13px;color:var(--muted)">Vista general por fecha, Archivo y Mantenimiento de Parcelas.</p>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:2rem">
       ${TAREAS_GESTOR_VISTAS.map(v=>`
@@ -2455,6 +2458,33 @@ function renderTareasGestorResumenHTML(counts){
     </button>
     <div id="nueva-tarea-form-wrap"></div>`;
 }
+function renderTareasArchivoHTML(){
+  const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const completadas = tareasData.filter(t=>t.estado==='completada' && (diasDesdeFechaTarea(t)||0)>=2);
+  const anuladas = tareasData.filter(t=>t.estado==='anulada');
+  const card = (t, estado, extra) => `
+    <article class="tarea-card tarea-archivo-card" data-tarea-id="${escapar(t.id)}" style="margin-top:10px;border:1px solid var(--border);border-left:4px solid #64748b;border-radius:10px;background:#fff;padding:14px 16px">
+      <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">
+        <strong>${escapar(t.titulo)}</strong><span style="font-size:11px;font-weight:800;color:#475569">${estado}</span>
+      </div>
+      ${t.descripcion?`<div style="margin-top:5px;color:var(--muted);font-size:12px">${escapar(t.descripcion)}</div>`:''}
+      <div style="margin-top:7px;color:var(--muted);font-size:11px">${escapar(t.origen||t.categoria||'Manual')} · ${escapar(t.fechaISO||t.fecha||'Sin fecha')} · ${escapar(t.asignadoA||'Sin responsable')}${t.inv?` · INV ${escapar(t.inv)}`:''}</div>
+      ${extra?`<div class="tarea-archivo-motivo" style="margin-top:7px;color:#475569;font-size:12px"><strong>Motivo:</strong> ${escapar(extra)}</div>`:''}
+    </article>`;
+  const section = (id, title, list, status, reasonFn) => `
+    <section id="${id}" style="margin-top:18px">
+      <h3 style="font-size:15px;font-weight:800;color:var(--text)">${title} <span class="tareas-archivo-count">${list.length}</span></h3>
+      ${list.length?list.map(t=>card(t,status,reasonFn?reasonFn(t):'')).join(''):`<p class="tareas-archivo-empty" style="padding:12px;color:var(--muted);font-style:italic">No hay registros.</p>`}
+    </section>`;
+  return `
+    <div style="margin-bottom:1rem">
+      <h2 style="font-size:22px;font-weight:800;color:var(--text)">Archivo</h2>
+      <p style="font-size:13px;color:var(--muted)">Consulta histórica de tareas; los registros no se modifican desde esta vista.</p>
+    </div>
+    ${section('tareas-archivo-completadas','Completadas',completadas,'Completada',t=>t.motivoCompletado||'')}
+    ${section('tareas-archivo-anuladas','Anuladas y archivadas',anuladas,'Anulada',t=>t.motivoAnulacion||'Anulación administrativa')}
+  `;
+}
 // Contenido de una sección del menú lateral: Mantenimiento es el tablero
 // kanban de siempre; las 3 de fecha muestran una tabla de pendientes
 // (con selección + asignar en lote, igual que antes) y otra de completadas
@@ -2462,6 +2492,7 @@ function renderTareasGestorResumenHTML(counts){
 // prioridad/fecha como antes — ya no hace falta elegir Sala 1/2 aparte, la
 // columna Invernadero de la tabla ya lo deja ver.
 function renderTareasGestorVistaHTML(vista, porFecha){
+  if(vista==='archivo') return renderTareasArchivoHTML();
   if(vista==='mantenimiento'){
     return `
       <div style="margin-bottom:1rem">
@@ -3070,6 +3101,34 @@ async function guardarEdicionTarea(id){
   if(wrap) wrap.innerHTML = '';
   showToast('✓ Cambios guardados');
   refreshTareasViews();
+}
+async function anularTarea(id){
+  const local = tareasData.find(x=>x.id===id);
+  if(!local){ showToast('No se encontró la tarea para anular'); return; }
+  if(local.estado==='anulada'){ showToast('La tarea ya está anulada'); return; }
+  if(local.estado==='completada'){ showToast('No se puede anular una tarea completada'); return; }
+  if(!confirm(`¿Anular la tarea "${local.titulo}" asignada a ${local.asignadoA}? Se conservará en Archivo.`)) return;
+  try{
+    const r = await window.storage.get(TAREAS_KEY);
+    if(!r){ avisarFalloGuardado(); showToast('✗ No se pudo confirmar la tarea; no se ha anulado'); return; }
+    const cloud = JSON.parse(r.value);
+    const idx = cloud.findIndex(x=>x.id===id);
+    if(idx<0){ showToast('No se encontró la tarea en el registro remoto'); return; }
+    const remota = cloud[idx];
+    if(remota.estado==='anulada'){ tareasData=cloud; refreshTareasViews(); showToast('La tarea ya estaba anulada'); return; }
+    if(remota.estado==='completada'){ showToast('La tarea ya está completada y no se puede anular'); return; }
+    const anulada = {...remota, estado:'anulada', anuladaEn:fechaLocalISO(new Date()), anuladaPor:currentUser||'', motivoAnulacion:`Anulada por ${currentUser||'usuario autorizado'}`};
+    cloud[idx] = anulada;
+    const ok = await window.storage.set(TAREAS_KEY, JSON.stringify(cloud));
+    if(!ok){ avisarFalloGuardado(); showToast('✗ No se pudo anular la tarea; sigue activa'); return; }
+    tareasData = cloud;
+    logHistorial(`Anuló la tarea "${local.titulo}" (asignada a ${local.asignadoA})`);
+    showToast('✓ Tarea anulada y conservada en Archivo');
+    refreshTareasViews();
+  }catch(e){
+    avisarFalloGuardado();
+    showToast('✗ No se pudo anular la tarea; sigue activa');
+  }
 }
 async function eliminarTarea(id){
   const t = tareasData.find(x=>x.id===id);
