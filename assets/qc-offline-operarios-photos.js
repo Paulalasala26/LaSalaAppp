@@ -19,8 +19,8 @@
  const text=(tag,v)=>{const e=document.createElement(tag);if(v!==undefined)e.textContent=String(v);return e;};
  function refValid(r){
   return r&&RE_ID.test(r.id)&&RE_PART.test(r.partida)&&
-   (r.tipo==='tunel'||r.tipo==='carga')&&Number.isInteger(r.dia)&&r.dia>=15&&r.dia<=4000&&
-   (role==='ADMIN'||role==='TECNICO'||role==='CARGADOR'&&r.tipo==='carga');
+   ['tunel','carga','carga_injerto','preinjerto_patron','preinjerto_variedad'].includes(r.tipo)&&Number.isInteger(r.dia)&&r.dia>=15&&r.dia<=4000&&
+   (role==='ADMIN'||role==='TECNICO'||role==='CARGADOR'&&(r.tipo==='carga'||r.tipo==='carga_injerto'));
  }
  function db(){
   if(!window.indexedDB)return Promise.reject(Error('Almacenamiento sin conexión no disponible.'));
