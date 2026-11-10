@@ -241,9 +241,10 @@ test('UAT-1232: ADMIN abre Tareas con Operativas seleccionada por defecto', asyn
   await expect(operativas).toHaveCSS('background-color', 'rgb(255, 255, 255)');
 });
 
-test('UAT-1233, UAT-1244, UAT-1235, UAT-1236, UAT-1242, UAT-1243, UAT-1246, UAT-1495, UAT-1499, UAT-1500 y UAT-1745: ADMIN y TÉCNICO recorren secciones sin heredar permisos ni duplicar tareas', async ({ page }) => {
+test('UAT-1233, UAT-1244, UAT-1235, UAT-1236, UAT-1242, UAT-1243, UAT-1246, UAT-1495, UAT-1499, UAT-1500, UAT-1741 y UAT-1745: ADMIN y TÉCNICO recorren secciones sin heredar permisos ni duplicar tareas', async ({ page }) => {
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(error.message));
+  const todayISO = await fechaISOEnNavegador(page);
   const tomorrowISO = await fechaISOEnNavegador(page, 1);
   const tasks = [{
     id: 'e2e-uat-1232-task',
@@ -259,6 +260,21 @@ test('UAT-1233, UAT-1244, UAT-1235, UAT-1236, UAT-1242, UAT-1243, UAT-1246, UAT-
     turno: 'Mañana',
     prioridad: 'normal',
     estado: 'pendiente'
+  }, {
+    id: 'e2e-uat-1741-archived-task',
+    titulo: 'E2E tarea anulada UAT-1741',
+    descripcion: 'Registro histórico para validar Archivo tras cambiar fecha',
+    asignadoA: 'PEON1',
+    origen: 'manual',
+    categoria: 'manual',
+    inv: '0A',
+    calles: '1-2',
+    fechaISO: todayISO,
+    anuladaISO: todayISO,
+    motivoAnulacion: 'Fixture de navegación UAT-1741',
+    turno: 'Mañana',
+    prioridad: 'normal',
+    estado: 'anulada'
   }];
   const closedTicket = {
     id: 'e2e-uat-1500-closed-ticket',
@@ -312,7 +328,10 @@ test('UAT-1233, UAT-1244, UAT-1235, UAT-1236, UAT-1242, UAT-1243, UAT-1246, UAT-
   const archive = overlay.getByRole('button', { name: 'Archivo', exact: true });
   await archive.click();
   await expect(archive).toHaveCSS('background-color', 'rgb(255, 255, 255)');
-  await expect(overlay.locator('#tareas-archivo-anuladas')).toContainText('Anuladas y archivadas');
+  const archivePane = overlay.locator('#tareas-archivo-anuladas');
+  await expect(archivePane).toContainText('Anuladas y archivadas');
+  await expect(archivePane.getByText('E2E tarea anulada UAT-1741', { exact: true })).toBeVisible();
+  await expect(archivePane).not.toContainText('E2E operativa UAT-1232');
   await assertOperativas();
   await archive.focus();
   await expect(archive).toBeFocused();
