@@ -486,8 +486,9 @@ test('UAT-1025–1027: la cuadrícula de Específicos conserva alineación al gi
   await grid.evaluate(el=>{el.scrollLeft=300;});
   const horizontal=await grid.evaluate(el=>{
     const input=el.querySelector('[data-einv="17"][data-edia="30"][data-erc="18"]');
+    const cell=input?.closest('td');
     const head=[...el.querySelectorAll('tr:first-child td')].find(td=>td.textContent.trim()==='18');
-    return {scrollLeft:el.scrollLeft,overflow:el.scrollWidth>el.clientWidth,delta:input&&head?Math.abs(input.getBoundingClientRect().left-head.getBoundingClientRect().left):null};
+    return {scrollLeft:el.scrollLeft,overflow:el.scrollWidth>el.clientWidth,delta:cell&&head?Math.abs(cell.getBoundingClientRect().left-head.getBoundingClientRect().left):null};
   });
   expect(horizontal.overflow).toBe(true);
   expect(horizontal.scrollLeft).toBeGreaterThan(0);
@@ -500,7 +501,7 @@ test('UAT-1025–1027: la cuadrícula de Específicos conserva alineación al gi
   const vertical=await grid.evaluate(el=>{
     const input=el.querySelector('[data-einv="17"][data-edia="30"][data-erc="18"]');
     const row=input?.closest('tr'),dayCell=row?.cells?.[0];
-    return {scrollTop:el.scrollTop,overflow:el.scrollHeight>el.clientHeight,delta:input&&dayCell?Math.abs(input.getBoundingClientRect().top-dayCell.getBoundingClientRect().top):null};
+    return {scrollTop:el.scrollTop,overflow:el.scrollHeight>el.clientHeight,delta:row&&dayCell?Math.abs(row.getBoundingClientRect().top-dayCell.getBoundingClientRect().top):null};
   });
   expect(vertical.overflow).toBe(true);
   expect(vertical.scrollTop).toBeGreaterThan(0);
