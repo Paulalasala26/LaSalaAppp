@@ -228,7 +228,7 @@
       field('Invernadero','<select id="qci-inv" onchange="qciCambiarInv()">'+qciInvOptions(original)+'</select>')+
       field('Calle desde','<select id="qci-from">'+qciStreetOptions(original.inv,original.from)+'</select>')+
       field('Calle hasta','<select id="qci-to">'+qciStreetOptions(original.inv,original.to)+'</select>')+
-      '</div><p class="qc107-note">La corrección queda en ViguerAPP; no modifica GS. La fecha y hora originales se conservan.</p>'+
+      '</div>'+
       '</section><div id="qci-error" role="alert"></div>'+
       '<div class="qc107-actions"><button type="button" class="qc107-cancel" onclick="qciCancelar()">Cancelar</button>'+
       '<button type="button" id="qci-save" class="qc107-save" onclick="qciGuardar()">Guardar</button></div></div>';
@@ -346,7 +346,7 @@
       '<div class="qc107-grid">'+
       field('PAR_CAS · código GS','<input id="qcp-par-cas" type="text" maxlength="20" value="'+esc(qcpRaw(line,'PAR_CAS'))+'">')+
       field('PAR_UBIC · ubicación GS','<input id="qcp-par-ubic" type="text" inputmode="numeric" maxlength="10" value="'+esc(qcpRaw(line,'PAR_UBIC'))+'">')+
-      '</div><p class="qc107-note">Se guardará una corrección en ViguerAPP. No se modifica GS. Las fechas originales se conservan.</p>'+
+      '</div>'+
       '</section><div id="qcp-error" role="alert"></div>'+
       '<div class="qc107-actions"><button type="button" class="qc107-cancel" onclick="qcpCancelar()">Cancelar</button>'+
       '<button type="button" id="qcp-save" class="qc107-save" onclick="qcpGuardar()">Guardar</button></div></div>';
