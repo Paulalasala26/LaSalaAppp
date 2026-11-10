@@ -122,3 +122,8 @@ Pendiente: revisión funcional en TEST cuando se publique/actualice la app. Sigu
 ## Editor específico: QC Preinjerto Patrón (10/11/2026)
 
 Segundo bloque en `test/v1.0` (commits `1afbb08`, `43955a2`, `8c25e38`, `c4873d0`). Reutiliza el lápiz existente de la tarjeta y el modal común del editor QC; la edición de códigos GS conserva `PAR_CAS` y `PAR_UBIC` como códigos brutos, sin inferir el nombre del invernadero. Fecha de siembra y entrega quedan bloqueadas. El conector reaplica los campos de `edicionQC` sobre las siguientes importaciones GS. No se desplegó Vercel ni se escribió en GS/Firebase. Revisión funcional en TEST pendiente. Siguiente bloque: Preinjerto Variedad.
+
+
+## Editor específico: QC Preinjerto Variedad (10/11/2026)
+
+Tercer bloque añadido sobre el flujo compartido de Preinjerto (commits `4a4a480`, `cbb75e5`, `4f9e96f`, `bea807f`). Usa el lápiz y el modal QC existentes; campos, fechas y códigos GS siguen el mismo criterio que Patrón. La persistencia conserva cambios parciales y la cola offline puede reaplicarlos. Con ello quedan preparados los cinco QC: Túnel, Carga normal, Carga Injerto, Preinjerto Patrón y Preinjerto Variedad. Revisión funcional en TEST pendiente; no se desplegó Vercel ni se escribió en GS/Firebase.
