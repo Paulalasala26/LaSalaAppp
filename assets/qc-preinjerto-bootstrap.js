@@ -147,7 +147,7 @@
       '<span><i class="ti ti-calendar-check" aria-hidden="true"></i> F. entrega: <strong>'+(esc(record.fEntrega)||'—')+'</strong></span>'+
       '<span><i class="ti ti-seeding" aria-hidden="true"></i> Plantas sol./sem.: <strong>'+plants(record.plantasSol)+' / '+plants(record.plantasSem)+'</strong></span>'+
       '</div>'+categories+
-      '<label class="qc-card-observaciones">Observaciones<input type="text" value="'+esc(record.observaciones)+'" placeholder="Sin observaciones" onchange="guardarControlObservaciones(\''+esc(record.id)+'\',this.value)" /></label>'+
+      (record.observaciones?'<div class="qc-card-observaciones-historicas" style="white-space:pre-wrap;padding:8px 10px;color:var(--muted);font-size:11px"><strong>Observaciones históricas:</strong> '+esc(record.observaciones)+'</div>':'')+
       '</div></article>';
   };
 
