@@ -5193,10 +5193,10 @@ async function aplicarSanidadEnfermedad(id, key, valor){
 // Ficha ampliada de una foto de Control — a petición de Paula (2026-08-01,
 // "debe poder abrirse en la pantalla") en vez de window.open (bloqueado por
 // el navegador en algunos móviles, y no se siente como parte de la app).
-function mostrarFotoControlAmpliada(id){
+function mostrarFotoControlAmpliada(id, indice=0){
   const item = controlChecksData.find(c=>c.id===id);
   if(!puedeEditarControlItem(item)){ avisarControlSinAcceso(); return false; }
-  const foto = fotoSrcCompleta(controlFotosData[id]);
+  const foto = fotoSrcCompleta(fotosControlComoArray(controlFotosData[id])[Number(indice)||0]);
   if(!foto) return;
   const mo = getOrCreateOverlay('control-foto-ampliada-overlay');
   mo.style.padding = '0';
@@ -5467,13 +5467,24 @@ async function persistControlFotosData(id){
     return false;
   }catch(e){ return false; }
 }
-async function eliminarFotoControl(id){
+async function eliminarFotoControl(id, indiceFoto=null){
   if(!controlFotosData[id]) await fetchFotoPartidaPorId(id);
-  if(!controlFotosData[id]){showToast('No hay una foto guardada para eliminar');return false;}
-  if(!confirm('¿Eliminar la foto de esta línea de Control?'))return false;
+  const fotos = fotosControlComoArray(controlFotosData[id]);
+  if(!fotos.length){showToast('No hay una foto guardada para eliminar');return false;}
+  const indice = indiceFoto==null ? fotos.length-1 : Number(indiceFoto);
+  if(!Number.isInteger(indice)||indice<0||indice>=fotos.length)return false;
+  if(!confirm('¿Eliminar esta foto de la línea de Control?'))return false;
+  if(fotos.length>1){
+    controlFotosData[id] = fotos.filter((_,i)=>i!==indice);
+    const guardado = await persistControlFotosData(id);
+    if(!guardado){controlFotosData[id] = fotos; avisarFalloGuardado(); return false;}
+    renderControlContent(document.getElementById('control-overlay'));
+    showToast('✓ Foto eliminada');
+    return true;
+  }
   try{
-    const indice=await cargarIndiceFotosPartida();
-    const shardKey=controlFotosShardDeId[id]||indice[id];
+    const indiceNube=await cargarIndiceFotosPartida();
+    const shardKey=controlFotosShardDeId[id]||indiceNube[id];
     if(!shardKey){avisarFalloGuardado();return false;}
     let eliminada=false;
     for(let intento=1;intento<=4;intento++){
@@ -6315,9 +6326,9 @@ function renderControlWizardCargaFilaHTML(c){
 function renderControlWizardFinalHTML(c){
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   cargarFotoControlSiFalta(c.id);
-  const fotoHTML = controlFotosData[c.id]
-    ? `<div style="text-align:center;margin-bottom:10px"><img src="${fotoSrcMiniatura(controlFotosData[c.id])}" onclick="mostrarFotoControlAmpliada('${c.id}')" style="max-height:100px;border-radius:12px;border:2px solid var(--border);cursor:pointer"></div>`
-    : '';
+  const fotoHTML = fotosControlComoArray(controlFotosData[c.id]).map((foto,index) =>
+    `<img src="${fotoSrcMiniatura(foto)}" onclick="mostrarFotoControlAmpliada('${c.id}',${index})" style="max-height:100px;border-radius:12px;border:2px solid var(--border);cursor:pointer;margin:0 4px 8px" title="Ver foto">`
+  ).join('');
   return `
     <div style="max-width:480px;margin:0 auto">
       ${wizardCabeceraPartidaHTML(c)}
@@ -8084,9 +8095,9 @@ function renderControlCardHTML(c, seccion){
     </div>`;
   }).join('');
   cargarFotoControlSiFalta(c.id);
-  const fotoHTML = controlFotosData[c.id]
-    ? `<img src="${fotoSrcMiniatura(controlFotosData[c.id])}" onclick="mostrarFotoControlAmpliada('${c.id}')" style="max-height:64px;border-radius:8px;border:1px solid var(--border);cursor:pointer;margin-right:8px" title="Ver foto">`
-    : '';
+  const fotoHTML = fotosControlComoArray(controlFotosData[c.id]).map((foto,index) =>
+    `<span style="display:inline-flex;flex-direction:column;align-items:center;gap:3px;margin-right:8px"><img data-testid="control-photo-thumb-${c.id}-${index}" src="${fotoSrcMiniatura(foto)}" onclick="mostrarFotoControlAmpliada('${c.id}',${index})" style="max-height:64px;border-radius:8px;border:1px solid var(--border);cursor:pointer" title="Ver foto"><button type="button" aria-label="Eliminar foto ${index+1} de Control" data-testid="control-photo-delete-${c.id}-${index}" onclick="eliminarFotoControl('${c.id}',${index})" style="padding:2px 6px;border:1px solid #f0b0b0;border-radius:5px;background:#fdecea;color:#c62828;cursor:pointer;font-size:10px">Eliminar</button></span>`
+  ).join('');
 
   // Información del PDF del día de esta línea
   const pdfDelDia = controlPdfsData[seccion.key+'|'+c.dia];
@@ -8138,7 +8149,7 @@ function renderControlCardHTML(c, seccion){
           </label>
           <label style="display:inline-flex;align-items:center;gap:6px;padding:8px 12px;background:#f2f6fc;border:1.5px solid #b7c9df;border-radius:8px;cursor:pointer;font-size:11px;font-weight:700;color:#1558a0;white-space:nowrap">
             <i class="ti ti-photo" style="font-size:14px"></i> Elegir fotos
-            <input type="file" accept="image/*" data-testid="control-photo-gallery-${c.id}" style="display:none" onchange="handleControlFotoInput(this,'${c.id}')">
+            <input type="file" accept="image/*" multiple data-testid="control-photo-gallery-${c.id}" style="display:none" onchange="handleControlFotoInput(this,'${c.id}')">
           </label>
           ${controlFotosData[c.id]?`<button type="button" aria-label="Eliminar foto de Control" data-testid="control-photo-delete-${c.id}" onclick="eliminarFotoControl('${c.id}')" style="margin-left:6px;min-height:36px;padding:7px 10px;background:#fdecea;color:#c62828;border:1px solid #f0b0b0;border-radius:8px;cursor:pointer;font-size:11px;font-weight:700">Eliminar foto</button>`:''}
         </div>
@@ -8574,21 +8585,19 @@ async function aplicarEditarControlCargaCheck(id, dia, cliente, partida, varieda
 // rápido) y cualquier fallo real se avisa con un toast de error en vez de
 // tragárselo.
 async function handleControlFotoInput(input, id){
-  if(!input.files || !input.files[0]) return;
+  if(!input.files || !input.files.length) return;
   const item = controlChecksData.find(c=>c.id===id);
   if(!puedeEditarControlItem(item)){ avisarControlSinAcceso(); input.value=''; return false; }
-  const file = input.files[0];
-  const esImagen = /^image\//i.test(file.type) || /\.(?:jpe?g|png|gif|webp|bmp|heic|heif|tiff?|avif)$/i.test(file.name||'');
-  if(!esImagen){ showToast('✗ El archivo elegido no es una imagen'); input.value=''; return false; }
+  const files = Array.from(input.files);
   try{
-    const resultado = await comprimirImagenParaControl(file);
-    if(!resultado){ showToast('✗ No se ha podido leer esa foto — prueba con otra'); return; }
-    // Si no se pudo comprimir (formato no soportado en canvas, p.ej. HEIC en
-    // algunos navegadores) se sube igualmente el original — la foto nunca se
-    // pierde — pero avisamos porque puede pesar varios MB y tardar más en
-    // subir/sincronizar con datos móviles.
-    if(!resultado.comprimida) showToast('⚠ Foto subida sin comprimir (formato no compatible) — puede pesar más de lo normal');
-    aplicarFotoControl(id, resultado.data);
+    for(const file of files){
+      const esImagen = /^image\\//i.test(file.type) || /\\.(?:jpe?g|png|gif|webp|bmp|heic|heif|tiff?|avif)$/i.test(file.name||'');
+      if(!esImagen){ showToast('✗ El archivo elegido no es una imagen'); continue; }
+      const resultado = await comprimirImagenParaControl(file);
+      if(!resultado){ showToast('✗ No se ha podido leer esa foto — prueba con otra'); continue; }
+      if(!resultado.comprimida) showToast('⚠ Foto subida sin comprimir (formato no compatible) — puede pesar más de lo normal');
+      await aplicarFotoControl(id, resultado.data);
+    }
   }catch(e){
     console.error('Error guardando foto de Control:', e);
     showToast('✗ No se ha podido guardar la foto — inténtalo de nuevo');
@@ -8600,7 +8609,7 @@ async function aplicarFotoControl(id, fotoB64){
   const c = controlChecksData.find(x=>x.id===id);
   if(!c) return false;
   if(!puedeEditarControlItem(c)){ avisarControlSinAcceso(); return false; }
-  controlFotosData[id] = fotoB64;
+  controlFotosData[id] = [...fotosControlComoArray(controlFotosData[id]), fotoB64];
   showToast('✓ Foto guardada');
   renderControlContent(document.getElementById('control-overlay'));
   const qid = encolarAccionOffline('aplicarFotoControl', [id, fotoB64]);
@@ -8717,7 +8726,7 @@ function comprimirImagenParaControl(file){
 // plano (la foto completa, sin miniatura aparte); las nuevas son
 // {f,t}. Estos dos helpers dan igual el resultado correcto en ambos casos.
 function fotoSrcCompleta(entry){ return (entry && typeof entry==='object') ? entry.f : entry; }
-function fotoSrcMiniatura(entry){ return (entry && typeof entry==='object') ? (entry.t||entry.f) : entry; }
+function fotoSrcMiniatura(entry){ return (entry && typeof entry==='object') ? (entry.t||entry.f) : entry; }\nfunction fotosControlComoArray(entry){ return !entry ? [] : Array.isArray(entry) ? entry : [entry]; }
 // A petición de Paula (2026-08-27): buscar una partida en Partidas y
 // Específicos SIN importar en qué semana esté colocada en el mapa —
 // busca en TODAS las líneas de Túnel (que es donde vive la calle real de
