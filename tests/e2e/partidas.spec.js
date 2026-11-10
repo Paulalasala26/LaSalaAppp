@@ -355,13 +355,16 @@ async function applySpecificToPartida(page, overlay, entryId, tratamiento) {
   return day;
 }
 
-test('UAT-028: Partidas muestra el registro conocido del invernadero seleccionado', async ({ page }) => {
+test('UAT-028, UAT-2133 y UAT-2206: Partidas muestra el mapa en la primera apertura de la sesión', async ({ page }) => {
+  const pageErrors = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
   const { overlay, unexpectedHosts } = await openPartidas(page);
   const map = page.locator('#partidas-content-wrap');
 
   await expect(map).toContainText('E2E-PARTIDA-001');
   await expect(map).not.toContainText('Fixture variedad conocida');
   expect(unexpectedHosts).toEqual([]);
+  expect(pageErrors).toEqual([]);
   await expect(overlay).toBeVisible();
 });
 

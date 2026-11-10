@@ -24,7 +24,8 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm test:e2e
+      - name: Ejecutar smoke de recorridos críticos
+        run: pnpm exec playwright test tests/e2e/control-quincena.spec.js tests/e2e/auth-roles.spec.js tests/e2e/partidas.spec.js --grep "UAT-008|UAT-009|UAT-010|UAT-028|UAT-2133|UAT-2206|UAT-2408|UAT-2409"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

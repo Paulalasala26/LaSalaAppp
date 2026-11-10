@@ -309,7 +309,7 @@ test('UAT-2391: abrir Tareas inmediatamente después de Plaguicidas mantiene lim
   expect(pageErrors).toEqual([]);
 });
 
-test('UAT-707–708 y UAT-1961–1962: QC y Partidas abren uno después del otro sin duplicar vistas ni errores', async ({ page }) => {
+test('UAT-707–708, UAT-1961–1962 y UAT-2408–2409: QC y Partidas abren uno después del otro sin duplicar vistas ni errores', async ({ page }) => {
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(error.message));
   await installAuthFixture(page);
