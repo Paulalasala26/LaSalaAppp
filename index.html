@@ -1824,6 +1824,17 @@ async function showTareasModule(){
   try{
     await loadTareasData(false);
     const overlay = getOrCreateOverlay('tareas-overlay');
+    // El segundo click de un doble clic puede aterrizar sobre un botón del
+    // overlay recién abierto, en vez de volver a la tarjeta de Inicio.
+    if(!overlay.dataset.ignoreTareasDoubleClicks){
+      overlay.addEventListener('click', event=>{
+        if(event.detail > 1){
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        }
+      }, true);
+      overlay.dataset.ignoreTareasDoubleClicks = '1';
+    }
     const esGestor = currentUserRole!=='REGANTE' && currentUserRole!=='PEON';
     if(!esGestor) await avisarNuevasTareas(currentUser);
     if(esGestor) await loadMantenimientoData();
