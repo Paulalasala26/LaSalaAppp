@@ -882,8 +882,10 @@
         // Escritorio/tableta sin selector nativo: vista de cámara del navegador.
         void openQCBrowserCamera(file=>uploadPhotoFiles([file]));
       });
-      actions.append(cameraButton,galleryButton,cameraInput,galleryInput);
-      media.append(actions);
+      if(typeof legacyApi?.uploadPhoto==='function'){
+        actions.append(cameraButton,galleryButton,cameraInput,galleryInput);
+        media.append(actions);
+      }
       media.append(node('div',null,'qco-photo-gallery'));
       const photoSection=node('section',null,'qco-photo-top');
       photoSection.append(node('div','Fotografías','qco-extras-heading'),media);
