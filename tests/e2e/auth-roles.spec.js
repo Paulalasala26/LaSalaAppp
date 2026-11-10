@@ -96,7 +96,7 @@ test('UAT-1998, UAT-2006 y UAT-2019: ADMIN abre Notificaciones y conserva la cam
   await notifications.getByRole('button').first().click();
   await expect(notifications).toBeHidden();
 
-  await page.locator('#quick-access-block .home-shortcut-card[onclick="handleQuickAction(\\'control\\')"]').click();
+  await page.getByTestId('home-control').click();
   await expect(page.locator('#control-overlay')).toBeVisible();
   await expect(bell).toBeVisible();
   await expect(page.locator('#page-home')).toBeVisible();
