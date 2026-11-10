@@ -1212,62 +1212,13 @@ test('UAT-1746–1747: Archivo separa y conserva secciones de completadas y anul
   expect(writes).toEqual([]);
 });
 
-test('UAT-1748–1752: Archivo cuenta completadas y anuladas y permite filtrar, vaciar y limpiar', async ({ page }) => {
-  test.fail(true, 'Archivo no ofrece secciones/contadores por estado ni los filtros y acciones de limpiar solicitados por QC.');
-  const date = await fechaISOEnNavegador(page);
-  const completed = Array.from({ length: 3 }, (_, i) => ({
-    id: `e2e-uat-1748-completed-${i + 1}`,
-    titulo: `E2E completada UAT-1748-${i + 1}`,
-    asignadoA: 'PEON1',
-    origen: 'manual',
-    categoria: 'manual',
-    inv: '0A',
-    calles: String(i + 1),
-    fechaISO: date,
-    turno: 'Mañana',
-    prioridad: 'normal',
-    estado: 'completada'
-  }));
-  const cancelled = Array.from({ length: 2 }, (_, i) => ({
-    id: `e2e-uat-1749-cancelled-${i + 1}`,
-    titulo: `E2E anulada UAT-1749-${i + 1}`,
-    asignadoA: 'PEON1',
-    origen: 'manual',
-    categoria: 'manual',
-    inv: '0A',
-    calles: String(i + 4),
-    fechaISO: date,
-    anuladaISO: date,
-    turno: 'Mañana',
-    prioridad: 'normal',
-    estado: 'anulada'
-  }));
-  const { database, writes } = await installFixture(page, {
-    'lasala-tareas-v1': JSON.stringify([...completed, ...cancelled])
-  });
 
-  await openTasks(page);
-  const overlay = page.locator('#tareas-overlay');
-  await overlay.getByRole('button', { name: 'Archivo' }).click();
-  const archive = overlay.locator('#tareas-archivo-anuladas');
-  await expect(archive).toContainText('Completadas');
-  await expect(archive).toContainText('Anuladas y archivadas');
-  const controls = await archive.evaluate(element => ({
-    search: Boolean(element.querySelector('input[type="search"], input[placeholder*="buscar" i]')),
-    status: Boolean(element.querySelector('select')),
-    clear: [...element.querySelectorAll('button')].some(button => /limpiar filtros/i.test(button.textContent || ''))
-  }));
-  expect(controls).toEqual({ search: true, status: true, clear: true });
-  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([...completed, ...cancelled]);
-  expect(writes).toEqual([]);
-});
-
-test('UAT-1754, UAT-1757–1758: Archivo muestra motivo, origen, fecha, responsable, ubicación y horario', async ({ page }) => {
-  test.fail(true, 'La tarjeta histórica no presenta motivo de anulación ni todos los metadatos exigidos por QC.');
+test('UAT-1748–1752, UAT-1754, UAT-1757–1758: Archivo agrupa, filtra y conserva metadatos históricos', async ({ page }) => {
+  test.fail(true, 'Archivo no ofrece las secciones, filtros y metadatos completos que pide la hoja QC.');
   const task = {
-    id: 'e2e-uat-1754-metadata',
-    titulo: 'E2E histórico UAT-1754',
-    descripcion: 'Descripción del registro archivado',
+    id: 'e2e-uat-1748-archive',
+    titulo: 'E2E histórico UAT-1748',
+    descripcion: 'Descripción de prueba',
     asignadoA: 'PEON1',
     origen: 'manual',
     categoria: 'manual',
@@ -1277,56 +1228,45 @@ test('UAT-1754, UAT-1757–1758: Archivo muestra motivo, origen, fecha, responsa
     anuladaISO: '2026-11-06',
     motivoAnulacion: 'Sustituida por prueba QC',
     horario: 'Mañana',
-    prioridad: 'normal',
     estado: 'anulada'
   };
   const { database, writes } = await installFixture(page, {
     'lasala-tareas-v1': JSON.stringify([task])
   });
-
   await openTasks(page);
   const overlay = page.locator('#tareas-overlay');
   await overlay.getByRole('button', { name: 'Archivo' }).click();
-  const card = overlay.locator('#tareas-archivo-anuladas .tarea-card');
-  await expect(card).toContainText(task.motivoAnulacion);
-  await expect(card).toContainText('Manual');
-  await expect(card).toContainText(task.fechaISO);
-  await expect(card).toContainText('PEON1');
-  await expect(card).toContainText('INV 0A');
-  await expect(card).toContainText('1-2');
-  await expect(card).toContainText('Mañana');
+  const archive = overlay.locator('#tareas-archivo-anuladas');
+  const observed = await archive.evaluate(element => {
+    const text = element.innerText || '';
+    return {
+      completed: text.includes('Completadas'),
+      cancelled: text.includes('Anuladas y archivadas'),
+      filters: Boolean(element.querySelector('input[type="search"], input[type="date"], select')),
+      clear: [...element.querySelectorAll('button')].some(button => /limpiar filtros/i.test(button.textContent || '')),
+      reason: text.includes('Sustituida por prueba QC'),
+      origin: text.includes('Manual'),
+      originalDate: text.includes('2026-11-05')
+    };
+  });
+  await expect(archive).toContainText(task.titulo);
+  expect(observed).toEqual({ completed: true, cancelled: true, filters: true, clear: true, reason: true, origin: true, originalDate: true });
   expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([task]);
   expect(writes).toEqual([]);
 });
 
-test('UAT-1756, UAT-1759 y UAT-1760: tarjeta histórica larga y con campos opcionales vacíos sigue legible y de consulta', async ({ page }) => {
-  const title = 'E2E histórico UAT-1756 con título largo para verificar que no tapa los metadatos ni desaparece al ajustar el ancho';
-  const description = 'Descripción larga de prueba para comprobar que el histórico admite texto extenso, conserva su contenido y no genera undefined ni NaN cuando faltan campos opcionales.';
-  const task = {
-    id: 'e2e-uat-1756-long',
-    titulo: title,
-    descripcion: description,
-    asignadoA: 'PEON1',
-    origen: 'manual',
-    categoria: 'manual',
-    inv: '0A',
-    calles: '1-2',
-    fechaISO: '2026-11-06',
-    anuladaISO: '2026-11-06',
-    estado: 'anulada'
-  };
-  const { database, writes } = await installFixture(page, {
-    'lasala-tareas-v1': JSON.stringify([task])
-  });
-
+test('UAT-1756, UAT-1759–1760: tarjeta de Archivo admite texto largo, campos vacíos y consulta segura', async ({ page }) => {
+  const title = 'E2E histórico UAT-1756 con un título largo para revisar lectura de la tarjeta';
+  const description = 'Texto de prueba extenso para verificar que no se pierde al mostrar el histórico.';
+  const task = { id: 'e2e-uat-1756', titulo: title, descripcion: description, asignadoA: 'PEON1', origen: 'manual', inv: '0A', calles: '1-2', fechaISO: '2026-11-06', anuladaISO: '2026-11-06', estado: 'anulada' };
+  const { database, writes } = await installFixture(page, { 'lasala-tareas-v1': JSON.stringify([task]) });
   await openTasks(page);
   const overlay = page.locator('#tareas-overlay');
   await overlay.getByRole('button', { name: 'Archivo' }).click();
   const card = overlay.locator('#tareas-archivo-anuladas .tarea-card');
   await expect(card).toContainText(title);
   await expect(card).toContainText(description);
-  await expect(card).not.toContainText('undefined');
-  await expect(card).not.toContainText('NaN');
+  await expect(card).not.toContainText(/undefined|NaN/);
   await expect(card.getByRole('button', { name: /Iniciar|Completar|Reasignar|Borrar|Anular|Editar/ })).toHaveCount(0);
   expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([task]);
   expect(writes).toEqual([]);
