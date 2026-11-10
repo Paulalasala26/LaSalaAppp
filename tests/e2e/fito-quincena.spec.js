@@ -1136,3 +1136,56 @@ test('UAT-492: elegir una fecha futura conserva la selección y no crea registro
   expect(writes).toEqual([]);
   expect(unexpectedHosts).toEqual([]);
 });
+
+test('UAT-499: abrir y cerrar apartados del formulario conserva entradas y acciones',async({page})=>{
+  test.fail(true,'Los apartados del formulario actual son encabezados fijos y no se despliegan ni pliegan.');
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await form.locator('#fm-trat').fill('E2E-ACORDEON');
+  const heading=form.getByText('Método y tratamiento',{exact:true});
+  await heading.click();
+  await expect(form.locator('#fm-tipo-trat')).toBeHidden();
+  await expect(form.locator('#fm-trat')).toHaveValue('E2E-ACORDEON');
+  await expect(form.getByRole('button',{name:'Cancelar'})).toBeVisible();
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-511: cambiar Pistola/Cañón conserva el horario elegido',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await form.locator('#fm-tipo-trat').selectOption('Cañón');
+  await form.locator('#fm-horario').selectOption('17:00');
+  await form.locator('#fm-tipo-trat').selectOption('Pistola');
+  await expect(form.locator('#fm-tipo-trat')).toHaveValue('Pistola');
+  await expect(form.locator('#fm-horario')).toHaveValue('17:00');
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-515: guardar y reabrir una jornada fixture conserva los datos sin marcarla ejecutada',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await completarFitoValido(form,'E2E-UAT515');
+  await form.getByRole('button',{name:'Guardar'}).click();
+  await expect(form).toBeHidden();
+  await expect.poll(()=>fitoData(database)?.['17']?.['30']?.['2']).toMatchObject({
+    texto:'E2E-UAT515 1 cc/l',caldoLitros:25,tipoTrat:'Cañón'
+  });
+  const cell=overlay.locator('#fito-grid-wrap [data-finv="17"][data-fdia="30"][data-frc="2"]');
+  await cell.dblclick();
+  const editor=page.locator('#fito-manual-overlay');
+  await expect(editor.locator('#fm-trat')).toHaveValue('E2E-UAT515');
+  await expect(editor.locator('#fm-dosis')).toHaveValue('1 cc/l');
+  await expect(editor.locator('#fm-caldo')).toHaveValue('25');
+  const raw=fitoData(database)?.['17']?.['30']?.['2'];
+  expect(Object.keys(raw||{}).some(key=>/ejecutado|realizado/i.test(key))).toBe(false);
+  expect(unexpectedHosts).toEqual([]);
+  expect(writes.filter(write=>write.path==='lasala-fito-v1')).toHaveLength(1);
+});
