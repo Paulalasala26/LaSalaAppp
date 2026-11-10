@@ -74,6 +74,36 @@ async function logInAs(page, user, pass = password) {
   await page.locator('#login-btn').click();
 }
 
+test('UAT-1989, UAT-1990, UAT-1991 y UAT-1992: campana junto a logout para ADMIN y TÉCNICO', async ({ page }) => {
+  await installAuthFixture(page, {
+    'lasala-users-v1': JSON.stringify({ E2E_ADMIN: passwordHash, E2E_TECNICO: passwordHash, VIGUERAS: passwordHash }),
+    'lasala-roles-v1': JSON.stringify({ ...roleUsers, VIGUERAS: 'ADMIN' })
+  });
+
+  const assertBellAndLogout = async (bellSelector) => {
+    const bell = page.locator(bellSelector);
+    const logout = page.getByRole('button', { name: 'Salir' });
+    await expect(bell).toBeVisible();
+    await expect(logout).toBeVisible();
+    const order = await page.evaluate(selector => {
+      const bellRect = document.querySelector(selector).getBoundingClientRect();
+      const logoutRect = document.querySelector('.logout-btn').getBoundingClientRect();
+      return bellRect.right <= logoutRect.left;
+    }, bellSelector);
+    expect(order).toBe(true);
+    await logout.click();
+    await expect(page.locator('#login-screen')).toBeVisible();
+    await expect(page.locator('#app')).toBeHidden();
+  };
+
+  await logInAs(page, 'VIGUERAS');
+  await assertBellAndLogout('#topbar-notificaciones');
+
+  await logInAs(page, 'E2E_TECNICO');
+  await expect(page.locator('#topbar-notificaciones')).toHaveCount(0);
+  await assertBellAndLogout('#topbar-avisos');
+});
+
 test('UAT-1983, UAT-1984 y UAT-1985: marca visible en Home, login y favicon', async ({ page }) => {
   await installAuthFixture(page);
 
