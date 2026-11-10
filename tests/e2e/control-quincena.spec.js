@@ -3439,3 +3439,50 @@ test('UAT-393–394 y UAT-398: seleccionar dos fotos de una inspección mantiene
   }
   expect(unexpectedHosts).toEqual([]);
 });
+
+test('UAT-391 y UAT-395: añadir dos fotos y continuar la evaluación tras cerrar la ampliación', async ({ page }) => {
+  const database = fixtureDatabase();
+  database['lasala-control-fotos-indice-v1'] = JSON.stringify({});
+  database['lasala-control-fotos-shards-index'] = JSON.stringify(['lasala-control-fotos-v1']);
+  database['lasala-control-fotos-v1'] = JSON.stringify({});
+  const { overlay, unexpectedHosts } = await startControlTest(page, database);
+  const id = 'e2e-control-current-fortnight';
+  const card = overlay.locator(`#control-card-${id}`);
+  const selectedColor = card.getByTestId(`qc-v6-${id}-color-ok`);
+  await selectedColor.click();
+  await expect(selectedColor).toHaveAttribute('aria-pressed', 'true');
+
+  const images = await page.evaluate(() => ['#c62828', '#1565c0'].map(color => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 120;
+    canvas.height = 180;
+    const context = canvas.getContext('2d');
+    context.fillStyle = color;
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/png').split(',')[1];
+  }));
+  const input = card.locator('input[data-testid^="control-photo-gallery-"]');
+  for (let i = 0; i < images.length; i++) {
+    await input.setInputFiles({
+      name: `e2e-uat-391-${i + 1}.png`,
+      mimeType: 'image/png',
+      buffer: Buffer.from(images[i], 'base64')
+    });
+  }
+
+  const thumbnails = card.locator('img[title="Ver foto"]');
+  await expect(thumbnails).toHaveCount(2);
+  const firstPhotoSrc = await thumbnails.first().getAttribute('src');
+  const secondPhotoSrc = await thumbnails.nth(1).getAttribute('src');
+  expect(firstPhotoSrc).not.toBe(secondPhotoSrc);
+  await thumbnails.first().click();
+
+  const enlarged = page.locator('#control-foto-ampliada-overlay');
+  await expect(enlarged).toBeVisible();
+  await enlarged.locator('button').click();
+  await expect(enlarged).toBeHidden();
+  await expect(card).toBeVisible();
+  await expect(selectedColor).toHaveAttribute('aria-pressed', 'true');
+  await expect(thumbnails).toHaveCount(2);
+  expect(unexpectedHosts).toEqual([]);
+});
