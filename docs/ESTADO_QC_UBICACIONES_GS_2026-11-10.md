@@ -177,3 +177,8 @@ La primera salida de `inspect_gs_preinjerto_location.py` encontró `id`, `id2` y
 ### Resultado de inspección de `partidas_par_ubic`
 
 La inspección de solo lectura encontró la tabla con clave compuesta `id` (varchar) + `id2` (int), `C0` varchar y `C1`–`C5` decimal. No aparecen nombres de ubicación en el esquema. La búsqueda exacta de `26C02436` y `26C02653` en las dos columnas de texto (`id`, `C0`) no devolvió filas. Por tanto no hay relación directa demostrada por esos códigos; quedan posibles relaciones indirectas en `id2` u otras tablas. Se requiere autorización antes de ampliar a una búsqueda de metadatos/relaciones GS. Ninguna escritura.
+
+
+### Búsqueda de metadatos y relaciones GS autorizada
+
+Tras no hallar las dos partidas directamente en `partidas_par_ubic.id/C0`, el usuario autorizó ampliar la búsqueda a metadatos de esquema de ubicación y SELECT limitados a esas dos partidas en tablas candidatas. Se preparó `scripts/inspect_gs_preinjerto_location_sources.py`, commit `3558a09e17e17d5b91d62536c4ed731f57f4ded8`: devuelve tablas/columnas y comentarios relevantes, relaciones FK con `partidas`, y coincidencias exactas limitadas para ambas partidas. Pendiente ejecución local; no escribe en GS/Firebase ni despliega.
