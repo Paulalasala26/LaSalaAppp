@@ -3,7 +3,8 @@
 Fecha: 10/11/2026  
 Repositorio: [Paulalasala26/LaSalaAppp](https://github.com/Paulalasala26/LaSalaAppp)  
 Rama: `test/v1.0`  
-Commit de incorporación del conector de Túnel: `635bae1dad05f705e1140bda1524e8c8fc9cbe5f`
+Commit de incorporación del conector de Túnel: `635bae1dad05f705e1140bda1524e8c8fc9cbe5f`  
+Corrección de ubicación Túnel: `c1bccebb61fb1283a227478a9b7cba614a76d3eb`
 
 ## Objetivo
 
@@ -16,7 +17,7 @@ Mostrar en las tarjetas QC el invernadero y la calle que GS asigna a cada partid
 
 Los archivos se subieron en dos commits a esta rama: `a731224105e32abc63f07baafdfc23fb6704add1` y `89b9a2e9c75464f1212272efaec44f661c65c7fd`.
 
-- [`scripts/pilot_gs_qc_tunel.py`](../scripts/pilot_gs_qc_tunel.py) — incorporado desde el conector local. Su SELECT devuelve `pa.PAR_CAS AS PAR_CAS` y `pi.PIN_LOCA AS PIN_LOCA`, filtrando por `pi.PIN_FECP = %s`. Mantiene el campo legado `invernaderos_gs` por compatibilidad; este último refleja `PIN_LOCA` y no constituye una resolución del nombre del invernadero.
+- [`scripts/pilot_gs_qc_tunel.py`](../scripts/pilot_gs_qc_tunel.py) — incorporado desde el conector local y corregido en `c1bccebb`. Su SELECT devuelve `pa.PAR_CAS AS PAR_CAS` y `pi.PIN_LOCA AS PIN_LOCA`, filtrando por `pi.PIN_FECP = %s`. Se elimina el campo legado `invernaderos_gs`, que confundía la calle con el invernadero, así como su consulta incorrecta al catálogo `invernaderos`. `PAR_CAS` se conserva como código bruto, sin asignarle una denominación no verificada.
 
 La interfaz en la rama ya lee `invId`, `calleDesde`/`calleHasta`, `PAR_CAS` y `PIN_LOCA` para la ubicación. No se modificó ni desplegó Vercel. No se ejecutaron consultas ni escrituras sobre GS o Firebase en este trabajo.
 
@@ -27,7 +28,7 @@ La interfaz en la rama ya lee `invId`, `calleDesde`/`calleHasta`, `PAR_CAS` y `P
 | Carga normal | El conector recoge `C3/C4/C5` del detalle de carga y genera la ubicación combinada. El usuario indicó que este QC sí la muestra. |
 | Carga Injerto | El script existente recoge `C3/C4/C5` y los lleva a `invId` y calles. Revisar la tarjeta después de actualizar la rama/app. |
 | Preinjerto Patrón/Variedad | La consulta y el importador ya conservan `PAR_CAS` y `PAR_UBIC`. Hay que sustituir los archivos en el conector local y volver a sincronizar para actualizar los registros de TEST. `PAR_UBIC=0` se considera sin calle. `PAR_CAS` se conserva como código; no se ha confirmado una resolución fiable a nombre en `invernaderos`. |
-| Túnel | El SELECT del conector ya incluye `PAR_CAS` y `PIN_LOCA`, y el script está disponible en `scripts/pilot_gs_qc_tunel.py`. Pendiente copiarlo al equipo local y verificar mediante una ejecución autorizada que los datos reales llegan al JSON e importador. |
+| Túnel | Script corregido en la rama: alias correctos, filtrado por `PIN_FECP` y sin interpretar `PIN_LOCA` como ID de invernadero. Pendiente copiarlo al equipo local y validar con datos reales en una ejecución autorizada. |
 
 ## Evidencia de la consulta de Túnel
 
@@ -38,8 +39,8 @@ Para la partida `26X02342`, los datos aportados en el chat identifican `PAR_CAS=
 1. Copiar al conector Windows el nuevo `pilot_gs_qc_tunel.py` y los importadores pertinentes desde `test/v1.0`.
 2. En una sesión autorizada, ejecutar la extracción/sincronización TEST para las fechas necesarias y validar los campos del JSON.
 3. Confirmar en el QC de Túnel de la partida `26X02342` que el registro de `PIN_FECP=2026-11-09` mantiene 37 bandejas, `PAR_CAS=064` y `PIN_LOCA=27`, y el de `2026-11-11` mantiene 6 bandejas y `PIN_LOCA=30`.
-4. Resolver por separado la denominación del invernadero correspondiente a `PAR_CAS=064`; no inferirla desde observaciones ni desde el campo legado `invernaderos_gs`.
+4. Resolver por separado la denominación del invernadero correspondiente a `PAR_CAS=064`; no inferirla desde observaciones ni desde el antiguo campo `invernaderos_gs` (retirado del conector).
 
 ## Validación realizada
 
-En la sesión previa, los tres archivos Python locales modificados compilaron con `py_compile`. En la continuación del 10/11/2026, el conector de Túnel pasó validación sintáctica mediante `ast.parse`; un ensayo local con registros simulados preservó 37 bandejas y calle 27 para el 09/11, y 6 bandejas y calle 30 para el 11/11, con `PAR_CAS=064` en ambos casos. No se ejecutaron consultas ni escrituras en GS/Firebase, ni despliegues Vercel. La comprobación con registros reales sigue pendiente.
+En la sesión previa, los tres archivos Python locales modificados compilaron con `py_compile`. En la continuación del 10/11/2026, el conector de Túnel pasó validación sintáctica y ensayos con registros simulados. Tras retirar el mapeo erróneo, se ejecutaron `py_compile` y 3 pruebas locales sin conexiones, todas correctas: alias/fecha del SELECT, conservación de 37 bandejas y calle 27 (09/11) y 6 bandejas y calle 30 (11/11) con `PAR_CAS=064`, e independencia de registros por `gs_injerto_id`. No se ejecutaron consultas ni escrituras en GS/Firebase, ni despliegues Vercel. La comprobación con registros reales sigue pendiente.
