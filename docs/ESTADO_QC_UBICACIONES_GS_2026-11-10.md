@@ -106,3 +106,9 @@ El usuario ejecutó localmente `python pilot_gs_qc_preinjerto.py --desde 2026-11
 Se revisaron las 145 filas del JSON con PowerShell; resultado: `Total=145`, `Con_PAR_CAS=0`, `Con_PAR_UBIC=0`, `Cliente_Final_INV=0`. Por tanto, **ninguna de las partidas de esa extracción aporta ubicación con las columnas y patrón de cliente final actualmente admitidos**. El SELECT lee directamente `p.PAR_CAS`, `p.PAR_UBIC` y `p.PAR_CLF` de `sala12.partidas`; esto no permite concluir si otras tablas de GS tienen la ubicación. No deducirla de observaciones.
 
 **Decisión:** no sincronizar este lote únicamente para resolver ubicaciones, ni rellenar códigos de forma artificial. Próximo paso: localizar/confirmar la fuente real de ubicación de Preinjerto (preferentemente con una partida concreta que GS muestre situada) antes de cambiar conector/importador. No se desplegó Vercel.
+
+## Validación Preinjerto GS 10–15/11/2026
+
+Extracción local del usuario con `pilot_gs_qc_preinjerto.py --desde 2026-11-10 --hasta 2026-11-15`: **145 partidas**, de las cuales **27 Patrón** y **118 Variedad**. Snapshot: `snapshots/gs_qc_preinjerto_2026-11-10_2026-11-15.json` (en equipo Windows del usuario). No se escribió en Firebase.
+
+Inspección PowerShell del snapshot: `Con_PAR_CAS=0`, `Con_PAR_UBIC=0` (excluyendo vacío y 0), `Cliente_Final_INV=0` (patrón exacto `INVERNADERO <código>`). Ninguno de los 145 registros trae ubicación aprovechable en estos tres campos. Esto **no prueba** que GS carezca de ubicación en otras tablas; queda por identificar su origen real. No inferirla ni rellenarla desde observaciones. Evitar sincronizaciones repetidas sólo para resolver las ubicaciones. No se ha desplegado Vercel.
