@@ -66,3 +66,13 @@ El usuario ejecutó localmente `gs_qc_import.sync_qc_items` para los JSON de Tú
 - `2026-11-11 (8, 0)`: 8 creados, 0 actualizados.
 
 Total: 14 registros procesados en Firebase TEST. No implica todavía verificación visual ni confirmación de que los valores finales se muestren en las tarjetas QC. **Pendiente:** comprobar en APP R TEST la partida `26X02342` en ambas fechas (37 bandejas, `PAR_CAS=064`, calle 27 el 09/11; 6 bandejas, `PAR_CAS=064`, calle 30 el 11/11). Sin despliegue Vercel ni modificaciones en producción.
+
+## Corrección de presentación QC Túnel (10/11/2026)
+
+Tras sincronizar Firebase TEST (09/11: 0 nuevos/6 actualizados; 11/11: 8 nuevos/0 actualizados), el usuario confirmó visualmente que la tarjeta de `26X02342` del 11/11 mostraba 6 bandejas pero `Invernadero: —` y `Calle: —`.
+
+Se revisó `index.html` en `test/v1.0`: `controlQCInfoVisual(c)` solo mostraba `invId` y `calleDesde/calleHasta`; no consultaba `PAR_CAS` ni `PIN_LOCA` directamente. Se añadió lectura alternativa de estos campos (también desde `gsDetalles`) cuando falte una ubicación visual asignada. Si `invId` coincide con `PAR_CAS`, se muestra `Código GS 064` sin inventar denominación de invernadero; se priorizan ubicaciones manuales existentes. La calle `0` permanece sin asignar.
+
+Commit frontend: `211e2f455df3ad4e700c818c1d0965d6600c7fcb`. Pruebas locales aisladas: 09/11→código GS 064/calle 27; 11/11→código GS 064/calle 30; ubicación manual prioritaria; datos GS anidados; ausencia de ubicación.
+
+**Pendientes:** confirmar que `gs_qc_import.py` en el equipo Windows es la versión que alimenta `invId` y `calleDesde` desde `PAR_CAS` y `PIN_LOCA`; comprobar si los registros TEST tienen realmente esos campos en Firebase. El nuevo código de presentación **no está desplegado por el asistente** y no aparecerá en el sitio Vercel hasta que se publique una versión nueva. No se ha tocado producción.
