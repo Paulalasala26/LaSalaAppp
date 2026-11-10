@@ -19168,7 +19168,7 @@ function renderEspecificosGrid(invId){
           cells+=`<td style="height:${DH}px;border:1px solid #cfe8cf;padding:0;background:${colorFondoEspecificoPorTexto(val)}">
             <input type="text" value="${val.replace(/"/g,'&quot;')}" placeholder=""
               data-einv="${invId}" data-edia="${dia}" data-erc="${calle}" readonly
-              onclick="${val ? "editarEspecificoManualDesdeCelda(this.dataset.einv, Number(this.dataset.edia), [Number(this.dataset.erc)])" : ""}"
+              onclick="${val ? "editarEspecificoManualDesdeCelda(this.dataset.einv, Number(this.dataset.edia), [Number(this.dataset.erc)])" : "abrirEspecificoManualDiaConTramo(this.dataset.einv, Number(this.dataset.edia), Number(this.dataset.erc), Number(this.dataset.erc))"}"
               onchange="setEspecificoUndo('${invId}',${dia},${calle},this.value);renderEspecificosGrid('${invId}')"
               onmousedown="dragCalleStart('especifico','${invId}',${dia},${calle})"
               onmouseenter="dragCalleOver('especifico','${invId}',${dia},${calle})"
