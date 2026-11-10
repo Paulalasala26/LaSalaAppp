@@ -755,6 +755,40 @@ test('UAT-2416: abrir Control y Partidas a la vez comparte la carga QC y deja am
 
 
 
+test('UAT-1980–1982: cada perfil vuelve a su Inicio específico desde su función principal', async ({ page }) => {
+  await installAuthFixture(page);
+  await logInAs(page, 'E2E_REGANTE');
+
+  const reganteHome = page.locator('#page-home-inner');
+  await expect(reganteHome).toContainText('Acceso de Regante');
+  await page.getByRole('button', { name: 'Hojas de riego', exact: true }).click();
+  const riego = page.locator('#riego-overlay');
+  await expect(riego).toBeVisible();
+  await riego.getByRole('button', { name: /✕/ }).last().click();
+  await expect(riego).toBeHidden();
+  await expect(reganteHome).toContainText('Acceso de Regante');
+  await expect(reganteHome).not.toContainText('Control de Calidad');
+
+  await page.getByRole('button', { name: 'Salir' }).click();
+  await logInAs(page, 'E2E_PEON');
+  await expect(page.locator('#page-home-inner')).toContainText('Mis tareas');
+  await expect(page.locator('#peon-tareas-inline')).toBeVisible();
+  await expect(page.locator('#quick-access-block .home-shortcut-card')).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Salir' }).click();
+  await logInAs(page, 'E2E_CARGADOR');
+  const cargadorHome = page.locator('#page-home-inner');
+  await expect(cargadorHome).toContainText('Acceso de Julio (Cargas)');
+  await page.getByTestId('home-qc-carga').click();
+  const control = page.locator('#control-overlay');
+  await expect(control).toBeVisible();
+  await expect(control).toContainText('Check Carga');
+  await control.getByRole('button', { name: /✕/ }).last().click();
+  await expect(control).toBeHidden();
+  await expect(cargadorHome).toContainText('QC Carga');
+  await expect(cargadorHome).not.toContainText('Control de Calidad');
+});
+
 test('UAT-1964: volver desde Control a Inicio conserva la sesión', async ({ page }) => {
   await installAuthFixture(page);
   await logInAs(page, 'E2E_TECNICO');
