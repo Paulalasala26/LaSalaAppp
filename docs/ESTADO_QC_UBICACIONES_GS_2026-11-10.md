@@ -44,3 +44,16 @@ Para la partida `26X02342`, los datos aportados en el chat identifican `PAR_CAS=
 ## Validación realizada
 
 En la sesión previa, los tres archivos Python locales modificados compilaron con `py_compile`. En la continuación del 10/11/2026, el conector de Túnel pasó validación sintáctica y ensayos con registros simulados. Tras retirar el mapeo erróneo, se ejecutaron `py_compile` y 3 pruebas locales sin conexiones, todas correctas: alias/fecha del SELECT, conservación de 37 bandejas y calle 27 (09/11) y 6 bandejas y calle 30 (11/11) con `PAR_CAS=064`, e independencia de registros por `gs_injerto_id`. No se ejecutaron consultas ni escrituras en GS/Firebase, ni despliegues Vercel. La comprobación con registros reales sigue pendiente.
+
+## Validación real de extracción Túnel (10/11/2026)
+
+El usuario ejecutó localmente `pilot_gs_qc_tunel.py` con `--fecha 2026-11-09` y `--fecha 2026-11-11`, sin `--sync-test`. Se generaron JSON locales con 6 y 8 partes respectivamente; ambas ejecuciones indicaron que no se escribió en Firebase.
+
+| Partida | PIN_FECP | Bandejas | PAR_CAS | PIN_LOCA |
+|---|---|---:|---|---:|
+| 26X02342 | 2026-11-09 | 37 | 064 | 27 |
+| 26X02342 | 2026-11-11 | 6 | 064 | 30 |
+
+Validación de valores realizada inspeccionando ambos archivos JSON con PowerShell. El 09/11 se mostró además un aviso de IDs de invernadero sin ficha en el catálogo: 27, 4, 5, 6; no implica que se haya resuelto el nombre correspondiente a `PAR_CAS=064`.
+
+**Pendiente:** autorización explícita para importación/escritura a Firebase TEST y posterior revisión visual del QC. No se ha desplegado Vercel ni se ha escrito en GS o Firebase por parte del asistente.
