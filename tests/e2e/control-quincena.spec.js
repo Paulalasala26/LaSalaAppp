@@ -3441,7 +3441,16 @@ test('UAT-393–394 y UAT-397–398: abrir fotos distintas en móvil mantiene la
     await expect(overlay).toBeVisible();
   }
 
-  await overlay.getByTestId('control-day-previous').click();
+  const currentDate = await overlay.getByTestId('control-date-picker').inputValue();
+  const priorDate = await page.evaluate(value => {
+    const date = new Date(value + 'T00:00:00');
+    date.setDate(date.getDate() - 1);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  }, currentDate);
+  await overlay.getByTestId('control-date-picker').evaluate((input, value) => {
+    input.value = value;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  }, priorDate);
   const priorDayCard = overlay.locator(`#control-card-${ids[2]}`);
   await expect(priorDayCard).toBeVisible();
   await priorDayCard.locator('input[data-testid^="control-photo-gallery-"]').setInputFiles({
