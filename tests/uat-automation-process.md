@@ -1,61 +1,41 @@
 # Procedimiento de automatización de QC
 
-## Fuente y alcance
+## Fuente y registro
 
-- La hoja original **La Sala - APP Riego QC.xlsx** de SharePoint conserva los 2.754 casos UAT y sigue siendo la fuente de requisitos.
-- La automatización se identifica siempre por el ID `UAT-####`, nunca por el número de fila.
-- Los resultados detallados se escriben en el sidecar CSV de SharePoint y se reflejan en el snapshot CSV de la matriz. El XLSX original no se reescribe.
-- En una prueba agrupada, cada ID se registra solo si las aserciones cubren el resultado esperado de ese caso.
+- La hoja original de SharePoint conserva los requisitos; los resultados se escriben en el sidecar CSV y en el snapshot CSV. El XLSX original no se modifica.
+- Usar el ID `UAT-####`, no el número de fila. Registrar cada caso solo si la comprobación cubre su resultado esperado.
+- `PASA_FIXTURE` y `FALLA_FIXTURE` describen el comportamiento con datos simulados; no certifican TEST ni PRD.
 
-## Qué se automatiza
+## Alcance y ritmo
 
-1. **Navegador con fixture**: login, roles visibles, navegación, selector de fecha/quincena, formularios, mensajes, tablas, persistencia y recarga.
-2. **Contrato de datos**: validaciones, relaciones, duplicados, concurrencia y errores de guardado, usando respuestas Firebase simuladas.
-3. **Integración TEST**: Firebase, SharePoint, fotos o procesos externos solo cuando haya un destino TEST aislado y credenciales seguras.
-4. **Manual**: cámara y táctil en dispositivos físicos, red móvil, ergonomía y comprobaciones agrícolas sin un resultado digital objetivo.
+- Priorizar pruebas sencillas de navegador: abrir un módulo, cambiar quincena/periodo y comprobar que se muestran los datos esperados; navegación, formularios y mensajes visibles.
+- Agrupar IDs relacionados en una prueba corta. Para un flujo sencillo basta una comprobación visible del resultado; añadir verificaciones extra solo si aparece un fallo o riesgo concreto.
+- Quedan fuera de esta campaña los bloques completos de Offline y Concurrencia, así como los casos que requieren dispositivo físico o integración real. Mantener esas filas pendientes.
+- Priorizar flujos comunes y casos simples que puedan ejecutarse con fixture. No invertir tiempo en reproducir escenarios largos o condiciones de laboratorio.
 
-Se priorizan casos de prioridad Alta y flujos reutilizados. Un resultado de fixture no se presenta como verificación de TEST ni PRD.
+## Ejecución y actualización
 
-## Aislamiento
+1. Elegir un grupo pequeño de casos sencillos y relacionados.
+2. Ejecutarlo en Chromium con Firebase interceptado; no usar datos reales de producción.
+3. Resolver errores inesperados. Una brecha visible del producto puede quedar registrada como `FALLA_FIXTURE` aunque la acción de CI termine correctamente.
+4. Exportar los IDs cubiertos y actualizar el sidecar y las filas correspondientes del snapshot.
+5. Leer ambos CSV de nuevo y confirmar estados, enlaces y totales. Dejar pendientes los casos fuera de alcance.
 
-- Playwright intercepta Firebase y usa datos `E2E-` en memoria; bloquea cualquier host distinto del Firebase permitido.
-- Ninguna prueba de esta suite escribe en Firebase TEST o PRD.
-- Las pruebas de borrado operan sobre registros creados por su propio fixture.
-- La ejecución completa y el smoke corren en GitHub Actions. No requieren controlar el PC del usuario.
-- El smoke ejecuta ocho recorridos críticos, incluidos los cambios de quincena y el aislamiento de datos QC; la suite UAT completa se ejecuta en cada actualización del PR.
-
-## Ciclo de cada lote
-
-1. Seleccionar casos pendientes y comprobar si son de navegador, contrato de datos, integración TEST o manuales.
-2. Añadir una prueba Playwright con los IDs cubiertos y aserciones sobre el resultado esperado y, cuando aplique, la persistencia.
-3. Ejecutar el smoke y la suite completa en GitHub Actions. Resolver fallos inesperados y repetir las pruebas inestables.
-4. Exportar los resultados del informe Playwright al CSV de evidencia.
-5. Actualizar en SharePoint el sidecar y las filas correspondientes del snapshot QC; leer de nuevo ambos archivos para confirmar filas, estados y enlaces.
-6. Mantener pendientes los casos que requieran un entorno, dispositivo o criterio que la fixture no pueda verificar.
-
-## Estados
-
-- `PASA_FIXTURE`: pasó en navegador con Firebase interceptado; no equivale a OK de integración TEST o de prueba manual.
-- `FALLA_FIXTURE`: discrepancia del producto reproducida en fixture. Los fallos esperados se mantienen como brechas, aunque GitHub Actions termine verde.
-- `INESTABLE`: pasó tras reintento o tuvo resultados distintos entre intentos; no se registra como pasada estable.
-- `NO_EJECUTADO`: prueba omitida o no ejecutada.
-- `PENDIENTE`: no existe cobertura suficiente o falta el entorno requerido.
+El smoke de CI comprueba recorridos críticos, incluido el cambio de quincena y el aislamiento QC. La suite UAT sirve como regresión; el trabajo nuevo debe mantener comprobaciones breves.
 
 ## Estado al 10 de noviembre de 2026
 
-- Última suite completa: [GitHub Actions #155](https://github.com/Paulalasala26/LaSalaAppp/actions/runs/42848710388), 330 pruebas completadas y 770 IDs UAT únicos.
-- Último smoke: [GitHub Actions #155](https://github.com/Paulalasala26/LaSalaAppp/actions/runs/42848710414), ocho recorridos críticos aprobados, incluidos cambios de quincena y aislamiento QC.
-- Sidecar SharePoint: 853 IDs, 794 `PASA_FIXTURE` y 59 `FALLA_FIXTURE`. Snapshot: 853 con evidencia, 1.901 pendientes y 13 sin estado.
-- #155 confirma UAT-1734, UAT-1735, UAT-1736, UAT-1737, UAT-1740, UAT-1742 y UAT-1744: Archivo permite consulta y navegación entre roles/sesiones sin escrituras.
-- UAT-1746–1747 son brechas reproducibles: Archivo muestra las tareas anuladas, pero no una sección histórica separada de tareas completadas.
-- UAT-1232 y UAT-1240 siguen como brechas de Tareas. UAT-1268–1297 son brechas por filtros y búsqueda ausentes en Operativas.
-- Los resultados fixture validan comportamiento con datos simulados. No certifican Firebase TEST/PRD, integraciones reales con SharePoint, cámara nativa ni interacción física.
+- Última suite completa: [GitHub Actions #156](https://github.com/Paulalasala26/LaSalaAppp/actions/runs/42853152765), 332 pruebas terminadas y 781 IDs UAT únicos.
+- Último smoke: [GitHub Actions](https://github.com/Paulalasala26/LaSalaAppp/actions/runs/42853154690), recorrido de quincena aprobado.
+- SharePoint releído: 864 IDs con evidencia, 797 `PASA_FIXTURE` y 67 `FALLA_FIXTURE`; en la matriz, 1.890 pendientes y 13 sin estado.
+- UAT-1746–1752, UAT-1754 y UAT-1757–1758 quedan como brechas de Archivo. UAT-1756, UAT-1759 y UAT-1760 pasan las comprobaciones sencillas de tarjeta y consulta.
+- UAT-1232, UAT-1240 y UAT-1268–1297 siguen como brechas de Tareas.
+- Firebase estuvo interceptado; la suite no certifica datos TEST/PRD, SharePoint real ni dispositivos físicos.
 
-## Archivos y evidencia
+## Archivos
 
 - Flujo UAT: `.github/workflows/uat-playwright.yml`
-- Smoke de recorridos críticos: `.github/workflows/e2e.yml`
+- Smoke: `.github/workflows/e2e.yml`
 - Exportador: `tests/export-uat-results.cjs`
-- Informe Playwright: artefacto `uat-playwright-report` de cada ejecución UAT.
-- [Sidecar de evidencias QC](https://viveroslasala.sharepoint.com/sites/Tecnologia/_layouts/15/Doc.aspx?sourcedoc=%7B181F6288-E2BC-4FA1-A376-E055CB212BAF%7D&file=LaSala_QC_UAT_evidencia_2026-11-06.csv&action=default&mobileredirect=true)
+- [Sidecar QC de SharePoint](https://viveroslasala.sharepoint.com/sites/Tecnologia/_layouts/15/Doc.aspx?sourcedoc=%7B181F6288-E2BC-4FA1-A376-E055CB212BAF%7D&file=LaSala_QC_UAT_evidencia_2026-11-06.csv&action=default&mobileredirect=true)
 - [Snapshot de la matriz QC](https://viveroslasala.sharepoint.com/sites/Tecnologia/_layouts/15/Doc.aspx?sourcedoc=%7B7D662016-CFD6-42FD-8905-C2B19364CF82%7D&file=La%20Sala%20-%20APP%20Riego%20QC%20-%20snapshot%20automatizacion%202026-11-10.csv&action=default&mobileredirect=true)
