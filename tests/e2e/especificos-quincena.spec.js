@@ -339,3 +339,70 @@ test('UAT-986 y UAT-987: ADMIN y TÉCNICO pueden entrar en Específicos con sus 
   expect(writes).toEqual([]);
   expect(unexpectedHosts).toEqual([]);
 });
+
+
+test('UAT-988: un rol REGANTE no accede directamente a Específicos',async({page})=>{
+  test.fail(true,'La ruta global showEspecificosModule no comprueba el rol antes de abrir el módulo.');
+  const database=fixtureDatabase();
+  const {unexpectedHosts,writes}=await openSpecifics(page,database);
+  await switchSpecificsUser(page,regante);
+  await page.evaluate(()=>showEspecificosModule());
+  await expect(page.locator('#especificos-overlay')).toBeHidden();
+  expect(writes.every(write=>write.path==='lasala-especificos-v1')).toBe(true);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-989: cabecera de Específicos es azul compacta e incluye imprimir y cerrar',async({page})=>{
+  test.fail(true,'La implementación actual usa cabecera verde, aunque conserva imprimir y cerrar.');
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts}=await openSpecifics(page,database);
+  await expect(overlay.locator('button[onclick="showImprimirEspecificoSelector()"]')).toBeVisible();
+  await expect(overlay.locator('button[onclick*="especificos-overlay"]')).toBeVisible();
+  const color=await overlay.locator(':scope > div').first().evaluate(element=>getComputedStyle(element).backgroundColor);
+  expect(color).toBe('rgb(21, 88, 160)');
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-990: Específicos no muestra Añadir general en la cabecera',async({page})=>{
+  test.fail(true,'La implementación actual todavía tiene Añadir manualmente en la cabecera.');
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts}=await openSpecifics(page,database);
+  await expect(overlay.locator('button[onclick="showEspecificoManualForm()"]')).toHaveCount(0);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-991: Específicos no muestra Guardar general en la cabecera',async({page})=>{
+  test.fail(true,'La implementación actual todavía tiene Guardar general en la cabecera.');
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts}=await openSpecifics(page,database);
+  await expect(overlay.locator('button[onclick="saveEspecificosData()"]')).toHaveCount(0);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-992: Específicos permite alternar entre Cuadrícula y Resumen',async({page})=>{
+  test.fail(true,'La pantalla actual de Específicos solo ofrece Cuadrícula; no presenta el cambio a Resumen.');
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts}=await openSpecifics(page,database);
+  const resumen=overlay.getByRole('button',{name:'Resumen',exact:true});
+  await expect(resumen).toBeVisible();
+  await resumen.click();
+  await expect(overlay).toContainText('Resumen');
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-993 y UAT-994: Específicos permanece utilizable en móvil y al reducir ventana de escritorio',async({page})=>{
+  const database=fixtureDatabase();
+  await page.setViewportSize({width:390,height:844});
+  const {overlay,unexpectedHosts}=await openSpecifics(page,database);
+  await expect(overlay).toBeVisible();
+  await expect(overlay.locator('[data-einv="17"]')).toBeVisible();
+  const mobileOverflow=await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth);
+  expect(mobileOverflow).toBe(false);
+
+  await page.setViewportSize({width:1440,height:900});
+  await page.setViewportSize({width:900,height:620});
+  await expect(overlay.locator('button[onclick="showImprimirEspecificoSelector()"]')).toBeVisible();
+  const desktopOverflow=await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth);
+  expect(desktopOverflow).toBe(false);
+  expect(unexpectedHosts).toEqual([]);
+});
