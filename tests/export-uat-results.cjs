@@ -25,10 +25,11 @@ for (const spec of specs) {
   const tests = spec.tests || [];
   const attempts = tests.flatMap(test => test.results || []);
   const statuses = tests.map(test => test.status);
-  let state = 'PASO_FIXTURE';
+  let state = 'PASA_FIXTURE';
+  const expectedProductFailure = tests.some(test => test.status === 'expected' && test.expectedStatus === 'failed');
   if (statuses.some(status => status === 'skipped')) state = 'NO_EJECUTADO';
   else if (statuses.some(status => status === 'flaky') || (spec.ok && attempts.some(attempt => attempt.status !== 'passed'))) state = 'INESTABLE';
-  else if (!spec.ok || statuses.some(status => status !== 'expected')) state = 'FALLO';
+  else if (!spec.ok || expectedProductFailure || statuses.some(status => status !== 'expected')) state = 'FALLA_FIXTURE';
 
   const duration = attempts.reduce((sum, attempt) => sum + (attempt.duration || 0), 0);
   const evidence = {
@@ -59,7 +60,7 @@ const runDate = report.stats?.startTime ? new Date(report.stats.startTime).toISO
 const header = ['UAT', 'Estado automatizado', 'Fecha de ejecución', 'Prueba', 'Archivo', 'Línea', 'Duración ms', 'Entorno', 'Alcance de datos'];
 const rows = [header.join(';')];
 for (const [id, evidence] of [...coverage.entries()].sort(([a], [b]) => Number(a.slice(4)) - Number(b.slice(4)))) {
-  const combinedState = evidence.some(item => item.state === 'FALLO') ? 'FALLO'
+  const combinedState = evidence.some(item => item.state === 'FALLA_FIXTURE') ? 'FALLA_FIXTURE'
     : evidence.some(item => item.state === 'INESTABLE') ? 'INESTABLE'
       : evidence.every(item => item.state === 'NO_EJECUTADO') ? 'NO_EJECUTADO'
         : 'PASA_FIXTURE';
