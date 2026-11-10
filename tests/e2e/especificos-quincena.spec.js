@@ -577,3 +577,32 @@ test('UAT-1039–1042: selectores de Específicos conservan tratamiento y dosis 
   expect(writes).toEqual([]);
   expect(unexpectedHosts).toEqual([]);
 });
+
+
+test('UAT-1058: botón Aplicar de alta queda alineado a la derecha',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openSpecifics(page,database);
+  await overlay.locator('#especificos-grid-wrap td[title="Pulsa para añadir un específico este día"]').first().click();
+  const editor=page.locator('#especifico-manual-overlay');
+  const alignment=await editor.evaluate(element=>{
+    const footer=element.querySelector('div[style*="justify-content:space-between"]');
+    const apply=[...footer.querySelectorAll('button')].find(button=>button.textContent.includes('Aplicar'));
+    const rect=footer.getBoundingClientRect(),buttonRect=apply.getBoundingClientRect();
+    return rect.right-buttonRect.right;
+  });
+  expect(alignment).toBeLessThan(30);
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-1060: formulario de alta no ofrece imprimir',async({page})=>{
+  test.fail(true,'El formulario de alta aún muestra «Imprimir hoja».');
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openSpecifics(page,database);
+  await overlay.locator('#especificos-grid-wrap td[title="Pulsa para añadir un específico este día"]').first().click();
+  const editor=page.locator('#especifico-manual-overlay');
+  await expect(editor).toBeVisible();
+  await expect(editor.getByRole('button',{name:'Imprimir hoja'})).toHaveCount(0);
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
