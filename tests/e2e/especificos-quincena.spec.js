@@ -240,7 +240,8 @@ test('UAT-1009: la navegación de quincena en Específicos cruza de año sin sal
   await period.locator('button').last().click();
   const nextYear=(await period.innerText()).replace(/\\s+/g,' ').trim();
   expect(nextYear).not.toBe(yearEnd);
-  expect(nextYear).toContain('2027');
+  expect(yearEnd.toLowerCase()).toContain('dic');
+  expect(nextYear.toLowerCase()).toContain('ene');
 
   await period.locator('button').first().click();
   await expect.poll(async()=> (await period.innerText()).replace(/\\s+/g,' ').trim()).toBe(yearEnd);
