@@ -384,15 +384,21 @@
     return campos;
   }
   async function applyPreinjerto(line,campos){
-    const edit={actualizadoPor:String(currentUser||''),actualizadoEn:new Date().toISOString(),campos};
+    const prior=line.edicionQC?.campos&&typeof line.edicionQC.campos==='object'?line.edicionQC.campos:{};
+    const allFields={...prior,...campos};
+    const edit={actualizadoPor:String(currentUser||''),actualizadoEn:new Date().toISOString(),campos:allFields};
     const qid=encolarAccionOffline('aplicarEditarControlPreinjerto',[line.id,edit]);
-    line.partida=campos.partida;line.cliente=campos.cliente;line.variedad=campos.variedad;
-    line.clienteVariedad=campos.variedad?campos.cliente+' — '+campos.variedad:campos.cliente;
-    line.numBandejas=campos.numBandejas;
-    if(Object.prototype.hasOwnProperty.call(campos,'PAR_CAS')){
-      line.PAR_CAS=campos.PAR_CAS;line.invId=campos.invId;
-      line.PAR_UBIC=campos.PAR_UBIC;line.calleDesde=campos.calleDesde;line.calleHasta=campos.calleHasta;
-      line.gsDetalles={...(line.gsDetalles||{}),PAR_CAS:campos.PAR_CAS||null,PAR_UBIC:campos.PAR_UBIC||null};
+    for(const key of ['partida','cliente','variedad','numBandejas']){
+      if(Object.prototype.hasOwnProperty.call(allFields,key))line[key]=allFields[key];
+    }
+    if(Object.prototype.hasOwnProperty.call(allFields,'cliente')||Object.prototype.hasOwnProperty.call(allFields,'variedad')){
+      const customer=String(line.cliente||''),variety=String(line.variedad||'');
+      line.clienteVariedad=variety?customer+' — '+variety:customer;
+    }
+    if(Object.prototype.hasOwnProperty.call(allFields,'PAR_CAS')){
+      line.PAR_CAS=allFields.PAR_CAS;line.invId=allFields.invId;
+      line.PAR_UBIC=allFields.PAR_UBIC;line.calleDesde=allFields.calleDesde;line.calleHasta=allFields.calleHasta;
+      line.gsDetalles={...(line.gsDetalles||{}),PAR_CAS:allFields.PAR_CAS||null,PAR_UBIC:allFields.PAR_UBIC||null};
     }
     line.edicionQC=edit;
     renderControlContent(document.getElementById('control-overlay'));
