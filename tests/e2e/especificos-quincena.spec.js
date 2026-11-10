@@ -418,7 +418,7 @@ test('UAT-1014: una pulsación en una celda vacía abre Añadir específico',asy
   expect(unexpectedHosts).toEqual([]);
 });
 
-test('UAT-1015 y UAT-1019: una pulsación en una celda ocupada abre Editar y permite cancelar',async({page})=>{
+test('UAT-1015, UAT-1019 y UAT-1032: una pulsación en una celda ocupada abre Editar y permite cancelar',async({page})=>{
   test.fail(true,'La cuadrícula actual no abre el editor con una pulsación simple en una celda ocupada.');
   const database=fixtureDatabase();
   const original=database['lasala-especificos-v1'];
