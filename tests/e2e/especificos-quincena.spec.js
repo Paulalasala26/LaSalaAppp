@@ -585,11 +585,13 @@ test('UAT-1058: botón Aplicar de alta queda alineado a la derecha',async({page}
   await overlay.locator('#especificos-grid-wrap td[title="Pulsa para añadir un específico este día"]').first().click();
   const editor=page.locator('#especifico-manual-overlay');
   const alignment=await editor.evaluate(element=>{
-    const footer=element.querySelector('div[style*="justify-content:space-between"]');
-    const apply=[...footer.querySelectorAll('button')].find(button=>button.textContent.includes('Aplicar'));
+    const apply=element.querySelector('button[onclick="saveEspecificoManual()"]');
+    const footer=apply?.closest('div[style*="justify-content:space-between"]');
+    if(!apply||!footer)return null;
     const rect=footer.getBoundingClientRect(),buttonRect=apply.getBoundingClientRect();
     return rect.right-buttonRect.right;
   });
+  expect(alignment).not.toBeNull();
   expect(alignment).toBeLessThan(30);
   expect(writes).toEqual([]);
   expect(unexpectedHosts).toEqual([]);
