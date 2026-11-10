@@ -131,6 +131,8 @@
         '<div style="display:flex;flex-wrap:wrap;gap:6px">'+options+'</div></section>';
     }).join('');
     const plants=value=>{if(value==null||String(value).trim()==='')return '—';const formatted=typeof plantasVista==='function'?plantasVista(value):value;return esc(formatted==null||formatted===''?value:formatted)||'—';};
+    const location=typeof controlQCInfoVisual==='function'
+      ?controlQCInfoVisual(record):{inv:'—',calles:'—'};
     const status=window.controlLineaCompletada(record)?'<span class="qc-card-medido">✓ Completado</span>':'';
     const id='control-card-'+esc(record.id);
     return '<article id="'+id+'" class="qc-card-compact qc-preinjerto-card"><div class="qc-card-main">'+
@@ -139,6 +141,8 @@
       (record.variedad?'<div class="qc-card-variedad">'+esc(record.variedad)+'</div>':'')+'</div>'+
       '<div class="qc-card-facts qc-card-facts-ordenado">'+
       '<span><i class="ti ti-box" aria-hidden="true"></i> Bandejas: <strong>'+(esc(record.numBandejas)||'—')+'</strong></span>'+
+      '<span><i class="ti ti-building-warehouse" aria-hidden="true"></i> Invernadero: <strong>'+esc(location.inv)+'</strong></span>'+
+      '<span><i class="ti ti-map-pin" aria-hidden="true"></i> Calle: <strong>'+esc(location.calles)+'</strong></span>'+
       '<span><i class="ti ti-calendar-event" aria-hidden="true"></i> F. siembra: <strong>'+(esc(record.fSiembra)||'—')+'</strong></span>'+
       '<span><i class="ti ti-calendar-check" aria-hidden="true"></i> F. entrega: <strong>'+(esc(record.fEntrega)||'—')+'</strong></span>'+
       '<span><i class="ti ti-seeding" aria-hidden="true"></i> Plantas sol./sem.: <strong>'+plants(record.plantasSol)+' / '+plants(record.plantasSem)+'</strong></span>'+
