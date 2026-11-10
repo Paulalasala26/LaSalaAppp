@@ -1190,3 +1190,77 @@ test('UAT-515: guardar y reabrir una jornada fixture conserva los datos sin marc
   expect(unexpectedHosts).toEqual([]);
   expect(writes.filter(write=>write.path==='lasala-fito-v1')).toHaveLength(1);
 });
+
+test('UAT-508: guardar una mezcla de productos conserva cada texto y dosis introducidos',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await form.locator('#fm-trat').fill('E2E-PRODUCTO-A + E2E-PRODUCTO-B');
+  await form.locator('#fm-dosis').fill('1 cc/l + 2 cc/l');
+  await form.locator('#fm-tipo-trat').selectOption('Cañón');
+  await form.locator('#fm-caldo').selectOption('25');
+  await form.getByRole('button',{name:'Guardar'}).click();
+  await expect(form).toBeHidden();
+  const raw=fitoData(database)?.['17']?.['30']?.['2'];
+  expect(raw?.texto).toBe('E2E-PRODUCTO-A + E2E-PRODUCTO-B 1 cc/l + 2 cc/l');
+  expect(raw?.texto).toContain('E2E-PRODUCTO-A');
+  expect(raw?.texto).toContain('E2E-PRODUCTO-B');
+  expect(raw?.texto).toContain('1 cc/l');
+  expect(raw?.texto).toContain('2 cc/l');
+  expect(unexpectedHosts).toEqual([]);
+  expect(writes.filter(write=>write.path==='lasala-fito-v1')).toHaveLength(1);
+});
+
+test('UAT-509: el formulario informa del límite de cinco productos antes de imprimir',async({page})=>{
+  test.fail(true,'El formulario acepta texto libre y no muestra control visible del máximo físico de cinco productos.');
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await form.locator('#fm-trat').fill('E2E-A + E2E-B + E2E-C + E2E-D + E2E-E + E2E-F');
+  await expect(form.getByText(/máximo.{0,20}cinco|cinco.{0,20}productos/i)).toBeVisible();
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-510: una mezcla no se guarda si falta la dosis de uno de sus productos',async({page})=>{
+  test.fail(true,'La validación trata la mezcla como texto libre y no comprueba una dosis individual por producto.');
+  const database=fixtureDatabase();
+  const original=database['lasala-fito-v1'];
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await form.locator('#fm-trat').fill('E2E-PRODUCTO-A + E2E-PRODUCTO-B');
+  await form.locator('#fm-dosis').fill('1 cc/l');
+  await form.locator('#fm-tipo-trat').selectOption('Cañón');
+  await form.locator('#fm-caldo').selectOption('25');
+  await form.getByRole('button',{name:'Guardar'}).click();
+  await expect(form).toBeVisible();
+  expect(database['lasala-fito-v1']).toBe(original);
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-512: una observación de tratamiento se conserva al reabrir la ficha',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await form.locator('input[name="fm-bulk-modo-17"]').nth(2).check();
+  await form.locator('#fm-bulk-tramos-17 .fm-bulk-tramo-desde').selectOption('2');
+  await form.locator('#fm-bulk-tramos-17 .fm-bulk-tramo-hasta').selectOption('2');
+  await form.locator('#fm-bulk-tramos-17 .fm-bulk-tramo-obs').fill('E2E-OBSERVACION-512');
+  await completarFitoValido(form,'E2E-TRATAMIENTO-512');
+  await form.getByRole('button',{name:'Guardar'}).click();
+  await expect(form).toBeHidden();
+  const raw=fitoData(database)?.['17']?.['30']?.['2'];
+  expect(raw?.texto).toBe('E2E-TRATAMIENTO-512 1 cc/l — E2E-OBSERVACION-512');
+  const cell=overlay.locator('#fito-grid-wrap input[data-finv="17"][data-fdia="30"]').first();
+  await expect(cell).toBeVisible();
+  await cell.dblclick();
+  const editor=page.locator('#fito-manual-overlay');
+  await expect(editor.locator('#fm-bulk-tramos-17 .fm-bulk-tramo-obs')).toHaveValue('E2E-OBSERVACION-512');
+  expect(unexpectedHosts).toEqual([]);
+  expect(writes.filter(write=>write.path==='lasala-fito-v1')).toHaveLength(1);
+});
