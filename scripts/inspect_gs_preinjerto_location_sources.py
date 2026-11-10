@@ -22,7 +22,7 @@ from pilot_gs_qc_preinjerto import MYSQL_DATABASE, MYSQL_HOST, MYSQL_PORT, get_m
 
 TARGETS = ("26C02436", "26C02653")
 LOCATION_TOKENS = ("ubic", "calle", "loca", "inver", "nave", "sector", "pasillo")
-TABLE_TOKENS = LOCATION_TOKENS + ("extension", "exten", "partidas_par")
+TABLE_TOKENS = LOCATION_TOKENS + ("extension", "exten", "partidas_par", "p-carga_pca_par")
 KEY_TOKENS = ("part", "par", "npa", "pex_npa", "pin_npa")
 
 
@@ -156,10 +156,45 @@ def main() -> int:
                         for found in rows
                     )
 
+            # Compare the two parts against the proven location feeds used by
+            # the other QC modules: Carga uses p-carga_pca_par.C3/C4/C5;
+            # Túnel uses p-injertos.PIN_LOCA. These are exact-ID lookups only.
+            other_qc_sources: dict[str, Any] = {}
+            cursor.execute(
+                """
+                SELECT d.id AS id_carga, d.id2, TRIM(d.C0) AS partida,
+                       d.C3 AS id_invernadero, inv.INV_DENO AS invernadero,
+                       d.C4 AS calle_desde, d.C5 AS calle_hasta,
+                       p.PCA_FEC AS fecha_carga, p.PCA_HORA AS hora
+                FROM `p-carga_pca_par` AS d
+                LEFT JOIN `p-carga` AS p ON p.id = d.id
+                LEFT JOIN `invernaderos` AS inv ON inv.id = d.C3
+                WHERE TRIM(d.C0) IN (%s, %s)
+                ORDER BY p.PCA_FEC, p.PCA_HORA, d.id, d.id2
+                LIMIT 100
+                """,
+                TARGETS,
+            )
+            other_qc_sources["qc_carga"] = cursor.fetchall()
+
+            cursor.execute(
+                """
+                SELECT id, PIN_PAR AS partida, PIN_FECP AS fecha_qc,
+                       PIN_LOCA AS calle, PIN_NBAN AS bandejas, PIN_EST AS estado
+                FROM `p-injertos`
+                WHERE TRIM(PIN_PAR) IN (%s, %s)
+                ORDER BY PIN_FECP, id
+                LIMIT 100
+                """,
+                TARGETS,
+            )
+            other_qc_sources["qc_tunel"] = cursor.fetchall()
+
             result = {
                 "database": MYSQL_DATABASE,
                 "targets": list(TARGETS),
                 "schemaCandidates": schema_candidates,
+                "otherQcLocationSources": other_qc_sources,
                 "foreignKeyRelationsWithPartidas": partida_relations,
                 "targetSearches": searches,
                 "targetMatches": matches,
