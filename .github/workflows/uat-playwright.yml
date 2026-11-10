@@ -46,7 +46,7 @@ jobs:
         if: github.event_name == 'pull_request'
         run: |
           pnpm exec playwright test tests/e2e/control-quincena.spec.js --grep-invert "concurren|offline"
-          pnpm exec playwright test tests/e2e/auth-roles.spec.js --grep "UAT-1983|UAT-1989"
+          pnpm exec playwright test tests/e2e/auth-roles.spec.js --grep "UAT-1983|UAT-1989|UAT-1999"
 
       - name: Ejecutar la suite UAT completa fuera de PR
         if: github.event_name != 'pull_request'
