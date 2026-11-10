@@ -406,3 +406,68 @@ test('UAT-993 y UAT-994: Específicos permanece utilizable en móvil y al reduci
   expect(desktopOverflow).toBe(false);
   expect(unexpectedHosts).toEqual([]);
 });
+
+
+test('UAT-1014: una pulsación en una celda vacía abre Añadir específico',async({page})=>{
+  test.fail(true,'La cuadrícula actual permite edición directa; el formulario se abre desde el encabezado del día.');
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts}=await openSpecifics(page,database);
+  const empty=overlay.locator('#especificos-grid-wrap input[data-einv="17"][data-edia="29"][data-erc="18"]');
+  await empty.click();
+  await expect(page.locator('#especifico-manual-overlay')).toBeVisible();
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-1015 y UAT-1019: una pulsación en una celda ocupada abre Editar y permite cancelar',async({page})=>{
+  test.fail(true,'La cuadrícula actual no abre el editor con una pulsación simple en una celda ocupada.');
+  const database=fixtureDatabase();
+  const original=database['lasala-especificos-v1'];
+  const {overlay,unexpectedHosts}=await openSpecifics(page,database);
+  const occupied=overlay.locator('#especificos-grid-wrap input[data-einv="17"][data-edia="30"][data-erc="18"]');
+  await occupied.click();
+  const editor=page.locator('#especifico-manual-overlay');
+  await expect(editor).toBeVisible();
+  await expect(editor).toContainText('Editar específico');
+  await editor.locator('button[onclick*="especifico-manual-overlay"]').first().click();
+  await expect(editor).toBeHidden();
+  expect(database['lasala-especificos-v1']).toBe(original);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-1016: la cuadrícula no acepta escritura directa',async({page})=>{
+  test.fail(true,'Las celdas de Específicos son inputs editables directamente.');
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts}=await openSpecifics(page,database);
+  const empty=overlay.locator('#especificos-grid-wrap input[data-einv="17"][data-edia="29"][data-erc="18"]');
+  await empty.click();
+  await empty.pressSequentially('E2E-DIRECTO');
+  await expect(empty).toHaveValue('');
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-1017: pegar texto no altera una celda de Específicos sin formulario',async({page,context})=>{
+  test.fail(true,'Las celdas de Específicos admiten pegado directo.');
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts}=await openSpecifics(page,database);
+  await context.grantPermissions(['clipboard-read','clipboard-write']);
+  await page.evaluate(()=>navigator.clipboard.writeText('E2E-PEGADO'));
+  const empty=overlay.locator('#especificos-grid-wrap input[data-einv="17"][data-edia="29"][data-erc="18"]');
+  await empty.click();
+  await empty.press('Control+V');
+  await expect(empty).toHaveValue('');
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-1018: cerrar con X el formulario de alta conserva la cuadrícula sin guardar',async({page})=>{
+  const database=fixtureDatabase();
+  const original=database['lasala-especificos-v1'];
+  const {overlay,unexpectedHosts,writes}=await openSpecifics(page,database);
+  await overlay.locator('#especificos-grid-wrap td[title="Pulsa para añadir un específico este día"]').first().click();
+  const editor=page.locator('#especifico-manual-overlay');
+  await expect(editor).toBeVisible();
+  await editor.locator('button[onclick*="especifico-manual-overlay"]').first().click();
+  await expect(editor).toBeHidden();
+  expect(database['lasala-especificos-v1']).toBe(original);
+  expect(writes.filter(write=>write.path==='lasala-especificos-v1')).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
