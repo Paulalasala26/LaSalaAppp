@@ -1013,3 +1013,38 @@ test('UAT-2431: sin tratamiento Específico registrado válido no se genera docu
   expect(writes).toEqual([]);
   expect(unexpectedHosts).toEqual([]);
 });
+
+test('UAT-475, UAT-476 y UAT-478: Registrar, Consulta y Home navegan sin arrastrar vistas',async({page})=>{
+  test.fail(true,'Plaguicidas abre directamente la cuadrícula y no presenta el menú Registrar/Consulta indicado por QC.');
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts}=await openFito(page,database,{selectINV:false});
+  await expect(page.getByRole('button',{name:/Registrar tratamientos/})).toBeVisible();
+  await expect(page.getByRole('button',{name:/Consultar tratamientos/})).toBeVisible();
+  await page.getByRole('button',{name:/Registrar tratamientos/}).click();
+  await expect(overlay.locator('#fito-grid-wrap')).toBeVisible();
+  await overlay.locator('#fito-btn-retroceder').click();
+  await expect(page.getByRole('button',{name:/Registrar tratamientos/})).toBeVisible();
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-479: Plaguicidas en móvil ofrece dos accesos azules compactos sin desbordamiento',async({page})=>{
+  test.fail(true,'El módulo actual no presenta los dos accesos Registrar/Consulta que pide el caso móvil.');
+  const database=fixtureDatabase();
+  await page.setViewportSize({width:390,height:844});
+  const {overlay,unexpectedHosts}=await openFito(page,database,{selectINV:false});
+  await expect(page.getByRole('button',{name:/Registrar tratamientos/})).toBeVisible();
+  await expect(page.getByRole('button',{name:/Consultar tratamientos/})).toBeVisible();
+  const overflow=await overlay.evaluate(el=>el.scrollWidth>el.clientWidth);
+  expect(overflow).toBe(false);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-480: la cabecera de Plaguicidas mantiene el azul y la tipografía de Control',async({page})=>{
+  test.fail(true,'La cabecera del módulo usa rojo #a32020; QC requiere el azul de Control.');
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts}=await openFito(page,database,{selectINV:false});
+  const header=overlay.locator(':scope > div > div').first();
+  await expect(header).toHaveCSS('background-color','rgb(21, 88, 160)');
+  await expect(overlay.getByText('Plaguicidas',{exact:false})).toHaveCount(1);
+  expect(unexpectedHosts).toEqual([]);
+});
