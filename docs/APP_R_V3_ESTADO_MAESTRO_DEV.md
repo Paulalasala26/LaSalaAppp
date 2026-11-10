@@ -1,6 +1,6 @@
 # APP R v3 — Anexo maestro DEV
-**Última actualización:** 09/11/2026 (España)
-**Rama exclusiva:** `dev/v1.0` · **Estado:** cambios visuales, Riego > Abono y Hojas de riego REGANTE (2 días) y Tareas desde Riego (ENTERO) validados por el usuario
+**Última actualización:** 10/11/2026 (España)
+**Rama exclusiva:** `dev/v1.0` · **Estado:** cambios visuales, Riego > Abono, Hojas de riego REGANTE (2 días), Tareas desde Riego (ENTERO) y botones Hojas marcadas Salas 3-5 validados por el usuario
 
 > Anexo de continuidad de `docs/APP_R_V3_ESTADO_MAESTRO.md` para los cambios realizados exclusivamente en DEV. Leer ambos: la memoria maestra general conserva todo el histórico, y este anexo añade los hitos exclusivos de DEV sin reescribir ni recortar ese histórico.
 
@@ -54,6 +54,17 @@
 - **Aceptación del usuario:** «Validado» (09/11/2026), tras la prueba manual en DEV indicada en la entrega.
 - **Efectos conocidos:** si ese día solo hay marcado un tramo y el resto está en blanco, la tarea dice «ENTERO» (criterio de `main`). Las tareas pendientes con la etiqueta antigua se reescriben al guardar Riego de ese invernadero/día o al pulsar «Generar tareas». Una tarea iniciada con la etiqueta antigua y Riego editado después da conflicto de conciliación (revisión ADMIN).
 - La aceptación no cubre escritura masiva de datos, sincronización offline, impresión ni fotografías SharePoint. No hay verificación del estado READY de Vercel para este SHA.
+- `test/v1.0` y `main` **no modificados**; no promovido a TEST.
+
+## DEV — Avisos: botones «Hojas marcadas» de Sala 3, 4 y 5 — VALIDADO 10/11/2026
+
+**Objetivo:** traer a DEV los botones «Hojas marcadas» de las Salas 3, 4 y 5 que existen en `main`. DEV solo tenía Sala 1 y Sala 2 en el módulo Avisos.
+
+- Solo `index.html`: tres botones nuevos en el bloque «Comunicar hojas marcadas» del módulo Avisos (vista TÉCNICO), con el mismo formato que los de Sala 1 y 2. `marcarHojasMarcadas(sala)` ya era genérica y no se modifica.
+- Código: `ca92f6f` (12 líneas añadidas). Backup previo recuperable: `backup/dev-v1.0-before-hojas-marcadas-2026-11-10` (`d1bc84f`).
+- Comprobaciones técnicas previas: sintaxis de los 5 scripts inline correcta; simulación aislada con el código real (5 botones con su sala y etiqueta; Salas 3, 4 y 5 avisan a VIGUERAS con «✅ Hojas marcadas Sala N»; el control con el código anterior falla como se espera); DEV servía un `index.html` idéntico al del commit.
+- **Aceptación del usuario:** «Validado» (10/11/2026), tras la prueba manual en DEV indicada en la entrega.
+- La aceptación no cubre sincronización offline, impresión ni fotografías SharePoint. No hay verificación del estado READY de Vercel para este SHA.
 - `test/v1.0` y `main` **no modificados**; no promovido a TEST.
 
 ## Guardarraíles
