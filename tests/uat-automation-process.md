@@ -25,11 +25,11 @@ El smoke de CI comprueba recorridos críticos, incluido el cambio de quincena y 
 
 ## Estado al 10 de noviembre de 2026
 
-- Última suite completa: [GitHub Actions #156](https://github.com/Paulalasala26/LaSalaAppp/actions/runs/42853152765), 332 pruebas terminadas y 781 IDs UAT únicos.
-- Último smoke: [GitHub Actions](https://github.com/Paulalasala26/LaSalaAppp/actions/runs/42853154690), recorrido de quincena aprobado.
+- Última suite completa: [GitHub Actions #161](https://github.com/Paulalasala26/LaSalaAppp/actions/runs/42858249705), 334 pruebas terminadas y 788 IDs UAT únicos.
+- Último smoke: [GitHub Actions #97](https://github.com/Paulalasala26/LaSalaAppp/actions/runs/42858249857), recorrido de quincena aprobado.
 - SharePoint releído: 864 IDs con evidencia, 797 `PASA_FIXTURE` y 67 `FALLA_FIXTURE`; en la matriz, 1.890 pendientes y 13 sin estado.
 - UAT-1746–1752, UAT-1754 y UAT-1757–1758 quedan como brechas de Archivo. UAT-1756, UAT-1759 y UAT-1760 pasan las comprobaciones sencillas de tarjeta y consulta.
-- UAT-1232, UAT-1240 y UAT-1268–1297 siguen como brechas de Tareas.
+- UAT-1031, UAT-1036–1038 pasan la comprobación breve de formulario Específicos; UAT-1033–1035 siguen como brechas de ubicación/alcance. UAT-1232, UAT-1240 y UAT-1268–1297 siguen como brechas de Tareas.
 - Firebase estuvo interceptado; la suite no certifica datos TEST/PRD, SharePoint real ni dispositivos físicos.
 
 ## Archivos
