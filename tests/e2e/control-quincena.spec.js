@@ -3406,7 +3406,7 @@ test('UAT-393–394 y UAT-397–398: abrir fotos distintas en móvil mantiene la
     return canvas.toDataURL('image/png').split(',')[1];
   }));
 
-  for (let i = 0; i < ids.length; i++) {
+  for (let i = 0; i < 2; i++) {
     const card = overlay.locator(`#control-card-${ids[i]}`);
     await card.locator('input[data-testid^="control-photo-gallery-"]').setInputFiles({
       name: `e2e-photo-${i + 1}.png`,
@@ -3418,9 +3418,9 @@ test('UAT-393–394 y UAT-397–398: abrir fotos distintas en móvil mantiene la
   }
 
   const expectedSrc = await page.evaluate(photoIds =>
-    Object.fromEntries(photoIds.map(id => [id, fotoSrcCompleta(controlFotosData[id])])), ids
+    Object.fromEntries(photoIds.map(id => [id, fotoSrcCompleta(controlFotosData[id])])), ids.slice(0, 2)
   );
-  expect(new Set(Object.values(expectedSrc)).size).toBe(ids.length);
+  expect(new Set(Object.values(expectedSrc)).size).toBe(2);
 
   await page.setViewportSize({ width: 320, height: 760 });
   const enlarged = page.locator('#control-foto-ampliada-overlay');
@@ -3444,8 +3444,16 @@ test('UAT-393–394 y UAT-397–398: abrir fotos distintas en móvil mantiene la
   await overlay.getByTestId('control-day-previous').click();
   const priorDayCard = overlay.locator(`#control-card-${ids[2]}`);
   await expect(priorDayCard).toBeVisible();
+  await priorDayCard.locator('input[data-testid^="control-photo-gallery-"]').setInputFiles({
+    name: 'e2e-photo-prior-day.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from(images[2], 'base64')
+  });
+  await expect(priorDayCard.locator('img[title="Ver foto"]')).toBeVisible();
+  await expect.poll(() => JSON.parse(database['lasala-control-fotos-v1'] || '{}')[ids[2]]).toBeTruthy();
+  const priorDaySrc = await page.evaluate(id => fotoSrcCompleta(controlFotosData[id]), ids[2]);
   await priorDayCard.locator('img[title="Ver foto"]').click();
-  await expect(enlarged.locator('img')).toHaveAttribute('src', expectedSrc[ids[2]]);
+  await expect(enlarged.locator('img')).toHaveAttribute('src', priorDaySrc);
   await enlarged.locator('button').click();
   await expect(enlarged).toBeHidden();
   await expect(overlay).toBeVisible();
