@@ -1244,7 +1244,7 @@ test('UAT-336: REGANTE y PEÓN no pueden crear QC Carga mediante una llamada dir
   expect(unexpectedHosts).toEqual([]);
 });
 
-test('UAT-341 y UAT-342: importar un PDF de Carga crea la línea correcta y repetirlo no duplica', async ({ page }) => {
+test('UAT-341, UAT-342, UAT-438, UAT-453 y UAT-457: importar PDF Carga interpreta la plantilla, conserva origen y no duplica al repetir', async ({ page }) => {
   const database = fixtureDatabase();
   database['lasala-control-pdfs-indice-v1'] = JSON.stringify([]);
   const { overlay, unexpectedHosts } = await startControlTest(page, database);
@@ -1380,7 +1380,7 @@ test('UAT-365–367 y UAT-370: las fotos QC respetan el rol y no se filtran al c
   expect(unexpectedHosts).toEqual([]);
 });
 
-test('UAT-221–222, UAT-343–344, UAT-436 y UAT-445: QC Túnel y Carga conservan PDF históricos y no muestran documentos de otro día', async ({ page }) => {
+test('UAT-221–222, UAT-343–344, UAT-436, UAT-444 y UAT-445: QC Túnel y Carga conservan PDF históricos y no muestran documentos de otro día', async ({ page }) => {
   const database = fixtureDatabase();
   const historicalPdf = { nombre: 'QC-Tunel-29-jun.pdf', pdfB64: 'data:application/pdf;base64,JVBERi0xLjQK', subidoPor: 'E2E', subidoEn: '29/06/2026' };
   const historicalCargaPdf = { nombre: 'QC-Carga-29-jun.pdf', pdfB64: 'data:application/pdf;base64,JVBERi0xLjQK', subidoPor: 'E2E', subidoEn: '29/06/2026' };
