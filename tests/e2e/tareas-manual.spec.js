@@ -1029,7 +1029,7 @@ test('UAT-1739 y UAT-2434: Archivo vacío no registra la anulación fallida ni o
   expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([task]);
 });
 
-test('UAT-1268–1280: Operativas permite filtrar por fecha y buscar tareas', async ({ page }) => {
+test('UAT-1268–1297: Operativas permite filtrar por fecha, estado, origen, sala y asignado, y buscar tareas', async ({ page }) => {
   test.fail(true, 'La vista Operativas actual se divide en secciones por fecha y no tiene filtros combinados de fecha ni búsqueda.');
   const todayISO = await fechaISOEnNavegador(page);
   const tomorrowISO = await fechaISOEnNavegador(page, 1);
@@ -1046,11 +1046,27 @@ test('UAT-1268–1280: Operativas permite filtrar por fecha y buscar tareas', as
   await expect(pane).toContainText('E2E FILTRO HOY UAT-1268');
   await expect(pane.locator('.tarea-card:visible')).toHaveCount(1);
 
-  const controls = await pane.evaluate(element => ({
-    search: Boolean(element.querySelector('input[type="search"], input[placeholder*="buscar" i], input[aria-label*="buscar" i], [data-testid*="search"]')),
-    dateFilter: Boolean(element.querySelector('input[type="date"], select:not(#lote-asignado-select), [data-testid*="date-filter"]'))
-  }));
+  const controls = await pane.evaluate(element => {
+    const candidates = [...element.querySelectorAll('input, select, button')];
+    const label = control => [
+      control.id,
+      control.getAttribute('aria-label'),
+      control.getAttribute('placeholder'),
+      control.getAttribute('title'),
+      control.textContent
+    ].filter(Boolean).join(' ').toLocaleLowerCase();
+    return {
+      search: candidates.some(c => c.matches('input[type="search"], [data-testid*="search"]') || /buscar|search/.test(label(c))),
+      dateFilter: candidates.some(c => c.matches('input[type="date"]') || (/fecha|date/.test(label(c)) && c.id !== 'lote-asignado-select')),
+      advanced: candidates.some(c => /filtros avanzados/.test(label(c))),
+      status: candidates.some(c => c.tagName === 'SELECT' && /estado|status/.test(label(c))),
+      origin: candidates.some(c => c.tagName === 'SELECT' && /origen|source/.test(label(c))),
+      room: candidates.some(c => c.tagName === 'SELECT' && /sala|invernadero/.test(label(c))),
+      assignee: candidates.some(c => c.tagName === 'SELECT' && c.id !== 'lote-asignado-select' && /asignado|operario/.test(label(c))),
+      clear: candidates.some(c => c.tagName === 'BUTTON' && /limpiar filtros/.test(label(c)))
+    };
+  });
   expect(JSON.parse(database['lasala-tareas-v1'])).toEqual(tasks);
   expect(writes).toEqual([]);
-  expect(controls).toEqual({ search: true, dateFilter: true });
+  expect(controls).toEqual({ search: true, dateFilter: true, advanced: true, status: true, origin: true, room: true, assignee: true, clear: true });
 });
