@@ -68,3 +68,10 @@ El usuario ejecutó la versión corregida del lector. La tabla existe y tiene `i
 ### Búsqueda ampliada autorizada de fuente de ubicaciones (10/11/2026)
 
 El usuario autorizó inspección de metadatos `information_schema` para tablas/columnas de ubicación y SELECT limitados a las partidas `26C02436` y `26C02653` en tablas candidatas. Se añadió `scripts/inspect_gs_preinjerto_location_sources.py` en commit `3558a09e17e17d5b91d62536c4ed731f57f4ded8`. El script lista esquemas/comentarios de columnas y relaciones FK con `partidas`; luego busca los dos IDs por igualdad exacta en columnas de texto clave de tablas candidatas, con límite de 20 filas por columna. Sin escrituras. Pendiente ejecutar y analizar la salida.
+
+
+### Resultado de búsqueda ampliada GS (10/11/2026)
+
+El usuario ejecutó `inspect_gs_preinjerto_location_sources.py`. Para las dos partidas, GS devuelve directamente de `partidas` `PAR_CAS=016/028` y `PAR_UBIC=NULL`. La búsqueda exacta no encontró filas en `partidas_par_ubic`, `partidashis_parh_ubic` ni `p-extension.PEX_NPA`; tampoco halló filas con esos IDs en las otras tablas candidatas de ubicación. Las coincidencias fueron `partidas` y tablas no locativas como `partidas_par_cab` (campo `CABEZA`), `partidas_par_esta` y `partidas_par_proc`. La tabla maestra `invernaderos` tiene `id`, `INV_DENO` y parámetros de capacidad, pero no asigna una calle a estas partidas.
+
+**Conclusión operativa:** la extracción actual sí recupera el código `PAR_CAS` (100/145), coincidente con el histórico en los dos casos. Para estas dos partidas GS no devuelve calle en `PAR_UBIC` ni se encontró asignación directa en las tablas hijas revisadas. La fuente real de calle no está acreditada; no es un fallo del serializador ni una ausencia de claves JSON. No añadir calles al SELECT/importador hasta contar con un registro que GS muestre asignado a calle y validar su relación.
