@@ -6,14 +6,30 @@
 const {
   verifyFirebaseIdToken,serviceAccount,serviceAccessToken,readKey,validHash,httpError
 }=require('./admin-users')._adminCatalogHelpers;
-const DB='https://la-sala-app-dev-default-rtdb.europe-west1.firebasedatabase.app';
+const DB='https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app';
 const PREFIX='lasala-qc-mediciones-v1';
 const OPTIONS=Object.freeze({
-  color:['verde','amarillo','verdeClaro','ok'],
-  tamano:['grande','pequeno','ok'],
-  sanidad:['ok','enferma'],
-  flores:['si','no','ok'],
-  raices:['pocaRaiz','raizVariedad','ok']
+  color:['verde','amarillo','verdeClaro','ok'],tamano:['grande','pequeno','ok'],
+  sanidad:['ok','enferma'],flores:['si','no','ok'],raices:['pocaRaiz','raizVariedad','ok']
+});
+const OPTIONS_CARGA_BASE=Object.freeze({
+  color:['verde','amarillo','verdeClaro','ok'],tamano:['grande','pequeno','ok'],
+  sanidad:['ok','enferma'],flores:['si','no','ok'],raices:['pocaRaiz','raizVieja','ok']
+});
+const OPTIONS_CARGA_V7=Object.freeze({...OPTIONS_CARGA_BASE,firmeza:['ok','duro','tierno']});
+const OPTIONS_RAICES_INJERTO=Object.freeze(['si','no']);
+const OPTIONS_PREINJERTO_VARIEDAD=Object.freeze({
+  color:['verde','amarillo','verdeClaro','ok'],tamano:['grande','pequeno','ok'],
+  grosor:['fino','ok','grueso'],firmeza:['ok','duro','tierno'],
+  plagas:['ok','tuta','minador','pulgon','oruga','trips'],
+  enfermedades:['ok','alternaria','mildiu','oidio','botrytis','didymella']
+});
+const OPTIONS_PREINJERTO_PATRON=Object.freeze({
+  grosor:['fino','ok','grueso'],firmeza:['ok','duro','tierno'],
+  segado:['segado','noSegado'],
+  plagas:['ok','tuta','minador','pulgon','oruga','trips'],
+  enfermedades:['ok','alternaria','mildiu','oidio','botrytis','didymella'],
+  raices:['pocaRaiz','ok','raizVieja']
 });
 function categoryIssue(category,values,total){
   const notEvaluated=values.noEvaluada||0;
@@ -33,7 +49,7 @@ function categoryIssue(category,values,total){
   if(affected>maximum)return 'Faltan '+(affected-maximum)+' bandejas por clasificar.';
   return '';
 }
-  const TYPES=new Set(['tunel','carga']);
+  const TYPES=new Set(['tunel','carga','carga_injerto','preinjerto_patron','preinjerto_variedad']);
 const RE_ID=/^[A-Za-z0-9_-]{1,180}$/;
 const PART_RE=/^[A-Za-z0-9._-]{1,100}$/;
 function inputOf(req){
@@ -193,17 +209,17 @@ function validateGlobalCategorias(input){
 }
 // Modelo v5: un porcentaje de inválidas para toda la inspección; solo Sanidad
 // desglosa enfermedades individualmente. Los demás grupos tienen estado único.
-function validateEvaluationV5(input){
+function validateEvaluationV5(input,options=OPTIONS){
   if(!validQty(input.bandejasInspeccionadas))throw httpError(400,'INVALID_INSPECTED');
   const source=input.categorias;
   if(!source||typeof source!=='object'||Array.isArray(source)||
-     Object.keys(source).sort().join('|')!==Object.keys(OPTIONS).sort().join('|'))
+     Object.keys(source).sort().join('|')!==Object.keys(options).sort().join('|'))
     throw httpError(400,'INVALID_MEASUREMENTS');
   const total=input.porcentajeInvalidasGlobal;
   if(!Number.isInteger(total)||total<0||total>100||total%10!==0)
     throw httpError(400,'INVALID_GLOBAL_PERCENT');
   const clean={};let hasIssue=false;
-  for(const [cat,allowed] of Object.entries(OPTIONS)){
+  for(const [cat,allowed] of Object.entries(options)){
     const item=source[cat],isHealth=cat==='sanidad';
     if(!item||typeof item!=='object'||Array.isArray(item)||
        Object.keys(item).sort().join('|')!==(isHealth?'opciones|porcentajesEnfermedades':'opciones'))
@@ -250,6 +266,97 @@ function validateEvaluationV6(input){
     throw httpError(400,'INVALID_MEASUREMENTS');
   return validateEvaluationV5({...input,bandejasInspeccionadas:1});
 }
+function validateEvaluationV7(input){
+  if(input.tipo!=='carga'||Object.prototype.hasOwnProperty.call(input,'bandejasInspeccionadas'))
+    throw httpError(400,'INVALID_MEASUREMENTS');
+  const options=input.dia>=155?OPTIONS_CARGA_V7:OPTIONS_CARGA_BASE;
+  const checked=validateEvaluationV5({...input,bandejasInspeccionadas:1},options);
+  if(input.dia>=155&&checked.categorias.firmeza.opciones.includes('noEvaluada'))
+    throw httpError(400,'FIRMEZA_REQUIRED');
+  return checked;
+}
+function validateEvaluationV8(input){
+  if(input.tipo!=='carga_injerto'||Object.prototype.hasOwnProperty.call(input,'bandejasInspeccionadas'))
+    throw httpError(400,'INVALID_MEASUREMENTS');
+  const baseOptions=input.dia>=155?OPTIONS_CARGA_V7:OPTIONS_CARGA_BASE;
+  const source=input.categorias;
+  const expected={...baseOptions,raicesInjerto:OPTIONS_RAICES_INJERTO};
+  if(!source||typeof source!=='object'||Array.isArray(source)||
+     Object.keys(source).sort().join('|')!==Object.keys(expected).sort().join('|'))
+    throw httpError(400,'INVALID_MEASUREMENTS');
+  const root=source.raicesInjerto;
+  if(!root||typeof root!=='object'||Array.isArray(root)||
+     Object.keys(root).sort().join('|')!=='opciones'||!Array.isArray(root.opciones)||
+     root.opciones.length>1||root.opciones.some(v=>!OPTIONS_RAICES_INJERTO.includes(v)))
+    throw httpError(400,'INVALID_GRAFT_ROOT');
+  const baseCategories={...source};delete baseCategories.raicesInjerto;
+  const baseHasIssue=Object.entries(baseCategories).some(([cat,item])=>
+    Array.isArray(item?.opciones)&&item.opciones.some(k=>cat==='sanidad'?SANIDAD_DISEASE_KEYS.includes(k):
+      cat==='flores'?k==='si':k!=='ok'&&k!=='noEvaluada'));
+  const graftHasIssue=root.opciones.includes('si');
+  const global=input.porcentajeInvalidasGlobal;
+  if(!Number.isInteger(global)||global<0||global>100||global%10!==0)
+    throw httpError(400,'INVALID_GLOBAL_PERCENT');
+  const checked=validateEvaluationV5({...input,bandejasInspeccionadas:1,
+    categorias:baseCategories,porcentajeInvalidasGlobal:baseHasIssue?global:0},baseOptions);
+  if(!baseHasIssue&&!graftHasIssue&&global!==0)throw httpError(400,'INVALID_GLOBAL_PERCENT');
+  return {...checked,categorias:{...checked.categorias,raicesInjerto:{opciones:root.opciones}},
+    porcentajeInvalidasGlobal:global};
+}
+// v9: Preinjerto Patrón y Variedad. Cada tipo conserva sus categorías propias.
+function validateEvaluationV9(input){
+  if(!['preinjerto_patron','preinjerto_variedad'].includes(input.tipo)||
+     Object.prototype.hasOwnProperty.call(input,'bandejasInspeccionadas'))
+    throw httpError(400,'INVALID_MEASUREMENTS');
+  const source=input.categorias;
+  const options=input.tipo==='preinjerto_variedad'?OPTIONS_PREINJERTO_VARIEDAD:OPTIONS_PREINJERTO_PATRON;
+  if(!source||typeof source!=='object'||Array.isArray(source)||
+     Object.keys(source).sort().join('|')!==Object.keys(options).sort().join('|'))
+    throw httpError(400,'INVALID_MEASUREMENTS');
+  const global=input.porcentajeInvalidasGlobal;
+  if(!Number.isInteger(global)||global<0||global>100||global%10!==0)
+    throw httpError(400,'INVALID_GLOBAL_PERCENT');
+  const clean={};let hasIssue=false;
+  for(const [cat,allowed] of Object.entries(options)){
+    const item=source[cat],multi=cat==='plagas'||cat==='enfermedades';
+    const expected=multi?'opciones|porcentajesIncidencias':'opciones';
+    if(!item||typeof item!=='object'||Array.isArray(item)||
+       Object.keys(item).sort().join('|')!==expected)
+      throw httpError(400,'INVALID_MEASUREMENTS');
+    const opts=item.opciones;
+    if(!Array.isArray(opts)||!opts.length||new Set(opts).size!==opts.length||
+       opts.some(k=>!allowed.includes(k)))
+      throw httpError(400,'INVALID_MEASUREMENTS');
+    if(multi){
+      if(opts.includes('ok')&&opts.length!==1)throw httpError(400,'CATEGORY_EXCLUSIVE');
+      const incidences=opts.filter(k=>k!=='ok');
+      if(incidences.length){
+        hasIssue=true;
+        const details=item.porcentajesIncidencias;
+        if(!details||typeof details!=='object'||Array.isArray(details)||
+           Object.keys(details).length!==incidences.length||
+           Object.keys(details).some(k=>!incidences.includes(k)))
+          throw httpError(400,'INVALID_INCIDENCE_PERCENT');
+        let sum=0;
+        for(const key of incidences){
+          const pct=details[key];
+          if(!Number.isInteger(pct)||pct<10||pct>100||pct%10!==0)
+            throw httpError(400,'INVALID_INCIDENCE_PERCENT');
+          sum+=pct;
+        }
+        if(sum>100)throw httpError(400,'INCIDENCE_PERCENT_OVER_100');
+        clean[cat]={opciones:opts,porcentajesIncidencias:Object.fromEntries(incidences.map(k=>[k,details[k]]))};
+      }else clean[cat]={opciones:opts,porcentajesIncidencias:{}};
+    }else{
+      if(opts.length!==1)throw httpError(400,'CATEGORY_EXCLUSIVE');
+      const normal=cat==='segado'?opts[0]==='segado':opts[0]==='ok';
+      if(!normal)hasIssue=true;
+      clean[cat]={opciones:opts};
+    }
+  }
+  if(!hasIssue&&global!==0)throw httpError(400,'INVALID_GLOBAL_PERCENT');
+  return {categorias:clean,porcentajeInvalidasGlobal:global};
+}
 function pathFor(id){return DB+'/'+PREFIX+'/'+encodeURIComponent(id)+'.json';}
 function sourcePath(ref){
   const q=Math.floor((ref.dia-15)/14);
@@ -276,7 +383,7 @@ async function legacyRecord(ref,token){
 function validateStored(entry,ref,partida){
   if(entry===null)return {version:0};
   if(!entry||typeof entry!=='object'||Array.isArray(entry)||
-     ![1,2,3,4,5,6].includes(entry.schemaVersion)||!Number.isInteger(entry.version)||entry.version<1||
+     ![1,2,3,4,5,6,7,8,9].includes(entry.schemaVersion)||!Number.isInteger(entry.version)||entry.version<1||
      entry.legacy?.id!==ref.id||entry.legacy?.tipo!==ref.tipo||
      entry.legacy?.dia!==ref.dia||entry.legacy?.partida!==partida)
     throw httpError(409,'SAVED_CONFLICT');
@@ -292,7 +399,7 @@ async function checkQCActor(req,ref){
   ]);
   const role=roles[actor];
   const authorized=role==='ADMIN'||role==='TECNICO'||
-    (role==='CARGADOR'&&ref.tipo==='carga');
+    (role==='CARGADOR'&&(ref.tipo==='carga'||ref.tipo==='carga_injerto'));
   if(!authorized||!validHash(accounts[actor]))throw httpError(403,'FORBIDDEN');
   return {actor,token};
 }
@@ -324,8 +431,11 @@ async function consultarEstadosQC(req,res,data){
       try{
         const stored=validateStored(value,{id:ref.id,tipo:q.tipo,dia:q.dia},ref.partida);
         if(stored.version<1)return false;
-        if(stored.schemaVersion===6)validateEvaluationV6(stored);
-        else if(stored.schemaVersion===5)validateEvaluationV5(stored);
+        if(stored.schemaVersion===9)validateEvaluationV9({...stored,tipo:q.tipo,dia:q.dia});
+        else if(stored.schemaVersion===8)validateEvaluationV8({...stored,tipo:q.tipo,dia:q.dia});
+        else if(stored.schemaVersion===7)validateEvaluationV7({...stored,tipo:q.tipo,dia:q.dia});
+         else if(stored.schemaVersion===6)validateEvaluationV6(stored);
+         else if(stored.schemaVersion===5)validateEvaluationV5(stored);
         else if(stored.schemaVersion===4)validateGlobalCategorias(stored);
         else if(stored.schemaVersion===3)validateDiseaseCategorias(stored);
         else if(stored.schemaVersion===2)validateCategorias(stored);
@@ -377,10 +487,14 @@ module.exports=async function handler(req,res){
     const hasDiseaseBreakdown=isPercent&&
       Object.prototype.hasOwnProperty.call(request.categorias?.sanidad||{},'porcentajesEnfermedades');
     // No interpretar formatos antiguos como v4: esos borradores siguen protegidos.
-    const v4=request.schemaVersion===4,v5=request.schemaVersion===5,v6=request.schemaVersion===6;
-    if((v4||v5||v6)&&!isPercent||v4&&hasDiseaseBreakdown)
+    const v9=request.schemaVersion===9,v4=request.schemaVersion===4,v5=request.schemaVersion===5,
+      v6=request.schemaVersion===6,v7=request.schemaVersion===7,v8=request.schemaVersion===8;
+    if((v4||v5||v6||v7||v8||v9)&&!isPercent||v4&&hasDiseaseBreakdown||v8&&request.tipo!=='carga_injerto'||v9&&!['preinjerto_patron','preinjerto_variedad'].includes(request.tipo))
       throw httpError(400,'INVALID_MEASUREMENTS');
-    const checked=v6?validateEvaluationV6(request):
+    const checked=v9?validateEvaluationV9(request):
+      v8?validateEvaluationV8(request):
+      v7?validateEvaluationV7(request):
+      v6?validateEvaluationV6(request):
       v5?validateEvaluationV5(request):
       v4?validateGlobalCategorias(request):
       hasDiseaseBreakdown?validateDiseaseCategorias(request):
@@ -393,13 +507,13 @@ module.exports=async function handler(req,res){
     if(before.version!==request.version)throw httpError(409,'CONCURRENT_MODIFICATION');
     const now=new Date().toISOString();
     const next={
-      schemaVersion:v6?6:v5?5:v4?4:hasDiseaseBreakdown?3:isPercent?2:1,version:before.version+1,
+      schemaVersion:v9?9:v8?8:v7?7:v6?6:v5?5:v4?4:hasDiseaseBreakdown?3:isPercent?2:1,version:before.version+1,
       legacy:{...ref,partida:source.partida},
-      ...(!v6?{bandejasInspeccionadas:request.bandejasInspeccionadas}:{}),
-      ...((v5||v6)?{
+      ...(!v6&&!v7&&!v8&&!v9?{bandejasInspeccionadas:request.bandejasInspeccionadas}:{}),
+      ...((v5||v6||v7||v8||v9)?{
         categorias:checked.categorias,porcentajeInvalidasGlobal:checked.porcentajeInvalidasGlobal,
         legacyMediciones:before.legacyMediciones||before.mediciones||null,
-        ...((before.legacyCategorias||before.categorias&&![5,6].includes(before.schemaVersion))?
+        ...((before.legacyCategorias||before.categorias&&![5,6,7,8].includes(before.schemaVersion))?
           {legacyCategorias:before.legacyCategorias||before.categorias}:{})
       }:isPercent?{categorias:checked,
         legacyMediciones:before.legacyMediciones||before.mediciones||null,
@@ -444,3 +558,4 @@ module.exports=async function handler(req,res){
     return res.status(status).json({error:e.code});
   }
 };
+
