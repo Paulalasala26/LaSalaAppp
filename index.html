@@ -8591,7 +8591,7 @@ async function handleControlFotoInput(input, id){
   const files = Array.from(input.files);
   try{
     for(const file of files){
-      const esImagen = /^image\\//i.test(file.type) || /\\.(?:jpe?g|png|gif|webp|bmp|heic|heif|tiff?|avif)$/i.test(file.name||'');
+      const esImagen = /^image\//i.test(file.type) || /\.(?:jpe?g|png|gif|webp|bmp|heic|heif|tiff?|avif)$/i.test(file.name||'');
       if(!esImagen){ showToast('✗ El archivo elegido no es una imagen'); continue; }
       const resultado = await comprimirImagenParaControl(file);
       if(!resultado){ showToast('✗ No se ha podido leer esa foto — prueba con otra'); continue; }
