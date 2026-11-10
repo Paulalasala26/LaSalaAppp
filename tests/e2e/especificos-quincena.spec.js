@@ -419,7 +419,6 @@ test('UAT-1014: una pulsación en una celda vacía abre Añadir específico',asy
 });
 
 test('UAT-1015, UAT-1019 y UAT-1032: una pulsación en una celda ocupada abre Editar y permite cancelar',async({page})=>{
-  test.fail(true,'La cuadrícula actual no abre el editor con una pulsación simple en una celda ocupada.');
   const database=fixtureDatabase();
   const original=database['lasala-especificos-v1'];
   const {overlay,unexpectedHosts}=await openSpecifics(page,database);
@@ -435,7 +434,6 @@ test('UAT-1015, UAT-1019 y UAT-1032: una pulsación en una celda ocupada abre Ed
 });
 
 test('UAT-1016: la cuadrícula no acepta escritura directa',async({page})=>{
-  test.fail(true,'Las celdas de Específicos son inputs editables directamente.');
   const database=fixtureDatabase();
   const {overlay,unexpectedHosts}=await openSpecifics(page,database);
   const empty=overlay.locator('#especificos-grid-wrap input[data-einv="17"][data-edia="29"][data-erc="18"]');
@@ -446,7 +444,6 @@ test('UAT-1016: la cuadrícula no acepta escritura directa',async({page})=>{
 });
 
 test('UAT-1017: pegar texto no altera una celda de Específicos sin formulario',async({page,context})=>{
-  test.fail(true,'Las celdas de Específicos admiten pegado directo.');
   const database=fixtureDatabase();
   const {overlay,unexpectedHosts}=await openSpecifics(page,database);
   await context.grantPermissions(['clipboard-read','clipboard-write']);
