@@ -57,3 +57,12 @@ El usuario ejecutó localmente `pilot_gs_qc_tunel.py` con `--fecha 2026-11-09` y
 Validación de valores realizada inspeccionando ambos archivos JSON con PowerShell. El 09/11 se mostró además un aviso de IDs de invernadero sin ficha en el catálogo: 27, 4, 5, 6; no implica que se haya resuelto el nombre correspondiente a `PAR_CAS=064`.
 
 **Pendiente:** autorización explícita para importación/escritura a Firebase TEST y posterior revisión visual del QC. No se ha desplegado Vercel ni se ha escrito en GS o Firebase por parte del asistente.
+
+## Sincronización Firebase TEST (10/11/2026)
+
+El usuario ejecutó localmente `gs_qc_import.sync_qc_items` para los JSON de Túnel ya validados. Salida comunicada:
+
+- `2026-11-09 (0, 6)`: 0 creados, 6 actualizados.
+- `2026-11-11 (8, 0)`: 8 creados, 0 actualizados.
+
+Total: 14 registros procesados en Firebase TEST. No implica todavía verificación visual ni confirmación de que los valores finales se muestren en las tarjetas QC. **Pendiente:** comprobar en APP R TEST la partida `26X02342` en ambas fechas (37 bandejas, `PAR_CAS=064`, calle 27 el 09/11; 6 bandejas, `PAR_CAS=064`, calle 30 el 11/11). Sin despliegue Vercel ni modificaciones en producción.
