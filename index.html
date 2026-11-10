@@ -8243,7 +8243,7 @@ async function qcPhotoReady(){
 }
 function qcPhotoRef(id){
   const c=controlChecksData.find(x=>x.id===id);
-  if(!c||!['tunel','carga'].includes(c.tipo)||
+  if(!c||!['tunel','carga','carga_injerto','preinjerto_patron','preinjerto_variedad'].includes(c.tipo)||
      !/^[A-Za-z0-9_-]{1,180}$/.test(id))throw Error('Inspección no disponible.');
   return {id:c.id,tipo:c.tipo,dia:c.dia,partida:c.partida};
 }
