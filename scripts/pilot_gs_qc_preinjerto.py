@@ -8,6 +8,7 @@ de lectura de estos datos.
 from __future__ import annotations
 
 import argparse
+import getpass
 import json
 import sys
 from datetime import date, timedelta, datetime, timezone
@@ -99,19 +100,24 @@ def json_value(value: Any) -> Any:
 
 
 def get_mysql_credentials() -> tuple[str, str]:
+    """Prefiere credenciales de Windows; si faltan, solicita acceso en consola."""
+    user = MYSQL_DEFAULT_USER
+    password = None
     try:
         import keyring
         from keyring.backends.Windows import WinVaultKeyring
-    except ImportError as exc:
-        raise RuntimeError("No está disponible keyring de Windows en este entorno.") from exc
-    keyring.set_keyring(WinVaultKeyring())
-    user = keyring.get_password(KEYRING_SERVICE, "mysql-user") or MYSQL_DEFAULT_USER
-    password = keyring.get_password(KEYRING_SERVICE, "mysql-password")
+    except ImportError:
+        # En el conector local no es obligatorio instalar keyring.
+        pass
+    else:
+        keyring.set_keyring(WinVaultKeyring())
+        user = keyring.get_password(KEYRING_SERVICE, "mysql-user") or user
+        password = keyring.get_password(KEYRING_SERVICE, "mysql-password")
     if not password:
-        raise RuntimeError(
-            "Falta la contraseña MySQL en el Administrador de credenciales de Windows "
-            f"(servicio {KEYRING_SERVICE})."
-        )
+        user = input(f"Usuario MySQL [{user}]: ").strip() or user
+        password = getpass.getpass("Contraseña MySQL: ")
+    if not password:
+        raise RuntimeError("No se ha indicado la contraseña MySQL.")
     return user, password
 
 
