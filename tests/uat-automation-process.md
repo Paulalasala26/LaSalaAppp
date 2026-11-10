@@ -9,9 +9,9 @@
 ## Alcance y ritmo
 
 - Priorizar pruebas sencillas de navegador: abrir un módulo, cambiar quincena/periodo y comprobar que se muestran los datos esperados; navegación, formularios y mensajes visibles.
-- Agrupar IDs relacionados en una prueba corta. Para un flujo sencillo basta una comprobación visible del resultado; añadir verificaciones extra solo si aparece un fallo o riesgo concreto.
+- Agrupar IDs relacionados en una prueba corta. En un flujo sencillo basta abrir, realizar la acción indicada (por ejemplo, cambiar de quincena) y comprobar el periodo o contenido visible. No añadir guardado, recarga ni persistencia si el caso no lo pide. Ampliar la comprobación solo ante un fallo o riesgo concreto.
 - Quedan fuera de esta campaña los bloques completos de Offline y Concurrencia, así como los casos que requieren dispositivo físico o integración real. Mantener esas filas pendientes.
-- Priorizar flujos comunes y casos simples que puedan ejecutarse con fixture. No invertir tiempo en reproducir escenarios largos o condiciones de laboratorio.
+- Priorizar flujos comunes y casos simples que puedan ejecutarse con fixture. Hacer una pasada somera por los casos de bajo riesgo; reservar análisis y reproducción detallados para fallos, datos sensibles y operaciones destructivas.
 
 ## Ejecución y actualización
 
@@ -25,11 +25,11 @@ El smoke de CI comprueba recorridos críticos, incluido el cambio de quincena y 
 
 ## Estado al 10 de noviembre de 2026
 
-- Última suite completa: [GitHub Actions #171](https://github.com/Paulalasala26/LaSalaAppp/actions/runs/42863717187), 337 pruebas terminadas y 794 IDs UAT únicos.
-- Último smoke: [GitHub Actions #107](https://github.com/Paulalasala26/LaSalaAppp/actions/runs/42863717139), recorrido de quincena aprobado.
-- SharePoint releído: 864 IDs con evidencia, 797 `PASA_FIXTURE` y 67 `FALLA_FIXTURE`; en la matriz, 1.890 pendientes y 13 sin estado.
-- UAT-1746–1752, UAT-1754 y UAT-1757–1758 quedan como brechas de Archivo. UAT-1756, UAT-1759 y UAT-1760 pasan las comprobaciones sencillas de tarjeta y consulta.
-- UAT-1031, UAT-1036–1039, UAT-1040–1042 y UAT-1058 pasan las comprobaciones breves de formulario Específicos; UAT-1033–1035 y UAT-1060 siguen como brechas de ubicación/alcance e impresión. UAT-1232, UAT-1240 y UAT-1268–1297 siguen como brechas de Tareas.
+- Última suite completa: [GitHub Actions #175](https://github.com/Paulalasala26/LaSalaAppp/actions/runs/42865122126), 337 pruebas terminadas y 795 IDs UAT únicos.
+- Último smoke: [GitHub Actions #111](https://github.com/Paulalasala26/LaSalaAppp/actions/runs/42865122453), recorrido de quincena aprobado.
+- SharePoint releído y conciliado: sidecar con 878 UAT (`806 PASA_FIXTURE`, `72 FALLA_FIXTURE`); matriz con 806 `PASA_FIXTURE`, 72 `FALLA_FIXTURE`, 1.876 `PENDIENTE` y 13 sin estado.
+- UAT-1032 sigue como brecha reproducible: una pulsación en celda ocupada no abre «Editar específico».
+- Offline y Concurrencia quedan fuera del alcance de la campaña; sus filas permanecen pendientes. La suite puede ejecutar regresiones ya existentes, pero no se añaden ni se amplían casos de esos bloques.
 - Firebase estuvo interceptado; la suite no certifica datos TEST/PRD, SharePoint real ni dispositivos físicos.
 
 ## Archivos
