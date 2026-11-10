@@ -118,7 +118,7 @@ test('UAT-004 y UAT-005: cerrar sesión y recargar mantiene la sesión cerrada',
   await expect(page.locator('#app')).toBeHidden();
 });
 
-test('UAT-006, UAT-1972–1974 y UAT-2032–2037: cada rol recibe su Home y solo los roles permitidos ven Avisos', async ({ page }) => {
+test('UAT-006, UAT-1965–1966, UAT-1972–1974 y UAT-2032–2037: cada rol recibe su Home y solo los roles permitidos ven Avisos', async ({ page }) => {
   await installAuthFixture(page);
 
   const roleCases = [
@@ -162,6 +162,9 @@ test('UAT-006, UAT-1972–1974 y UAT-2032–2037: cada rol recibe su Home y solo
     for (const label of roleCase.hiddenCards || []) {
       const shortcut = page.locator('.home-shortcut-card').filter({ hasText: label });
       await expect(shortcut).toBeHidden();
+    }
+    if (['E2E_ADMIN', 'E2E_TECNICO'].includes(roleCase.user)) {
+      await expect(page.locator('.home-shortcut-card').filter({ hasText: 'Avisos' })).toHaveCount(0);
     }
     if (['E2E_REGANTE', 'E2E_PEON', 'E2E_CARGADOR'].includes(roleCase.user)) {
       await expect(page.locator('#avisos-tecnico-badge')).toHaveCount(0);
@@ -237,7 +240,7 @@ test('UAT-1993, UAT-1994 y UAT-1996: la cabecera conserva marca, Avisos y salida
   }
 });
 
-test('UAT-007, UAT-1949, UAT-1951–1953 y UAT-1954–1960: los accesos de Inicio abren y cierran el módulo previsto', async ({ page }) => {
+test('UAT-007, UAT-1949, UAT-1951–1953, UAT-1954–1960 y UAT-1963: los accesos de Inicio abren y cierran el módulo previsto', async ({ page }) => {
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(error.message));
   await installAuthFixture(page);
@@ -250,9 +253,9 @@ test('UAT-007, UAT-1949, UAT-1951–1953 y UAT-1954–1960: los accesos de Inici
     ['tareas', '#tareas-overlay'],
     ['clima', '#clima-overlay'],
     ['trabajos', '#trabajos-overlay'],
+    ['especificos', '#especificos-overlay'],
     ['control', '#control-overlay'],
     ['partidas', '#partidas-overlay'],
-    ['especificos', '#especificos-overlay'],
     ['sala-en-vivo', '#sala-en-vivo-overlay']
   ];
 
@@ -437,10 +440,12 @@ test('UAT-2002, UAT-2005, UAT-2020 y UAT-2021: el punto de no leídos se recuper
   await expect(page.locator('#avisos-tecnico-badge span[aria-label]')).toHaveAttribute('aria-label', '2 avisos sin leer');
 });
 
-test('UAT-1950, UAT-2007, UAT-2008, UAT-2016–2018: navegar y reabrir módulos conserva Home y Avisos', async ({ page }) => {
+test('UAT-1950, UAT-1967, UAT-2007, UAT-2008 y UAT-2016–2018: navegar y reabrir módulos conserva Home y Avisos', async ({ page }) => {
   const avisos = [{ id: 'aviso-sin-leer', mensaje: 'Pendiente de consulta', fecha: '04/11/2026', visto: true, leido: false, evaluacion: null }];
   await installAuthFixture(page, { 'lasala-avisos-usuario-v1': JSON.stringify({ E2E_TECNICO: avisos }) });
   await logInAs(page, 'E2E_TECNICO');
+  const homeCards = page.locator('#quick-access-block .home-shortcut-card:visible');
+  const initialHomeOrder = await homeCards.evaluateAll(elements => elements.map(el => el.innerText.trim().replace(/\\s+/g, ' ')));
 
   await page.locator(`#quick-access-block .home-shortcut-card[onclick="handleQuickAction('riego')"]`).click();
   const riego = page.locator('#riego-overlay');
@@ -457,6 +462,8 @@ test('UAT-1950, UAT-2007, UAT-2008, UAT-2016–2018: navegar y reabrir módulos 
   await expect(panel).toContainText('Pendiente de consulta');
   await panel.getByRole('button', { name: '✕' }).click();
   await expect(panel).toBeHidden();
+  await expect(page.locator('#page-home')).toBeVisible();
+  expect(await homeCards.evaluateAll(elements => elements.map(el => el.innerText.trim().replace(/\\s+/g, ' ')))).toEqual(initialHomeOrder);
   await button.click();
   await expect(panel).toBeVisible();
   await expect(page.locator('#avisos-tecnico-overlay')).toHaveCount(1);
