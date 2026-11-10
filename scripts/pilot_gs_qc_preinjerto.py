@@ -176,7 +176,7 @@ def write_snapshot(rows: list[dict[str, Any]], desde: date, hasta: date) -> Path
         if str(row.get("PAR_UBIC") or "").strip() not in ("", "0"):
             coverage["parUbic"] += 1
         final = str(row.get("Cliente Final") or "").strip()
-        if re.fullmatch(r"INVERNADERO\\s+[A-Za-z0-9_-]+", final, re.IGNORECASE):
+        if re.fullmatch(r"INVERNADERO\s+[A-Za-z0-9_-]+", final, re.IGNORECASE):
             coverage["clienteFinalInv"] += 1
 
     payload = {
