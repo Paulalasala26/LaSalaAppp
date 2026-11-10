@@ -5,12 +5,13 @@ const firebaseUrl = /^https:\/\/[^/]*(?:firebasedatabase\.app|firebaseio\.com)\/
 const firebaseHost = 'la-sala-app-default-rtdb.europe-west1.firebasedatabase.app';
 const login = { user: 'E2E_ESPECIFICOS_ADMIN', password: 'e2e-only-password' };
 const regante = { user: 'E2E_ESPECIFICOS_REGANTE', password: 'e2e-only-password' };
+const tecnico = { user: 'E2E_ESPECIFICOS_TECNICO', password: 'e2e-only-password' };
 
 function fixtureDatabase(){
   const hash=createHash('sha256').update(login.password).digest('hex');
   return {
-    'lasala-users-v1':JSON.stringify({[login.user]:hash,[regante.user]:hash}),
-    'lasala-roles-v1':JSON.stringify({[login.user]:'ADMIN',[regante.user]:'REGANTE'}),
+    'lasala-users-v1':JSON.stringify({[login.user]:hash,[regante.user]:hash,[tecnico.user]:hash}),
+    'lasala-roles-v1':JSON.stringify({[login.user]:'ADMIN',[regante.user]:'REGANTE',[tecnico.user]:'TECNICO'}),
     'lasala-especificos-v1':JSON.stringify({'17':{'30':{'18':'E2E-ESPECIFICO-INV17','17':'E2E-ESPECIFICO-DELETE'}},'18':{'30':{'18':'E2E-ESPECIFICO-INV18'}}})
   };
 }
@@ -24,6 +25,19 @@ function writeAt(object,path,value){
 function firebaseEtag(value){return value==null?'null_etag':`"${createHash('sha1').update(JSON.stringify(value)).digest('hex')}"`;}
 function specificsData(database){const value=database['lasala-especificos-v1'];return typeof value==='string'?JSON.parse(value):value;}
 function textoEspecifico(database,dia,calle){const value=specificsData(database)?.['17']?.[dia]?.[calle];return value&&typeof value==='object'?value.texto:value;}
+
+
+async function switchSpecificsUser(page,account){
+  await page.evaluate(()=>doLogout());
+  await expect(page.locator('#login-screen')).toBeVisible();
+  await page.locator('#login-user').evaluate((select,user)=>{
+    if(![...select.options].some(option=>option.value===user))select.add(new Option(user,user));
+  },account.user);
+  await page.locator('#login-user').selectOption(account.user);
+  await page.locator('#login-pass').fill(account.password);
+  await page.getByRole('button',{name:'Iniciar sesión'}).click();
+  await expect(page.locator('#app')).toBeVisible();
+}
 
 async function openSpecifics(page,database,{loginFirst=true,writeDelayMs=0,now='2026-06-30T10:00:00+02:00'}={}){
   const unexpectedHosts=[],writes=[];
@@ -270,6 +284,56 @@ test('UAT-998, UAT-999, UAT-1001 y UAT-1003: Específicos cambia de INV sin mezc
 
   await overlay.locator('button[data-einv="17"]').last().click();
   await expect(cell('17')).toHaveValue('E2E-ESPECIFICO-INV17');
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+
+test('UAT-984 y UAT-985: Específicos abre correctamente después de Partidas y Control',async({page})=>{
+  const pageErrors=[];
+  page.on('pageerror',error=>pageErrors.push(error.message));
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openSpecifics(page,database);
+  await overlay.locator('button[onclick*="especificos-overlay"]').click();
+
+  const partidas=page.locator('#partidas-overlay');
+  await page.getByTestId('home-partidas').click();
+  await expect(partidas).toBeVisible();
+  await partidas.getByRole('button',{name:'Sala 2',exact:true}).click();
+  await partidas.getByRole('button',{name:'17',exact:true}).click();
+  await partidas.getByRole('button',{name:/Cerrar/}).click();
+
+  const control=page.locator('#control-overlay');
+  await page.getByTestId('home-control').click();
+  await expect(control).toBeVisible();
+  await control.getByRole('button',{name:'✕ Cerrar'}).click();
+
+  await page.getByTestId('home-especificos').click();
+  const reopened=page.locator('#especificos-overlay');
+  await expect(reopened).toBeVisible();
+  await reopened.locator('button[data-einv="17"]').click();
+  await expect(page.locator('#especificos-grid-wrap [data-einv="17"][data-edia="30"][data-erc="18"]')).toHaveValue('E2E-ESPECIFICO-INV17');
+
+  expect(pageErrors).toEqual([]);
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-986 y UAT-987: ADMIN y TÉCNICO pueden entrar en Específicos con sus permisos',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openSpecifics(page,database);
+  await expect(page.getByTestId('home-especificos')).toBeVisible();
+  await expect(page.locator('#especificos-grid-wrap [data-einv="17"][data-edia="30"][data-erc="18"]')).toHaveValue('E2E-ESPECIFICO-INV17');
+  await overlay.locator('button[onclick*="especificos-overlay"]').click();
+
+  await switchSpecificsUser(page,tecnico);
+  await expect(page.getByTestId('home-especificos')).toBeVisible();
+  await page.getByTestId('home-especificos').click();
+  const techOverlay=page.locator('#especificos-overlay');
+  await expect(techOverlay).toBeVisible();
+  await techOverlay.locator('button[data-einv="17"]').click();
+  await expect(page.locator('#especificos-grid-wrap [data-einv="17"][data-edia="30"][data-erc="18"]')).toHaveValue('E2E-ESPECIFICO-INV17');
+
   expect(writes).toEqual([]);
   expect(unexpectedHosts).toEqual([]);
 });
