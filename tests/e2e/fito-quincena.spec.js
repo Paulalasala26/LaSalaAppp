@@ -1178,7 +1178,8 @@ test('UAT-515: guardar y reabrir una jornada fixture conserva los datos sin marc
   await expect.poll(()=>fitoData(database)?.['17']?.['30']?.['2']).toMatchObject({
     texto:'E2E-UAT515 1 cc/l',caldoLitros:25,tipoTrat:'Cañón'
   });
-  const cell=overlay.locator('#fito-grid-wrap [data-finv="17"][data-fdia="30"][data-frc="2"]');
+  const cell=overlay.locator('#fito-grid-wrap input[data-finv="17"][data-fdia="30"]').first();
+  await expect(cell).toBeVisible();
   await cell.dblclick();
   const editor=page.locator('#fito-manual-overlay');
   await expect(editor.locator('#fm-trat')).toHaveValue('E2E-UAT515');
