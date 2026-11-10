@@ -207,3 +207,8 @@ Corrección en `test/v1.0`:
 - Se amplió la admisión de tipo en las dos rutas API de galería.
 
 Commits: `d9e841b` (IndexedDB/adaptador), `1addd4c` (referencia del frontend), `4e107ef` (SharePoint/API), `1a04c96` (API de galería). No se desplegó Vercel ni se realizaron escrituras GS/Firebase/SharePoint. Falta que la app use este código y comprobar visualmente que desaparece el error y que carga/sube una foto en cada QC afectado.
+
+
+## Editor de líneas QC: primer bloque Carga Injerto (10/11/2026)
+
+En `test/v1.0` se añadió una acción «Editar partida» específica para QC Carga Injerto, visible para ADMIN, TÉCNICO y CARGADOR. Permite corregir partida, cliente, variedad, bandejas e invernadero/calles en ViguerAPP. La fecha y hora de GS son inmutables. La corrección se conserva en `edicionQC` y el piloto de sincronización la reaplica en futuras cargas; no se escribe en GS. Commits: `b784820`, `f0f1354`, `7220494`. No hubo despliegue ni escritura Firebase. La revisión funcional en TEST queda pendiente; siguiente bloque: Preinjerto Patrón.
