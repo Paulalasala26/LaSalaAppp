@@ -182,3 +182,10 @@ La inspección de solo lectura encontró la tabla con clave compuesta `id` (varc
 ### Búsqueda de metadatos y relaciones GS autorizada
 
 Tras no hallar las dos partidas directamente en `partidas_par_ubic.id/C0`, el usuario autorizó ampliar la búsqueda a metadatos de esquema de ubicación y SELECT limitados a esas dos partidas en tablas candidatas. Se preparó `scripts/inspect_gs_preinjerto_location_sources.py`, commit `3558a09e17e17d5b91d62536c4ed731f57f4ded8`: devuelve tablas/columnas y comentarios relevantes, relaciones FK con `partidas`, y coincidencias exactas limitadas para ambas partidas. Pendiente ejecución local; no escribe en GS/Firebase ni despliega.
+
+
+### Resultado de la búsqueda ampliada de ubicaciones GS
+
+La salida real de `inspect_gs_preinjerto_location_sources.py` encontró metadatos para tablas locativas, pero ninguna fila exacta de `26C02436` o `26C02653` en `partidas_par_ubic`, `partidashis_parh_ubic`, `p-extension.PEX_NPA` ni las demás tablas candidatas de ubicación. Las dos partidas actuales en `partidas` mantienen `PAR_CAS=016/028` y `PAR_UBIC=NULL`. Los otros resultados fueron tablas de cabecera/estado/proceso, no de ubicación. `invernaderos` es un maestro con ID/denominación/capacidades, sin asignación de calle por partida observada.
+
+La extracción actual funciona para el código bruto `PAR_CAS` (100/145; los dos IDs coinciden con el volcado histórico). Para los dos casos revisados, GS no devuelve calle en los datos examinados. La fuente real de calle queda **sin identificar**. No cambiar SELECT/importador ni derivar ubicación de `PAR_TSI`, observaciones o movimientos posteriores sin evidencia de una partida situada y una relación verificada.
