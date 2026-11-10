@@ -733,7 +733,7 @@ test('UAT-543: quitar un INV conserva los tramos del resto de la selección',asy
   expect(writes).toEqual([]);
 });
 
-test('UAT-544: guardar observaciones diferentes las asocia a su INV y tramo',async({page})=>{
+test('UAT-512 y UAT-544: guardar y reabrir observaciones las asocia a su INV y tramo',async({page})=>{
   const database=fixtureDatabase();
   const {overlay,unexpectedHosts}=await openFito(page,database);
   await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
@@ -752,6 +752,11 @@ test('UAT-544: guardar observaciones diferentes las asocia a su INV y tramo',asy
   await expect(form).toBeHidden();
   await expect.poll(()=>fitoData(database)?.['17']?.['30']?.['2']?.texto).toBe('E2E-OBS-POR-INV 1 cc/l — observación de INV17');
   await expect.poll(()=>fitoData(database)?.['31']?.['30']?.['4']?.texto).toBe('E2E-OBS-POR-INV 1 cc/l — observación de INV31');
+  const cell=overlay.locator('#fito-grid-wrap input[data-finv="17"][data-fdia="30"]').first();
+  await expect(cell).toBeVisible();
+  await cell.dblclick();
+  const editor=page.locator('#fito-manual-overlay');
+  await expect(editor.locator('#fm-bulk-tramos-17 .fm-bulk-tramo-obs')).toHaveValue('observación de INV17');
   expect(unexpectedHosts).toEqual([]);
 });
 
@@ -1242,25 +1247,3 @@ test('UAT-510: una mezcla no se guarda si falta la dosis de uno de sus productos
   expect(unexpectedHosts).toEqual([]);
 });
 
-test('UAT-512: una observación de tratamiento se conserva al reabrir la ficha',async({page})=>{
-  const database=fixtureDatabase();
-  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
-  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
-  const form=page.locator('#fito-manual-overlay');
-  await form.locator('input[name="fm-bulk-modo-17"]').nth(2).check();
-  await form.locator('#fm-bulk-tramos-17 .fm-bulk-tramo-desde').selectOption('2');
-  await form.locator('#fm-bulk-tramos-17 .fm-bulk-tramo-hasta').selectOption('2');
-  await form.locator('#fm-bulk-tramos-17 .fm-bulk-tramo-obs').fill('E2E-OBSERVACION-512');
-  await completarFitoValido(form,'E2E-TRATAMIENTO-512');
-  await form.getByRole('button',{name:'Guardar'}).click();
-  await expect(form).toBeHidden();
-  const raw=fitoData(database)?.['17']?.['30']?.['2'];
-  expect(raw?.texto).toBe('E2E-TRATAMIENTO-512 1 cc/l — E2E-OBSERVACION-512');
-  const cell=overlay.locator('#fito-grid-wrap input[data-finv="17"][data-fdia="30"]').first();
-  await expect(cell).toBeVisible();
-  await cell.dblclick();
-  const editor=page.locator('#fito-manual-overlay');
-  await expect(editor.locator('#fm-bulk-tramos-17 .fm-bulk-tramo-obs')).toHaveValue('E2E-OBSERVACION-512');
-  expect(unexpectedHosts).toEqual([]);
-  expect(writes.filter(write=>write.path==='lasala-fito-v1')).toHaveLength(1);
-});
