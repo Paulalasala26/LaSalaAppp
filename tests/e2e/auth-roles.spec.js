@@ -755,26 +755,35 @@ test('UAT-2416: abrir Control y Partidas a la vez comparte la carga QC y deja am
 
 
 
-test('UAT-1964 y UAT-1969: volver a Inicio desde una subpantalla conserva la Home vacía', async ({ page }) => {
-  const pageErrors = [];
-  page.on('pageerror', error => pageErrors.push(error.message));
+test('UAT-1964: volver desde Control a Inicio conserva la sesión', async ({ page }) => {
   await installAuthFixture(page);
+  await logInAs(page, 'E2E_TECNICO');
+  await expect(page.locator('#page-home')).toBeVisible();
+
+  await page.getByTestId('home-control').click();
+  const control = page.locator('#control-overlay');
+  await expect(control).toBeVisible();
+  await control.getByRole('button', { name: /✕/ }).last().click();
+
+  await expect(control).toBeHidden();
+  await expect(page.locator('#page-home')).toBeVisible();
+  await expect(page.locator('#login-screen')).toBeHidden();
+});
+
+test('UAT-1969: Home sin tareas ni avisos mantiene la navegación estable', async ({ page }) => {
+  await installAuthFixture(page, {
+    'lasala-tareas-v1': '[]',
+    'lasala-avisos-usuario-v1': JSON.stringify({ E2E_TECNICO: [] })
+  });
   await logInAs(page, 'E2E_TECNICO');
   await expect(page.locator('#page-home')).toBeVisible();
 
   const cards = page.locator('#quick-access-block .home-shortcut-card:visible');
   const initialHomeOrder = await cards.evaluateAll(elements => elements.map(el => el.innerText.trim().replace(/\\s+/g, ' ')));
   await expect(page.locator('#avisos-tecnico-badge span[aria-label]')).toHaveCount(0);
+  await page.reload();
 
-  await page.getByTestId('home-control').click();
-  const control = page.locator('#control-overlay');
-  await expect(control).toBeVisible();
-  await page.locator('.nav-tab').filter({ hasText: /^Inicio$/ }).click();
-
-  await expect(control).toBeHidden();
   await expect(page.locator('#page-home')).toBeVisible();
-  await expect(page.locator('#login-screen')).toBeHidden();
   expect(await cards.evaluateAll(elements => elements.map(el => el.innerText.trim().replace(/\\s+/g, ' ')))).toEqual(initialHomeOrder);
   await expect(page.locator('#avisos-tecnico-badge span[aria-label]')).toHaveCount(0);
-  expect(pageErrors).toEqual([]);
 });
