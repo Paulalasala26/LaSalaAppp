@@ -8725,7 +8725,7 @@ function comprimirImagenParaControl(file){
 // Compatibilidad: las fotos guardadas antes de este cambio son un string
 // plano (la foto completa, sin miniatura aparte); las nuevas son
 // {f,t}. Estos dos helpers dan igual el resultado correcto en ambos casos.
-function fotoSrcCompleta(entry){ return (entry && typeof entry==='object') ? entry.f : entry; }
+function fotoSrcCompleta(entry){ if(Array.isArray(entry)) entry=entry[0]; return (entry && typeof entry==='object') ? entry.f : entry; }
 function fotoSrcMiniatura(entry){ return (entry && typeof entry==='object') ? (entry.t||entry.f) : entry; }
 function fotosControlComoArray(entry){ return !entry ? [] : Array.isArray(entry) ? entry : [entry]; }
 // A petición de Paula (2026-08-27): buscar una partida en Partidas y
