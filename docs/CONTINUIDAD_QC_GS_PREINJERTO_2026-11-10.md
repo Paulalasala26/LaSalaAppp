@@ -53,3 +53,8 @@ La Excel adjunta tiene una tabla de 190 filas y 24 columnas; no contiene columna
 ## Inspección de tabla candidata autorizada (10/11/2026)
 
 El usuario autorizó inspección GS de solo lectura del esquema `partidas_par_ubic` y de filas asociadas a `26C02436` y `26C02653`. Se añadió `scripts/inspect_gs_preinjerto_location.py` (commit `1304abe5c6ca2286e70d1c86b8185a7cad912816`). El script consulta `information_schema.COLUMNS` y busca únicamente esos dos IDs en columnas de texto candidatas; no escribe en GS/Firebase ni exporta la tabla completa. Pendiente que el usuario lo ejecute localmente y comparta el JSON de salida.
+
+
+### Ajuste del diagnóstico de `partidas_par_ubic` (10/11/2026)
+
+La primera ejecución confirmó el esquema `id`, `id2`, `C0`–`C5`, pero el lector solo buscó los IDs en `id`; ese resultado vacío no era concluyente porque `C0` es una columna genérica de texto posible. Corregido `scripts/inspect_gs_preinjerto_location.py` en commit `71bf059b947cd0d7d595b68442e1ab4c3202f21d`: ahora busca igualdad exacta de los dos IDs en todas las columnas de texto y devuelve solo filas coincidentes (máximo 20 por columna). Pendiente repetir la ejecución. Sin escrituras.
