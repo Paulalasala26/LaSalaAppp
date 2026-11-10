@@ -18,6 +18,14 @@
     ['flores','Flores',[['ok','Ok'],['si','Con flores']]],
     ['raices','Raíces',[['pocaRaiz','Poca raíz'],['raizVieja','Raíz vieja'],['ok','OK']]]
   ];
+  const CATS_PREINJERTO_VARIEDAD=[
+    ['color','Color',[['verde','Verde'],['amarillo','Amarillo'],['verdeClaro','Verde claro'],['ok','OK']]],
+    ['tamano','Tamaño',[['grande','Grande'],['pequeno','Pequeño'],['ok','OK']]],
+    ['grosor','Grosor',[['fino','Fino'],['ok','OK'],['grueso','Grueso']]],
+    ['firmeza','Firmeza',[['ok','OK'],['duro','Duro'],['tierno','Tierno']]],
+    ['plagas','Plagas',[['ok','OK'],['tuta','Tuta'],['minador','Minador'],['pulgon','Pulgón'],['oruga','Oruga'],['trips','Trips']]],
+    ['enfermedades','Enfermedades',[['ok','OK'],['alternaria','Alternaria'],['mildiu','Mildiu'],['oidio','Oídio'],['botrytis','Botrytis'],['didymella','Didymella']]]
+  ];
   const CATS_PREINJERTO_PATRON=[
     ['grosor','Grosor',[['fino','Fino'],['ok','OK'],['grueso','Grueso']]],
     ['firmeza','Firmeza',[['ok','OK'],['duro','Duro'],['tierno','Tierno']]],
@@ -544,7 +552,7 @@
       if(!saved)return {state:'absent'};
       if(!Number.isInteger(saved.version)||saved.version<=previousVersion)
         return {state:'different'};
-      const expectedSchema=ref.tipo==='preinjerto_patron'?9:ref.tipo==='carga_injerto'?8:ref.tipo==='carga'?7:6;
+      const expectedSchema=['preinjerto_patron','preinjerto_variedad'].includes(ref.tipo)?9:ref.tipo==='carga_injerto'?8:ref.tipo==='carga'?7:6;
       const same=saved.schemaVersion===expectedSchema&&
         saved.porcentajeInvalidasGlobal===expected.porcentajeInvalidasGlobal&&
         Object.keys(expected.categorias).every(cat=>JSON.stringify(saved.categorias?.[cat])===JSON.stringify(expected.categorias[cat]));
@@ -593,7 +601,7 @@
         method:'POST',headers:{Authorization:'Bearer '+jwt,'Content-Type':'application/json'},
         body:JSON.stringify({
           id:record.id,tipo:record.tipo,dia:record.dia,partida:record.partida,
-          schemaVersion:record.tipo==='preinjerto_patron'?9:record.tipo==='carga_injerto'?8:record.tipo==='carga'?7:6,version,
+          schemaVersion:['preinjerto_patron','preinjerto_variedad'].includes(record.tipo)?9:record.tipo==='carga_injerto'?8:record.tipo==='carga'?7:6,version,
           categorias:checked.categorias,porcentajeInvalidasGlobal:checked.porcentajeInvalidasGlobal
         }),cache:'no-store'
       });
@@ -610,7 +618,7 @@
       const data=await r.json();
       if(!data.ok||!Number.isInteger(data.version))throw Error('INVALID_RESPONSE');
       version=data.version;original=JSON.stringify(snapshot());initialSnapshot=original;
-      savedMeasurement={schemaVersion:record.tipo==='preinjerto_patron'?9:record.tipo==='carga_injerto'?8:record.tipo==='carga'?7:6,version,
+      savedMeasurement={schemaVersion:['preinjerto_patron','preinjerto_variedad'].includes(record.tipo)?9:record.tipo==='carga_injerto'?8:record.tipo==='carga'?7:6,version,
         categorias:checked.categorias,porcentajeInvalidasGlobal:checked.porcentajeInvalidasGlobal};
       confirmed=true;
     }catch(err){
@@ -892,7 +900,7 @@
     foot.append(cancel,submit);form.append(foot);body.append(form);dialog.append(body);overlay.append(dialog);return overlay;
   }
   async function open(rec,context){
-    if(!rec||!['tunel','carga','carga_injerto','preinjerto_patron'].includes(rec.tipo)||typeof rec.id!=='string'||
+    if(!rec||!['tunel','carga','carga_injerto','preinjerto_patron','preinjerto_variedad'].includes(rec.tipo)||typeof rec.id!=='string'||
       !/^[A-Za-z0-9_-]{1,180}$/.test(rec.id)||!
       Number.isInteger(rec.dia)||rec.dia<15||rec.dia>4000||
       typeof rec.partida!=='string'||!/^[A-Za-z0-9._-]{1,100}$/.test(rec.partida)){
@@ -910,7 +918,8 @@
     }
     const thisSequence=++sequence;
     record={id:rec.id,tipo:rec.tipo,dia:rec.dia,partida:rec.partida};
-    CATS=rec.tipo==='preinjerto_patron'?CATS_PREINJERTO_PATRON:
+    CATS=rec.tipo==='preinjerto_variedad'?CATS_PREINJERTO_VARIEDAD:
+      rec.tipo==='preinjerto_patron'?CATS_PREINJERTO_PATRON:
       rec.tipo==='carga'?(rec.dia>=155?[...CATS_CARGA_BASE,CAT_FIRMEZA]:CATS_CARGA_BASE):
       rec.tipo==='carga_injerto'?(rec.dia>=155?[...CATS_CARGA_BASE,CAT_FIRMEZA,CAT_RAICES_INJERTO]:[...CATS_CARGA_BASE,CAT_RAICES_INJERTO]):CATS_TUNEL;
     legacyApi=context||null;
@@ -958,3 +967,4 @@
   }
   window.QCOperativo=Object.freeze({open,prepareRecordSwitch});
 })();
+

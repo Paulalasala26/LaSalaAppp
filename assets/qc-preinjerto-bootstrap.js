@@ -94,7 +94,7 @@
   };
 
   window.puedeCuantificarControl=function(record){
-    if(record?.tipo==='preinjerto_patron')
+    if(record&&['preinjerto_patron','preinjerto_variedad'].includes(record.tipo))
       return ['ADMIN','TECNICO'].includes(currentUserRole);
     if(record&&keySet.has(record.tipo))return false;
     return oldQuantifiable?oldQuantifiable(record):false;
@@ -112,7 +112,7 @@
   };
 
   window.renderControlCardHTML=function(record,section){
-    if(record?.tipo==='preinjerto_patron')return oldCard(record,section);
+    if(record&&['preinjerto_patron','preinjerto_variedad'].includes(record.tipo))return oldCard(record,section);
     if(!record||!keySet.has(record.tipo))return oldCard(record,section);
     const esc=value=>String(value==null?'':value).replace(/[&<>"']/g,char=>({
       '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
@@ -153,7 +153,7 @@
   };
 
   window.controlLineaCompletada=function(record){
-    if(record?.tipo==='preinjerto_patron'){
+    if(record&&['preinjerto_patron','preinjerto_variedad'].includes(record.tipo)){
       const entry=controlQCEstados.get(claveEstadosQC(record.tipo,record.dia));
       return entry?.estados?.[record.id]===true;
     }
@@ -180,7 +180,7 @@
   };
 
   window.cargarEstadosQCDia=async function(type,day,records){
-    if(type!=='preinjerto_patron'){
+    if(!['preinjerto_patron','preinjerto_variedad'].includes(type)){
       if(keySet.has(type))return;
       return oldLoadStatuses(type,day,records);
     }
@@ -230,3 +230,4 @@
     }
   };
 })();
+
