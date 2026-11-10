@@ -172,3 +172,8 @@ Tras confirmar en la extracción actual `PAR_CAS=016/028` para `26C02436/26C0265
 ### Corrección del lector de tabla candidata
 
 La primera salida de `inspect_gs_preinjerto_location.py` encontró `id`, `id2` y columnas genéricas `C0`–`C5`, pero solo buscó los IDs en `id`; por ello, la ausencia de coincidencias no resolvía si `C0` contenía la clave de partida. El lector se corrigió en `test/v1.0`, commit `71bf059b947cd0d7d595b68442e1ab4c3202f21d`, para comparar los dos IDs con igualdad exacta en todas las columnas de texto y limitar resultados. Repetirlo antes de concluir sobre esta tabla. Solo SELECT, sin Firebase.
+
+
+### Resultado de inspección de `partidas_par_ubic`
+
+La inspección de solo lectura encontró la tabla con clave compuesta `id` (varchar) + `id2` (int), `C0` varchar y `C1`–`C5` decimal. No aparecen nombres de ubicación en el esquema. La búsqueda exacta de `26C02436` y `26C02653` en las dos columnas de texto (`id`, `C0`) no devolvió filas. Por tanto no hay relación directa demostrada por esos códigos; quedan posibles relaciones indirectas en `id2` u otras tablas. Se requiere autorización antes de ampliar a una búsqueda de metadatos/relaciones GS. Ninguna escritura.
