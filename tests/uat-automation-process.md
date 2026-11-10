@@ -43,11 +43,11 @@ Se priorizan casos de prioridad Alta y flujos reutilizados. Un resultado de fixt
 
 ## Estado al 10 de noviembre de 2026
 
-- Última suite completa ejecutada: [GitHub Actions #146](https://github.com/Paulalasala26/LaSalaAppp/actions/runs/42838767847), 327 pruebas completadas y 731 IDs UAT únicos.
-- Último smoke: [GitHub Actions #82](https://github.com/Paulalasala26/LaSalaAppp/actions/runs/42838767786), ocho pruebas en 8,3 segundos; incluye UAT-025 y UAT-234–239 para cambio de quincena y aislamiento QC.
-- Sidecar SharePoint: 814 IDs, 787 `PASA_FIXTURE` y 27 `FALLA_FIXTURE`. Snapshot de la matriz: 814 con evidencia, 1.940 pendientes y 13 sin estado.
-- La ejecución #146 confirmó UAT-1233, UAT-1235, UAT-1236, UAT-1239, UAT-1241, UAT-1242 y UAT-1243. UAT-1232 y UAT-1240 se registran como brechas: Operativas no queda seleccionada al abrir el gestor y REGANTE no muestra el acceso Mis tareas.
-- El commit actual añade una comprobación esperada como fallo para UAT-1268–1280: los requisitos piden filtro por fecha y búsqueda en Operativas, pero la interfaz implementa secciones separadas por fecha y no esos filtros combinados. Esta nueva prueba aún está pendiente de una ejecución CI y no se ha sumado a la evidencia de SharePoint.
+- Última suite completa ejecutada: [GitHub Actions #148](https://github.com/Paulalasala26/LaSalaAppp/actions/runs/42841818550), 328 pruebas completadas y 744 IDs UAT únicos.
+- Último smoke: [GitHub Actions #84](https://github.com/Paulalasala26/LaSalaAppp/actions/runs/42841818833), ocho pruebas en 8,3 segundos; incluye UAT-025 y UAT-234–239 para cambio de quincena y aislamiento QC.
+- Sidecar SharePoint: 827 IDs, 787 `PASA_FIXTURE` y 40 `FALLA_FIXTURE`. Snapshot de la matriz: 827 con evidencia, 1.927 pendientes y 13 sin estado.
+- La ejecución #148 confirma UAT-1233, UAT-1235, UAT-1236, UAT-1239, UAT-1241, UAT-1242 y UAT-1243. UAT-1232 y UAT-1240 son brechas reproducibles: Operativas no queda seleccionada al abrir el gestor y REGANTE no muestra el acceso Mis tareas.
+- UAT-1268–1280 quedan como brechas reproducibles: la hoja pide filtro combinado por fecha y búsqueda por título, descripción, invernadero, calle y operario; la pantalla actual divide tareas por fecha y no ofrece esos controles.
 - Los resultados fixture validan comportamiento sobre datos simulados. No certifican permisos/datos de Firebase TEST/PRD, integraciones reales con SharePoint, cámara nativa ni interacción física.
 
 ## Archivos y evidencia
