@@ -802,7 +802,7 @@ test('UAT-1558–1559: error de guardado conserva el formulario y permite reinte
   expect(writes.filter(write => write.key === 'lasala-mantenimiento-v1')).toHaveLength(1);
 });
 
-test('UAT-2434: Archivo no registra una anulación fallida ni oculta la tarea activa', async ({ page }) => {
+test('UAT-1739 y UAT-2434: Archivo vacío no registra la anulación fallida ni oculta la tarea activa', async ({ page }) => {
   const fechaISO = await fechaISOEnNavegador(page, 0);
   const task = {
     id: 'e2e-uat-2434-task',
