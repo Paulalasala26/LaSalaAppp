@@ -22,7 +22,7 @@ Se priorizan casos de prioridad Alta y flujos reutilizados. Un resultado de fixt
 - Ninguna prueba de esta suite escribe en Firebase TEST o PRD.
 - Las pruebas de borrado operan sobre registros creados por su propio fixture.
 - La ejecución completa y el smoke corren en GitHub Actions. No requieren controlar el PC del usuario.
-- El smoke reducido ejecuta cinco recorridos críticos; la suite UAT completa se ejecuta en cada actualización del PR.
+- El smoke reducido ejecuta seis recorridos críticos; la suite UAT completa se ejecuta en cada actualización del PR.
 
 ## Ciclo de cada lote
 
