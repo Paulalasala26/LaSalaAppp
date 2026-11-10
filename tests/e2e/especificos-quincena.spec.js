@@ -436,7 +436,7 @@ test('UAT-1016: la cuadrícula no acepta escritura directa',async({page})=>{
   const database=fixtureDatabase();
   const {overlay,unexpectedHosts}=await openSpecifics(page,database);
   const empty=overlay.locator('#especificos-grid-wrap input[data-einv="17"][data-edia="29"][data-erc="18"]');
-  await empty.click();
+  await empty.evaluate(el=>el.focus());
   await empty.pressSequentially('E2E-DIRECTO');
   await expect(empty).toHaveValue('');
   expect(unexpectedHosts).toEqual([]);
@@ -448,7 +448,7 @@ test('UAT-1017: pegar texto no altera una celda de Específicos sin formulario',
   await context.grantPermissions(['clipboard-read','clipboard-write']);
   await page.evaluate(()=>navigator.clipboard.writeText('E2E-PEGADO'));
   const empty=overlay.locator('#especificos-grid-wrap input[data-einv="17"][data-edia="29"][data-erc="18"]');
-  await empty.click();
+  await empty.evaluate(el=>el.focus());
   await empty.press('Control+V');
   await expect(empty).toHaveValue('');
   expect(unexpectedHosts).toEqual([]);
