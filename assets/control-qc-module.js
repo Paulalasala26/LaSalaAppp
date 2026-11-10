@@ -1915,22 +1915,33 @@ function wizardCabeceraPartidaHTML(c){
  */
 function controlQCInfoVisual(c){
   const tunel=c.tipo==='tunel';
-  const tramo=tunel?calleTramoDeTunel(c):calleTramoDeCarga(c);
-  const inv=String((tunel?c.invId:tramo?.invId)||c.invId||c.idInvernadero||
-    c.PAR_CAS||c.gsDetalles?.idInvernadero||c.gsDetalles?.PAR_CAS||'').trim();
-  const rawGreenhouse=String(c.invernaderosGS||c.invernadero||
-    c.gsDetalles?.invernadero||'').trim();
+  const preinjerto=c.tipo==='preinjerto_patron'||c.tipo==='preinjerto_variedad';
+  // Preinjerto no tiene ubicación C3/C4/C5 de Carga: usar PAR_CAS/PAR_UBIC de GS.
+  const tramo=tunel?calleTramoDeTunel(c):(preinjerto?null:calleTramoDeCarga(c));
+  const codigoGS=String(c.PAR_CAS??c.gsDetalles?.PAR_CAS??'').trim();
+  const invAsignado=String((tunel?c.invId:tramo?.invId)||c.invId||
+    c.idInvernadero||c.gsDetalles?.idInvernadero||'').trim();
+  const rawGreenhouse=String(c.invernadero||c.gsDetalles?.invernadero||
+    (tunel?'':c.invernaderosGS)||'').trim();
+  // PAR_CAS es código bruto, no equivale a un nombre de invernadero verificado.
+  const inv=invAsignado
+    ?(codigoGS&&invAsignado===codigoGS?'Código GS '+codigoGS:'INV '+invAsignado)
+    :(codigoGS?'Código GS '+codigoGS:(rawGreenhouse||'—'));
+  const desde=c.calleDesde??c.ubicacion_2??
+    (tunel?(c.PIN_LOCA??c.gsDetalles?.PIN_LOCA):
+      preinjerto?(c.PAR_UBIC??c.gsDetalles?.PAR_UBIC):null);
+  const hasta=c.calleHasta??c.ubicacion_3??
+    (tunel?(c.PIN_LOCA??c.gsDetalles?.PIN_LOCA):
+      preinjerto?(c.PAR_UBIC??c.gsDetalles?.PAR_UBIC):null);
   const tramos=Array.isArray(c.tramos)&&c.tramos.length
-    ?c.tramos
-    :(tramo?[{desde:tramo.desde,hasta:tramo.hasta}]:
-      [{desde:c.calleDesde??c.ubicacion_2??c.PIN_LOCA??c.gsDetalles?.PIN_LOCA,
-        hasta:c.calleHasta??c.ubicacion_3??c.PIN_LOCA??c.gsDetalles?.PIN_LOCA}]);
+    ?c.tramos:(tramo?[{desde:tramo.desde,hasta:tramo.hasta}]:[{desde,hasta}]);
   const calles=tramos.map(t=>{
-    const desde=Number(t.desde),hasta=t.hasta==null||t.hasta===''?desde:Number(t.hasta);
-    if(!Number.isInteger(desde)||desde<0||!Number.isInteger(hasta)||hasta<0)return '';
-    return desde===hasta?String(desde):Math.min(desde,hasta)+'–'+Math.max(desde,hasta);
+    if(t.desde==null||String(t.desde).trim()==='')return '';
+    const nDesde=Number(t.desde),nHasta=t.hasta==null||t.hasta===''?nDesde:Number(t.hasta);
+    if(!Number.isInteger(nDesde)||nDesde<=0||!Number.isInteger(nHasta)||nHasta<=0)return '';
+    return nDesde===nHasta?String(nDesde):Math.min(nDesde,nHasta)+'–'+Math.max(nDesde,nHasta);
   }).filter(Boolean).join(', ');
-  return {inv:inv?'INV '+inv:(rawGreenhouse||'—'),calles:calles||'—'};
+  return {inv,calles:calles||'—'};
 }
 function renderControlIdentidadQC(c,estadoWizard=false){
   const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
