@@ -3817,7 +3817,7 @@ function buildTareaCardPeonFactorial(t){
         ${t.categoria==='fumigacion' ? `<button onclick="imprimirHojaFumigacionTarea('${t.id}')" title="Ver/imprimir la hoja" style="flex:1;padding:12px;font-size:13px;font-weight:800;background:#f2f4f0;color:${colorIcon};border:1.5px solid ${colorBorde};border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px"><i class="ti ti-printer" style="font-size:14px"></i> Hoja</button>` : ''}
         <button onclick="iniciarTarea('${t.id}')" style="flex:1;padding:12px;font-size:13px;font-weight:800;background:${colorBorde};color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px"><i class="ti ti-play" style="font-size:14px"></i> Iniciar</button>
       ` : ''}
-      ${t.estado==='iniciada' ? `<button onclick="showCompletarTareaDialog('${t.id}')" style="flex:1;padding:12px;font-size:13px;font-weight:800;background:#2e7d32;color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px"><i class="ti ti-check" style="font-size:14px"></i> Completar</button>` : ''}
+      ${t.estado==='iniciada' ? `<button onclick="${t.categoria==='fumigacion'?'showCompletarFumigacionDialog':'showCompletarTareaDialog'}('${t.id}')" style="flex:1;padding:12px;font-size:13px;font-weight:800;background:#2e7d32;color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px"><i class="ti ti-check" style="font-size:14px"></i> Completar</button>` : ''}
     </div>
   </div>`;
 }
@@ -3984,12 +3984,12 @@ function showCompletarFumigacionDialog(id){
     <div style="background:#fff;border-radius:14px;max-width:400px;width:100%;padding:1.5rem;box-shadow:0 8px 40px rgba(0,0,0,.3)">
       <div style="font-size:15px;font-weight:800;margin-bottom:14px">Completar fumigación</div>
       <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Caldo sobrante</label>
-      <input id="cf-caldo-sobrante" type="text" placeholder="Ej. 5L" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;margin-bottom:12px">
+      <input id="cf-caldo-sobrante" type="text" placeholder="Ej. 5L" style="width:100%;padding:13px 14px;border:1.5px solid var(--border);border-radius:10px;font-size:16px;margin-bottom:12px">
       <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Firma preparador de la mezcla</label>
-      <input id="cf-firma-preparador" type="text" placeholder="Nombre" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;margin-bottom:12px">
+      <input id="cf-firma-preparador" type="text" placeholder="Nombre" style="width:100%;padding:13px 14px;border:1.5px solid var(--border);border-radius:10px;font-size:16px;margin-bottom:12px">
       <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Firma aplicador</label>
       <input id="cf-firma-aplicador" type="text" placeholder="Nombre" value="${currentUser?currentUser[0]+currentUser.slice(1).toLowerCase():''}"
-        style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;margin-bottom:14px">
+        style="width:100%;padding:13px 14px;border:1.5px solid var(--border);border-radius:10px;font-size:16px;margin-bottom:14px">
       <div style="display:flex;justify-content:flex-end;gap:10px">
         <button onclick="this.closest('.modal-overlay-dyn').style.display='none'" style="padding:9px 16px;font-size:12px;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:7px;cursor:pointer">Cancelar</button>
         <button onclick="completarFumigacion('${id}')" style="padding:9px 18px;font-size:12px;font-weight:800;background:#2e7d32;color:#fff;border:none;border-radius:7px;cursor:pointer">Confirmar</button>
