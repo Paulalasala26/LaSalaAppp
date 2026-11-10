@@ -325,7 +325,7 @@ test('UAT-1233, UAT-1244, UAT-1235, UAT-1236, UAT-1242, UAT-1243, UAT-1246, UAT-
   await expect(overlay).toContainText('0 tickets abiertos');
   await assertOperativas();
 
-  const archive = overlay.getByRole('button', { name: 'Archivo', exact: true });
+  const archive = overlay.getByRole('button', { name: /Archivo/ });
   await archive.click();
   await expect(archive).toHaveCSS('background-color', 'rgb(255, 255, 255)');
   const archivePane = overlay.locator('#tareas-archivo-anuladas');
