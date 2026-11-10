@@ -88,11 +88,13 @@ async function openFito(page,database,{user=login.user,loginFirst=true,writeDela
 
 
 
-test('UAT-469: Inicio abre Plaguicidas y muestra Registrar y Consultar tratamientos',async({page})=>{
+test('UAT-469: Inicio ofrece Registrar y Consultar tratamientos antes de abrir Plaguicidas',async({page})=>{
   const database=fixtureDatabase();
-  const {overlay,unexpectedHosts}=await openFito(page,database,{selectINV:false});
-  await expect(overlay.getByText('Registrar tratamientos',{exact:true})).toBeVisible();
-  await expect(overlay.getByText('Consultar tratamientos',{exact:true})).toBeVisible();
+  const {overlay,unexpectedHosts}=await openFito(page,database,{selectINV:false,beforeOpen:async app=>{
+    await expect(app.getByText('Registrar tratamientos',{exact:true})).toBeVisible();
+    await expect(app.getByText('Consultar tratamientos',{exact:true})).toBeVisible();
+  }});
+  await expect(overlay).toBeVisible();
   expect(unexpectedHosts).toEqual([]);
 });
 
