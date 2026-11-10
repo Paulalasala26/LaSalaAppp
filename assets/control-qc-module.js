@@ -1916,16 +1916,20 @@ function wizardCabeceraPartidaHTML(c){
 function controlQCInfoVisual(c){
   const tunel=c.tipo==='tunel';
   const tramo=tunel?calleTramoDeTunel(c):calleTramoDeCarga(c);
-  const inv=tunel?String(c.invId||'').trim():String(tramo?.invId||'').trim();
-  const tramos=tunel
-    ?((Array.isArray(c.tramos)&&c.tramos.length)?c.tramos:[{desde:c.calleDesde,hasta:c.calleHasta}])
-    :(tramo?[{desde:tramo.desde,hasta:tramo.hasta}]:[]);
+  const inv=String((tunel?c.invId:tramo?.invId)||c.invId||c.idInvernadero||
+    c.gsDetalles?.idInvernadero||'').trim();
+  const rawGreenhouse=String(c.invernaderosGS||c.invernadero||
+    c.gsDetalles?.invernadero||'').trim();
+  const tramos=Array.isArray(c.tramos)&&c.tramos.length
+    ?c.tramos
+    :(tramo?[{desde:tramo.desde,hasta:tramo.hasta}]:
+      [{desde:c.calleDesde??c.ubicacion_2,hasta:c.calleHasta??c.ubicacion_3}]);
   const calles=tramos.map(t=>{
-    const desde=Number(t.desde),hasta=t.hasta==null?desde:Number(t.hasta);
+    const desde=Number(t.desde),hasta=t.hasta==null||t.hasta===''?desde:Number(t.hasta);
     if(!Number.isInteger(desde)||desde<0||!Number.isInteger(hasta)||hasta<0)return '';
     return desde===hasta?String(desde):Math.min(desde,hasta)+'–'+Math.max(desde,hasta);
   }).filter(Boolean).join(', ');
-  return {inv:inv?'INV '+inv:'—',calles:calles||'—'};
+  return {inv:inv?'INV '+inv:(rawGreenhouse||'—'),calles:calles||'—'};
 }
 function renderControlIdentidadQC(c,estadoWizard=false){
   const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
