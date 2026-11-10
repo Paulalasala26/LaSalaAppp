@@ -43,12 +43,13 @@ Se priorizan casos de prioridad Alta y flujos reutilizados. Un resultado de fixt
 
 ## Estado al 10 de noviembre de 2026
 
-- Última suite completa: [GitHub Actions #151](https://github.com/Paulalasala26/LaSalaAppp/actions/runs/42844436941), 328 pruebas completadas y 761 IDs UAT únicos.
-- Último smoke: [GitHub Actions #151](https://github.com/Paulalasala26/LaSalaAppp/actions/runs/42844437020), ocho recorridos críticos aprobados, incluidos cambios de quincena y aislamiento QC.
-- Sidecar SharePoint: 844 IDs, 787 `PASA_FIXTURE` y 57 `FALLA_FIXTURE`. Snapshot: 844 con evidencia, 1.910 pendientes y 13 sin estado.
-- #151 confirma UAT-1233, UAT-1235, UAT-1236, UAT-1239, UAT-1241, UAT-1242 y UAT-1243. UAT-1232 y UAT-1240 son brechas reproducibles.
-- UAT-1268–1297 son brechas reproducibles: la hoja pide filtros por fecha, estado, origen, sala y asignado, búsqueda y limpiar filtros; la pantalla divide tareas por fecha y no ofrece esos controles.
-- Los resultados fixture validan comportamiento sobre datos simulados. No certifican Firebase TEST/PRD, integraciones reales con SharePoint, cámara nativa ni interacción física.
+- Última suite completa: [GitHub Actions #155](https://github.com/Paulalasala26/LaSalaAppp/actions/runs/42848710388), 330 pruebas completadas y 770 IDs UAT únicos.
+- Último smoke: [GitHub Actions #155](https://github.com/Paulalasala26/LaSalaAppp/actions/runs/42848710414), ocho recorridos críticos aprobados, incluidos cambios de quincena y aislamiento QC.
+- Sidecar SharePoint: 853 IDs, 794 `PASA_FIXTURE` y 59 `FALLA_FIXTURE`. Snapshot: 853 con evidencia, 1.901 pendientes y 13 sin estado.
+- #155 confirma UAT-1734, UAT-1735, UAT-1736, UAT-1737, UAT-1740, UAT-1742 y UAT-1744: Archivo permite consulta y navegación entre roles/sesiones sin escrituras.
+- UAT-1746–1747 son brechas reproducibles: Archivo muestra las tareas anuladas, pero no una sección histórica separada de tareas completadas.
+- UAT-1232 y UAT-1240 siguen como brechas de Tareas. UAT-1268–1297 son brechas por filtros y búsqueda ausentes en Operativas.
+- Los resultados fixture validan comportamiento con datos simulados. No certifican Firebase TEST/PRD, integraciones reales con SharePoint, cámara nativa ni interacción física.
 
 ## Archivos y evidencia
 
