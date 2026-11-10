@@ -471,3 +471,51 @@ test('UAT-1018: cerrar con X el formulario de alta conserva la cuadrícula sin g
   expect(writes.filter(write=>write.path==='lasala-especificos-v1')).toEqual([]);
   expect(unexpectedHosts).toEqual([]);
 });
+
+
+test('UAT-1025–1027: la cuadrícula de Específicos conserva alineación al girar y desplazar en móvil',async({page})=>{
+  const database=fixtureDatabase();
+  await page.setViewportSize({width:390,height:844});
+  const {overlay,unexpectedHosts}=await openSpecifics(page,database);
+  const invButton=overlay.locator('button[data-einv="17"]').first();
+  await invButton.click();
+  const grid=overlay.locator('#especificos-grid-wrap');
+  const cell='[data-einv="17"][data-edia="30"][data-erc="18"]';
+  await expect(grid.locator(cell)).toHaveValue('E2E-ESPECIFICO-INV17');
+
+  await grid.evaluate(el=>{el.scrollLeft=300;});
+  const horizontal=await grid.evaluate(el=>{
+    const input=el.querySelector('[data-einv="17"][data-edia="30"][data-erc="18"]');
+    const head=[...el.querySelectorAll('tr:first-child td')].find(td=>td.textContent.trim()==='18');
+    return {scrollLeft:el.scrollLeft,overflow:el.scrollWidth>el.clientWidth,delta:input&&head?Math.abs(input.getBoundingClientRect().left-head.getBoundingClientRect().left):null};
+  });
+  expect(horizontal.overflow).toBe(true);
+  expect(horizontal.scrollLeft).toBeGreaterThan(0);
+  expect(horizontal.delta).not.toBeNull();
+  expect(horizontal.delta).toBeLessThan(2);
+
+  await page.setViewportSize({width:844,height:390});
+  await expect(grid.locator(cell)).toHaveValue('E2E-ESPECIFICO-INV17');
+  await grid.evaluate(el=>{el.scrollTop=250;});
+  const vertical=await grid.evaluate(el=>{
+    const input=el.querySelector('[data-einv="17"][data-edia="30"][data-erc="18"]');
+    const row=input?.closest('tr'),dayCell=row?.cells?.[0];
+    return {scrollTop:el.scrollTop,overflow:el.scrollHeight>el.clientHeight,delta:input&&dayCell?Math.abs(input.getBoundingClientRect().top-dayCell.getBoundingClientRect().top):null};
+  });
+  expect(vertical.overflow).toBe(true);
+  expect(vertical.scrollTop).toBeGreaterThan(0);
+  expect(vertical.delta).not.toBeNull();
+  expect(vertical.delta).toBeLessThan(2);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-1028: volver de Resumen a Cuadrícula no hereda filtros indebidos',async({page})=>{
+  test.fail(true,'El módulo actual de Específicos no ofrece la vista Resumen ni el cambio de vuelta a Cuadrícula.');
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts}=await openSpecifics(page,database);
+  const resumen=overlay.getByRole('button',{name:'Resumen',exact:true});
+  await expect(resumen).toBeVisible();
+  await resumen.click();
+  await expect(overlay.locator('#especificos-grid-wrap')).toBeVisible();
+  expect(unexpectedHosts).toEqual([]);
+});
