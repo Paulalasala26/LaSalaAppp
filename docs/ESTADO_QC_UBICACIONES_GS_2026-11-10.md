@@ -84,3 +84,7 @@ El usuario comprobó APP R TEST en la tarjeta QC Túnel de `26X02342` para el 11
 La revisión estática de `assets/control-qc-module.js` de `test/v1.0` confirmó que `controlQCInfoVisual(c)` contempla `c.PAR_CAS`, `c.gsDetalles?.PAR_CAS`, `c.PIN_LOCA`, `c.gsDetalles?.PIN_LOCA` y `c.calleDesde/calleHasta`; la tarjeta utiliza esa función para ambos rótulos. No se ha verificado qué versión exacta de ese JS se sirve desde Vercel, ni el contenido final del registro leído por el navegador. Hipótesis pendientes: despliegue/caché obsoleto o lectura de un registro diferente. **No asumir que la sincronización garantiza visualización.** No se ha desplegado Vercel.
 
 Siguiente diagnóstico recomendado: comprobar en navegador la versión efectiva del asset y si el item QC de 11/11 tiene `PAR_CAS=064`, `PIN_LOCA=30`, `invId` y `calleDesde`. No repetir la extracción GS ni importar otra vez sin motivo.
+
+## Regresión sin Vercel (10/11/2026)
+
+Añadido `scripts/test_gs_qc_ubicaciones.py` en `test/v1.0`, commit `e60d3dcc51a2287d20d0dc96662e8fa9f2fcf33c`. Incluye cuatro pruebas unitarias que **no acceden a GS/Firebase**: identidad independiente de las dos fechas de `26X02342` (37 bandejas / calle 27 y 6 bandejas / calle 30), relleno de ubicación vacía sin perder QC/fotos/observaciones, preservación de ubicación manual y calle cero sin asignación. Para ejecutarlas localmente desde la carpeta `scripts`: `python -m unittest -v test_gs_qc_ubicaciones.py`. No se han ejecutado aquí; queda pendiente su resultado.
