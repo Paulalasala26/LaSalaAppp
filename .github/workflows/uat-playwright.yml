@@ -42,7 +42,12 @@ jobs:
       - name: Instalar Chromium
         run: pnpm exec playwright install --with-deps chromium
 
-      - name: Ejecutar la suite UAT
+      - name: Ejecutar el spec afectado de Control QC en PR
+        if: github.event_name == 'pull_request'
+        run: pnpm exec playwright test tests/e2e/control-quincena.spec.js
+
+      - name: Ejecutar la suite UAT completa fuera de PR
+        if: github.event_name != 'pull_request'
         run: pnpm test:e2e
 
       - name: Exportar estados UAT para revisión
