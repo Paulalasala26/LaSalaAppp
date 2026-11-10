@@ -1380,7 +1380,7 @@ test('UAT-365–367 y UAT-370: las fotos QC respetan el rol y no se filtran al c
   expect(unexpectedHosts).toEqual([]);
 });
 
-test('UAT-221–222 y UAT-343–344: QC Túnel y Carga conservan consultables sus PDF históricos sin nuevas altas', async ({ page }) => {
+test('UAT-221–222, UAT-343–344, UAT-436 y UAT-445: QC Túnel y Carga conservan PDF históricos y no muestran documentos de otro día', async ({ page }) => {
   const database = fixtureDatabase();
   const historicalPdf = { nombre: 'QC-Tunel-29-jun.pdf', pdfB64: 'data:application/pdf;base64,JVBERi0xLjQK', subidoPor: 'E2E', subidoEn: '29/06/2026' };
   const historicalCargaPdf = { nombre: 'QC-Carga-29-jun.pdf', pdfB64: 'data:application/pdf;base64,JVBERi0xLjQK', subidoPor: 'E2E', subidoEn: '29/06/2026' };
@@ -1407,6 +1407,12 @@ test('UAT-221–222 y UAT-343–344: QC Túnel y Carga conservan consultables su
   expect(database['lasala-control-pdf-v1-carga-29']).toBe(JSON.stringify(historicalCargaPdf));
   expect(database['lasala-control-pdf-v1-carga_normal-29']).toBe(JSON.stringify(historicalCargaPdf));
   expect(Object.keys(database['lasala-control-items-v1']).sort()).toEqual(itemIdsBefore);
+
+  await overlay.getByTestId('control-day-next').click();
+  await expect(overlay.getByTestId('control-date-picker')).toHaveValue('2026-06-30');
+  const dayOperations = overlay.locator('[data-testid="control-day-operations"]');
+  await expect(dayOperations.locator('a[href^="data:application/pdf"]')).toHaveCount(0);
+  await expect(dayOperations.locator('input[type="file"][accept="application/pdf"]')).toHaveCount(1);
   expect(unexpectedHosts).toEqual([]);
 });
 
