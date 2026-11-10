@@ -845,7 +845,7 @@ test('UAT-1493–1494, UAT-1496, UAT-1501–1503, UAT-1509 y UAT-1510: ADMIN y T
   expect(writes).toEqual([]);
 });
 
-test('UAT-1531–1534, UAT-1536–1537, UAT-1540–1541 y UAT-1551: seleccionar y cancelar un ticket no crea datos', async ({ page }) => {
+test('UAT-1531–1534, UAT-1536–1538, UAT-1540–1541 y UAT-1551: seleccionar y cancelar un ticket no crea datos', async ({ page }) => {
   const { writes, database } = await installFixture(page);
   await openTasks(page);
   const overlay = page.locator('#tareas-overlay');
@@ -873,6 +873,13 @@ test('UAT-1531–1534, UAT-1536–1537, UAT-1540–1541 y UAT-1551: seleccionar 
   await expect(sala1Inv).not.toBeChecked();
   await expect(sala5Inv).toBeChecked();
   await sala5Inv.uncheck();
+
+  const sala1Checks = await form.locator('.nm-inv-chk[data-sala="sala1"]').all();
+  expect(sala1Checks.length).toBeGreaterThan(0);
+  for (const inv of sala1Checks) await inv.check();
+  await expect(form.locator('.nm-inv-chk[data-sala="sala1"]:checked')).toHaveCount(sala1Checks.length);
+  await expect(form.locator('.nm-inv-chk[data-sala="sala2"]:checked')).toHaveCount(0);
+  for (const inv of sala1Checks) await inv.uncheck();
 
   await form.locator('#nm-btn-crear').click();
   await expect(page.locator('#app-toast')).toContainText('Selecciona al menos un invernadero');
