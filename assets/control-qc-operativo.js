@@ -793,18 +793,15 @@
     if(legacyApi){
       // Las observaciones/fotos se editan usando su registro histórico original.
       const section=node('section',null,'qco-legacy-extras');
-      section.append(node('div','Observaciones','qco-extras-heading'));
       const content=node('div',null,'qco-extras-content');
-      const notesField=node('label',null,'qco-notes');
-      notesField.append(node('span','Observaciones'));
-      const notes=node('input');notes.type='text';
-      notes.placeholder='Sin observaciones';
-      notes.value=String(legacyApi.getObservations?.()??rec.observaciones??'');
-      notes.setAttribute('aria-label','Observaciones de esta partida');
-      // Al salir del campo, guardar observaciones en el sistema histórico.
-      // Si siguen pendientes, no permitir cerrar ni mezclar registros.
-      notes.addEventListener('change',()=>{void persistNotes();});
-      notesField.append(notes);content.append(notesField);
+      const historicalNotes=String(legacyApi.getObservations?.()??rec.observaciones??'').trim();
+      if(historicalNotes){
+        const historical=node('div',null,'qco-observations-history');
+        historical.append(node('div','Observaciones históricas','qco-extras-heading'));
+        const value=node('div',historicalNotes,'qco-observations-history-value');
+        value.style.cssText='white-space:pre-wrap;padding:8px 10px;border:1px solid var(--border);border-radius:7px;background:#f7f9fb;color:var(--muted);font-size:12px';
+        historical.append(value);content.append(historical);
+      }
       const media=node('div',null,'qco-photo-area');
       const actions=node('div',null,'qco-photo-actions');
       // 0.112: cámara y galería son dos acciones separadas. Un selector
