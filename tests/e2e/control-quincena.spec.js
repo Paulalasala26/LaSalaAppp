@@ -1194,6 +1194,56 @@ test('UAT-335: ADMIN, TÉCNICO y CARGADOR pueden registrar una línea QC Carga a
   expect(unexpectedHosts).toEqual([]);
 });
 
+test('UAT-336: REGANTE y PEÓN no pueden crear QC Carga mediante una llamada directa', async ({ page }) => {
+  const database = withControlRoles(fixtureDatabase(), {
+    E2E_CONTROL_REGANTE: 'REGANTE', E2E_CONTROL_PEON: 'PEON'
+  });
+  const itemsBefore = JSON.stringify(database['lasala-control-items-v1']);
+  const { overlay, unexpectedHosts } = await startControlTest(page, database);
+  await overlay.getByRole('button', { name: '✕ Cerrar' }).click();
+  await page.getByRole('button', { name: 'Salir' }).click();
+
+  let controlPutAttempts = 0;
+  page.on('request', request => {
+    if (request.method() === 'PUT' && request.url().includes('/lasala-control-items-v1.json')) controlPutAttempts++;
+  });
+
+  for (const [index, user] of ['E2E_CONTROL_REGANTE', 'E2E_CONTROL_PEON'].entries()) {
+    if (index > 0) {
+      await page.evaluate(() => localStorage.removeItem('lasala-sesion-v1'));
+      await page.reload();
+    }
+    await loginControlRole(page, user);
+    const result = await page.evaluate(async userId => {
+      const entry = {
+        id: `e2e-unauthorized-carga-${userId}`,
+        tipo: 'carga',
+        dia: 30,
+        partida: '26X09999',
+        cliente: 'Fixture no autorizado',
+        variedad: 'No debe guardarse',
+        numBandejas: 12
+      };
+      const countBefore = controlChecksData.length;
+      const saved = await aplicarNuevaLineaControlCarga(entry);
+      return {
+        saved,
+        countBefore,
+        countAfter: controlChecksData.length,
+        existsLocally: controlChecksData.some(item => item.id === entry.id)
+      };
+    }, user);
+
+    expect(result.saved).toBe(false);
+    expect(result.countAfter).toBe(result.countBefore);
+    expect(result.existsLocally).toBe(false);
+    expect(controlPutAttempts).toBe(0);
+    expect(JSON.stringify(database['lasala-control-items-v1'])).toBe(itemsBefore);
+    await page.getByRole('button', { name: 'Salir' }).click();
+  }
+  expect(unexpectedHosts).toEqual([]);
+});
+
 test('UAT-216: REGANTE y PEÓN no acceden a Control por la navegación ni por llamada directa', async ({ page }) => {
   const database = withControlRoles(fixtureDatabase(), {
     E2E_CONTROL_REGANTE: 'REGANTE', E2E_CONTROL_PEON: 'PEON'
