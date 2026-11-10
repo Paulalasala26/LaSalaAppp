@@ -558,3 +558,22 @@ test('UAT-1033–1035: formulario desde calle fija la ubicación y no ofrece alc
   expect(writes).toEqual([]);
   expect(unexpectedHosts).toEqual([]);
 });
+
+
+test('UAT-1039–1042: selectores de Específicos conservan tratamiento y dosis elegidos',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openSpecifics(page,database);
+  await overlay.locator('#especificos-grid-wrap td[title="Pulsa para añadir un específico este día"]').first().click();
+  const editor=page.locator('#especifico-manual-overlay');
+  const treatment=editor.locator('#esp-trat');
+  for(const option of ['TC','MB','PP']){
+    await treatment.selectOption(option);
+    await expect(treatment).toHaveValue(option);
+  }
+  const dose=editor.locator('#esp-dosis');
+  await expect(dose.locator('option')).toHaveText(['—','0.5','1','2','3']);
+  await dose.selectOption('1');
+  await expect(dose).toHaveValue('1');
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
