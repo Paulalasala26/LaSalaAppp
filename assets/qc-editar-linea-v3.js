@@ -37,6 +37,7 @@
   }
   async function show(id){
     const c=controlChecksData.find(x=>x.id===id);
+    if(c?.tipo==='preinjerto_patron')return showPreinjertoPatron(id);
     if(!c||!['tunel','carga'].includes(c.tipo))return;
     const state={id,tipo:c.tipo,busy:false,serial:Date.now()+Math.random()};ctx=state;
     const overlay=getOrCreateOverlay('control-editar-overlay');
@@ -314,6 +315,164 @@
     if(ok)desencolarAccion(qid);else avisarGuardadoLocalPendiente(leerColaOffline().length);
     return ok;
   };
+
+  // Preinjerto Patrón reutiliza el mismo modal/flujo del editor de Túnel.
+  // Los códigos PAR_CAS/PAR_UBIC se editan como valores GS sin traducirlos
+  // a un nombre de invernadero ni alterar las fechas de origen.
+  let qcpState=null;
+  function qcpRaw(line,key){return line?.[key]??line?.gsDetalles?.[key]??'';}
+  function qcpOverlay(){
+    return getOrCreateOverlay('control-editar-overlay');
+  }
+  function qcpSetError(message){
+    const el=document.getElementById('qcp-error');if(el)el.textContent=message;
+  }
+  async function showPreinjertoPatron(id){
+    const line=controlChecksData.find(x=>x.id===id);
+    if(!line||line.tipo!=='preinjerto_patron'){showToast('No se ha encontrado la partida de Preinjerto Patrón.');return;}
+    if(!['ADMIN','TECNICO'].includes(currentUserRole)){showToast('No tienes permiso para editar esta partida.');return;}
+    qcpState={id,busy:false};
+    const overlay=qcpOverlay();
+    overlay.innerHTML='<div class="qc107-modal" role="dialog" aria-label="Editar Preinjerto Patrón">'+
+      '<h2>Editar partida · Preinjerto Patrón</h2>'+
+      '<section class="qc107-section"><h3>Datos GS</h3><div class="qc107-grid">'+
+      field('Fechas de origen (no editables)','<input type="text" disabled value="'+esc((line.fSiembra||'—')+' · Entrega '+(line.fEntrega||'—'))+'">')+
+      field('Nº de partida','<input id="qcp-partida" type="text" maxlength="100" value="'+esc(line.partida)+'">')+
+      field('Cliente','<input id="qcp-cliente" type="text" maxlength="180" value="'+esc(line.cliente)+'">')+
+      field('Variedad','<input id="qcp-variedad" type="text" maxlength="180" value="'+esc(line.variedad)+'">')+
+      field('Bandejas','<input id="qcp-bandejas" type="number" min="1" step="1" value="'+esc(line.numBandejas)+'">')+
+      '</div></section><section class="qc107-section"><h3>Ubicación registrada en GS</h3>'+
+      '<div class="qc107-grid">'+
+      field('PAR_CAS · código GS','<input id="qcp-par-cas" type="text" maxlength="20" value="'+esc(qcpRaw(line,'PAR_CAS'))+'">')+
+      field('PAR_UBIC · ubicación GS','<input id="qcp-par-ubic" type="text" inputmode="numeric" maxlength="10" value="'+esc(qcpRaw(line,'PAR_UBIC'))+'">')+
+      '</div><p class="qc107-note">Se guardará una corrección en ViguerAPP. No se modifica GS. Las fechas originales se conservan.</p>'+
+      '</section><div id="qcp-error" role="alert"></div>'+
+      '<div class="qc107-actions"><button type="button" class="qc107-cancel" onclick="qcpCancelar()">Cancelar</button>'+
+      '<button type="button" id="qcp-save" class="qc107-save" onclick="qcpGuardar()">Guardar</button></div></div>';
+    overlay.style.display='flex';
+  }
+  root.qcpCancelar=function(){
+    const overlay=document.getElementById('control-editar-overlay');
+    if(overlay)overlay.style.display='none';
+    qcpState=null;
+  };
+  function qcpFields(line,withLocation){
+    const partida=read('qcp-partida').trim().toUpperCase();
+    if(!/^[A-Za-z0-9._-]{1,100}$/.test(partida))throw Error('Nº de partida no válido.');
+    if(controlChecksData.some(x=>x.id!==line.id&&x.tipo===line.tipo&&x.dia===line.dia&&
+       String(x.partida||'').toUpperCase()===partida))throw Error('Ya existe otra línea con esa partida y fecha.');
+    const cliente=read('qcp-cliente').trim(),variedad=read('qcp-variedad').trim();
+    if(cliente.length>180||variedad.length>180)throw Error('Cliente o variedad superan el máximo permitido.');
+    const rawTrays=read('qcp-bandejas').trim();
+    let numBandejas=null;
+    if(rawTrays!==''){
+      numBandejas=Number(rawTrays);
+      if(!Number.isSafeInteger(numBandejas)||numBandejas<=0)throw Error('Bandejas debe ser un entero positivo o quedar vacío.');
+    }
+    const campos={partida,cliente,variedad,numBandejas};
+    if(withLocation){
+      const PAR_CAS=read('qcp-par-cas').trim();
+      const raw=read('qcp-par-ubic').trim();
+      if(PAR_CAS&&!/^[A-Za-z0-9_-]{1,20}$/.test(PAR_CAS))throw Error('PAR_CAS no es válido.');
+      if(raw&&!/^(?:0|[1-9]\d{0,8})$/.test(raw))throw Error('PAR_UBIC debe ser un código numérico.');
+      const PAR_UBIC=raw&&raw!=='0'?raw:'';
+      campos.PAR_CAS=PAR_CAS;campos.PAR_UBIC=PAR_UBIC;
+      campos.invId=PAR_CAS||null;
+      campos.calleDesde=PAR_UBIC||null;campos.calleHasta=PAR_UBIC||null;
+    }
+    return campos;
+  }
+  async function applyPreinjertoPatron(line,campos){
+    const edit={actualizadoPor:String(currentUser||''),actualizadoEn:new Date().toISOString(),campos};
+    const qid=encolarAccionOffline('aplicarEditarControlPreinjertoPatron',[line.id,edit]);
+    line.partida=campos.partida;line.cliente=campos.cliente;line.variedad=campos.variedad;
+    line.clienteVariedad=campos.cliente+' — '+campos.variedad;
+    line.numBandejas=campos.numBandejas;
+    if(Object.prototype.hasOwnProperty.call(campos,'PAR_CAS')){
+      line.PAR_CAS=campos.PAR_CAS;line.invId=campos.invId;
+      line.PAR_UBIC=campos.PAR_UBIC;line.calleDesde=campos.calleDesde;line.calleHasta=campos.calleHasta;
+      line.gsDetalles={...(line.gsDetalles||{}),PAR_CAS:campos.PAR_CAS||null,PAR_UBIC:campos.PAR_UBIC||null};
+    }
+    line.edicionQC=edit;
+    renderControlContent(document.getElementById('control-overlay'));
+    marcarControlCheckSucio(line.id);
+    const ok=await persistControlChecksData();
+    if(ok)desencolarAccion(qid);else avisarGuardadoLocalPendiente(leerColaOffline().length);
+    return ok;
+  }
+  root.aplicarEditarControlPreinjertoPatron=async function(id,edit){
+    const line=controlChecksData.find(x=>x.id===id),campos=edit?.campos;
+    if(!line||line.tipo!=='preinjerto_patron'||!campos)return false;
+    // Las acciones pendientes de red se reproducen con el mismo registro de cola;
+    // no volver a encolar al reintentar desde el sincronizador offline.
+    if(arguments.length>2)return false;
+    return applyPreinjertoPatron(line,campos);
+  };
+  root.qcpGuardar=async function(){
+    const state=qcpState;if(!state||state.busy)return false;
+    const line=controlChecksData.find(x=>x.id===state.id);
+    if(!line)return false;
+    let campos;
+    try{campos=qcpFields(line,true);}
+    catch(error){qcpSetError(error.message);return false;}
+    state.busy=true;const button=document.getElementById('qcp-save');if(button)button.disabled=true;
+    try{
+      const ok=await applyPreinjertoPatron(line,campos);
+      if(ok)root.qcpCancelar();
+      else qcpSetError('Corrección guardada localmente o pendiente de sincronizar.');
+      return ok;
+    }catch(_){qcpSetError('No se ha podido guardar la corrección.');return false;}
+    finally{state.busy=false;if(button&&button.isConnected)button.disabled=false;}
+  };
+  async function showPreinjertoPatronUbicacion(id){
+    const line=controlChecksData.find(x=>x.id===id);
+    if(!line||line.tipo!=='preinjerto_patron')return false;
+    if(!['ADMIN','TECNICO'].includes(currentUserRole)){showToast('No tienes permiso para editar esta ubicación.');return false;}
+    qcpState={id,busy:false,locationOnly:true};
+    const overlay=getOrCreateOverlay('control-calle-overlay');
+    overlay.innerHTML='<div class="qc107-modal" role="dialog" aria-label="Editar ubicación Preinjerto Patrón">'+
+      '<h2>Editar ubicación GS · Preinjerto Patrón</h2>'+
+      '<section class="qc107-section"><h3>Códigos de origen</h3><div class="qc107-grid">'+
+      field('PAR_CAS · código GS','<input id="qcp-par-cas" type="text" maxlength="20" value="'+esc(qcpRaw(line,'PAR_CAS'))+'">')+
+      field('PAR_UBIC · ubicación GS','<input id="qcp-par-ubic" type="text" inputmode="numeric" maxlength="10" value="'+esc(qcpRaw(line,'PAR_UBIC'))+'">')+
+      '</div><p class="qc107-note">Mantiene los códigos GS tal como se reciben; no traduce PAR_CAS a un invernadero físico.</p></section>'+
+      '<div id="qcp-error" role="alert"></div><div class="qc107-actions">'+
+      '<button type="button" class="qc107-cancel" onclick="qcpCancelarUbicacion()">Cancelar</button>'+
+      '<button type="button" id="qcp-save" class="qc107-save" onclick="qcpGuardarUbicacion()">Guardar</button></div></div>';
+    overlay.style.display='flex';return true;
+  }
+  root.qcpCancelarUbicacion=function(){
+    const overlay=document.getElementById('control-calle-overlay');
+    if(overlay)overlay.style.display='none';
+    qcpState=null;
+  };
+  root.qcpGuardarUbicacion=async function(){
+    const state=qcpState;if(!state||!state.locationOnly||state.busy)return false;
+    const line=controlChecksData.find(x=>x.id===state.id);if(!line)return false;
+    let campos;
+    try{
+      const PAR_CAS=read('qcp-par-cas').trim(),raw=read('qcp-par-ubic').trim();
+      if(PAR_CAS&&!/^[A-Za-z0-9_-]{1,20}$/.test(PAR_CAS))throw Error('PAR_CAS no es válido.');
+      if(raw&&!/^(?:0|[1-9]\d{0,8})$/.test(raw))throw Error('PAR_UBIC debe ser un código numérico.');
+      const PAR_UBIC=raw&&raw!=='0'?raw:'';
+      campos={PAR_CAS,PAR_UBIC,invId:PAR_CAS||null,calleDesde:PAR_UBIC||null,calleHasta:PAR_UBIC||null};
+    }catch(error){qcpSetError(error.message);return false;}
+    state.busy=true;const button=document.getElementById('qcp-save');if(button)button.disabled=true;
+    try{
+      const ok=await applyPreinjertoPatron(line,campos);
+      if(ok)root.qcpCancelarUbicacion();
+      else qcpSetError('Corrección guardada localmente o pendiente de sincronizar.');
+      return ok;
+    }catch(_){qcpSetError('No se ha podido guardar la ubicación.');return false;}
+    finally{state.busy=false;if(button&&button.isConnected)button.disabled=false;}
+  };
+  const originalAssignLocation=root.mostrarAsignarCalleControl;
+  root.mostrarAsignarCalleControl=function(id){
+    const line=controlChecksData.find(x=>x.id===id);
+    if(line?.tipo==='preinjerto_patron')return showPreinjertoPatronUbicacion(id);
+    return originalAssignLocation?.(id);
+  };
+
   root.mostrarEditarControlCargaInjerto=showCargaInjerto;
 
 })(window);
