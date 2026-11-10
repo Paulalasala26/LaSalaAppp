@@ -48,3 +48,8 @@ El usuario sustituyó el script local por `scripts/pilot_gs_qc_preinjerto.py` de
 El snapshot anterior tenía las propiedades `PAR_CAS` y `PAR_UBIC` ausentes. El script actual exige esas propiedades antes de escribir el JSON, por lo que el snapshot antiguo se generó con otra versión del script. En el nuevo snapshot: `26C02436` tiene `PAR_CAS=016`; `26C02653`, `PAR_CAS=028`; ambas con `PAR_UBIC` vacío. Los valores de la Excel en `Tipo de Siembra` son `0026` y `0028`, campos distintos.
 
 La Excel adjunta tiene una tabla de 190 filas y 24 columnas; no contiene columnas explícitas de ubicación, `PAR_CAS` o `PAR_UBIC`. Por tanto, el resultado confirma la recuperación actual del código `PAR_CAS`, pero **no identifica las calles**. No inferirlas de `Tipo de Siembra`, observaciones ni movimientos posteriores. Fuente de calles pendiente de verificar; `partidas_par_ubic` sigue siendo solo una tabla candidata. No consultar GS de nuevo ni sincronizar Firebase sin autorización específica.
+
+
+## Inspección de tabla candidata autorizada (10/11/2026)
+
+El usuario autorizó inspección GS de solo lectura del esquema `partidas_par_ubic` y de filas asociadas a `26C02436` y `26C02653`. Se añadió `scripts/inspect_gs_preinjerto_location.py` (commit `1304abe5c6ca2286e70d1c86b8185a7cad912816`). El script consulta `information_schema.COLUMNS` y busca únicamente esos dos IDs en columnas de texto candidatas; no escribe en GS/Firebase ni exporta la tabla completa. Pendiente que el usuario lo ejecute localmente y comparta el JSON de salida.
