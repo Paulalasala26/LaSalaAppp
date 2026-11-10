@@ -264,7 +264,8 @@ test('UAT-998, UAT-999, UAT-1001 y UAT-1003: Específicos cambia de INV sin mezc
   const emptyInv=options.find(inv=>inv!=='17'&&inv!=='18');
   expect(emptyInv).toBeTruthy();
   await overlay.locator(`button[data-einv="${emptyInv}"]`).last().click();
-  await expect(page.locator(`#especificos-grid-wrap [data-einv="${emptyInv}"]`)).toHaveCount(1);
+  const visibleInvs=await page.locator('#especificos-grid-wrap [data-einv]').evaluateAll(nodes=>[...new Set(nodes.map(node=>node.dataset.einv))]);
+  expect(visibleInvs).toEqual([emptyInv]);
   await expect(cell(emptyInv)).toHaveValue('');
 
   await overlay.locator('button[data-einv="17"]').last().click();
