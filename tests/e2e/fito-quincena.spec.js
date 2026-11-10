@@ -1048,3 +1048,87 @@ test('UAT-480: la cabecera de Plaguicidas mantiene el azul y la tipografía de C
   await expect(overlay.getByText('Plaguicidas',{exact:false})).toHaveCount(1);
   expect(unexpectedHosts).toEqual([]);
 });
+
+test('UAT-487: tocar una celda vacía de hoy abre el alta con fecha e invernadero correctos',async({page})=>{
+  test.fail(true,'Las celdas de la cuadrícula se editan directamente; el alta se abre desde la etiqueta del día.');
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  const day=overlay.locator('#fito-grid-wrap td[onclick^="abrirFitoManualDia"][onclick*=",30)"]').first();
+  const row=day.locator('xpath=..');
+  await row.locator('td').nth(1).click();
+  const form=page.locator('#fito-manual-overlay');
+  await expect(form).toBeVisible();
+  await expect(form.locator('#fm-dia')).toHaveValue('30');
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-488: tocar una celda ocupada abre edición sin crear otra jornada',async({page})=>{
+  test.fail(true,'Una pulsación no abre el editor de Plaguicidas; la edición manual se enlaza con doble clic.');
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  const original=database['lasala-fito-v1'];
+  await overlay.locator('#fito-grid-wrap [data-finv="17"][data-fdia="30"][data-frc="2"]').click();
+  await expect(page.locator('#fito-manual-overlay')).toBeVisible();
+  expect(database['lasala-fito-v1']).toBe(original);
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-489: una fecha anterior a hoy no abre alta ni edición desde la cuadrícula',async({page})=>{
+  test.fail(true,'La etiqueta de una fecha anterior abre el formulario manual aunque el día ya pasó.');
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  const pastDay=overlay.locator('#fito-grid-wrap td[onclick^="abrirFitoManualDia"][onclick*=",29)"]').first();
+  await pastDay.click();
+  await expect(page.locator('#fito-manual-overlay')).toBeHidden();
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-490: arrastrar desde una fecha pasada no inicia alta ni edición por tramo',async({page})=>{
+  test.fail(true,'La cuadrícula permite iniciar el selector de tramo en fechas pasadas.');
+  const database=fixtureDatabase();
+  const values=JSON.parse(database['lasala-fito-v1']);
+  values['17']['29']['4']='E2E-PAST-DRAG';
+  database['lasala-fito-v1']=JSON.stringify(values);
+  const original=database['lasala-fito-v1'];
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  const start=overlay.locator('#fito-grid-wrap [data-finv="17"][data-fdia="29"][data-frc="2"]');
+  const end=overlay.locator('#fito-grid-wrap [data-finv="17"][data-fdia="29"][data-frc="4"]');
+  await start.scrollIntoViewIfNeeded();
+  const a=await start.boundingBox(),b=await end.boundingBox();
+  await page.mouse.move(a.x+a.width/2,a.y+a.height/2);
+  await page.mouse.down();
+  await page.mouse.move(b.x+b.width/2,b.y+b.height/2,{steps:5});
+  await page.mouse.up();
+  await expect(page.locator('#fito-manual-overlay')).toBeHidden();
+  expect(database['lasala-fito-v1']).toBe(original);
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-491: el formulario de alta no permite seleccionar una fecha pasada',async({page})=>{
+  test.fail(true,'El selector actual presenta las fechas de la quincena pasada sin deshabilitarlas.');
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await expect(form.locator('#fm-dia option[value="29"]')).toBeDisabled();
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-492: elegir una fecha futura conserva la selección y no crea registros',async({page})=>{
+  const database=fixtureDatabase();
+  const original=database['lasala-fito-v1'];
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  await overlay.locator('#fito-quincena-bar button').last().click();
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await form.locator('#fm-dia').selectOption('32');
+  await expect(form.locator('#fm-dia')).toHaveValue('32');
+  expect(database['lasala-fito-v1']).toBe(original);
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
