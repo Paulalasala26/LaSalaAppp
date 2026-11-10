@@ -1917,13 +1917,14 @@ function controlQCInfoVisual(c){
   const tunel=c.tipo==='tunel';
   const tramo=tunel?calleTramoDeTunel(c):calleTramoDeCarga(c);
   const inv=String((tunel?c.invId:tramo?.invId)||c.invId||c.idInvernadero||
-    c.gsDetalles?.idInvernadero||'').trim();
+    c.PAR_CAS||c.gsDetalles?.idInvernadero||c.gsDetalles?.PAR_CAS||'').trim();
   const rawGreenhouse=String(c.invernaderosGS||c.invernadero||
     c.gsDetalles?.invernadero||'').trim();
   const tramos=Array.isArray(c.tramos)&&c.tramos.length
     ?c.tramos
     :(tramo?[{desde:tramo.desde,hasta:tramo.hasta}]:
-      [{desde:c.calleDesde??c.ubicacion_2,hasta:c.calleHasta??c.ubicacion_3}]);
+      [{desde:c.calleDesde??c.ubicacion_2??c.PIN_LOCA??c.gsDetalles?.PIN_LOCA,
+        hasta:c.calleHasta??c.ubicacion_3??c.PIN_LOCA??c.gsDetalles?.PIN_LOCA}]);
   const calles=tramos.map(t=>{
     const desde=Number(t.desde),hasta=t.hasta==null||t.hasta===''?desde:Number(t.hasta);
     if(!Number.isInteger(desde)||desde<0||!Number.isInteger(hasta)||hasta<0)return '';
