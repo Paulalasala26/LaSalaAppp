@@ -395,7 +395,7 @@ test('UAT-993 y UAT-994: Específicos permanece utilizable en móvil y al reduci
   await page.setViewportSize({width:390,height:844});
   const {overlay,unexpectedHosts}=await openSpecifics(page,database);
   await expect(overlay).toBeVisible();
-  await expect(overlay.locator('[data-einv="17"]')).toBeVisible();
+  await expect(overlay.locator('button[data-einv="17"]')).toBeVisible();
   const mobileOverflow=await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth);
   expect(mobileOverflow).toBe(false);
 
