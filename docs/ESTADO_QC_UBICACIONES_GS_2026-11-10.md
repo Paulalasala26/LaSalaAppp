@@ -167,3 +167,8 @@ La Excel contiene una tabla de 190 filas y 24 columnas, sin campos explícitos d
 ## Inspección autorizada de `partidas_par_ubic` pendiente de ejecución
 
 Tras confirmar en la extracción actual `PAR_CAS=016/028` para `26C02436/26C02653` y `PAR_UBIC` vacío en ambas, el usuario autorizó inspeccionar en GS solo lectura el esquema de la tabla candidata `partidas_par_ubic` y las filas de esas dos partidas. Se añadió `scripts/inspect_gs_preinjerto_location.py` en `test/v1.0`, commit `1304abe5c6ca2286e70d1c86b8185a7cad912816`. Pendiente ejecutar desde el conector local y analizar su salida antes de cualquier cambio en SELECT/importador. Sin sincronización Firebase ni despliegue.
+
+
+### Corrección del lector de tabla candidata
+
+La primera salida de `inspect_gs_preinjerto_location.py` encontró `id`, `id2` y columnas genéricas `C0`–`C5`, pero solo buscó los IDs en `id`; por ello, la ausencia de coincidencias no resolvía si `C0` contenía la clave de partida. El lector se corrigió en `test/v1.0`, commit `71bf059b947cd0d7d595b68442e1ab4c3202f21d`, para comparar los dos IDs con igualdad exacta en todas las columnas de texto y limitar resultados. Repetirlo antes de concluir sobre esta tabla. Solo SELECT, sin Firebase.
