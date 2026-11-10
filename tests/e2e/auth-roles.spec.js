@@ -169,6 +169,45 @@ test('UAT-006, UAT-1972–1974 y UAT-2032–2037: cada rol recibe su Home y solo
   }
 });
 
+test('UAT-1975–1979: perfiles especializados y orden de accesos en móvil', async ({ page }) => {
+  await installAuthFixture(page);
+
+  for (const [user, forbiddenCards] of [
+    ['E2E_REGANTE', ['Control', 'Marcar riego', 'Avisos']],
+    ['E2E_PEON', ['Control', 'Marcar riego', 'Avisos']],
+    ['E2E_CARGADOR', ['Control', 'Marcar riego', 'Historial', 'Avisos']]
+  ]) {
+    await page.evaluate(() => localStorage.removeItem('lasala-sesion-v1'));
+    await page.reload();
+    await logInAs(page, user);
+    await expect(page.locator('#app')).toBeVisible();
+    for (const label of forbiddenCards) {
+      await expect(page.locator('.home-shortcut-card').filter({ hasText: label })).toHaveCount(0);
+    }
+  }
+
+  for (const user of ['E2E_ADMIN', 'E2E_TECNICO']) {
+    await page.evaluate(() => localStorage.removeItem('lasala-sesion-v1'));
+    await page.reload();
+    await logInAs(page, user);
+    await expect(page.locator('#page-home')).toBeVisible();
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const cards = page.locator('.home-shortcut-card:visible');
+    const desktopLabels = await cards.evaluateAll(elements => elements.map(el => el.innerText.trim().replace(/\\s+/g, ' ')));
+
+    await page.setViewportSize({ width: 320, height: 760 });
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+    const mobileCards = await cards.evaluateAll(elements => elements.map(el => {
+      const rect = el.getBoundingClientRect();
+      return { label: el.innerText.trim().replace(/\\s+/g, ' '), x: rect.x, right: rect.right, y: rect.y };
+    }));
+    expect(mobileCards.map(card => card.label)).toEqual(desktopLabels);
+    expect([...mobileCards].sort((a, b) => a.y - b.y || a.x - b.x).map(card => card.label)).toEqual(desktopLabels);
+    expect(mobileCards.every(card => card.x >= 0 && card.right <= 320)).toBe(true);
+  }
+});
+
 test('UAT-1993, UAT-1994 y UAT-1996: la cabecera conserva marca, Avisos y salida en móvil y tiene nombres accesibles', async ({ page }) => {
   await installAuthFixture(page);
   await logInAs(page, 'E2E_TECNICO');
