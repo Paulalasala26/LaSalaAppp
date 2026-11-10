@@ -248,3 +248,27 @@ test('UAT-1009: la navegación de quincena en Específicos cruza de año sin sal
   expect(writes).toEqual([]);
   expect(unexpectedHosts).toEqual([]);
 });
+
+
+test('UAT-998, UAT-999, UAT-1001 y UAT-1003: Específicos cambia de INV sin mezclar datos y permite consultar uno vacío',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openSpecifics(page,database);
+  const cell=(inv)=>page.locator(`#especificos-grid-wrap [data-einv="${inv}"][data-edia="30"][data-erc="18"]`);
+  await expect(cell('17')).toHaveValue('E2E-ESPECIFICO-INV17');
+
+  await overlay.locator('button[data-einv="18"]').last().click();
+  await expect(cell('18')).toHaveValue('E2E-ESPECIFICO-INV18');
+  await expect(page.locator('#especificos-grid-wrap [data-einv="17"]')).toHaveCount(0);
+
+  const options=await overlay.locator('button[data-einv]').evaluateAll(nodes=>[...new Set(nodes.map(node=>node.dataset.einv))]);
+  const emptyInv=options.find(inv=>inv!=='17'&&inv!=='18');
+  expect(emptyInv).toBeTruthy();
+  await overlay.locator(`button[data-einv="${emptyInv}"]`).last().click();
+  await expect(page.locator(`#especificos-grid-wrap [data-einv="${emptyInv}"]`)).toHaveCount(1);
+  await expect(cell(emptyInv)).toHaveValue('');
+
+  await overlay.locator('button[data-einv="17"]').last().click();
+  await expect(cell('17')).toHaveValue('E2E-ESPECIFICO-INV17');
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
