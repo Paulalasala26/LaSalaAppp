@@ -1,6 +1,6 @@
 # APP R v3 — Anexo maestro DEV
 **Última actualización:** 10/11/2026 (España)
-**Rama exclusiva:** `dev/v1.0` · **Estado:** cambios visuales, Riego > Abono, Hojas de riego REGANTE (2 días), Tareas desde Riego (ENTERO) y botones Hojas marcadas Salas 3-5 validados por el usuario
+**Rama exclusiva:** `dev/v1.0` · **Estado:** cambios visuales, Riego > Abono, Hojas de riego REGANTE (2 días), Tareas desde Riego (ENTERO), botones Hojas marcadas Salas 3-5, cierre de fumigación del peón y mezclas de Plaguicidas (Normal y Preinjerto) validados por el usuario
 
 > Anexo de continuidad de `docs/APP_R_V3_ESTADO_MAESTRO.md` para los cambios realizados exclusivamente en DEV. Leer ambos: la memoria maestra general conserva todo el histórico, y este anexo añade los hitos exclusivos de DEV sin reescribir ni recortar ese histórico.
 
@@ -66,6 +66,31 @@
 - **Aceptación del usuario:** «Validado» (10/11/2026), tras la prueba manual en DEV indicada en la entrega.
 - La aceptación no cubre sincronización offline, impresión ni fotografías SharePoint. No hay verificación del estado READY de Vercel para este SHA.
 - `test/v1.0` y `main` **no modificados**; no promovido a TEST.
+
+## DEV — Peón: cierre de fumigación de 3 casillas desde la tarjeta grande — VALIDADO 10/11/2026
+
+**Objetivo:** traer a DEV el cambio de `main` (`decffb5`, 30/10/2026): al completar una fumigación, el peón ve el cierre de 3 casillas (caldo sobrante, firma de quien preparó y firma de quien aplicó) en lugar de la firma simple.
+
+- Solo `index.html`: en `buildTareaCardPeonFactorial` el botón «Completar» abre `showCompletarFumigacionDialog` si la categoría es `fumigacion` (y `showCompletarTareaDialog` en el resto). Los 3 campos del diálogo pasan a 16 px para móvil.
+- Corrige que, desde esa tarjeta, las fumigaciones a Pistola vinculadas se rechazaban («Usa el cierre Pistola con las dos firmas») y las demás guardaban solo una firma, sin caldo sobrante ni firma del preparador.
+- Código: `e91e998`. Backup previo recuperable: `backup/dev-v1.0-before-cierre-fumigacion-peon-2026-11-10` (`4f59fcb`). No se traslada la parte de Partidas (botón de intercambio) de `decffb5`.
+- Comprobaciones técnicas previas: sintaxis de los 5 scripts inline correcta; simulación aislada 6/6 con el código real (el control con el código anterior reproduce el fallo).
+- **Incidencia de despliegue:** el primer despliegue de `e91e998` falló en Vercel (`la-sala-app-dev`: «Deployment rate limited — retry in 24 hours»). Se entregó con el despliegue del commit siguiente, `094fb5b`, que lo incluye; DEV sirvió un `index.html` idéntico al de `094fb5b`.
+- **Aceptación del usuario:** «Validado» (10/11/2026), tras la prueba manual en DEV.
+- La aceptación no cubre sincronización offline, impresión de la hoja ni fotografías SharePoint.
+- `test/v1.0` y `main` **no modificados**; no promovido a TEST.
+
+## DEV — Plaguicidas: mezclas predeterminadas de Normal y Preinjerto — VALIDADO 10/11/2026
+
+**Objetivo:** traer a DEV las mezclas reales de Normal (13) y Preinjerto (21) que Vigueras dio y que `main` incorporó el 10/11/2026 (commits `35934f3` a `1679138`).
+
+- Solo `index.html`: `FITO_MEZCLAS_PREDETERMINADAS`, arrays `normal` y `preinjerto` (antes vacíos). 34 líneas añadidas, ninguna borrada; Postinjerto sin cambios. Copiadas por script desde `main` (`1679138`).
+- Efecto visible: con listas en más de un tipo, el formulario «Añadir tratamiento» muestra el selector «Tipo de mezcla» (antes oculto), con Postinjerto por defecto.
+- Código: `094fb5b`. Backup previo recuperable: `backup/dev-v1.0-before-mezclas-plaguicidas-2026-11-10` (`e91e998`).
+- Comprobaciones técnicas previas: sintaxis de los 5 scripts inline correcta; simulación aislada 7/7 con el código real (listas idénticas a `main`, formato correcto, sin duplicados, desplegables de 13 y 21 opciones; el control con el código anterior falla); `la-sala-app-dev` desplegado correctamente y DEV sirviendo un `index.html` idéntico al del commit.
+- **Aceptación del usuario:** «Validado» (10/11/2026), tras la prueba manual en DEV.
+- Las mezclas son valores por defecto del código, no del Backoffice. TEST no las tiene; no promovido.
+- `test/v1.0` y `main` **no modificados**.
 
 ## Guardarraíles
 
