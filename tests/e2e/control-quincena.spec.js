@@ -1104,7 +1104,7 @@ test('UAT-245 y UAT-354: QC Carga permite recorrer el día en móvil vertical/ho
   expect(unexpectedHosts).toEqual([]);
 });
 
-test('UAT-340, UAT-345, UAT-346, UAT-347 y UAT-348: Carga mantiene sus herramientas y no hereda extensiones al alternar', async ({ page }) => {
+test('UAT-340, UAT-345, UAT-346, UAT-347, UAT-348 y UAT-433: Carga mantiene sus herramientas PDF y no hereda extensiones al alternar', async ({ page }) => {
   const database = fixtureDatabase();
   const { overlay, unexpectedHosts } = await startControlTest(page, database);
   await overlay.getByRole('button', { name: 'Check Carga Injerto' }).click();
@@ -1138,7 +1138,7 @@ test('UAT-340, UAT-345, UAT-346, UAT-347 y UAT-348: Carga mantiene sus herramien
   expect(unexpectedHosts).toEqual([]);
 });
 
-test('UAT-219: QC Túnel ofrece sus herramientas PDF y extensiones sin Dashboard ni CSV operativo', async ({ page }) => {
+test('UAT-219 y UAT-432: QC Túnel ofrece sus herramientas PDF y extensiones sin Dashboard ni CSV operativo', async ({ page }) => {
   const database = fixtureDatabase();
   const { overlay, unexpectedHosts } = await startControlTest(page, database);
 
