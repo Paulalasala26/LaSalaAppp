@@ -231,7 +231,7 @@ test('UAT-1232: ADMIN abre Tareas con Operativas seleccionada por defecto', asyn
   await expect(operativas).toHaveCSS('background-color', 'rgb(255, 255, 255)');
 });
 
-test('UAT-1233, UAT-1235, UAT-1236, UAT-1242 y UAT-1243: ADMIN y TÉCNICO recorren secciones sin heredar permisos ni duplicar tareas', async ({ page }) => {
+test('UAT-1233, UAT-1235, UAT-1236, UAT-1242, UAT-1243 y UAT-1246: ADMIN y TÉCNICO recorren secciones sin heredar permisos ni duplicar tareas', async ({ page }) => {
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(error.message));
   const tomorrowISO = await fechaISOEnNavegador(page, 1);
@@ -301,6 +301,9 @@ test('UAT-1233, UAT-1235, UAT-1236, UAT-1242 y UAT-1243: ADMIN y TÉCNICO recorr
 
   await openTasks(page);
   await expect(page.locator('#tareas-overlay')).toContainText('Resumen de Tareas');
+  if (user === 'E2E_TECH') {
+    await expect(page.locator('#tareas-overlay').getByRole('button', { name: /Respaldo JSON/ })).toHaveCount(0);
+  }
   await assertOperativas();
   expect(JSON.parse(database['lasala-tareas-v1'])).toEqual(tasks);
   expect(JSON.parse(database['lasala-mantenimiento-v1'])).toEqual([]);
