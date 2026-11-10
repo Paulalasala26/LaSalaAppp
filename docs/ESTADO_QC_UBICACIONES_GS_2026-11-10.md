@@ -217,3 +217,8 @@ En `test/v1.0` se añadió una acción «Editar partida» específica para QC Ca
 ## Editor QC Preinjerto Patrón (10/11/2026)
 
 En `test/v1.0` se habilitó el editor del bloque Preinjerto Patrón reutilizando el botón de lápiz y el modal QC ya existentes. Permite corregir partida, cliente, variedad, bandejas y códigos `PAR_CAS`/`PAR_UBIC` como valores GS, sin traducirlos a ubicaciones físicas no verificadas. Las fechas GS son de solo lectura; el importador conserva los cambios APP en futuras sincronizaciones mediante `edicionQC`. Commits: `1afbb08`, `43955a2`, `8c25e38`, `c4873d0`. No se desplegó Vercel ni hubo escrituras GS/Firebase. Siguiente bloque: Preinjerto Variedad.
+
+
+## Editor QC Preinjerto Variedad (10/11/2026)
+
+Se habilitó el editor de Preinjerto Variedad reutilizando el mismo formulario y controles que Preinjerto Patrón. Permite corregir partida, cliente, variedad, bandejas y códigos GS `PAR_CAS`/`PAR_UBIC`, conserva las fechas originales y persiste las correcciones de APP en futuras importaciones. Commits: `4a4a480`, `cbb75e5`, `4f9e96f`, `bea807f`. Los cinco tipos QC tienen código de edición preparado; la validación funcional queda pendiente de despliegue a TEST. No se realizaron escrituras GS/Firebase ni despliegue.
