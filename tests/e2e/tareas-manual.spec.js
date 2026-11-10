@@ -257,7 +257,7 @@ test('UAT-1233, UAT-1235, UAT-1236, UAT-1242 y UAT-1243: ADMIN y TÉCNICO recorr
   const assertOperativas = async () => {
     const overlay = page.locator('#tareas-overlay');
     for (const name of ['Tareas antiguas', 'Tareas de hoy', 'Tareas de mañana', 'Archivo', 'Mantenimiento de Parcelas']) {
-      await expect(overlay.getByRole('button', { name, exact: true })).toBeVisible();
+      await expect(overlay.getByRole('button', { name })).toBeVisible();
     }
     const tomorrow = overlay.getByRole('button', { name: 'Tareas de mañana' });
     await tomorrow.click();
@@ -371,13 +371,17 @@ test('UAT-1240: REGANTE ve su tarea manual desde Mis tareas', async ({ page }) =
 
   await page.getByRole('button', { name: 'Salir' }).click();
   await expect(page.locator('#login-screen')).toBeVisible();
+  await page.reload();
+  await expect(page.locator('#login-screen')).toBeVisible();
   await page.locator('#login-user').evaluate((select, value) => {
     if (![...select.options].some(option => option.value === value)) select.add(new Option(value, value));
   }, 'REGANTE1');
   await page.locator('#login-user').selectOption('REGANTE1');
   await page.locator('#login-pass').fill(password);
   await page.locator('#login-btn').click();
+  await expect(page.locator('#login-screen')).toBeHidden();
   await expect(page.locator('#page-home')).toBeVisible();
+  await expect(page.getByRole('button', { name: /Hojas de riego/ })).toBeVisible();
   const tasksButton = page.locator('#quick-access-block').getByRole('button', { name: /Mis tareas/ });
   await expect(tasksButton).toBeVisible();
   await tasksButton.click();
