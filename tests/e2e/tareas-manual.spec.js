@@ -171,7 +171,7 @@ test('UAT-2415: un doble clic rápido en Tareas deja una sola vista funcional y 
   await expect(overlay.getByText('Resumen de Tareas', { exact: true })).toHaveCount(1);
   await expect(overlay.getByRole('button', { name: 'Mantenimiento de Parcelas' })).toHaveCount(1);
   expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([]);
-  expect(JSON.parse(database['lasala-mantenimiento-v1'])).toEqual([]);
+  expect(JSON.parse(database['lasala-mantenimiento-v1'])).toEqual([closedTicket]);
   expect(writes).toEqual([]);
 });
 
@@ -231,7 +231,7 @@ test('UAT-1232: ADMIN abre Tareas con Operativas seleccionada por defecto', asyn
   await expect(operativas).toHaveCSS('background-color', 'rgb(255, 255, 255)');
 });
 
-test('UAT-1233, UAT-1235, UAT-1236, UAT-1242, UAT-1243 y UAT-1246: ADMIN y TÉCNICO recorren secciones sin heredar permisos ni duplicar tareas', async ({ page }) => {
+test('UAT-1233, UAT-1235, UAT-1236, UAT-1242, UAT-1243, UAT-1246, UAT-1495 y UAT-1500: ADMIN y TÉCNICO recorren secciones sin heredar permisos ni duplicar tareas', async ({ page }) => {
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(error.message));
   const tomorrowISO = await fechaISOEnNavegador(page, 1);
@@ -250,8 +250,18 @@ test('UAT-1233, UAT-1235, UAT-1236, UAT-1242, UAT-1243 y UAT-1246: ADMIN y TÉCN
     prioridad: 'normal',
     estado: 'pendiente'
   }];
+  const closedTicket = {
+    id: 'e2e-uat-1500-closed-ticket',
+    titulo: 'E2E ticket cerrado UAT-1500',
+    prioridad: 'normal',
+    estado: 'cerrado',
+    asignados: [],
+    creadoEn: tomorrowISO,
+    cerradoEn: tomorrowISO
+  };
   const { database, writes } = await installFixture(page, {
-    'lasala-tareas-v1': JSON.stringify(tasks)
+    'lasala-tareas-v1': JSON.stringify(tasks),
+    'lasala-mantenimiento-v1': JSON.stringify([closedTicket])
   });
 
   const assertOperativas = async () => {
@@ -277,11 +287,19 @@ test('UAT-1233, UAT-1235, UAT-1236, UAT-1242, UAT-1243 y UAT-1246: ADMIN y TÉCN
   await expect(overlay.getByRole('heading', { name: /Mantenimiento de Parcelas/ })).toBeVisible();
   await expect(overlay).toContainText('0 tickets abiertos');
   await assertOperativas();
+  await maintenance.click();
+  await expect(maintenance).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+  await expect(overlay).toContainText('0 tickets abiertos');
+  await assertOperativas();
 
   const archive = overlay.getByRole('button', { name: 'Archivo', exact: true });
   await archive.click();
   await expect(archive).toHaveCSS('background-color', 'rgb(255, 255, 255)');
   await expect(overlay.locator('#tareas-archivo-anuladas')).toContainText('Anuladas y archivadas');
+  await assertOperativas();
+  await maintenance.click();
+  await expect(maintenance).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+  await expect(overlay).toContainText('0 tickets abiertos');
   await assertOperativas();
   await overlay.getByRole('button', { name: /✕ Cerrar/ }).click();
   await expect(overlay).toBeHidden();
