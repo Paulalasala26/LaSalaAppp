@@ -212,3 +212,8 @@ Commits: `d9e841b` (IndexedDB/adaptador), `1addd4c` (referencia del frontend), `
 ## Editor de líneas QC: primer bloque Carga Injerto (10/11/2026)
 
 En `test/v1.0` se añadió una acción «Editar partida» específica para QC Carga Injerto, visible para ADMIN, TÉCNICO y CARGADOR. Permite corregir partida, cliente, variedad, bandejas e invernadero/calles en ViguerAPP. La fecha y hora de GS son inmutables. La corrección se conserva en `edicionQC` y el piloto de sincronización la reaplica en futuras cargas; no se escribe en GS. Commits: `b784820`, `f0f1354`, `7220494`. No hubo despliegue ni escritura Firebase. La revisión funcional en TEST queda pendiente; siguiente bloque: Preinjerto Patrón.
+
+
+## Editor QC Preinjerto Patrón (10/11/2026)
+
+En `test/v1.0` se habilitó el editor del bloque Preinjerto Patrón reutilizando el botón de lápiz y el modal QC ya existentes. Permite corregir partida, cliente, variedad, bandejas y códigos `PAR_CAS`/`PAR_UBIC` como valores GS, sin traducirlos a ubicaciones físicas no verificadas. Las fechas GS son de solo lectura; el importador conserva los cambios APP en futuras sincronizaciones mediante `edicionQC`. Commits: `1afbb08`, `43955a2`, `8c25e38`, `c4873d0`. No se desplegó Vercel ni hubo escrituras GS/Firebase. Siguiente bloque: Preinjerto Variedad.
