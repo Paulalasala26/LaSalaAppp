@@ -221,7 +221,17 @@ test('UAT-1234 y UAT-2412: Tareas abre Operativas y Mantenimiento en la primera 
   expect(writes).toEqual([]);
 });
 
-test('UAT-1232, UAT-1233, UAT-1235 y UAT-1236: ADMIN y TÉCNICO recorren Operativas, Mantenimiento y Archivo sin duplicar tareas', async ({ page }) => {
+test('UAT-1232: ADMIN abre Tareas con Operativas seleccionada por defecto', async ({ page }) => {
+  test.fail(true, 'La vista actual abre Resumen de Tareas sin seleccionar Operativas.');
+  await installFixture(page);
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  await expect(overlay).toBeVisible();
+  const operativas = overlay.getByRole('button', { name: 'Tareas de hoy' });
+  await expect(operativas).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+});
+
+test('UAT-1233, UAT-1235, UAT-1236, UAT-1242 y UAT-1243: ADMIN y TÉCNICO recorren secciones sin heredar permisos ni duplicar tareas', async ({ page }) => {
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(error.message));
   const tomorrowISO = await fechaISOEnNavegador(page, 1);
@@ -246,9 +256,12 @@ test('UAT-1232, UAT-1233, UAT-1235 y UAT-1236: ADMIN y TÉCNICO recorren Operati
 
   const assertOperativas = async () => {
     const overlay = page.locator('#tareas-overlay');
+    for (const name of ['Tareas antiguas', 'Tareas de hoy', 'Tareas de mañana', 'Archivo', 'Mantenimiento de Parcelas']) {
+      await expect(overlay.getByRole('button', { name, exact: true })).toBeVisible();
+    }
     const tomorrow = overlay.getByRole('button', { name: 'Tareas de mañana' });
-    await expect(tomorrow).toBeVisible();
     await tomorrow.click();
+    await expect(tomorrow).toHaveCSS('background-color', 'rgb(255, 255, 255)');
     await expect(overlay.getByText('E2E operativa UAT-1232', { exact: true })).toBeVisible();
     await expect(overlay.locator('.tarea-card:visible')).toHaveCount(1);
   };
@@ -258,12 +271,16 @@ test('UAT-1232, UAT-1233, UAT-1235 y UAT-1236: ADMIN y TÉCNICO recorren Operati
   await expect(overlay).toContainText('Resumen de Tareas');
   await assertOperativas();
 
-  await overlay.getByRole('button', { name: 'Mantenimiento de Parcelas' }).click();
+  const maintenance = overlay.getByRole('button', { name: 'Mantenimiento de Parcelas' });
+  await maintenance.click();
+  await expect(maintenance).toHaveCSS('background-color', 'rgb(255, 255, 255)');
   await expect(overlay.getByRole('heading', { name: /Mantenimiento de Parcelas/ })).toBeVisible();
   await expect(overlay).toContainText('0 tickets abiertos');
   await assertOperativas();
 
-  await overlay.getByRole('button', { name: 'Archivo' }).click();
+  const archive = overlay.getByRole('button', { name: 'Archivo', exact: true });
+  await archive.click();
+  await expect(archive).toHaveCSS('background-color', 'rgb(255, 255, 255)');
   await expect(overlay.locator('#tareas-archivo-anuladas')).toContainText('Anuladas y archivadas');
   await assertOperativas();
   await overlay.getByRole('button', { name: /✕ Cerrar/ }).click();
@@ -278,6 +295,9 @@ test('UAT-1232, UAT-1233, UAT-1235 y UAT-1236: ADMIN y TÉCNICO recorren Operati
   await page.locator('#login-pass').fill(password);
   await page.locator('#login-btn').click();
   await expect(page.locator('#page-home')).toBeVisible();
+  for (const label of ['Historial', 'Trabajos', 'Clima', 'La Sala en Vivo']) {
+    await expect(page.locator('#quick-access-block .home-shortcut-card').filter({ hasText: label })).toHaveCount(0);
+  }
 
   await openTasks(page);
   await expect(page.locator('#tareas-overlay')).toContainText('Resumen de Tareas');
@@ -286,6 +306,88 @@ test('UAT-1232, UAT-1233, UAT-1235 y UAT-1236: ADMIN y TÉCNICO recorren Operati
   expect(JSON.parse(database['lasala-mantenimiento-v1'])).toEqual([]);
   expect(writes).toEqual([]);
   expect(pageErrors).toEqual([]);
+});
+
+test('UAT-1239 y UAT-1241: PEÓN consulta Mis tareas y no accede al gestor de supervisión', async ({ page }) => {
+  const todayISO = await fechaISOEnNavegador(page);
+  const task = {
+    id: 'e2e-uat-1239-peon',
+    titulo: 'E2E tarea PEON UAT-1239',
+    asignadoA: 'PEON1',
+    origen: 'manual',
+    categoria: 'manual',
+    inv: '0A',
+    calles: '1-2',
+    fechaISO: todayISO,
+    turno: 'Mañana',
+    prioridad: 'normal',
+    estado: 'pendiente',
+    visto: true
+  };
+  const { database, writes } = await installFixture(page, {
+    'lasala-tareas-v1': JSON.stringify([task])
+  });
+
+  await page.getByRole('button', { name: 'Salir' }).click();
+  await expect(page.locator('#login-screen')).toBeVisible();
+  await page.locator('#login-user').evaluate((select, value) => {
+    if (![...select.options].some(option => option.value === value)) select.add(new Option(value, value));
+  }, 'PEON1');
+  await page.locator('#login-user').selectOption('PEON1');
+  await page.locator('#login-pass').fill(password);
+  await page.locator('#login-btn').click();
+  await expect(page.locator('#page-home')).toBeVisible();
+  await expect(page.locator('#quick-access-block')).toBeHidden();
+  const inline = page.locator('#peon-tareas-inline');
+  await expect(inline).toContainText(task.titulo);
+
+  await page.evaluate(() => handleQuickAction('tareas'));
+  const overlay = page.locator('#tareas-overlay');
+  await expect(overlay).toBeVisible();
+  await expect(overlay).toContainText('Mis tareas');
+  await expect(overlay).toContainText(task.titulo);
+  await expect(overlay).not.toContainText('Resumen de Tareas');
+  await expect(overlay.getByRole('button', { name: 'Nueva tarea' })).toHaveCount(0);
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([task]);
+  expect(writes).toEqual([]);
+});
+
+test('UAT-1240: REGANTE ve su tarea manual desde Mis tareas', async ({ page }) => {
+  const task = {
+    id: 'e2e-uat-1240-regante',
+    titulo: 'E2E tarea REGANTE UAT-1240',
+    asignadoA: 'REGANTE1',
+    origen: 'manual',
+    categoria: 'manual',
+    inv: '17',
+    calles: '3-4',
+    fechaISO: await fechaISOEnNavegador(page),
+    estado: 'pendiente',
+    visto: true
+  };
+  const { database, writes } = await installFixture(page, {
+    'lasala-tareas-v1': JSON.stringify([task])
+  });
+
+  await page.getByRole('button', { name: 'Salir' }).click();
+  await expect(page.locator('#login-screen')).toBeVisible();
+  await page.locator('#login-user').evaluate((select, value) => {
+    if (![...select.options].some(option => option.value === value)) select.add(new Option(value, value));
+  }, 'REGANTE1');
+  await page.locator('#login-user').selectOption('REGANTE1');
+  await page.locator('#login-pass').fill(password);
+  await page.locator('#login-btn').click();
+  await expect(page.locator('#page-home')).toBeVisible();
+  const tasksButton = page.locator('#quick-access-block').getByRole('button', { name: /Mis tareas/ });
+  await expect(tasksButton).toBeVisible();
+  await tasksButton.click();
+
+  const overlay = page.locator('#tareas-overlay');
+  await expect(overlay).toBeVisible();
+  await expect(overlay).toContainText(task.titulo);
+  await expect(overlay).not.toContainText('Resumen de Tareas');
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([task]);
+  expect(writes).toEqual([]);
 });
 
 test('UAT-1302–1303, UAT-1307–1310 y UAT-1315: abrir, validar y cancelar un alta manual solo ofrece ejecutores operativos', async ({ page }) => {
