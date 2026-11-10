@@ -1207,9 +1207,13 @@ test('UAT-508: guardar una mezcla de productos conserva cada texto y dosis intro
   await form.locator('#fm-caldo').selectOption('25');
   await form.getByRole('button',{name:'Guardar'}).click();
   await expect(form).toBeHidden();
+  const expectedText='E2E-PRODUCTO-A + E2E-PRODUCTO-B 1 cc/l + 2 cc/l';
+  await expect.poll(()=>{
+    const raw=fitoData(database)?.['17']?.['30']?.['2'];
+    return typeof raw==='string'?raw:raw?.texto;
+  }).toBe(expectedText);
   const raw=fitoData(database)?.['17']?.['30']?.['2'];
   const savedText=typeof raw==='string'?raw:raw?.texto;
-  expect(savedText).toBe('E2E-PRODUCTO-A + E2E-PRODUCTO-B 1 cc/l + 2 cc/l');
   expect(savedText).toContain('E2E-PRODUCTO-A');
   expect(savedText).toContain('E2E-PRODUCTO-B');
   expect(savedText).toContain('1 cc/l');
