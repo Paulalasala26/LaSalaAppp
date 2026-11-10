@@ -3379,3 +3379,75 @@ test('UAT-2433: las dos pantallas leen la última evaluación QC v6 confirmada t
     await secondPage.close();
   }
 });
+test('UAT-393–394 y UAT-397–398: abrir fotos distintas en móvil mantiene la inspección y su identidad', async ({ page }) => {
+  const database = fixtureDatabase();
+  const items = database['lasala-control-items-v1'];
+  items['e2e-control-current-fortnight-second-line'].clienteVariedad =
+    items['e2e-control-current-fortnight'].clienteVariedad;
+  items['e2e-control-current-fortnight-first-day'].partida =
+    items['e2e-control-current-fortnight'].partida;
+  database['lasala-control-fotos-indice-v1'] = JSON.stringify({});
+  database['lasala-control-fotos-shards-index'] = JSON.stringify(['lasala-control-fotos-v1']);
+  database['lasala-control-fotos-v1'] = JSON.stringify({});
+  const { overlay, unexpectedHosts } = await startControlTest(page, database);
+
+  const ids = [
+    'e2e-control-current-fortnight',
+    'e2e-control-current-fortnight-second-line',
+    'e2e-control-current-fortnight-first-day'
+  ];
+  const images = await page.evaluate(() => ['#c62828', '#1565c0', '#2e7d32'].map(color => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 200;
+    canvas.height = 600;
+    const context = canvas.getContext('2d');
+    context.fillStyle = color;
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/png').split(',')[1];
+  }));
+
+  for (let i = 0; i < ids.length; i++) {
+    const card = overlay.locator(`#control-card-${ids[i]}`);
+    await card.locator('input[data-testid^="control-photo-gallery-"]').setInputFiles({
+      name: `e2e-photo-${i + 1}.png`,
+      mimeType: 'image/png',
+      buffer: Buffer.from(images[i], 'base64')
+    });
+    await expect(card.locator('img[title="Ver foto"]')).toBeVisible();
+    await expect.poll(() => JSON.parse(database['lasala-control-fotos-v1'] || '{}')[ids[i]]).toBeTruthy();
+  }
+
+  const expectedSrc = await page.evaluate(photoIds =>
+    Object.fromEntries(photoIds.map(id => [id, fotoSrcCompleta(controlFotosData[id])])), ids
+  );
+  expect(new Set(Object.values(expectedSrc)).size).toBe(ids.length);
+
+  await page.setViewportSize({ width: 320, height: 760 });
+  const enlarged = page.locator('#control-foto-ampliada-overlay');
+  for (const id of ids.slice(0, 2)) {
+    const thumbnail = overlay.locator(`#control-card-${id} img[title="Ver foto"]`);
+    await thumbnail.click();
+    await expect(enlarged).toBeVisible();
+    const image = enlarged.locator('img');
+    await expect(image).toHaveAttribute('src', expectedSrc[id]);
+    const box = await image.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.y).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(320);
+    expect(box.y + box.height).toBeLessThanOrEqual(760);
+    await enlarged.locator('button').click();
+    await expect(enlarged).toBeHidden();
+    await expect(overlay).toBeVisible();
+  }
+
+  await overlay.getByTestId('control-day-previous').click();
+  const priorDayCard = overlay.locator(`#control-card-${ids[2]}`);
+  await expect(priorDayCard).toBeVisible();
+  await priorDayCard.locator('img[title="Ver foto"]').click();
+  await expect(enlarged.locator('img')).toHaveAttribute('src', expectedSrc[ids[2]]);
+  await enlarged.locator('button').click();
+  await expect(enlarged).toBeHidden();
+  await expect(overlay).toBeVisible();
+  expect(unexpectedHosts).toEqual([]);
+});
