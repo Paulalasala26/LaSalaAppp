@@ -3,37 +3,77 @@
 (function(){
   const API='/api/admin-qc-mediciones';
   const AUTH='lasala-firebase-auth-v1';
-  const API_KEY='AIzaSyBsRjw4NuCFg69P7_eqoX037rgjkbadcA0';
-  const CATS=[
+  const API_KEY='AIzaSyDdDdMg6M1jVIssvGYKsdRA-mRug31Yt_g';
+  const CATS_TUNEL=[
     ['color','Color',[['verde','Verde'],['amarillo','Amarillo'],['verdeClaro','Verde claro'],['ok','OK']]],
     ['tamano','Tamaño',[['grande','Grande'],['pequeno','Pequeño'],['ok','OK']]],
     ['sanidad','Sanidad',[['ok','OK'],['enfermedad1','Enfermedad 1'],['enfermedad2','Enfermedad 2'],['enfermedad3','Enfermedad 3'],['enfermedad4','Enfermedad 4']]],
     ['flores','Flores',[['ok','Ok'],['si','Con flores']]],
     ['raices','Raíces',[['pocaRaiz','Poca raíz'],['raizVariedad','Raíz en variedad'],['ok','OK']]]
   ];
-  CATS.forEach(cat=>cat[2].push(['noEvaluada','No evaluada']));
+  const CATS_CARGA_BASE=[
+    ['color','Color',[['verde','Verde'],['amarillo','Amarillo'],['verdeClaro','Verde claro'],['ok','OK']]],
+    ['tamano','Tamaño',[['grande','Grande'],['pequeno','Pequeño'],['ok','OK']]],
+    ['sanidad','Sanidad',[['ok','OK'],['enfermedad1','Enfermedad 1'],['enfermedad2','Enfermedad 2'],['enfermedad3','Enfermedad 3'],['enfermedad4','Enfermedad 4']]],
+    ['flores','Flores',[['ok','Ok'],['si','Con flores']]],
+    ['raices','Raíces',[['pocaRaiz','Poca raíz'],['raizVieja','Raíz vieja'],['ok','OK']]]
+  ];
+  const CATS_PREINJERTO_VARIEDAD=[
+    ['color','Color',[['verde','Verde'],['amarillo','Amarillo'],['verdeClaro','Verde claro'],['ok','OK']]],
+    ['tamano','Tamaño',[['grande','Grande'],['pequeno','Pequeño'],['ok','OK']]],
+    ['grosor','Grosor',[['fino','Fino'],['ok','OK'],['grueso','Grueso']]],
+    ['firmeza','Firmeza',[['ok','OK'],['duro','Duro'],['tierno','Tierno']]],
+    ['plagas','Plagas',[['ok','OK'],['tuta','Tuta'],['minador','Minador'],['pulgon','Pulgón'],['oruga','Oruga'],['trips','Trips']]],
+    ['enfermedades','Enfermedades',[['ok','OK'],['alternaria','Alternaria'],['mildiu','Mildiu'],['oidio','Oídio'],['botrytis','Botrytis'],['didymella','Didymella']]]
+  ];
+  const CATS_PREINJERTO_PATRON=[
+    ['grosor','Grosor',[['fino','Fino'],['ok','OK'],['grueso','Grueso']]],
+    ['firmeza','Firmeza',[['ok','OK'],['duro','Duro'],['tierno','Tierno']]],
+    ['segado','Segado',[['segado','Segado'],['noSegado','No segado']]],
+    ['plagas','Plagas',[['ok','OK'],['tuta','Tuta'],['minador','Minador'],['pulgon','Pulgón'],['oruga','Oruga'],['trips','Trips']]],
+    ['enfermedades','Enfermedades',[['ok','OK'],['alternaria','Alternaria'],['mildiu','Mildiu'],['oidio','Oídio'],['botrytis','Botrytis'],['didymella','Didymella']]],
+    ['raices','Raíces',[['pocaRaiz','Poca raíz'],['ok','OK'],['raizVieja','Raíz vieja']]]
+  ];
+  const CAT_FIRMEZA=['firmeza','Firmeza',[['ok','OK'],['duro','Duro'],['tierno','Tierno']]];
+  const CAT_RAICES_INJERTO=['raicesInjerto','Raíces en punto de injerto · opcional',[['si','Sí'],['no','No']]];
+  let CATS=CATS_TUNEL;
+  [...CATS_TUNEL,...CATS_CARGA_BASE,CAT_FIRMEZA].forEach(cat=>cat[2].push(['noEvaluada','No evaluada']));
   const HEALTH_KEYS=['enfermedad1','enfermedad2','enfermedad3','enfermedad4'];
   const isDisease=k=>HEALTH_KEYS.includes(k);
+  const isMultiCategory=cat=>['sanidad','plagas','enfermedades'].includes(cat);
+  const isPercentOption=(cat,key)=>cat==='sanidad'?isDisease(key):
+    ['plagas','enfermedades'].includes(cat)&&key!=='ok';
+  const percentProperty=cat=>cat==='sanidad'?'porcentajesEnfermedades':'porcentajesIncidencias';
   const selectedOf=wrap=>Array.from(wrap.querySelectorAll('input[type="checkbox"]:checked')).map(b=>b.value);
   const sumHealth=wrap=>Array.from(wrap.querySelectorAll('.qco-disease-select')).reduce((n,p)=>
     n+(p.closest('.qco-health-row')?.querySelector('input[type="checkbox"]')?.checked?Number(p.value):0),0);
-  const hasProblems=()=>!!active&&CATS.some(([cat])=>
-    selectedOf(active.querySelector('[data-qco-cat="'+cat+'"]')).some(k=>k!=='ok'&&k!=='noEvaluada'));
-  // Cinco bloques con el mismo peso. Sanidad agrega primero todas las enfermedades
-  // y participa una sola vez. No evaluada y OK no suman; el resto, incidencia 100.
+  const hasProblems=()=>!!active&&CATS.some(([cat])=>{
+    const picked=selectedOf(active.querySelector('[data-qco-cat="'+cat+'"]'));
+    return cat==='raicesInjerto'?picked.includes('si'):
+      cat==='flores'?picked.includes('si'):
+      isMultiCategory(cat)?picked.some(k=>isPercentOption(cat,k)):
+      cat==='segado'?picked.includes('noSegado'):
+      picked.some(k=>k!=='ok'&&k!=='noEvaluada');
+  });
+  // Cada bloque evaluado pesa igual. Carga incorpora Firmeza desde el corte de producción;
+  // Sanidad participa una sola vez, aunque haya varias enfermedades.
   function suggestedGlobal(){
     if(!active)return 0;
-    let sum=0;
+    let sum=0,activeCount=0;
     for(const [cat] of CATS){
       const wrap=active.querySelector('[data-qco-cat="'+cat+'"]');
       const picked=selectedOf(wrap);
-      // Sanidad pesa igual que los otros cuatro bloques: cualquier enfermedad
-      // activa aporta el 20 % global una sola vez. El desglose por enfermedad
-      // se conserva aparte y no reduce ni duplica el peso del bloque.
-      if(cat==='sanidad'&&picked.some(isDisease))sum+=100;
-      else if(cat!=='sanidad'&&picked.some(k=>k!=='ok'&&k!=='noEvaluada'))sum+=100;
+      if(cat==='raicesInjerto'&&!picked.length)continue;
+      activeCount++;
+      // Sanidad pesa igual que cada uno de los bloques activos: cualquier enfermedad
+      // cuenta una vez. El desglose por enfermedad se conserva aparte y no duplica peso.
+      if(isMultiCategory(cat)&&picked.some(k=>isPercentOption(cat,k)))sum+=100;
+      else if(cat==='raicesInjerto'&&picked.includes('si'))sum+=100;
+      else if(cat==='flores'&&picked.includes('si'))sum+=100;
+      else if(!['sanidad','plagas','enfermedades','raicesInjerto','flores'].includes(cat)&&
+        (cat==='segado'?picked.includes('noSegado'):picked.some(k=>k!=='ok'&&k!=='noEvaluada')))sum+=100;
     }
-    return Math.floor(sum/CATS.length/10)*10;
+    return activeCount?Math.round((sum/activeCount)/10)*10:0;
   }
   // El usuario puede cambiar el total calculado; no se recalcula al restaurar
   // ni al guardar, solo al editar algún estado o porcentaje de enfermedad.
@@ -57,7 +97,8 @@
     const previous=Number(picker.dataset.previous||10);
     if(sumHealth(active)>100){
       picker.value=String(previous);
-      report('Sanidad: la suma de porcentajes por enfermedad no puede superar el 100 %.','error');
+      const category=picker.closest('.qco-cat')?.querySelector('legend')?.textContent||'Incidencias';
+      report(category+': la suma de porcentajes no puede superar el 100 %.','error');
     }else{
       picker.dataset.previous=picker.value;
       report('','');
@@ -259,12 +300,10 @@
     for(const [cat] of CATS){
       const wrap=active.querySelector('[data-qco-cat="'+cat+'"]');
       const item={opciones:selectedOf(wrap)};
-      if(cat==='sanidad'){
-        item.porcentajesEnfermedades={};
-        for(const key of HEALTH_KEYS){
-          if(item.opciones.includes(key))
-            item.porcentajesEnfermedades[key]=Number(wrap.querySelector('.qco-health-row[data-option="'+key+'"] .qco-disease-select').value);
-        }
+      if(isMultiCategory(cat)){
+        item[percentProperty(cat)]={};
+        for(const key of item.opciones.filter(k=>isPercentOption(cat,k)))
+          item[percentProperty(cat)][key]=Number(wrap.querySelector('.qco-health-row[data-option="'+key+'"] .qco-disease-select').value);
       }
       out.categorias[cat]=item;
     }
@@ -327,23 +366,22 @@
   function chooseState(box){
     const wrap=box.closest('.qco-cat'),cat=wrap.dataset.qcoCat;
     if(box.checked){
-      if(cat==='sanidad'){
-        if(box.value==='ok'||box.value==='noEvaluada'){
+      if(isMultiCategory(cat)){
+        if(box.value==='ok'){
           wrap.querySelectorAll('input[type="checkbox"]').forEach(other=>{if(other!==box)other.checked=false;});
           for(const selector of wrap.querySelectorAll('.qco-disease-select'))selector.value='0';
-        }else{
-          for(const key of ['ok','noEvaluada']){
-            const other=wrap.querySelector('input[value="'+key+'"]');if(other)other.checked=false;
-          }
+        }else if(isPercentOption(cat,box.value)){
+          const other=wrap.querySelector('input[value="ok"]');if(other)other.checked=false;
           const picker=box.closest('.qco-health-row').querySelector('.qco-disease-select');
           picker.value='10';
           if(sumHealth(wrap)>100){
             box.checked=false;picker.value='0';
-            report('Sanidad: el desglose no puede sumar más del 100 %.','error');
+            const label=wrap.querySelector('legend')?.textContent||'Incidencias';
+            report(label+': el desglose no puede sumar más del 100 %.','error');
           }else picker.dataset.previous='10';
         }
       }else wrap.querySelectorAll('input[type="checkbox"]').forEach(other=>{if(other!==box)other.checked=false;});
-    }else if(cat==='sanidad'&&isDisease(box.value)){
+    }else if(isPercentOption(cat,box.value)){
       box.closest('.qco-health-row').querySelector('.qco-disease-select').value='0';
     }
     wrap.dataset.legacyUnresolved='0';
@@ -368,23 +406,34 @@
     const total=saved?strCount(saved.bandejasInspeccionadas):strCount(rec?.numBandejas);
     active.querySelector('.qco-total input').value=total===null?'':String(total);
     active.querySelector('.qco-total-value').textContent=total===null?'No disponible':total.toLocaleString('es-ES');
-    const savedV5=[5,6].includes(saved?.schemaVersion);
+    const savedV5=[5,6,7,8,9].includes(saved?.schemaVersion);
     const aggregate=active.querySelector('.qco-global-percent');
      for(const [cat] of CATS){
       const wrap=active.querySelector('[data-qco-cat="'+cat+'"]');
       const old=saved?.mediciones?.[cat];
       let chosen=saved?.categorias?.[cat]?.opciones;
-      if(!Array.isArray(chosen))chosen=old?Object.keys(old).filter(k=>Number(old[k])>0):['ok'];
-      chosen=normalizeOptions(cat,chosen);
       let issue='';
+      if(!Array.isArray(chosen)){
+        if(cat==='firmeza'){chosen=[];issue='Firmeza no estaba registrada. Selecciona un estado para registrar Firmeza.';}
+        else if(cat==='raicesInjerto')chosen=[];
+        else chosen=old?Object.keys(old).filter(k=>Number(old[k])>0):
+          (record?.tipo==='preinjerto_patron'&&cat==='segado'?['segado']:['ok']);
+      }
+      chosen=normalizeOptions(cat,chosen);
+      if(cat==='raices'&&record?.tipo==='carga'&&chosen.includes('raizVariedad')){
+        issue='Raíces histórica «Raíz en variedad» no equivale a «Raíz vieja». Selecciona el estado actual.';
+        chosen=[];
+      }
       if(chosen.includes('noEvaluada')){
         issue='Esta categoría estaba sin evaluar. Selecciona un estado para actualizarla.';chosen=[];
       }
-      if(cat==='sanidad'){
-        if(chosen.includes('enferma')){
+      const multi=isMultiCategory(cat);
+      if(multi){
+        const defectKeys=chosen.filter(k=>isPercentOption(cat,k));
+        if(chosen.includes('enferma')&&cat==='sanidad'){
           issue='Sanidad histórica «Enferma» sin diagnóstico. Selecciona la enfermedad real.';chosen=[];
-        }else if(chosen.includes('ok')&&chosen.some(isDisease)){
-          issue='Sanidad histórica con OK y enfermedades. Vuelve a seleccionar las enfermedades.';chosen=[];
+        }else if(chosen.includes('ok')&&defectKeys.length){
+          issue=(CATS.find(([key])=>key===cat)?.[1]||cat)+': OK e incidencias no son compatibles.';chosen=[];
         }
       }else if(chosen.length>1){
         issue='Medición anterior con varias opciones: selecciona un único estado.';chosen=[];
@@ -393,17 +442,20 @@
        for(const box of wrap.querySelectorAll('input[type="checkbox"]')){
         box.checked=chosen.includes(box.value);box.disabled=false;
       }
-      if(cat==='sanidad'){
-        const details=saved?.categorias?.sanidad?.porcentajesEnfermedades||{};
-        for(const key of HEALTH_KEYS){
+      if(multi){
+        const property=percentProperty(cat);
+        const details=saved?.categorias?.[cat]?.[property]||
+          (cat==='sanidad'?saved?.categorias?.sanidad?.porcentajesEnfermedades:null)||{};
+        const incidents=chosen.filter(k=>isPercentOption(cat,k));
+        const categoryOptions=CATS.find(([key])=>key===cat)?.[2]||[];
+        for(const key of categoryOptions.map(([key])=>key).filter(k=>isPercentOption(cat,k))){
           const picker=wrap.querySelector('.qco-health-row[data-option="'+key+'"] .qco-disease-select');
           const n=Number(details[key]);
-          picker.value=chosen.includes(key)&&Number.isInteger(n)&&n>=10?String(n):'0';
+          picker.value=incidents.includes(key)&&Number.isInteger(n)&&n>=10?String(n):'0';
           picker.dataset.previous=picker.value==='0'?'10':picker.value;
         }
-        if(chosen.some(isDisease)&&(!savedV5&&!saved?.categorias?.sanidad?.porcentajesEnfermedades)){
+        if(incidents.length&&(!savedV5||!saved?.categorias?.[cat]?.[property]))
           wrap.dataset.legacyUnresolved='1';
-         }
       }
      }
     const global=saved?.porcentajeInvalidasGlobal;
@@ -457,7 +509,10 @@
   function validate(){
     const v=snapshot(),errors=[];
     const global=v.porcentajeInvalidasGlobal;
-    const hasIssue=Object.values(v.categorias).some(i=>i.opciones.some(k=>k!=='ok'&&k!=='noEvaluada'));
+    const hasIssue=Object.entries(v.categorias).some(([cat,i])=>i.opciones.some(k=>
+      cat==='raicesInjerto'?k==='si':cat==='flores'?k==='si':
+      isMultiCategory(cat)?isPercentOption(cat,k):
+      cat==='segado'?k==='noSegado':k!=='ok'&&k!=='noEvaluada'));
     if(!Number.isInteger(global)||global<0||global>100||global%10!==0||
        !hasIssue&&global!==0)
       errors.push('Porcentaje global incorrecto.');
@@ -466,19 +521,18 @@
       const wrap=active.querySelector('[data-qco-cat="'+cat+'"]');
       const allowed=new Set(opts.map(([key])=>key));
       if(wrap.dataset.legacyUnresolved==='1')errors.push(name+': revisa las opciones anteriores.');
-      if(!a.length||new Set(a).size!==a.length||a.some(k=>!allowed.has(k)))
+      if((!a.length&&cat!=='raicesInjerto')||new Set(a).size!==a.length||a.some(k=>!allowed.has(k)))
         errors.push(name+': selecciona una opción válida.');
-      if(cat==='sanidad'){
-        if(a.length>1&&(a.includes('ok')||a.includes('noEvaluada')))
-          errors.push('Sanidad: OK y enfermedades no son compatibles.');
-        const details=v.categorias.sanidad.porcentajesEnfermedades;
-        const diseases=a.filter(isDisease);
-        if(Object.keys(details).length!==diseases.length||
-           diseases.some(k=>!Number.isInteger(details[k])||details[k]<10||details[k]>100||details[k]%10!==0))
-          errors.push('Sanidad: comprueba el porcentaje de cada enfermedad.');
-        const sum=diseases.reduce((n,k)=>n+details[k],0);
-        if(sum>100)errors.push('Sanidad: suma de enfermedades superior al 100 %.');
-      }else if(a.length!==1)errors.push(name+': solo permite una opción.');
+      if(isMultiCategory(cat)){
+        const incidences=a.filter(k=>isPercentOption(cat,k));
+        const details=v.categorias[cat][percentProperty(cat)];
+        if(a.includes('ok')&&a.length!==1)errors.push(name+': OK no puede combinarse con incidencias.');
+        if(Object.keys(details).length!==incidences.length||
+           incidences.some(k=>!Number.isInteger(details[k])||details[k]<10||details[k]>100||details[k]%10!==0))
+          errors.push(name+': comprueba el porcentaje de cada incidencia.');
+        if(incidences.reduce((n,k)=>n+details[k],0)>100)errors.push(name+': la suma de incidencias supera el 100 %.');
+      }else if(a.length!==1&&!(cat==='raicesInjerto'&&a.length===0))
+        errors.push(name+': selecciona una sola opción.');
     }
     return {errors,categorias:v.categorias,porcentajeInvalidasGlobal:global};
   }
@@ -498,7 +552,8 @@
       if(!saved)return {state:'absent'};
       if(!Number.isInteger(saved.version)||saved.version<=previousVersion)
         return {state:'different'};
-      const same=saved.schemaVersion===6&&
+      const expectedSchema=['preinjerto_patron','preinjerto_variedad'].includes(ref.tipo)?9:ref.tipo==='carga_injerto'?8:ref.tipo==='carga'?7:6;
+      const same=saved.schemaVersion===expectedSchema&&
         saved.porcentajeInvalidasGlobal===expected.porcentajeInvalidasGlobal&&
         Object.keys(expected.categorias).every(cat=>JSON.stringify(saved.categorias?.[cat])===JSON.stringify(expected.categorias[cat]));
       return same?{state:'confirmed',value:saved}:{state:'different'};
@@ -546,7 +601,7 @@
         method:'POST',headers:{Authorization:'Bearer '+jwt,'Content-Type':'application/json'},
         body:JSON.stringify({
           id:record.id,tipo:record.tipo,dia:record.dia,partida:record.partida,
-          schemaVersion:6,version,
+          schemaVersion:['preinjerto_patron','preinjerto_variedad'].includes(record.tipo)?9:record.tipo==='carga_injerto'?8:record.tipo==='carga'?7:6,version,
           categorias:checked.categorias,porcentajeInvalidasGlobal:checked.porcentajeInvalidasGlobal
         }),cache:'no-store'
       });
@@ -563,7 +618,7 @@
       const data=await r.json();
       if(!data.ok||!Number.isInteger(data.version))throw Error('INVALID_RESPONSE');
       version=data.version;original=JSON.stringify(snapshot());initialSnapshot=original;
-      savedMeasurement={schemaVersion:6,version,
+      savedMeasurement={schemaVersion:['preinjerto_patron','preinjerto_variedad'].includes(record.tipo)?9:record.tipo==='carga_injerto'?8:record.tipo==='carga'?7:6,version,
         categorias:checked.categorias,porcentajeInvalidasGlobal:checked.porcentajeInvalidasGlobal};
       confirmed=true;
     }catch(err){
@@ -704,7 +759,7 @@
       const wrap=node('fieldset',null,'qco-cat');wrap.dataset.qcoCat=cat;wrap.append(node('legend',name));
       const choices=node('div',null,'qco-choices');
       for(const [value,label] of [...options.filter(x=>x[0]==='ok'),...options.filter(x=>x[0]!=='ok'&&x[0]!=='noEvaluada')]){
-        const disease=cat==='sanidad'&&isDisease(value);
+        const disease=isPercentOption(cat,value);
         const row=node(disease?'div':'label',null,'qco-option'+(disease?' qco-health-row':''));
         row.dataset.option=value;
         const labelEl=disease?node('label',null,'qco-health-choice'):row;
@@ -845,7 +900,7 @@
     foot.append(cancel,submit);form.append(foot);body.append(form);dialog.append(body);overlay.append(dialog);return overlay;
   }
   async function open(rec,context){
-    if(!rec||!['tunel','carga'].includes(rec.tipo)||typeof rec.id!=='string'||
+    if(!rec||!['tunel','carga','carga_injerto','preinjerto_patron','preinjerto_variedad'].includes(rec.tipo)||typeof rec.id!=='string'||
       !/^[A-Za-z0-9_-]{1,180}$/.test(rec.id)||!
       Number.isInteger(rec.dia)||rec.dia<15||rec.dia>4000||
       typeof rec.partida!=='string'||!/^[A-Za-z0-9._-]{1,100}$/.test(rec.partida)){
@@ -863,6 +918,10 @@
     }
     const thisSequence=++sequence;
     record={id:rec.id,tipo:rec.tipo,dia:rec.dia,partida:rec.partida};
+    CATS=rec.tipo==='preinjerto_variedad'?CATS_PREINJERTO_VARIEDAD:
+      rec.tipo==='preinjerto_patron'?CATS_PREINJERTO_PATRON:
+      rec.tipo==='carga'?(rec.dia>=155?[...CATS_CARGA_BASE,CAT_FIRMEZA]:CATS_CARGA_BASE):
+      rec.tipo==='carga_injerto'?(rec.dia>=155?[...CATS_CARGA_BASE,CAT_FIRMEZA,CAT_RAICES_INJERTO]:[...CATS_CARGA_BASE,CAT_RAICES_INJERTO]):CATS_TUNEL;
     legacyApi=context||null;
     savedMeasurement=null;currentRules=null;loading=true;savedForList=null;
     active=build(rec);
@@ -908,3 +967,4 @@
   }
   window.QCOperativo=Object.freeze({open,prepareRecordSwitch});
 })();
+
