@@ -88,3 +88,9 @@ Siguiente diagnóstico recomendado: comprobar en navegador la versión efectiva 
 ## Regresión sin Vercel (10/11/2026)
 
 Añadido `scripts/test_gs_qc_ubicaciones.py` en `test/v1.0`, commit `e60d3dcc51a2287d20d0dc96662e8fa9f2fcf33c`. Incluye cuatro pruebas unitarias que **no acceden a GS/Firebase**: identidad independiente de las dos fechas de `26X02342` (37 bandejas / calle 27 y 6 bandejas / calle 30), relleno de ubicación vacía sin perder QC/fotos/observaciones, preservación de ubicación manual y calle cero sin asignación. Para ejecutarlas localmente desde la carpeta `scripts`: `python -m unittest -v test_gs_qc_ubicaciones.py`. No se han ejecutado aquí; queda pendiente su resultado.
+
+## Preparación QC Preinjerto sin despliegue (10/11/2026)
+
+Commit `c3664499e7a599c3faf759ec81e52e825243d0ec` en `assets/control-qc-module.js` (`test/v1.0`): el renderizador de ubicaciones distingue Preinjerto Patrón/Variedad del formato de Carga, admite `PAR_UBIC` tanto directo como anidado en `gsDetalles`, conserva prioridad para calles asignadas y muestra `PAR_CAS` como **Código GS** sin inventar denominación. `PAR_UBIC=0` se muestra sin calle. No se ha desplegado Vercel. Se verificó estáticamente la presencia de los nuevos casos, sin prueba en navegador.
+
+**Siguiente prueba operativa pendiente:** extracción local de `pilot_gs_qc_preinjerto.py` en modo solo JSON, con `--desde 2026-11-09 --hasta 2026-11-11` (sin `--sync-test`). Revisar los campos `PAR_CAS`, `PAR_UBIC` y los recuentos de Patrón/Variedad antes de cualquier sincronización de este bloque a Firebase TEST. La autorización previa solo cubrió Túnel de los dos días, no esta nueva carga.
