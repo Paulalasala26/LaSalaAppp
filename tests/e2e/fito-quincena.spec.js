@@ -1123,11 +1123,15 @@ test('UAT-492: elegir una fecha futura conserva la selección y no crea registro
   const database=fixtureDatabase();
   const original=database['lasala-fito-v1'];
   const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  const label=overlay.locator('#fito-quincena-bar span');
+  const current=await label.textContent();
   await overlay.locator('#fito-quincena-bar button').last().click();
+  await expect(label).not.toHaveText(current);
   await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
   const form=page.locator('#fito-manual-overlay');
-  await form.locator('#fm-dia').selectOption('32');
-  await expect(form.locator('#fm-dia')).toHaveValue('32');
+  const futureValue=await form.locator('#fm-dia option').last().getAttribute('value');
+  await form.locator('#fm-dia').selectOption(futureValue);
+  await expect(form.locator('#fm-dia')).toHaveValue(futureValue);
   expect(database['lasala-fito-v1']).toBe(original);
   expect(writes).toEqual([]);
   expect(unexpectedHosts).toEqual([]);
