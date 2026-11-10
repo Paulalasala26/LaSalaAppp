@@ -74,6 +74,26 @@ async function logInAs(page, user, pass = password) {
   await page.locator('#login-btn').click();
 }
 
+test('UAT-1998: ADMIN muestra el punto rojo con una notificación pendiente', async ({ page }) => {
+  const users = Object.fromEntries(Object.keys(roleUsers).map(user => [user, passwordHash]));
+  await installAuthFixture(page, {
+    'lasala-users-v1': JSON.stringify({ ...users, VIGUERAS: passwordHash }),
+    'lasala-roles-v1': JSON.stringify({ ...roleUsers, VIGUERAS: 'ADMIN' }),
+    'lasala-avisos-usuario-v1': JSON.stringify({
+      VIGUERAS: [{ id: 'admin-aviso-no-leido', mensaje: 'Aviso pendiente', fecha: '10/11/2026', visto: false, leido: false }]
+    })
+  });
+
+  await logInAs(page, 'VIGUERAS');
+  await expect(page.locator('#topbar-notificaciones')).toBeVisible();
+  const badge = page.locator('#notificaciones-vigueras-badge span[aria-label]');
+  await expect(badge).toHaveAttribute('aria-label', '1 notificaciones sin leer');
+  await expect(badge).toHaveCSS('background-color', 'rgb(198, 40, 40)');
+  const box = await badge.boundingBox();
+  expect(box.width).toBeLessThanOrEqual(9);
+  expect(box.height).toBeLessThanOrEqual(9);
+});
+
 test('UAT-1999 y UAT-2000: punto rojo solo con aviso técnico no leído', async ({ page }) => {
   const users = Object.fromEntries(Object.keys(roleUsers).map(user => [user, passwordHash]));
   await installAuthFixture(page, {

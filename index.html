@@ -1387,7 +1387,7 @@ async function actualizarBadgeNotificacionesVigueras(){
     const cloud = r ? JSON.parse(r.value) : {};
     const n = (cloud['VIGUERAS']||[]).length;
     const badge = document.getElementById('notificaciones-vigueras-badge');
-    if(badge) badge.innerHTML = n>0 ? `<span style="background:#ffeb3b;color:#7a5000;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:2px;font-weight:800">${n}</span>` : '';
+    if(badge) badge.innerHTML = n>0 ? `<span aria-label="${n} notificaciones sin leer" title="${n} notificaciones sin leer" style="display:inline-block;width:8px;height:8px;background:#c62828;border-radius:50%;margin-left:4px;vertical-align:middle"></span>` : '';
   }catch(e){}
 }
 // ── PANTALLA "AVISOS" DEL TÉCNICO ────────────────────────────────────────
