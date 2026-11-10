@@ -37,7 +37,7 @@ function textoFito(database,inv,dia,calle){
   return value&&typeof value==='object'?value.texto:value;
 }
 
-async function openFito(page,database,{user=login.user,loginFirst=true,writeDelayMs=0}={}){
+async function openFito(page,database,{user=login.user,loginFirst=true,writeDelayMs=0,selectINV=true,beforeOpen}={}){
   const unexpectedHosts=[],writes=[];
   const corsHeaders={
     'access-control-allow-origin':'*',
@@ -78,12 +78,44 @@ async function openFito(page,database,{user=login.user,loginFirst=true,writeDela
     await page.getByRole('button',{name:'Iniciar sesión'}).click();
   }
   await expect(page.locator('#app')).toBeVisible();
+  if(beforeOpen)await beforeOpen(page);
   await page.locator(".home-shortcut-card[onclick=\"handleQuickAction('plaguicidas')\"]").click();
   const overlay=page.locator('#fito-overlay');
   await expect(overlay).toBeVisible();
-  await overlay.locator('[data-finv="17"]').click();
+  if(selectINV)await overlay.locator('[data-finv="17"]').click();
   return {overlay,unexpectedHosts,writes};
 }
+
+
+
+test('UAT-469: Inicio abre Plaguicidas y muestra Registrar y Consultar tratamientos',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts}=await openFito(page,database,{selectINV:false});
+  await expect(overlay.getByText('Registrar tratamientos',{exact:true})).toBeVisible();
+  await expect(overlay.getByText('Consultar tratamientos',{exact:true})).toBeVisible();
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-470 y UAT-471: otros módulos funcionan antes de la primera carga de Plaguicidas',async({page})=>{
+  const pageErrors=[];
+  page.on('pageerror',error=>pageErrors.push(error.message));
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts}=await openFito(page,database,{beforeOpen:async app=>{
+    const partidas=app.locator('#partidas-overlay');
+    await app.getByTestId('home-partidas').click();
+    await expect(partidas).toBeVisible();
+    await partidas.getByRole('button',{name:/Cerrar/}).click();
+
+    const control=app.locator('#control-overlay');
+    await app.getByTestId('home-control').click();
+    await expect(control).toBeVisible();
+    await control.getByRole('button',{name:'✕ Cerrar'}).click();
+  }});
+  await expect(overlay).toBeVisible();
+  await expect(page.locator('#fito-grid-wrap [data-finv="17"][data-fdia="30"][data-frc="2"]')).toHaveValue('E2E-FITO-INV17');
+  expect(pageErrors).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
 
 async function completarFitoValido(form,producto='E2E-TRAMO'){
   await form.locator('#fm-trat').fill(producto);
