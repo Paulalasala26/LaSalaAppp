@@ -73,7 +73,7 @@ async function installFixture(page, initialData = {}, options = {}) {
   return { database, writes };
 }
 
-test('UAT-1497–1498, UAT-1505–1506, UAT-1513–1526: Mantenimiento agrupa, etiqueta, cuenta y filtra tickets activos sin alterar datos', async ({ page }) => {
+test('UAT-1497–1498, UAT-1505–1506, UAT-1513–1526 y UAT-1530: Mantenimiento agrupa, etiqueta, cuenta y filtra tickets activos sin alterar datos', async ({ page }) => {
   const tickets = [
     { id: 'e2e-mant-sin-asignar', titulo: 'Hierba INV 1A <urgente & revisar>', descripcion: '', prioridad: 'normal', estado: 'sin_asignar', asignados: [], creadoEn: '2026-11-06' },
     { id: 'e2e-mant-asignado', titulo: 'Sal (INV 1B)', descripcion: '', prioridad: 'normal', estado: 'asignado', asignados: ['PEON1'], creadoEn: '2026-11-06' },
@@ -142,6 +142,16 @@ test('UAT-1497–1498, UAT-1505–1506, UAT-1513–1526: Mantenimiento agrupa, e
   await overlay.getByTestId('mantenimiento-search-apply').click();
   await expect(card('e2e-mant-en-curso')).toBeVisible();
   await expect(count).toHaveText('1 tickets en resultados');
+  await expect(search).toHaveValue('PEON2');
+
+  await filter.selectOption('pendientes');
+  await expect(count).toHaveText('0 tickets en resultados');
+  await expect(card('e2e-mant-en-curso')).toHaveCount(0);
+  await expect(search).toHaveValue('PEON2');
+  await filter.selectOption('en_proceso');
+  await expect(card('e2e-mant-en-curso')).toBeVisible();
+  await expect(count).toHaveText('1 tickets en resultados');
+  await expect(search).toHaveValue('PEON2');
 
   await overlay.getByTestId('mantenimiento-clear-filters').click();
   await search.fill('<urgente & revisar>');
