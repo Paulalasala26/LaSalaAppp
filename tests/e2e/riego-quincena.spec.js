@@ -239,6 +239,10 @@ test('UAT-125: dos sesiones guardan riegos simultáneos en invernaderos diferent
     }
     await Promise.all([firstForm.locator('#rm-guardar-btn').click(), secondForm.locator('#rm-guardar-btn').click()]);
     await expect.poll(() => first.writes.length + second.writes.length).toBeGreaterThanOrEqual(3);
+    await expect.poll(() => [
+      textoGuardadoRiego(database, '17', day, '2')?.includes('10') ?? false,
+      textoGuardadoRiego(database, '18', day, '2')?.includes('20') ?? false
+    ], { timeout: 10000 }).toEqual([true, true]);
 
     const saved = riegoGuardado(database);
     expect(textoGuardadoRiego(database, '17', day, '2')).toContain('10');
