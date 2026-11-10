@@ -75,3 +75,21 @@ El usuario autorizó inspección de metadatos `information_schema` para tablas/c
 El usuario ejecutó `inspect_gs_preinjerto_location_sources.py`. Para las dos partidas, GS devuelve directamente de `partidas` `PAR_CAS=016/028` y `PAR_UBIC=NULL`. La búsqueda exacta no encontró filas en `partidas_par_ubic`, `partidashis_parh_ubic` ni `p-extension.PEX_NPA`; tampoco halló filas con esos IDs en las otras tablas candidatas de ubicación. Las coincidencias fueron `partidas` y tablas no locativas como `partidas_par_cab` (campo `CABEZA`), `partidas_par_esta` y `partidas_par_proc`. La tabla maestra `invernaderos` tiene `id`, `INV_DENO` y parámetros de capacidad, pero no asigna una calle a estas partidas.
 
 **Conclusión operativa:** la extracción actual sí recupera el código `PAR_CAS` (100/145), coincidente con el histórico en los dos casos. Para estas dos partidas GS no devuelve calle en `PAR_UBIC` ni se encontró asignación directa en las tablas hijas revisadas. La fuente real de calle no está acreditada; no es un fallo del serializador ni una ausencia de claves JSON. No añadir calles al SELECT/importador hasta contar con un registro que GS muestre asignado a calle y validar su relación.
+
+
+## Incidencias retomadas (10/11/2026)
+
+### Ubicación Preinjerto: conclusión tras revisar la app original
+
+En la app original, `26C02436` y `26C02653` aparecen en Check Preinjerto Variedad con el estado «Aún no está en Túnel». La tarjeta Preinjerto omite intencionadamente el campo de invernadero y solo refleja el QC Túnel si ya existe. En GS, la extracción actual conserva `PAR_CAS=016/028` y `PAR_UBIC` vacío. Por tanto, el código bruto de invernadero está disponible; la calle de esas partidas todavía no está asignada en Preinjerto. No seguir buscando la calle en tablas ni derivarla: consultar el QC Túnel por su fecha cuando la partida entre allí; el conector de Túnel toma `PAR_CAS` y `PIN_LOCA`.
+
+### Incidencia: «No se ha podido cargar la galería. Reabre la inspección.»
+
+La captura corresponde al editor de mediciones QC. Se encontró una incompatibilidad: el formulario `QCOperativo` acepta Túnel, Carga, Carga Injerto y ambos Preinjertos, mientras que el adaptador de fotos y las rutas API solo aceptaban Túnel/Carga. La excepción de tipo se ocultaba detrás del mensaje genérico.
+
+Corrección en `test/v1.0`:
+- La validación de referencias de fotos ya admite los cinco tipos QC.
+- Carga Injerto usa la carpeta existente «20 - Carga»; Preinjerto Patrón y Variedad se separan en «30 - Preinjerto Patrón» y «40 - Preinjerto Variedad», creadas/reutilizadas por la ruta al subir fotos.
+- Se amplió la admisión de tipo en las dos rutas API de galería.
+
+Commits: `d9e841b` (IndexedDB/adaptador), `1addd4c` (referencia del frontend), `4e107ef` (SharePoint/API), `1a04c96` (API de galería). No se desplegó Vercel ni se realizaron escrituras GS/Firebase/SharePoint. Falta que la app use este código y comprobar visualmente que desaparece el error y que carga/sube una foto en cada QC afectado.
