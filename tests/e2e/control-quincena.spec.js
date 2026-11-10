@@ -1244,6 +1244,47 @@ test('UAT-336: REGANTE y PEÓN no pueden crear QC Carga mediante una llamada dir
   expect(unexpectedHosts).toEqual([]);
 });
 
+test('UAT-341 y UAT-342: importar un PDF de Carga crea la línea correcta y repetirlo no duplica', async ({ page }) => {
+  const database = fixtureDatabase();
+  database['lasala-control-pdfs-indice-v1'] = JSON.stringify([]);
+  const { overlay, unexpectedHosts } = await startControlTest(page, database);
+  await overlay.getByRole('button', { name: 'Check Carga Injerto' }).click();
+  await page.evaluate(() => {
+    window.loadScriptOnce = async () => {};
+    const row = [
+      ['07:30', 10], ['CLIENTE DEMO', 120], ['26X09999', 300],
+      ['TOMATE INJERTADO', 430], ['12', 660], ['17-1-2', 730]
+    ];
+    window.pdfjsLib = {
+      GlobalWorkerOptions: {},
+      getDocument: () => ({ promise: Promise.resolve({
+        numPages: 1,
+        getPage: async () => ({
+          getTextContent: async () => ({ items: row.map(([str, x]) => ({ str, transform: [1, 0, 0, 1, x, 700] })) })
+        })
+      }) })
+    };
+  });
+  const pdfBytes = Buffer.from('%PDF-1.4\\n% Fixture E2E QC Carga\\n%%EOF', 'utf8');
+  const pdfInput = () => overlay.locator('[data-testid="control-day-operations"] input[type="file"][accept="application/pdf"]');
+  const file = { name: 'qc-carga-fixture.pdf', mimeType: 'application/pdf', buffer: pdfBytes };
+
+  await pdfInput().setInputFiles(file);
+  await expect.poll(() => Object.values(database['lasala-control-items-v1']).filter(item => item.partida === '26X09999')).toHaveLength(1);
+  expect(Object.values(database['lasala-control-items-v1']).find(item => item.partida === '26X09999')).toMatchObject({
+    tipo: 'carga', dia: 30, cliente: 'CLIENTE DEMO', partida: '26X09999',
+    variedad: 'TOMATE INJERTADO', numBandejas: '12', invernadero: '17-1-2', origenPdf: true
+  });
+  expect(JSON.parse(database['lasala-control-pdf-v1-carga-30'])).toMatchObject({ nombre: 'qc-carga-fixture.pdf' });
+  expect(JSON.parse(database['lasala-control-pdf-v1-carga_normal-30'])).toMatchObject({ nombre: 'qc-carga-fixture.pdf' });
+
+  await pdfInput().evaluate(input => { input.value = ''; });
+  await pdfInput().setInputFiles(file);
+  await expect(page.locator('#app-toast')).toContainText('PDF adjuntado (no se han detectado partidas nuevas que añadir)', { timeout: 15000 });
+  await expect.poll(() => Object.values(database['lasala-control-items-v1']).filter(item => item.partida === '26X09999')).toHaveLength(1);
+  expect(unexpectedHosts).toEqual([]);
+});
+
 test('UAT-216: REGANTE y PEÓN no acceden a Control por la navegación ni por llamada directa', async ({ page }) => {
   const database = withControlRoles(fixtureDatabase(), {
     E2E_CONTROL_REGANTE: 'REGANTE', E2E_CONTROL_PEON: 'PEON'
