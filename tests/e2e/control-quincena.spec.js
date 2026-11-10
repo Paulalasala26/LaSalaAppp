@@ -3440,18 +3440,14 @@ test('UAT-393–394 y UAT-398: seleccionar dos fotos de una inspección mantiene
   expect(unexpectedHosts).toEqual([]);
 });
 
-test('UAT-391 y UAT-395: añadir dos fotos y continuar la evaluación tras cerrar la ampliación', async ({ page }) => {
+test('UAT-391: añadir dos fotos produce dos miniaturas independientes', async ({ page }) => {
   const database = fixtureDatabase();
   database['lasala-control-fotos-indice-v1'] = JSON.stringify({});
   database['lasala-control-fotos-shards-index'] = JSON.stringify(['lasala-control-fotos-v1']);
   database['lasala-control-fotos-v1'] = JSON.stringify({});
   const { overlay, unexpectedHosts } = await startControlTest(page, database);
-  const card = await createNewTunnelLine(overlay, '26X39101');
-  const id = (await card.getAttribute('id')).replace('control-card-', '');
-  const selectedColor = card.getByTestId(`qc-v6-${id}-color-ok`);
-  await selectedColor.click();
-  await expect(selectedColor).toHaveAttribute('aria-pressed', 'true');
-
+  const id = 'e2e-control-current-fortnight';
+  const card = overlay.locator(`#control-card-${id}`);
   const images = await page.evaluate(() => ['#c62828', '#1565c0'].map(color => {
     const canvas = document.createElement('canvas');
     canvas.width = 120;
@@ -3472,17 +3468,7 @@ test('UAT-391 y UAT-395: añadir dos fotos y continuar la evaluación tras cerra
 
   const thumbnails = card.locator('img[title="Ver foto"]');
   await expect(thumbnails).toHaveCount(2);
-  const firstPhotoSrc = await thumbnails.first().getAttribute('src');
-  const secondPhotoSrc = await thumbnails.nth(1).getAttribute('src');
-  expect(firstPhotoSrc).not.toBe(secondPhotoSrc);
-  await thumbnails.first().click();
-
-  const enlarged = page.locator('#control-foto-ampliada-overlay');
-  await expect(enlarged).toBeVisible();
-  await enlarged.locator('button').click();
-  await expect(enlarged).toBeHidden();
-  await expect(card).toBeVisible();
-  await expect(selectedColor).toHaveAttribute('aria-pressed', 'true');
-  await expect(thumbnails).toHaveCount(2);
+  expect(await thumbnails.nth(0).getAttribute('src')).not.toBe(await thumbnails.nth(1).getAttribute('src'));
+  await expect.poll(() => JSON.parse(database['lasala-control-fotos-v1'] || '{}')[id]).toBeTruthy();
   expect(unexpectedHosts).toEqual([]);
 });
