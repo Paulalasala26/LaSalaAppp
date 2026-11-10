@@ -74,6 +74,35 @@ async function logInAs(page, user, pass = password) {
   await page.locator('#login-btn').click();
 }
 
+test('UAT-1998, UAT-2006 y UAT-2019: ADMIN abre Notificaciones y conserva la campana en Control', async ({ page }) => {
+  const users = Object.fromEntries(Object.keys(roleUsers).map(user => [user, passwordHash]));
+  await installAuthFixture(page, {
+    'lasala-users-v1': JSON.stringify({ ...users, VIGUERAS: passwordHash }),
+    'lasala-roles-v1': JSON.stringify({ ...roleUsers, VIGUERAS: 'ADMIN' }),
+    'lasala-avisos-usuario-v1': JSON.stringify({
+      VIGUERAS: [{ id: 'admin-aviso-control', mensaje: 'Aviso pendiente', fecha: '10/11/2026', visto: false, leido: false }]
+    })
+  });
+
+  await logInAs(page, 'VIGUERAS');
+  const bell = page.locator('#topbar-notificaciones');
+  const badge = page.locator('#notificaciones-vigueras-badge span[aria-label]');
+  await expect(bell).toBeVisible();
+  await expect(badge).toHaveCSS('background-color', 'rgb(198, 40, 40)');
+
+  await bell.click();
+  const notifications = page.locator('#notificaciones-vigueras-overlay');
+  await expect(notifications).toBeVisible();
+  await notifications.getByRole('button').first().click();
+  await expect(notifications).toBeHidden();
+
+  await page.locator('#quick-access-block .home-shortcut-card[onclick="handleQuickAction(\\'control\\')"]').click();
+  await expect(page.locator('#control-overlay')).toBeVisible();
+  await expect(bell).toBeVisible();
+  await expect(page.locator('#page-home')).toBeVisible();
+  await expect(page.locator('#quick-access-block .home-shortcut-card').filter({ hasText: /Avisos/ })).toHaveCount(0);
+});
+
 test('UAT-1997 y UAT-1998: campana ADMIN con punto rojo y navegación por teclado', async ({ page }) => {
   const users = Object.fromEntries(Object.keys(roleUsers).map(user => [user, passwordHash]));
   await installAuthFixture(page, {
