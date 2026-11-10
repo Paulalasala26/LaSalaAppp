@@ -175,7 +175,7 @@ test('UAT-2415: un doble clic rápido en Tareas deja una sola vista funcional y 
   expect(writes).toEqual([]);
 });
 
-test('UAT-2412: ADMIN abre Tareas directamente desde Home y carga Operativas y Mantenimiento con sus registros', async ({ page }) => {
+test('UAT-1234 y UAT-2412: Tareas abre Operativas y Mantenimiento en la primera entrada desde Home', async ({ page }) => {
   const tomorrowISO = await fechaISOEnNavegador(page, 1);
   const tasks = [{
     id: 'e2e-uat-2412-task',
