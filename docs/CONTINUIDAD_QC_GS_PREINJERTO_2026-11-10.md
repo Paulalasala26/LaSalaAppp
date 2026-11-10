@@ -58,3 +58,8 @@ El usuario autorizó inspección GS de solo lectura del esquema `partidas_par_ub
 ### Ajuste del diagnóstico de `partidas_par_ubic` (10/11/2026)
 
 La primera ejecución confirmó el esquema `id`, `id2`, `C0`–`C5`, pero el lector solo buscó los IDs en `id`; ese resultado vacío no era concluyente porque `C0` es una columna genérica de texto posible. Corregido `scripts/inspect_gs_preinjerto_location.py` en commit `71bf059b947cd0d7d595b68442e1ab4c3202f21d`: ahora busca igualdad exacta de los dos IDs en todas las columnas de texto y devuelve solo filas coincidentes (máximo 20 por columna). Pendiente repetir la ejecución. Sin escrituras.
+
+
+### Resultado de `partidas_par_ubic` (10/11/2026)
+
+El usuario ejecutó la versión corregida del lector. La tabla existe y tiene `id` varchar (PK), `id2` int (PK), `C0` varchar y `C1`–`C5` decimal; no hay columnas con nombres de ubicación. La igualdad exacta para `26C02436` y `26C02653` no encontró filas en `id` ni `C0`. Esto descarta una relación directa por esos códigos en las columnas de texto consultadas, pero no una relación indirecta mediante `id2` u otra tabla. Pendiente autorización específica para ampliar la búsqueda de metadatos y relaciones. Sin escrituras.
