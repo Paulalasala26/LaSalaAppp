@@ -13,7 +13,7 @@ const DRIVE_ID='b!ltDlxMPStUSPKosa8hjEBT4XEdc922lLvESLlmS3tQy9OIm9vYUbQaLFfZMlWF
 const FOLDER_ID='01WYFOB25JXMOQMUYILFEJSYJZCV3AIV2N';
 const FOLDER_NAME='10 - Fotos QC';
 const APP_CLIENT_ID='30160dc5-85af-4134-b865-86d1ff8fadbd';
-const TYPES=Object.freeze({tunel:'10 - Túnel',carga:'20 - Carga'});
+const TYPES=Object.freeze({tunel:'10 - Túnel',carga:'20 - Carga',carga_injerto:'20 - Carga',preinjerto_patron:'30 - Preinjerto Patrón',preinjerto_variedad:'40 - Preinjerto Variedad'});
 const TYPE_IDS=Object.freeze({
   tunel:'01WYFOB25VQRGN4LJRUNBYJH64ZV6NLQ5C',
   carga:'01WYFOB2YC4C2C65APYVAYBM2ZMYASYUDJ'
@@ -44,7 +44,7 @@ async function authorize(req,tipo){
     readKey('lasala-roles-v1',firebaseToken),readKey('lasala-users-v1',firebaseToken)
   ]);
   const role=roles[actor];
-  const allowed=role==='ADMIN'||role==='TECNICO'||(role==='CARGADOR'&&tipo==='carga');
+  const allowed=role==='ADMIN'||role==='TECNICO'||(role==='CARGADOR'&&(tipo==='carga'||tipo==='carga_injerto'));
   if(!allowed||!validHash(accounts[actor]))throw httpError(403,'FORBIDDEN');
   return {actor,role,firebaseToken};
 }
@@ -433,9 +433,11 @@ async function childFolder(token,parentId,name){
 }
 async function photoFolder(token,ref,capturedAt){
   await graphFolder(token,FOLDER_ID,FOLDER_NAME);
-  await graphFolder(token,TYPE_IDS[ref.tipo],TYPES[ref.tipo],FOLDER_ID);
+  let typeFolderId=TYPE_IDS[ref.tipo];
+  if(typeFolderId)await graphFolder(token,typeFolderId,TYPES[ref.tipo],FOLDER_ID);
+  else typeFolderId=await childFolder(token,FOLDER_ID,TYPES[ref.tipo]);
   const dt=localParts(capturedAt);
-  const year=await childFolder(token,TYPE_IDS[ref.tipo],dt.year);
+  const year=await childFolder(token,typeFolderId,dt.year);
   const month=dt.month+' - '+MONTHS[Number(dt.month)-1];
   const id=await childFolder(token,year,month);
   return {id,path:'Recursos/10 - ViguerAPP/10 - Fotos QC/'+
