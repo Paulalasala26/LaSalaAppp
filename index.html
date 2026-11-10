@@ -8385,6 +8385,7 @@ async function guardarNuevoControlCargaCheck(){
 // una reconexión podría duplicar la línea. El toast/repintado se hacen ANTES de
 // esperar la red (mismo motivo que aplicarSanidadEnfermedad).
 async function aplicarNuevaLineaControlCarga(entry){
+  if(!entry || !puedeEditarControlTipo(entry.tipo)){ avisarControlSinAcceso(); return false; }
   if(!controlChecksData.find(x=>x.id===entry.id)) controlChecksData.push(entry);
   showToast('✓ Línea añadida');
   renderControlContent(document.getElementById('control-overlay'));
