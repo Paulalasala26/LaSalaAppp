@@ -98,3 +98,11 @@ Commit `c3664499e7a599c3faf759ec81e52e825243d0ec` en `assets/control-qc-module.j
 ## Ajuste del conector Preinjerto (10/11/2026)
 
 Al intentar la extracción local de Preinjerto para el intervalo `2026-11-10`–`2026-11-15`, la ejecución falló antes de consultar GS por `ModuleNotFoundError: No module named 'keyring'`. Se corrigió `scripts/pilot_gs_qc_preinjerto.py` en `test/v1.0` (commit `9994f376d51b3065da0780f4d99dc26d2f0d4e6c`): se mantiene Windows Credential Manager si está disponible y configurado, pero en su ausencia solicita usuario y contraseña de MySQL en consola (`getpass`), como el conector Túnel. **Pendiente ejecutar el archivo actualizado en el equipo Windows.** No hubo consultas GS, sincronización Firebase ni despliegue Vercel en el intento fallido.
+
+## Resultado real de extracción Preinjerto (10/11/2026)
+
+El usuario ejecutó localmente `python pilot_gs_qc_preinjerto.py --desde 2026-11-10 --hasta 2026-11-15` (solo JSON, sin sincronizar Firebase). Obtuvo 145 partidas: **27 de Patrón y 118 de Variedad**. Snapshot: `snapshots/gs_qc_preinjerto_2026-11-10_2026-11-15.json`.
+
+Se revisaron las 145 filas del JSON con PowerShell; resultado: `Total=145`, `Con_PAR_CAS=0`, `Con_PAR_UBIC=0`, `Cliente_Final_INV=0`. Por tanto, **ninguna de las partidas de esa extracción aporta ubicación con las columnas y patrón de cliente final actualmente admitidos**. El SELECT lee directamente `p.PAR_CAS`, `p.PAR_UBIC` y `p.PAR_CLF` de `sala12.partidas`; esto no permite concluir si otras tablas de GS tienen la ubicación. No deducirla de observaciones.
+
+**Decisión:** no sincronizar este lote únicamente para resolver ubicaciones, ni rellenar códigos de forma artificial. Próximo paso: localizar/confirmar la fuente real de ubicación de Preinjerto (preferentemente con una partida concreta que GS muestre situada) antes de cambiar conector/importador. No se desplegó Vercel.
