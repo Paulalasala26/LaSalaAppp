@@ -106,3 +106,20 @@ Este ejemplo ilustra el **mapeo de estados** y la distinción entre datos antigu
 - Pesos, invalidaciones, tolerancias, reglas por cliente/pedido y cambios de estadio.
 - Qué información debe heredarse entre inspecciones. Ninguna herencia automática hasta decidirlo.
 
+
+
+## Revisión de edición de líneas QC (10/11/2026)
+
+### Alcance del editor actual
+
+- El editor común `assets/qc-editar-linea-v3.js` solo admite `tunel` y `carga` (Carga normal). En estos tipos se pueden corregir partida, cliente/variedad, bandejas y ubicación.
+- Las tarjetas de `carga_injerto`, `preinjerto_patron` y `preinjerto_variedad` no exponen esa acción de edición; sus fichas y datos tienen contratos distintos. No deben enviarse al editor genérico de Túnel/Carga.
+- Por eso hay líneas que no se editan aunque sean de hoy o futuras: el bloqueo es por tipo/flujo, no por fecha. Las evaluaciones QC se gestionan por su flujo correspondiente.
+
+### Política decidida para fechas
+
+**Sí se pueden corregir líneas QC de días pasados si se mantiene la fecha original del control.** No se permiten altas nuevas en fechas pasadas ni mover una línea existente a una fecha pasada. Las líneas de hoy y futuras se pueden editar en los tipos que tienen editor habilitado. Así se preserva cuándo ocurrió el control, pero se permite corregir sus datos.
+
+El código de Túnel/Carga ya aplica esta regla: `puedeCrearLineaControlQC` y `bloquearAltaPasadaControlQC` impiden altas/movimientos a pasado; `qc107Guardar` permite guardar una corrección cuando el día elegido sigue siendo el día original, aunque sea anterior a hoy.
+
+**Decisión de alcance:** mantener Carga Injerto y ambos Preinjertos sin edición genérica de datos de partida hasta diseñar un editor específico por estadio/fuente. No ocultar esto bajo una restricción de fecha ni alterar campos que vengan de su fuente. Si aparece una corrección urgente de esos QC, tramitarla en la fuente o con un procedimiento administrativo específico.
