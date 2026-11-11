@@ -837,6 +837,7 @@ test('UAT-1240: REGANTE ve su tarea manual desde Mis tareas', async ({ page }) =
 });
 
 test('UAT-1247 y UAT-1248, UAT-1302–1303, UAT-1307–1310 y UAT-1315, UAT-1267: abrir, validar, cancelar y reabrir un alta manual solo ofrece ejecutores operativos', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
   const { database, writes } = await installFixture(page);
 
   await openTasks(page);
