@@ -222,48 +222,35 @@ def sync_test(by_date, controls_by_shard, start: date, end: date, credentials_pa
     )
     try:
         all_shards = set(controls_by_shard)
-        # Asegura que también se retire una línea antigua si el rango ahora queda vacío.
-        for offset in range((end - start).days + 1):
-            fecha = start.fromordinal(start.toordinal() + offset)
-            q = (day_index(fecha) - 15) // 14
-            all_shards.add(f"{SHARD_PREFIX}{q}")
-
+        # Mantiene todos los controles históricos y mezcla las líneas GS recibidas.
+        # La sincronización automática no elimina inspecciones que ya estén en TEST.
         for shard in sorted(all_shards):
-            day_for_shard = {
-                day_index(start.fromordinal(start.toordinal() + offset))
-                for offset in range((end - start).days + 1)
-                if f"{SHARD_PREFIX}{(day_index(start.fromordinal(start.toordinal() + offset))-15)//14}" == shard
-            }
             incoming = controls_by_shard.get(shard, {})
             ref = db.reference(shard, app=app)
 
-            def replace_range(current):
-                current = current or {}
-                retained = {
-                    key: value for key, value in current.items()
-                    if not (isinstance(value, dict) and value.get("tipo") == "carga_injerto"
-                            and value.get("dia") in day_for_shard)
-                }
+            def merge_items(current):
+                merged = dict(current or {})
                 preserve = ("observaciones", "color", "tamano", "sanidad", "flores",
                             "raices", "sanidadEnfermedades", "creadoPor", "creadoEn",
                             "actualizadoPor", "actualizadoEn", "edicionQC")
-                for key, fresh in incoming.items():
-                    previous = current.get(key)
+                for key, source in incoming.items():
+                    fresh = dict(source)
+                    previous = current.get(key) if isinstance(current, dict) else None
                     if isinstance(previous, dict):
                         for field in preserve:
                             if field in previous and field not in fresh:
                                 fresh[field] = previous[field]
-                        correction = previous.get("edicionQC") if isinstance(previous, dict) else None
+                        correction = previous.get("edicionQC")
                         if isinstance(correction, dict) and isinstance(correction.get("campos"), dict):
                             fresh["edicionQC"] = correction
                             for field in ("partida", "cliente", "variedad", "numBandejas",
                                           "invId", "calleDesde", "calleHasta"):
                                 if field in correction["campos"]:
                                     fresh[field] = correction["campos"][field]
-                retained.update(incoming)
-                return retained or None
+                    merged[key] = fresh
+                return merged or None
 
-            ref.transaction(replace_range)
+            ref.transaction(merge_items)
             count = len(db.reference(shard, app=app).get() or {})
             q_text = shard.rsplit("q", 1)[1]
             index_ref = db.reference(f"{INDEX_PATH}/shards/carga_injerto|{q_text}", app=app)
