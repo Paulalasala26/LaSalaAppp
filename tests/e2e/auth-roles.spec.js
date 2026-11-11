@@ -902,7 +902,7 @@ test('UAT-2416: abrir Control y Partidas a la vez comparte la carga QC y deja am
 
 
 
-test('UAT-1980–1982: cada perfil vuelve a su Inicio específico desde su función principal', async ({ page }) => {
+test('UAT-1980–1982 y UAT-2143: REGANTE vuelve a su Inicio específico desde Hojas de riego', async ({ page }) => {
   await installAuthFixture(page);
   await logInAs(page, 'E2E_REGANTE');
 
