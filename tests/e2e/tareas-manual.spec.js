@@ -273,6 +273,42 @@ test('UAT-1249: botones de Operativas y de una tarjeta se manejan con teclado', 
   expect(writes).toEqual([]);
 });
 
+
+test('UAT-1251 y UAT-1259: la tarjeta manual muestra el contenido y turno guardados', async ({ page }) => {
+  const tomorrowISO = await fechaISOEnNavegador(page, 1);
+  const task = {
+    id: 'e2e-uat-1251-manual-card',
+    titulo: 'E2E tarea manual UAT-1251',
+    descripcion: 'Descripción visible de la tarea',
+    asignadoA: 'PEON1',
+    origen: 'manual',
+    categoria: 'manual',
+    inv: '0A',
+    calles: '1-2',
+    fechaISO: tomorrowISO,
+    fecha: 'mañana',
+    turno: 'Mañana',
+    prioridad: 'normal',
+    estado: 'pendiente'
+  };
+  const { database, writes } = await installFixture(page, {
+    'lasala-tareas-v1': JSON.stringify([task])
+  });
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  await overlay.getByRole('button', { name: 'Tareas de mañana' }).click();
+  const card = overlay.locator(`.tarea-card[data-id="${task.id}"]`);
+  await expect(card).toBeVisible();
+  await expect(card).toContainText(task.titulo);
+  await expect(card).toContainText(task.descripcion);
+  await expect(card).toContainText('Mañana');
+  await expect(card).toContainText('PEON1');
+  await expect(card).toContainText(/Pendiente/i);
+  await expect(card).toContainText(/Manual/i);
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([task]);
+  expect(writes).toEqual([]);
+});
+
 test('UAT-1232: ADMIN abre Tareas con Operativas seleccionada por defecto', async ({ page }) => {
   test.fail(true, 'La vista actual abre Resumen de Tareas sin seleccionar Operativas.');
   await installFixture(page);
