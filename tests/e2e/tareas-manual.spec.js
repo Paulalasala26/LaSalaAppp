@@ -1750,6 +1750,7 @@ test('UAT-2084: PEÓN solo ve mantenimiento asignado y dispone de Iniciar', asyn
   await expect(overlay).toBeVisible();
   await expect(overlay.getByRole('heading', { name: 'Mantenimiento de Parcelas' })).toBeVisible();
   await expect(overlay).toContainText('Mantenimiento asignado UAT-2084');
+  await expect(overlay.locator('.tarea-card')).toHaveCount(1);
   await expect(overlay).not.toContainText('Mantenimiento de otro usuario UAT-2084');
   await expect(overlay).not.toContainText('Mantenimiento sin asignar UAT-2084');
   await expect(overlay).not.toContainText('Mantenimiento cerrado UAT-2084');
