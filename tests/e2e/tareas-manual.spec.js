@@ -278,8 +278,8 @@ test('UAT-1249: botones de Operativas y de una tarjeta se manejan con teclado', 
 test('UAT-1259: la tarjeta operativa muestra el horario guardado', async ({ page }) => {
   const tomorrowISO = await fechaISOEnNavegador(page, 1);
   const task = {
-    id: 'e2e-uat-1251-manual-card',
-    titulo: 'E2E tarea manual UAT-1251',
+    id: 'e2e-uat-1259-horario',
+    titulo: 'E2E tarea manual UAT-1259',
     descripcion: 'Descripción visible de la tarea',
     asignadoA: 'PEON1',
     origen: 'manual',
@@ -289,6 +289,7 @@ test('UAT-1259: la tarjeta operativa muestra el horario guardado', async ({ page
     fechaISO: tomorrowISO,
     fecha: 'mañana',
     turno: 'Mañana',
+    horario: 'Mañana 09:00',
     prioridad: 'normal',
     estado: 'pendiente'
   };
