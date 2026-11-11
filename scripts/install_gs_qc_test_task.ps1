@@ -85,11 +85,15 @@ if ($LASTEXITCODE -ne 0 -or $FirebaseProject.Trim() -ne "la-sala-app-test") {
 $Runner = Join-Path $Root "sync_gs_qc_test.py"
 $Arguments = ('"{0}" --firebase-credentials "{1}"' -f $Runner, $FirebaseCredentialsPath)
 $Action = New-ScheduledTaskAction -Execute $Python -Argument $Arguments -WorkingDirectory $Root
-$Trigger = New-ScheduledTaskTrigger -Daily -At "06:00" -RepetitionInterval (New-TimeSpan -Hours 1) -RepetitionDuration (New-TimeSpan -Hours 14)
+$Triggers = @()
+for ($Hour = 6; $Hour -le 20; $Hour++) {
+    $At = [datetime]::Today.AddHours($Hour)
+    $Triggers += New-ScheduledTaskTrigger -Daily -At $At
+}
 $Principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType Interactive -RunLevel Limited
 $Settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 20) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
 
-Register-ScheduledTask -TaskName $TaskName -Action $Action -Trigger $Trigger -Principal $Principal -Settings $Settings -Description "Lee GS en modo solo lectura y sincroniza QC Preinjerto y Carga Injerto en Firebase TEST; conserva registros existentes." -Force | Out-Null
+Register-ScheduledTask -TaskName $TaskName -Action $Action -Trigger $Triggers -Principal $Principal -Settings $Settings -Description "Lee GS en modo solo lectura y sincroniza QC Preinjerto y Carga Injerto en Firebase TEST; conserva registros existentes." -Force | Out-Null
 
 Start-ScheduledTask -TaskName $TaskName
 Write-Host "Tarea registrada e iniciada: $TaskName"
