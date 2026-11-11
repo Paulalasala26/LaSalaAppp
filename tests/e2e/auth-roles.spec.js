@@ -1403,3 +1403,29 @@ test('UAT-2156 y UAT-2157: lista larga de Avisos llega al final en ventana estre
   expect(await modal.evaluate(el => Math.ceil(el.scrollTop + el.clientHeight) >= el.scrollHeight)).toBe(true);
   await expect(overlay.getByRole('button').first()).toBeVisible();
 });
+
+test('UAT-2160: recorrer y activar una tarjeta de Inicio con teclado', async ({ page }) => {
+  await installAuthFixture(page);
+  await logInAs(page, 'E2E_ADMIN');
+  const cards = page.locator('#quick-access-block .home-shortcut-card[onclick]');
+  await expect(cards.first()).toBeVisible();
+  expect(await cards.count()).toBeGreaterThan(0);
+  for (const card of await cards.all()) {
+    await expect(card).toHaveAttribute('role', 'button');
+    await expect(card).toHaveAttribute('tabindex', '0');
+  }
+  const first = cards.first();
+  await page.evaluate(() => { if (document.activeElement instanceof HTMLElement) document.activeElement.blur(); });
+  let focused = false;
+  for (let i = 0; i < 24; i++) {
+    await page.keyboard.press('Tab');
+    if (await first.evaluate(el => el === document.activeElement)) {
+      focused = true;
+      break;
+    }
+  }
+  expect(focused).toBe(true);
+  expect(await first.evaluate(el => el.matches(':focus-visible') && getComputedStyle(el).outlineStyle !== 'none')).toBe(true);
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#riego-overlay')).toBeVisible();
+});
