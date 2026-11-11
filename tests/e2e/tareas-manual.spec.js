@@ -1823,6 +1823,14 @@ test('UAT-2103–2106: TÉCNICO consulta Archivo y solo ADMIN descarga el respal
     asignados: [],
     creadoEn: todayISO
   };
+  await page.addInitScript(() => {
+    const createObjectURL = URL.createObjectURL.bind(URL);
+    window.__uatBackupBlob = null;
+    URL.createObjectURL = blob => {
+      window.__uatBackupBlob = blob;
+      return createObjectURL(blob);
+    };
+  });
   const { writes } = await installFixture(page, {
     'lasala-users-v1': JSON.stringify(users),
     'lasala-roles-v1': JSON.stringify(roles),
@@ -1836,10 +1844,7 @@ test('UAT-2103–2106: TÉCNICO consulta Archivo y solo ADMIN descarga el respal
   await expect(backup).toBeVisible();
   const [download] = await Promise.all([page.waitForEvent('download'), backup.click()]);
   expect(download.suggestedFilename()).toMatch(/^respaldo-tareas-.*\.json$/);
-  const stream = await download.createReadStream();
-  const chunks = [];
-  for await (const chunk of stream) chunks.push(chunk);
-  const exported = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+  const exported = await page.evaluate(async () => JSON.parse(await window.__uatBackupBlob.text()));
   expect(exported.tareas).toEqual([task, archivedTask]);
   expect(exported.mantenimiento).toEqual([ticket]);
 
