@@ -3577,3 +3577,62 @@ test('UAT-375–376, UAT-387, UAT-391, UAT-393–394 y UAT-398: las fotos se acu
   }
   expect(unexpectedHosts).toEqual([]);
 });
+
+
+test('UAT-399–400: abrir y eliminar una foto pendiente local sin tocar las fotos guardadas', async ({ page }) => {
+  const externalPersistenceRequests = [];
+  page.on('request', request => {
+    const host = new URL(request.url()).hostname;
+    if (host.endsWith('.sharepoint.com') || host === 'graph.microsoft.com') externalPersistenceRequests.push(request.url());
+  });
+
+  const database = fixtureDatabase();
+  const id = 'e2e-control-current-fortnight';
+  database['lasala-control-fotos-indice-v1'] = JSON.stringify({ [id]: 'lasala-control-fotos-v1' });
+  database['lasala-control-fotos-shards-index'] = JSON.stringify(['lasala-control-fotos-v1']);
+  database['lasala-control-fotos-v1'] = JSON.stringify({});
+  const { overlay, unexpectedHosts } = await startControlTest(page, database);
+  const [firstBase64, pendingBase64] = await page.evaluate(() => ['#1565c0', '#c62828'].map(color => {
+    const canvas = document.createElement('canvas'); canvas.width = 48; canvas.height = 48;
+    const context = canvas.getContext('2d'); context.fillStyle = color; context.fillRect(0, 0, 48, 48);
+    return canvas.toDataURL('image/png').split(',')[1];
+  }));
+  const card = overlay.locator(`#control-card-${id}`);
+
+  await card.locator('input[data-testid^="control-photo-gallery-"]').setInputFiles({
+    name: 'foto-confirmada.png', mimeType: 'image/png', buffer: Buffer.from(firstBase64, 'base64')
+  });
+  await expect.poll(() => JSON.parse(database['lasala-control-fotos-v1'] || '{}')[id]).toHaveLength(1);
+  const firstSource = await page.evaluate(id => fotoSrcCompleta(controlFotosData[id][0]), id);
+
+  unexpectedHosts.setWriteFailure(true);
+  await card.locator('input[data-testid^="control-photo-gallery-"]').setInputFiles({
+    name: 'foto-local-pendiente.png', mimeType: 'image/png', buffer: Buffer.from(pendingBase64, 'base64')
+  });
+  const pendingLabel = card.getByTestId(`control-photo-status-${id}-1`);
+  await expect(pendingLabel).toHaveText('Pendiente local');
+  await expect(card.locator('img[title="Ver foto"]')).toHaveCount(2);
+  const pendingSource = await page.evaluate(id => fotoSrcCompleta(controlFotosData[id][1]), id);
+  expect(pendingSource).not.toBe(firstSource);
+  expect(JSON.parse(database['lasala-control-fotos-v1'])[id]).toHaveLength(1);
+
+  await card.locator('img[title="Ver foto"]').nth(1).click();
+  const enlarged = page.locator('#control-foto-ampliada-overlay');
+  await expect(enlarged).toBeVisible();
+  await expect(enlarged.locator('img')).toHaveAttribute('src', pendingSource);
+  await enlarged.locator('button').click();
+  await expect(enlarged).toBeHidden();
+
+  page.on('dialog', dialog => dialog.accept());
+  await card.getByTestId(`control-photo-delete-${id}-1`).click();
+  await expect(card.locator('img[title="Ver foto"]')).toHaveCount(1);
+  await expect(card.getByTestId(`control-photo-status-${id}-1`)).toHaveCount(0);
+  await expect.poll(() => page.evaluate(id => controlFotosData[id]?.length, id)).toBe(1);
+  await expect.poll(() => page.evaluate(id => leerColaOffline().filter(accion =>
+    accion.fn === 'aplicarFotoControl' && String(accion.args?.[0]) === String(id)
+  ).length, id)).toBe(0);
+  expect(await page.evaluate(id => fotoSrcCompleta(controlFotosData[id][0]), id)).toBe(firstSource);
+  expect(JSON.parse(database['lasala-control-fotos-v1'])[id]).toHaveLength(1);
+  expect(unexpectedHosts).toEqual([]);
+  expect(externalPersistenceRequests).toEqual([]);
+});
