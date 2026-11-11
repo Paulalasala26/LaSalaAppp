@@ -98,6 +98,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
   .topbar-action-btn{padding:4px 7px;font-size:10px;min-height:44px;gap:3px}
   .logout-btn{padding:4px 7px;font-size:10px;white-space:nowrap;min-height:44px;min-width:44px;display:inline-flex;align-items:center;justify-content:center}
 }
+
+/* En móvil, las tarjetas Operativas limitan la descripción larga a tres líneas. */
+@media (max-width: 480px) {
+  .tarea-card-descripcion {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    overflow: hidden;
+  }
+}
 </style>
 </head>
 <body>
@@ -1961,7 +1971,7 @@ function buildTareaGestorRow(t, conSeleccion){
         <span style="font-size:10px;font-weight:800;padding:4px 11px;border-radius:20px;background:${est.bg};color:${est.color};white-space:nowrap">${est.label}</span>
       </div>
       ${subtitulo ? `<div style="font-size:12.5px;font-weight:600;color:var(--muted);margin-top:3px">${escapar(subtitulo)}</div>` : ''}
-      ${t.descripcion ? `<div style="font-size:12px;color:var(--muted);margin-top:4px">${escapar(t.descripcion)}</div>` : ''}
+      ${t.descripcion ? `<div class="tarea-card-descripcion" style="font-size:12px;color:var(--muted);margin-top:4px">${escapar(t.descripcion)}</div>` : ''}
       <div style="margin-top:6px;color:var(--muted);font-size:11px">${escapar(t.origen||t.categoria||'Manual')} · ${escapar(t.fechaISO||t.fecha||'Sin fecha')}</div>
       <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center">
         <span style="font-size:11px;font-weight:700;background:#f2f4f0;color:var(--text);border-radius:999px;padding:3px 11px">👤 ${escapar(t.asignadoA)}</span>
