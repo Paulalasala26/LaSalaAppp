@@ -201,11 +201,14 @@ test('UAT-1989, UAT-1990, UAT-1991 y UAT-1992: campana junto a logout para ADMIN
   await assertBellAndLogout('#topbar-avisos');
 });
 
-test('UAT-1983, UAT-1984 y UAT-1985: marca visible en Home, login y favicon', async ({ page }) => {
+test('UAT-1983, UAT-1984, UAT-1985 y UAT-2162: marca visible y nombre textual', async ({ page }) => {
   await installAuthFixture(page);
 
   const loginLogo = page.locator('#login-screen img[alt="La Sala"]');
   await expect(loginLogo).toBeVisible();
+  await expect(loginLogo).toHaveAttribute('alt', 'La Sala');
+  await expect(page.locator('#login-screen h1')).toContainText('La Sala');
+  expect(await page.title()).toContain('La Sala');
   expect(await loginLogo.evaluate(img => img.naturalWidth)).toBeGreaterThan(0);
 
   const favicon = await page.locator('link[rel="icon"]').getAttribute('href');
@@ -1428,4 +1431,55 @@ test('UAT-2160: recorrer y activar una tarjeta de Inicio con teclado', async ({ 
   expect(await first.evaluate(el => el.matches(':focus-visible') && getComputedStyle(el).outlineStyle !== 'none')).toBe(true);
   await page.keyboard.press('Enter');
   await expect(page.locator('#riego-overlay')).toBeVisible();
+});
+
+test('UAT-2163: botones de evaluación siguen accesibles con zoom equivalente al 200%', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await installAuthFixture(page, {
+    'lasala-avisos-usuario-v1': JSON.stringify({
+      E2E_TECNICO: [{ id: 'uat-2163-aviso', mensaje: 'Aviso de evaluación', fecha: '11/11/2026', evaluacion: null, observaciones: '', visto: true, leido: false }]
+    })
+  });
+  await logInAs(page, 'E2E_TECNICO');
+  await page.locator('#topbar-avisos').click();
+  const notices = page.locator('#avisos-tecnico-overlay');
+  await expect(notices).toBeVisible();
+  await notices.getByText('Aviso de evaluación', { exact: true }).click();
+  const evaluation = page.locator('#evaluar-aviso-overlay');
+  await expect(evaluation).toBeVisible();
+
+  // 195×422 CSS px equivale al viewport útil de un móvil 390×844 al 200%.
+  await page.setViewportSize({ width: 195, height: 422 });
+  const bien = evaluation.locator('#ea-bien');
+  const mal = evaluation.locator('#ea-mal');
+  await bien.scrollIntoViewIfNeeded();
+  await mal.scrollIntoViewIfNeeded();
+  await expect(bien).toBeVisible();
+  await expect(mal).toBeVisible();
+  for (const button of [bien, mal]) {
+    const box = await button.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(195);
+  }
+  await expect(evaluation.locator('#ea-obs')).toBeVisible();
+});
+
+test('UAT-2164: Avisos conserva su contenido al girar el móvil', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await installAuthFixture(page, {
+    'lasala-avisos-usuario-v1': JSON.stringify({
+      E2E_TECNICO: [{ id: 'uat-2164-aviso', mensaje: 'Aviso tras rotación', fecha: '11/11/2026', evaluacion: null, observaciones: '', visto: true, leido: false }]
+    })
+  });
+  await logInAs(page, 'E2E_TECNICO');
+  await page.locator('#topbar-avisos').click();
+  const notices = page.locator('#avisos-tecnico-overlay');
+  await expect(notices).toBeVisible();
+  await expect(notices).toContainText('Aviso tras rotación');
+
+  await page.setViewportSize({ width: 844, height: 390 });
+  await expect(notices).toBeVisible();
+  await expect(notices.getByText('Aviso tras rotación', { exact: true })).toBeVisible();
+  await expect(notices.getByRole('button').first()).toBeVisible();
 });
