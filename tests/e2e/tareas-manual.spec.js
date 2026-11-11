@@ -1364,19 +1364,20 @@ test('UAT-1734, UAT-1735, UAT-1736–1737, UAT-1740, UAT-1742 y UAT-1744: Archiv
   expect(writes).toEqual([]);
 });
 
-test('UAT-1746–1747: Archivo separa y conserva secciones de completadas y anuladas', async ({ page }) => {
-  test.fail(true, 'Archivo actual lista tareas anuladas; no incluye una sección histórica de tareas completadas.');
+test('UAT-1746–1747 y UAT-1753: Archivo separa completadas y anuladas y muestra las completadas en consulta', async ({ page }) => {
   const todayISO = await fechaISOEnNavegador(page);
+  const completedISO = await fechaISOEnNavegador(page, -3);
   const completed = {
     id: 'e2e-uat-1746-completed',
     titulo: 'E2E tarea completada UAT-1746',
+    descripcion: 'Detalle histórico de la tarea completada',
     asignadoA: 'PEON1',
     origen: 'manual',
     categoria: 'manual',
     inv: '0A',
     calles: '1-2',
-    fechaISO: todayISO,
-    completadaISO: todayISO,
+    fechaISO: completedISO,
+    completadoISO: completedISO,
     turno: 'Mañana',
     prioridad: 'normal',
     estado: 'completada'
@@ -1402,12 +1403,21 @@ test('UAT-1746–1747: Archivo separa y conserva secciones de completadas y anul
   await openTasks(page);
   const overlay = page.locator('#tareas-overlay');
   await overlay.getByRole('button', { name: 'Archivo' }).click();
-  const archive = overlay.locator('#tareas-archivo-anuladas');
-  await expect(archive).toContainText(completed.titulo);
-  await expect(archive.getByText(completed.titulo, { exact: true })).toHaveCount(1);
-  await expect(archive).toContainText('Completadas');
-  await expect(archive).toContainText('Anuladas y archivadas');
-  await expect(archive).toContainText(cancelled.titulo);
+  const completedArchive = overlay.locator('#tareas-archivo-completadas');
+  const cancelledArchive = overlay.locator('#tareas-archivo-anuladas');
+  const completedCard = completedArchive.locator('[data-tarea-id="e2e-uat-1746-completed"]');
+  await expect(completedArchive.locator('h3')).toContainText('Completadas');
+  await expect(cancelledArchive.locator('h3')).toContainText('Anuladas y archivadas');
+  await expect(completedCard).toContainText(completed.titulo);
+  await expect(completedCard).toContainText(completed.descripcion);
+  await expect(completedCard).toContainText(completedISO);
+  await expect(completedCard).toContainText('PEON1');
+  await expect(completedCard).toContainText('INV 0A');
+  await expect(completedCard).toContainText('Completada');
+  await expect(completedCard.locator('button')).toHaveCount(0);
+  await expect(cancelledArchive).not.toContainText(completed.titulo);
+  await expect(cancelledArchive).toContainText(cancelled.titulo);
+  await expect(completedArchive).not.toContainText(cancelled.titulo);
   expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([completed, cancelled]);
   expect(writes).toEqual([]);
 });
