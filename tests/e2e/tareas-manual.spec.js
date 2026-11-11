@@ -1690,7 +1690,7 @@ test('UAT-2080, UAT-2081 y UAT-2082: REGANTE conserva destinos de Riego, Abonos 
   const especificosOverlay = page.locator('#especificos-regante-overlay');
   await expect(especificosOverlay).toBeVisible();
   await expect(especificosOverlay).toContainText('Específicos');
-  await expect(especificosOverlay).toContainText('No tienes tareas específicas');
+  await expect(especificosOverlay).toContainText('No hay específicos.');
   await expect(page.locator('#tareas-overlay')).toBeHidden();
   await especificosOverlay.getByRole('button').first().click();
   await expect(especificosOverlay).toBeHidden();
