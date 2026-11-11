@@ -387,6 +387,31 @@ test('UAT-1261: ADMIN consulta la tarea pendiente sin controles de ejecución ni
 });
 
 
+
+test('UAT-1267: cancelar y reabrir el alta en móvil no guarda ni duplica la tarea', async ({ page }) => {
+  const { database, writes } = await installFixture(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  await overlay.getByRole('button', { name: 'Tareas de hoy' }).click();
+  const create = overlay.getByRole('button', { name: 'Nueva tarea' });
+  await create.click();
+  const form = page.locator('#nueva-tarea-form-wrap');
+  await expect(form).toBeVisible();
+  await form.locator('#nt-titulo').fill('Borrador UAT-1267 sin guardar');
+  await form.getByRole('button', { name: 'Cancelar' }).click();
+  await expect(form).toBeHidden();
+
+  await create.click();
+  await expect(form).toBeVisible();
+  await expect(form.locator('#nt-titulo')).toHaveValue('');
+  await form.getByRole('button', { name: 'Cancelar' }).click();
+  await expect(form).toBeHidden();
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([]);
+  expect(writes.filter(write => write.key === 'lasala-tareas-v1')).toHaveLength(0);
+});
+
+
 test('UAT-1257–1258: Operativas no inventa calles y conserva varios tramos', async ({ page }) => {
   const tomorrowISO = await fechaISOEnNavegador(page, 1);
   const tasks = [{
@@ -836,8 +861,7 @@ test('UAT-1240: REGANTE ve su tarea manual desde Mis tareas', async ({ page }) =
   expect(writes).toEqual([]);
 });
 
-test('UAT-1247 y UAT-1248, UAT-1302–1303, UAT-1307–1310 y UAT-1315, UAT-1267: abrir, validar, cancelar y reabrir un alta manual solo ofrece ejecutores operativos', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
+test('UAT-1247 y UAT-1248, UAT-1302–1303, UAT-1307–1310 y UAT-1315: abrir, validar y cancelar un alta manual solo ofrece ejecutores operativos', async ({ page }) => {
   const { database, writes } = await installFixture(page);
 
   await openTasks(page);
@@ -872,12 +896,6 @@ test('UAT-1247 y UAT-1248, UAT-1302–1303, UAT-1307–1310 y UAT-1315, UAT-1267
   expect(writes.filter(write => write.key === 'lasala-tareas-v1')).toHaveLength(0);
 
   await form.locator('[data-nt-asignado-chip="PEON1"]').click();
-  await form.getByRole('button', { name: 'Cancelar' }).click();
-  await expect(form).toBeHidden();
-
-  await overlay.getByRole('button', { name: 'Nueva tarea' }).click();
-  await expect(form).toBeVisible();
-  await expect(form.locator('#nt-titulo')).toHaveValue('');
   await form.getByRole('button', { name: 'Cancelar' }).click();
   await expect(form).toBeHidden();
 
