@@ -3419,7 +3419,7 @@ test('UAT-2433: las dos pantallas leen la última evaluación QC v6 confirmada t
   }
 });
 
-test('UAT-391, UAT-393–394 y UAT-398: dos miniaturas de una inspección y galerías independientes en móvil', async ({ page }) => {
+test('UAT-375, UAT-391, UAT-393–394 y UAT-398: tres fotos se añaden por separado y las galerías siguen independientes en móvil', async ({ page }) => {
   const database = fixtureDatabase();
   const items = database['lasala-control-items-v1'];
   const firstId = 'e2e-control-current-fortnight';
@@ -3430,7 +3430,7 @@ test('UAT-391, UAT-393–394 y UAT-398: dos miniaturas de una inspección y gale
   database['lasala-control-fotos-v1'] = JSON.stringify({});
   const { overlay, unexpectedHosts } = await startControlTest(page, database);
 
-  const images = await page.evaluate(() => ['#c62828', '#1565c0', '#2e7d32'].map((color, index) => {
+  const images = await page.evaluate(() => ['#c62828', '#1565c0', '#2e7d32', '#ef6c00'].map((color, index) => {
     const canvas = document.createElement('canvas');
     canvas.width = index === 2 ? 600 : 200;
     canvas.height = index === 2 ? 200 : 600;
@@ -3441,7 +3441,7 @@ test('UAT-391, UAT-393–394 y UAT-398: dos miniaturas de una inspección y gale
   }));
   const firstCard = overlay.locator(`#control-card-${firstId}`);
   const firstInput = firstCard.locator('input[data-testid^="control-photo-gallery-"]');
-  await firstInput.setInputFiles(images.slice(0, 2).map((image, i) => ({
+  await firstInput.setInputFiles(images.slice(0, 3).map((image, i) => ({
     name: `e2e-uat-391-${i + 1}.png`,
     mimeType: 'image/png',
     buffer: Buffer.from(image, 'base64')
@@ -3450,21 +3450,22 @@ test('UAT-391, UAT-393–394 y UAT-398: dos miniaturas de una inspección y gale
   await secondCard.locator('input[data-testid^="control-photo-gallery-"]').setInputFiles({
     name: 'e2e-uat-398.png',
     mimeType: 'image/png',
-    buffer: Buffer.from(images[2], 'base64')
+    buffer: Buffer.from(images[3], 'base64')
   });
 
   const firstThumbnails = firstCard.locator('img[title="Ver foto"]');
   const secondThumbnails = secondCard.locator('img[title="Ver foto"]');
-  await expect(firstThumbnails).toHaveCount(2);
+  await expect(firstThumbnails).toHaveCount(3);
   await expect(secondThumbnails).toHaveCount(1);
-  await expect.poll(() => JSON.parse(database['lasala-control-fotos-v1'] || '{}')[firstId]).toHaveLength(2);
+  await expect.poll(() => JSON.parse(database['lasala-control-fotos-v1'] || '{}')[firstId]).toHaveLength(3);
   await expect.poll(() => JSON.parse(database['lasala-control-fotos-v1'] || '{}')[secondId]).toHaveLength(1);
   const thumbnailSources = [
     await firstThumbnails.nth(0).getAttribute('src'),
     await firstThumbnails.nth(1).getAttribute('src'),
+    await firstThumbnails.nth(2).getAttribute('src'),
     await secondThumbnails.first().getAttribute('src')
   ];
-  expect(new Set(thumbnailSources).size).toBe(3);
+  expect(new Set(thumbnailSources).size).toBe(4);
 
   const fullSources = await page.evaluate(({ firstId, secondId }) => [
     ...controlFotosData[firstId].map(fotoSrcCompleta),
@@ -3472,7 +3473,7 @@ test('UAT-391, UAT-393–394 y UAT-398: dos miniaturas de una inspección y gale
   ], { firstId, secondId });
   await page.setViewportSize({ width: 320, height: 760 });
   const enlarged = page.locator('#control-foto-ampliada-overlay');
-  const thumbnailsToOpen = [firstThumbnails.nth(0), firstThumbnails.nth(1), secondThumbnails.first()];
+  const thumbnailsToOpen = [firstThumbnails.nth(0), firstThumbnails.nth(1), firstThumbnails.nth(2), secondThumbnails.first()];
   for (let i = 0; i < thumbnailsToOpen.length; i++) {
     const thumbnail = thumbnailsToOpen[i];
     await thumbnail.click();
