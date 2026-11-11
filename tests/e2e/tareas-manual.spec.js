@@ -367,6 +367,13 @@ test('UAT-1233, UAT-1244, UAT-1235, UAT-1236, UAT-1242, UAT-1243, UAT-1246, UAT-
   await expect(archivedTask).toContainText(todayISO);
   await expect(archivedTask).toContainText('PEON1');
   await expect(archivePane).not.toContainText('E2E operativa UAT-1232');
+  const oldTasksTab = overlay.getByRole('button', { name: 'Tareas antiguas' });
+  await oldTasksTab.click();
+  const oldTaskCard = overlay.locator('.tarea-card').filter({ hasText: oldPendingTask.titulo });
+  await expect(oldTaskCard).toBeVisible();
+  await expect(oldTaskCard).toContainText('Pendiente');
+  await archive.click();
+  await expect(archive).toHaveCSS('background-color', 'rgb(255, 255, 255)');
   const completedArchive = archiveView.locator('#tareas-archivo-completadas').locator('.tarea-archivo-card').filter({ hasText: 'E2E completada histórica UAT-1762' });
   await expect(completedArchive).toContainText('Completada');
   await expect(completedArchive).toContainText(olderISO);
