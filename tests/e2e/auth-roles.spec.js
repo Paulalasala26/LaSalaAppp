@@ -980,7 +980,7 @@ test('UAT-2114: cerrar sesión desde Inicio y usar Atrás mantiene la autenticac
   await expect(page.locator('#app')).toBeHidden();
 
   await page.goBack().catch(() => null);
-  await page.reload();
+  await page.goForward().catch(() => null);
   await expect(page.locator('#login-screen')).toBeVisible();
   await expect(page.locator('#app')).toBeHidden();
   await expect(page.locator('#page-home')).toBeHidden();
@@ -997,6 +997,8 @@ test('UAT-2115: el punto de Avisos tras volver a entrar sigue el estado remoto l
   await page.locator("[onclick=\"abrirEvaluarAviso('uat-2115-aviso')\"]").click();
   await expect(page.locator('#evaluar-aviso-overlay')).toBeVisible();
   await expect.poll(async () => page.evaluate(async () => JSON.parse((await window.storage.get('lasala-avisos-usuario-v1')).value).E2E_TECNICO[0].leido)).toBe(true);
+  await page.locator('#evaluar-aviso-overlay').getByRole('button', { name: 'Cerrar' }).click();
+  await page.locator('#avisos-tecnico-overlay').getByRole('button', { name: /✕/ }).click();
 
   await page.getByRole('button', { name: 'Salir' }).click();
   await expect(page.locator('#login-screen')).toBeVisible();
