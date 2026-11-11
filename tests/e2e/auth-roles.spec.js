@@ -1254,5 +1254,5 @@ test('UAT-2146: en horizontal siguen visibles logout y Avisos ADMIN dentro de un
   const [bellBox, logoutBox] = await Promise.all([bell.boundingBox(), logout.boundingBox()]);
   expect(bellBox).not.toBeNull();
   expect(logoutBox).not.toBeNull();
-  expect(bellBox.right).toBeLessThanOrEqual(logoutBox.left);
+  expect(bellBox.x + bellBox.width).toBeLessThanOrEqual(logoutBox.x);
 });
