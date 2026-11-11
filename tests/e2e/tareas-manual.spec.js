@@ -1780,6 +1780,58 @@ test('UAT-2097: REGANTE no dispone de gestión de tickets Mantenimiento', async 
   expect(writes).toEqual([]);
 });
 
+
+test('UAT-2098 y UAT-2099: la asignación de Mantenimiento ofrece solo operarios PEÓN', async ({ page }) => {
+  const users = {
+    E2E_ADMIN: passwordHash,
+    E2E_TECH: passwordHash,
+    PEON1: passwordHash,
+    PEON2: passwordHash,
+    REGANTE1: passwordHash
+  };
+  const roles = {
+    E2E_ADMIN: 'ADMIN',
+    E2E_TECH: 'TECNICO',
+    PEON1: 'PEON',
+    PEON2: 'PEON',
+    REGANTE1: 'REGANTE'
+  };
+  const ticket = {
+    id: 'e2e-uat-2098-ticket',
+    titulo: 'Ticket de asignación UAT-2098',
+    descripcion: 'Fixture sin asignar',
+    prioridad: 'normal',
+    estado: 'sin_asignar',
+    asignados: [],
+    creadoEn: '2026-11-11'
+  };
+  const { writes } = await installFixture(page, {
+    'lasala-users-v1': JSON.stringify(users),
+    'lasala-roles-v1': JSON.stringify(roles),
+    'lasala-mantenimiento-v1': JSON.stringify([ticket])
+  }, { loginUser: 'E2E_ADMIN' });
+
+  for (const user of ['E2E_ADMIN', 'E2E_TECH']) {
+    if (user === 'E2E_TECH') {
+      await page.locator('#tareas-overlay').getByRole('button', { name: /✕ Cerrar/ }).click();
+      await page.getByRole('button', { name: 'Salir' }).click();
+      await expect(page.locator('#login-screen')).toBeVisible();
+      await page.locator('#login-user').selectOption(user);
+      await page.locator('#login-pass').fill(password);
+      await page.locator('#login-btn').click();
+      await expect(page.locator('#page-home')).toBeVisible();
+    }
+    await openTasks(page);
+    const overlay = page.locator('#tareas-overlay');
+    await overlay.getByRole('button', { name: /Mantenimiento de Parcelas/ }).click();
+    const porTicket = await overlay.locator('.mant-persona-chk').evaluateAll(inputs => inputs.map(input => input.value).sort());
+    const globales = await overlay.locator('.mant-persona-todas-chk').evaluateAll(inputs => inputs.map(input => input.parentElement.textContent.trim()).sort());
+    expect(porTicket).toEqual(['PEON1', 'PEON2']);
+    expect(globales).toEqual(['PEON1', 'PEON2']);
+  }
+  expect(writes).toEqual([]);
+});
+
 test('UAT-2085 y UAT-2086: CARGADOR abre QC Carga y solo ve secciones autorizadas', async ({ page }) => {
   const users = {
     E2E_ADMIN: passwordHash,
