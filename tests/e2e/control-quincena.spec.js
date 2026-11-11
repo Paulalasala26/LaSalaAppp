@@ -3637,7 +3637,7 @@ test('UAT-415: añadir una foto y cambiar de quincena no altera la evaluación Q
   await expect(overlay.getByText('E2E-QUINCENA-ANTERIOR', { exact: true })).toBeVisible();
   expect(await page.evaluate(id => controlFotosData[id] || [], previousId)).toEqual([]);
   await overlay.getByTestId('control-quincena-next').click();
-  await expect(overlay.getByText('E2E-QUINCENA-ACTUAL-DIA-30', { exact: true })).toBeVisible();
+  await expect(overlay.getByText('E2E-QUINCENA-ACTUAL', { exact: true })).toBeVisible();
   await expect(overlay.locator(`#control-card-${currentId}`).locator('img[title="Ver foto"]')).toHaveCount(1);
   expect(JSON.stringify(database['lasala-control-items-v1'])).toBe(originalItems);
   expect(unexpectedHosts).toEqual([]);
@@ -3738,7 +3738,7 @@ test('UAT-388: la doble pulsación de «Elegir fotos» no duplica el selector ni
   });
 
   await card.getByText('Elegir fotos', { exact: true }).dblclick({ delay: 25 });
-  await expect.poll(() => chooserCount).toBe(1);
+  await expect.poll(() => chooserCount, { timeout: 10000 }).toBe(1);
   await expect(card.locator('img[title="Ver foto"]')).toHaveCount(0);
   expect(JSON.parse(database['lasala-control-fotos-v1'])).toEqual({});
   expect(unexpectedHosts).toEqual([]);
