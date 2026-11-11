@@ -406,7 +406,7 @@ test('UAT-1233, UAT-1244, UAT-1235, UAT-1236, UAT-1242, UAT-1243, UAT-1246, UAT-
   await expect(archivedTask).toContainText('Fixture de navegación UAT-1741');
   await expect(archivedTask).toContainText(todayISO);
   await expect(archivedTask).toContainText('PEON1');
-  const legacyArchiveTask = archivePane.locator('.tarea-archivo-card').filter({ hasText: legacyCancelledTaskTitle });
+  const legacyArchiveTask = archivePane.locator('.tarea-archivo-card').filter({ hasText: 'E2E anulación legacy sin motivo UAT-1786' });
   await expect(legacyArchiveTask).toContainText('Anulada');
   await expect(legacyArchiveTask).toContainText('Registro histórico sin justificación almacenada');
   await expect(legacyArchiveTask.locator('.tarea-archivo-motivo')).toHaveCount(0);
