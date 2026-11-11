@@ -1796,7 +1796,7 @@ test('UAT-383–384: rechazar archivos que no son imágenes y fotos dañadas sin
   expect(unexpectedHosts).toEqual([]);
 });
 
-test('UAT-050: eliminar una foto de prueba la quita del shard y del índice incluso tras recargar', async ({ page }) => {
+test('UAT-050 y UAT-401: cancelar conserva la foto; confirmar la elimina del shard e índice', async ({ page }) => {
   const database = fixtureDatabase();
   const id = 'e2e-control-current-fortnight';
   const photo = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/XxsAAAAASUVORK5CYII=';
@@ -1806,6 +1806,14 @@ test('UAT-050: eliminar una foto de prueba la quita del shard y del índice incl
   const { overlay, unexpectedHosts } = await startControlTest(page, database);
   const card = overlay.locator(`#control-card-${id}`);
   await expect(card.locator('img[title="Ver foto"]')).toBeVisible();
+  const shardBeforeCancel = database['lasala-control-fotos-v1'];
+  const indexBeforeCancel = database['lasala-control-fotos-indice-v1'];
+  page.once('dialog', dialog => dialog.dismiss());
+  await card.getByTestId(`control-photo-delete-${id}`).click();
+  await expect(card.locator('img[title="Ver foto"]')).toBeVisible();
+  expect(database['lasala-control-fotos-v1']).toBe(shardBeforeCancel);
+  expect(database['lasala-control-fotos-indice-v1']).toBe(indexBeforeCancel);
+
   page.once('dialog', dialog => dialog.accept());
   await card.getByTestId(`control-photo-delete-${id}`).click();
   await expect(card.locator('img[title="Ver foto"]')).toHaveCount(0);
