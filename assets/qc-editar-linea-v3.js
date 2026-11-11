@@ -190,7 +190,7 @@
     const known=!!INV_LAYOUT[current.inv];
     let html=selectInv(known?current.inv:'');
     if(!known&&current.inv){
-      html='<option value="__GS_ORIGINAL__" selected>Conservar ubicación GS · INV '+esc(current.inv)+'</option>'+
+      html='<option value="__KEEP_CURRENT__" selected>Mantener ubicación actual · INV '+esc(current.inv)+'</option>'+
         html.replace('<option value="">— Seleccionar —</option>','');
     }
     return html;
@@ -200,9 +200,24 @@
     const nums=layout?[...new Set([...layout.row1,...layout.row2])].sort((a,b)=>a-b):[];
     let html='<option value="">— Calle —</option>';
     if(current&& !nums.includes(Number(current)))
-      html+='<option value="'+esc(current)+'" selected>'+esc(current)+' (GS)</option>';
+      html+='<option value="'+esc(current)+'" selected>'+esc(current)+' (actual)</option>';
     html+=nums.map(n=>'<option value="'+n+'"'+(String(n)===String(current)?' selected':'')+'>'+n+'</option>').join('');
     return html;
+  }
+  function qciGSLocationHTML(line){
+    const gs=line.gsDetalles&&typeof line.gsDetalles==='object'?line.gsDetalles:{};
+    const edited=!!line.edicionQC?.campos;
+    const greenhouse=String(gs.invernadero||gs.invernaderoNombre||(!edited?line.invernadero:'')||'').trim();
+    const greenhouseId=String(gs.idInvernadero??(!edited?line.invId:'')??'').trim();
+    const from=String(gs.ubicacionDesde??(!edited?line.calleDesde:'')??'').trim();
+    const to=String(gs.ubicacionHasta??(!edited?line.calleHasta:'')??'').trim();
+    const values=greenhouse||greenhouseId||from||to;
+    if(!values)return '<section class="qc107-section"><h3>Ubicación recibida de GS</h3><p class="qc107-note">Esta línea no trae una ubicación de origen en los datos disponibles de GS.</p></section>';
+    return '<section class="qc107-section"><h3>Ubicación recibida de GS</h3><div class="qc107-grid">'+
+      field('Invernadero · GS','<input type="text" disabled value="'+esc(greenhouse||greenhouseId)+'">')+
+      field('Calle desde · GS','<input type="text" disabled value="'+esc(from)+'">')+
+      field('Calle hasta · GS','<input type="text" disabled value="'+esc(to)+'">')+
+      '</div><p class="qc107-note">Origen de los datos. La ubicación efectiva en ViguerAPP se configura abajo.</p></section>';
   }
   function qciSetError(message){
     const el=document.getElementById('qci-error');if(el)el.textContent=message;
@@ -212,18 +227,20 @@
     if(!line||line.tipo!=='carga_injerto'){showToast('No se ha encontrado la línea de Carga Injerto.');return;}
     if(!['ADMIN','TECNICO','CARGADOR'].includes(currentUserRole)){showToast('No tienes permiso para editar esta partida.');return;}
     const original=qciLocation(line),known=!!INV_LAYOUT[original.inv];
-    qciState={id,busy:false,original,invOption:known?original.inv:(original.inv?'__GS_ORIGINAL__':'')};
+    qciState={id,busy:false,original,invOption:known?original.inv:(original.inv?'__KEEP_CURRENT__':'')};
     const overlay=getOrCreateOverlay('control-editar-injerto-overlay');
     overlay.innerHTML='<div class="qc107-modal" role="dialog" aria-label="Editar partida Carga Injerto">'+
       '<h2>Editar partida · Carga Injerto</h2>'+
-      '<section class="qc107-section"><h3>Datos GS</h3><div class="qc107-grid">'+
+      '<section class="qc107-section"><h3>Datos de la partida</h3><div class="qc107-grid">'+
       field('Fecha y hora (no editable)','<input type="text" disabled value="'+esc(riegoDiaLabelCorto(line.dia)+' · '+(line.hora||''))+'">')+
       field('Nº de partida','<input id="qci-partida" type="text" maxlength="100" value="'+esc(line.partida)+'">')+
       field('Cliente','<input id="qci-cliente" type="text" maxlength="180" value="'+esc(line.cliente)+'">')+
       field('Variedad','<input id="qci-variedad" type="text" maxlength="180" value="'+esc(line.variedad)+'">')+
       field('Bandejas','<input id="qci-bandejas" type="number" min="1" step="1" value="'+esc(line.numBandejas)+'">')+
-      '</div></section><section class="qc107-section"><h3>Ubicación corregida en APP</h3>'+
-      '<div class="qc107-location-current">Actual: '+esc(controlQCInfoVisual(line).inv)+' · Calle '+esc(controlQCInfoVisual(line).calles)+'</div>'+
+      '</div></section>'+qciGSLocationHTML(line)+'<section class="qc107-section"><h3>Ubicación en ViguerAPP</h3>'+
+      '<div class="qc107-location-current">Ubicación actual: '+esc(original.inv?('INV '+original.inv):'Sin invernadero')+' · '+
+      esc(original.from?(original.from===original.to?'Calle '+original.from:'Calles '+original.from+'–'+original.to):'Sin calles asignadas')+'</div>'+
+      '<p class="qc107-note">Es la ubicación física que utiliza la app para esta partida.</p>'+
       '<div class="qc107-grid">'+
       field('Invernadero','<select id="qci-inv" onchange="qciCambiarInv()">'+qciInvOptions(original)+'</select>')+
       field('Calle desde','<select id="qci-from">'+qciStreetOptions(original.inv,original.from)+'</select>')+
@@ -233,7 +250,7 @@
       '<div class="qc107-actions"><button type="button" class="qc107-cancel" onclick="qciCancelar()">Cancelar</button>'+
       '<button type="button" id="qci-save" class="qc107-save" onclick="qciGuardar()">Guardar</button></div></div>';
     overlay.style.display='flex';
-    if(qciState.invOption==='__GS_ORIGINAL__'){
+    if(qciState.invOption==='__KEEP_CURRENT__'){
       document.getElementById('qci-from').disabled=true;
       document.getElementById('qci-to').disabled=true;
     }
@@ -241,7 +258,7 @@
   root.qciCambiarInv=function(){
     if(!qciState)return;
     const inv=read('qci-inv'),from=document.getElementById('qci-from'),to=document.getElementById('qci-to');
-    if(inv==='__GS_ORIGINAL__'){
+    if(inv==='__KEEP_CURRENT__'){
       if(from){from.disabled=true;from.innerHTML=qciStreetOptions(qciState.original.inv,qciState.original.from);}
       if(to){to.disabled=true;to.innerHTML=qciStreetOptions(qciState.original.inv,qciState.original.to);}
       return;
@@ -267,9 +284,9 @@
     if(cliente.length>180||variedad.length>180)return fail('Cliente o variedad superan el máximo permitido.');
     const selectedInv=read('qci-inv');
     let location;
-    if(selectedInv==='__GS_ORIGINAL__'){
+    if(selectedInv==='__KEEP_CURRENT__'){
       location={invId:String(line.invId??''),calleDesde:line.calleDesde??null,calleHasta:line.calleHasta??null};
-    }else if(!selectedInv&&!state.original.inv){
+    }else if(!selectedInv){
       location={invId:'',calleDesde:null,calleHasta:null};
     }else{
       const from=read('qci-from'),to=read('qci-to'),layout=INV_LAYOUT[selectedInv];
@@ -303,6 +320,14 @@
     const fields=edit&&edit.campos;
     if(!line||line.tipo!=='carga_injerto'||!fields)return false;
     const qid=encolarAccionOffline('aplicarEditarControlCargaInjerto',[id,edit]);
+    if(!line.edicionQC){
+      const source={...(line.gsDetalles||{})};
+      if(!Object.prototype.hasOwnProperty.call(source,'idInvernadero'))source.idInvernadero=line.invId??'';
+      if(!Object.prototype.hasOwnProperty.call(source,'invernadero'))source.invernadero=line.invernadero??'';
+      if(!Object.prototype.hasOwnProperty.call(source,'ubicacionDesde'))source.ubicacionDesde=line.calleDesde??null;
+      if(!Object.prototype.hasOwnProperty.call(source,'ubicacionHasta'))source.ubicacionHasta=line.calleHasta??null;
+      line.gsDetalles=source;
+    }
     line.partida=fields.partida;line.cliente=fields.cliente;line.variedad=fields.variedad;
     line.clienteVariedad=fields.cliente;line.numBandejas=fields.numBandejas;
     line.invId=fields.invId;line.calleDesde=fields.calleDesde;line.calleHasta=fields.calleHasta;
@@ -316,11 +341,87 @@
     return ok;
   };
 
-  // Preinjerto Patrón reutiliza el mismo modal/flujo del editor de Túnel.
-  // Los códigos PAR_CAS/PAR_UBIC se editan como valores GS sin traducirlos
-  // a un nombre de invernadero ni alterar las fechas de origen.
+  // Preinjerto mantiene separados los datos originales GS y la ubicación
+  // física efectiva en la app. PAR_CAS/PAR_UBIC nunca se interpretan como
+  // invernadero/calle sin una equivalencia validada.
   let qcpState=null;
-  function qcpRaw(line,key){return line?.[key]??line?.gsDetalles?.[key]??'';}
+  function qcpRaw(line,key){
+    const details=line?.gsDetalles||{},correction=line?.edicionQC?.campos||{};
+    if(Object.prototype.hasOwnProperty.call(details,key))return details[key]??'';
+    if(Object.prototype.hasOwnProperty.call(correction,key))return '';
+    return line?.[key]??'';
+  }
+  function qcpAppLocation(line){
+    const correction=line?.edicionQC?.campos||{};
+    const legacyRaw=Object.prototype.hasOwnProperty.call(correction,'PAR_CAS')||
+      Object.prototype.hasOwnProperty.call(correction,'PAR_UBIC');
+    if(!legacyRaw)return qciLocation(line);
+    const locations=Array.isArray(line.gsDetalles?.ubicacionesGS)?line.gsDetalles.ubicacionesGS:[];
+    if(locations.length!==1)return {inv:'',from:'',to:''};
+    const location=locations[0]||{};
+    return {inv:String(location.invId??'').trim(),from:String(location.desde??'').trim(),to:String(location.hasta??location.desde??'').trim()};
+  }
+  function qcpSourceLocationHTML(line){
+    const locations=Array.isArray(line.gsDetalles?.ubicacionesGS)?line.gsDetalles.ubicacionesGS:
+      (line.edicionQC?.campos&&(Object.prototype.hasOwnProperty.call(line.edicionQC.campos,'PAR_CAS')||
+        Object.prototype.hasOwnProperty.call(line.edicionQC.campos,'PAR_UBIC'))?[]:
+        line.gsDetalles&&Object.prototype.hasOwnProperty.call(line.gsDetalles,'ubicacionesGS')?[]:
+        Array.isArray(line.ubicacionesGS)?line.ubicacionesGS:[]);
+    const allocations=locations.map(location=>{
+      const greenhouse=String(location?.invernadero||'').trim()||
+        (location?.invId!=null?'INV '+String(location.invId).trim():'');
+      const from=location?.desde==null?'':String(location.desde),to=location?.hasta==null?from:String(location.hasta);
+      const streets=from?(from===to?'Calle '+esc(from):'Calles '+esc(from)+'–'+esc(to)):'Calles sin informar';
+      return '<li>'+esc(greenhouse||'Invernadero sin informar')+' · '+streets+'</li>';
+    }).join('');
+    return '<section class="qc107-section"><h3>Ubicación recibida de GS</h3><div class="qc107-grid">'+
+      field('PAR_CAS · código GS','<input type="text" disabled value="'+esc(qcpRaw(line,'PAR_CAS'))+'">')+
+      field('PAR_UBIC · código GS','<input type="text" disabled value="'+esc(qcpRaw(line,'PAR_UBIC'))+'">')+
+      '</div><p class="qc107-note">Son códigos de origen. Por sí solos no identifican el invernadero y la calle físicos.</p>'+ 
+      '<div class="qc107-note"><strong>Ubicaciones físicas que GS aporta</strong>'+
+      (allocations?'<ul>'+allocations+'</ul>':'<div>GS no ha devuelto una asignación física para esta partida.</div>')+
+      '</div></section>';
+  }
+  function qcpLocationSection(line){
+    const original=qcpAppLocation(line);
+    return '<section class="qc107-section"><h3>Ubicación en ViguerAPP</h3>'+ 
+      '<div class="qc107-location-current">Ubicación actual: '+esc(original.inv?('INV '+original.inv):'Sin invernadero')+
+      ' · '+esc(original.from?(original.from===original.to?'Calle '+original.from:'Calles '+original.from+'–'+original.to):'Sin calles asignadas')+'</div>'+ 
+      '<p class="qc107-note">Esta es la ubicación física que utiliza la app para la partida.</p><div class="qc107-grid">'+
+      field('Invernadero','<select id="qcp-inv" onchange="qcpCambiarInv()">'+qciInvOptions(original)+'</select>')+
+      field('Calle desde','<select id="qcp-from">'+qciStreetOptions(original.inv,original.from)+'</select>')+
+      field('Calle hasta','<select id="qcp-to">'+qciStreetOptions(original.inv,original.to)+'</select>')+
+      '</div></section>';
+  }
+  function qcpPrepareLocationControls(){
+    if(qcpState?.invOption!=='__KEEP_CURRENT__')return;
+    const from=document.getElementById('qcp-from'),to=document.getElementById('qcp-to');
+    if(from)from.disabled=true;if(to)to.disabled=true;
+  }
+  root.qcpCambiarInv=function(){
+    if(!qcpState)return;
+    const inv=read('qcp-inv'),from=document.getElementById('qcp-from'),to=document.getElementById('qcp-to');
+    if(inv==='__KEEP_CURRENT__'){
+      if(from){from.disabled=true;from.innerHTML=qciStreetOptions(qcpState.original.inv,qcpState.original.from);}
+      if(to){to.disabled=true;to.innerHTML=qciStreetOptions(qcpState.original.inv,qcpState.original.to);}
+      return;
+    }
+    const keep=inv===qcpState.original.inv;
+    if(from){from.disabled=false;from.innerHTML=qciStreetOptions(inv,keep?qcpState.original.from:'');}
+    if(to){to.disabled=false;to.innerHTML=qciStreetOptions(inv,keep?qcpState.original.to:'');}
+  };
+  function qcpAppLocationFields(){
+    const state=qcpState,selected=read('qcp-inv');
+    if(selected==='__KEEP_CURRENT__')return {invId:state.original.inv||null,
+      calleDesde:state.original.from||null,calleHasta:state.original.to||null};
+    if(!selected)return {invId:null,calleDesde:null,calleHasta:null};
+    const from=read('qcp-from'),to=read('qcp-to'),layout=INV_LAYOUT[selected];
+    if(!layout||!from||!to)throw Error('Indica un invernadero y ambas calles.');
+    const allowed=[...layout.row1,...layout.row2],a=Number(from),b=Number(to);
+    if(!Number.isInteger(a)||!Number.isInteger(b)||!allowed.includes(a)||!allowed.includes(b))
+      throw Error('Las calles no pertenecen al invernadero.');
+    return {invId:selected,calleDesde:Math.min(a,b),calleHasta:Math.max(a,b)};
+  }
   function qcpOverlay(){
     return getOrCreateOverlay('control-editar-overlay');
   }
@@ -332,25 +433,23 @@
     if(!line||!['preinjerto_patron','preinjerto_variedad'].includes(line.tipo)){showToast('No se ha encontrado la partida de Preinjerto.');return;}
     const label=line.tipo==='preinjerto_patron'?'Preinjerto Patrón':'Preinjerto Variedad';
     if(!['ADMIN','TECNICO'].includes(currentUserRole)){showToast('No tienes permiso para editar esta partida.');return;}
-    qcpState={id,busy:false};
+    const original=qcpAppLocation(line),known=!!INV_LAYOUT[original.inv];
+    qcpState={id,busy:false,original,invOption:known?original.inv:(original.inv?'__KEEP_CURRENT__':'')};
     const overlay=qcpOverlay();
     overlay.innerHTML='<div class="qc107-modal" role="dialog" aria-label="Editar '+label+'">'+
       '<h2>Editar partida · '+label+'</h2>'+
-      '<section class="qc107-section"><h3>Datos GS</h3><div class="qc107-grid">'+
+      '<section class="qc107-section"><h3>Datos de la partida</h3><div class="qc107-grid">'+
       field('Fechas de origen (no editables)','<input type="text" disabled value="'+esc((line.fSiembra||'—')+' · Entrega '+(line.fEntrega||'—'))+'">')+
       field('Nº de partida','<input id="qcp-partida" type="text" maxlength="100" value="'+esc(line.partida)+'">')+
       field('Cliente','<input id="qcp-cliente" type="text" maxlength="180" value="'+esc(line.cliente)+'">')+
       field('Variedad','<input id="qcp-variedad" type="text" maxlength="180" value="'+esc(line.variedad)+'">')+
       field('Bandejas','<input id="qcp-bandejas" type="number" min="1" step="1" value="'+esc(line.numBandejas)+'">')+
-      '</div></section><section class="qc107-section"><h3>Ubicación registrada en GS</h3>'+
-      '<div class="qc107-grid">'+
-      field('PAR_CAS · código GS','<input id="qcp-par-cas" type="text" maxlength="20" value="'+esc(qcpRaw(line,'PAR_CAS'))+'">')+
-      field('PAR_UBIC · ubicación GS','<input id="qcp-par-ubic" type="text" inputmode="numeric" maxlength="10" value="'+esc(qcpRaw(line,'PAR_UBIC'))+'">')+
-      '</div>'+
-      '</section><div id="qcp-error" role="alert"></div>'+
+      '</div></section>'+qcpSourceLocationHTML(line)+qcpLocationSection(line)+
+      '<div id="qcp-error" role="alert"></div>'+
       '<div class="qc107-actions"><button type="button" class="qc107-cancel" onclick="qcpCancelar()">Cancelar</button>'+
       '<button type="button" id="qcp-save" class="qc107-save" onclick="qcpGuardar()">Guardar</button></div></div>';
     overlay.style.display='flex';
+    qcpPrepareLocationControls();
   }
   root.qcpCancelar=function(){
     const overlay=document.getElementById('control-editar-overlay');
@@ -371,20 +470,15 @@
       if(!Number.isSafeInteger(numBandejas)||numBandejas<=0)throw Error('Bandejas debe ser un entero positivo o quedar vacío.');
     }
     const campos={partida,cliente,variedad,numBandejas};
-    if(withLocation){
-      const PAR_CAS=read('qcp-par-cas').trim();
-      const raw=read('qcp-par-ubic').trim();
-      if(PAR_CAS&&!/^[A-Za-z0-9_-]{1,20}$/.test(PAR_CAS))throw Error('PAR_CAS no es válido.');
-      if(raw&&!/^(?:0|[1-9]\d{0,8})$/.test(raw))throw Error('PAR_UBIC debe ser un código numérico.');
-      const PAR_UBIC=raw&&raw!=='0'?raw:'';
-      campos.PAR_CAS=PAR_CAS;campos.PAR_UBIC=PAR_UBIC;
-      campos.invId=PAR_CAS||null;
-      campos.calleDesde=PAR_UBIC||null;campos.calleHasta=PAR_UBIC||null;
-    }
+    if(withLocation)Object.assign(campos,qcpAppLocationFields());
     return campos;
   }
   async function applyPreinjerto(line,campos){
-    const prior=line.edicionQC?.campos&&typeof line.edicionQC.campos==='object'?line.edicionQC.campos:{};
+    const prior={...(line.edicionQC?.campos&&typeof line.edicionQC.campos==='object'?line.edicionQC.campos:{})};
+    const legacyRawLocation=Object.prototype.hasOwnProperty.call(prior,'PAR_CAS')||
+      Object.prototype.hasOwnProperty.call(prior,'PAR_UBIC');
+    delete prior.PAR_CAS;delete prior.PAR_UBIC;
+    if(legacyRawLocation){delete prior.invId;delete prior.calleDesde;delete prior.calleHasta;}
     const allFields={...prior,...campos};
     const edit={actualizadoPor:String(currentUser||''),actualizadoEn:new Date().toISOString(),campos:allFields};
     const qid=encolarAccionOffline('aplicarEditarControlPreinjerto',[line.id,edit]);
@@ -395,10 +489,9 @@
       const customer=String(line.cliente||''),variety=String(line.variedad||'');
       line.clienteVariedad=variety?customer+' — '+variety:customer;
     }
-    if(Object.prototype.hasOwnProperty.call(allFields,'PAR_CAS')){
-      line.PAR_CAS=allFields.PAR_CAS;line.invId=allFields.invId;
-      line.PAR_UBIC=allFields.PAR_UBIC;line.calleDesde=allFields.calleDesde;line.calleHasta=allFields.calleHasta;
-      line.gsDetalles={...(line.gsDetalles||{}),PAR_CAS:allFields.PAR_CAS||null,PAR_UBIC:allFields.PAR_UBIC||null};
+    if(['invId','calleDesde','calleHasta'].some(key=>Object.prototype.hasOwnProperty.call(allFields,key))){
+      line.invId=allFields.invId||null;
+      line.calleDesde=allFields.calleDesde??null;line.calleHasta=allFields.calleHasta??null;
     }
     line.edicionQC=edit;
     renderControlContent(document.getElementById('control-overlay'));
@@ -436,18 +529,15 @@
     if(!line||!['preinjerto_patron','preinjerto_variedad'].includes(line.tipo))return false;
     const label=line.tipo==='preinjerto_patron'?'Preinjerto Patrón':'Preinjerto Variedad';
     if(!['ADMIN','TECNICO'].includes(currentUserRole)){showToast('No tienes permiso para editar esta ubicación.');return false;}
-    qcpState={id,busy:false,locationOnly:true};
+    const original=qcpAppLocation(line),known=!!INV_LAYOUT[original.inv];
+    qcpState={id,busy:false,locationOnly:true,original,invOption:known?original.inv:(original.inv?'__KEEP_CURRENT__':'')};
     const overlay=getOrCreateOverlay('control-calle-overlay');
     overlay.innerHTML='<div class="qc107-modal" role="dialog" aria-label="Editar ubicación '+label+'">'+
-      '<h2>Editar ubicación GS · '+label+'</h2>'+
-      '<section class="qc107-section"><h3>Códigos de origen</h3><div class="qc107-grid">'+
-      field('PAR_CAS · código GS','<input id="qcp-par-cas" type="text" maxlength="20" value="'+esc(qcpRaw(line,'PAR_CAS'))+'">')+
-      field('PAR_UBIC · ubicación GS','<input id="qcp-par-ubic" type="text" inputmode="numeric" maxlength="10" value="'+esc(qcpRaw(line,'PAR_UBIC'))+'">')+
-      '</div><p class="qc107-note">Mantiene los códigos GS tal como se reciben; no traduce PAR_CAS a un invernadero físico.</p></section>'+
+      '<h2>Editar ubicación · '+label+'</h2>'+qcpLocationSection(line)+
       '<div id="qcp-error" role="alert"></div><div class="qc107-actions">'+
       '<button type="button" class="qc107-cancel" onclick="qcpCancelarUbicacion()">Cancelar</button>'+
       '<button type="button" id="qcp-save" class="qc107-save" onclick="qcpGuardarUbicacion()">Guardar</button></div></div>';
-    overlay.style.display='flex';return true;
+    overlay.style.display='flex';qcpPrepareLocationControls();return true;
   }
   root.qcpCancelarUbicacion=function(){
     const overlay=document.getElementById('control-calle-overlay');
@@ -458,13 +548,8 @@
     const state=qcpState;if(!state||!state.locationOnly||state.busy)return false;
     const line=controlChecksData.find(x=>x.id===state.id);if(!line)return false;
     let campos;
-    try{
-      const PAR_CAS=read('qcp-par-cas').trim(),raw=read('qcp-par-ubic').trim();
-      if(PAR_CAS&&!/^[A-Za-z0-9_-]{1,20}$/.test(PAR_CAS))throw Error('PAR_CAS no es válido.');
-      if(raw&&!/^(?:0|[1-9]\d{0,8})$/.test(raw))throw Error('PAR_UBIC debe ser un código numérico.');
-      const PAR_UBIC=raw&&raw!=='0'?raw:'';
-      campos={PAR_CAS,PAR_UBIC,invId:PAR_CAS||null,calleDesde:PAR_UBIC||null,calleHasta:PAR_UBIC||null};
-    }catch(error){qcpSetError(error.message);return false;}
+    try{campos=qcpAppLocationFields();}
+    catch(error){qcpSetError(error.message);return false;}
     state.busy=true;const button=document.getElementById('qcp-save');if(button)button.disabled=true;
     try{
       const ok=await applyPreinjerto(line,campos);
