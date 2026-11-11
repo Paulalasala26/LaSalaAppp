@@ -1461,7 +1461,10 @@ function renderAvisosTecnicoContent(overlay){
     <div style="background:#fff;border-radius:14px;max-width:640px;width:100%;max-height:92vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.25)">
       <div style="background:var(--grad-blue);color:#fff;padding:1.1rem 1.5rem;border-radius:14px 14px 0 0;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0">
         <div style="font-size:16px;font-weight:800">🔔 Avisos</div>
-        <button onclick="this.closest('.modal-overlay-dyn').style.display='none'" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:12px">✕</button>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button data-testid="avisos-logout" onclick="doLogout()" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:12px">Salir</button>
+          <button onclick="this.closest('.modal-overlay-dyn').style.display='none'" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:12px">✕</button>
+        </div>
       </div>
       <div style="padding:1rem 1.25rem">
         ${ordenados.length===0 ? `<div style="text-align:center;padding:2rem;color:var(--muted);font-style:italic">No tienes avisos.</div>` : ordenados.map(fila).join('')}
