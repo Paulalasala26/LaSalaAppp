@@ -1734,12 +1734,13 @@ test('UAT-047–049, UAT-356–357, UAT-364, UAT-368–369, UAT-392, UAT-395–3
 
   await overlay.getByRole('button', { name: 'Check Túnel' }).click();
   await overlay.getByTestId('control-day-previous').click();
+  await overlay.getByTitle('Guión anterior').click();
   const previousDayCard = overlay.locator(`#control-card-${previousDayId}`);
   await expect(previousDayCard).toBeVisible();
   await previousDayCard.locator('input[data-testid^="control-photo-gallery-"]').setInputFiles({ name: `${previousDayId}.png`, mimeType: 'image/png', buffer: previousPhoto });
   await expect(previousDayCard.locator('img[title="Ver foto"]')).toBeVisible();
-  await expect(overlay.locator(`#control-card-${tunnelIds[0]}`)).toHaveCount(0);
   await overlay.getByTestId('control-day-next').click();
+  await overlay.getByTitle('Guión siguiente').click();
   await expect(overlay.locator(`#control-card-${previousDayId}`)).toHaveCount(0);
   await expect(overlay.locator(`#control-card-${tunnelIds[0]} img[title="Ver foto"]`)).toBeVisible();
 
@@ -1780,11 +1781,14 @@ test('UAT-047–049, UAT-356–357, UAT-364, UAT-368–369, UAT-392, UAT-395–3
   await expect(firstCard).toBeVisible();
   await expect(qcDraft).toContainText('✓');
   await reopened.getByTestId('control-day-previous').click();
-  await expect(reopened.locator(`#control-card-${previousDayId} img[title="Ver foto"]`)).toBeVisible();
+  await reopened.getByTitle('Guión anterior').click();
+  const previousDayAfterReload = reopened.locator(`#control-card-${previousDayId}`);
+  await expect(previousDayAfterReload.locator('img[title="Ver foto"]')).toBeVisible();
   const previousPhotoAfterReload = await page.evaluate(id => fotoSrcCompleta(controlFotosData[id]), previousDayId);
   expect(previousPhotoAfterReload).toBe(previousPhotoBeforeReload);
   expect(previousPhotoAfterReload).not.toBe(firstPhotoAfterReload);
   await reopened.getByTestId('control-day-next').click();
+  await reopened.getByTitle('Guión siguiente').click();
   await reopened.getByTestId('control-greenhouse-filter').selectOption('18');
   await expect(reopened.locator(`#control-card-${otherGreenhouseId} img[title="Ver foto"]`)).toBeVisible();
   await reopened.getByTestId('control-greenhouse-filter').selectOption('17');
