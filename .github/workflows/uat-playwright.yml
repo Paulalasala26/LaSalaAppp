@@ -65,7 +65,7 @@ jobs:
 
       - name: Ejecutar checks breves de auth en PR
         if: github.event_name == 'pull_request' && steps.scope.outputs.auth == 'true'
-        run: pnpm exec playwright test tests/e2e/auth-roles.spec.js --grep "UAT-1983|UAT-1989|UAT-1998|UAT-1999|UAT-2114|UAT-2115|UAT-2122|UAT-2123|UAT-2124|UAT-2129|UAT-2132|UAT-2134|UAT-2135|UAT-2136|UAT-2139|UAT-2143|UAT-2144|UAT-2146|UAT-2137|UAT-2138"
+        run: pnpm exec playwright test tests/e2e/auth-roles.spec.js --grep "UAT-1983|UAT-1989|UAT-1998|UAT-1999|UAT-2114|UAT-2115|UAT-2122|UAT-2123|UAT-2124|UAT-2129|UAT-2132|UAT-2134|UAT-2135|UAT-2136|UAT-2139|UAT-2143|UAT-2144|UAT-2146|UAT-2148|UAT-2137|UAT-2138"
 
       - name: Ejecutar spec de Tareas en PR
         if: github.event_name == 'pull_request' && steps.scope.outputs.tasks == 'true'
