@@ -21,6 +21,10 @@ const test = base.extend({
   page: async ({ page }, use) => {
     await page.context().route('**/*', async route => {
       const url = new URL(route.request().url());
+      if (url.protocol === 'blob:') {
+        await route.fallback();
+        return;
+      }
       if (url.origin !== appOrigin) {
         if (url.hostname === firebaseHost) await route.fallback();
         else await route.abort();
