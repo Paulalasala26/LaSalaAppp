@@ -1364,7 +1364,7 @@ test('UAT-1734, UAT-1735, UAT-1736–1737, UAT-1740, UAT-1742 y UAT-1744: Archiv
   expect(writes).toEqual([]);
 });
 
-test('UAT-1746–1747 y UAT-1753: Archivo separa completadas y anuladas y muestra las completadas en consulta', async ({ page }) => {
+test('UAT-1746–1747, UAT-1753 y UAT-1755: Archivo separa estados y conserva el detalle de consulta', async ({ page }) => {
   const todayISO = await fechaISOEnNavegador(page);
   const completedISO = await fechaISOEnNavegador(page, -3);
   const completed = {
@@ -1382,6 +1382,14 @@ test('UAT-1746–1747 y UAT-1753: Archivo separa completadas y anuladas y muestr
     prioridad: 'normal',
     estado: 'completada'
   };
+  const archivedTicket = {
+    id: 'e2e-uat-1755-maintenance',
+    titulo: 'E2E ticket archivado UAT-1755',
+    estado: 'archivado',
+    creadoEn: todayISO,
+    archivadoEn: todayISO,
+    asignados: ['PEON1']
+  };
   const cancelled = {
     id: 'e2e-uat-1746-cancelled',
     titulo: 'E2E tarea anulada UAT-1746',
@@ -1397,7 +1405,8 @@ test('UAT-1746–1747 y UAT-1753: Archivo separa completadas y anuladas y muestr
     estado: 'anulada'
   };
   const { database, writes } = await installFixture(page, {
-    'lasala-tareas-v1': JSON.stringify([completed, cancelled])
+    'lasala-tareas-v1': JSON.stringify([completed, cancelled]),
+    'lasala-mantenimiento-v1': JSON.stringify([archivedTicket])
   });
 
   await openTasks(page);
@@ -1418,7 +1427,12 @@ test('UAT-1746–1747 y UAT-1753: Archivo separa completadas y anuladas y muestr
   await expect(cancelledArchive).not.toContainText(completed.titulo);
   await expect(cancelledArchive).toContainText(cancelled.titulo);
   await expect(completedArchive).not.toContainText(cancelled.titulo);
+  const archivedTicketCard = overlay.locator('#mantenimiento-archivo [data-ticket-id="e2e-uat-1755-maintenance"]');
+  await expect(archivedTicketCard).toContainText(archivedTicket.titulo);
+  await expect(archivedTicketCard).toContainText('Archivado');
+  await expect(archivedTicketCard).not.toContainText('Completada');
   expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([completed, cancelled]);
+  expect(JSON.parse(database['lasala-mantenimiento-v1'])).toEqual([archivedTicket]);
   expect(writes).toEqual([]);
 });
 
