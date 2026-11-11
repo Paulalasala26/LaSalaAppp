@@ -994,10 +994,8 @@ function ordenarTareasPorHorario(lista){
     return String(a.id).localeCompare(String(b.id));
   });
 }
-// Las tareas de PEÓN/REGANTE con más de 1 día de retraso sobre su fecha se
-// borran solas (a los 2 días); el día intermedio quedan un día en "Tareas de
-// ayer", que solo ven ADMIN/TÉCNICO — el peón/regante deja de verlas en
-// cuanto pasan a ese estado.
+// Las tareas con fecha antigua se mantienen para consulta histórica.
+// "Tareas antiguas" cambia la vista, no elimina registros.
 // horaFin se guarda con new Date().toLocaleString('es-ES'), formato
 // "D/M/YYYY, HH:MM:SS" — lo convertimos a ISO para poder usarlo como fecha
 // real de finalización al rellenar tareas antiguas sin completadoISO.
@@ -1011,8 +1009,6 @@ function completadoISOBackfill(t){
   return parseFechaHoraToISO(t.horaFin) || t.fechaISO || fechaLocalISO(new Date());
 }
 async function mantenerMetadatosTareasCompletadas(){
-  // Tareas ya completadas antes de que existiera completadoISO (no tienen
-  // async function mantenerMetadatosTareasCompletadas(){
   // Las tareas antiguas se conservan para consulta histórica; abrir Archivo
   // no borra registros. Solo se completa la fecha faltante en tareas legacy.
   let necesitaGuardar = false;
