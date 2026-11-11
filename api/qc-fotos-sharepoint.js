@@ -13,10 +13,9 @@ const DRIVE_ID='b!ltDlxMPStUSPKosa8hjEBT4XEdc922lLvESLlmS3tQy9OIm9vYUbQaLFfZMlWF
 const FOLDER_ID='01WYFOB25JXMOQMUYILFEJSYJZCV3AIV2N';
 const FOLDER_NAME='10 - Fotos QC';
 const APP_CLIENT_ID='30160dc5-85af-4134-b865-86d1ff8fadbd';
-const TYPES=Object.freeze({tunel:'10 - Túnel',carga:'20 - Carga',carga_injerto:'20 - Carga',preinjerto_patron:'30 - Preinjerto Patrón',preinjerto_variedad:'40 - Preinjerto Variedad'});
+const TYPES=Object.freeze({tunel:'10 - Túnel',carga:'20 - Carga normal',carga_injerto:'30 - Carga Injerto',preinjerto_patron:'40 - Preinjerto Patrón',preinjerto_variedad:'50 - Preinjerto Variedad'});
 const TYPE_IDS=Object.freeze({
-  tunel:'01WYFOB25VQRGN4LJRUNBYJH64ZV6NLQ5C',
-  carga:'01WYFOB2YC4C2C65APYVAYBM2ZMYASYUDJ'
+  tunel:'01WYFOB25VQRGN4LJRUNBYJH64ZV6NLQ5C'
 });
 const PHOTO_INDEX='lasala-qc-fotos-sharepoint-v1';
 const UPLOAD_ENABLED=()=>process.env.GRAPH_QC_UPLOAD_ENABLED==='true';
@@ -776,14 +775,38 @@ module.exports=async function handler(req,res){
     return res.status(423).json({error:'SHAREPOINT_UPLOAD_NOT_ENABLED'});
   try{
     const body=req.method==='POST'?bodyOf(req):null;
+    const prepareFolders=req.method==='POST'&&body?.action==='prepare-folders';
     const diagnostic=req.method==='GET'&&req.query?.action==='check';
     const candidatesRequested=req.method==='GET'&&req.query?.details==='1';
-    const photo=req.method==='POST'?photoInput(body):null;
-    const ref=diagnostic?null:(photo?.ref||reference(req.query));
+    const photo=req.method==='POST'&&!prepareFolders?photoInput(body):null;
+    const ref=(diagnostic||prepareFolders)?null:(photo?.ref||reference(req.query));
     const session=await authorize(req,ref?.tipo||null);
     // Túnel: ADMIN/TÉCNICO. Carga: ADMIN/TÉCNICO/CARGADOR.\n    // authorize() valida rol ACTIVO contra Firebase, además de ID token.\n    // Los diagnósticos de biblioteca y candidatos siguen solo ADMIN.
     if(diagnostic&&session.role!=='ADMIN')throw httpError(403,'FORBIDDEN');
     if(candidatesRequested&&session.role!=='ADMIN')throw httpError(403,'FORBIDDEN');
+    if(prepareFolders){
+      if(!['ADMIN','TECNICO'].includes(session.role))throw httpError(403,'FORBIDDEN');
+      if(!NEW_LIBRARY_ENABLED())throw httpError(423,'QC_NEW_LIBRARY_NOT_ENABLED');
+      const spToken=await graphToken();
+      const root=await graphCall(spToken,'GET',
+        '/drives/'+encodeURIComponent(QC_LIBRARY_DRIVE)+'/root?$select=id,name,folder,webUrl');
+      if(!root.ok)throw httpError(502,'QC_NEW_ROOT_UNAVAILABLE');
+      const base=await root.json();
+      if(base.id!=='01WYFOB256Y2GOVW7725BZO354PWSELRRZ'||!base.folder)
+        throw httpError(409,'QC_NEW_ROOT_MISMATCH');
+      const folders=[];
+      for(const name of Object.values(TYPES)){
+        const id=await qcNewFolder(spToken,base.id,name);
+        const check=await graphCall(spToken,'GET',qcGraphItem(id)+'?$select=id,name,folder,webUrl');
+        if(!check.ok)throw httpError(502,'QC_NEW_FOLDER_VERIFY_FAILED');
+        const item=await check.json();
+        if(item.id!==id||item.name!==name||!item.folder||
+           item.parentReference?.id!==base.id)
+          throw httpError(409,'QC_NEW_FOLDER_MISMATCH');
+        folders.push({name,id,webUrl:item.webUrl||null});
+      }
+      return res.status(200).json({ok:true,driveId:QC_LIBRARY_DRIVE,folders});
+    }
     const source=ref?await sourceFor(ref,session.firebaseToken):null;
     // Acciones verificadas por usuario/rol y partida original.
     if(req.method==='GET'&&req.query?.action==='photo-list'){
