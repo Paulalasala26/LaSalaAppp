@@ -23459,6 +23459,76 @@ async function guardarBorradoEspecifico(entradas){
   return true;
 }
 
+// Conciliación de la tarea del regante al borrar un específico desde la
+// cuadrícula (de main, 170be4f, adaptada al modelo de DEV): saveEspecificoManual
+// crea/fusiona una tarea pendiente (categoria 'especifico', sin
+// especificoPartidaRegistroId) con título "trat dosis + tipo" por INV y día, y
+// borrar las celdas no la tocaba — el regante se quedaba con una tarea de algo
+// ya borrado. Aquí NUNCA se borra: si no queda ninguna calle con ese
+// tratamiento la tarea se anula y se archiva; si quedan menos, se recorta su
+// etiqueta de calles. Solo tareas pendientes (una iniciada/completada se
+// respeta), con ETag, y las ligadas a Partidas siguen su propio camino
+// (sincronizarTareasDesdePartidas).
+function tituloTareaDeTextoEspecifico(texto){
+  if(!texto) return null;
+  const p=parsearTextoEspecifico(texto);
+  if(!p.trat) return null; // texto que no se reconoce: nunca se asume nada
+  return [[p.trat,p.dosis].filter(Boolean).join(' '),p.tipo].filter(Boolean).join(' + ');
+}
+// Se llama ANTES de vaciar las celdas: qué títulos de tarea tocan los borrados.
+function titulosTareaEspecificoAfectados(entradas){
+  const mapa=new Map();
+  (entradas||[]).forEach(({invId,dia,calles})=>(calles||[]).forEach(c=>{
+    const titulo=tituloTareaDeTextoEspecifico(getEspecifico(invId,dia,c));
+    if(titulo) mapa.set(invId+'|'+dia+'|'+titulo,{invId:String(invId),dia,titulo});
+  }));
+  return [...mapa.values()];
+}
+// Se llama DESPUÉS de guardar el borrado (especificosData ya es la nube fresca).
+async function reconciliarTareasEspecificoBorrado(afectados){
+  if(!afectados||!afectados.length) return true;
+  const plan=afectados.map(a=>{
+    const layout=INV_LAYOUT[a.invId];
+    const calles=[];let inciertas=false;
+    if(layout) [...layout.row1,...layout.row2].forEach(c=>{
+      const txt=getEspecifico(a.invId,a.dia,c);
+      if(!txt) return;
+      const ti=tituloTareaDeTextoEspecifico(txt);
+      if(ti===null) inciertas=true;
+      else if(ti===a.titulo) calles.push(c);
+    });
+    return {...a,fechaISO:fechaLocalISO(riegoDiaToDate(a.dia)),calles,inciertas,sinLayout:!layout};
+  }).filter(p=>!p.sinLayout&&!(p.inciertas&&!p.calles.length)); // ante la duda, no se toca nada
+  if(!plan.length) return true;
+  const tx=await actualizarStorageJsonConEtag(TAREAS_KEY,[],cloud=>{
+    if(!Array.isArray(cloud)) throw Error('Tareas: formato inválido');
+    const ahora=new Date().toISOString();
+    let cambios=0;
+    for(const p of plan){
+      cloud.forEach((t,i)=>{
+        if(t.categoria!=='especifico'||t.especificoPartidaRegistroId||t.estado!=='pendiente'||esTareaArchivada(t)) return;
+        if(String(t.inv)!==p.invId||t.fechaISO!==p.fechaISO||t.titulo!==p.titulo) return;
+        if(!p.calles.length){
+          cloud[i]={...t,estado:'anulada',archivadaEn:ahora,
+            motivoAnulacion:'Específico borrado desde la cuadrícula',anuladaPor:currentUser};
+          cambios++;
+        }else{
+          const etiqueta=formatCallesParaImprimir(p.invId,p.calles);
+          if(etiqueta!==t.calles){cloud[i]={...t,calles:etiqueta};cambios++;}
+        }
+      });
+    }
+    return cambios?cloud:undefined;
+  });
+  if(!tx.ok) return false;
+  if(!tx.noChange){
+    tareasData=tx.value;
+    tareasDataCargadaEn=Date.now();
+    refreshTareasViews();
+  }
+  return true;
+}
+
 async function borrarEspecificoManual(){
   const dia=parseInt(document.getElementById('esp-dia').value,10);
   if(espResumenFichaContext && dia!==espResumenFichaContext.dia){
@@ -23483,6 +23553,7 @@ async function borrarEspecificoManual(){
   if(entradas.some(({invId,calles})=>calles.some(c=>especificosData[invId]?.[dia]?.[c]?.partidaRegistros))){
     showToast('No se puede borrar un específico compartido: utiliza las fichas de Partidas.');return;
   }
+  const tareasAfectadas = titulosTareaEspecificoAfectados(entradas);
   registrarUndoEspecificoMultiInv(entradas);
   entradas.forEach(({invId, calles})=>calles.forEach(c=>setEspecifico(invId, dia, c, '')));
   // A petición de Paula (2026-08-18): borrar desde la cuadrícula también
@@ -23513,6 +23584,9 @@ async function borrarEspecificoManual(){
   document.getElementById('especifico-manual-overlay').style.display = 'none';
   const okBorrado=await guardarBorradoEspecifico(entradas);
   if(!okBorrado) return;
+  let tareasOk=false;
+  try{ tareasOk=await reconciliarTareasEspecificoBorrado(tareasAfectadas); }catch(_){}
+  if(!tareasOk) showToast('Específico borrado, pero no se pudo actualizar la tarea del regante. Avise a ADMIN.');
   if(espResumenFichaContext) refrescarVistaResumenEspecifico();
   else if(especificosInvSel) renderEspecificosGrid(especificosInvSel);
 }
