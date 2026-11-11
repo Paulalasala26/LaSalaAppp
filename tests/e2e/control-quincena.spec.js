@@ -1625,7 +1625,7 @@ test('UAT-232: QC Carga descarga una sola vez su módulo diferido al entrar en u
   expect(unexpectedHosts).toEqual([]);
 });
 
-test('UAT-358, UAT-360 y UAT-389–390: acciones de foto separadas y utilizables en móvil y PC', async ({ page }) => {
+test('UAT-358, UAT-359, UAT-360 y UAT-389–390: tarjeta QC sin controles de foto duplicados', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const database = fixtureDatabase();
   database['lasala-control-fotos-indice-v1'] = JSON.stringify({});
@@ -1635,8 +1635,8 @@ test('UAT-358, UAT-360 y UAT-389–390: acciones de foto separadas y utilizables
   for (const [id, section] of [['e2e-control-current-fortnight', null], ['e2e-control-carga-current-fortnight', 'Check Carga Injerto']]) {
     if (section) await overlay.getByRole('button', { name: section }).click();
     const card = overlay.locator(`#control-card-${id}`);
-    await expect(card.getByText('Hacer foto', { exact: true })).toBeVisible();
-    await expect(card.getByText('Elegir fotos', { exact: true })).toBeVisible();
+    await expect(card.getByText('Hacer foto', { exact: true })).toHaveCount(1);
+    await expect(card.getByText('Elegir fotos', { exact: true })).toHaveCount(1);
     await expect(card.locator('img[title="Ver foto"]')).toHaveCount(0);
     await expect(card.getByTestId(`control-photo-camera-${id}`)).toHaveAttribute('capture', 'environment');
     await expect(card.getByTestId(`control-photo-gallery-${id}`)).not.toHaveAttribute('capture', /.+/);
