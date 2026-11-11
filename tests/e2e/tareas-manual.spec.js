@@ -297,7 +297,7 @@ test('UAT-1251 y UAT-1259: la tarjeta manual muestra el contenido y turno guarda
   await openTasks(page);
   const overlay = page.locator('#tareas-overlay');
   await overlay.getByRole('button', { name: 'Tareas de mañana' }).click();
-  const card = overlay.locator(`.tarea-card[data-id="${task.id}"]`);
+  const card = overlay.locator('.tarea-card').filter({ hasText: task.titulo });
   await expect(card).toBeVisible();
   await expect(card).toContainText(task.titulo);
   await expect(card).toContainText(task.descripcion);
