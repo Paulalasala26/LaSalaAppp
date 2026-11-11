@@ -400,7 +400,6 @@ test('UAT-1257–1258: Operativas no inventa calles y conserva varios tramos', a
 });
 
 test('UAT-1255: la descripción larga de una tarjeta Operativas se limita visualmente a tres líneas', async ({ page }) => {
-  test.fail(true, 'La tarjeta actual muestra la descripción completa sin límite visual de tres líneas.');
   const tomorrowISO = await fechaISOEnNavegador(page, 1);
   const description = 'Descripción extensa para comprobar el límite visual de la tarjeta. '.repeat(8).trim();
   const task = {
