@@ -62,11 +62,12 @@ async function installFixture(page, initialData = {}, options = {}) {
     }
   });
 
+  const loginUser = options.loginUser || 'E2E_ADMIN';
   await page.goto('/');
   await page.locator('#login-user').evaluate((select, value) => {
     if (![...select.options].some(option => option.value === value)) select.add(new Option(value, value));
-  }, 'E2E_ADMIN');
-  await page.locator('#login-user').selectOption('E2E_ADMIN');
+  }, loginUser);
+  await page.locator('#login-user').selectOption(loginUser);
   await page.locator('#login-pass').fill(password);
   await page.locator('#login-btn').click();
   await expect(page.locator('#page-home')).toBeVisible();
@@ -1600,4 +1601,37 @@ test('UAT-1995: cabecera y acciones esenciales accesibles a emulación equivalen
     expect(control.height).toBeGreaterThan(0);
     expect(control.fontSize).toBeGreaterThanOrEqual(10);
   }
+});
+
+test('UAT-2011 y UAT-2049: ADMIN consulta avisos y conserva el flujo propio de la bandeja', async ({ page }) => {
+  const aviso = {
+    id: 'e2e-admin-aviso-consultado',
+    titulo: 'Propuesta pendiente',
+    mensaje: 'Revisar la hoja de riego de INV 17.',
+    fecha: '11/11/2026',
+    visto: false,
+    leido: false
+  };
+  const { database, writes } = await installFixture(page, {
+    'lasala-users-v1': JSON.stringify({ VIGUERAS: passwordHash }),
+    'lasala-roles-v1': JSON.stringify({ VIGUERAS: 'ADMIN' }),
+    'lasala-avisos-usuario-v1': JSON.stringify({ VIGUERAS: [aviso] })
+  }, { loginUser: 'VIGUERAS' });
+
+  const bell = page.locator('#topbar-notificaciones');
+  const badge = page.locator('#notificaciones-vigueras-badge span[aria-label]');
+  await expect(bell).toBeVisible();
+  await expect(badge).toHaveAttribute('aria-label', '1 notificaciones sin leer');
+  await bell.click();
+
+  const inbox = page.locator('#notificaciones-vigueras-overlay');
+  await expect(inbox).toBeVisible();
+  await expect(inbox).toContainText(aviso.titulo);
+  await expect(inbox).toContainText(aviso.mensaje);
+  await expect(inbox).toContainText(aviso.fecha);
+  await expect.poll(() => JSON.parse(database['lasala-avisos-usuario-v1']).VIGUERAS).toEqual([]);
+  await expect(badge).toHaveCount(0);
+  await inbox.getByRole('button').click();
+  await expect(inbox).toBeHidden();
+  expect(writes.filter(write => write.key === 'lasala-avisos-usuario-v1')).toHaveLength(1);
 });
