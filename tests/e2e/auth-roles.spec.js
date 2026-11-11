@@ -1091,3 +1091,23 @@ test('UAT-2129: cerrar sesión limpia avisos y estado visible antes del siguient
   await expect(page.locator('#avisos-tecnico-badge')).toHaveCount(0);
   await expect(panel).toBeHidden();
 });
+
+test('UAT-2132: ADMIN abre Control QC por primera vez y vuelve a Inicio', async ({ page }) => {
+  const pageErrors = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
+  await installAuthFixture(page);
+  await logInAs(page, 'E2E_ADMIN');
+
+  const home = page.locator('#page-home');
+  const control = page.locator('#control-overlay');
+  await expect(home).toBeVisible();
+  await page.getByTestId('home-control').click();
+  await expect(control).toBeVisible();
+  await expect(control).toContainText('Check Túnel');
+  await expect(control).toContainText('Check Carga Injerto');
+  await control.getByRole('button', { name: /✕ Cerrar/ }).click();
+  await expect(control).toBeHidden();
+  await expect(home).toBeVisible();
+  await expect(page.getByTestId('home-control')).toBeVisible();
+  expect(pageErrors).toEqual([]);
+});
