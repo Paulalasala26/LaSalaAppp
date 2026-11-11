@@ -1692,7 +1692,12 @@ test('UAT-358, UAT-359, UAT-360 y UAT-389–390: tarjeta QC sin controles de fot
   expect(unexpectedHosts).toEqual([]);
 });
 
-test('UAT-047–049, UAT-356–357, UAT-364, UAT-368–369, UAT-392 y UAT-395: fotos QC y evaluación se conservan al cerrar ampliación', async ({ page }) => {
+test('UAT-047–049, UAT-356–357, UAT-364, UAT-368–369, UAT-392, UAT-395 y UAT-396: fotos QC se conservan tras recargar sin afirmar subida a SharePoint', async ({ page }) => {
+  const externalPersistenceRequests = [];
+  page.on('request', request => {
+    const host = new URL(request.url()).hostname;
+    if (host.endsWith('.sharepoint.com') || host === 'graph.microsoft.com') externalPersistenceRequests.push(request.url());
+  });
   const database = fixtureDatabase();
   database['lasala-control-fotos-indice-v1'] = JSON.stringify({});
   database['lasala-control-fotos-shards-index'] = JSON.stringify(['lasala-control-fotos-v1']);
@@ -1739,12 +1744,15 @@ test('UAT-047–049, UAT-356–357, UAT-364, UAT-368–369, UAT-392 y UAT-395: f
 
   const shard = JSON.parse(database['lasala-control-fotos-v1']);
   for (const id of [...tunnelIds, cargaId]) expect(shard[id]).toBeTruthy();
+  const firstPhotoBeforeReload = await page.evaluate(id => fotoSrcCompleta(controlFotosData[id]), tunnelIds[0]);
   await page.reload();
   await expect(page.getByTestId('home-control')).toBeVisible();
   await page.getByTestId('home-control').click();
   const reopened = page.locator('#control-overlay');
   await reopened.getByRole('button', { name: 'Check Túnel' }).click();
   for (const id of tunnelIds) await expect(reopened.locator(`#control-card-${id} img[title="Ver foto"]`)).toBeVisible();
+  const firstPhotoAfterReload = await page.evaluate(id => fotoSrcCompleta(controlFotosData[id]), tunnelIds[0]);
+  expect(firstPhotoAfterReload).toBe(firstPhotoBeforeReload);
   const firstCard = reopened.locator(`#control-card-${tunnelIds[0]}`);
   const qcDraft = firstCard.getByTestId(`control-option-${tunnelIds[0]}-color-verde`);
   await qcDraft.click();
@@ -1769,6 +1777,59 @@ test('UAT-047–049, UAT-356–357, UAT-364, UAT-368–369, UAT-392 y UAT-395: f
   await expect(reopened.locator(`#control-card-${cargaId} img[title="Ver foto"]`)).toBeVisible();
   const ids = [...tunnelIds, cargaId];
   expect(await page.evaluate(idsToCheck => Object.fromEntries(idsToCheck.map(id => [id, !!controlFotosData[id]])), ids)).toEqual(Object.fromEntries(ids.map(id => [id, true])));
+  expect(externalPersistenceRequests).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-385–386: procesar una foto de alta resolución y conservar la orientación vertical/horizontal', async ({ page }) => {
+  const database = fixtureDatabase();
+  const id = 'e2e-control-current-fortnight';
+  database['lasala-control-fotos-indice-v1'] = JSON.stringify({});
+  database['lasala-control-fotos-shards-index'] = JSON.stringify(['lasala-control-fotos-v1']);
+  database['lasala-control-fotos-v1'] = JSON.stringify({});
+  const { overlay, unexpectedHosts } = await startControlTest(page, database);
+  const images = await page.evaluate(() => {
+    const draw = (width, height, background, foreground) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = width; canvas.height = height;
+      const context = canvas.getContext('2d');
+      context.fillStyle = background; context.fillRect(0, 0, width, height);
+      context.fillStyle = foreground;
+      context.fillRect(Math.floor(width / 4), Math.floor(height / 4), Math.floor(width / 2), Math.floor(height / 2));
+      return canvas.toDataURL('image/png').split(',')[1];
+    };
+    return [draw(4000, 3000, '#f5f5f5', '#1565c0'), draw(400, 800, '#f5f5f5', '#c62828')];
+  });
+  const card = overlay.locator(`#control-card-${id}`);
+  await card.locator('input[data-testid^="control-photo-gallery-"]').setInputFiles(images.map((image, index) => ({
+    name: `e2e-uat-385-386-${index}.png`, mimeType: 'image/png', buffer: Buffer.from(image, 'base64')
+  })));
+  const thumbnails = card.locator('img[title="Ver foto"]');
+  await expect(thumbnails).toHaveCount(2);
+  await expect.poll(() => JSON.parse(database['lasala-control-fotos-v1'] || '{}')[id]).toHaveLength(2);
+  const photoMetrics = await page.evaluate(async id => Promise.all(controlFotosData[id].map(photo => new Promise(resolve => {
+    const image = new Image();
+    image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight });
+    image.onerror = () => resolve(null);
+    image.src = fotoSrcCompleta(photo);
+  }))), id);
+  expect(photoMetrics).toEqual([{ width: 1280, height: 960 }, { width: 400, height: 800 }]);
+  await page.setViewportSize({ width: 320, height: 760 });
+  const enlarged = page.locator('#control-foto-ampliada-overlay');
+  for (const index of [0, 1]) {
+    await thumbnails.nth(index).click();
+    await expect(enlarged).toBeVisible();
+    const image = enlarged.locator('img');
+    const box = await image.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.y).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(320);
+    expect(box.y + box.height).toBeLessThanOrEqual(760);
+    expect(Math.abs(box.width / box.height - photoMetrics[index].width / photoMetrics[index].height)).toBeLessThan(0.02);
+    await enlarged.locator('button').click();
+    await expect(enlarged).toBeHidden();
+  }
   expect(unexpectedHosts).toEqual([]);
 });
 
