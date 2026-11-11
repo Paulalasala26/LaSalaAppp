@@ -351,6 +351,42 @@ test('UAT-1251: la tarjeta de una tarea manual pendiente muestra todos sus campo
 });
 
 
+
+test('UAT-1261: ADMIN consulta la tarea pendiente sin controles de ejecución ni firma', async ({ page }) => {
+  const tomorrowISO = await fechaISOEnNavegador(page, 1);
+  const task = {
+    id: 'e2e-uat-1261-admin-controls',
+    titulo: 'E2E tarea manual pendiente UAT-1261',
+    descripcion: 'Fixture para revisar las acciones del gestor',
+    asignadoA: 'PEON1',
+    origen: 'manual',
+    categoria: 'manual',
+    inv: '0A',
+    calles: '1-2',
+    fechaISO: tomorrowISO,
+    fecha: 'mañana',
+    turno: 'Mañana',
+    prioridad: 'normal',
+    estado: 'pendiente'
+  };
+  const { database, writes } = await installFixture(page, {
+    'lasala-tareas-v1': JSON.stringify([task])
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  await overlay.getByRole('button', { name: 'Tareas de mañana' }).click();
+  const card = overlay.locator('.tarea-card').filter({ hasText: task.titulo });
+  await expect(card).toBeVisible();
+  await expect(card.getByRole('button', { name: 'Editar' })).toBeVisible();
+  await expect(card.getByRole('button', { name: 'Imprimir' })).toBeVisible();
+  await expect(card.getByRole('button', { name: 'Anular' })).toBeVisible();
+  await expect(card.getByRole('button', { name: /iniciar|completar|cerrar|finalizar|firmar/i })).toHaveCount(0);
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([task]);
+  expect(writes).toEqual([]);
+});
+
+
 test('UAT-1257–1258: Operativas no inventa calles y conserva varios tramos', async ({ page }) => {
   const tomorrowISO = await fechaISOEnNavegador(page, 1);
   const tasks = [{
