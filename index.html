@@ -4232,7 +4232,7 @@ async function autoAsignarTareaFumigacion(objetivos, dia, titulo, horario, extra
 
 // ════════════════════════════════════════════════════════════════
 // PARTIDAS DB (persistent)
-// ════════════════════════════════════════════════════════════════
+// ════════════════════════���═══════════════════════════════════════
 const PARTIDAS_KEY = 'lasala-partidas-v1';
 
 // `partidasDB` NUNCA está vacío de verdad — arranca con datos de ejemplo de
@@ -6967,12 +6967,7 @@ function renderControlWizardFinalHTML(c){
       ${wizardCabeceraPartidaHTML(c)}
       <div style="text-align:center;font-size:44px;margin-bottom:4px">✅</div>
       <div style="text-align:center;font-size:17px;font-weight:800;color:#2e7d32;margin-bottom:24px">Evaluación completa</div>
-      <div data-qc-legacy-extras="${c.id}" style="margin-bottom:16px">
-        <div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:7px">Observaciones (opcional)</div>
-        <input type="text" value="${escapar(c.observaciones)}" placeholder="Escribe aquí si hace falta..."
-          onchange="guardarControlObservaciones('${c.id}', this.value)"
-          style="width:100%;padding:16px;border:2px solid var(--border);border-radius:12px;font-size:15px">
-      </div>
+      ${c.observaciones ? `<div data-qc-legacy-extras="${c.id}" class="qc-observaciones-historicas" style="font-size:11px;color:var(--muted);line-height:1.4;overflow-wrap:anywhere"><strong>Observaciones históricas:</strong> ${escapar(c.observaciones)}</div>` : ''}
       <div data-qc-legacy-extras="${c.id}" style="margin-bottom:24px;text-align:center">
         ${fotoHTML}
         <label style="display:inline-flex;align-items:center;gap:8px;padding:15px 24px;background:#eaf5ea;border:2px solid #a5d6a7;border-radius:12px;cursor:pointer;font-size:14px;font-weight:700;color:#2e7d32">
@@ -8385,11 +8380,7 @@ function renderControlCardCompactHTML(c,seccion){
           </div>
           ${pdfHTML}
           <div data-qc-legacy-extras="${c.id}" class="qc-card-evidence">
-            <label class="qc-card-observaciones">Observaciones
-              <input type="text" value="${esc(c.observaciones)}" placeholder="Sin observaciones"
-                onchange="guardarControlObservaciones('${c.id}',this.value)" />
-            </label>
-
+            ${c.observaciones ? `<div class="qc-observaciones-historicas" style="font-size:11px;color:var(--muted);line-height:1.4;overflow-wrap:anywhere"><strong>Observaciones históricas:</strong> ${esc(c.observaciones)}</div>` : ''}
           </div>
         </div>
       </details>
@@ -8471,12 +8462,7 @@ function renderControlCardHTML(c, seccion){
       ${anclaCuantificacionControlHTML(c)}
       ${categoriasHTML ? `<div style="margin-top:12px">${categoriasHTML}</div>` : ''}
       <div data-qc-legacy-extras="${c.id}" style="margin-top:6px;display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">
-        <div style="flex:1;min-width:180px">
-          <div style="font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Observaciones</div>
-          <input type="text" value="${escapar(c.observaciones)}" placeholder="Sin observaciones"
-            onchange="guardarControlObservaciones('${c.id}', this.value)"
-            style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px">
-        </div>
+        ${c.observaciones ? `<div class="qc-observaciones-historicas" style="font-size:11px;color:var(--muted);line-height:1.4;overflow-wrap:anywhere"><strong>Observaciones históricas:</strong> ${escapar(c.observaciones)}</div>` : ''}
         <div style="display:flex;align-items:center">
           ${fotoHTML}
           <label style="display:inline-flex;align-items:center;gap:6px;padding:8px 12px;background:#eaf5ea;border:1.5px solid #a5d6a7;border-radius:8px;cursor:pointer;font-size:11px;font-weight:700;color:#2e7d32;white-space:nowrap">
@@ -8552,12 +8538,7 @@ function renderControlCargaCardHTML(c, seccion){
       ${anclaCuantificacionControlHTML(c)}
       ${categoriasHTML ? `<div style="margin-top:12px">${categoriasHTML}</div>` : ''}
       <div data-qc-legacy-extras="${c.id}" style="margin-top:6px;display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">
-        <div style="flex:1;min-width:180px">
-          <div style="font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Observaciones</div>
-          <input type="text" value="${escapar(c.observaciones)}" placeholder="Sin observaciones"
-            onchange="guardarControlObservaciones('${c.id}', this.value)"
-            style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px">
-        </div>
+        ${c.observaciones ? `<div class="qc-observaciones-historicas" style="font-size:11px;color:var(--muted);line-height:1.4;overflow-wrap:anywhere"><strong>Observaciones históricas:</strong> ${escapar(c.observaciones)}</div>` : ''}
         <div style="display:flex;align-items:center">
           ${fotoHTML}
           <label style="display:inline-flex;align-items:center;gap:6px;padding:8px 12px;background:#eaf5ea;border:1.5px solid #a5d6a7;border-radius:8px;cursor:pointer;font-size:11px;font-weight:700;color:#2e7d32;white-space:nowrap">
@@ -24895,82 +24876,4 @@ async function confirmPinzado(num, inv){
 
   // Close dialog and refresh detail
   document.getElementById('pinzar-dialog-overlay').style.display='none';
-  showToast('✓ Pinzado registrado el '+fecha);
-  logHistorial(`Marcó pinzado de ${num} el ${fecha}`);
-
-  // Re-render detail if open
-  const detailOverlay = document.getElementById('partida-detail-overlay');
-  if(detailOverlay && detailOverlay.style.display==='flex' && p){
-    _renderPartidaDetail(p, num, inv);
-  }
-  // Re-render card list if open
-  const listOverlay = document.getElementById('partidas-list-overlay');
-  if(listOverlay && listOverlay.style.display==='flex'){
-    renderPartidasContent(listOverlay, document.getElementById('psearch')?.value||'');
-  }
-}
-
-async function setPinzadoPendiente(num, inv){
-  const k = num+'|'+inv;
-  if(!checksData[k]) checksData[k]={};
-  checksData[k]['pinzado'] = 'PENDIENTE';
-  delete checksData[k]['pinzadoFechaReal'];
-  const p = partidasDB.find(x=>x.num===num&&x.inv===inv)||partidasDB.find(x=>x.num===num);
-  if(p){ p.pinzadoRealizado = false; delete p.pinzadoFechaReal; }
-  await persistChecksData();
-  if(p) await savePartidaToStorage(p);
-  showToast('Pinzado marcado como pendiente');
-  logHistorial(`Deshizo el pinzado de ${num}`);
-  const detailOverlay = document.getElementById('partida-detail-overlay');
-  if(detailOverlay && detailOverlay.style.display==='flex' && p){
-    _renderPartidaDetail(p, num, inv);
-  }
-}
-
-// ── GUARDIA DE DOBLE PULSACIÓN (auditoría 2026-09-11) ──────────────────
-// Todas estas acciones hacen push(...) y LUEGO await persist...(), dejando
-// el formulario en pantalla durante la espera: un segundo toque (muy fácil
-// en móvil, o cuando la red va lenta y parece que no ha pasado nada) vuelve
-// a entrar y crea una copia. Ya pasó de verdad con el "Aplicar" del riego
-// manual, que se arregló con la bandera `guardandoRiegoManual` — pero ese
-// patrón no se había replicado en ningún otro botón.
-//
-// Se envuelven aquí, DESPUÉS de que estén todas definidas, en vez de tocar
-// el cuerpo de cada función: así la protección no puede introducir errores
-// dentro de lógica que ya funciona. Mientras una llamada está en curso, las
-// siguientes se ignoran (return inmediato) hasta que la primera termina.
-function conGuardiaReentrada(fn){
-  let enCurso = false;
-  return async function(...args){
-    if(enCurso) return;
-    enCurso = true;
-    try{ return await fn.apply(this, args); }
-    finally{ enCurso = false; }
-  };
-}
-[
-  'crearTarea',                             // duplicaba la tarea por cada persona marcada
-  'guardarEdicionTarea',
-  'asignarTareasEnLote',
-  'guardarNuevoTrabajo',                    // duplicaba el trabajo
-  'crearTicketMantenimientoConTrabajo',     // duplicaba el lote entero de tickets
-  'confirmarAsignacionesMantenimiento',
-  'guardarNuevoClimaCuadro',
-  'aplicarEspecificoAPartidasSeleccionadas',// duplicaba tareas de fumigación y banners
-  'enviarProblemaRiego',                    // enviaba 2 avisos al técnico de guardia
-  'generarTareasDesdeRiego',
-  'guardarNuevaLineaInvernadero',
-  'guardarNuevaNotaSalaEnVivo'
-].forEach(nombre=>{
-  if(typeof window[nombre] === 'function') window[nombre] = conGuardiaReentrada(window[nombre]);
-});
-
-</script>
-<script src="assets/fito-series-v3.js"></script>
-<script src="assets/qc-editar-linea-v3.js?v=112"></script>
-<script src="assets/gs-carga-feed.js?v=5"></script>
-<script src="assets/qc-carga-injerto-bootstrap.js?v=2" defer></script>
-<script src="assets/qc-preinjerto-bootstrap.js?v=8" defer></script>
-</body>
-</html>
-<!-- VERCEL TEST v1.0 deployment trigger 2026-09-22 -->
+  showToast('✓ Pi
