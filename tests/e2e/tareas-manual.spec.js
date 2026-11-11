@@ -200,6 +200,7 @@ test('UAT-1234 y UAT-2412: Tareas abre Operativas y Mantenimiento en la primera 
     fechaISO: tomorrowISO,
     fecha: 'mañana',
     turno: 'Mañana',
+    horario: 'Mañana 09:00',
     prioridad: 'normal',
     estado: 'pendiente'
   }];
@@ -274,7 +275,7 @@ test('UAT-1249: botones de Operativas y de una tarjeta se manejan con teclado', 
 });
 
 
-test('UAT-1251 y UAT-1259: la tarjeta manual muestra el contenido y turno guardados', async ({ page }) => {
+test('UAT-1259: la tarjeta operativa muestra el horario guardado', async ({ page }) => {
   const tomorrowISO = await fechaISOEnNavegador(page, 1);
   const task = {
     id: 'e2e-uat-1251-manual-card',
@@ -301,10 +302,9 @@ test('UAT-1251 y UAT-1259: la tarjeta manual muestra el contenido y turno guarda
   await expect(card).toBeVisible();
   await expect(card).toContainText(task.titulo);
   await expect(card).toContainText(task.descripcion);
-  await expect(card).toContainText('Mañana');
+  await expect(card).toContainText('Mañana 09:00');
   await expect(card).toContainText('PEON1');
   await expect(card).toContainText(/Pendiente/i);
-  await expect(card).toContainText(/Manual/i);
   expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([task]);
   expect(writes).toEqual([]);
 });
