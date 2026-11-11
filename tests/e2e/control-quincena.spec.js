@@ -3419,7 +3419,7 @@ test('UAT-2433: las dos pantallas leen la última evaluación QC v6 confirmada t
   }
 });
 
-test('UAT-375–376, UAT-391, UAT-393–394 y UAT-398: las fotos se acumulan y las galerías siguen independientes en móvil', async ({ page }) => {
+test('UAT-375–376, UAT-387, UAT-391, UAT-393–394 y UAT-398: las fotos se acumulan y las galerías siguen independientes en móvil', async ({ page }) => {
   const database = fixtureDatabase();
   const items = database['lasala-control-items-v1'];
   const firstId = 'e2e-control-current-fortnight';
@@ -3430,7 +3430,7 @@ test('UAT-375–376, UAT-391, UAT-393–394 y UAT-398: las fotos se acumulan y l
   database['lasala-control-fotos-v1'] = JSON.stringify({});
   const { overlay, unexpectedHosts } = await startControlTest(page, database);
 
-  const images = await page.evaluate(() => ['#c62828', '#1565c0', '#2e7d32', '#ef6c00', '#6a1b9a', '#00838f'].map((color, index) => {
+  const images = await page.evaluate(() => ['#c62828', '#1565c0', '#2e7d32', '#ef6c00', '#6a1b9a', '#00838f', '#ff8f00'].map((color, index) => {
     const canvas = document.createElement('canvas');
     canvas.width = index % 2 === 0 ? 600 : 200;
     canvas.height = index % 2 === 0 ? 200 : 600;
@@ -3449,23 +3449,27 @@ test('UAT-375–376, UAT-391, UAT-393–394 y UAT-398: las fotos se acumulan y l
   await firstInput.setInputFiles(images.slice(0, 3).map((image, i) => asFile(image, `e2e-uat-375-${i + 1}.png`)));
 
   const secondCard = overlay.locator(`#control-card-${secondId}`);
-  await secondCard.locator('input[data-testid^="control-photo-camera-"]').setInputFiles(asFile(images[3], 'e2e-uat-376-camera.png'));
+  const cameraInput = secondCard.locator('input[data-testid^="control-photo-camera-"]');
+  await cameraInput.setInputFiles(asFile(images[3], 'e2e-uat-376-camera-1.png'));
+  const secondThumbnails = secondCard.locator('img[title="Ver foto"]');
+  await expect(secondThumbnails).toHaveCount(1);
+  await cameraInput.setInputFiles(asFile(images[4], 'e2e-uat-387-camera-2.png'));
+  await expect(secondThumbnails).toHaveCount(2);
   await secondCard.locator('input[data-testid^="control-photo-gallery-"]').setInputFiles([
-    asFile(images[4], 'e2e-uat-376-gallery-1.png'),
-    asFile(images[5], 'e2e-uat-376-gallery-2.png')
+    asFile(images[5], 'e2e-uat-376-gallery-1.png'),
+    asFile(images[6], 'e2e-uat-376-gallery-2.png')
   ]);
 
   const firstThumbnails = firstCard.locator('img[title="Ver foto"]');
-  const secondThumbnails = secondCard.locator('img[title="Ver foto"]');
   await expect(firstThumbnails).toHaveCount(3);
-  await expect(secondThumbnails).toHaveCount(3);
+  await expect(secondThumbnails).toHaveCount(4);
   await expect.poll(() => JSON.parse(database['lasala-control-fotos-v1'] || '{}')[firstId]).toHaveLength(3);
-  await expect.poll(() => JSON.parse(database['lasala-control-fotos-v1'] || '{}')[secondId]).toHaveLength(3);
+  await expect.poll(() => JSON.parse(database['lasala-control-fotos-v1'] || '{}')[secondId]).toHaveLength(4);
   const thumbnailSources = [
     ...await firstThumbnails.evaluateAll(elements => elements.map(element => element.getAttribute('src'))),
     ...await secondThumbnails.evaluateAll(elements => elements.map(element => element.getAttribute('src')))
   ];
-  expect(new Set(thumbnailSources).size).toBe(6);
+  expect(new Set(thumbnailSources).size).toBe(7);
 
   const fullSources = await page.evaluate(({ firstId, secondId }) => [
     ...controlFotosData[firstId].map(fotoSrcCompleta),
@@ -3473,8 +3477,8 @@ test('UAT-375–376, UAT-391, UAT-393–394 y UAT-398: las fotos se acumulan y l
   ], { firstId, secondId });
   await page.setViewportSize({ width: 320, height: 760 });
   const enlarged = page.locator('#control-foto-ampliada-overlay');
-  const thumbnailsToOpen = [firstThumbnails.nth(0), firstThumbnails.nth(2), secondThumbnails.nth(0), secondThumbnails.nth(2)];
-  const sourceIndexes = [0, 2, 3, 5];
+  const thumbnailsToOpen = [firstThumbnails.nth(0), firstThumbnails.nth(2), secondThumbnails.nth(0), secondThumbnails.nth(3)];
+  const sourceIndexes = [0, 2, 3, 6];
   for (let i = 0; i < thumbnailsToOpen.length; i++) {
     await thumbnailsToOpen[i].click();
     await expect(enlarged).toBeVisible();
