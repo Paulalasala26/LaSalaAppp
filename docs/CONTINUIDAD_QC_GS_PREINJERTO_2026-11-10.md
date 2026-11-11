@@ -142,3 +142,12 @@ El usuario autorizó automatizar la lectura de GS y la sincronización de Preinj
 - La tarea consulta GS en modo solo lectura y sincroniza **solo Firebase TEST**. No toca GS para escritura, Firebase PRD, Vercel ni `main`.
 
 Los commits de automatización están marcados `[skip-vercel]` porque solo afectan al conector Windows; no requieren publicar la aplicación.
+
+
+## Fuente física de ubicaciones Preinjerto confirmada (11/11/2026)
+
+La salida aportada por el usuario confirma que `partidas_par_ubic` contiene las ubicaciones físicas: `C0` identifica el invernadero (`invernaderos.id`), `C1/C2` las calles desde/hasta y `id2` distingue varias asignaciones de una misma partida. `PAR_CAS` es un código distinto y no se debe convertir en invernadero. El conector consulta esta tabla con `LEFT JOIN` limitado a las partidas QC y conserva todas las filas de ubicación.
+
+Para `26C02436` no existe fila propia de ubicación. `26C02434` y `26C02435`, de la misma variedad, sí tienen asignaciones en el invernadero 43; la segunda abarca las calles 25–26. Eso hace plausible la hipótesis de que `26C02436` también ocupe ese tramo, pero no demuestra que esas calles correspondan a esa partida. Se muestra sin ubicación hasta que GS tenga una fila propia; no se heredan calles de partidas hermanas.
+
+En `test/v1.0`, el snapshot pasa a conservar `Ubicaciones GS` como array, el importador deja de usar `PAR_CAS/PAR_UBIC` como ubicación física y las tarjetas de Preinjerto presentan el nombre del invernadero y tramo real cuando existe. Una partida sin filas se presenta con ubicación vacía. No se ha ejecutado una consulta GS ni sincronizado Firebase desde este entorno; falta que el usuario actualice el conector local y valide la extracción en modo lectura. No desplegar Vercel.

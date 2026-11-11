@@ -222,3 +222,12 @@ En `test/v1.0` se habilitó el editor del bloque Preinjerto Patrón reutilizando
 ## Editor QC Preinjerto Variedad (10/11/2026)
 
 Se habilitó el editor de Preinjerto Variedad reutilizando el mismo formulario y controles que Preinjerto Patrón. Permite corregir partida, cliente, variedad, bandejas y códigos GS `PAR_CAS`/`PAR_UBIC`, conserva las fechas originales y persiste las correcciones de APP en futuras importaciones. Commits: `4a4a480`, `cbb75e5`, `4f9e96f`, `bea807f`. Los cinco tipos QC tienen código de edición preparado; la validación funcional queda pendiente de despliegue a TEST. No se realizaron escrituras GS/Firebase ni despliegue.
+
+
+## Ubicación física Preinjerto: fuente y límite de inferencia (11/11/2026)
+
+La tabla física confirmada es `partidas_par_ubic`: `id` enlaza con la partida, `id2` identifica cada fila/asignación, `C0` enlaza con `invernaderos.id`, `C1/C2` contienen el tramo de calles y `C3/C4/C5` se conservan como datos GS auxiliares. `PAR_CAS` no equivale a `C0`; no debe mostrarse como invernadero físico. Una partida puede tener varias filas de ubicación.
+
+En los datos aportados, `26C02436` no tiene fila propia. Sus hermanas `26C02434` y `26C02435` sí aparecen en el invernadero 43; `26C02435` está asignada a las calles 25–26. La cercanía por variedad/encargo no prueba que `26C02436` comparta esas calles. No copiar esa ubicación: mantenerla vacía hasta que exista asignación propia.
+
+Cambios de implementación en `test/v1.0`: el piloto extrae todas las filas `partidas_par_ubic` mediante join desde el conjunto de partidas QC ya acotado; el snapshot las guarda en `Ubicaciones GS`; el importador usa esos datos y conserva varias asignaciones; Preinjerto muestra ubicaciones físicas verificadas o `—`. No se ha consultado GS ni escrito Firebase en esta sesión y no se ha desplegado Vercel. Próximo paso: actualizar el script local y ejecutar solo lectura para verificar recuentos y los dos casos conocidos.

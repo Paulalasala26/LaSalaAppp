@@ -257,12 +257,24 @@ def _preinjerto_rows(payload: Any, module: str) -> list[dict[str, Any]]:
         customer = _text(source.get("Nombre Cliente"))
         variety = _text(source.get("VARIEDAD"))
         greenhouse_code = _text(source.get("PAR_CAS"))
-        street = _number(source.get("PAR_UBIC"))
-        explicit_greenhouse = re.fullmatch(
-            r"INVERNADERO\s+([A-Za-z0-9_-]+)",
-            _text(source.get("Cliente Final")), re.IGNORECASE,
-        )
-        greenhouse_id = explicit_greenhouse.group(1) if explicit_greenhouse else greenhouse_code
+        raw_street = _number(source.get("PAR_UBIC"))
+        locations = []
+        for location in source.get("Ubicaciones GS", []):
+            if not isinstance(location, dict):
+                continue
+            locations.append({
+                "id2": _number(location.get("id2")),
+                "invId": _number(location.get("invernaderoId")),
+                "invernadero": _text(location.get("invernadero")),
+                "desde": _number(location.get("calleDesde")),
+                "hasta": _number(location.get("calleHasta")),
+                "C3": _number(location.get("C3")),
+                "C4": _number(location.get("C4")),
+                "C5": _number(location.get("C5")),
+            })
+        # Los campos simples se rellenan solo cuando GS devuelve una ubicación
+        # única. Las ubicaciones múltiples permanecen completas en el array.
+        single_location = locations[0] if len(locations) == 1 else None
         item_id = _safe_id(module, part)
         item = {
             "id": item_id,
@@ -273,10 +285,11 @@ def _preinjerto_rows(payload: Any, module: str) -> list[dict[str, Any]]:
             "cliente": customer,
             "variedad": variety,
             "clienteVariedad": f"{customer} — {variety}" if variety else customer,
-            "invId": greenhouse_id or None,
-            "invernadero": _text(source.get("Cliente Final")) if explicit_greenhouse else "",
-            "calleDesde": street if street and street != "0" else None,
-            "calleHasta": street if street and street != "0" else None,
+            "ubicacionesGS": locations,
+            "invId": (single_location.get("invId") or None) if single_location else None,
+            "invernadero": single_location.get("invernadero", "") if single_location else "",
+            "calleDesde": (single_location.get("desde") or None) if single_location else None,
+            "calleHasta": (single_location.get("hasta") or None) if single_location else None,
             "fSiembra": _date_display(day_iso),
             "fEntrega": _date_display(source.get("F Entrega")),
             "plantasSol": _number(source.get("Pl sol")),
@@ -299,7 +312,8 @@ def _preinjerto_rows(payload: Any, module: str) -> list[dict[str, Any]]:
                 "lote": _nullable_text(source.get("Nº Lote")),
                 "clienteFinal": _nullable_text(source.get("Cliente Final")),
                 "PAR_CAS": greenhouse_code,
-                "PAR_UBIC": street,
+                "PAR_UBIC": raw_street,
+                "ubicacionesGS": locations,
                 "fechaRealSiembra": _nullable_text(source.get("Fecha Real Siembra")),
             },
         }
@@ -356,7 +370,7 @@ def _source_payload(module: str, path: Path, operational_day: date) -> list[dict
 def _merge_gs(existing: dict[str, Any] | None, incoming: dict[str, Any]) -> dict[str, Any]:
     """GS manda solo en sus datos; conserva checklist, fotos y asignación operativa."""
     merged = dict(existing or {})
-    location_fields = {"invId", "calleDesde", "calleHasta", "tramos"}
+    location_fields = {"invId", "calleDesde", "calleHasta", "tramos", "ubicacionesGS", "invernadero"}
 
     def has_location(value: Any) -> bool:
         if value is None:
@@ -377,7 +391,11 @@ def _merge_gs(existing: dict[str, Any] | None, incoming: dict[str, Any]) -> dict
         # devolver la inspección al día de entrada/consulta.
         if key == "dia" and existing and existing.get("extensionFecha"):
             continue
-        if key in protected and key in merged:
+        preinjerto_location_refresh = (
+            key in location_fields
+            and incoming.get("tipo") in ("preinjerto_patron", "preinjerto_variedad")
+        )
+        if key in protected and key in merged and not preinjerto_location_refresh:
             if key not in location_fields or has_location(merged[key]) or not has_location(value):
                 continue
         merged[key] = value
@@ -391,6 +409,16 @@ def _merge_gs(existing: dict[str, Any] | None, incoming: dict[str, Any]) -> dict
         for field in editable:
             if field in correction_fields:
                 merged[field] = correction_fields[field]
+        if any(field in correction_fields for field in ("invId", "calleDesde", "calleHasta")):
+            inv_id = _text(merged.get("invId"))
+            desde = _number(merged.get("calleDesde"))
+            hasta = _number(merged.get("calleHasta"))
+            merged["ubicacionesGS"] = ([{
+                "invId": inv_id,
+                "invernadero": "",
+                "desde": desde,
+                "hasta": hasta,
+            }] if inv_id or desde or hasta else [])
         if "cliente" in correction_fields or "variedad" in correction_fields:
             customer = _text(merged.get("cliente"))
             variety = _text(merged.get("variedad"))

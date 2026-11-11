@@ -73,6 +73,14 @@ SELECT
     NULL AS `Fecha Real Siembra`,
     p.PAR_CAS AS `PAR_CAS`,
     p.PAR_UBIC AS `PAR_UBIC`,
+    pu.id2 AS `GS Ubicacion id2`,
+    pu.C0 AS `GS Ubicacion invernaderoId`,
+    inv.INV_DENO AS `GS Ubicacion invernadero`,
+    pu.C1 AS `GS Ubicacion calleDesde`,
+    pu.C2 AS `GS Ubicacion calleHasta`,
+    pu.C3 AS `GS Ubicacion C3`,
+    pu.C4 AS `GS Ubicacion C4`,
+    pu.C5 AS `GS Ubicacion C5`,
     CASE
         WHEN p.id LIKE '__P%' OR p.id LIKE '__WE%' THEN 'patron'
         ELSE 'variedad'
@@ -80,11 +88,13 @@ SELECT
 FROM sala12.partidas AS p
 LEFT JOIN sala12.encargos AS e ON e.id = p.PAR_ENC
 LEFT JOIN sala12.clientes AS c ON c.id = p.PAR_CCL
+LEFT JOIN sala12.partidas_par_ubic AS pu ON pu.id = p.id
+LEFT JOIN sala12.invernaderos AS inv ON inv.id = pu.C0
 WHERE (p.id LIKE '__P%' OR p.id LIKE '__WE%'
        OR p.id LIKE '__C%' OR p.id LIKE '__VE%')
   AND p.PAR_FECS >= %s
   AND p.PAR_FECS < DATE_ADD(%s, INTERVAL 1 DAY)
-ORDER BY p.PAR_FECS, p.id
+ORDER BY p.PAR_FECS, p.id, pu.id2
 """
 
 
@@ -166,28 +176,56 @@ def write_snapshot(rows: list[dict[str, Any]], desde: date, hasta: date) -> Path
             )
     records: dict[str, dict[str, Any]] = {}
     counts = {"patron": 0, "variedad": 0}
-    coverage = {"parCas": 0, "parUbic": 0, "clienteFinalInv": 0}
+    coverage = {"parCas": 0, "parUbic": 0, "clienteFinalInv": 0,
+                "partidasConUbicacionGS": 0, "filasUbicacionGS": 0}
+    location_fields = (
+        "GS Ubicacion id2", "GS Ubicacion invernaderoId",
+        "GS Ubicacion invernadero", "GS Ubicacion calleDesde",
+        "GS Ubicacion calleHasta", "GS Ubicacion C3", "GS Ubicacion C4",
+        "GS Ubicacion C5",
+    )
     for source in rows:
         row = {key: json_value(value) for key, value in source.items()}
         part = str(row.get("PARTIDA") or "").strip()
         category = str(row.get("QC Preinjerto") or "").strip()
         if not part or category not in counts:
             continue
-        if part in records:
-            raise ValueError(f"Partida duplicada devuelta por GS: {part}")
-        records[part] = row
-        counts[category] += 1
-        if str(row.get("PAR_CAS") or "").strip() not in ("", "0"):
-            coverage["parCas"] += 1
-        if str(row.get("PAR_UBIC") or "").strip() not in ("", "0"):
-            coverage["parUbic"] += 1
-        final = str(row.get("Cliente Final") or "").strip()
-        if re.fullmatch(r"INVERNADERO\s+[A-Za-z0-9_-]+", final, re.IGNORECASE):
-            coverage["clienteFinalInv"] += 1
+        if part not in records:
+            record = {key: value for key, value in row.items() if key not in location_fields}
+            record["Ubicaciones GS"] = []
+            records[part] = record
+            counts[category] += 1
+            if str(row.get("PAR_CAS") or "").strip() not in ("", "0"):
+                coverage["parCas"] += 1
+            if str(row.get("PAR_UBIC") or "").strip() not in ("", "0"):
+                coverage["parUbic"] += 1
+            final = str(row.get("Cliente Final") or "").strip()
+            if re.fullmatch(r"INVERNADERO\s+[A-Za-z0-9_-]+", final, re.IGNORECASE):
+                coverage["clienteFinalInv"] += 1
+        elif records[part].get("QC Preinjerto") != category:
+            raise ValueError(f"Categoría inconsistente en filas GS de {part}")
+
+        if row.get("GS Ubicacion id2") is not None:
+            location = {
+                "id2": row.get("GS Ubicacion id2"),
+                "invernaderoId": row.get("GS Ubicacion invernaderoId"),
+                "invernadero": row.get("GS Ubicacion invernadero"),
+                "calleDesde": row.get("GS Ubicacion calleDesde"),
+                "calleHasta": row.get("GS Ubicacion calleHasta"),
+                "C3": row.get("GS Ubicacion C3"),
+                "C4": row.get("GS Ubicacion C4"),
+                "C5": row.get("GS Ubicacion C5"),
+            }
+            records[part]["Ubicaciones GS"].append(location)
+            coverage["filasUbicacionGS"] += 1
+
+    coverage["partidasConUbicacionGS"] = sum(
+        bool(record["Ubicaciones GS"]) for record in records.values()
+    )
 
     payload = {
         "metadata": {
-            "schemaVersion": 1,
+            "schemaVersion": 2,
             "source": "GS MySQL sala12",
             "module": "qc_preinjerto",
             "desde": desde.isoformat(),
@@ -270,7 +308,9 @@ def main() -> int:
         "Ubicaciones GS: "
         f"PAR_CAS={metadata['ubicaciones']['parCas']} "
         f"PAR_UBIC={metadata['ubicaciones']['parUbic']} "
-        f"Cliente_Final_INV={metadata['ubicaciones']['clienteFinalInv']}"
+        f"Cliente_Final_INV={metadata['ubicaciones']['clienteFinalInv']} "
+        f"Partidas_con_ubicacion={metadata['ubicaciones']['partidasConUbicacionGS']} "
+        f"Filas_ubicacion={metadata['ubicaciones']['filasUbicacionGS']}
     )
     if metadata["total"] and not metadata["ubicaciones"]["parCas"]:
         print("AVISO: ninguna partida trae PAR_CAS; verificar la fuente antes de sincronizar.")

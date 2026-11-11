@@ -1916,8 +1916,22 @@ function wizardCabeceraPartidaHTML(c){
 function controlQCInfoVisual(c){
   const tunel=c.tipo==='tunel';
   const preinjerto=c.tipo==='preinjerto_patron'||c.tipo==='preinjerto_variedad';
-  // Preinjerto no tiene ubicación C3/C4/C5 de Carga: usar PAR_CAS/PAR_UBIC de GS.
+  // Preinjerto muestra solo asignaciones físicas de partidas_par_ubic.
   const tramo=tunel?calleTramoDeTunel(c):(preinjerto?null:calleTramoDeCarga(c));
+  const gsLocations=preinjerto&&Array.isArray(c.ubicacionesGS)
+    ?c.ubicacionesGS.filter(x=>x&&typeof x==='object'):[];
+  if(preinjerto){
+    const invs=[...new Set(gsLocations.map(x=>{
+      const name=String(x.invernadero||'').trim(),id=String(x.invId||'').trim();
+      return name||(id?'INV '+id:'');
+    }).filter(Boolean))];
+    const calles=[...new Set(gsLocations.map(x=>{
+      const a=Number(x.desde),b=x.hasta==null||x.hasta===''?a:Number(x.hasta);
+      if(!Number.isInteger(a)||a<=0||!Number.isInteger(b)||b<=0)return '';
+      return a===b?String(a):Math.min(a,b)+'–'+Math.max(a,b);
+    }).filter(Boolean))];
+    return {inv:invs.join(', ')||'—',calles:calles.join(', ')||'—'};
+  }
   const codigoGS=String(c.PAR_CAS??c.gsDetalles?.PAR_CAS??'').trim();
   const invAsignado=String((tunel?c.invId:tramo?.invId)||c.invId||
     c.idInvernadero||c.gsDetalles?.idInvernadero||'').trim();
