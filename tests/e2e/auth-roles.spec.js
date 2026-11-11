@@ -639,6 +639,39 @@ test('UAT-2015: Avisos vacío muestra un estado claro y no activa el punto rojo'
   await expect(panel).toContainText('No tienes avisos.');
 });
 
+test('UAT-2053: volver a consultar un problema ya leído no lo resuelve', async ({ page }) => {
+  const aviso = {
+    id: 'problema-ya-leido',
+    mensaje: 'Problema pendiente de resolver',
+    fecha: '04/11/2026',
+    visto: true,
+    leido: true,
+    tipo: 'problema_ejecucion',
+    resuelto: false,
+    solucion: '',
+    problemaData: { reportadoPor: 'E2E_REGANTE', problema: 'OTRO', problemaOtro: 'Prueba' }
+  };
+  await installAuthFixture(page, { 'lasala-avisos-usuario-v1': JSON.stringify({ E2E_TECNICO: [aviso] }) });
+  await logInAs(page, 'E2E_TECNICO');
+  await expect(page.locator('#avisos-tecnico-badge span[aria-label]')).toHaveCount(0);
+  await page.getByRole('button', { name: /Avisos/ }).click();
+
+  const panel = page.locator('#avisos-tecnico-overlay');
+  await expect(panel).toBeVisible();
+  const action = panel.locator(`[onclick="abrirEvaluarAviso('problema-ya-leido')"]`);
+  await expect(action).toBeVisible();
+  await action.click();
+
+  const resolver = page.locator('#resolver-problema-overlay');
+  await expect(resolver).toBeVisible();
+  await expect(resolver).toContainText('Problema pendiente de resolver');
+  await expect.poll(async () => page.evaluate(async () => {
+    const value = await window.storage.get('lasala-avisos-usuario-v1');
+    return JSON.parse(value.value).E2E_TECNICO[0];
+  })).toMatchObject({ id: 'problema-ya-leido', leido: true, resuelto: false, solucion: '' });
+  await expect(page.locator('#avisos-tecnico-badge span[aria-label]')).toHaveCount(0);
+});
+
 test('UAT-2043 y UAT-2048: volver del detalle conserva un aviso leído y sus acciones pendientes', async ({ page }) => {
   const aviso = {
     id: 'aviso-vuelta-lista',
