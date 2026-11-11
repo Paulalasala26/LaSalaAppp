@@ -151,3 +151,8 @@ La salida aportada por el usuario confirma que `partidas_par_ubic` contiene las 
 Para `26C02436` no existe fila propia de ubicación. `26C02434` y `26C02435`, de la misma variedad, sí tienen asignaciones en el invernadero 43; la segunda abarca las calles 25–26. Eso hace plausible la hipótesis de que `26C02436` también ocupe ese tramo, pero no demuestra que esas calles correspondan a esa partida. Se muestra sin ubicación hasta que GS tenga una fila propia; no se heredan calles de partidas hermanas.
 
 En `test/v1.0`, el snapshot pasa a conservar `Ubicaciones GS` como array, el importador deja de usar `PAR_CAS/PAR_UBIC` como ubicación física y las tarjetas de Preinjerto presentan el nombre del invernadero y tramo real cuando existe. Una partida sin filas se presenta con ubicación vacía. No se ha ejecutado una consulta GS ni sincronizado Firebase desde este entorno; falta que el usuario actualice el conector local y valide la extracción en modo lectura. No desplegar Vercel.
+
+
+### Comprobación directa por ID y fecha (11/11/2026)
+
+Consulta directa de `partidas` con `partidas_par_ubic` por ID: `26C02434` y `26C02435` tienen fecha de siembra 27/10/2026 y ubicación propia en `INVERNADERO 43` (calles 25–25 y 25–26); `26C02436` tiene fecha 10/11/2026 y no tiene fila de ubicación. Los enlaces `partidas_par_cab` hacia `26X02436` describen CABEZA/PIE, pero la ubicación consultada para esas partidas X está vacía. Por tanto, el resultado de la extracción 10–15/11 (154 partidas, cero filas de ubicación) es coherente con GS: las ubicaciones de las hermanas son anteriores y no deben heredarse. La fuente real es `partidas_par_ubic` por el mismo ID; no hay ubicación física asignada en GS para `26C02436` a fecha 10/11.
