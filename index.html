@@ -674,10 +674,14 @@ function showLoginAlert(msg,type){
   el.style.border='1px solid';el.style.display='block';
 }
 function doLogout(){
+  document.querySelectorAll('[id$="-overlay"]').forEach(overlay=>{overlay.style.display='none';});
   currentUser=null;currentUserRole=null;document.getElementById('app').style.display='none';
   document.getElementById('login-screen').style.display='flex';
   document.getElementById('login-pass').value='';document.getElementById('login-user').value='';
   document.getElementById('login-alert').style.display='none';document.getElementById('attempts-msg').textContent='';
+  // Evita reutilizar resultados de Tareas al cambiar de usuario en la misma pestaña.
+  tareasData = [];
+  tareasDataCargadaEn = 0;
   borrarSesion();
   resetGeoView();
 }
@@ -736,9 +740,6 @@ function applyRoleHomeUI(){
           <button onclick="pedirPermisoNotificaciones()" title="Recibir un aviso cuando te asignen una tarea nueva" style="padding:5px 10px;font-size:10px;font-weight:700;background:#f2f4f0;color:var(--muted);border:1px solid var(--border);border-radius:7px;cursor:pointer;text-transform:none;letter-spacing:normal;white-space:nowrap">&#128276; Activar avisos</button>
         </div>
         <div style="display:flex;gap:10px;flex-wrap:wrap">
-          <button onclick="showTareasModule()" style="padding:14px 20px;font-size:14px;font-weight:700;background:#7b5cf0;color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:8px">
-            <i class="ti ti-clipboard-list" style="font-size:18px"></i> Mis tareas <span id="regante-mis-tareas-badge"></span>
-          </button>
           <button onclick="showHojasRiego()" style="padding:14px 20px;font-size:14px;font-weight:700;background:var(--verde);color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:8px">
             <i class="ti ti-droplet" style="font-size:18px"></i> Hojas de riego
           </button>
@@ -843,11 +844,8 @@ function applyRoleHomeUI(){
 async function actualizarBadgeTareasRegante(){
   await loadTareasData();
   const n = contarTareasNuevas(currentUser);
-  const html = n>0 ? `<span style="background:#ffeb3b;color:#7a5000;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:2px;font-weight:800">${n}</span>` : '';
-  ['regante-tareas-badge','regante-mis-tareas-badge'].forEach(id=>{
-    const badge = document.getElementById(id);
-    if(badge) badge.innerHTML = html;
-  });
+  const badge = document.getElementById('regante-tareas-badge');
+  if(badge) badge.innerHTML = n>0 ? `<span style="background:#ffeb3b;color:#7a5000;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:2px;font-weight:800">${n}</span>` : '';
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -971,7 +969,7 @@ function esTareaDeAyer(t){ return diasDesdeFechaTarea(t)===1; }
 // distintos tanto en la vista de gestión como en la del propio peón/regante.
 function splitTareasPorEstado(lista){
   return {
-    activas: lista.filter(t=>t.estado!=='completada' && t.estado!=='anulada'),
+    activas: lista.filter(t=>t.estado!=='completada'),
     completadas: lista.filter(t=>t.estado==='completada')
   };
 }
@@ -999,11 +997,9 @@ function ordenarTareasPorHorario(lista){
     return String(a.id).localeCompare(String(b.id));
   });
 }
-function esTareaVencidaParaBorrar(t){ const d=diasDesdeFechaTarea(t); return d!=null && d>=2; }
-// Las tareas de PEÓN/REGANTE con más de 1 día de retraso sobre su fecha se
-// borran solas (a los 2 días); el día intermedio quedan un día en "Tareas de
-// ayer", que solo ven ADMIN/TÉCNICO — el peón/regante deja de verlas en
-// cuanto pasan a ese estado.
+function esTareaVencidaParaBorrar(){ return false; }
+// Las tareas con fecha antigua se conservan para consulta histórica.
+// "Tareas antiguas" cambia la vista, no elimina registros.
 // horaFin se guarda con new Date().toLocaleString('es-ES'), formato
 // "D/M/YYYY, HH:MM:SS" — lo convertimos a ISO para poder usarlo como fecha
 // real de finalización al rellenar tareas antiguas sin completadoISO.
@@ -1030,8 +1026,7 @@ async function limpiarTareasVencidas(){
       necesitaGuardar = true;
     }
   });
-  // Las anuladas son un registro de auditoría y no se borran automáticamente.
-  const aBorrar = tareasData.filter(t=>t.estado!=='anulada' && esTareaVencidaParaBorrar(t));
+  const aBorrar = tareasData.filter(esTareaVencidaParaBorrar);
   if(!aBorrar.length && !necesitaGuardar) return;
   const idsBorrar = new Set(aBorrar.map(t=>t.id));
   tareasData = tareasData.filter(t=>!idsBorrar.has(t.id));
@@ -1074,17 +1069,19 @@ async function persistTareasData(){
     // Tratarlo como "sin tareas de verdad" borraría las de otros
     // dispositivos/usuarios que esta sesión no tenga en memoria. Se aborta
     // en vez de asumir que la nube está vacía.
-    if(!r){ avisarFalloGuardado(); return; }
+    if(!r){ avisarFalloGuardado(); return false; }
     const cloud = JSON.parse(r.value);
     const map = {};
     cloud.forEach(t=>map[t.id]=t);
     tareasData.forEach(t=>map[t.id]=t);
-    tareasData = Object.values(map);
-    await window.storage.set(TAREAS_KEY, JSON.stringify(tareasData));
-  }catch(e){ avisarFalloGuardado(); }
+    const merged = Object.values(map);
+    const ok = await window.storage.set(TAREAS_KEY, JSON.stringify(merged));
+    if(!ok){ avisarFalloGuardado(); return false; }
+    tareasData = merged;
+    return true;
+  }catch(e){ avisarFalloGuardado(); return false; }
 }
 function estadoTareaLabel(estado){
-  if(estado==='anulada') return '⊘ Anulada';
   if(estado==='completada') return '✓ Completada';
   if(estado==='iniciada') return '▶ Iniciada';
   return '⏳ Pendiente';
@@ -1098,10 +1095,10 @@ function estadoTareaLabel(estado){
 // abierta — pero el conteo de "tareas nuevas" en el botón si queda visible
 // desde que entran, aunque no hayan abierto la lista todavía.
 function contarTareasNuevas(usuario){
-  return tareasData.filter(t=>t.asignadoA===usuario && t.visto===false && t.estado!=='anulada').length;
+  return tareasData.filter(t=>t.asignadoA===usuario && t.visto===false).length;
 }
 async function avisarNuevasTareas(usuario){
-  const nuevas = tareasData.filter(t=>t.asignadoA===usuario && t.visto===false && t.estado!=='anulada');
+  const nuevas = tareasData.filter(t=>t.asignadoA===usuario && t.visto===false);
   if(!nuevas.length) return;
   const resumen = nuevas.length===1 ? `Nueva tarea: "${nuevas[0].titulo}"` : `${nuevas.length} tareas nuevas asignadas`;
   showToast('🔔 '+resumen);
@@ -1391,7 +1388,7 @@ async function actualizarBadgeNotificacionesVigueras(){
     const cloud = r ? JSON.parse(r.value) : {};
     const n = (cloud['VIGUERAS']||[]).length;
     const badge = document.getElementById('notificaciones-vigueras-badge');
-    if(badge) badge.innerHTML = n>0 ? `<span style="background:#ffeb3b;color:#7a5000;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:2px;font-weight:800">${n}</span>` : '';
+    if(badge) badge.innerHTML = n>0 ? `<span aria-label="${n} notificaciones sin leer" title="${n} notificaciones sin leer" style="display:inline-block;width:8px;height:8px;background:#c62828;border-radius:50%;margin-left:4px;vertical-align:middle"></span>` : '';
   }catch(e){}
 }
 // ── PANTALLA "AVISOS" DEL TÉCNICO ────────────────────────────────────────
@@ -1698,6 +1695,7 @@ async function avisarHojasCorregidas(){
 // cada refresco (refreshTareasViews llama a renderTareasContent
 // directamente, sin pasar por aquí, para no perder en qué sección estaba).
 let tareasGestorVista = null; // null (resumen) | 'antiguas' | 'hoy' | 'manana' | 'mantenimiento'
+let tareasModuleOpening = false; // evita aperturas duplicadas al hacer doble clic
 async function irATareasGestorVista(v){
   tareasGestorVista = v;
   tareasSeleccionadas.clear();
@@ -1820,16 +1818,33 @@ async function persistMantenimientoData(){
     return true;
   }catch(e){ avisarFalloGuardado(); return false; }
 }
-function showTareasModule(){
-  loadTareasData(false).then(async ()=>{
+async function showTareasModule(){
+  if(tareasModuleOpening) return;
+  tareasModuleOpening = true;
+  tareasGestorVista = null;
+  try{
+    await loadTareasData(false);
     const overlay = getOrCreateOverlay('tareas-overlay');
+    // El segundo click de un doble clic puede aterrizar sobre un botón del
+    // overlay recién abierto, en vez de volver a la tarjeta de Inicio.
+    if(!overlay.dataset.ignoreTareasDoubleClicks){
+      overlay.addEventListener('click', event=>{
+        if(event.detail > 1){
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        }
+      }, true);
+      overlay.dataset.ignoreTareasDoubleClicks = '1';
+    }
     const esGestor = currentUserRole!=='REGANTE' && currentUserRole!=='PEON';
     if(!esGestor) await avisarNuevasTareas(currentUser);
     if(esGestor) await loadMantenimientoData();
     tareasGestorVista = null;
     renderTareasContent(overlay, esGestor);
     overlay.style.display='flex';
-  });
+  }finally{
+    tareasModuleOpening = false;
+  }
 }
 function showMantenimientoPeonModule(){
   loadMantenimientoData().then(()=>{
@@ -1896,13 +1911,9 @@ async function asignarTareasEnLote(){
 // azul=en proceso, verde=completada (igual que buildTareaCard del peón y
 // las tarjetas de mantenimiento).
 function estadoTareaColores(estado){
-  if(estado==='anulada') return {color:'#6b7280', bg:'#f3f4f6', grad:'linear-gradient(135deg,#6b7280,#9ca3af)', label:'⊘ Anulada'};
   if(estado==='completada') return {color:'#1a5c2e', bg:'#eafaf0', grad:'linear-gradient(135deg,#1a5c2e,#3fa864)', label:'✓ Completada'};
   if(estado==='iniciada') return {color:'#1558a0', bg:'#eef4fb', grad:'linear-gradient(135deg,#1558a0,#2a72c4)', label:'▶ En proceso'};
   return {color:'#c47f00', bg:'#fff8e1', grad:'linear-gradient(135deg,#c47f00,#e0a530)', label:'⏳ Pendiente'};
-}
-function esTareaManualEditable(t){
-  return !!t && t.origen==='manual' && t.estado==='pendiente';
 }
 // Tarjeta "colgando" para la vista de gestión (ADMIN/TÉCNICO) — sustituye a
 // la fila de tabla de siempre por una tarjeta con el mismo lenguaje visual
@@ -1910,17 +1921,14 @@ function esTareaManualEditable(t){
 // simula que "cuelga"), conservando exactamente los mismos datos/acciones
 // que ya tenía la tabla (checkbox de selección en lote, editar/imprimir/
 // eliminar).
-function buildTareaGestorRow(t, conSeleccion, opciones={}){
+function buildTareaGestorRow(t, conSeleccion){
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const est = estadoTareaColores(t.estado);
   const subtitulo = t.objetivos && t.objetivos.length ? invCallesLabelDeTarea(t) : ((t.inv?('INV '+t.inv):'')+(t.calles?(' · '+(/\(INV completo\)$/.test(t.calles)?'ENTERO':t.calles)):''));
   const detalles = [
     t.horaInicio ? `Inicio: ${escapar(t.horaInicio)}` : '',
     t.horaFin ? `Fin: ${escapar(t.horaFin)}` : '',
-    t.firmante ? `Firma: ${escapar(t.firmante)}` : '',
-    t.estado==='anulada' && t.anuladaISO ? `Anulada: ${escapar(t.anuladaISO)}` : '',
-    t.estado==='anulada' && t.anuladaHora ? `Hora de anulación: ${escapar(t.anuladaHora)}` : '',
-    t.estado==='anulada' && t.anuladaPor ? `Por: ${escapar(t.anuladaPor)}` : ''
+    t.firmante ? `Firma: ${escapar(t.firmante)}` : ''
   ].filter(Boolean).join(' · ');
   return `
     <div class="tarea-card" style="position:relative;margin-top:10px;border-radius:4px 4px 12px 12px;background:#fff;border:1.5px solid var(--border);border-top:none;box-shadow:var(--shadow-sm);padding:14px 16px 12px">
@@ -1938,9 +1946,10 @@ function buildTareaGestorRow(t, conSeleccion, opciones={}){
       </div>
       ${detalles ? `<div style="font-size:11px;color:var(--muted);margin-top:8px;padding-top:8px;border-top:1px dashed var(--border)">${detalles}</div>` : ''}
       <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
-        ${!opciones.soloLectura && esTareaManualEditable(t) ? `<button onclick="showEditarTareaForm('${t.id}')" title="Editar" style="padding:5px 10px;font-size:10.5px;font-weight:700;background:#eef4fb;color:#1558a0;border:1px solid #a8c4e8;border-radius:6px;cursor:pointer">✏️ Editar</button>` : ''}
+        <button onclick="showEditarTareaForm('${t.id}')" title="Editar" style="padding:5px 10px;font-size:10.5px;font-weight:700;background:#eef4fb;color:#1558a0;border:1px solid #a8c4e8;border-radius:6px;cursor:pointer">✏️ Editar</button>
         <button onclick="imprimirTareaSuelta('${t.id}')" title="Imprimir" style="padding:5px 10px;font-size:10.5px;font-weight:700;background:#eef9f0;color:#2e7d32;border:1px solid #a8dcb0;border-radius:6px;cursor:pointer">🖨️ Imprimir</button>
-        ${!opciones.soloLectura && esTareaManualEditable(t) ? `<button onclick="anularTarea('${t.id}')" title="Anular tarea" style="padding:5px 10px;font-size:10.5px;font-weight:700;background:#f3f4f6;color:#4b5563;border:1px solid #d1d5db;border-radius:6px;cursor:pointer">⊘ Anular</button>` : ''}
+        <button onclick="anularTarea('${t.id}')" title="Anular" style="padding:5px 10px;font-size:10.5px;font-weight:700;background:#fff8e1;color:#8a5a00;border:1px solid #f0c060;border-radius:6px;cursor:pointer">↪ Anular</button>
+        <button onclick="eliminarTarea('${t.id}')" title="Eliminar" style="padding:5px 10px;font-size:10.5px;font-weight:700;background:#fdecea;color:#c62828;border:1px solid #f0b0b0;border-radius:6px;cursor:pointer">🗑️ Eliminar</button>
       </div>
     </div>`;
 }
@@ -1969,7 +1978,7 @@ function ordenarTareasPorPrioridad(lista){
 function mostrarOrdenTareasPorPersona(){
   const overlay = getOrCreateOverlay('tareas-orden-overlay');
   overlay.style.padding = '0';
-  const activas = tareasData.filter(t=>t.estado!=='completada' && t.estado!=='anulada');
+  const activas = tareasData.filter(t=>t.estado!=='completada');
   const personas = Object.keys(USERS).filter(u=>activas.some(t=>t.asignadoA===u));
   const bloquesHTML = personas.map(u=>{
     const propias = ordenarTareasPorPrioridad(activas.filter(t=>t.asignadoA===u));
@@ -2368,7 +2377,8 @@ async function eliminarTicketMantenimientoConfirmado(id, titulo){
     if(!r){ avisarFalloGuardado(); return; }
     let cloud = JSON.parse(r.value);
     cloud = cloud.filter(x=>x.id!==id);
-    await window.storage.set(MANTENIMIENTO_KEY, JSON.stringify(cloud));
+    const ok = await window.storage.set(MANTENIMIENTO_KEY, JSON.stringify(cloud));
+    if(!ok){ avisarFalloGuardado(); return; }
     mantenimientoData = cloud;
   }catch(e){ avisarFalloGuardado(); return; }
   mantSeleccionadas.delete(id);
@@ -2383,7 +2393,7 @@ const TAREAS_GESTOR_VISTAS = [
   {key:'antiguas', label:'Tareas antiguas', icon:'ti-clock', color:'linear-gradient(135deg,#a32020,#d9432f)'},
   {key:'hoy', label:'Tareas de hoy', icon:'ti-calendar-event', color:'linear-gradient(135deg,#1558a0,#2a72c4)'},
   {key:'manana', label:'Tareas de mañana', icon:'ti-calendar-plus', color:'linear-gradient(135deg,#1a5c2e,#3fa864)'},
-  {key:'archivo', label:'Archivo', icon:'ti-archive', color:'linear-gradient(135deg,#596579,#8290a3)'},
+  {key:'archivo', label:'Archivo', icon:'ti-archive', color:'linear-gradient(135deg,#64748b,#334155)'},
   {key:'mantenimiento', label:'Mantenimiento de Parcelas', icon:'ti-plant-2', color:'linear-gradient(135deg,#7b5cf0,#5c8df0)'},
   {key:'indice', label:'Índice Abonos', icon:'ti-clipboard-list', color:'linear-gradient(135deg,#a35d00,#d98c1f)'}
 ];
@@ -2395,13 +2405,13 @@ const TAREAS_GESTOR_VISTAS = [
 // asignar en lote, editar/eliminar, imprimir, kanban de mantenimiento...).
 function renderTareasGestorFullScreen(overlay){
   overlay.style.padding = '0';
-  const porFecha = {antiguas:[], hoy:[], manana:[], archivo:tareasData.filter(t=>t.estado==='anulada')};
+  const porFecha = {antiguas:[], hoy:[], manana:[]};
   tareasData.forEach(t=>{ if(t.estado!=='anulada') porFecha[categoriaFechaTarea(t)].push(t); });
   const counts = {
-    antiguas: porFecha.antiguas.filter(t=>t.estado!=='completada' && t.estado!=='anulada').length,
-    hoy: porFecha.hoy.filter(t=>t.estado!=='completada' && t.estado!=='anulada').length,
-    manana: porFecha.manana.filter(t=>t.estado!=='completada' && t.estado!=='anulada').length,
-    archivo: porFecha.archivo.length,
+    antiguas: porFecha.antiguas.filter(t=>t.estado!=='completada').length,
+    hoy: porFecha.hoy.filter(t=>t.estado!=='completada').length,
+    manana: porFecha.manana.filter(t=>t.estado!=='completada').length,
+    archivo: tareasData.filter(t=>t.estado==='anulada' || (t.estado==='completada' && (diasDesdeFechaTarea(t)||0)>=2)).length,
     mantenimiento: mantenimientoData.filter(t=>t.estado!=='cerrado').length,
     indice: 0
   };
@@ -2435,7 +2445,7 @@ function renderTareasGestorFullScreen(overlay){
         <button onclick="avanzarRiegoReganteDia()" title="Avanza las hojas de riego de los regantes al día siguiente" style="padding:9px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid rgba(255,255,255,.4);background:transparent;color:#fff;display:flex;align-items:center;gap:7px;white-space:nowrap">
           <i class="ti ti-calendar-check" style="font-size:14px"></i> Generar hojas riego
         </button>
-        <button onclick="showImprimirTareasSelector(tareasData.filter(t=>USER_ROLES[t.asignadoA]==='PEON' && !esTareaDeAyer(t) && t.estado!=='completada' && t.estado!=='anulada'))" style="padding:9px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid rgba(255,255,255,.4);background:transparent;color:#fff;display:flex;align-items:center;gap:7px;white-space:nowrap">
+        <button onclick="showImprimirTareasSelector(tareasData.filter(t=>USER_ROLES[t.asignadoA]==='PEON' && !esTareaDeAyer(t) && t.estado!=='completada'))" style="padding:9px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid rgba(255,255,255,.4);background:transparent;color:#fff;display:flex;align-items:center;gap:7px;white-space:nowrap">
           <i class="ti ti-printer" style="font-size:14px"></i> Imprimir tareas de peones
         </button>
       </div>
@@ -2447,11 +2457,11 @@ function renderTareasGestorFullScreen(overlay){
   if(wrapNuevoTG) wrapNuevoTG.scrollTop = scrollTopAnteriorTG;
 }
 function renderTareasGestorResumenHTML(counts){
-  const subLabel = key => key==='mantenimiento' ? (counts[key]===1?'ticket abierto':'tickets abiertos') : key==='indice' ? 'agua y abono' : key==='archivo' ? (counts[key]===1?'registro conservado':'registros conservados') : (counts[key]===1?'pendiente':'pendientes');
+  const subLabel = key => key==='mantenimiento' ? (counts[key]===1?'ticket abierto':'tickets abiertos') : key==='archivo' ? (counts[key]===1?'registro histórico':'registros históricos') : key==='indice' ? 'agua y abono' : (counts[key]===1?'pendiente':'pendientes');
   return `
     <div style="margin-bottom:1.5rem">
       <h2 style="font-size:22px;font-weight:800;color:var(--text);margin-bottom:4px">Resumen de Tareas</h2>
-      <p style="font-size:13px;color:var(--muted)">Vista general por fecha, más Mantenimiento de Parcelas.</p>
+      <p style="font-size:13px;color:var(--muted)">Vista general por fecha, Archivo y Mantenimiento de Parcelas.</p>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:2rem">
       ${TAREAS_GESTOR_VISTAS.map(v=>`
@@ -2467,6 +2477,44 @@ function renderTareasGestorResumenHTML(counts){
     </button>
     <div id="nueva-tarea-form-wrap"></div>`;
 }
+function renderTareasArchivoHTML(){
+  const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const completadas = tareasData.filter(t=>t.estado==='completada' && (diasDesdeFechaTarea(t)||0)>=2);
+  const anuladas = tareasData.filter(t=>t.estado==='anulada');
+  const card = (t, estado, extra) => `
+    <article class="tarea-card tarea-archivo-card" data-tarea-id="${escapar(t.id)}" style="margin-top:10px;border:1px solid var(--border);border-left:4px solid #64748b;border-radius:10px;background:#fff;padding:14px 16px">
+      <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">
+        <strong>${escapar(t.titulo)}</strong><span style="font-size:11px;font-weight:800;color:#475569">${estado}</span>
+      </div>
+      ${t.descripcion?`<div style="margin-top:5px;color:var(--muted);font-size:12px">${escapar(t.descripcion)}</div>`:''}
+      <div style="margin-top:7px;color:var(--muted);font-size:11px">${escapar(t.origen||t.categoria||'Manual')} · ${escapar(t.fechaISO||t.fecha||'Sin fecha')} · ${escapar(t.asignadoA||'Sin responsable')}${t.inv?` · INV ${escapar(t.inv)}`:''}</div>
+      ${extra?`<div class="tarea-archivo-motivo" style="margin-top:7px;color:#475569;font-size:12px"><strong>Motivo:</strong> ${escapar(extra)}</div>`:''}
+    </article>`;
+  const section = (id, title, list, status, reasonFn) => `
+    <section id="${id}" style="margin-top:18px">
+      <h3 style="font-size:15px;font-weight:800;color:var(--text)">${title} <span class="tareas-archivo-count">${list.length}</span></h3>
+      ${list.length?list.map(t=>card(t,status,reasonFn?reasonFn(t):'')).join(''):`<p class="tareas-archivo-empty" style="padding:12px;color:var(--muted);font-style:italic">No hay registros.</p>`}
+    </section>`;
+  const ticketsMantenimientoArchivados = (Array.isArray(mantenimientoData) ? mantenimientoData : [])
+    .filter(t => t.estado === 'cerrado' || t.estado === 'archivado');
+  const ticketCard = t => '<article class="tarea-card tarea-archivo-card" data-ticket-id="' + escapar(t.id) + '" style="margin-top:10px;border:1px solid var(--border);border-left:4px solid #64748b;border-radius:10px;background:#fff;padding:14px 16px">' +
+    '<div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><strong>' + escapar(t.titulo) + '</strong><span style="font-size:11px;font-weight:800;color:#475569">' + (t.estado === 'cerrado' ? 'Cerrado' : 'Archivado') + '</span></div>' +
+    (t.descripcion ? '<div style="margin-top:5px;color:var(--muted);font-size:12px">' + escapar(t.descripcion) + '</div>' : '') +
+    '<div style="margin-top:7px;color:var(--muted);font-size:11px">Mantenimiento · ' + escapar(t.cerradoEn || t.fechaCierre || t.creadoEn || 'Sin fecha') + ' · ' + escapar(Array.isArray(t.asignados) && t.asignados.length ? t.asignados.join(', ') : 'Sin responsable') + '</div></article>';
+  const ticketSection = '<section id="mantenimiento-archivo" style="margin-top:18px">' +
+    '<h3 style="font-size:15px;font-weight:800;color:var(--text)">Tickets de Mantenimiento <span class="tareas-archivo-count">' + ticketsMantenimientoArchivados.length + '</span></h3>' +
+    (ticketsMantenimientoArchivados.length ? ticketsMantenimientoArchivados.map(ticketCard).join('') : '<p class="tareas-archivo-empty" style="padding:12px;color:var(--muted);font-style:italic">No hay tickets archivados.</p>') +
+    '</section>';
+  return `
+    <div style="margin-bottom:1rem">
+      <h2 style="font-size:22px;font-weight:800;color:var(--text)">Archivo</h2>
+      <p style="font-size:13px;color:var(--muted)">Consulta histórica de tareas y tickets; los registros no se modifican desde esta vista.</p>
+    </div>
+    ${section('tareas-archivo-completadas','Completadas',completadas,'Completada',t=>t.motivoCompletado||'')}
+    ${section('tareas-archivo-anuladas','Anuladas y archivadas',anuladas,'Anulada',t=>t.motivoAnulacion||'')}
+    ${ticketSection}
+  `;
+}
 // Contenido de una sección del menú lateral: Mantenimiento es el tablero
 // kanban de siempre; las 3 de fecha muestran una tabla de pendientes
 // (con selección + asignar en lote, igual que antes) y otra de completadas
@@ -2474,6 +2522,7 @@ function renderTareasGestorResumenHTML(counts){
 // prioridad/fecha como antes — ya no hace falta elegir Sala 1/2 aparte, la
 // columna Invernadero de la tabla ya lo deja ver.
 function renderTareasGestorVistaHTML(vista, porFecha){
+  if(vista==='archivo') return renderTareasArchivoHTML();
   if(vista==='mantenimiento'){
     return `
       <div style="margin-bottom:1rem">
@@ -2495,14 +2544,6 @@ function renderTareasGestorVistaHTML(vista, porFecha){
   }
   const v = TAREAS_GESTOR_VISTAS.find(x=>x.key===vista);
   const lista = porFecha[vista] || [];
-  if(vista==='archivo'){
-    return `
-      <div style="margin-bottom:1rem">
-        <h2 style="font-size:22px;font-weight:800;color:var(--text)">Archivo de tareas anuladas</h2>
-        <p style="font-size:13px;color:var(--muted)">${lista.length} registros conservados para consulta. No se pueden editar ni reactivar desde aquí.</p>
-      </div>
-      ${lista.length ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px 16px">${lista.slice().sort((a,b)=>String(b.anuladaISO||'').localeCompare(String(a.anuladaISO||''))).map(t=>buildTareaGestorRow(t,false,{soloLectura:true})).join('')}</div>` : `<div style="text-align:center;padding:1.5rem;color:var(--muted);font-style:italic">No hay tareas anuladas.</div>`}`;
-  }
   const { activas, completadas } = splitTareasPorEstado(lista);
   const activasOrdenadas = ordenarTareasPorHorario(activas);
   const completadasOrdenadas = ordenarTareasPorHorario(completadas);
@@ -2592,7 +2633,7 @@ function renderTareasContent(overlay, esGestor){
   } else {
     // PEÓN: ordenadas por horario y de una en una — hasta que no se complete
     // y firme la actual no aparece la siguiente (a petición de Paula).
-    const todasMias = tareasData.filter(t=>t.asignadoA===currentUser && t.estado!=='anulada' && !esTareaDeAyer(t));
+    const todasMias = tareasData.filter(t=>t.asignadoA===currentUser && !esTareaDeAyer(t));
     const { activas, completadas } = splitTareasPorEstado(todasMias);
     const activasOrdenadas = ordenarTareasPorHorario(activas), completadasRev = ordenarTareasCompletadas(completadas);
     tareasImprimirMias = activasOrdenadas;
@@ -2937,18 +2978,23 @@ async function crearTarea(){
   const fecha = fechaRaw ? new Date(fechaRaw+'T00:00:00').toLocaleDateString('es-ES',{day:'2-digit',month:'short'}).replace('.','') : '';
   if(!titulo||!asignados.length){ showToast('Indica al menos un título y a quién se asigna'); return; }
   if(!validarUbicacionTareaManual(inv,calles)){ showToast('Invernadero o calle no válido; revisa el catálogo de ubicaciones'); return; }
-  asignados.forEach(asignadoA=>{
-    tareasData.push({
-      id: 'tarea_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
-      titulo, descripcion, asignadoA, asignadoPor: currentUser||'—',
-      origen: 'manual',
-      inv, calles, fecha, fechaISO: fechaRaw||null, turno,
-      prioridad, estado:'pendiente', horaInicio:null, horaFin:null, firmante:null,
-      visto: false,
-      creadoEn: new Date().toLocaleString('es-ES')
-    });
-  });
-  await persistTareasData();
+  const tareasAntes = tareasData.slice();
+  const nuevas = asignados.map(asignadoA=>({
+    id: 'tarea_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
+    titulo, descripcion, asignadoA, asignadoPor: currentUser||'—',
+    origen: 'manual',
+    inv, calles, fecha, fechaISO: fechaRaw||null, turno,
+    prioridad, estado:'pendiente', horaInicio:null, horaFin:null, firmante:null,
+    visto: false,
+    creadoEn: new Date().toLocaleString('es-ES')
+  }));
+  tareasData = [...tareasData, ...nuevas];
+  const guardado = await persistTareasData();
+  if(!guardado){
+    tareasData = tareasAntes;
+    showToast('No se confirmó ninguna tarea. Ninguna asignación quedó guardada: '+asignados.join(', '));
+    return false;
+  }
   logHistorial(`Creó la tarea "${titulo}" y la asignó a ${asignados.join(', ')}`);
   showToast('✓ Tarea creada y asignada a '+asignados.join(', '));
   showTareasModule();
@@ -2963,7 +3009,6 @@ async function crearTarea(){
 function showEditarTareaForm(id){
   const t = tareasData.find(x=>x.id===id);
   if(!t){ showToast('No se encontró la tarea'); return; }
-  if(!esTareaManualEditable(t)){ showToast('Solo se pueden editar tareas manuales pendientes'); return; }
   const wrap = document.getElementById('nueva-tarea-form-wrap');
   if(!wrap) return;
   const asignables = Object.keys(USERS).filter(u => !['ADMIN','TECNICO'].includes(USER_ROLES[u]));
@@ -2989,11 +3034,10 @@ function showEditarTareaForm(id){
         </details>
         <div style="font-size:10.5px;color:var(--muted);margin-top:4px">Si marcas más de una, esta tarea se le queda a la primera marcada y se crea una copia nueva para cada una de las demás.</div>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:8px">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:8px">
         <select id="et-inv" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px">${invOptions}</select>
         <input id="et-calles" type="text" value="${(t.calles||'').replace(/"/g,'&quot;')}" placeholder="Calle(s)" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px">
         <input id="et-fecha" type="date" value="${t.fechaISO||''}" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px">
-        ${renderHorarioSelectorHTML('et-horario', t.horario||'', 'Horario', 'et-horario')}
         <select id="et-turno" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px">
           <option value="" ${!t.turno?'selected':''}>Turno</option>
           <option value="Mañana" ${t.turno==='Mañana'?'selected':''}>Mañana</option>
@@ -3005,7 +3049,11 @@ function showEditarTareaForm(id){
         <label style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:5px">
           <input type="checkbox" id="et-prioridad" ${t.prioridad==='alta'?'checked':''}> Prioridad alta
         </label>
-        <span style="font-size:11px;color:var(--muted);align-self:center">Estado: Pendiente</span>
+        <select id="et-estado" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px">
+          <option value="pendiente" ${t.estado==='pendiente'?'selected':''}>⏳ Pendiente</option>
+          <option value="iniciada" ${t.estado==='iniciada'?'selected':''}>▶ Iniciada</option>
+          <option value="completada" ${t.estado==='completada'?'selected':''}>✓ Completada</option>
+        </select>
       </div>
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button onclick="document.getElementById('nueva-tarea-form-wrap').innerHTML=''" style="padding:8px 14px;font-size:11px;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:7px;cursor:pointer">Cancelar</button>
@@ -3025,8 +3073,7 @@ async function guardarEdicionTarea(id){
   const asignadoA = asignadosMarcados[0];
   const extraAsignados = asignadosMarcados.slice(1);
   if(!titulo||!asignadoA){ showToast('Indica al menos un título y a quién se asigna'); return; }
-  const snapshot = tareasData.find(x=>x.id===id);
-  if(!esTareaManualEditable(snapshot)){ showToast('La tarea ya no está pendiente o no es manual; actualiza la vista'); return; }
+  const nuevoEstado = document.getElementById('et-estado')?.value || 'pendiente';
   try{
     const r = await window.storage.get(TAREAS_KEY);
     // Si la lectura falla, r es null — igual que si no hubiera tareas. Sin
@@ -3038,13 +3085,6 @@ async function guardarEdicionTarea(id){
     let cloud = JSON.parse(r.value);
     const idx = cloud.findIndex(x=>x.id===id);
     if(idx<0){ showToast('No se encontró la tarea (puede que ya se haya eliminado)'); return; }
-    if(!esTareaManualEditable(cloud[idx])){ showToast('La tarea ya no está pendiente o no es manual; no se guardaron cambios'); return; }
-    const horarioNuevo = leerHorarioSelectorValor(document.getElementById('et-horario'));
-    const camposEditables = ['titulo','asignadoA','descripcion','inv','calles','fechaISO','turno','prioridad','horario'];
-    if(camposEditables.some(k=>(cloud[idx][k]??null)!==(snapshot[k]??null))){
-      showToast('La tarea cambió en otra sesión; actualiza la vista antes de editar');
-      return;
-    }
     const fechaRaw = document.getElementById('et-fecha')?.value||'';
     const fechaLabel = fechaRaw ? new Date(fechaRaw+'T00:00:00').toLocaleDateString('es-ES',{day:'2-digit',month:'short'}).replace('.','') : '';
     // Si cambia de verdad de dueño, se marca como "no vista" otra vez — igual
@@ -3060,11 +3100,15 @@ async function guardarEdicionTarea(id){
       calles: document.getElementById('et-calles')?.value?.trim()||'',
       fecha: fechaLabel, fechaISO: fechaRaw||null,
       turno: document.getElementById('et-turno')?.value||'',
-      horario: horarioNuevo,
       prioridad: document.getElementById('et-prioridad')?.checked ? 'alta' : 'normal',
-      estado: cloud[idx].estado,
+      estado: nuevoEstado,
       visto: cambioDeDueño ? false : cloud[idx].visto
     };
+    // Cambiar el estado a mano desde aquí limpia los datos de horas/firma
+    // que ya no encajan con el nuevo estado.
+    if(nuevoEstado==='pendiente'){ actualizada.horaInicio=null; actualizada.horaFin=null; actualizada.firmante=null; actualizada.completadoISO=null; }
+    if(nuevoEstado==='iniciada'){ actualizada.horaFin=null; actualizada.firmante=null; actualizada.completadoISO=null; if(!actualizada.horaInicio) actualizada.horaInicio=new Date().toLocaleString('es-ES'); }
+    if(nuevoEstado==='completada' && !actualizada.horaFin){ actualizada.horaFin=new Date().toLocaleString('es-ES'); actualizada.completadoISO=fechaLocalISO(new Date()); if(!actualizada.firmante) actualizada.firmante=currentUser||'—'; }
     cloud[idx] = actualizada;
     extraAsignados.forEach(u=>{
       cloud.push({
@@ -3089,37 +3133,51 @@ async function guardarEdicionTarea(id){
   refreshTareasViews();
 }
 async function anularTarea(id){
-  const t = tareasData.find(x=>x.id===id);
-  if(!t){ showToast('No se encontró la tarea'); return; }
-  if(!esTareaManualEditable(t)){ showToast(t.estado==='anulada' ? 'La tarea ya está en Archivo' : 'Solo se pueden anular tareas manuales pendientes'); return; }
-  if(!confirm(`¿Anular la tarea "${t.titulo}" (asignada a ${t.asignadoA})? Se conservará en Archivo.`)) return;
+  const local = tareasData.find(x=>x.id===id);
+  if(!local){ showToast('No se encontró la tarea para anular'); return; }
+  if(local.estado==='anulada'){ showToast('La tarea ya está anulada'); return; }
+  if(local.estado==='completada'){ showToast('No se puede anular una tarea completada'); return; }
+  if(!confirm(`¿Anular la tarea "${local.titulo}" asignada a ${local.asignadoA}? Se conservará en Archivo.`)) return;
   try{
-    // ETag evita que esta confirmación pise el inicio concurrente de otro
-    // operario; Firebase rechaza la escritura si la versión ya cambió.
-    const r = await window.storage.getWithEtag(TAREAS_KEY);
-    if(!r){ avisarFalloGuardado(); showToast('✗ No se pudo comprobar la versión remota'); return; }
+    const r = await window.storage.get(TAREAS_KEY);
+    if(!r){ avisarFalloGuardado(); showToast('✗ No se pudo confirmar la tarea; no se ha anulado'); return; }
     const cloud = JSON.parse(r.value);
     const idx = cloud.findIndex(x=>x.id===id);
-    if(idx<0){ showToast('La tarea ya no existe en la lista remota'); return; }
-    if(!esTareaManualEditable(cloud[idx])){
-      showToast(cloud[idx].estado==='anulada' ? 'La tarea ya está en Archivo' : 'La tarea cambió de estado en otra sesión; no se anuló');
-      return;
-    }
-    cloud[idx] = {
-      ...cloud[idx], estado:'anulada',
-      anuladaISO:fechaLocalISO(new Date()),
-      anuladaHora:new Date().toLocaleString('es-ES'),
-      anuladaPor:currentUser||'—'
-    };
-    const resultado = await window.storage.setWithEtag(TAREAS_KEY, JSON.stringify(cloud), r.etag);
-    if(!resultado?.ok){
-      showToast(resultado?.conflict ? 'La tarea cambió en otra sesión; actualiza la vista y vuelve a comprobarla' : '✗ No se pudo guardar la anulación');
-      return;
-    }
+    if(idx<0){ showToast('No se encontró la tarea en el registro remoto'); return; }
+    const remota = cloud[idx];
+    if(remota.estado==='anulada'){ tareasData=cloud; refreshTareasViews(); showToast('La tarea ya estaba anulada'); return; }
+    if(remota.estado==='completada'){ showToast('La tarea ya está completada y no se puede anular'); return; }
+    const anulada = {...remota, estado:'anulada', anuladaEn:fechaLocalISO(new Date()), anuladaPor:currentUser||'', motivoAnulacion:`Anulada por ${currentUser||'usuario autorizado'}`};
+    cloud[idx] = anulada;
+    const ok = await window.storage.set(TAREAS_KEY, JSON.stringify(cloud));
+    if(!ok){ avisarFalloGuardado(); showToast('✗ No se pudo anular la tarea; sigue activa'); return; }
+    tareasData = cloud;
+    logHistorial(`Anuló la tarea "${local.titulo}" (asignada a ${local.asignadoA})`);
+    showToast('✓ Tarea anulada y conservada en Archivo');
+    refreshTareasViews();
+  }catch(e){
+    avisarFalloGuardado();
+    showToast('✗ No se pudo anular la tarea; sigue activa');
+  }
+}
+async function eliminarTarea(id){
+  const t = tareasData.find(x=>x.id===id);
+  if(!t){ showToast('No se encontró la tarea'); return; }
+  if(!confirm(`¿Eliminar la tarea "${t.titulo}" (asignada a ${t.asignadoA})? Esta acción no se puede deshacer.`)) return;
+  try{
+    const r = await window.storage.get(TAREAS_KEY);
+    // Borrado atómico (lee+borra+escribe, sin fusión) — si la lectura
+    // falla, r es null, igual que si no hubiera tareas. Tratarlo como
+    // "vacío de verdad" borraría TODAS las tareas, no solo esta. Se aborta
+    // en vez de asumirlo.
+    if(!r){ avisarFalloGuardado(); return; }
+    let cloud = JSON.parse(r.value);
+    cloud = cloud.filter(x=>x.id!==id);
+    await window.storage.set(TAREAS_KEY, JSON.stringify(cloud));
     tareasData = cloud;
   }catch(e){ avisarFalloGuardado(); return; }
-  logHistorial(`Anuló la tarea manual "${t.titulo}" (asignada a ${t.asignadoA})`);
-  showToast('✓ Tarea anulada y archivada');
+  logHistorial(`Eliminó la tarea "${t.titulo}" (asignada a ${t.asignadoA})`);
+  showToast('Tarea eliminada');
   refreshTareasViews();
 }
 
@@ -3682,14 +3740,33 @@ function imprimirHojaFitoConDatos(datos){
       .ov-firma { text-align:center; }
     </style></head><body>${pagina}</body></html>`);
   doc.close();
-  const dispararImpresion = () => { iframe.contentWindow.focus(); iframe.contentWindow.print(); };
   const bgImg = doc.querySelector('.hf-bg');
-  if(bgImg && !bgImg.complete){
-    bgImg.addEventListener('load', dispararImpresion, {once:true});
-    bgImg.addEventListener('error', dispararImpresion, {once:true});
-    setTimeout(dispararImpresion, 3000);
+  let impresionResuelta = false;
+  let timeoutCarga = null;
+  const falloPlantilla = () => {
+    if(impresionResuelta) return;
+    impresionResuelta = true;
+    clearTimeout(timeoutCarga);
+    showToast('No se pudo cargar la plantilla de impresión. No se abrió el documento.');
+    iframe.remove();
+  };
+  const dispararImpresion = () => {
+    if(impresionResuelta) return;
+    if(!bgImg || !bgImg.complete || bgImg.naturalWidth<=0){ falloPlantilla(); return; }
+    impresionResuelta = true;
+    clearTimeout(timeoutCarga);
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
+  };
+  if(!bgImg){
+    falloPlantilla();
+  } else if(bgImg.complete){
+    if(bgImg.naturalWidth>0) setTimeout(dispararImpresion, 200);
+    else falloPlantilla();
   } else {
-    setTimeout(dispararImpresion, 200);
+    bgImg.addEventListener('load', dispararImpresion, {once:true});
+    bgImg.addEventListener('error', falloPlantilla, {once:true});
+    timeoutCarga = setTimeout(falloPlantilla, 3000);
   }
 }
 // Mismo patrón que autoAsignarTareasRiego (cada peón recibe su propia copia,
@@ -3726,7 +3803,7 @@ async function autoAsignarTareaFumigacion(objetivos, dia, titulo, horario, extra
   const fusionarOCrear = (asignadoA) => {
     // Igual que en autoAsignarTareasRiego: fusiona con pendiente O iniciada,
     // solo crea aparte si ya está completada (evita duplicados al re-guardar).
-    const existente = tareasData.find(t => t.fechaISO===fechaISO && t.asignadoA===asignadoA && t.titulo===titulo && t.categoria==='fumigacion' && t.estado!=='completada' && t.estado!=='anulada' && (t.caldoLabel||'')===caldoLabel);
+    const existente = tareasData.find(t => t.fechaISO===fechaISO && t.asignadoA===asignadoA && t.titulo===titulo && t.categoria==='fumigacion' && t.estado!=='completada' && (t.caldoLabel||'')===caldoLabel);
     if(existente){
       if(!existente.objetivos) existente.objetivos = [];
       objetivos.forEach(o=>{
@@ -5128,10 +5205,10 @@ async function aplicarSanidadEnfermedad(id, key, valor){
 // Ficha ampliada de una foto de Control — a petición de Paula (2026-08-01,
 // "debe poder abrirse en la pantalla") en vez de window.open (bloqueado por
 // el navegador en algunos móviles, y no se siente como parte de la app).
-function mostrarFotoControlAmpliada(id){
+function mostrarFotoControlAmpliada(id, indice=0){
   const item = controlChecksData.find(c=>c.id===id);
   if(!puedeEditarControlItem(item)){ avisarControlSinAcceso(); return false; }
-  const foto = fotoSrcCompleta(controlFotosData[id]);
+  const foto = fotoSrcCompleta(fotosControlComoArray(controlFotosData[id])[Number(indice)||0]);
   if(!foto) return;
   const mo = getOrCreateOverlay('control-foto-ampliada-overlay');
   mo.style.padding = '0';
@@ -5402,13 +5479,24 @@ async function persistControlFotosData(id){
     return false;
   }catch(e){ return false; }
 }
-async function eliminarFotoControl(id){
+async function eliminarFotoControl(id, indiceFoto=null){
   if(!controlFotosData[id]) await fetchFotoPartidaPorId(id);
-  if(!controlFotosData[id]){showToast('No hay una foto guardada para eliminar');return false;}
-  if(!confirm('¿Eliminar la foto de esta línea de Control?'))return false;
+  const fotos = fotosControlComoArray(controlFotosData[id]);
+  if(!fotos.length){showToast('No hay una foto guardada para eliminar');return false;}
+  const indice = indiceFoto==null ? fotos.length-1 : Number(indiceFoto);
+  if(!Number.isInteger(indice)||indice<0||indice>=fotos.length)return false;
+  if(!confirm('¿Eliminar esta foto de la línea de Control?'))return false;
+  if(fotos.length>1){
+    controlFotosData[id] = fotos.filter((_,i)=>i!==indice);
+    const guardado = await persistControlFotosData(id);
+    if(!guardado){controlFotosData[id] = fotos; avisarFalloGuardado(); return false;}
+    renderControlContent(document.getElementById('control-overlay'));
+    showToast('✓ Foto eliminada');
+    return true;
+  }
   try{
-    const indice=await cargarIndiceFotosPartida();
-    const shardKey=controlFotosShardDeId[id]||indice[id];
+    const indiceNube=await cargarIndiceFotosPartida();
+    const shardKey=controlFotosShardDeId[id]||indiceNube[id];
     if(!shardKey){avisarFalloGuardado();return false;}
     let eliminada=false;
     for(let intento=1;intento<=4;intento++){
@@ -5458,6 +5546,7 @@ function controlItemUrl(id){ return `${CLOUD_DB_URL}/${CONTROL_ITEMS_KEY}/${enco
 // dispositivos que editaron la misma versión no pueden sobrescribirse.
 const controlChecksEtags = new Map();
 const controlChecksConflictedIds = new Set();
+const controlChecksServerErrorStatus = new Map();
 async function leerControlItemEtag(id){
   const res = await fetchConReintentos(controlItemUrl(id), { headers:{'X-Firebase-ETag':'true'} });
   const etag = res.headers.get('ETag');
@@ -5470,6 +5559,7 @@ async function leerControlItemEtag(id){
 // línea vive como un documento normal de Firebase, no como texto dentro de
 // un string, así que un guardado no necesita tocar ni leer los demás.
 async function guardarControlItemAtomico(id, item){
+  controlChecksServerErrorStatus.delete(String(id));
   if(controlChecksConflictedIds.has(id)) return false;
   try{
     // Un alta nueva solo se acepta si el nodo sigue vacío. Para las líneas
@@ -5482,7 +5572,10 @@ async function guardarControlItemAtomico(id, item){
       try{
         res = await fetch(controlItemUrl(id), opciones);
         if(res.status===412) break; // conflicto: nunca repetir con una versión obsoleta
-        if(!res.ok) throw new Error('HTTP '+res.status);
+        if(!res.ok){
+          controlChecksServerErrorStatus.set(String(id), res.status);
+          throw new Error('HTTP '+res.status);
+        }
         break;
       }catch(e){
         if(intento===3) throw e;
@@ -5496,6 +5589,7 @@ async function guardarControlItemAtomico(id, item){
     const nextEtag = res.headers.get('ETag');
     if(nextEtag) controlChecksEtags.set(id, nextEtag);
     else if(item===null) controlChecksEtags.delete(id);
+    controlChecksServerErrorStatus.delete(String(id));
     return true;
   }catch(e){ return false; }
 }
@@ -5505,6 +5599,8 @@ async function guardarControlItemAtomico(id, item){
 // justo antes de llamar a persistControlChecksData(). Guardar solo relee
 // este conjunto, así que no hace falta que cada sitio recuerde pasar nada.
 let controlChecksDirtyIds = new Set();
+// El historial usa la última ubicación confirmada mientras un movimiento queda pendiente.
+const controlChecksHistorialUbicacionConfirmada = new Map();
 function marcarControlCheckSucio(id){ controlChecksDirtyIds.add(id); }
 // Caché de 30s (a petición de Paula, 2026-09-04, "¿podemos optimizar aún
 // más?" tras el ahorro de datos de Riego/Tareas/Fotos) — este nodo pesa
@@ -5579,6 +5675,7 @@ async function persistControlChecksData(ids){
     return guardarControlItemAtomico(id, item || null); // null = ya no existe en local -> borrar en la nube
   }));
   const ok = resultados.every(Boolean);
+  if(ok) objetivo.forEach(id=>controlChecksHistorialUbicacionConfirmada.delete(String(id)));
   if(!ok){
     const conflictos = objetivo.filter(id=>controlChecksConflictedIds.has(id));
     const fallidos = objetivo.filter(id=>!controlChecksConflictedIds.has(id));
@@ -5611,15 +5708,8 @@ async function persistControlChecksData(ids){
 // (no "alternar/toggle") para que reaplicarlas sea idempotente — si se
 // reaplicara un toggle dos veces por error, revertiría el cambio.
 const OFFLINE_QUEUE_KEY = 'lasala-offline-queue-v1';
-function claveColaOffline(user=currentUser){
-  // Un dispositivo puede usarse con varias cuentas. No mezclar acciones
-  // pendientes entre usuarios: cada cola queda aislada en su propia clave.
-  // La clave antigua sin usuario se conserva intacta; no se puede atribuir
-  // de forma segura a una cuenta y por tanto nunca se reproduce automáticamente.
-  return user ? `${OFFLINE_QUEUE_KEY}:${encodeURIComponent(String(user))}` : OFFLINE_QUEUE_KEY;
-}
-function leerColaOffline(user=currentUser){
-  try{ return JSON.parse(localStorage.getItem(claveColaOffline(user))||'[]'); }catch(e){ return []; }
+function leerColaOffline(){
+  try{ return JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY)||'[]'); }catch(e){ return []; }
 }
 // A petición de Paula (2026-08-19): "hago +200 cambios y al sincronizar no
 // aparecen todos, encima dice 0 pendientes" — causa real: localStorage tiene
@@ -5631,8 +5721,8 @@ function leerColaOffline(user=currentUser){
 // dejar rastro, pero como el resto del flujo seguía normal, no se avisaba de
 // nada: parecía que se había guardado ("0 pendientes") cuando en realidad
 // nunca llegó a quedar registrada para reintentar.
-function guardarColaOffline(cola, user=currentUser){
-  try{ localStorage.setItem(claveColaOffline(user), JSON.stringify(cola)); return true; }
+function guardarColaOffline(cola){
+  try{ localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(cola)); return true; }
   catch(e){ avisarFalloGuardado(); return false; }
 }
 // A petición de Paula (2026-08-04): "¿no puedes hacer que aunque se cierre la
@@ -5649,7 +5739,7 @@ function guardarColaOffline(cola, user=currentUser){
 function encolarAccionOffline(fn, args){
   const cola = leerColaOffline();
   const qid = 'q_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
-  cola.push({qid, fn, args, usuario: currentUser, t: new Date().toLocaleString('es-ES')});
+  cola.push({qid, fn, args, t: new Date().toLocaleString('es-ES')});
   guardarColaOffline(cola);
   return qid;
 }
@@ -5673,7 +5763,7 @@ function avisarGuardadoLocalPendiente(n){
   }
   b.style.background = '#c47f00';
   b.style.color = '#fff';
-  b.innerHTML = `📴 Sin conexión — ${n} cambio${n===1?'':'s'} guardado${n===1?'':'s'} en este dispositivo, se sincronizará${n===1?'':'n'} solo${n===1?'':'s'} en cuanto vuelva la señal.`;
+  b.innerHTML = `⚠ Sin conexión o respuesta de error del servidor. El guardado remoto no se confirmó. ${n} cambio${n===1?'':'s'} queda${n===1?'':'n'} guardado${n===1?'':'s'} en este dispositivo, pendiente${n===1?'':'s'} de sincronización.`;
   b.style.display = 'block';
 }
 // Solo funciones "aplicar valor concreto" (no toggles) son seguras de
@@ -5699,7 +5789,6 @@ const ACCIONES_OFFLINE_REPLAYABLES = {
   aplicarSalidaPartida,
   aplicarIntercambioPartidas,
   aplicarMoverPartidaACalle,
-  aplicarOrdenPartidasCalle,
   aplicarSepararPartidaEnCalles
 };
 // A petición de Paula (2026-08-05): "ayer realizamos varios checks de túnel y
@@ -5725,8 +5814,7 @@ const ACCIONES_OFFLINE_REPLAYABLES = {
 // Candado simple para que solo haya una sincronización en marcha.
 let sincronizacionEnCurso = false;
 async function procesarColaOffline(){
-  if(!currentUser || sincronizacionEnCurso) return;
-  const usuarioCola = currentUser;
+  if(sincronizacionEnCurso) return;
   const cola = leerColaOffline();
   if(!cola.length) return;
   sincronizacionEnCurso = true;
@@ -5745,7 +5833,6 @@ async function procesarColaOffline(){
   // verdad se ha podido aplicar, y si algo queda sin aplicar se dice.
   let sinAplicar = 0;
   for(const accion of cola){
-    if(currentUser!==usuarioCola) break;
     const fn = ACCIONES_OFFLINE_REPLAYABLES[accion.fn];
     if(!fn){ sinAplicar++; continue; } // no se sabe reaplicar: NO se descarta
     let lanzoExcepcion = false;
@@ -5754,7 +5841,7 @@ async function procesarColaOffline(){
     // nuevo si falla) — aquí solo se retira la entrada ORIGINAL de esta
     // ronda, nunca antes de haberla intentado, y nunca si lanzó (en ese caso
     // no ha llegado a re-encolarse sola y se perdería).
-    if(!lanzoExcepcion) desencolarAccionOriginal(accion, usuarioCola);
+    if(!lanzoExcepcion) desencolarAccionOriginal(accion);
   }
   const pendientes = leerColaOffline().length;
   if(!pendientes && !sinAplicar){
@@ -5813,12 +5900,12 @@ async function sincronizarPartidasManual(){
   await procesarColaOffline();
   renderPartidasMapaContent(document.getElementById('partidas-overlay'));
 }
-function desencolarAccionOriginal(accion, usuario=currentUser){
-  const cola = leerColaOffline(usuario);
+function desencolarAccionOriginal(accion){
+  const cola = leerColaOffline();
   const idx = accion.qid
     ? cola.findIndex(a=>a.qid===accion.qid)
     : cola.findIndex(a=>!a.qid && a.fn===accion.fn && JSON.stringify(a.args)===JSON.stringify(accion.args));
-  if(idx>=0){ cola.splice(idx,1); guardarColaOffline(cola, usuario); }
+  if(idx>=0){ cola.splice(idx,1); guardarColaOffline(cola); }
 }
 window.addEventListener('online', procesarColaOffline);
 // PDF adjunto por (tipo, día) — objeto plano {`${tipo}|${dia}`: {nombre,
@@ -5988,10 +6075,6 @@ function showControlModule(){
   // en segundo plano, repintando cuando terminan.
   return Promise.all([loadControlChecksData(false), loadConteoData('tuta'), loadConteoFilas('tuta'), loadConteoData('trips'), loadConteoFilas('trips')]).then(()=>{
     controlSeccion = currentUserRole==='CARGADOR' ? 'carga' : null;
-    // Cada apertura de Control parte de hoy. Los cambios de tipo dentro de
-    // la misma sesión conservan la fecha elegida para evitar confundir QC.
-    controlQuincenaOffset = riegoQuincenaOffsetActual();
-    controlDiaSel = riegoDiaDeHoy();
     const overlay = getOrCreateOverlay('control-overlay');
     overlay.style.padding = '0';
     renderControlContent(overlay);
@@ -6009,8 +6092,8 @@ function seleccionarSeccionControl(sec){
   if(!confirmarSalidaControlQcV6()) return false;
   controlSeccion = sec;
   if(sec){
-    if(controlDiaSel==null) controlDiaSel = riegoDiaDeHoy();
-    controlQuincenaOffset = Math.max(0, Math.floor((controlDiaSel-15)/14));
+    controlQuincenaOffset = riegoQuincenaOffsetActual();
+    controlDiaSel = riegoDiaDeHoy();
   }
   if(sec==='tunel' || usaFichaCarga(sec)){
     // Estado del wizard de pruebas (ver CONTROL_TUNEL_WIZARD_USUARIOS) —
@@ -6255,9 +6338,9 @@ function renderControlWizardCargaFilaHTML(c){
 function renderControlWizardFinalHTML(c){
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   cargarFotoControlSiFalta(c.id);
-  const fotoHTML = controlFotosData[c.id]
-    ? `<div style="text-align:center;margin-bottom:10px"><img src="${fotoSrcMiniatura(controlFotosData[c.id])}" onclick="mostrarFotoControlAmpliada('${c.id}')" style="max-height:100px;border-radius:12px;border:2px solid var(--border);cursor:pointer"></div>`
-    : '';
+  const fotoHTML = fotosControlComoArray(controlFotosData[c.id]).map((foto,index) =>
+    `<img src="${fotoSrcMiniatura(foto)}" onclick="mostrarFotoControlAmpliada('${c.id}',${index})" style="max-height:100px;border-radius:12px;border:2px solid var(--border);cursor:pointer;margin:0 4px 8px" title="Ver foto">`
+  ).join('');
   return `
     <div style="max-width:480px;margin:0 auto">
       ${wizardCabeceraPartidaHTML(c)}
@@ -6577,12 +6660,22 @@ async function aplicarControlQcV6(id, value){
   const c = controlChecksData.find(x=>x.id===id);
   if(!puedeEditarControlItem(c)){ avisarControlSinAcceso(); return false; }
   if(c.qcV6?.version!==6) return false;
+  const confirmado = QC_V6.clone(c.qcV6);
   c.qcV6 = QC_V6.clone(value);
   renderControlContent(document.getElementById('control-overlay'));
   const qid = encolarAccionOffline('aplicarControlQcV6', [id, value]);
   marcarControlCheckSucio(id);
   const ok = await persistControlChecksData();
-  if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
+  if(ok) desencolarAccion(qid);
+  else if((controlChecksServerErrorStatus.get(String(id))||0)>=500){
+    // Un HTTP 5xx online no es un guardado en cola: se revierte el optimista,
+    // se descarta este intento y ambas pantallas siguen leyendo la versión confirmada.
+    c.qcV6 = confirmado;
+    controlQcV6Drafts[id] = QC_V6.clone(confirmado);
+    controlChecksDirtyIds.delete(id);
+    desencolarAccion(qid);
+    renderControlContent(document.getElementById('control-overlay'));
+  } else avisarGuardadoLocalPendiente(leerColaOffline().length);
   return ok;
 }
 async function guardarControlQcV6(id){
@@ -8014,9 +8107,9 @@ function renderControlCardHTML(c, seccion){
     </div>`;
   }).join('');
   cargarFotoControlSiFalta(c.id);
-  const fotoHTML = controlFotosData[c.id]
-    ? `<img src="${fotoSrcMiniatura(controlFotosData[c.id])}" onclick="mostrarFotoControlAmpliada('${c.id}')" style="max-height:64px;border-radius:8px;border:1px solid var(--border);cursor:pointer;margin-right:8px" title="Ver foto">`
-    : '';
+  const fotoHTML = fotosControlComoArray(controlFotosData[c.id]).map((foto,index) =>
+    `<span style="display:inline-flex;flex-direction:column;align-items:center;gap:3px;margin-right:8px"><img data-testid="control-photo-thumb-${c.id}-${index}" src="${fotoSrcMiniatura(foto)}" onclick="mostrarFotoControlAmpliada('${c.id}',${index})" style="max-height:64px;border-radius:8px;border:1px solid var(--border);cursor:pointer" title="Ver foto"><button type="button" aria-label="Eliminar foto ${index+1} de Control" data-testid="control-photo-delete-${c.id}-${index}" onclick="eliminarFotoControl('${c.id}',${index})" style="padding:2px 6px;border:1px solid #f0b0b0;border-radius:5px;background:#fdecea;color:#c62828;cursor:pointer;font-size:10px">Eliminar</button></span>`
+  ).join('');
 
   // Información del PDF del día de esta línea
   const pdfDelDia = controlPdfsData[seccion.key+'|'+c.dia];
@@ -8068,7 +8161,7 @@ function renderControlCardHTML(c, seccion){
           </label>
           <label style="display:inline-flex;align-items:center;gap:6px;padding:8px 12px;background:#f2f6fc;border:1.5px solid #b7c9df;border-radius:8px;cursor:pointer;font-size:11px;font-weight:700;color:#1558a0;white-space:nowrap">
             <i class="ti ti-photo" style="font-size:14px"></i> Elegir fotos
-            <input type="file" accept="image/*" data-testid="control-photo-gallery-${c.id}" style="display:none" onchange="handleControlFotoInput(this,'${c.id}')">
+            <input type="file" accept="image/*" multiple data-testid="control-photo-gallery-${c.id}" style="display:none" onchange="handleControlFotoInput(this,'${c.id}')">
           </label>
           ${controlFotosData[c.id]?`<button type="button" aria-label="Eliminar foto de Control" data-testid="control-photo-delete-${c.id}" onclick="eliminarFotoControl('${c.id}')" style="margin-left:6px;min-height:36px;padding:7px 10px;background:#fdecea;color:#c62828;border:1px solid #f0b0b0;border-radius:8px;cursor:pointer;font-size:11px;font-weight:700">Eliminar foto</button>`:''}
         </div>
@@ -8315,6 +8408,7 @@ async function guardarNuevoControlCargaCheck(){
 // una reconexión podría duplicar la línea. El toast/repintado se hacen ANTES de
 // esperar la red (mismo motivo que aplicarSanidadEnfermedad).
 async function aplicarNuevaLineaControlCarga(entry){
+  if(!entry || !puedeEditarControlTipo(entry.tipo)){ avisarControlSinAcceso(); return false; }
   if(!controlChecksData.find(x=>x.id===entry.id)) controlChecksData.push(entry);
   showToast('✓ Línea añadida');
   renderControlContent(document.getElementById('control-overlay'));
@@ -8503,21 +8597,19 @@ async function aplicarEditarControlCargaCheck(id, dia, cliente, partida, varieda
 // rápido) y cualquier fallo real se avisa con un toast de error en vez de
 // tragárselo.
 async function handleControlFotoInput(input, id){
-  if(!input.files || !input.files[0]) return;
+  if(!input.files || !input.files.length) return;
   const item = controlChecksData.find(c=>c.id===id);
   if(!puedeEditarControlItem(item)){ avisarControlSinAcceso(); input.value=''; return false; }
-  const file = input.files[0];
-  const esImagen = /^image\//i.test(file.type) || /\.(?:jpe?g|png|gif|webp|bmp|heic|heif|tiff?|avif)$/i.test(file.name||'');
-  if(!esImagen){ showToast('✗ El archivo elegido no es una imagen'); input.value=''; return false; }
+  const files = Array.from(input.files);
   try{
-    const resultado = await comprimirImagenParaControl(file);
-    if(!resultado){ showToast('✗ No se ha podido leer esa foto — prueba con otra'); return; }
-    // Si no se pudo comprimir (formato no soportado en canvas, p.ej. HEIC en
-    // algunos navegadores) se sube igualmente el original — la foto nunca se
-    // pierde — pero avisamos porque puede pesar varios MB y tardar más en
-    // subir/sincronizar con datos móviles.
-    if(!resultado.comprimida) showToast('⚠ Foto subida sin comprimir (formato no compatible) — puede pesar más de lo normal');
-    aplicarFotoControl(id, resultado.data);
+    for(const file of files){
+      const esImagen = /^image\//i.test(file.type) || /\.(?:jpe?g|png|gif|webp|bmp|heic|heif|tiff?|avif)$/i.test(file.name||'');
+      if(!esImagen){ showToast('✗ El archivo elegido no es una imagen'); continue; }
+      const resultado = await comprimirImagenParaControl(file);
+      if(!resultado){ showToast('✗ No se ha podido leer esa foto — prueba con otra'); continue; }
+      if(!resultado.comprimida) showToast('⚠ Foto subida sin comprimir (formato no compatible) — puede pesar más de lo normal');
+      await aplicarFotoControl(id, resultado.data);
+    }
   }catch(e){
     console.error('Error guardando foto de Control:', e);
     showToast('✗ No se ha podido guardar la foto — inténtalo de nuevo');
@@ -8529,7 +8621,7 @@ async function aplicarFotoControl(id, fotoB64){
   const c = controlChecksData.find(x=>x.id===id);
   if(!c) return false;
   if(!puedeEditarControlItem(c)){ avisarControlSinAcceso(); return false; }
-  controlFotosData[id] = fotoB64;
+  controlFotosData[id] = [...fotosControlComoArray(controlFotosData[id]), fotoB64];
   showToast('✓ Foto guardada');
   renderControlContent(document.getElementById('control-overlay'));
   const qid = encolarAccionOffline('aplicarFotoControl', [id, fotoB64]);
@@ -8645,8 +8737,9 @@ function comprimirImagenParaControl(file){
 // Compatibilidad: las fotos guardadas antes de este cambio son un string
 // plano (la foto completa, sin miniatura aparte); las nuevas son
 // {f,t}. Estos dos helpers dan igual el resultado correcto en ambos casos.
-function fotoSrcCompleta(entry){ return (entry && typeof entry==='object') ? entry.f : entry; }
+function fotoSrcCompleta(entry){ if(Array.isArray(entry)) entry=entry[0]; return (entry && typeof entry==='object') ? entry.f : entry; }
 function fotoSrcMiniatura(entry){ return (entry && typeof entry==='object') ? (entry.t||entry.f) : entry; }
+function fotosControlComoArray(entry){ return !entry ? [] : Array.isArray(entry) ? entry : [entry]; }
 // A petición de Paula (2026-08-27): buscar una partida en Partidas y
 // Específicos SIN importar en qué semana esté colocada en el mapa —
 // busca en TODAS las líneas de Túnel (que es donde vive la calle real de
@@ -9439,14 +9532,9 @@ function renderPartidasMapaContent(overlay){
         // tarjeta, fácil de olvidar si se cambia de pantalla; ahora se ve
         // siempre arriba, con un botón para cancelarla.
         const c = controlChecksData.find(x=>x.id===partidaSeleccionadaParaMover);
-        return `<div style="padding:.5rem 1.25rem;background:#fff3dc;border-bottom:1px solid #e0c080;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-shrink:0;font-size:12px;font-weight:700;color:#7a5000;flex-wrap:wrap">
-          <span>📌 Seleccionada: ${c?c.partida:'—'} — toca otra partida o un hueco</span>
-          <div style="display:flex;align-items:center;gap:5px">
-            <button data-testid="partidas-move-mode-swap" aria-pressed="${partidaModoMovimiento==='swap'}" onclick="partidaModoMovimiento='swap';renderPartidasMapaContent(document.getElementById('partidas-overlay'))" style="padding:5px 8px;font-size:10px;font-weight:800;background:${partidaModoMovimiento==='swap'?'#7a5000':'#fff'};color:${partidaModoMovimiento==='swap'?'#fff':'#7a5000'};border:1px solid #c9a96e;border-radius:6px;cursor:pointer">Intercambiar</button>
-            <button data-testid="partidas-move-mode-before" aria-pressed="${partidaModoMovimiento==='before'}" onclick="partidaModoMovimiento='before';renderPartidasMapaContent(document.getElementById('partidas-overlay'))" style="padding:5px 8px;font-size:10px;font-weight:800;background:${partidaModoMovimiento==='before'?'#7a5000':'#fff'};color:${partidaModoMovimiento==='before'?'#fff':'#7a5000'};border:1px solid #c9a96e;border-radius:6px;cursor:pointer">Insertar encima</button>
-            <button data-testid="partidas-move-mode-after" aria-pressed="${partidaModoMovimiento==='after'}" onclick="partidaModoMovimiento='after';renderPartidasMapaContent(document.getElementById('partidas-overlay'))" style="padding:5px 8px;font-size:10px;font-weight:800;background:${partidaModoMovimiento==='after'?'#7a5000':'#fff'};color:${partidaModoMovimiento==='after'?'#fff':'#7a5000'};border:1px solid #c9a96e;border-radius:6px;cursor:pointer">Insertar debajo</button>
-          </div>
-          <button onclick="partidaSeleccionadaParaMover=null;partidaModoMovimiento='swap';renderPartidasMapaContent(document.getElementById('partidas-overlay'))" style="padding:5px 12px;font-size:11px;font-weight:800;background:#c47f00;color:#fff;border:none;border-radius:6px;cursor:pointer">Cancelar</button>
+        return `<div style="padding:.5rem 1.25rem;background:#fff3dc;border-bottom:1px solid #e0c080;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-shrink:0;font-size:12px;font-weight:700;color:#7a5000">
+          <span>📌 Seleccionada: ${c?c.partida:'—'} — toca otra partida o un hueco para moverla ahí</span>
+          <button onclick="partidaSeleccionadaParaMover=null;renderPartidasMapaContent(document.getElementById('partidas-overlay'))" style="padding:5px 12px;font-size:11px;font-weight:800;background:#c47f00;color:#fff;border:none;border-radius:6px;cursor:pointer">Cancelar</button>
         </div>`;
       })() : ''}
       <div id="partidas-content-wrap" style="flex:1;overflow:auto;padding:1.25rem">
@@ -9510,7 +9598,6 @@ function sortKeyPartida(entry){
 // otra calle o otro invernadero — no hace falta acertar el botón ⇄ pequeño
 // en el destino, basta tocar la partida o el hueco donde se quiera soltar.
 let partidaSeleccionadaParaMover = null;
-let partidaModoMovimiento = 'swap';
 // Modo "Añadir Específico aquí" (fusión Partidas+Específicos, 2026-08-11):
 // mientras está activo, tocar una tarjeta de partida la marca/desmarca para
 // aplicarle un específico en bloque, en vez de moverla — ver
@@ -9641,10 +9728,7 @@ function seleccionarPartidaParaMover(id, event){
   if(partidaSeleccionadaParaMover && partidaSeleccionadaParaMover!==id){
     const idA = partidaSeleccionadaParaMover;
     partidaSeleccionadaParaMover = null;
-    const modo = partidaModoMovimiento;
-    partidaModoMovimiento = 'swap';
-    if(modo==='before' || modo==='after') insertarPartidaRespectoA(idA, id, modo);
-    else intercambiarPartidasPorId(idA, id);
+    intercambiarPartidasPorId(idA, id);
     return;
   }
   partidaSeleccionadaParaMover = (partidaSeleccionadaParaMover === id) ? null : id;
@@ -9657,69 +9741,10 @@ function clicPartidaEnMapa(id){
   if(partidaSeleccionadaParaMover && partidaSeleccionadaParaMover!==id){
     const idA = partidaSeleccionadaParaMover;
     partidaSeleccionadaParaMover = null;
-    const modo = partidaModoMovimiento;
-    partidaModoMovimiento = 'swap';
-    if(modo==='before' || modo==='after') insertarPartidaRespectoA(idA, id, modo);
-    else intercambiarPartidasPorId(idA, id);
+    intercambiarPartidasPorId(idA, id);
     return;
   }
   if(!partidaSeleccionadaParaMover) mostrarHistorialPartida(id);
-}
-// Inserta una partida simple en el orden visual de una calle. Reordena solo
-// las partidas de esa calle y mantiene intactos sus demás datos.
-async function insertarPartidaRespectoA(idNueva, idReferencia, lado){
-  const nueva = controlChecksData.find(x=>x.id===idNueva);
-  const referencia = controlChecksData.find(x=>x.id===idReferencia);
-  if(!nueva || !referencia || nueva.id===referencia.id) return;
-  const tramos = c => (c.tramos&&c.tramos.length) ? c.tramos : [{desde:c.calleDesde,hasta:c.calleHasta}];
-  const tramoNueva = tramos(nueva)[0], tramoRef = tramos(referencia)[0];
-  const calleRef = Number(tramoRef?.desde);
-  const simple = t => t && Number(t.desde)===Number(t.hasta??t.desde);
-  if(nueva.tipo!=='tunel' || referencia.tipo!=='tunel' || String(referencia.invId)!==String(partidasInvSel) || !simple(tramoRef) || !simple(tramoNueva) || !Number.isInteger(calleRef)){
-    showToast('El destino debe ser una partida simple de la calle seleccionada.');
-    return false;
-  }
-  const entradas = controlChecksData.filter(c=>c.tipo==='tunel' && String(c.invId)===String(referencia.invId) && partidaVisibleEnQuincena(c,partidasQuincenaOffset) && callesDePartidaEntry(c).includes(calleRef));
-  const ordenadas = [...new Set(entradas.map(c=>c.id))].map(id=>entradas.find(c=>c.id===id)).sort((a,b)=>sortKeyPartida(a)-sortKeyPartida(b));
-  const destino = ordenadas.filter(c=>c.id!==nueva.id);
-  const idxRef = destino.findIndex(c=>c.id===referencia.id);
-  if(idxRef<0) return false;
-  const layout=INV_LAYOUT[referencia.invId];
-  const esBandaInferior=!!(layout && layout.row2.map(Number).includes(calleRef));
-  // En la banda inferior el orden de pos se pinta al revés: el índice mayor
-  // aparece más arriba junto al pasillo. Convertir la intención visual a
-  // orden de almacenamiento para que «encima/debajo» sea coherente en ambos
-  // lados del invernadero.
-  const insertarAntesEnOrden=(lado==='before')!==esBandaInferior;
-  destino.splice(idxRef+(insertarAntesEnOrden?0:1),0,nueva);
-  const ubicaciones=destino.map((c,i)=>{
-    const esNueva=c.id===nueva.id;
-    const ubicacion=esNueva ? [{desde:calleRef,hasta:calleRef}] : tramos(c).map(t=>({...t}));
-    return {id:c.id,invId:esNueva?referencia.invId:c.invId,tramos:ubicacion,
-      calleDesde:esNueva?calleRef:c.calleDesde,calleHasta:esNueva?calleRef:c.calleHasta,posManual:(i+1)*1000};
-  });
-  partidaSeleccionadaParaMover=null;
-  return aplicarOrdenPartidasCalle(ubicaciones, lado);
-}
-async function aplicarOrdenPartidasCalle(ubicaciones, lado){
-  const entradas=[];
-  (ubicaciones||[]).forEach(u=>{
-    const c=controlChecksData.find(x=>x.id===u.id);
-    if(!c) return;
-    const antes=snapshotUbicacionPartida(c);
-    c.invId=u.invId; c.tramos=(u.tramos||[]).map(t=>({...t}));
-    c.calleDesde=u.calleDesde; c.calleHasta=u.calleHasta; c.posManual=u.posManual;
-    marcarControlCheckSucio(c.id);
-    entradas.push({id:c.id,antes,despues:snapshotUbicacionPartida(c)});
-  });
-  if(!entradas.length) return false;
-  registrarMovimientoPartidas(entradas);
-  renderPartidasMapaContent(document.getElementById('partidas-overlay'));
-  showToast(`✓ Partida insertada ${lado==='before'?'encima':'debajo'}`);
-  const qid=encolarAccionOffline('aplicarOrdenPartidasCalle',[ubicaciones,lado]);
-  const ok=await persistControlChecksData();
-  if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
-  return ok;
 }
 // Tocar un hueco vacío con una partida seleccionada la mueve ahí — se coloca
 // la última (más cerca del pasillo) entre las que ya hubiera en esa calle;
@@ -9728,25 +9753,12 @@ async function aplicarOrdenPartidasCalle(ubicaciones, lado){
 function clicCeldaVaciaPartidas(invId, calle){
   if(!partidaSeleccionadaParaMover) return;
   const id = partidaSeleccionadaParaMover;
+  partidaSeleccionadaParaMover = null;
   const c = controlChecksData.find(x=>x.id===id);
   if(!c) return;
-  const layout = INV_LAYOUT[invId];
-  const calleNum = Number(calle);
   const tramoActual = (c.tramos && c.tramos.length) ? c.tramos[0] : {desde:c.calleDesde, hasta:c.calleHasta};
   const span = tramoActual.desde!=null ? Math.abs((tramoActual.hasta??tramoActual.desde)-tramoActual.desde)+1 : 1;
-  const callesDestino = Array.from({length:span},(_,i)=>calleNum+i);
-  const dentroDeUnaBanda = layout && [layout.row1, layout.row2].some(banda=>callesDestino.every(n=>banda.includes(n)));
-  // La cuadrícula solo entrega huecos físicos del INV seleccionado, pero la
-  // función también puede recibirse desde un clic obsoleto o un atributo DOM
-  // alterado. Validar aquí el destino evita guardar cruces de INV, calles
-  // inexistentes o tramos que atraviesen el pasillo.
-  if(String(invId)!==String(partidasInvSel) || !Number.isInteger(calleNum) || calleNum<1 || calleNum>300 || !dentroDeUnaBanda){
-    showToast('El destino debe estar dentro del invernadero y la banda seleccionados.');
-    return;
-  }
-  partidaSeleccionadaParaMover = null;
-  partidaModoMovimiento = 'swap';
-  const nuevoTramo = {desde:calleNum, hasta:calleNum+span-1};
+  const nuevoTramo = {desde:calle, hasta:calle+span-1};
   const ocupantes = calcularBloquesPartidasInv(invId).filter(b=>b.calles.includes(calle) && b.entry.id!==id);
   const maxClave = ocupantes.length ? Math.max(...ocupantes.map(b=>sortKeyPartida(b.entry))) : 0;
   aplicarMoverPartidaACalle(id, invId, nuevoTramo, maxClave+1);
@@ -9761,11 +9773,18 @@ async function aplicarMoverPartidaACalle(id, invId, tramo, posManualVal){
   c.posManual = posManualVal;
   registrarMovimientoPartidas([{id, antes, despues: snapshotUbicacionPartida(c)}]);
   renderPartidasMapaContent(document.getElementById('partidas-overlay'));
-  showToast('✓ Partida movida');
   const qid = encolarAccionOffline('aplicarMoverPartidaACalle', [id, invId, tramo, posManualVal]);
   marcarControlCheckSucio(id);
   const ok = await persistControlChecksData();
-  if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
+  if(ok){
+    controlChecksHistorialUbicacionConfirmada.delete(String(id));
+    desencolarAccion(qid);
+    showToast('✓ Partida movida');
+  } else {
+    const key = String(id);
+    if(!controlChecksHistorialUbicacionConfirmada.has(key)) controlChecksHistorialUbicacionConfirmada.set(key, antes);
+    avisarGuardadoLocalPendiente(leerColaOffline().length);
+  }
   return ok;
 }
 // Calcula, para un invernadero, en qué fila (0 = más alejada del pasillo) le
@@ -10027,6 +10046,8 @@ async function aplicarEspecificoAPartidasSeleccionadas(){
   const fechaISO = fechaLocalISO(riegoDiaToDate(dia));
   const ids = [...partidasEspecificoSeleccion];
   const semanaDelDia = partidasSemanaDeFecha(riegoDiaToDate(dia));
+  const especificosPrevios = clonarSnapshotDato(especificosData);
+  const tareasPorAsignar = [];
   for(const id of ids){
     const c = controlChecksData.find(x=>x.id===id);
     if(!c || !c.invId) continue;
@@ -10034,38 +10055,48 @@ async function aplicarEspecificoAPartidasSeleccionadas(){
     if(!calles.length) continue;
     const layout = INV_LAYOUT[c.invId];
     const allCalles = layout ? [...layout.row1, ...layout.row2] : calles;
-    // A petición de Paula (2026-08-18): "si no fuera la calle entera deberá
-    // aparecer en observaciones el número de partida" — para que el
-    // Resumen/Cuadrícula (que leen especificosData por calle, no por
-    // partida) puedan distinguir cuando varias partidas comparten la misma
-    // calle. Se comprueba, calle por calle, si hay OTRA partida ocupando
-    // esa misma calle esa semana; si la hay, se deja la observación con el
-    // código de esta partida (mismo formato que ya reconoce
-    // resolverPartidaPorObsEspecifico).
     const bloquesInv = calcularBloquesPartidasInvBase(c.invId, semanaDelDia);
+    const callesLabel = formatCallesConEnteroParaImprimir(c.invId, calles);
     calles.forEach(calle=>{
       if(!allCalles.includes(calle)) return;
       const compartida = bloquesInv.some(b=>b.entry.id!==id && b.calles.includes(calle));
       const textoCalle = compartida ? `${texto} — PARTIDA ${c.partida}` : texto;
       setEspecifico(c.invId, dia, calle, textoCalle, {caldoLitros, caldoLabel});
     });
-    const callesLabel = formatCallesConEnteroParaImprimir(c.invId, calles);
-    await autoAsignarTareaEspecifico(c.invId, dia, callesLabel, tratDosis, horario, '', {producto:trat, dosis, caldoLabel, gastoLabel});
     if(!especificosPartidaData[id]) especificosPartidaData[id] = [];
-    // invId/dia/calles guardados en el propio banner (a petición de Paula,
-    // 2026-08-18: "se debe de poder borrar tanto de ahí como de la
-    // cuadrícula") — sin esto, borrar el banner no sabía qué celdas de
-    // especificosData había que vaciar también.
-    especificosPartidaData[id].push({trat, dosis, horario, fechaLabel, fechaISO, invId:c.invId, dia, calles});
+    const registroExistente = especificosPartidaData[id].some(registro=>
+      registro.trat===trat && registro.dosis===dosis && registro.horario===horario &&
+      registro.fechaISO===fechaISO && registro.invId===c.invId && Number(registro.dia)===dia &&
+      JSON.stringify(registro.calles||[])===JSON.stringify(calles)
+    );
+    if(!registroExistente) especificosPartidaData[id].push({trat, dosis, horario, fechaLabel, fechaISO, invId:c.invId, dia, calles});
+    tareasPorAsignar.push({invId:c.invId, callesLabel});
   }
-  await saveEspecificosData();
-  await saveEspecificosPartidaData();
+  const especificosGuardados = await saveEspecificosData();
+  if(!especificosGuardados){
+    especificosData = especificosPrevios;
+    showToast('No se completó el guardado de Específicos. Revisa el aviso e inténtalo de nuevo.');
+    return;
+  }
+  const asociacionesGuardadas = await saveEspecificosPartidaData();
+  if(!asociacionesGuardadas){
+    showToast('Específico guardado; falta confirmar el vínculo de la partida. Reintenta para completar.');
+    return;
+  }
+  for(const tarea of tareasPorAsignar){
+    const tareaGuardada = await autoAsignarTareaEspecifico(tarea.invId, dia, tarea.callesLabel, tratDosis, horario, '', {producto:trat, dosis, caldoLabel, gastoLabel});
+    if(!tareaGuardada){
+      showToast('Específico guardado; conciliación pendiente: no se confirmó la tarea del regante. Reintenta para completar.');
+      return;
+    }
+  }
   document.getElementById('especifico-por-partidas-overlay').style.display = 'none';
   partidasEspecificoModo = false;
   partidasEspecificoSeleccion = new Set();
   showToast(`✓ Específico aplicado a ${ids.length} partida${ids.length===1?'':'s'}`);
   renderPartidasMapaContent(document.getElementById('partidas-overlay'));
 }
+
 // Editar/eliminar un banner de específico ya aplicado a una partida (a
 // petición de Paula, 2026-08-11: "al pincharle se debe de poder editar") —
 // edita el propio registro de especificosPartidaData (la anotación visual),
@@ -10299,9 +10330,14 @@ function togglePartidaEnSeleccionEspecifico(id){
 async function mostrarHistorialPartida(id){
   const c = controlChecksData.find(x=>x.id===id);
   if(!c) return;
+  const ubicacionConfirmada = controlChecksHistorialUbicacionConfirmada.get(String(id)) || null;
+  const cHistorial = ubicacionConfirmada ? {...c, ...ubicacionConfirmada} : c;
+  const historialInvId = ubicacionConfirmada ? ubicacionConfirmada.invId : c.invId;
   await Promise.all([loadRiegoData(false), loadFitoData(false), loadEspecificosData(false)]);
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const tramos = (c.tramos && c.tramos.length) ? c.tramos : [{desde:c.calleDesde, hasta:c.calleHasta}];
+  const tramos = ubicacionConfirmada
+    ? ((ubicacionConfirmada.tramos && ubicacionConfirmada.tramos.length) ? ubicacionConfirmada.tramos : [{desde:ubicacionConfirmada.calleDesde, hasta:ubicacionConfirmada.calleHasta}])
+    : ((c.tramos && c.tramos.length) ? c.tramos : [{desde:c.calleDesde, hasta:c.calleHasta}]);
   const calles = [];
   tramos.forEach(t=>{
     if(t.desde==null) return;
@@ -10346,14 +10382,14 @@ async function mostrarHistorialPartida(id){
   // calles de la partida hayan llevado lo mismo ese día.
   const eventosVistos = new Set();
   const eventos = [];
-  if(c.invId && calles.length){
+  if(historialInvId && calles.length){
     for(let dia=diaDesde; dia<=diaHasta; dia++){
       calles.forEach(calle=>{
-        const r = getRiego(c.invId, dia, calle);
+        const r = getRiego(historialInvId, dia, calle);
         if(r){ const k=`${dia}|Riego|${r}`; if(!eventosVistos.has(k)){ eventosVistos.add(k); eventos.push({dia, tipo:'Riego', color:'#1558a0', texto:r}); } }
-        const f = getFito(c.invId, dia, calle);
+        const f = getFito(historialInvId, dia, calle);
         if(f){ const k=`${dia}|Plaguicidas|${f}`; if(!eventosVistos.has(k)){ eventosVistos.add(k); eventos.push({dia, tipo:'Plaguicidas', color:'#c47f00', texto:f}); } }
-        const e = getEspecifico(c.invId, dia, calle);
+        const e = getEspecifico(historialInvId, dia, calle);
         if(e){ const k=`${dia}|Específicos|${e}`; if(!eventosVistos.has(k)){ eventosVistos.add(k); eventos.push({dia, tipo:'Específicos', color:'#1a5c2e', texto:e}); } }
       });
     }
@@ -10407,14 +10443,14 @@ async function mostrarHistorialPartida(id){
               <div style="font-size:10px;color:var(--muted);margin-top:3px">${escapar(f.label)}</div>
             </div>`).join('')}
         </div>` : '';
-  window.__partidaHistorialActual = { c, cargaSalida, eventos, resumenCategoriasHTML, tipoPlanta, diaDesde, fotosPartida, pre, pres };
+  window.__partidaHistorialActual = { c:cHistorial, cargaSalida, eventos, resumenCategoriasHTML, tipoPlanta, diaDesde, fotosPartida, pre, pres };
   const mo = getOrCreateOverlay('partidas-historial-overlay');
   mo.innerHTML = `
     <div style="background:#fff;border-radius:14px;max-width:640px;width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.3)">
       <div style="background:linear-gradient(135deg,#0f5c4a,#1a9c78);color:#fff;padding:1.1rem 1.5rem;border-radius:14px 14px 0 0;position:sticky;top:0">
         <div style="font-size:17px;font-weight:800">${escapar(c.partida)||'— Sin partida —'}</div>
         <div style="font-size:12px;opacity:.9;margin-top:2px">${escapar(c.clienteVariedad)||''}${tipoPlanta?' · '+escapar(tipoPlanta):''}</div>
-        <div style="font-size:11px;opacity:.85;margin-top:2px">${c.fentrega?`📅 Entrega ${escapar(c.fentrega)} · `:''}INV ${escapar(c.invId)||'—'} · Día 1 (salida de Túnel): ${escapar(riegoDiaLabelCorto(diaDesde))}</div>
+        <div style="font-size:11px;opacity:.85;margin-top:2px">${c.fentrega?`📅 Entrega ${escapar(c.fentrega)} · `:''}INV ${escapar(historialInvId)||'—'} · Día 1 (salida de Túnel): ${escapar(riegoDiaLabelCorto(diaDesde))}</div>
       </div>
       <div style="padding:1.25rem 1.5rem">
         ${pres.length ? pres.map(pre=>`
@@ -10443,6 +10479,7 @@ async function mostrarHistorialPartida(id){
           ${cargaSalida.observaciones ? escapar(cargaSalida.observaciones) : '<span style="font-style:italic;color:var(--muted)">Sin observaciones</span>'}
         </div>` : `<div style="font-size:12px;color:var(--muted);font-style:italic;margin-bottom:1.25rem">Todavía no tiene parte de carga.</div>`}
         ${fotosHTML}
+        ${ubicacionConfirmada ? '<div data-testid="partidas-historial-ubicacion-pendiente" style="padding:8px 10px;margin-bottom:10px;background:#fff3cd;color:#7a4b00;border:1px solid #f0c36d;border-radius:7px;font-size:12px;font-weight:700">Ubicación pendiente: el historial muestra la última ubicación confirmada.</div>' : ''}
         <div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Historial de riegos, plaguicidas y específicos</div>
         ${eventosHTML}
       </div>
@@ -10927,7 +10964,7 @@ function renderClimaGridHTML(tipo, invId){
           cells += `<td colspan="${br.span}" style="height:${DH}px;border:1px solid #a8dbe8;padding:0;background:#eaf9fc">
             <div style="display:flex;align-items:center;height:100%;padding:0 2px">
               <span style="font-size:9px;font-weight:900;color:#0e7490;margin-right:1px;flex-shrink:0">[</span>
-              <input type="text" value="${br.text.replace(/"/g,'&quot;')}"
+              <input type="text" readonly value="${br.text.replace(/"/g,'&quot;')}"
                 onchange="updateClimaBracket('${tipo}','${invId}',${dia},[${br.calles.join(',')}],this.value)"
                 ondblclick="editarClimaManualDesdeCelda('${tipo}','${invId}',${dia},[${br.calles.join(',')}])"
                 style="flex:1;border:none;background:transparent;font-size:9px;font-weight:700;color:#0a5866;outline:none;min-width:0;padding:0 1px;text-align:left">
@@ -13515,7 +13552,7 @@ function renderRiegoGrid(invId){
             cells += `<td colspan="${br.span}" style="border:1px solid #9ab8d8;padding:0;position:relative;background:${bgBase};${soloConsultaCelda?'cursor:pointer':''}" ${consultaAttr} ${dblclickAttr}>
               <div style="display:flex;align-items:flex-start;padding:1px 2px">
                 <span style="font-size:${Math.min(11,fontSize+1)}px;font-weight:900;color:${colorBracket};margin-right:1px;flex-shrink:0;line-height:1.3">[</span>
-                <textarea rows="${esPantallaMovil()?3:2}"
+                <textarea rows="${esPantallaMovil()?3:2}" readonly
                   data-rinv="${invId}" data-dia="${dia}" data-rc="${br.calles.join(',')}"
                   readonly
                   onchange="${onchangeAttr}"
@@ -13984,9 +14021,6 @@ function setFito(invId,dia,calle,val,extra){
     };
   } else delete fitoData[invId][dia][calle];
 }
-function esDiaPasadoFito(dia){
-  return Number.isFinite(Number(dia)) && Number(dia) < riegoDiaDeHoy();
-}
 // Los datos antiguos (guardados como string plano, de antes de este cambio)
 // se siguen leyendo bien — getFito() solo da el texto, igual que siempre.
 function getFitoCellRaw(invId,dia,calle){ return fitoData[invId]?.[dia]?.[calle]; }
@@ -14097,10 +14131,6 @@ function selectFitoInv(invId,btn){
 // Pulsar la etiqueta de un día en la cuadrícula de plaguicidas abre el alta
 // manual con ese día ya puesto.
 function abrirFitoManualDia(invId, dia){
-  if(esDiaPasadoFito(dia)){
-    showToast('Las fechas pasadas de Plaguicidas son de solo lectura');
-    return;
-  }
   fitoInvSel = invId;
   showFitoManualForm();
   const sel = document.getElementById('fm-dia');
@@ -14126,7 +14156,6 @@ function renderFitoGrid(invId){
     </tr>`;
     let rows=diasQ.map(dia=>{
       const brackets=detectFitoBrackets(invId,dia,calles);
-      const esPasado = esDiaPasadoFito(dia);
       const semana = riegoDiaSemana(dia);
       let cells='';let ci=0;
       while(ci<calles.length){
@@ -14152,7 +14181,10 @@ function renderFitoGrid(invId){
                 <span style="font-size:9px;font-weight:900;color:#a32020;margin-right:1px;flex-shrink:0">[</span>
                 <input type="text" value="${br.text.replace(/"/g,'&quot;')}"
                   data-finv="${invId}" data-fdia="${dia}" data-frc="${br.calles.join(',')}"
-                  ${esPasado?'readonly aria-readonly="true" title="Solo lectura: fecha pasada"':`onchange="updateFitoBracket('${invId}',${dia},[${br.calles.join(',')}],this.value)" ondblclick="editarFitoManualDesdeCelda('${invId}',${dia},[${br.calles.join(',')}])" onmousedown="dragCalleStart('fito','${invId}',${dia},${br.calles[0]})" onmouseenter="dragCalleOver('fito','${invId}',${dia},${br.calles[0]})"`}
+                  onchange="updateFitoBracket('${invId}',${dia},[${br.calles.join(',')}],this.value)"
+                  ondblclick="editarFitoManualDesdeCelda('${invId}',${dia},[${br.calles.join(',')}])"
+                  onmousedown="dragCalleStart('fito','${invId}',${dia},${br.calles[0]})"
+                  onmouseenter="dragCalleOver('fito','${invId}',${dia},${br.calles[0]})"
                   style="flex:1;border:none;background:transparent;font-size:9px;font-weight:700;color:#7a1a1a;outline:none;min-width:0;padding:0 1px;text-align:left">
                 <span style="font-size:9px;font-weight:900;color:#a32020;margin-left:1px;flex-shrink:0">]</span>
               </div>
@@ -14165,7 +14197,10 @@ function renderFitoGrid(invId){
                 <span style="font-size:9px;font-weight:900;color:#a32020;margin-right:1px;flex-shrink:0;line-height:1.3">[</span>
                 <textarea rows="${esPantallaMovil()?3:2}"
                   data-finv="${invId}" data-fdia="${dia}" data-frc="${br.calles.join(',')}"
-                  ${esPasado?'readonly aria-readonly="true" title="Solo lectura: fecha pasada"':`onchange="updateFitoBracket('${invId}',${dia},[${br.calles.join(',')}],this.value)" ondblclick="editarFitoManualDesdeCelda('${invId}',${dia},[${br.calles.join(',')}])" onmousedown="dragCalleStart('fito','${invId}',${dia},${br.calles[0]})" onmouseenter="dragCalleOver('fito','${invId}',${dia},${br.calles[0]})"`}
+                  onchange="updateFitoBracket('${invId}',${dia},[${br.calles.join(',')}],this.value)"
+                  ondblclick="editarFitoManualDesdeCelda('${invId}',${dia},[${br.calles.join(',')}])"
+                  onmousedown="dragCalleStart('fito','${invId}',${dia},${br.calles[0]})"
+                  onmouseenter="dragCalleOver('fito','${invId}',${dia},${br.calles[0]})"
                   style="flex:1;border:none;background:transparent;font-size:${fontSize}px;font-weight:700;color:#7a1a1a;outline:none;min-width:0;padding:0 1px;text-align:center;resize:none;line-height:1.15;white-space:normal;word-break:break-word;overflow-y:auto;font-family:inherit">${textEsc}</textarea>
                 <span style="font-size:9px;font-weight:900;color:#a32020;margin-left:1px;flex-shrink:0;line-height:1.3">]</span>
               </div>
@@ -14174,9 +14209,11 @@ function renderFitoGrid(invId){
           ci+=br.span;
         } else {
           cells+=`<td style="height:${DH}px;border:1px solid #e8c8c8;padding:0;background:${val?bgTratamiento:'#fff'}">
-            <input type="text" value="${val.replace(/"/g,'&quot;')}" placeholder=""
+            <input type="text" readonly value="${val.replace(/"/g,'&quot;')}" placeholder=""
               data-finv="${invId}" data-fdia="${dia}" data-frc="${calle}"
-              ${esPasado?'readonly aria-readonly="true" title="Solo lectura: fecha pasada"':`onchange="setFitoUndo('${invId}',${dia},${calle},this.value);renderFitoGrid('${invId}')" onmousedown="dragCalleStart('fito','${invId}',${dia},${calle})" onmouseenter="dragCalleOver('fito','${invId}',${dia},${calle})"`}
+              onchange="setFitoUndo('${invId}',${dia},${calle},this.value);renderFitoGrid('${invId}')"
+              onmousedown="dragCalleStart('fito','${invId}',${dia},${calle})"
+              onmouseenter="dragCalleOver('fito','${invId}',${dia},${calle})"
               style="width:100%;height:100%;border:none;background:transparent;font-size:9px;font-weight:${val?700:400};color:${val?'#7a1a1a':'#888'};text-align:center;outline:none;padding:0 2px;font-family:inherit">
           </td>`;
           ci++;
@@ -14184,7 +14221,7 @@ function renderFitoGrid(invId){
       }
       const semanaFontColor = semana==='Domingo' ? '#e53935' : '#1a1e18';
       return `<tr>
-        <td style="width:${DAY_W}px;min-width:${DAY_W}px;height:${DH}px;border:1px solid #e8b0b0;text-align:center;font-size:10px;font-weight:800;color:#a32020;background:#fdf0f0;position:sticky;left:0;z-index:5;padding:0;white-space:nowrap;cursor:${esPasado?'default':'pointer'}" ${esPasado?'aria-disabled="true" title="Consulta histórica; no se permiten altas"':`onclick="abrirFitoManualDia('${invId}',${dia})" title="Pulsa para añadir tratamiento este día"`}>${riegoDiaLabelCorto(dia)}</td>
+        <td style="width:${DAY_W}px;min-width:${DAY_W}px;height:${DH}px;border:1px solid #e8b0b0;text-align:center;font-size:10px;font-weight:800;color:#a32020;background:#fdf0f0;position:sticky;left:0;z-index:5;padding:0;white-space:nowrap;cursor:pointer" onclick="abrirFitoManualDia('${invId}',${dia})" title="Pulsa para añadir tratamiento este día">${riegoDiaLabelCorto(dia)}</td>
         ${cells}
         <td style="width:${SEM_W}px;min-width:${SEM_W}px;height:${DH}px;border:1px solid #e8b0b0;text-align:center;font-size:10px;font-weight:700;color:${semanaFontColor};background:#fff">${semana}</td>
       </tr>`;
@@ -16271,10 +16308,6 @@ function abrirRiegoManualDiaConTramo(invId, dia, desde, hasta){
   document.getElementById('rm-dia').value = dia;
 }
 function abrirFitoManualDiaConTramo(invId, dia, desde, hasta){
-  if(esDiaPasadoFito(dia)){
-    showToast('Las fechas pasadas de Plaguicidas son de solo lectura');
-    return;
-  }
   fitoInvSel = invId;
   fmPendingConfig = {modo:'tramo', tramos:[{desde: Math.min(desde,hasta), hasta: Math.max(desde,hasta), obs:''}]};
   showFitoManualForm();
@@ -17358,10 +17391,10 @@ function renderSalaEnVivoInvCard(invId){
   let especificos = null;
   let tareasAsignadas = null;
   if(currentUserRole === 'REGANTE'){
-    const misEspecificos = tareasData.filter(t=>t.categoria==='especifico' && t.asignadoA===currentUser && t.inv===invId && !esTareaDeAyer(t) && t.estado!=='completada' && t.estado!=='anulada');
+    const misEspecificos = tareasData.filter(t=>t.categoria==='especifico' && t.asignadoA===currentUser && t.inv===invId && !esTareaDeAyer(t) && t.estado!=='completada');
     especificos = misEspecificos.length ? misEspecificos.map(t=>`${escapar(t.titulo)}`).join('<br>') : null;
 
-    const misTareas = tareasData.filter(t=>t.asignadoA===currentUser && t.inv===invId && !esTareaDeAyer(t) && t.estado!=='completada' && t.estado!=='anulada' && t.categoria!=='especifico');
+    const misTareas = tareasData.filter(t=>t.asignadoA===currentUser && t.inv===invId && !esTareaDeAyer(t) && t.estado!=='completada' && t.categoria!=='especifico');
     tareasAsignadas = misTareas.length ? misTareas.map(t=>`${escapar(t.titulo)}`).join('<br>') : null;
   }
 
@@ -17894,7 +17927,7 @@ function showFitoManualForm(){
           <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Día (${riegoDiaLabelCorto(diasQ[0])} – ${riegoDiaLabelCorto(diasQ[diasQ.length-1])})</label>
           <div style="position:relative">
             <select id="fm-dia" style="width:100%;padding:9px 32px 9px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:14px;font-weight:600;background:#f2f4f0;outline:none;cursor:pointer;-webkit-appearance:none">
-              ${diasQ.map(d=>`<option value="${d}"${d===riegoDiaDeHoy()?' selected':''}${esDiaPasadoFito(d)?' disabled':''}>${riegoDiaLabelCorto(d)} — ${riegoDiaSemana(d)}</option>`).join('')}
+              ${diasQ.map(d=>`<option value="${d}"${d===riegoDiaDeHoy()?' selected':''}>${riegoDiaLabelCorto(d)} — ${riegoDiaSemana(d)}</option>`).join('')}
             </select>
             <i class="ti ti-chevron-down" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);pointer-events:none;color:#a32020;font-size:14px"></i>
           </div>
@@ -18271,10 +18304,6 @@ function parsearTextoFito(texto){
 // originales (fmEditContextoOriginal) para poder limpiar lo que sobre si se
 // reduce el tramo o se cambia de día (ver saveFitoManual).
 function editarFitoManualDesdeCelda(invId, dia, calles){
-  if(esDiaPasadoFito(dia)){
-    showToast('Las fechas pasadas de Plaguicidas son de solo lectura');
-    return;
-  }
   fitoInvSel = invId;
   const desde = Math.min(...calles), hasta = Math.max(...calles);
   const raw = getFitoCellRaw(invId, dia, calles[0]);
@@ -18422,10 +18451,6 @@ function calleTieneEspecifico(invId, dia, calle){
 }
 async function saveFitoManual(){
   const dia   = parseInt(document.getElementById('fm-dia').value);
-  if(esDiaPasadoFito(dia)){
-    showToast('No se pueden guardar tratamientos de Plaguicidas en una fecha pasada');
-    return;
-  }
   const trat  = document.getElementById('fm-trat').value.trim();
   const dosis = document.getElementById('fm-dosis').value.trim();
   const horario = document.getElementById('fm-horario')?.value || '';
@@ -18810,10 +18835,12 @@ async function saveEspecificosPartidaData(){
       if(!resultado.conflict||intento===4){avisarFalloGuardado();return false;}
     }
     if(!guardadoCompleto)return false;
-  }catch(e){ avisarFalloGuardado(); }
+  }catch(e){ avisarFalloGuardado(); return false; }
+  return true;
 }
 let especificosInvSel = null;
-let especificosQuincenaOffset = riegoQuincenaOffsetActual();
+let especificosQuincenaOffset = 0;
+let especificosQuincenaOffsetInicializado = false;
 const ESPECIFICO_TRATAMIENTOS = ['TC','MB','PP'];
 const ESPECIFICO_DOSIS = ['0.5','1','2','3'];
 const ESPECIFICO_HORARIOS = ['POR LA MAÑANA','17:00','18:00','19:00','19:30','20:00'];
@@ -18836,7 +18863,7 @@ function renderEspecificosQuincenaBar(){
     <button onclick="changeEspecificosQuincena(1)"
       style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:5px;width:22px;height:22px;cursor:pointer;font-size:13px;line-height:1">&#8250;</button>
   `;
-  bars.forEach(bar=>{bar.innerHTML=html;});
+  bars.forEach(bar => { bar.innerHTML = html; });
 }
 
 let especificosDataCargadaEn = 0;
@@ -18868,6 +18895,7 @@ async function saveEspecificosData(){
   }catch(e){ avisarFalloGuardado(); return; }
   showToast('✓ Específicos guardado');
   logHistorial(`Guardó específicos${especificosInvSel?' de INV '+especificosInvSel:''}`);
+  return true;
 }
 // Mismo cambio que setFito/getFito (a petición de Paula, 2026-07-31): el
 // caldo se guarda SIEMPRE en la propia celda, no solo en la tarea que se le
@@ -18902,6 +18930,10 @@ function getEspecifico(invId,dia,calle){
 // showEspecificoManualForm), no se tocó esa lógica.
 function showEspecificoResumenModule(){
   Promise.all([loadEspecificosData(false), loadPresenciaData(), loadTareasData(false)]).then(()=>{
+    if(!especificosQuincenaOffsetInicializado){
+      especificosQuincenaOffset = riegoQuincenaOffsetActual();
+      especificosQuincenaOffsetInicializado = true;
+    }
     const overlay = getOrCreateOverlay('especifico-resumen-overlay');
     overlay.style.padding = '0';
     overlay.innerHTML = `
@@ -18998,6 +19030,10 @@ function showEspecificosModule(){
 
     // Cargar datos en background
     Promise.all([loadEspecificosData(false), loadPresenciaData(), loadTareasData(false)]).then(()=>{
+      if(!especificosQuincenaOffsetInicializado){
+      especificosQuincenaOffset = riegoQuincenaOffsetActual();
+      especificosQuincenaOffsetInicializado = true;
+    }
       const html = `
         <div style="background:#fff;border-radius:0;width:100vw;height:100vh;max-width:100vw;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.3)">
           <div style="background:#2e7d32;color:#fff;padding:.85rem 1.25rem;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;gap:10px">
@@ -19125,7 +19161,7 @@ function renderEspecificosGrid(invId){
                 <input type="text" value="${br.text.replace(/"/g,'&quot;')}"
                   data-einv="${invId}" data-edia="${dia}" data-erc="${br.calles.join(',')}"
                   onchange="updateEspecificoBracket('${invId}',${dia},[${br.calles.join(',')}],this.value)"
-                  ondblclick="editarEspecificoManualDesdeCelda('${invId}',${dia},[${br.calles.join(',')}])"
+                  onclick="editarEspecificoManualDesdeCelda('${invId}',${dia},[${br.calles.join(',')}])"
                   onmousedown="dragCalleStart('especifico','${invId}',${dia},${br.calles[0]})"
                   onmouseenter="dragCalleOver('especifico','${invId}',${dia},${br.calles[0]})"
                   style="flex:1;border:none;background:transparent;font-size:9px;font-weight:700;color:#1b5e20;outline:none;min-width:0;padding:0 1px;text-align:left">
@@ -19153,7 +19189,8 @@ function renderEspecificosGrid(invId){
         } else {
           cells+=`<td style="height:${DH}px;border:1px solid #cfe8cf;padding:0;background:${colorFondoEspecificoPorTexto(val)}">
             <input type="text" value="${val.replace(/"/g,'&quot;')}" placeholder=""
-              data-einv="${invId}" data-edia="${dia}" data-erc="${calle}"
+              data-einv="${invId}" data-edia="${dia}" data-erc="${calle}" readonly
+              onclick="${val ? "editarEspecificoManualDesdeCelda(this.dataset.einv, Number(this.dataset.edia), [Number(this.dataset.erc)])" : "abrirEspecificoManualDiaConTramo(this.dataset.einv, Number(this.dataset.edia), Number(this.dataset.erc), Number(this.dataset.erc))"}"
               onchange="setEspecificoUndo('${invId}',${dia},${calle},this.value);renderEspecificosGrid('${invId}')"
               onmousedown="dragCalleStart('especifico','${invId}',${dia},${calle})"
               onmouseenter="dragCalleOver('especifico','${invId}',${dia},${calle})"
@@ -19569,7 +19606,7 @@ async function autoAsignarTareaEspecifico(invId, dia, callesLabel, titulo, horar
   const fusionarOCrear = (asignadoA) => {
     // Igual que en autoAsignarTareasRiego: fusiona con pendiente O iniciada,
     // solo crea aparte si ya está completada (evita duplicados al re-guardar).
-    const existente = tareasData.find(t => t.inv===invId && t.fechaISO===fechaISO && t.asignadoA===asignadoA && t.titulo===titulo && t.categoria==='especifico' && t.estado!=='completada' && t.estado!=='anulada');
+    const existente = tareasData.find(t => t.inv===invId && t.fechaISO===fechaISO && t.asignadoA===asignadoA && t.titulo===titulo && t.categoria==='especifico' && t.estado!=='completada');
     if(existente){
       existente.calles = fusionarCallesTarea(existente.calles, callesLabel);
       if(!existente.horario && horario) existente.horario = horario;
@@ -19581,10 +19618,16 @@ async function autoAsignarTareaEspecifico(invId, dia, callesLabel, titulo, horar
   };
   // Asignar al regante de la sala correspondiente (REGANTE1 para Sala1, REGANTE2 para Sala2)
   const reganteAsignar = reganteDelaSala(invId);
+  const tareasPrevias = clonarSnapshotDato(tareasData);
   fusionarOCrear(reganteAsignar);
-  await persistTareasData();
+  const guardado = await persistTareasData();
+  if(!guardado){
+    tareasData = tareasPrevias;
+    return false;
+  }
   logHistorial(`Auto-asignó tarea de específico desde INV ${invId}`);
   refreshTareasViews();
+  return true;
 }
 // Imprimir hoja de específico directamente desde el formulario de alta manual
 // (igual que el botón "Imprimir hoja" de Plaguicidas) — usa los mismos datos
@@ -19629,6 +19672,15 @@ function imprimirHojaEspecificoManual(){
 // renderResumenQuincenaTratamientos/imprimirHojaResumen).
 // datos: {fechaISO, trat, dosis, caldoLitros, horario, filas:[{invId,calles,tipo,obs}]}
 function imprimirHojaEspecificoConDatos(datos){
+  const tratamientoValido = ESPECIFICO_TRATAMIENTOS.includes(String(datos?.trat||'').trim());
+  const dosisValida = ESPECIFICO_DOSIS.includes(String(datos?.dosis||'').trim());
+  const caldoValido = Number.isFinite(Number(datos?.caldoLitros)) && Number(datos.caldoLitros)>0;
+  const filasValidas = Array.isArray(datos?.filas) && datos.filas.length>0 &&
+    datos.filas.every(f=>String(f?.invId||'').trim() && String(f?.calles||'').trim());
+  if(!tratamientoValido || !dosisValida || !caldoValido || !filasValidas){
+    showToast('No hay un tratamiento Específico registrado válido. No se imprimió el documento.');
+    return false;
+  }
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const fechaLabel = fechaCompletaImprimir({fechaISO: datos.fechaISO});
   const caldoLabel = (FITO_CALDO_OPCIONES.find(o=>o.litros===datos.caldoLitros)||{}).label || (datos.caldoLitros?`${datos.caldoLitros}L`:'');
