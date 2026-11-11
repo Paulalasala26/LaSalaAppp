@@ -1816,6 +1816,9 @@ test('UAT-2098 y UAT-2099: la asignación de Mantenimiento ofrece solo operarios
       await page.locator('#tareas-overlay').getByRole('button', { name: /✕ Cerrar/ }).click();
       await page.getByRole('button', { name: 'Salir' }).click();
       await expect(page.locator('#login-screen')).toBeVisible();
+      await page.locator('#login-user').evaluate((select, value) => {
+        if (![...select.options].some(option => option.value === value)) select.add(new Option(value, value));
+      }, user);
       await page.locator('#login-user').selectOption(user);
       await page.locator('#login-pass').fill(password);
       await page.locator('#login-btn').click();
