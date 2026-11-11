@@ -1301,3 +1301,45 @@ test('UAT-2150: doble pulsación en Control QC mantiene una sola carga y un pane
   expect(qcRequests).toBe(1);
   expect(pageErrors).toEqual([]);
 });
+
+test('UAT-2154–2155: en móvil Avisos y Salir reciben toques independientes', async ({ browser }) => {
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true
+  });
+  const page = await context.newPage();
+  try {
+    await installAuthFixture(page, {
+      'lasala-users-v1': JSON.stringify({ VIGUERAS: passwordHash }),
+      'lasala-roles-v1': JSON.stringify({ ...roleUsers, VIGUERAS: 'ADMIN' }),
+      'lasala-avisos-usuario-v1': JSON.stringify({
+        VIGUERAS: [{ id: 'uat-2154-notice', mensaje: 'Aviso táctil', fecha: '11/11/2026', visto: false, leido: false }]
+      })
+    });
+    await logInAs(page, 'VIGUERAS');
+
+    const bell = page.locator('#topbar-notificaciones');
+    const logout = page.locator('.logout-btn');
+    await expect(bell).toBeVisible();
+    await expect(logout).toBeVisible();
+    const [bellBox, logoutBox] = await Promise.all([bell.boundingBox(), logout.boundingBox()]);
+    expect(bellBox.width).toBeGreaterThanOrEqual(44);
+    expect(bellBox.height).toBeGreaterThanOrEqual(44);
+    expect(logoutBox.width).toBeGreaterThanOrEqual(44);
+    expect(logoutBox.height).toBeGreaterThanOrEqual(44);
+
+    await bell.tap();
+    const notices = page.locator('#notificaciones-vigueras-overlay');
+    await expect(notices).toBeVisible();
+    await notices.getByRole('button').first().click();
+    await expect(notices).toBeHidden();
+
+    await logout.tap();
+    await expect(page.locator('#login-screen')).toBeVisible();
+    await expect(page.locator('#app')).toBeHidden();
+    await expect(notices).toBeHidden();
+  } finally {
+    await context.close();
+  }
+});
