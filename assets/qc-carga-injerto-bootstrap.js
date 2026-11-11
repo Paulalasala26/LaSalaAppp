@@ -75,8 +75,8 @@
       renderControlDatosQC(record)+renderControlAbrirInspeccionHTML(record)+'</div>'+
       '<details class="qc-card-more"><summary>Detalles y acciones</summary>'+
       '<div class="qc-card-details"><div class="qc-card-actionbar">'+
-      '<button type="button" onclick="mostrarEditarControlCargaInjerto(\\''+e(record.id)+'\\')"><i class="ti ti-pencil" aria-hidden="true"></i> Editar partida</button>'+
-      '<button type="button" class="qc-card-danger qc-card-trash" onclick="eliminarControlCheck(\\''+e(record.id)+'\\')" title="Eliminar registro de partida" aria-label="Eliminar registro de partida"><i class="ti ti-trash" aria-hidden="true"></i></button>'+
+      '<button type="button" onclick="mostrarEditarControlCargaInjerto(\''+e(record.id)+'\')"><i class="ti ti-pencil" aria-hidden="true"></i> Editar partida</button>'+
+      '<button type="button" class="qc-card-danger qc-card-trash" onclick="eliminarControlCheck(\''+e(record.id)+'\')" title="Eliminar registro de partida" aria-label="Eliminar registro de partida"><i class="ti ti-trash" aria-hidden="true"></i></button>'+
       '</div></div></details></article>';
   };
 
