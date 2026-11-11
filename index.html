@@ -57,6 +57,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
    pulsables, sin depender de JS. */
 .home-shortcut-card{transition:transform .15s ease,box-shadow .15s ease;cursor:pointer}
 .home-shortcut-card:hover{transform:translateY(-3px);box-shadow:0 10px 24px rgba(0,0,0,.18)}
+.home-shortcut-card:focus-visible{outline:3px solid #ffd54f;outline-offset:3px}
 /* Retoque visual del módulo Tareas (2026-07-30, a petición de Paula) — los
    botones de "elige una opción para entrar" (Pendientes/Completadas,
    Sala1/Sala2, Orden Abonos/Aguas...), las filas de la tabla de gestión, las
@@ -698,6 +699,21 @@ restaurarSesion();
 // roles (o sin rol asignado) ven la pantalla de inicio de siempre, sin
 // ningún cambio.
 let pageHomeInnerDefaultHTML = null;
+function habilitarTecladoEnTarjetasInicio(){
+  const block=document.getElementById('quick-access-block');
+  if(!block) return;
+  block.querySelectorAll('.home-shortcut-card[onclick]').forEach(card=>{
+    card.setAttribute('role','button');
+    card.setAttribute('tabindex','0');
+    card.setAttribute('aria-keyshortcuts','Enter Space');
+  });
+  block.addEventListener('keydown',event=>{
+    const card=event.target.closest?.('.home-shortcut-card[onclick]');
+    if(!card || !block.contains(card) || (event.key!=='Enter' && event.key!==' ')) return;
+    event.preventDefault();
+    card.click();
+  });
+}
 function applyRoleHomeUI(){
   const homeInner = document.getElementById('page-home-inner');
   if(!homeInner) return;
@@ -841,6 +857,7 @@ function applyRoleHomeUI(){
     actualizarBadgeNotificacionesVigueras();
     actualizarBotonAvisosPush();
   }
+  habilitarTecladoEnTarjetasInicio();
 }
 async function actualizarBadgeTareasRegante(){
   await loadTareasData();
