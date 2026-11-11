@@ -1006,3 +1006,28 @@ test('UAT-2115: el punto de Avisos tras volver a entrar sigue el estado remoto l
   await expect(page.locator('#page-home')).toBeVisible();
   await expect(page.locator('#avisos-tecnico-badge span[aria-label]')).toHaveCount(0);
 });
+
+test('UAT-2122–2123: recargar Inicio conserva la sesión y los permisos del perfil activo', async ({ page }) => {
+  await installAuthFixture(page, {
+    'lasala-avisos-usuario-v1': JSON.stringify({ E2E_ADMIN: [], E2E_TECNICO: [] })
+  });
+  await logInAs(page, 'E2E_ADMIN');
+
+  const adminCards = page.locator('#quick-access-block .home-shortcut-card:visible');
+  const initialAdminCardCount = await adminCards.count();
+  await expect(page.locator('#topbar-notificaciones')).toBeVisible();
+  await page.reload();
+  await expect(page.locator('#page-home')).toBeVisible();
+  await expect(page.locator('#topbar-notificaciones')).toBeVisible();
+  await expect(adminCards).toHaveCount(initialAdminCardCount);
+
+  await page.getByRole('button', { name: 'Salir' }).click();
+  await logInAs(page, 'E2E_TECNICO');
+  await expect(page.locator('#topbar-avisos')).toBeVisible();
+  await expect(page.locator('#topbar-notificaciones')).toHaveCount(0);
+  await page.reload();
+  await expect(page.locator('#page-home')).toBeVisible();
+  await expect(page.locator('#topbar-avisos')).toBeVisible();
+  await expect(page.locator('#topbar-notificaciones')).toHaveCount(0);
+  await expect(page.locator('#quick-access-block')).toContainText('Control de Calidad');
+});
