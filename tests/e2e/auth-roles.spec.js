@@ -1368,3 +1368,38 @@ test('UAT-2154–2155: en móvil Avisos y Salir reciben toques independientes', 
     await context.close();
   }
 });
+
+test('UAT-2156 y UAT-2157: lista larga de Avisos llega al final en ventana estrecha', async ({ page }) => {
+  await page.setViewportSize({ width: 520, height: 720 });
+  const notices = Array.from({ length: 36 }, (_, index) => ({
+    id: `uat-avisos-${String(index + 1).padStart(2, '0')}`,
+    mensaje: `Mensaje UAT ${String(index + 1).padStart(2, '0')}`,
+    fecha: '11/11/2026',
+    visto: false,
+    leido: false
+  }));
+  await installAuthFixture(page, {
+    'lasala-users-v1': JSON.stringify({ VIGUERAS: passwordHash }),
+    'lasala-roles-v1': JSON.stringify({ ...roleUsers, VIGUERAS: 'ADMIN' }),
+    'lasala-avisos-usuario-v1': JSON.stringify({ VIGUERAS: notices })
+  });
+  await logInAs(page, 'VIGUERAS');
+  const bell = page.locator('#topbar-notificaciones');
+  await expect(bell).toBeVisible();
+  await bell.click();
+
+  const overlay = page.locator('#notificaciones-vigueras-overlay');
+  await expect(overlay).toBeVisible();
+  const modal = overlay.locator(':scope > div');
+  const dimensions = await modal.evaluate(el => ({ client: el.clientHeight, scroll: el.scrollHeight }));
+  expect(dimensions.scroll).toBeGreaterThan(dimensions.client);
+  const pageWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+  expect(pageWidth).toBeLessThanOrEqual(520);
+
+  await modal.evaluate(el => { el.scrollTop = el.scrollHeight; });
+  const finalNotice = overlay.getByText('Mensaje UAT 01', { exact: true });
+  await finalNotice.scrollIntoViewIfNeeded();
+  await expect(finalNotice).toBeVisible();
+  expect(await modal.evaluate(el => Math.ceil(el.scrollTop + el.clientHeight) >= el.scrollHeight)).toBe(true);
+  await expect(overlay.getByRole('button').first()).toBeVisible();
+});
