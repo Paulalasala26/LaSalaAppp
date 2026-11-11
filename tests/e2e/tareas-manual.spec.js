@@ -1705,7 +1705,7 @@ test('UAT-2080–2082 y UAT-2088: REGANTE conserva accesos propios y no muestra 
 });
 
 
-test('UAT-2084: PEÓN solo ve mantenimiento asignado y dispone de Iniciar', async ({ page }) => {
+test('UAT-2084 y UAT-2096: PEÓN solo ve mantenimiento asignado y no puede reasignar', async ({ page }) => {
   const tickets = [
     {
       id: 'e2e-uat-2084-assigned',
@@ -1766,6 +1766,19 @@ test('UAT-2084: PEÓN solo ve mantenimiento asignado y dispone de Iniciar', asyn
   expect(writes).toEqual([]);
 });
 
+
+
+test('UAT-2097: REGANTE no dispone de gestión de tickets Mantenimiento', async ({ page }) => {
+  const { writes } = await installFixture(page, {}, { loginUser: 'REGANTE1' });
+  const access = page.locator('#quick-access-block');
+
+  await expect(access).toBeVisible();
+  await expect(access.getByRole('button', { name: /Mantenimiento|Tareas|Tickets|Reasignar/i })).toHaveCount(0);
+  await expect(page.locator('#btn-mantenimiento-peon')).toBeHidden();
+  await expect(page.locator('#mant-peon-overlay')).toBeHidden();
+  await expect(page.locator('#tareas-overlay')).toBeHidden();
+  expect(writes).toEqual([]);
+});
 
 test('UAT-2085 y UAT-2086: CARGADOR abre QC Carga y solo ve secciones autorizadas', async ({ page }) => {
   const users = {
