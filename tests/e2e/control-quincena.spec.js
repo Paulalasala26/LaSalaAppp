@@ -1692,7 +1692,7 @@ test('UAT-358, UAT-359, UAT-360 y UAT-389–390: tarjeta QC sin controles de fot
   expect(unexpectedHosts).toEqual([]);
 });
 
-test('UAT-047–049, UAT-356–357, UAT-364, UAT-368–369 y UAT-392: las fotos QC siguen su inspección y se amplían correctamente', async ({ page }) => {
+test('UAT-047–049, UAT-356–357, UAT-364, UAT-368–369, UAT-392 y UAT-395: fotos QC y evaluación se conservan al cerrar ampliación', async ({ page }) => {
   const database = fixtureDatabase();
   database['lasala-control-fotos-indice-v1'] = JSON.stringify({});
   database['lasala-control-fotos-shards-index'] = JSON.stringify(['lasala-control-fotos-v1']);
@@ -1745,13 +1745,19 @@ test('UAT-047–049, UAT-356–357, UAT-364, UAT-368–369 y UAT-392: las fotos 
   const reopened = page.locator('#control-overlay');
   await reopened.getByRole('button', { name: 'Check Túnel' }).click();
   for (const id of tunnelIds) await expect(reopened.locator(`#control-card-${id} img[title="Ver foto"]`)).toBeVisible();
-  const firstPhoto = reopened.locator(`#control-card-${tunnelIds[0]} img[title="Ver foto"]`);
+  const firstCard = reopened.locator(`#control-card-${tunnelIds[0]}`);
+  const qcDraft = firstCard.getByTestId(`control-option-${tunnelIds[0]}-color-verde`);
+  await qcDraft.click();
+  await expect(qcDraft).toContainText('✓');
+  const firstPhoto = firstCard.locator('img[title="Ver foto"]');
   const firstPhotoSrc = await page.evaluate(id => fotoSrcCompleta(controlFotosData[id]), tunnelIds[0]);
   await firstPhoto.click();
   const enlargedPhoto = page.locator('#control-foto-ampliada-overlay');
   await expect(enlargedPhoto.locator('img')).toHaveAttribute('src', firstPhotoSrc);
   await enlargedPhoto.locator('button').click();
   await expect(enlargedPhoto).toBeHidden();
+  await expect(firstCard).toBeVisible();
+  await expect(qcDraft).toContainText('✓');
   await reopened.getByTestId('control-day-previous').click();
   await expect(reopened.locator(`#control-card-${previousDayId} img[title="Ver foto"]`)).toBeVisible();
   await reopened.getByTestId('control-day-next').click();
