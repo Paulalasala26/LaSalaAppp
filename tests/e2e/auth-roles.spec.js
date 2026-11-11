@@ -1009,9 +1009,11 @@ test('UAT-2115: el punto de Avisos tras volver a entrar sigue el estado remoto l
 
 test('UAT-2122–2123: recargar Inicio conserva la sesión y los permisos del perfil activo', async ({ page }) => {
   await installAuthFixture(page, {
-    'lasala-avisos-usuario-v1': JSON.stringify({ E2E_ADMIN: [], E2E_TECNICO: [] })
+    'lasala-users-v1': JSON.stringify({ E2E_ADMIN: passwordHash, E2E_TECNICO: passwordHash, VIGUERAS: passwordHash }),
+    'lasala-roles-v1': JSON.stringify({ ...roleUsers, VIGUERAS: 'ADMIN' }),
+    'lasala-avisos-usuario-v1': JSON.stringify({ E2E_ADMIN: [], E2E_TECNICO: [], VIGUERAS: [] })
   });
-  await logInAs(page, 'E2E_ADMIN');
+  await logInAs(page, 'VIGUERAS');
 
   const adminCards = page.locator('#quick-access-block .home-shortcut-card:visible');
   const initialAdminCardCount = await adminCards.count();
