@@ -1029,7 +1029,7 @@ async function mantenerMetadatosTareasCompletadas(){
     await window.storage.set(TAREAS_KEY, JSON.stringify(cloud));
   }catch(e){}
 }
- (ver comentario ahí) — solo
+// Se usa en aperturas que solo consultan; las escrituras fuerzan lectura fresca.
 // se usa en aperturas de pantalla que no dependen de ver el segundo exacto en
 // que otro usuario asignó/completó algo; los flujos que van a escribir sobre
 // tareasData (asignar en lote, crear, completar...) siguen llamando sin
