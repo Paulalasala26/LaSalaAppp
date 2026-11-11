@@ -1281,3 +1281,23 @@ test('UAT-2148: recargar desde Partidas recupera Inicio y los accesos permitidos
   await expect(control).toContainText('Check Túnel');
   expect(pageErrors).toEqual([]);
 });
+
+test('UAT-2150: doble pulsación en Control QC mantiene una sola carga y un panel', async ({ page }) => {
+  let qcRequests = 0;
+  const pageErrors = [];
+  page.on('request', request => {
+    if (new URL(request.url()).pathname.endsWith('/qc-v6.js')) qcRequests++;
+  });
+  page.on('pageerror', error => pageErrors.push(error.message));
+  await installAuthFixture(page);
+  await logInAs(page, 'E2E_ADMIN');
+
+  const shortcut = page.getByTestId('home-control');
+  await shortcut.evaluate(element => { element.click(); element.click(); });
+  const control = page.locator('#control-overlay');
+  await expect(control).toBeVisible();
+  await expect(control).toContainText('Check Túnel');
+  expect(await control.count()).toBe(1);
+  expect(qcRequests).toBe(1);
+  expect(pageErrors).toEqual([]);
+});
