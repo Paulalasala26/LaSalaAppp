@@ -40,7 +40,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Instalar Chromium
-        run: pnpm exec playwright install --with-deps chromium
+        run: pnpm exec playwright install chromium
 
       - name: Detectar specs modificados en PR
         id: scope
@@ -55,7 +55,7 @@ jobs:
             });
             const paths = new Set((commit.data.files || []).map(file => file.filename));
             const workflowChanged = paths.has('.github/workflows/uat-playwright.yml');
-            core.setOutput('control', String(paths.has('index.html') || paths.has('tests/e2e/control-quincena.spec.js')));
+            core.setOutput('control', String(workflowChanged || paths.has('index.html') || paths.has('tests/e2e/control-quincena.spec.js')));
             core.setOutput('auth', String(workflowChanged || paths.has('index.html') || paths.has('tests/e2e/auth-roles.spec.js')));
             core.setOutput('tasks', String(paths.has('tests/e2e/tareas-manual.spec.js')));
 
