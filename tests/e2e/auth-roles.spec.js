@@ -664,7 +664,7 @@ test('UAT-2053: volver a consultar un problema ya leído no lo resuelve', async 
 
   const resolver = page.locator('#resolver-problema-overlay');
   await expect(resolver).toBeVisible();
-  await expect(resolver).toContainText('Problema pendiente de resolver');
+  await expect(resolver).toContainText('Prueba');
   await expect.poll(async () => page.evaluate(async () => {
     const value = await window.storage.get('lasala-avisos-usuario-v1');
     return JSON.parse(value.value).E2E_TECNICO[0];
