@@ -1784,7 +1784,9 @@ test('UAT-2085 y UAT-2086: CARGADOR abre QC Carga y solo ve secciones autorizada
   };
   const { writes } = await installFixture(page, {
     'lasala-users-v1': JSON.stringify(users),
-    'lasala-roles-v1': JSON.stringify(roles)
+    'lasala-roles-v1': JSON.stringify(roles),
+    'lasala-conteo-tuta-invs-v1': JSON.stringify(Array.from({ length: 20 }, (_, i) => ({ key: String(i).padStart(2, '0'), label: `INV ${String(i).padStart(2, '0')}` }))),
+    'lasala-conteo-trips-invs-v1': JSON.stringify([])
   }, { loginUser: 'JULIO' });
 
   const accesoQc = page.getByTestId('home-qc-carga');
@@ -1798,6 +1800,8 @@ test('UAT-2085 y UAT-2086: CARGADOR abre QC Carga y solo ve secciones autorizada
   const secciones = overlay.locator('button[onclick^="seleccionarSeccionControl("]');
   await expect(secciones).toHaveText(['Check Carga Injerto', 'Check Carga Normal']);
   await expect(secciones.filter({ hasText: 'Check Túnel' })).toHaveCount(0);
+  await expect(overlay.getByTestId('control-carga-print')).toBeVisible();
+  await overlay.getByTestId('control-day-today').click();
   await expect(overlay.getByTestId('control-add-line')).toBeVisible();
   expect(writes).toEqual([]);
 });
