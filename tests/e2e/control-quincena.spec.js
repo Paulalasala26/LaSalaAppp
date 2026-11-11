@@ -1197,11 +1197,11 @@ test('UAT-335 y UAT-355: CARGADOR registra una lÃ­nea QC Carga autorizada tambiÃ
   await expect(cargadorOverlay.getByTestId('control-inspections')).toBeVisible();
   const cargaCard = await createNewCargaV6Line(cargadorOverlay, '26X09005');
   const cargaId = await cargaCard.getAttribute('data-testid').then(value => value.replace('qc-v6-card-', ''));
-  const verde = cargaCard.getByTestId(`qc-v6-${cargaId}-color-verde`);
-  await verde.click();
-  await expect(verde).toHaveAttribute('aria-pressed', 'true');
+  const colorOk = cargaCard.getByTestId(`qc-v6-${cargaId}-color-ok`);
+  await colorOk.click();
+  await expect(colorOk).toHaveAttribute('aria-pressed', 'true');
   await cargaCard.getByTestId(`qc-v6-${cargaId}-save`).click();
-  await expect.poll(() => database['lasala-control-items-v1'][cargaId].color?.verde).toBe(true);
+  await expect.poll(() => database['lasala-control-items-v1'][cargaId].qcV6?.color).toBe('ok');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   expect(Object.values(database['lasala-control-items-v1']).map(item => item.partida)).toEqual(
     expect.arrayContaining(['26X09003', '26X09004', '26X09005'])
