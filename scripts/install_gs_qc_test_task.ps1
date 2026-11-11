@@ -84,18 +84,52 @@ if ($LASTEXITCODE -ne 0 -or $FirebaseProject.Trim() -ne "la-sala-app-test") {
 
 $Runner = Join-Path $Root "sync_gs_qc_test.py"
 $Arguments = ('"{0}" --firebase-credentials "{1}"' -f $Runner, $FirebaseCredentialsPath)
-$Action = New-ScheduledTaskAction -Execute $Python -Argument $Arguments -WorkingDirectory $Root
-$Triggers = @()
+$XmlEscape = [System.Security.SecurityElement]
+$XmlUser = $XmlEscape::Escape([System.Security.Principal.WindowsIdentity]::GetCurrent().Name)
+$XmlPython = $XmlEscape::Escape($Python)
+$XmlArguments = $XmlEscape::Escape($Arguments)
+$XmlRoot = $XmlEscape::Escape($Root)
+
+$TriggerXml = @()
 for ($Hour = 6; $Hour -le 20; $Hour++) {
-    $At = [datetime]::Today.AddHours($Hour)
-    $Triggers += New-ScheduledTaskTrigger -Daily -At $At
+    $Start = (Get-Date).Date.AddHours($Hour).ToString("yyyy-MM-dd'T'HH:mm:ss")
+    $TriggerXml += "<CalendarTrigger><StartBoundary>$Start</StartBoundary><Enabled>true</Enabled><ScheduleByDay><DaysInterval>1</DaysInterval></ScheduleByDay></CalendarTrigger>"
 }
-$Principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType Interactive -RunLevel Limited
-$Settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 20) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+$Triggers = $TriggerXml -join ""
 
-Register-ScheduledTask -TaskName $TaskName -Action $Action -Trigger $Triggers -Principal $Principal -Settings $Settings -Description "Lee GS en modo solo lectura y sincroniza QC Preinjerto y Carga Injerto en Firebase TEST; conserva registros existentes." -Force | Out-Null
+$TaskXml = @"
+<?xml version="1.0" encoding="UTF-16"?>
+<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo><Description>Lee GS y sincroniza QC Preinjerto y Carga Injerto en Firebase TEST, conservando inspecciones existentes.</Description></RegistrationInfo>
+  <Triggers>$Triggers</Triggers>
+  <Principals><Principal id="Author"><UserId>$XmlUser</UserId><LogonType>InteractiveToken</LogonType><RunLevel>LeastPrivilege</RunLevel></Principal></Principals>
+  <Settings>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <StartWhenAvailable>true</StartWhenAvailable>
+    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>
+    <AllowHardTerminate>true</AllowHardTerminate>
+    <Enabled>true</Enabled>
+    <Hidden>false</Hidden>
+    <ExecutionTimeLimit>PT20M</ExecutionTimeLimit>
+    <Priority>7</Priority>
+  </Settings>
+  <Actions Context="Author"><Exec><Command>$XmlPython</Command><Arguments>$XmlArguments</Arguments><WorkingDirectory>$XmlRoot</WorkingDirectory></Exec></Actions>
+</Task>
+"@
 
-Start-ScheduledTask -TaskName $TaskName
+$TaskXmlPath = Join-Path $env:TEMP "viguerapp_gs_qc_test_task.xml"
+Set-Content -Path $TaskXmlPath -Value $TaskXml -Encoding Unicode
+try {
+    & "$env:SystemRoot\System32\schtasks.exe" /Create /TN $TaskName /XML $TaskXmlPath /F
+    if ($LASTEXITCODE -ne 0) { throw "schtasks.exe no pudo registrar la tarea." }
+} finally {
+    Remove-Item $TaskXmlPath -Force -ErrorAction SilentlyContinue
+}
+
+& "$env:SystemRoot\System32\schtasks.exe" /Run /TN $TaskName
+if ($LASTEXITCODE -ne 0) { throw "La tarea quedó registrada, pero no se pudo iniciar ahora." }
 Write-Host "Tarea registrada e iniciada: $TaskName"
 Write-Host "Horario: cada hora entre 06:00 y 20:00, cuando esta sesión de Windows esté iniciada."
 Write-Host "Log: $(Join-Path $Root ('logs\gs_qc_test_' + (Get-Date -Format yyyyMMdd) + '.log'))"
