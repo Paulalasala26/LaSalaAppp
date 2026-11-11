@@ -232,6 +232,47 @@ test('UAT-1234 y UAT-2412: Tareas abre Operativas y Mantenimiento en la primera 
   expect(writes).toEqual([]);
 });
 
+
+test('UAT-1249: botones de Operativas y de una tarjeta se manejan con teclado', async ({ page }) => {
+  const tomorrowISO = await fechaISOEnNavegador(page, 1);
+  const task = {
+    id: 'e2e-uat-1249-keyboard-task',
+    titulo: 'E2E tarea teclado UAT-1249',
+    descripcion: 'Tarea de fixture',
+    asignadoA: 'PEON1',
+    origen: 'manual',
+    categoria: 'manual',
+    inv: '0A',
+    calles: '1-2',
+    fechaISO: tomorrowISO,
+    fecha: 'mañana',
+    turno: 'Mañana',
+    prioridad: 'normal',
+    estado: 'pendiente'
+  };
+  const { database, writes } = await installFixture(page, {
+    'lasala-tareas-v1': JSON.stringify([task])
+  });
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  const tomorrow = overlay.getByRole('button', { name: 'Tareas de mañana' });
+  await tomorrow.focus();
+  await expect(tomorrow).toBeFocused();
+  await tomorrow.press('Enter');
+  const card = overlay.locator('.tarea-card').filter({ hasText: task.titulo });
+  await expect(card).toBeVisible();
+  const edit = card.getByRole('button', { name: 'Editar' });
+  await edit.focus();
+  await expect(edit).toBeFocused();
+  await edit.press('Enter');
+  const form = overlay.locator('#nueva-tarea-form-wrap');
+  await expect(form).toBeVisible();
+  await form.getByRole('button', { name: 'Cancelar' }).click();
+  await expect(form).toBeHidden();
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([task]);
+  expect(writes).toEqual([]);
+});
+
 test('UAT-1232: ADMIN abre Tareas con Operativas seleccionada por defecto', async ({ page }) => {
   test.fail(true, 'La vista actual abre Resumen de Tareas sin seleccionar Operativas.');
   await installFixture(page);
