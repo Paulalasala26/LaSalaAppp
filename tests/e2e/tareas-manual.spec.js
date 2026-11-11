@@ -241,7 +241,7 @@ test('UAT-1232: ADMIN abre Tareas con Operativas seleccionada por defecto', asyn
   await expect(operativas).toHaveCSS('background-color', 'rgb(255, 255, 255)');
 });
 
-test('UAT-1233, UAT-1244, UAT-1235, UAT-1236, UAT-1242, UAT-1243, UAT-1246, UAT-1495, UAT-1499, UAT-1500, UAT-1738, UAT-1741, UAT-1745, UAT-1777 y UAT-1779: ADMIN y TÉCNICO recorren secciones sin heredar permisos ni duplicar tareas', async ({ page }) => {
+test('UAT-1233, UAT-1244, UAT-1235, UAT-1236, UAT-1242, UAT-1243, UAT-1246, UAT-1495, UAT-1499, UAT-1500, UAT-1738, UAT-1741, UAT-1745, UAT-1762, UAT-1776, UAT-1777 y UAT-1779: ADMIN y TÉCNICO recorren secciones sin heredar permisos ni duplicar tareas', async ({ page }) => {
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(error.message));
   const todayISO = await fechaISOEnNavegador(page);
@@ -275,6 +275,18 @@ test('UAT-1233, UAT-1244, UAT-1235, UAT-1236, UAT-1242, UAT-1243, UAT-1246, UAT-
     turno: 'Mañana',
     prioridad: 'normal',
     estado: 'anulada'
+  }, {
+    id: 'e2e-uat-1762-completed-task',
+    titulo: 'E2E completada histórica UAT-1762',
+    descripcion: 'Completada histórica para validar Archivo',
+    asignadoA: 'PEON2',
+    origen: 'manual',
+    categoria: 'manual',
+    inv: '0C',
+    calles: '3',
+    fechaISO: olderISO,
+    completadoISO: olderISO,
+    estado: 'completada'
   }];
   const closedTicket = {
     id: 'e2e-uat-1500-closed-ticket',
@@ -342,6 +354,9 @@ test('UAT-1233, UAT-1244, UAT-1235, UAT-1236, UAT-1242, UAT-1243, UAT-1246, UAT-
   await expect(archivedTask).toContainText(todayISO);
   await expect(archivedTask).toContainText('PEON1');
   await expect(archivePane).not.toContainText('E2E operativa UAT-1232');
+  const completedArchive = archiveView.locator('#tareas-archivo-completadas').locator('.tarea-archivo-card').filter({ hasText: 'E2E completada histórica UAT-1762' });
+  await expect(completedArchive).toContainText('Completada');
+  await expect(completedArchive).toContainText(olderISO);
   await assertOperativas();
   await archive.focus();
   await expect(archive).toBeFocused();
@@ -597,6 +612,7 @@ test('UAT-1312–1314, UAT-1316–1317, UAT-1320–1322, UAT-1324–1325: alta m
   const title = 'E2E tarea repetida';
   const description = 'Descripción extensa del caso automatizado. '.repeat(8).trim();
   const tomorrowISO = await fechaISOEnNavegador(page, 1);
+  const olderISO = await fechaISOEnNavegador(page, -3);
 
   async function createTask(expectedCountLabel) {
     await page.locator('#tareas-overlay').getByRole('button', { name: 'Nueva tarea' }).click();
