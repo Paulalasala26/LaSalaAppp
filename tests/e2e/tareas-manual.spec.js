@@ -1783,6 +1783,39 @@ test('UAT-2097: REGANTE no dispone de gestión de tickets Mantenimiento', async 
 
 
 
+
+test('UAT-2107–2109: Inicio se recalcula al cambiar ADMIN → TÉCNICO → PEÓN', async ({ page }) => {
+  const { writes } = await installFixture(page);
+  const loginAs = async user => {
+    await page.getByRole('button', { name: 'Salir' }).click();
+    await expect(page.locator('#login-screen')).toBeVisible();
+    await page.locator('#login-user').evaluate((select, value) => {
+      if (![...select.options].some(option => option.value === value)) select.add(new Option(value, value));
+    }, user);
+    await page.locator('#login-user').selectOption(user);
+    await page.locator('#login-pass').fill(password);
+    await page.locator('#login-btn').click();
+    await expect(page.locator('#page-home')).toBeVisible();
+  };
+
+  await expect(page.locator('#quick-access-block')).toBeVisible();
+  await expect(page.locator('#shortcut-historial')).toBeVisible();
+
+  await loginAs('E2E_TECH');
+  await expect(page.locator('#quick-access-block')).toBeVisible();
+  for (const shortcut of ['#shortcut-historial', '#shortcut-trabajos', '#shortcut-sala-en-vivo', '#shortcut-clima']) {
+    await expect(page.locator(shortcut)).toBeHidden();
+  }
+  await expect(page.locator('#topbar-avisos')).toBeVisible();
+
+  await loginAs('PEON1');
+  await expect(page.locator('#quick-access-block')).toBeHidden();
+  await expect(page.locator('#btn-mantenimiento-peon')).toBeVisible();
+  await expect(page.locator('#topbar-avisos')).toBeHidden();
+  await expect(page.locator('#shortcut-historial')).toBeHidden();
+  expect(writes).toEqual([]);
+});
+
 test('UAT-2103–2106: TÉCNICO consulta Archivo y solo ADMIN descarga el respaldo JSON', async ({ page }) => {
   const users = { E2E_ADMIN: passwordHash, E2E_TECH: passwordHash, PEON1: passwordHash, REGANTE1: passwordHash };
   const roles = { E2E_ADMIN: 'ADMIN', E2E_TECH: 'TECNICO', PEON1: 'PEON', REGANTE1: 'REGANTE' };
