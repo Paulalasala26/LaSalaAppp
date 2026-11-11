@@ -968,3 +968,39 @@ test('UAT-1969: Home sin tareas ni avisos mantiene la navegación estable', asyn
   expect(await cards.evaluateAll(elements => elements.map(el => el.innerText.trim().replace(/\\s+/g, ' ')))).toEqual(initialHomeOrder);
   await expect(page.locator('#avisos-tecnico-badge span[aria-label]')).toHaveCount(0);
 });
+
+test('UAT-2114: cerrar sesión desde Inicio y usar Atrás mantiene la autenticación cerrada', async ({ page }) => {
+  await installAuthFixture(page);
+  await logInAs(page, 'E2E_TECNICO');
+  await expect(page.locator('#page-home')).toBeVisible();
+  await expect(page.locator('#topbar-avisos')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Salir' }).click();
+  await expect(page.locator('#login-screen')).toBeVisible();
+  await expect(page.locator('#app')).toBeHidden();
+
+  await page.goBack().catch(() => null);
+  await page.reload();
+  await expect(page.locator('#login-screen')).toBeVisible();
+  await expect(page.locator('#app')).toBeHidden();
+  await expect(page.locator('#page-home')).toBeHidden();
+});
+
+test('UAT-2115: el punto de Avisos tras volver a entrar sigue el estado remoto leído', async ({ page }) => {
+  const avisos = [{ id: 'uat-2115-aviso', mensaje: 'Aviso de prueba', fecha: '11/11/2026', visto: true, leido: false, evaluacion: null }];
+  await installAuthFixture(page, { 'lasala-avisos-usuario-v1': JSON.stringify({ E2E_TECNICO: avisos }) });
+  await logInAs(page, 'E2E_TECNICO');
+
+  const badge = page.locator('#avisos-tecnico-badge span[aria-label]');
+  await expect(badge).toHaveAttribute('aria-label', '1 avisos sin leer');
+  await page.getByRole('button', { name: /Avisos/ }).click();
+  await page.locator("[onclick=\"abrirEvaluarAviso('uat-2115-aviso')\"]").click();
+  await expect(page.locator('#evaluar-aviso-overlay')).toBeVisible();
+  await expect.poll(async () => page.evaluate(async () => JSON.parse((await window.storage.get('lasala-avisos-usuario-v1')).value).E2E_TECNICO[0].leido)).toBe(true);
+
+  await page.getByRole('button', { name: 'Salir' }).click();
+  await expect(page.locator('#login-screen')).toBeVisible();
+  await logInAs(page, 'E2E_TECNICO');
+  await expect(page.locator('#page-home')).toBeVisible();
+  await expect(page.locator('#avisos-tecnico-badge span[aria-label]')).toHaveCount(0);
+});
