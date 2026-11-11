@@ -1512,3 +1512,45 @@ test('UAT-1756, UAT-1759–1760: tarjeta de Archivo admite texto largo, campos v
   expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([task]);
   expect(writes).toEqual([]);
 });
+
+test('UAT-1986 y UAT-1987: los recursos PWA declaran iconos cuadrados y Apple touch icon', async ({ page }) => {
+  await page.goto('/');
+  const resources = await page.evaluate(async () => {
+    const manifestResponse = await fetch('/manifest.json');
+    const manifest = manifestResponse.ok ? await manifestResponse.json() : null;
+    const declared = manifest?.icons || [];
+    const iconFiles = await Promise.all(declared.map(async icon => {
+      const response = await fetch(icon.src);
+      if (!response.ok) return { src: icon.src, status: response.status };
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+      const signature = Array.from(bytes.slice(0, 8));
+      return {
+        src: icon.src,
+        status: response.status,
+        width: view.getUint32(16),
+        height: view.getUint32(20),
+        signature
+      };
+    }));
+    return {
+      manifestStatus: manifestResponse.status,
+      display: manifest?.display,
+      icons: declared.map(icon => ({ src: icon.src, sizes: icon.sizes, type: icon.type })),
+      iconFiles,
+      appleTouchIcon: document.querySelector('link[rel="apple-touch-icon"]')?.getAttribute('href') || null
+    };
+  });
+
+  expect(resources.manifestStatus).toBe(200);
+  expect(resources.display).toBe('standalone');
+  expect(resources.icons).toEqual([
+    { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
+    { src: 'icon-512.png', sizes: '512x512', type: 'image/png' }
+  ]);
+  expect(resources.iconFiles).toEqual([
+    { src: 'icon-192.png', status: 200, width: 192, height: 192, signature: [137, 80, 78, 71, 13, 10, 26, 10] },
+    { src: 'icon-512.png', status: 200, width: 512, height: 512, signature: [137, 80, 78, 71, 13, 10, 26, 10] }
+  ]);
+  expect(resources.appleTouchIcon).toBe('icon-192.png');
+});
