@@ -115,6 +115,12 @@ def get_mysql_credentials() -> tuple[str, str]:
         user = keyring.get_password(KEYRING_SERVICE, "mysql-user") or user
         password = keyring.get_password(KEYRING_SERVICE, "mysql-password")
     if not password:
+        if not sys.stdin.isatty():
+            raise RuntimeError(
+                "Faltan credenciales GS para la tarea programada. "
+                "Guárdalas en Windows Credential Manager con el servicio "
+                f"{KEYRING_SERVICE} y las claves mysql-user/mysql-password."
+            )
         user = input(f"Usuario MySQL [{user}]: ").strip() or user
         password = getpass.getpass("Contraseña MySQL: ")
     if not password:
