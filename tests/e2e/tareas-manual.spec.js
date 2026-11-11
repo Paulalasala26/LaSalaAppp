@@ -509,7 +509,7 @@ test('UAT-1233, UAT-1244, UAT-1235, UAT-1236, UAT-1242, UAT-1243, UAT-1246, UAT-
   expect(pageErrors).toEqual([]);
 });
 
-test('UAT-1239 y UAT-1241: PEÓN consulta Mis tareas y no accede al gestor de supervisión', async ({ page }) => {
+test('UAT-1239, UAT-1241 y UAT-2083: PEÓN consulta Mis tareas y no accede al gestor de supervisión', async ({ page }) => {
   const todayISO = await fechaISOEnNavegador(page);
   const task = {
     id: 'e2e-uat-1239-peon',
@@ -1695,5 +1695,66 @@ test('UAT-2080, UAT-2081 y UAT-2082: REGANTE conserva destinos de Riego, Abonos 
   await especificosOverlay.getByRole('button').first().click();
   await expect(especificosOverlay).toBeHidden();
 
+  expect(writes).toEqual([]);
+});
+
+
+test('UAT-2084: PEÓN solo ve mantenimiento asignado y dispone de Iniciar', async ({ page }) => {
+  const tickets = [
+    {
+      id: 'e2e-uat-2084-assigned',
+      titulo: 'Mantenimiento asignado UAT-2084',
+      descripcion: 'Ticket de prueba asignado a PEON1',
+      prioridad: 'normal',
+      estado: 'asignado',
+      asignados: ['PEON1'],
+      creadoEn: '2026-11-11'
+    },
+    {
+      id: 'e2e-uat-2084-other',
+      titulo: 'Mantenimiento de otro usuario UAT-2084',
+      descripcion: 'No debe aparecer a PEON1',
+      prioridad: 'normal',
+      estado: 'asignado',
+      asignados: ['PEON2'],
+      creadoEn: '2026-11-11'
+    },
+    {
+      id: 'e2e-uat-2084-unassigned',
+      titulo: 'Mantenimiento sin asignar UAT-2084',
+      descripcion: 'No debe aparecer en Mis tareas',
+      prioridad: 'normal',
+      estado: 'sin_asignar',
+      asignados: [],
+      creadoEn: '2026-11-11'
+    },
+    {
+      id: 'e2e-uat-2084-closed',
+      titulo: 'Mantenimiento cerrado UAT-2084',
+      descripcion: 'El histórico cerrado no debe aparecer como pendiente',
+      prioridad: 'normal',
+      estado: 'cerrado',
+      asignados: ['PEON1'],
+      creadoEn: '2026-11-11'
+    }
+  ];
+  const { database, writes } = await installFixture(page, {
+    'lasala-mantenimiento-v1': JSON.stringify(tickets)
+  }, { loginUser: 'PEON1' });
+
+  const access = page.locator('#btn-mantenimiento-peon');
+  await expect(access).toBeEnabled();
+  await access.click();
+
+  const overlay = page.locator('#mant-peon-overlay');
+  await expect(overlay).toBeVisible();
+  await expect(overlay.getByRole('heading', { name: 'Mantenimiento de Parcelas' })).toBeVisible();
+  await expect(overlay).toContainText('Mantenimiento asignado UAT-2084');
+  await expect(overlay).not.toContainText('Mantenimiento de otro usuario UAT-2084');
+  await expect(overlay).not.toContainText('Mantenimiento sin asignar UAT-2084');
+  await expect(overlay).not.toContainText('Mantenimiento cerrado UAT-2084');
+  await expect(overlay.getByRole('button', { name: '▶ Iniciar' })).toBeVisible();
+  await expect(overlay.getByRole('button', { name: /asignar|cerrar|archivar/i })).toHaveCount(0);
+  expect(JSON.parse(database['lasala-mantenimiento-v1'])).toEqual(tickets);
   expect(writes).toEqual([]);
 });
