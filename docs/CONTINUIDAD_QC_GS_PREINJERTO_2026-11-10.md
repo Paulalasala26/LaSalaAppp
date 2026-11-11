@@ -127,3 +127,18 @@ Segundo bloque en `test/v1.0` (commits `1afbb08`, `43955a2`, `8c25e38`, `c4873d0
 ## Editor específico: QC Preinjerto Variedad (10/11/2026)
 
 Tercer bloque añadido sobre el flujo compartido de Preinjerto (commits `4a4a480`, `cbb75e5`, `4f9e96f`, `bea807f`). Usa el lápiz y el modal QC existentes; campos, fechas y códigos GS siguen el mismo criterio que Patrón. La persistencia conserva cambios parciales y la cola offline puede reaplicarlos. Con ello quedan preparados los cinco QC: Túnel, Carga normal, Carga Injerto, Preinjerto Patrón y Preinjerto Variedad. Revisión funcional en TEST pendiente; no se desplegó Vercel ni se escribió en GS/Firebase.
+
+
+## Automatización de recuperación QC en TEST (11/11/2026)
+
+El usuario autorizó automatizar la lectura de GS y la sincronización de Preinjerto y Carga Injerto a Firebase TEST.
+
+- `scripts/sync_gs_qc_test.py` ejecuta ambos pilotos para el rango desde hoy hasta hoy + 5 días. Preinjerto usa `--sync-test --sync-qc-items`; Carga Injerto usa `--sync-test`. Se valida el proyecto Firebase TEST en cada piloto.
+- Carga Injerto ya lee MySQL sin interacción mediante Windows Credential Manager (servicio `ViguerappGS`, claves `mysql-user` y `mysql-password`). Si faltan credenciales en la tarea desatendida, falla con un mensaje claro; no queda esperando una consola.
+- El importador de Carga Injerto ahora mezcla las líneas GS entrantes y conserva las inspecciones existentes, observaciones y correcciones QC. La importación de Preinjerto es idempotente y también conserva los datos QC existentes.
+- `scripts/install_gs_qc_test_task.ps1` descarga los scripts actuales junto al conector Windows, pide la ruta del JSON de cuenta de servicio TEST, crea la tarea `Viguerapp GS QC TEST Sync` (cada hora, 06:00–20:00, cuando la sesión del usuario está iniciada) y la ejecuta inmediatamente. Los logs diarios quedan en `logs/gs_qc_test_AAAAMMDD.log`.
+- **Pendiente de activación local:** este entorno no tiene acceso al Programador de tareas ni a la carpeta Windows del usuario. Para instalarla desde PowerShell:
+  `$p='C:\Users\Usuario\Viguerapp-GS-Connector'; Invoke-WebRequest -UseBasicParsing -Uri 'https://raw.githubusercontent.com/Paulalasala26/LaSalaAppp/test/v1.0/scripts/install_gs_qc_test_task.ps1' -OutFile "$p\install_gs_qc_test_task.ps1"; & "$p\install_gs_qc_test_task.ps1"`
+- La tarea consulta GS en modo solo lectura y sincroniza **solo Firebase TEST**. No toca GS para escritura, Firebase PRD, Vercel ni `main`.
+
+Los commits de automatización están marcados `[skip-vercel]` porque solo afectan al conector Windows; no requieren publicar la aplicación.
