@@ -1,4 +1,6 @@
 const { createHash } = require('node:crypto');
+const fs = require('node:fs/promises');
+const path = require('node:path');
 const { test, expect } = require('./harness');
 
 const firebaseUrl = /^https:\/\/[^/]*(?:firebasedatabase\.app|firebaseio\.com)\//;
@@ -1310,6 +1312,29 @@ test('UAT-2154–2155: en móvil Avisos y Salir reciben toques independientes', 
   });
   const page = await context.newPage();
   try {
+    const appRoot = path.resolve(__dirname, '..', '..');
+    await context.route('**/*', async route => {
+      const url = new URL(route.request().url());
+      if (url.protocol === 'blob:') {
+        await route.fallback();
+        return;
+      }
+      if (url.origin !== 'http://127.0.0.1:4173') {
+        if (url.hostname === firebaseHost) await route.fallback();
+        else await route.abort();
+        return;
+      }
+      const pathname = url.pathname === '/' ? '/index.html' : decodeURIComponent(url.pathname);
+      const file = path.resolve(appRoot, `.${pathname}`);
+      try {
+        const contents = await fs.readFile(file);
+        const ext = path.extname(file).toLowerCase();
+        const mime = ext === '.html' ? 'text/html; charset=utf-8' : ext === '.js' ? 'text/javascript; charset=utf-8' : ext === '.css' ? 'text/css; charset=utf-8' : ext === '.json' ? 'application/json' : 'application/octet-stream';
+        await route.fulfill({ status: 200, contentType: mime, headers: { 'Cache-Control': 'no-store' }, body: contents });
+      } catch {
+        await route.fulfill({ status: 404, body: 'Not found' });
+      }
+    });
     await installAuthFixture(page, {
       'lasala-users-v1': JSON.stringify({ VIGUERAS: passwordHash }),
       'lasala-roles-v1': JSON.stringify({ ...roleUsers, VIGUERAS: 'ADMIN' }),
