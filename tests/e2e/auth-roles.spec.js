@@ -1066,3 +1066,28 @@ test('UAT-2124: tras recargar Mis tareas mantiene el Inicio de PEÓN', async ({ 
   await expect(page.locator('#quick-access-block .home-shortcut-card')).toHaveCount(0);
   await expect(page.locator('#page-home-inner')).not.toContainText('Acceso de Viveros');
 });
+
+test('UAT-2129: cerrar sesión limpia avisos y estado visible antes del siguiente perfil', async ({ page }) => {
+  const notice = { id: 'uat-2129-notice', mensaje: 'Aviso privado del TÉCNICO', fecha: '11/11/2026', visto: true, leido: false, evaluacion: null };
+  await installAuthFixture(page, {
+    'lasala-avisos-usuario-v1': JSON.stringify({ E2E_TECNICO: [notice], E2E_CARGADOR: [] })
+  });
+  await logInAs(page, 'E2E_TECNICO');
+
+  const badge = page.locator('#avisos-tecnico-badge span[aria-label]');
+  await expect(badge).toHaveAttribute('aria-label', '1 avisos sin leer');
+  await page.getByRole('button', { name: /Avisos/ }).click();
+  const panel = page.locator('#avisos-tecnico-overlay');
+  await expect(panel).toBeVisible();
+  await expect(panel).toContainText(notice.mensaje);
+  await panel.getByRole('button', { name: /✕/ }).click();
+
+  await page.getByRole('button', { name: 'Salir' }).click();
+  await expect(page.locator('#login-screen')).toBeVisible();
+  await expect(page.locator('#app')).toBeHidden();
+  await logInAs(page, 'E2E_CARGADOR');
+  await expect(page.locator('#page-home')).toBeVisible();
+  await expect(page.locator('#page-home-inner')).not.toContainText(notice.mensaje);
+  await expect(page.locator('#avisos-tecnico-badge')).toHaveCount(0);
+  await expect(panel).toBeHidden();
+});
