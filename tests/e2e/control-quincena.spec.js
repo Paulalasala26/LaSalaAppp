@@ -1166,7 +1166,7 @@ test('UAT-215: ADMIN y TÉCNICO pueden abrir y capturar QC Túnel', async ({ pag
   expect(unexpectedHosts).toEqual([]);
 });
 
-test('UAT-335: ADMIN, TÉCNICO y CARGADOR pueden registrar una línea QC Carga autorizada', async ({ page }) => {
+test('UAT-335 y UAT-355: CARGADOR registra una línea QC Carga autorizada también en vista móvil', async ({ page }) => {
   const database = withControlRoles(fixtureDatabase(), {
     E2E_CONTROL_TECNICO: 'TECNICO', E2E_CONTROL_CARGADOR: 'CARGADOR'
   });
@@ -1183,11 +1183,26 @@ test('UAT-335: ADMIN, TÉCNICO y CARGADOR pueden registrar una línea QC Carga a
   await tecnicoOverlay.getByRole('button', { name: '✕ Cerrar' }).click();
   await page.getByRole('button', { name: 'Salir' }).click();
 
+  await page.setViewportSize({ width: 390, height: 844 });
   await loginControlRole(page, 'E2E_CONTROL_CARGADOR');
   await page.getByTestId('home-qc-carga').click();
   const cargadorOverlay = page.locator('#control-overlay');
   await expect(cargadorOverlay).toBeVisible();
-  await createNewCargaV6Line(cargadorOverlay, '26X09005');
+  await expect(cargadorOverlay.getByRole('button', { name: 'Check Túnel' })).toHaveCount(0);
+  const datePicker = cargadorOverlay.getByTestId('control-date-picker');
+  await expect(datePicker).toBeVisible();
+  await datePicker.fill('2026-06-29');
+  await datePicker.dispatchEvent('change');
+  await expect(datePicker).toHaveValue('2026-06-29');
+  await expect(cargadorOverlay.getByTestId('control-inspections')).toBeVisible();
+  const cargaCard = await createNewCargaV6Line(cargadorOverlay, '26X09005');
+  const cargaId = await cargaCard.getAttribute('data-testid').then(value => value.replace('qc-v6-card-', ''));
+  const verde = cargaCard.getByTestId(`qc-v6-${cargaId}-color-verde`);
+  await verde.click();
+  await expect(verde).toHaveAttribute('aria-pressed', 'true');
+  await cargaCard.getByTestId(`qc-v6-${cargaId}-save`).click();
+  await expect.poll(() => database['lasala-control-items-v1'][cargaId].color?.verde).toBe(true);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   expect(Object.values(database['lasala-control-items-v1']).map(item => item.partida)).toEqual(
     expect.arrayContaining(['26X09003', '26X09004', '26X09005'])
   );
