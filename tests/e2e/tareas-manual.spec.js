@@ -200,7 +200,6 @@ test('UAT-1234 y UAT-2412: Tareas abre Operativas y Mantenimiento en la primera 
     fechaISO: tomorrowISO,
     fecha: 'mañana',
     turno: 'Mañana',
-    horario: 'Mañana 09:00',
     prioridad: 'normal',
     estado: 'pendiente'
   }];
