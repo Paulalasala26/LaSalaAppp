@@ -1197,3 +1197,40 @@ test('UAT-2136: Trabajos carga Control QC al entrar en Pinzar sin abrir Control'
   await expect.poll(() => qcDataRequests).toBeGreaterThan(0);
   expect(pageErrors).toEqual([]);
 });
+
+test('UAT-2139: volver a Control tras Partidas reutiliza una sola carga QC', async ({ page }) => {
+  let qcRequests = 0;
+  const pageErrors = [];
+  page.on('request', request => {
+    if (new URL(request.url()).pathname.endsWith('/qc-v6.js')) qcRequests++;
+  });
+  page.on('pageerror', error => pageErrors.push(error.message));
+  await installAuthFixture(page);
+  await logInAs(page, 'E2E_ADMIN');
+
+  const control = page.locator('#control-overlay');
+  const partidas = page.locator('#partidas-overlay');
+  const controlShortcut = page.getByTestId('home-control');
+  const partidasShortcut = page.locator(`#quick-access-block .home-shortcut-card[onclick="handleQuickAction('partidas')"]`);
+
+  await controlShortcut.click();
+  await expect(control).toBeVisible();
+  await expect(control).toContainText('Check Túnel');
+  await expect.poll(() => qcRequests).toBe(1);
+  await control.getByRole('button', { name: /✕ Cerrar/ }).click();
+  await expect(control).toBeHidden();
+
+  await partidasShortcut.click();
+  await expect(partidas).toBeVisible();
+  await expect(page.locator('#partidas-content-wrap')).toBeVisible();
+  await expect(page.locator('#partidas-content-wrap')).toContainText(/Sala|INV/i);
+  await partidas.getByRole('button', { name: /✕/ }).last().click();
+  await expect(partidas).toBeHidden();
+
+  await controlShortcut.click();
+  await expect(control).toBeVisible();
+  await expect(control).toContainText('Check Túnel');
+  expect(qcRequests).toBe(1);
+  expect(await page.locator('#control-overlay').count()).toBe(1);
+  expect(pageErrors).toEqual([]);
+});
