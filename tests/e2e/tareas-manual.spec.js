@@ -333,6 +333,7 @@ test('UAT-1251: la tarjeta de una tarea manual pendiente muestra todos sus campo
   const { database, writes } = await installFixture(page, {
     'lasala-tareas-v1': JSON.stringify([task])
   });
+  await page.setViewportSize({ width: 390, height: 844 });
   await openTasks(page);
   const overlay = page.locator('#tareas-overlay');
   await overlay.getByRole('button', { name: 'Tareas de mañana' }).click();
