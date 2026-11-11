@@ -1782,6 +1782,98 @@ test('UAT-2097: REGANTE no dispone de gestión de tickets Mantenimiento', async 
 
 
 
+
+test('UAT-2103–2106: TÉCNICO consulta Archivo y solo ADMIN descarga el respaldo JSON', async ({ page }) => {
+  const users = { E2E_ADMIN: passwordHash, E2E_TECH: passwordHash, PEON1: passwordHash, REGANTE1: passwordHash };
+  const roles = { E2E_ADMIN: 'ADMIN', E2E_TECH: 'TECNICO', PEON1: 'PEON', REGANTE1: 'REGANTE' };
+  const todayISO = await fechaISOEnNavegador(page);
+  const task = {
+    id: 'e2e-uat-2103-task',
+    titulo: 'Tarea respaldo UAT-2103',
+    descripcion: 'Fixture de descarga JSON',
+    asignadoA: 'PEON1',
+    origen: 'manual',
+    categoria: 'manual',
+    inv: '0A',
+    calles: '1-2',
+    fechaISO: todayISO,
+    turno: 'Mañana',
+    prioridad: 'normal',
+    estado: 'pendiente'
+  };
+  const archivedTask = {
+    id: 'e2e-uat-2103-archived',
+    titulo: 'Histórico UAT-2103',
+    descripcion: 'Consulta de Archivo para TÉCNICO',
+    asignadoA: 'PEON1',
+    origen: 'manual',
+    categoria: 'manual',
+    inv: '0A',
+    calles: '1-2',
+    fechaISO: todayISO,
+    anuladaISO: todayISO,
+    motivoAnulacion: 'Fixture',
+    estado: 'anulada'
+  };
+  const ticket = {
+    id: 'e2e-uat-2104-ticket',
+    titulo: 'Mantenimiento de respaldo UAT-2104',
+    prioridad: 'normal',
+    estado: 'sin_asignar',
+    asignados: [],
+    creadoEn: todayISO
+  };
+  const { writes } = await installFixture(page, {
+    'lasala-users-v1': JSON.stringify(users),
+    'lasala-roles-v1': JSON.stringify(roles),
+    'lasala-tareas-v1': JSON.stringify([task, archivedTask]),
+    'lasala-mantenimiento-v1': JSON.stringify([ticket])
+  }, { loginUser: 'E2E_ADMIN' });
+
+  await openTasks(page);
+  const adminOverlay = page.locator('#tareas-overlay');
+  const backup = adminOverlay.getByTestId('tareas-backup-json');
+  await expect(backup).toBeVisible();
+  const [download] = await Promise.all([page.waitForEvent('download'), backup.click()]);
+  expect(download.suggestedFilename()).toMatch(/^respaldo-tareas-.*\.json$/);
+  const stream = await download.createReadStream();
+  const chunks = [];
+  for await (const chunk of stream) chunks.push(chunk);
+  const exported = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+  expect(exported.tareas).toEqual([task, archivedTask]);
+  expect(exported.mantenimiento).toEqual([ticket]);
+
+  await adminOverlay.getByRole('button', { name: /✕ Cerrar/ }).click();
+  await page.getByRole('button', { name: 'Salir' }).click();
+  await expect(page.locator('#login-screen')).toBeVisible();
+  await page.locator('#login-user').selectOption('E2E_TECH');
+  await page.locator('#login-pass').fill(password);
+  await page.locator('#login-btn').click();
+  await expect(page.locator('#page-home')).toBeVisible();
+  await openTasks(page);
+  const techOverlay = page.locator('#tareas-overlay');
+  await expect(techOverlay.getByTestId('tareas-backup-json')).toHaveCount(0);
+  await techOverlay.getByRole('button', { name: /Archivo/ }).click();
+  await expect(techOverlay.locator('#tareas-archivo-anuladas')).toContainText(archivedTask.titulo);
+  await expect(techOverlay.getByTestId('tareas-backup-json')).toHaveCount(0);
+
+  await techOverlay.getByRole('button', { name: /✕ Cerrar/ }).click();
+  await page.getByRole('button', { name: 'Salir' }).click();
+  await expect(page.locator('#login-screen')).toBeVisible();
+  for (const user of ['PEON1', 'REGANTE1']) {
+    await page.locator('#login-user').selectOption(user);
+    await page.locator('#login-pass').fill(password);
+    await page.locator('#login-btn').click();
+    await expect(page.locator('#page-home')).toBeVisible();
+    await expect(page.getByTestId('tareas-backup-json')).toHaveCount(0);
+    if (user === 'PEON1') {
+      await page.getByRole('button', { name: 'Salir' }).click();
+      await expect(page.locator('#login-screen')).toBeVisible();
+    }
+  }
+  expect(writes).toEqual([]);
+});
+
 test('UAT-2100–2102: la campana de Avisos no aparece para CARGADOR, REGANTE ni PEÓN', async ({ page }) => {
   const users = { E2E_ADMIN: passwordHash, E2E_TECH: passwordHash, JULIO: passwordHash, REGANTE1: passwordHash, PEON1: passwordHash };
   const roles = { E2E_ADMIN: 'ADMIN', E2E_TECH: 'TECNICO', JULIO: 'CARGADOR', REGANTE1: 'REGANTE', PEON1: 'PEON' };
