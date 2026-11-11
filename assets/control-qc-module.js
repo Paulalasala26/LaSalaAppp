@@ -3382,7 +3382,7 @@ function abrirMedicionesControl(id){
     saveObservations:value=>guardarControlObservaciones(c.id,value),
     listPhotos:()=>listarFotosInspeccionQC(c.id),
     openPhoto:photo=>ampliarFotoInspeccionQC(photo),
-    uploadPhoto:['tunel','carga'].includes(c.tipo)?input=>agregarFotosInspeccionQC(input,c.id):null,
+    uploadPhoto:['tunel','carga','carga_injerto','preinjerto_patron','preinjerto_variedad'].includes(c.tipo)?input=>agregarFotosInspeccionQC(input,c.id):null,
     deletePhoto:photoId=>eliminarFotoInspeccionQC(c.id,photoId)
   });
 }
