@@ -355,7 +355,7 @@ test('UAT-1251: la tarjeta de una tarea manual pendiente muestra todos sus campo
 
 
 
-test('UAT-1262–1263: los contadores de activas y completadas coinciden con las tarjetas', async ({ page }) => {
+test('UAT-1262–1264: los contadores coinciden y cada tarea aparece una sola vez', async ({ page }) => {
   const todayISO = await fechaISOEnNavegador(page);
   const tasks = [{
     id: 'e2e-uat-1262-pending',
@@ -414,6 +414,10 @@ test('UAT-1262–1263: los contadores de activas y completadas coinciden con las
   await expect(card(tasks[0].titulo)).toBeVisible();
   await expect(card(tasks[1].titulo)).toBeVisible();
   await expect(card(tasks[2].titulo)).toBeVisible();
+  await expect(card(tasks[0].titulo)).toHaveCount(1);
+  await expect(card(tasks[1].titulo)).toHaveCount(1);
+  await expect(card(tasks[2].titulo)).toHaveCount(1);
+  await expect(pane.locator('.tarea-card')).toHaveCount(3);
   await expect(pane.getByText('✓ Completadas (1)', { exact: true })).toBeVisible();
   expect(JSON.parse(database['lasala-tareas-v1'])).toEqual(tasks);
   expect(writes).toEqual([]);
