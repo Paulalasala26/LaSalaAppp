@@ -1813,7 +1813,7 @@ test('UAT-385–386: procesar una foto de alta resolución y conservar la orient
     image.onerror = () => resolve(null);
     image.src = fotoSrcCompleta(photo);
   }))), id);
-  expect(photoMetrics).toEqual([{ width: 1280, height: 960 }, { width: 400, height: 800 }]);
+  expect(photoMetrics).toEqual([{ width: 1280, height: 960 }, { width: 640, height: 1280 }]);
   await page.setViewportSize({ width: 320, height: 760 });
   const enlarged = page.locator('#control-foto-ampliada-overlay');
   for (const index of [0, 1]) {
