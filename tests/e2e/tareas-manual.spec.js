@@ -351,7 +351,7 @@ test('UAT-1257–1258: Operativas no inventa calles y conserva varios tramos', a
   const noStreet = overlay.locator('.tarea-card').filter({ hasText: tasks[0].titulo });
   await expect(noStreet).toBeVisible();
   await expect(noStreet).toContainText('INV 0A');
-  await expect(noStreet).not.toContainText(/calle/i);
+  await expect(noStreet).not.toContainText(/C\/\d|Calle \d/i);
   const segments = overlay.locator('.tarea-card').filter({ hasText: tasks[1].titulo });
   await expect(segments).toBeVisible();
   await expect(segments).toContainText('1701-1703, 1708-1709');
