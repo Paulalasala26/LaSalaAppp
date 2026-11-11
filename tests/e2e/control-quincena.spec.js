@@ -3657,3 +3657,25 @@ test('UAT-382: cancelar el selector de fotos conserva intacta la galería', asyn
   expect(JSON.parse(database['lasala-control-fotos-v1'])).toEqual({});
   expect(unexpectedHosts).toEqual([]);
 });
+
+
+test('UAT-388: la doble pulsación de «Elegir fotos» no duplica el selector ni la captura', async ({ page }) => {
+  const database = fixtureDatabase();
+  const id = 'e2e-control-current-fortnight';
+  database['lasala-control-fotos-indice-v1'] = JSON.stringify({});
+  database['lasala-control-fotos-shards-index'] = JSON.stringify(['lasala-control-fotos-v1']);
+  database['lasala-control-fotos-v1'] = JSON.stringify({});
+  const { overlay, unexpectedHosts } = await startControlTest(page, database);
+  const card = overlay.locator(`#control-card-${id}`);
+  let chooserCount = 0;
+  page.on('filechooser', async chooser => {
+    chooserCount++;
+    await chooser.setFiles([]);
+  });
+
+  await card.getByText('Elegir fotos', { exact: true }).dblclick({ delay: 25 });
+  await expect.poll(() => chooserCount).toBe(1);
+  await expect(card.locator('img[title="Ver foto"]')).toHaveCount(0);
+  expect(JSON.parse(database['lasala-control-fotos-v1'])).toEqual({});
+  expect(unexpectedHosts).toEqual([]);
+});
