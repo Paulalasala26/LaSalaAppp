@@ -1603,7 +1603,7 @@ test('UAT-1995: cabecera y acciones esenciales accesibles a emulación equivalen
   }
 });
 
-test('UAT-2011 y UAT-2049: ADMIN consulta avisos y conserva el flujo propio de la bandeja', async ({ page }) => {
+test('UAT-2011, UAT-2044, UAT-2049 y UAT-2052: avisos ADMIN conservan contenido, fecha y semántica de consulta', async ({ page }) => {
   const aviso = {
     id: 'e2e-admin-aviso-consultado',
     titulo: 'Propuesta pendiente',
@@ -1612,23 +1612,38 @@ test('UAT-2011 y UAT-2049: ADMIN consulta avisos y conserva el flujo propio de l
     visto: false,
     leido: false
   };
+  const avisoLargo = {
+    id: 'e2e-admin-aviso-largo',
+    titulo: 'Detalle de revisión',
+    mensaje: 'Instrucción extensa: ' + 'comprobar lote, ubicación, responsable y observación; '.repeat(40) + 'FIN DEL AVISO COMPLETO',
+    fecha: '09/11/2026',
+    visto: false,
+    leido: false
+  };
+  const avisos = [aviso, avisoLargo];
   const { database, writes } = await installFixture(page, {
     'lasala-users-v1': JSON.stringify({ VIGUERAS: passwordHash }),
     'lasala-roles-v1': JSON.stringify({ VIGUERAS: 'ADMIN' }),
-    'lasala-avisos-usuario-v1': JSON.stringify({ VIGUERAS: [aviso] })
+    'lasala-avisos-usuario-v1': JSON.stringify({ VIGUERAS: avisos })
   }, { loginUser: 'VIGUERAS' });
 
   const bell = page.locator('#topbar-notificaciones');
   const badge = page.locator('#notificaciones-vigueras-badge span[aria-label]');
   await expect(bell).toBeVisible();
-  await expect(badge).toHaveAttribute('aria-label', '1 notificaciones sin leer');
+  await expect(badge).toHaveAttribute('aria-label', '2 notificaciones sin leer');
   await bell.click();
 
   const inbox = page.locator('#notificaciones-vigueras-overlay');
   await expect(inbox).toBeVisible();
-  await expect(inbox).toContainText(aviso.titulo);
-  await expect(inbox).toContainText(aviso.mensaje);
-  await expect(inbox).toContainText(aviso.fecha);
+  const cards = inbox.locator('div[style*="border:1.5px solid var(--border)"]');
+  await expect(cards).toHaveCount(2);
+  const shortCard = cards.filter({ hasText: aviso.titulo });
+  const longCard = cards.filter({ hasText: avisoLargo.titulo });
+  await expect(shortCard).toContainText(aviso.mensaje);
+  await expect(shortCard).toContainText(aviso.fecha);
+  await expect(longCard).toContainText(avisoLargo.mensaje);
+  await expect(longCard).toContainText(avisoLargo.fecha);
+  await expect(longCard).toContainText('FIN DEL AVISO COMPLETO');
   await expect.poll(() => JSON.parse(database['lasala-avisos-usuario-v1']).VIGUERAS).toEqual([]);
   await expect(badge).toHaveCount(0);
   await inbox.getByRole('button').click();
@@ -1637,7 +1652,8 @@ test('UAT-2011 y UAT-2049: ADMIN consulta avisos y conserva el flujo propio de l
     .filter(write => write.key === 'lasala-avisos-usuario-v1')
     .map(write => JSON.parse(JSON.parse(write.body)));
   expect(avisoWrites).toHaveLength(2);
-  expect(avisoWrites[0].VIGUERAS).toHaveLength(1);
-  expect(avisoWrites[0].VIGUERAS[0]).toMatchObject({ visto: true, leido: false });
+  expect(avisoWrites[0].VIGUERAS).toHaveLength(2);
+  expect(avisoWrites[0].VIGUERAS.every(item => item.visto === true)).toBe(true);
+  expect(avisoWrites[0].VIGUERAS.every(item => item.leido === false)).toBe(true);
   expect(avisoWrites[1].VIGUERAS).toEqual([]);
 });
