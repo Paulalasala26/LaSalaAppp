@@ -1234,3 +1234,25 @@ test('UAT-2139: volver a Control tras Partidas reutiliza una sola carga QC', asy
   expect(await page.locator('#control-overlay').count()).toBe(1);
   expect(pageErrors).toEqual([]);
 });
+
+test('UAT-2146: en horizontal siguen visibles logout y Avisos ADMIN dentro de un módulo', async ({ page }) => {
+  await installAuthFixture(page, {
+    'lasala-users-v1': JSON.stringify({ E2E_ADMIN: passwordHash, VIGUERAS: passwordHash }),
+    'lasala-roles-v1': JSON.stringify({ ...roleUsers, VIGUERAS: 'ADMIN' }),
+    'lasala-avisos-usuario-v1': JSON.stringify({ VIGUERAS: [] })
+  });
+  await logInAs(page, 'VIGUERAS');
+  await page.getByTestId('home-control').click();
+  const control = page.locator('#control-overlay');
+  await expect(control).toBeVisible();
+
+  await page.setViewportSize({ width: 844, height: 390 });
+  const bell = page.locator('#topbar-notificaciones');
+  const logout = page.locator('.logout-btn');
+  await expect(bell).toBeVisible();
+  await expect(logout).toBeVisible();
+  const [bellBox, logoutBox] = await Promise.all([bell.boundingBox(), logout.boundingBox()]);
+  expect(bellBox).not.toBeNull();
+  expect(logoutBox).not.toBeNull();
+  expect(bellBox.right).toBeLessThanOrEqual(logoutBox.left);
+});
