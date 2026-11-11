@@ -1256,3 +1256,28 @@ test('UAT-2146: en horizontal siguen visibles logout y Avisos ADMIN dentro de un
   expect(logoutBox).not.toBeNull();
   expect(bellBox.x + bellBox.width).toBeLessThanOrEqual(logoutBox.x);
 });
+
+test('UAT-2148: recargar desde Partidas recupera Inicio y los accesos permitidos', async ({ page }) => {
+  const pageErrors = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
+  await installAuthFixture(page);
+  await logInAs(page, 'E2E_ADMIN');
+
+  await page.getByTestId('home-control').click();
+  const control = page.locator('#control-overlay');
+  await expect(control).toBeVisible();
+  await control.getByRole('button', { name: /✕ Cerrar/ }).click();
+  const partidasShortcut = page.locator(`#quick-access-block .home-shortcut-card[onclick="handleQuickAction('partidas')"]`);
+  await partidasShortcut.click();
+  await expect(page.locator('#partidas-overlay')).toBeVisible();
+  await page.reload();
+
+  await expect(page.locator('#page-home')).toBeVisible();
+  await expect(page.locator('#login-screen')).toBeHidden();
+  await expect(page.getByTestId('home-control')).toBeVisible();
+  await expect(partidasShortcut).toBeVisible();
+  await page.getByTestId('home-control').click();
+  await expect(control).toBeVisible();
+  await expect(control).toContainText('Check Túnel');
+  expect(pageErrors).toEqual([]);
+});
