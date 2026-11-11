@@ -679,6 +679,9 @@ function doLogout(){
   document.getElementById('login-screen').style.display='flex';
   document.getElementById('login-pass').value='';document.getElementById('login-user').value='';
   document.getElementById('login-alert').style.display='none';document.getElementById('attempts-msg').textContent='';
+  // Evita reutilizar resultados de Tareas al cambiar de usuario en la misma pestaña.
+  tareasData = [];
+  tareasDataCargadaEn = 0;
   borrarSesion();
   resetGeoView();
 }
