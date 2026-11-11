@@ -34,6 +34,7 @@ MYSQL_HOST = "192.168.1.101"
 MYSQL_PORT = 3306
 MYSQL_DATABASE = "sala12"
 MYSQL_DEFAULT_USER = "global"
+KEYRING_SERVICE = "ViguerappGS"
 FIREBASE_TEST_PROJECT_ID = "la-sala-app-test"
 FIREBASE_TEST_DATABASE_URL = (
     "https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app"
@@ -95,9 +96,35 @@ def json_value(value: Any) -> Any:
     return value
 
 
+def get_mysql_credentials() -> tuple[str, str]:
+    """Lee Windows Credential Manager para permitir sincronización desatendida."""
+    user = MYSQL_DEFAULT_USER
+    password = None
+    try:
+        import keyring
+        from keyring.backends.Windows import WinVaultKeyring
+    except ImportError:
+        pass
+    else:
+        keyring.set_keyring(WinVaultKeyring())
+        user = keyring.get_password(KEYRING_SERVICE, "mysql-user") or user
+        password = keyring.get_password(KEYRING_SERVICE, "mysql-password")
+    if not password:
+        if not sys.stdin.isatty():
+            raise RuntimeError(
+                "Faltan credenciales GS para la tarea programada. "
+                "Guárdalas en Windows Credential Manager con el servicio "
+                f"{KEYRING_SERVICE} y las claves mysql-user/mysql-password."
+            )
+        user = input(f"Usuario MySQL [{user}]: ").strip() or user
+        password = getpass.getpass("Contraseña MySQL: ")
+    if not password:
+        raise RuntimeError("No se ha indicado la contraseña MySQL.")
+    return user, password
+
+
 def read_mysql_rows(start: date, end: date) -> list[dict[str, Any]]:
-    user = input(f"Usuario MySQL [{MYSQL_DEFAULT_USER}]: ").strip() or MYSQL_DEFAULT_USER
-    password = getpass.getpass("Contraseña MySQL: ")
+    user, password = get_mysql_credentials()
     connection = None
     try:
         connection = mysql.connector.connect(
@@ -120,7 +147,6 @@ def read_mysql_rows(start: date, end: date) -> list[dict[str, Any]]:
     finally:
         if connection is not None and connection.is_connected():
             connection.close()
-
 
 def day_index(fecha: date) -> int:
     value = 15 + (fecha - DB_ANCHOR).days
