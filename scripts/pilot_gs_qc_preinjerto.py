@@ -310,7 +310,7 @@ def main() -> int:
         f"PAR_UBIC={metadata['ubicaciones']['parUbic']} "
         f"Cliente_Final_INV={metadata['ubicaciones']['clienteFinalInv']} "
         f"Partidas_con_ubicacion={metadata['ubicaciones']['partidasConUbicacionGS']} "
-        f"Filas_ubicacion={metadata['ubicaciones']['filasUbicacionGS']}
+        f"Filas_ubicacion={metadata['ubicaciones']['filasUbicacionGS']}"
     )
     if metadata["total"] and not metadata["ubicaciones"]["parCas"]:
         print("AVISO: ninguna partida trae PAR_CAS; verificar la fuente antes de sincronizar.")
