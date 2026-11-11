@@ -1633,5 +1633,11 @@ test('UAT-2011 y UAT-2049: ADMIN consulta avisos y conserva el flujo propio de l
   await expect(badge).toHaveCount(0);
   await inbox.getByRole('button').click();
   await expect(inbox).toBeHidden();
-  expect(writes.filter(write => write.key === 'lasala-avisos-usuario-v1')).toHaveLength(1);
+  const avisoWrites = writes
+    .filter(write => write.key === 'lasala-avisos-usuario-v1')
+    .map(write => JSON.parse(JSON.parse(write.body)));
+  expect(avisoWrites).toHaveLength(2);
+  expect(avisoWrites[0].VIGUERAS).toHaveLength(1);
+  expect(avisoWrites[0].VIGUERAS[0]).toMatchObject({ visto: true, leido: false });
+  expect(avisoWrites[1].VIGUERAS).toEqual([]);
 });
