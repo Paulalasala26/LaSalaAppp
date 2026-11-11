@@ -241,7 +241,7 @@ test('UAT-1232: ADMIN abre Tareas con Operativas seleccionada por defecto', asyn
   await expect(operativas).toHaveCSS('background-color', 'rgb(255, 255, 255)');
 });
 
-test('UAT-1233, UAT-1244, UAT-1235, UAT-1236, UAT-1242, UAT-1243, UAT-1246, UAT-1495, UAT-1499, UAT-1500, UAT-1738, UAT-1741, UAT-1745, UAT-1762, UAT-1772, UAT-1773, UAT-1776, UAT-1777 y UAT-1779: ADMIN y TÉCNICO recorren secciones sin heredar permisos ni duplicar tareas', async ({ page }) => {
+test('UAT-1233, UAT-1244, UAT-1235, UAT-1236, UAT-1242, UAT-1243, UAT-1246, UAT-1495, UAT-1499, UAT-1500, UAT-1738, UAT-1741, UAT-1745, UAT-1762, UAT-1765, UAT-1768, UAT-1772, UAT-1773, UAT-1776, UAT-1777 y UAT-1779: ADMIN y TÉCNICO recorren secciones sin heredar permisos ni duplicar tareas', async ({ page }) => {
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(error.message));
   const todayISO = await fechaISOEnNavegador(page);
@@ -307,8 +307,8 @@ test('UAT-1233, UAT-1244, UAT-1235, UAT-1236, UAT-1242, UAT-1243, UAT-1246, UAT-
     prioridad: 'normal',
     estado: 'cerrado',
     asignados: [],
-    creadoEn: tomorrowISO,
-    cerradoEn: tomorrowISO
+    creadoEn: todayISO,
+    cerradoEn: todayISO
   };
   const { database, writes } = await installFixture(page, {
     'lasala-tareas-v1': JSON.stringify(tasks),
@@ -359,6 +359,7 @@ test('UAT-1233, UAT-1244, UAT-1235, UAT-1236, UAT-1242, UAT-1243, UAT-1246, UAT-
   const archivedMaintenance = archiveView.locator('#mantenimiento-archivo');
   await expect(archivedMaintenance).toContainText(closedTicket.titulo);
   await expect(archivedMaintenance).toContainText('Cerrado');
+  await expect(archivedMaintenance).toContainText(todayISO);
   await expect(archivePane).not.toContainText(closedTicket.titulo);
   const archivedTask = archivePane.locator('.tarea-archivo-card').filter({ hasText: 'E2E tarea anulada UAT-1741' });
   await expect(archivedTask).toContainText('Anulada');
