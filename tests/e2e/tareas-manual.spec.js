@@ -309,6 +309,42 @@ test('UAT-1259: la tarjeta operativa muestra el horario guardado', async ({ page
   expect(writes).toEqual([]);
 });
 
+
+test('UAT-1255: la descripción larga de una tarjeta Operativas se limita visualmente a tres líneas', async ({ page }) => {
+  test.fail(true, 'La tarjeta actual muestra la descripción completa sin límite visual de tres líneas.');
+  const tomorrowISO = await fechaISOEnNavegador(page, 1);
+  const description = 'Descripción extensa para comprobar el límite visual de la tarjeta. '.repeat(8).trim();
+  const task = {
+    id: 'e2e-uat-1255-description',
+    titulo: 'E2E descripción larga UAT-1255',
+    descripcion: description,
+    asignadoA: 'PEON1',
+    origen: 'manual',
+    categoria: 'manual',
+    inv: '0A',
+    calles: '1-2',
+    fechaISO: tomorrowISO,
+    fecha: 'mañana',
+    turno: 'Mañana',
+    prioridad: 'normal',
+    estado: 'pendiente'
+  };
+  const { database, writes } = await installFixture(page, {
+    'lasala-tareas-v1': JSON.stringify([task])
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  await overlay.getByRole('button', { name: 'Tareas de mañana' }).click();
+  const card = overlay.locator('.tarea-card').filter({ hasText: task.titulo });
+  const descriptionNode = card.getByText(description, { exact: true });
+  await expect(descriptionNode).toBeVisible();
+  const height = await descriptionNode.evaluate(element => element.getBoundingClientRect().height);
+  expect(height).toBeLessThanOrEqual(54);
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([task]);
+  expect(writes).toEqual([]);
+});
+
 test('UAT-1232: ADMIN abre Tareas con Operativas seleccionada por defecto', async ({ page }) => {
   test.fail(true, 'La vista actual abre Resumen de Tareas sin seleccionar Operativas.');
   await installFixture(page);
