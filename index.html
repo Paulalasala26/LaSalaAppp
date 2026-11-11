@@ -2404,6 +2404,23 @@ const TAREAS_GESTOR_VISTAS = [
 // sección del menú lateral (Antiguas/Hoy/Mañana/Mantenimiento) se pinta en
 // el panel de la derecha, sin perder nada de lo que ya había (nueva tarea,
 // asignar en lote, editar/eliminar, imprimir, kanban de mantenimiento...).
+function descargarRespaldoTareasJSON(){
+  if(currentUserRole!=='ADMIN'){ showToast('No tienes permiso para descargar el respaldo'); return false; }
+  const respaldo = {
+    version: 1,
+    exportadoEn: new Date().toISOString(),
+    tareas: Array.isArray(tareasData) ? tareasData : [],
+    mantenimiento: Array.isArray(mantenimientoData) ? mantenimientoData : []
+  };
+  const blob = new Blob([JSON.stringify(respaldo, null, 2)], {type:'application/json;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const enlace = document.createElement('a');
+  enlace.href = url;
+  enlace.download = `respaldo-tareas-${fechaLocalISO(new Date())}.json`;
+  enlace.click();
+  setTimeout(()=>URL.revokeObjectURL(url), 0);
+  return true;
+}
 function renderTareasGestorFullScreen(overlay){
   overlay.style.padding = '0';
   const porFecha = {antiguas:[], hoy:[], manana:[]};
@@ -2436,6 +2453,7 @@ function renderTareasGestorFullScreen(overlay){
       </div>
       <div style="padding:.75rem 1.25rem;background:#0d3d73;border-bottom:1px solid rgba(255,255,255,.15);display:flex;gap:6px;flex-wrap:wrap;align-items:center;flex-shrink:0">
         ${TAREAS_GESTOR_VISTAS.map(navItem).join('')}
+        ${currentUserRole==='ADMIN' ? `<button data-testid="tareas-backup-json" onclick="descargarRespaldoTareasJSON()" title="Descargar copia de Tareas y Mantenimiento" style="padding:9px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid rgba(255,255,255,.4);background:transparent;color:#fff;display:flex;align-items:center;gap:7px;white-space:nowrap"><i class="ti ti-download" style="font-size:14px"></i> Respaldo JSON</button>` : ''}
         <span style="width:1px;height:22px;background:rgba(255,255,255,.25);margin:0 2px"></span>
         <button onclick="mostrarOrdenTareasPorPersona()" title="Ver las tareas de cada persona ordenadas por prioridad" style="padding:9px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid rgba(255,255,255,.4);background:transparent;color:#fff;display:flex;align-items:center;gap:7px;white-space:nowrap">
           <i class="ti ti-arrows-sort" style="font-size:14px"></i> Ordenar
