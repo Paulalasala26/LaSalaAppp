@@ -2417,7 +2417,9 @@ function descargarRespaldoTareasJSON(){
   const enlace = document.createElement('a');
   enlace.href = url;
   enlace.download = `respaldo-tareas-${fechaLocalISO(new Date())}.json`;
+  document.body.appendChild(enlace);
   enlace.click();
+  document.body.removeChild(enlace);
   setTimeout(()=>URL.revokeObjectURL(url), 1000);
   return true;
 }
