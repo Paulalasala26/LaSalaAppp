@@ -84,11 +84,10 @@ if ($LASTEXITCODE -ne 0 -or $FirebaseProject.Trim() -ne "la-sala-app-test") {
 
 $Runner = Join-Path $Root "sync_gs_qc_test.py"
 $Arguments = ('"{0}" --firebase-credentials "{1}"' -f $Runner, $FirebaseCredentialsPath)
-$XmlEscape = [System.Security.SecurityElement]
-$XmlUser = $XmlEscape::Escape([System.Security.Principal.WindowsIdentity]::GetCurrent().Name)
-$XmlPython = $XmlEscape::Escape($Python)
-$XmlArguments = $XmlEscape::Escape($Arguments)
-$XmlRoot = $XmlEscape::Escape($Root)
+$XmlUser = [System.Security.SecurityElement]::Escape([System.Security.Principal.WindowsIdentity]::GetCurrent().Name)
+$XmlPython = [System.Security.SecurityElement]::Escape($Python)
+$XmlArguments = [System.Security.SecurityElement]::Escape($Arguments)
+$XmlRoot = [System.Security.SecurityElement]::Escape($Root)
 
 $TriggerXml = @()
 for ($Hour = 6; $Hour -le 20; $Hour++) {
