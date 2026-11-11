@@ -8698,7 +8698,10 @@ async function aplicarFotoControl(id, fotoB64){
   // insistir en persistirlo aquí también.
   const [okFoto, okCheck] = await Promise.all([persistControlFotosData(id), persistControlChecksData([id])]);
   const ok = okFoto && okCheck;
-  if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
+  if(ok) desencolarAccion(qid); else {
+    avisarGuardadoLocalPendiente(leerColaOffline().length);
+    renderControlContent(document.getElementById('control-overlay'));
+  }
   return ok;
 }
 // A petición de Paula (2026-08-03): "al subir una foto me aparece error".
