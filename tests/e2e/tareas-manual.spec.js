@@ -1555,9 +1555,11 @@ test('UAT-1986 y UAT-1987: los recursos PWA declaran iconos cuadrados y Apple to
   expect(resources.appleTouchIcon).toBe('icon-192.png');
 });
 
-test('UAT-1995: cabecera y acciones esenciales accesibles a viewport equivalente al 200%', async ({ page }) => {
+test('UAT-1995: cabecera y acciones esenciales accesibles a zoom real del 200%', async ({ page }) => {
   await installFixture(page);
-  await page.setViewportSize({ width: 640, height: 360 });
+  const initialZoom = await page.evaluate(() => window.devicePixelRatio);
+  for (let step = 0; step < 5; step++) await page.keyboard.press('Control+Shift+Equal');
+  await expect.poll(() => page.evaluate(() => window.devicePixelRatio)).toBeGreaterThanOrEqual(initialZoom * 1.9);
   const topbar = page.locator('.topbar');
   const username = page.locator('#topbar-username');
   const logout = page.getByRole('button', { name: 'Salir' });
