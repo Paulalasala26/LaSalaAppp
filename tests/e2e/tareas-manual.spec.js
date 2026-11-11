@@ -311,6 +311,45 @@ test('UAT-1259: la tarjeta operativa muestra el horario guardado', async ({ page
 
 
 
+
+test('UAT-1251: la tarjeta de una tarea manual pendiente muestra todos sus campos', async ({ page }) => {
+  const tomorrowISO = await fechaISOEnNavegador(page, 1);
+  const task = {
+    id: 'e2e-uat-1251-manual-card',
+    titulo: 'E2E tarjeta manual UAT-1251',
+    descripcion: 'Descripción de la tarea pendiente',
+    asignadoA: 'PEON1',
+    origen: 'manual',
+    categoria: 'manual',
+    inv: '0A',
+    calles: '1-2',
+    fechaISO: tomorrowISO,
+    fecha: 'mañana',
+    turno: 'Mañana',
+    horario: 'Mañana 09:00',
+    prioridad: 'normal',
+    estado: 'pendiente'
+  };
+  const { database, writes } = await installFixture(page, {
+    'lasala-tareas-v1': JSON.stringify([task])
+  });
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  await overlay.getByRole('button', { name: 'Tareas de mañana' }).click();
+  const card = overlay.locator('.tarea-card').filter({ hasText: task.titulo });
+  await expect(card).toBeVisible();
+  await expect(card).toContainText(task.titulo);
+  await expect(card).toContainText(task.descripcion);
+  await expect(card).toContainText(tomorrowISO);
+  await expect(card).toContainText('manual');
+  await expect(card).toContainText('PEON1');
+  await expect(card).toContainText('Mañana 09:00');
+  await expect(card).toContainText(/Pendiente/i);
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([task]);
+  expect(writes).toEqual([]);
+});
+
+
 test('UAT-1257–1258: Operativas no inventa calles y conserva varios tramos', async ({ page }) => {
   const tomorrowISO = await fechaISOEnNavegador(page, 1);
   const tasks = [{
