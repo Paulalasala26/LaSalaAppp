@@ -1111,3 +1111,33 @@ test('UAT-2132: ADMIN abre Control QC por primera vez y vuelve a Inicio', async 
   await expect(page.getByTestId('home-control')).toBeVisible();
   expect(pageErrors).toEqual([]);
 });
+
+test('UAT-2134: abrir Específicos sin haber visitado Control QC', async ({ page }) => {
+  const pageErrors = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
+  await installAuthFixture(page);
+  await logInAs(page, 'E2E_ADMIN');
+
+  const shortcut = page.locator(`#quick-access-block .home-shortcut-card[onclick="handleQuickAction('especificos')"]`);
+  const overlay = page.locator('#especificos-overlay');
+  await shortcut.click();
+  await expect(overlay).toBeVisible();
+  await expect(overlay).toContainText('Específicos');
+  expect(pageErrors).toEqual([]);
+});
+
+test('UAT-2135: abrir La Sala en Vivo sin haber visitado Control QC', async ({ page }) => {
+  const pageErrors = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
+  await installAuthFixture(page);
+  await logInAs(page, 'E2E_ADMIN');
+
+  const shortcut = page.locator(`#quick-access-block .home-shortcut-card[onclick="handleQuickAction('sala-en-vivo')"]`);
+  const overlay = page.locator('#sala-en-vivo-overlay');
+  await shortcut.click();
+  await expect(overlay).toBeVisible();
+  await expect(overlay).toContainText('La Sala en Vivo');
+  await expect(overlay.getByRole('button', { name: 'Sala 1' })).toBeVisible();
+  await expect(overlay.getByRole('button', { name: 'Sala 5' })).toBeVisible();
+  expect(pageErrors).toEqual([]);
+});
