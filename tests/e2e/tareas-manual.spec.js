@@ -472,6 +472,7 @@ test('UAT-1233, UAT-1244, UAT-1235, UAT-1236, UAT-1242, UAT-1243, UAT-1246, UAT-
     await expect(page.locator('#quick-access-block .home-shortcut-card').filter({ hasText: label })).toBeHidden();
   }
 
+  // La sesión nueva debe consultar el fixture actual, no conservar el resultado del usuario anterior.
   await openTasks(page);
   const technicianOverlay = page.locator('#tareas-overlay');
   await expect(technicianOverlay).toContainText('Resumen de Tareas');
