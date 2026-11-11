@@ -241,12 +241,24 @@ test('UAT-1232: ADMIN abre Tareas con Operativas seleccionada por defecto', asyn
   await expect(operativas).toHaveCSS('background-color', 'rgb(255, 255, 255)');
 });
 
-test('UAT-1233, UAT-1244, UAT-1235, UAT-1236, UAT-1242, UAT-1243, UAT-1246, UAT-1495, UAT-1499, UAT-1500, UAT-1738, UAT-1741, UAT-1745, UAT-1762, UAT-1776, UAT-1777 y UAT-1779: ADMIN y TÉCNICO recorren secciones sin heredar permisos ni duplicar tareas', async ({ page }) => {
+test('UAT-1233, UAT-1244, UAT-1235, UAT-1236, UAT-1242, UAT-1243, UAT-1246, UAT-1495, UAT-1499, UAT-1500, UAT-1738, UAT-1741, UAT-1745, UAT-1762, UAT-1772, UAT-1773, UAT-1776, UAT-1777 y UAT-1779: ADMIN y TÉCNICO recorren secciones sin heredar permisos ni duplicar tareas', async ({ page }) => {
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(error.message));
   const todayISO = await fechaISOEnNavegador(page);
   const tomorrowISO = await fechaISOEnNavegador(page, 1);
   const olderISO = await fechaISOEnNavegador(page, -3);
+  const oldPendingTask = {
+    id: 'e2e-uat-1772-old-pending',
+    titulo: 'E2E pendiente antigua UAT-1772',
+    descripcion: 'Pendiente antigua que se conserva en su circuito',
+    asignadoA: 'PEON2',
+    origen: 'manual',
+    categoria: 'manual',
+    inv: '0D',
+    calles: '4',
+    fechaISO: olderISO,
+    estado: 'pendiente'
+  };
   const tasks = [{
     id: 'e2e-uat-1232-task',
     titulo: 'E2E operativa UAT-1232',
@@ -288,7 +300,7 @@ test('UAT-1233, UAT-1244, UAT-1235, UAT-1236, UAT-1242, UAT-1243, UAT-1246, UAT-
     fechaISO: olderISO,
     completadoISO: olderISO,
     estado: 'completada'
-  }];
+  }, oldPendingTask];
   const closedTicket = {
     id: 'e2e-uat-1500-closed-ticket',
     titulo: 'E2E ticket cerrado UAT-1500',
@@ -358,6 +370,9 @@ test('UAT-1233, UAT-1244, UAT-1235, UAT-1236, UAT-1242, UAT-1243, UAT-1246, UAT-
   const completedArchive = archiveView.locator('#tareas-archivo-completadas').locator('.tarea-archivo-card').filter({ hasText: 'E2E completada histórica UAT-1762' });
   await expect(completedArchive).toContainText('Completada');
   await expect(completedArchive).toContainText(olderISO);
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual(tasks);
+  expect(JSON.parse(database['lasala-tareas-v1']).find(task => task.id === oldPendingTask.id).estado).toBe('pendiente');
+  expect(writes).toEqual([]);
   await assertOperativas();
   await archive.focus();
   await expect(archive).toBeFocused();
