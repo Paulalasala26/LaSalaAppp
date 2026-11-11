@@ -835,7 +835,7 @@ test('UAT-2413: PEÓN imprime su lista e inicia una tarea desde Inicio sin error
 
 
 
-test('UAT-2414: PEÓN abre Mantenimiento directamente desde Inicio sin duplicar tickets ni escrituras', async ({ page }) => {
+test('UAT-2414 y UAT-2144: PEÓN abre Mantenimiento desde Inicio y regresa sin cambios', async ({ page }) => {
   const pageErrors = [];
   const maintenanceWrites = [];
   page.on('pageerror', error => pageErrors.push(error.message));
