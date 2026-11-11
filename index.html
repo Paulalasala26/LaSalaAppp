@@ -2511,7 +2511,7 @@ function renderTareasArchivoHTML(){
       <p style="font-size:13px;color:var(--muted)">Consulta histórica de tareas y tickets; los registros no se modifican desde esta vista.</p>
     </div>
     ${section('tareas-archivo-completadas','Completadas',completadas,'Completada',t=>t.motivoCompletado||'')}
-    ${section('tareas-archivo-anuladas','Anuladas y archivadas',anuladas,'Anulada',t=>t.motivoAnulacion||'Anulación administrativa')}
+    ${section('tareas-archivo-anuladas','Anuladas y archivadas',anuladas,'Anulada',t=>t.motivoAnulacion||'')}
     ${ticketSection}
   `;
 }
