@@ -1554,3 +1554,43 @@ test('UAT-1986 y UAT-1987: los recursos PWA declaran iconos cuadrados y Apple to
   ]);
   expect(resources.appleTouchIcon).toBe('icon-192.png');
 });
+
+test('UAT-1995: cabecera y acciones esenciales accesibles a viewport equivalente al 200%', async ({ page }) => {
+  await installFixture(page);
+  await page.setViewportSize({ width: 640, height: 360 });
+  const topbar = page.locator('.topbar');
+  const username = page.locator('#topbar-username');
+  const logout = page.getByRole('button', { name: 'Salir' });
+  await expect(topbar).toBeVisible();
+  await expect(username).toBeVisible();
+  await expect(logout).toBeVisible();
+
+  const bounds = await page.evaluate(() => {
+    const elements = [
+      document.querySelector('#topbar-username'),
+      document.querySelector('.logout-btn')
+    ];
+    return {
+      viewportWidth: document.documentElement.clientWidth,
+      documentWidth: document.documentElement.scrollWidth,
+      controls: elements.map(el => {
+        const rect = el.getBoundingClientRect();
+        return {
+          x: rect.x,
+          right: rect.right,
+          width: rect.width,
+          height: rect.height,
+          fontSize: parseFloat(getComputedStyle(el).fontSize)
+        };
+      })
+    };
+  });
+  expect(bounds.documentWidth).toBeLessThanOrEqual(bounds.viewportWidth);
+  for (const control of bounds.controls) {
+    expect(control.x).toBeGreaterThanOrEqual(0);
+    expect(control.right).toBeLessThanOrEqual(bounds.viewportWidth);
+    expect(control.width).toBeGreaterThan(0);
+    expect(control.height).toBeGreaterThan(0);
+    expect(control.fontSize).toBeGreaterThanOrEqual(10);
+  }
+});
