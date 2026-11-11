@@ -3611,6 +3611,38 @@ test('UAT-411: diez fotos de una inspección mantienen miniaturas manejables en 
   expect(unexpectedHosts).toEqual([]);
 });
 
+test('UAT-415: añadir una foto y cambiar de quincena no altera la evaluación QC', async ({ page }) => {
+  const database = fixtureDatabase();
+  const currentId = 'e2e-control-current-fortnight';
+  const previousId = 'e2e-control-previous-fortnight';
+  database['lasala-control-fotos-indice-v1'] = JSON.stringify({});
+  database['lasala-control-fotos-shards-index'] = JSON.stringify(['lasala-control-fotos-v1']);
+  database['lasala-control-fotos-v1'] = JSON.stringify({});
+  const originalItems = JSON.stringify(database['lasala-control-items-v1']);
+  const { overlay, unexpectedHosts } = await startControlTest(page, database);
+  const currentCard = overlay.locator(`#control-card-${currentId}`);
+  const image = await page.evaluate(() => {
+    const canvas = document.createElement('canvas'); canvas.width = 48; canvas.height = 48;
+    const context = canvas.getContext('2d'); context.fillStyle = '#2e7d32'; context.fillRect(0, 0, 48, 48);
+    return canvas.toDataURL('image/png').split(',')[1];
+  });
+  await currentCard.locator('input[data-testid^="control-photo-gallery-"]').setInputFiles({
+    name: 'e2e-uat-415.png', mimeType: 'image/png', buffer: Buffer.from(image, 'base64')
+  });
+  await expect(currentCard.locator('img[title="Ver foto"]')).toHaveCount(1);
+  await expect.poll(() => JSON.parse(database['lasala-control-fotos-v1'] || '{}')[currentId]).toHaveLength(1);
+  expect(JSON.stringify(database['lasala-control-items-v1'])).toBe(originalItems);
+
+  await overlay.getByTestId('control-quincena-previous').click();
+  await expect(overlay.getByText('E2E-QUINCENA-ANTERIOR', { exact: true })).toBeVisible();
+  expect(await page.evaluate(id => controlFotosData[id] || [], previousId)).toEqual([]);
+  await overlay.getByTestId('control-quincena-next').click();
+  await expect(overlay.getByText('E2E-QUINCENA-ACTUAL-DIA-30', { exact: true })).toBeVisible();
+  await expect(overlay.locator(`#control-card-${currentId}`).locator('img[title="Ver foto"]')).toHaveCount(1);
+  expect(JSON.stringify(database['lasala-control-items-v1'])).toBe(originalItems);
+  expect(unexpectedHosts).toEqual([]);
+});
+
 test('UAT-399–400: abrir y eliminar una foto pendiente local sin tocar las fotos guardadas', async ({ page }) => {
   const externalPersistenceRequests = [];
   page.on('request', request => {
