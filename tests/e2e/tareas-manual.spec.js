@@ -2088,3 +2088,18 @@ test('UAT-2085 y UAT-2086: CARGADOR abre QC Carga y solo ve secciones autorizada
   await expect(overlay.getByTestId('control-add-line')).toBeVisible();
   expect(writes).toEqual([]);
 });
+
+
+test('UAT-1245: Tareas no duplica los accesos específicos de Riego', async ({ page }) => {
+  const { database, writes } = await installFixture(page);
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+
+  await expect(overlay.getByRole('button', { name: 'Tareas de hoy' })).toBeVisible();
+  await expect(overlay.getByRole('button', { name: 'Mantenimiento de Parcelas' })).toBeVisible();
+  await expect(overlay.getByText('Índice de Abonos', { exact: true })).toHaveCount(0);
+  await expect(overlay.getByText('Hojas de Riego', { exact: true })).toHaveCount(0);
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([]);
+  expect(JSON.parse(database['lasala-mantenimiento-v1'])).toEqual([]);
+  expect(writes).toEqual([]);
+});
