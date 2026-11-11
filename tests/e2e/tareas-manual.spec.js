@@ -1765,3 +1765,39 @@ test('UAT-2084: PEÓN solo ve mantenimiento asignado y dispone de Iniciar', asyn
   expect(JSON.parse(database['lasala-mantenimiento-v1'])).toEqual(tickets);
   expect(writes).toEqual([]);
 });
+
+
+test('UAT-2085 y UAT-2086: CARGADOR abre QC Carga y solo ve secciones autorizadas', async ({ page }) => {
+  const users = {
+    E2E_ADMIN: passwordHash,
+    E2E_TECH: passwordHash,
+    PEON1: passwordHash,
+    REGANTE1: passwordHash,
+    JULIO: passwordHash
+  };
+  const roles = {
+    E2E_ADMIN: 'ADMIN',
+    E2E_TECH: 'TECNICO',
+    PEON1: 'PEON',
+    REGANTE1: 'REGANTE',
+    JULIO: 'CARGADOR'
+  };
+  const { writes } = await installFixture(page, {
+    'lasala-users-v1': JSON.stringify(users),
+    'lasala-roles-v1': JSON.stringify(roles)
+  }, { loginUser: 'JULIO' });
+
+  const accesoQc = page.getByTestId('home-qc-carga');
+  await expect(accesoQc).toBeVisible();
+  await expect(accesoQc).toContainText('QC Carga');
+  await accesoQc.click();
+
+  const overlay = page.locator('#control-overlay');
+  await expect(overlay).toBeVisible();
+  await expect(overlay).toContainText('Control');
+  const secciones = overlay.locator('button[onclick^="seleccionarSeccionControl("]');
+  await expect(secciones).toHaveText(['Check Carga Injerto', 'Check Carga Normal']);
+  await expect(secciones.filter({ hasText: 'Check Túnel' })).toHaveCount(0);
+  await expect(overlay.getByTestId('control-add-line')).toBeVisible();
+  expect(writes).toEqual([]);
+});
