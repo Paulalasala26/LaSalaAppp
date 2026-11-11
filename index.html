@@ -731,6 +731,7 @@ function applyRoleHomeUI(){
   homeInner.innerHTML = pageHomeInnerDefaultHTML;
 
   if(currentUserRole==='REGANTE'){
+    document.getElementById('shortcut-historial')?.style.setProperty('display','none');
     const block = document.getElementById('quick-access-block');
     if(block){
       block.style.display = 'block'; // 2026-10-30: el contenedor era una cuadrícula de tarjetas y partía cabecera y botones en columnas
