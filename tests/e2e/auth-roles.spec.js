@@ -1407,7 +1407,8 @@ test('UAT-2156 y UAT-2157: lista larga de Avisos llega al final en ventana estre
   await expect(overlay.getByRole('button').first()).toBeVisible();
 });
 
-test('UAT-2160: recorrer y activar una tarjeta de Inicio con teclado', async ({ page }) => {
+test('UAT-2160 y UAT-2166: Inicio y salir funcionan con teclado en tablet', async ({ page }) => {
+  await page.setViewportSize({ width: 768, height: 1024 });
   await installAuthFixture(page);
   await logInAs(page, 'E2E_ADMIN');
   const cards = page.locator('#quick-access-block .home-shortcut-card[onclick]');
@@ -1431,6 +1432,22 @@ test('UAT-2160: recorrer y activar una tarjeta de Inicio con teclado', async ({ 
   expect(await first.evaluate(el => el.matches(':focus-visible') && getComputedStyle(el).outlineStyle !== 'none')).toBe(true);
   await page.keyboard.press('Enter');
   await expect(page.locator('#riego-overlay')).toBeVisible();
+
+  const logout = page.locator('.logout-btn');
+  await expect(logout).toBeVisible();
+  await page.evaluate(() => { if (document.activeElement instanceof HTMLElement) document.activeElement.blur(); });
+  let logoutFocused = false;
+  for (let i = 0; i < 32; i++) {
+    await page.keyboard.press('Tab');
+    if (await logout.evaluate(el => el === document.activeElement)) {
+      logoutFocused = true;
+      break;
+    }
+  }
+  expect(logoutFocused).toBe(true);
+  await page.keyboard.press('Space');
+  await expect(page.locator('#login-screen')).toBeVisible();
+  await expect(page.locator('#app')).toBeHidden();
 });
 
 test('UAT-2163: botones de evaluación siguen accesibles con zoom equivalente al 200%', async ({ page }) => {
@@ -1482,4 +1499,28 @@ test('UAT-2164: Avisos conserva su contenido al girar el móvil', async ({ page 
   await expect(notices).toBeVisible();
   await expect(notices.getByText('Aviso tras rotación', { exact: true })).toBeVisible();
   await expect(notices.getByRole('button').first()).toBeVisible();
+});
+
+test('UAT-2167: Avisos no presenta una bandeja vacía mientras carga lento', async ({ page }) => {
+  await installAuthFixture(page, {
+    'lasala-avisos-usuario-v1': JSON.stringify({
+      E2E_TECNICO: [{ id: 'uat-2167-aviso', mensaje: 'Aviso recibido tras la espera', fecha: '11/11/2026', evaluacion: null, observaciones: '', visto: true, leido: false }],
+      E2E_ADMIN: [{ id: 'uat-2167-privado', mensaje: 'Aviso de otro perfil', fecha: '11/11/2026', visto: true, leido: false }]
+    })
+  });
+  await logInAs(page, 'E2E_TECNICO');
+  await page.route(/lasala-avisos-usuario-v1\.json/, async route => {
+    if (route.request().method() === 'GET') await new Promise(resolve => setTimeout(resolve, 700));
+    await route.fallback();
+  });
+
+  const start = Date.now();
+  await page.locator('#topbar-avisos').click();
+  const notices = page.locator('#avisos-tecnico-overlay');
+  await page.waitForTimeout(100);
+  await expect(notices).toBeHidden();
+  await expect(notices).toBeVisible();
+  await expect(notices).toContainText('Aviso recibido tras la espera');
+  await expect(notices).not.toContainText('Aviso de otro perfil');
+  expect(Date.now() - start).toBeGreaterThanOrEqual(700);
 });
