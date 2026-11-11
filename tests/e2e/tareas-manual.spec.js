@@ -1811,7 +1811,7 @@ test('UAT-2112–2113: cerrar sesión con Avisos abierto y no heredar la bandeja
     return inbox;
   };
   const cerrarSesion = async () => {
-    await page.getByRole('button', { name: 'Salir' }).click();
+    await page.locator('#avisos-tecnico-overlay').getByTestId('avisos-logout').click();
     await expect(page.locator('#login-screen')).toBeVisible();
     await expect(page.locator('#avisos-tecnico-overlay')).toBeHidden();
   };
