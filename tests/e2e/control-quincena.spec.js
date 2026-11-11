@@ -3620,7 +3620,7 @@ test('UAT-399–400: abrir y eliminar una foto pendiente local sin tocar las fot
   const enlarged = page.locator('#control-foto-ampliada-overlay');
   await expect(enlarged).toBeVisible();
   await expect(enlarged.locator('img')).toHaveAttribute('src', pendingSource);
-  await enlarged.locator('button').click();
+  await enlarged.locator('img').click();
   await expect(enlarged).toBeHidden();
 
   page.on('dialog', dialog => dialog.accept());
