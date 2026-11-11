@@ -246,6 +246,7 @@ test('UAT-1233, UAT-1244, UAT-1235, UAT-1236, UAT-1242, UAT-1243, UAT-1246, UAT-
   page.on('pageerror', error => pageErrors.push(error.message));
   const todayISO = await fechaISOEnNavegador(page);
   const tomorrowISO = await fechaISOEnNavegador(page, 1);
+  const olderISO = await fechaISOEnNavegador(page, -3);
   const tasks = [{
     id: 'e2e-uat-1232-task',
     titulo: 'E2E operativa UAT-1232',
