@@ -354,6 +354,72 @@ test('UAT-1251: la tarjeta de una tarea manual pendiente muestra todos sus campo
 
 
 
+
+test('UAT-1262–1263: los contadores de activas y completadas coinciden con las tarjetas', async ({ page }) => {
+  const todayISO = await fechaISOEnNavegador(page);
+  const tasks = [{
+    id: 'e2e-uat-1262-pending',
+    titulo: 'E2E contador pendiente UAT-1262',
+    descripcion: 'Tarea pendiente contada',
+    asignadoA: 'PEON1',
+    origen: 'manual',
+    categoria: 'manual',
+    inv: '0A',
+    calles: '1',
+    fechaISO: todayISO,
+    fecha: 'hoy',
+    turno: 'Mañana',
+    estado: 'pendiente'
+  }, {
+    id: 'e2e-uat-1262-started',
+    titulo: 'E2E contador en curso UAT-1262',
+    descripcion: 'Tarea iniciada contada',
+    asignadoA: 'PEON1',
+    origen: 'manual',
+    categoria: 'manual',
+    inv: '0A',
+    calles: '2',
+    fechaISO: todayISO,
+    fecha: 'hoy',
+    turno: 'Mañana',
+    estado: 'iniciada',
+    horaInicio: '09:00'
+  }, {
+    id: 'e2e-uat-1263-completed',
+    titulo: 'E2E contador completada UAT-1263',
+    descripcion: 'Tarea completada reciente',
+    asignadoA: 'PEON1',
+    origen: 'manual',
+    categoria: 'manual',
+    inv: '0A',
+    calles: '3',
+    fechaISO: todayISO,
+    fecha: 'hoy',
+    completadoISO: todayISO,
+    turno: 'Mañana',
+    estado: 'completada',
+    horaFin: '10:00'
+  }];
+  const { database, writes } = await installFixture(page, {
+    'lasala-tareas-v1': JSON.stringify(tasks)
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  const today = overlay.getByRole('button', { name: /Tareas de hoy/ });
+  await expect(today.locator('span')).toHaveText('2');
+  await today.click();
+  const pane = overlay.locator('#tareas-gestor-content-wrap');
+  const card = title => pane.locator('.tarea-card').filter({ hasText: title });
+  await expect(card(tasks[0].titulo)).toBeVisible();
+  await expect(card(tasks[1].titulo)).toBeVisible();
+  await expect(card(tasks[2].titulo)).toBeVisible();
+  await expect(pane.getByText('✓ Completadas (1)', { exact: true })).toBeVisible();
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual(tasks);
+  expect(writes).toEqual([]);
+});
+
+
 test('UAT-1256: tarjetas Pendiente, En proceso y Completada distinguen su estado', async ({ page }) => {
   const todayISO = await fechaISOEnNavegador(page);
   const tasks = [{
