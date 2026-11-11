@@ -1141,3 +1141,37 @@ test('UAT-2135: abrir La Sala en Vivo sin haber visitado Control QC', async ({ p
   await expect(overlay.getByRole('button', { name: 'Sala 5' })).toBeVisible();
   expect(pageErrors).toEqual([]);
 });
+
+test('UAT-2137: Tareas abre antes de Control sin cargar qc-v6.js', async ({ page }) => {
+  let qcRequests = 0;
+  const pageErrors = [];
+  page.on('request', request => {
+    if (new URL(request.url()).pathname.endsWith('/qc-v6.js')) qcRequests++;
+  });
+  page.on('pageerror', error => pageErrors.push(error.message));
+  await installAuthFixture(page);
+  await logInAs(page, 'E2E_ADMIN');
+
+  const shortcut = page.locator(`#quick-access-block .home-shortcut-card[onclick="handleQuickAction('tareas')"]`);
+  const overlay = page.locator('#tareas-overlay');
+  await shortcut.click();
+  await expect(overlay).toBeVisible();
+  await expect(overlay).toContainText('Resumen de Tareas');
+  expect(qcRequests).toBe(0);
+  expect(pageErrors).toEqual([]);
+});
+
+test('UAT-2138: Plaguicidas abre antes de Control y conserva sus acciones', async ({ page }) => {
+  const pageErrors = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
+  await installAuthFixture(page);
+  await logInAs(page, 'E2E_ADMIN');
+
+  const shortcut = page.locator(`#quick-access-block .home-shortcut-card[onclick="handleQuickAction('plaguicidas')"]`);
+  const overlay = page.locator('#fito-overlay');
+  await shortcut.click();
+  await expect(overlay).toBeVisible();
+  await expect(overlay).toContainText('Plaguicidas');
+  await expect(overlay.getByRole('button', { name: /Añadir manualmente/ })).toBeVisible();
+  expect(pageErrors).toEqual([]);
+});
