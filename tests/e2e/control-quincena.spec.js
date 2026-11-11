@@ -1692,23 +1692,35 @@ test('UAT-358, UAT-359, UAT-360 y UAT-389–390: tarjeta QC sin controles de fot
   expect(unexpectedHosts).toEqual([]);
 });
 
-test('UAT-047–049, UAT-356–357, UAT-364, UAT-368–369, UAT-392, UAT-395 y UAT-396: fotos QC se conservan tras recargar sin afirmar subida a SharePoint', async ({ page }) => {
+test('UAT-047–049, UAT-356–357, UAT-364, UAT-368–369, UAT-392, UAT-395–397: fotos QC se conservan tras recargar sin afirmar subida a SharePoint', async ({ page }) => {
   const externalPersistenceRequests = [];
   page.on('request', request => {
     const host = new URL(request.url()).hostname;
     if (host.endsWith('.sharepoint.com') || host === 'graph.microsoft.com') externalPersistenceRequests.push(request.url());
   });
   const database = fixtureDatabase();
+  const tunnelIds = ['e2e-control-current-fortnight', 'e2e-control-current-fortnight-second-line'];
+  const previousDayId = 'e2e-control-current-fortnight-first-day';
+  const items = database['lasala-control-items-v1'];
+  items[previousDayId].partida = items[tunnelIds[0]].partida;
+  expect(items[previousDayId].partida).toBe(items[tunnelIds[0]].partida);
+  expect(items[previousDayId].dia).not.toBe(items[tunnelIds[0]].dia);
   database['lasala-control-fotos-indice-v1'] = JSON.stringify({});
   database['lasala-control-fotos-shards-index'] = JSON.stringify(['lasala-control-fotos-v1']);
   const { overlay, unexpectedHosts } = await startControlTest(page, database);
   const photos = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/XxsAAAAASUVORK5CYII=', 'base64');
-  const tunnelIds = ['e2e-control-current-fortnight', 'e2e-control-current-fortnight-second-line'];
+  const distinctPhotoData = await page.evaluate(() => ['#c62828', '#1565c0'].map(color => {
+    const canvas = document.createElement('canvas'); canvas.width = 40; canvas.height = 40;
+    const context = canvas.getContext('2d'); context.fillStyle = color; context.fillRect(0, 0, 40, 40);
+    return canvas.toDataURL('image/png').split(',')[1];
+  }));
+  const currentPhoto = Buffer.from(distinctPhotoData[0], 'base64');
+  const previousPhoto = Buffer.from(distinctPhotoData[1], 'base64');
   const cargaId = 'e2e-control-carga-current-fortnight';
 
   for (const id of tunnelIds) {
     const card = overlay.locator(`#control-card-${id}`);
-    await card.locator('input[data-testid^="control-photo-gallery-"]').setInputFiles({ name: `${id}.png`, mimeType: 'image/png', buffer: photos });
+    await card.locator('input[data-testid^="control-photo-gallery-"]').setInputFiles({ name: `${id}.png`, mimeType: 'image/png', buffer: id === tunnelIds[0] ? currentPhoto : photos });
     await expect(card.locator('img[title="Ver foto"]')).toBeVisible();
     await expect.poll(() => JSON.parse(database['lasala-control-fotos-indice-v1'] || '{}')[id]).toBe('lasala-control-fotos-v1');
   }
@@ -1721,11 +1733,10 @@ test('UAT-047–049, UAT-356–357, UAT-364, UAT-368–369, UAT-392, UAT-395 y U
   await expect.poll(() => JSON.parse(database['lasala-control-fotos-indice-v1'] || '{}')[cargaId]).toBe('lasala-control-fotos-v1');
 
   await overlay.getByRole('button', { name: 'Check Túnel' }).click();
-  const previousDayId = 'e2e-control-current-fortnight-first-day';
   await overlay.getByTestId('control-day-previous').click();
   const previousDayCard = overlay.locator(`#control-card-${previousDayId}`);
   await expect(previousDayCard).toBeVisible();
-  await previousDayCard.locator('input[data-testid^="control-photo-gallery-"]').setInputFiles({ name: `${previousDayId}.png`, mimeType: 'image/png', buffer: photos });
+  await previousDayCard.locator('input[data-testid^="control-photo-gallery-"]').setInputFiles({ name: `${previousDayId}.png`, mimeType: 'image/png', buffer: previousPhoto });
   await expect(previousDayCard.locator('img[title="Ver foto"]')).toBeVisible();
   await expect(overlay.locator(`#control-card-${tunnelIds[0]}`)).toHaveCount(0);
   await overlay.getByTestId('control-day-next').click();
@@ -1745,6 +1756,8 @@ test('UAT-047–049, UAT-356–357, UAT-364, UAT-368–369, UAT-392, UAT-395 y U
   const shard = JSON.parse(database['lasala-control-fotos-v1']);
   for (const id of [...tunnelIds, cargaId]) expect(shard[id]).toBeTruthy();
   const firstPhotoBeforeReload = await page.evaluate(id => fotoSrcCompleta(controlFotosData[id]), tunnelIds[0]);
+  const previousPhotoBeforeReload = await page.evaluate(id => fotoSrcCompleta(controlFotosData[id]), previousDayId);
+  expect(previousPhotoBeforeReload).not.toBe(firstPhotoBeforeReload);
   await page.reload();
   await expect(page.getByTestId('home-control')).toBeVisible();
   await page.getByTestId('home-control').click();
@@ -1768,6 +1781,9 @@ test('UAT-047–049, UAT-356–357, UAT-364, UAT-368–369, UAT-392, UAT-395 y U
   await expect(qcDraft).toContainText('✓');
   await reopened.getByTestId('control-day-previous').click();
   await expect(reopened.locator(`#control-card-${previousDayId} img[title="Ver foto"]`)).toBeVisible();
+  const previousPhotoAfterReload = await page.evaluate(id => fotoSrcCompleta(controlFotosData[id]), previousDayId);
+  expect(previousPhotoAfterReload).toBe(previousPhotoBeforeReload);
+  expect(previousPhotoAfterReload).not.toBe(firstPhotoAfterReload);
   await reopened.getByTestId('control-day-next').click();
   await reopened.getByTestId('control-greenhouse-filter').selectOption('18');
   await expect(reopened.locator(`#control-card-${otherGreenhouseId} img[title="Ver foto"]`)).toBeVisible();
