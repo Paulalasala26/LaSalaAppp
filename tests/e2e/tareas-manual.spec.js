@@ -1785,7 +1785,7 @@ test('UAT-2097: REGANTE no dispone de gestión de tickets Mantenimiento', async 
 
 
 
-test('UAT-2112–2113: cerrar sesión con Avisos abierto y no heredar la bandeja', async ({ page }) => {
+test('UAT-2111–2113: consultar Avisos sin escrituras, cerrar sesión y no heredar la bandeja', async ({ page }) => {
   const users = { E2E_TECH: passwordHash, E2E_TECH2: passwordHash };
   const roles = { E2E_TECH: 'TECNICO', E2E_TECH2: 'TECNICO' };
   const avisoPrivado = {
