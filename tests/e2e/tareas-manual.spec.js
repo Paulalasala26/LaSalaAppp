@@ -241,7 +241,7 @@ test('UAT-1232: ADMIN abre Tareas con Operativas seleccionada por defecto', asyn
   await expect(operativas).toHaveCSS('background-color', 'rgb(255, 255, 255)');
 });
 
-test('UAT-1233, UAT-1244, UAT-1235, UAT-1236, UAT-1242, UAT-1243, UAT-1246, UAT-1495, UAT-1499, UAT-1500, UAT-1738, UAT-1741, UAT-1745, UAT-1762, UAT-1763, UAT-1764, UAT-1765, UAT-1766, UAT-1780, UAT-1768, UAT-1772, UAT-1773, UAT-1776, UAT-1777 y UAT-1779: ADMIN y TÉCNICO recorren secciones sin heredar permisos ni duplicar tareas', async ({ page }) => {
+test('UAT-1233, UAT-1244, UAT-1235, UAT-1236, UAT-1242, UAT-1243, UAT-1246, UAT-1495, UAT-1499, UAT-1500, UAT-1738, UAT-1741, UAT-1745, UAT-1762, UAT-1763, UAT-1764, UAT-1765, UAT-1766, UAT-1780, UAT-1768, UAT-1772, UAT-1773, UAT-1776, UAT-1777, UAT-1779 y UAT-1743: ADMIN y TÉCNICO recorren Archivo sin heredar resultados ni permisos', async ({ page }) => {
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(error.message));
   const todayISO = await fechaISOEnNavegador(page);
@@ -342,7 +342,7 @@ test('UAT-1233, UAT-1244, UAT-1235, UAT-1236, UAT-1242, UAT-1243, UAT-1246, UAT-
     'lasala-mantenimiento-v1': JSON.stringify([closedTicket])
   });
 
-  const assertOperativas = async () => {
+  const assertOperativas = async (expectedTaskTitle = 'E2E operativa UAT-1232') => {
     const overlay = page.locator('#tareas-overlay');
     for (const name of ['Tareas antiguas', 'Tareas de hoy', 'Tareas de mañana', 'Archivo', 'Mantenimiento de Parcelas']) {
       await expect(overlay.getByRole('button', { name })).toBeVisible();
@@ -350,7 +350,7 @@ test('UAT-1233, UAT-1244, UAT-1235, UAT-1236, UAT-1242, UAT-1243, UAT-1246, UAT-
     const tomorrow = overlay.getByRole('button', { name: 'Tareas de mañana' });
     await tomorrow.click();
     await expect(tomorrow).toHaveCSS('background-color', 'rgb(255, 255, 255)');
-    await expect(overlay.getByText('E2E operativa UAT-1232', { exact: true })).toBeVisible();
+    await expect(overlay.getByText(expectedTaskTitle, { exact: true })).toBeVisible();
     await expect(overlay.locator('.tarea-card:visible')).toHaveCount(1);
   };
 
@@ -428,6 +428,37 @@ test('UAT-1233, UAT-1244, UAT-1235, UAT-1236, UAT-1242, UAT-1243, UAT-1246, UAT-
   await overlay.getByRole('button', { name: /✕ Cerrar/ }).click();
   await expect(overlay).toBeHidden();
 
+  const technicianTasks = [{
+    id: 'e2e-uat-1743-technician-pending',
+    titulo: 'E2E tarea técnica UAT-1743',
+    descripcion: 'Resultado nuevo de la sesión TÉCNICO',
+    asignadoA: 'PEON2',
+    origen: 'manual',
+    categoria: 'manual',
+    inv: '0B',
+    calles: '6',
+    fechaISO: tomorrowISO,
+    fecha: 'mañana',
+    turno: 'Mañana',
+    prioridad: 'normal',
+    estado: 'pendiente'
+  }, {
+    id: 'e2e-uat-1743-technician-archived',
+    titulo: 'E2E archivo técnico UAT-1743',
+    descripcion: 'Solo disponible tras cambiar de usuario',
+    asignadoA: 'PEON2',
+    origen: 'manual',
+    categoria: 'manual',
+    inv: '0B',
+    calles: '6',
+    fechaISO: todayISO,
+    anuladaISO: todayISO,
+    motivoAnulacion: 'Fixture de sesión TÉCNICO',
+    estado: 'anulada'
+  }];
+  database['lasala-tareas-v1'] = JSON.stringify(technicianTasks);
+  database['lasala-mantenimiento-v1'] = JSON.stringify([]);
+
   await page.getByRole('button', { name: 'Salir' }).click();
   await expect(page.locator('#login-screen')).toBeVisible();
   await page.locator('#login-user').evaluate((select, value) => {
@@ -442,11 +473,19 @@ test('UAT-1233, UAT-1244, UAT-1235, UAT-1236, UAT-1242, UAT-1243, UAT-1246, UAT-
   }
 
   await openTasks(page);
-  await expect(page.locator('#tareas-overlay')).toContainText('Resumen de Tareas');
-  await expect(page.locator('#tareas-overlay').getByRole('button', { name: /Respaldo JSON/ })).toHaveCount(0);
-  await assertOperativas();
-  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual(tasks);
-  expect(JSON.parse(database['lasala-mantenimiento-v1'])).toEqual([closedTicket]);
+  const technicianOverlay = page.locator('#tareas-overlay');
+  await expect(technicianOverlay).toContainText('Resumen de Tareas');
+  await expect(technicianOverlay.getByRole('button', { name: /Respaldo JSON/ })).toHaveCount(0);
+  await assertOperativas('E2E tarea técnica UAT-1743');
+  const technicianArchive = technicianOverlay.getByRole('button', { name: /Archivo/ });
+  await technicianArchive.click();
+  const technicianArchiveView = technicianOverlay.locator('#tareas-archivo-anuladas');
+  await expect(technicianArchiveView).toContainText('E2E archivo técnico UAT-1743');
+  await expect(technicianArchiveView).not.toContainText('E2E tarea anulada UAT-1741');
+  await expect(technicianArchiveView).not.toContainText('E2E Riego anulado UAT-1766');
+  await expect(technicianOverlay.locator('#mantenimiento-archivo')).not.toContainText(closedTicket.titulo);
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual(technicianTasks);
+  expect(JSON.parse(database['lasala-mantenimiento-v1'])).toEqual([]);
   expect(writes).toEqual([]);
   expect(pageErrors).toEqual([]);
 });
