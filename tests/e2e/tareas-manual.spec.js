@@ -1781,6 +1781,32 @@ test('UAT-2097: REGANTE no dispone de gestión de tickets Mantenimiento', async 
 });
 
 
+
+test('UAT-2100–2102: la campana de Avisos no aparece para CARGADOR, REGANTE ni PEÓN', async ({ page }) => {
+  const users = { E2E_ADMIN: passwordHash, E2E_TECH: passwordHash, JULIO: passwordHash, REGANTE1: passwordHash, PEON1: passwordHash };
+  const roles = { E2E_ADMIN: 'ADMIN', E2E_TECH: 'TECNICO', JULIO: 'CARGADOR', REGANTE1: 'REGANTE', PEON1: 'PEON' };
+  const { writes } = await installFixture(page, {
+    'lasala-users-v1': JSON.stringify(users),
+    'lasala-roles-v1': JSON.stringify(roles)
+  }, { loginUser: 'JULIO' });
+
+  for (const user of ['JULIO', 'REGANTE1', 'PEON1']) {
+    if (user !== 'JULIO') {
+      await page.getByRole('button', { name: 'Salir' }).click();
+      await expect(page.locator('#login-screen')).toBeVisible();
+      await page.locator('#login-user').evaluate((select, value) => {
+        if (![...select.options].some(option => option.value === value)) select.add(new Option(value, value));
+      }, user);
+      await page.locator('#login-user').selectOption(user);
+      await page.locator('#login-pass').fill(password);
+      await page.locator('#login-btn').click();
+      await expect(page.locator('#page-home')).toBeVisible();
+    }
+    await expect(page.locator('#topbar-avisos')).toBeHidden();
+  }
+  expect(writes).toEqual([]);
+});
+
 test('UAT-2098 y UAT-2099: la asignación de Mantenimiento ofrece solo operarios PEÓN', async ({ page }) => {
   const users = {
     E2E_ADMIN: passwordHash,
