@@ -3579,6 +3579,38 @@ test('UAT-375–376, UAT-387, UAT-391, UAT-393–394 y UAT-398: las fotos se acu
 });
 
 
+test('UAT-411: diez fotos de una inspección mantienen miniaturas manejables en móvil', async ({ page }) => {
+  const database = fixtureDatabase();
+  const id = 'e2e-control-current-fortnight';
+  database['lasala-control-fotos-indice-v1'] = JSON.stringify({});
+  database['lasala-control-fotos-shards-index'] = JSON.stringify(['lasala-control-fotos-v1']);
+  database['lasala-control-fotos-v1'] = JSON.stringify({});
+  const { overlay, unexpectedHosts } = await startControlTest(page, database);
+  await page.setViewportSize({ width: 320, height: 760 });
+  const images = await page.evaluate(() => Array.from({ length: 10 }, (_, index) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 80; canvas.height = 60;
+    const context = canvas.getContext('2d');
+    context.fillStyle = `hsl(${index * 36} 70% 50%)`;
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/png').split(',')[1];
+  }));
+  const card = overlay.locator(`#control-card-${id}`);
+  await card.locator('input[data-testid^="control-photo-gallery-"]').setInputFiles(
+    images.map((image, index) => ({
+      name: `e2e-uat-411-${index + 1}.png`,
+      mimeType: 'image/png',
+      buffer: Buffer.from(image, 'base64')
+    }))
+  );
+  const thumbnails = card.locator('img[title="Ver foto"]');
+  await expect(thumbnails).toHaveCount(10);
+  await expect.poll(() => JSON.parse(database['lasala-control-fotos-v1'] || '{}')[id]).toHaveLength(10);
+  const layoutFits = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
+  expect(layoutFits).toBe(true);
+  expect(unexpectedHosts).toEqual([]);
+});
+
 test('UAT-399–400: abrir y eliminar una foto pendiente local sin tocar las fotos guardadas', async ({ page }) => {
   const externalPersistenceRequests = [];
   page.on('request', request => {
