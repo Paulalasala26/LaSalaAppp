@@ -1657,3 +1657,43 @@ test('UAT-2011, UAT-2044, UAT-2049 y UAT-2052: avisos ADMIN conservan contenido,
   expect(avisoWrites[0].VIGUERAS.every(item => item.leido === false)).toBe(true);
   expect(avisoWrites[1].VIGUERAS).toEqual([]);
 });
+
+test('UAT-2080, UAT-2081 y UAT-2082: REGANTE conserva destinos de Riego, Abonos y Específicos', async ({ page }) => {
+  const { writes } = await installFixture(page, {}, { loginUser: 'REGANTE1' });
+  const access = page.locator('#quick-access-block');
+
+  const hojasRiego = access.getByRole('button', { name: /Hojas de riego/ });
+  const indiceAbonos = access.getByRole('button', { name: /Índice Abonos/ });
+  const especificos = access.getByRole('button', { name: /Específicos/ });
+  await expect(hojasRiego).toBeVisible();
+  await expect(indiceAbonos).toBeVisible();
+  await expect(especificos).toBeVisible();
+
+  await hojasRiego.click();
+  const riego = page.locator('#riego-overlay');
+  await expect(riego).toBeVisible();
+  await expect(riego).toContainText('Hojas de riego');
+  await expect(riego).toContainText('Solo consulta');
+  await expect(riego.getByRole('button', { name: /Añadir manualmente|Aplicar/ })).toHaveCount(0);
+  await riego.getByRole('button').filter({ hasText: '✕' }).click();
+  await expect(riego).toBeHidden();
+
+  await indiceAbonos.click();
+  const abonos = page.locator('#indice-abonos-regante-overlay');
+  await expect(abonos).toBeVisible();
+  await expect(abonos).toContainText('Índice Abonos');
+  await expect(page.locator('#tareas-overlay')).toBeHidden();
+  await abonos.getByRole('button').first().click();
+  await expect(abonos).toBeHidden();
+
+  await especificos.click();
+  const especificosOverlay = page.locator('#especificos-regante-overlay');
+  await expect(especificosOverlay).toBeVisible();
+  await expect(especificosOverlay).toContainText('Específicos');
+  await expect(especificosOverlay).toContainText('No tienes tareas específicas');
+  await expect(page.locator('#tareas-overlay')).toBeHidden();
+  await especificosOverlay.getByRole('button').first().click();
+  await expect(especificosOverlay).toBeHidden();
+
+  expect(writes).toEqual([]);
+});
