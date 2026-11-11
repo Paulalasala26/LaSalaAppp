@@ -1175,3 +1175,25 @@ test('UAT-2138: Plaguicidas abre antes de Control y conserva sus acciones', asyn
   await expect(overlay.getByRole('button', { name: /Añadir manualmente/ })).toBeVisible();
   expect(pageErrors).toEqual([]);
 });
+
+test('UAT-2136: Trabajos carga Control QC al entrar en Pinzar sin abrir Control', async ({ page }) => {
+  let qcDataRequests = 0;
+  const pageErrors = [];
+  page.on('request', request => {
+    if (new URL(request.url()).pathname.endsWith('/lasala-control-items-v1.json')) qcDataRequests++;
+  });
+  page.on('pageerror', error => pageErrors.push(error.message));
+  await installAuthFixture(page);
+  await logInAs(page, 'E2E_ADMIN');
+
+  const shortcut = page.locator(`#quick-access-block .home-shortcut-card[onclick="handleQuickAction('trabajos')"]`);
+  const overlay = page.locator('#trabajos-overlay');
+  await shortcut.click();
+  await expect(overlay).toBeVisible();
+  await overlay.getByRole('button', { name: 'Trabajos de Mujeres' }).click();
+  await overlay.getByRole('button', { name: 'Pinzar' }).click();
+  await expect(overlay.locator('#trabajos-content-wrap')).toContainText('Pinzar');
+  await expect(overlay.locator('#trabajos-content-wrap')).toContainText('Añadir trabajo');
+  await expect.poll(() => qcDataRequests).toBeGreaterThan(0);
+  expect(pageErrors).toEqual([]);
+});
