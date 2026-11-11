@@ -1794,7 +1794,8 @@ test('UAT-2112–2113: cerrar sesión con Avisos abierto y no heredar la bandeja
     fecha: '11/11/2026',
     evaluacion: null,
     observaciones: '',
-    leido: true
+    leido: true,
+    visto: true
   };
   const { writes } = await installFixture(page, {
     'lasala-users-v1': JSON.stringify(users),
