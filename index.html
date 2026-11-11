@@ -5528,6 +5528,25 @@ async function eliminarFotoControl(id, indiceFoto=null){
   const indice = indiceFoto==null ? fotos.length-1 : Number(indiceFoto);
   if(!Number.isInteger(indice)||indice<0||indice>=fotos.length)return false;
   if(!confirm('¿Eliminar esta foto de la línea de Control?'))return false;
+  const accionPendiente = leerColaOffline().find(accion =>
+    accion.fn==='aplicarFotoControl' && Array.isArray(accion.args) &&
+    String(accion.args[0])===String(id) && fotoSrcCompleta(accion.args[1])===fotoSrcCompleta(fotos[indice])
+  );
+  if(accionPendiente){
+    const colaRestante = leerColaOffline().filter(accion=>accion.qid!==accionPendiente.qid);
+    if(!guardarColaOffline(colaRestante))return false;
+    const fotosRestantes = fotos.filter((_,i)=>i!==indice);
+    if(fotosRestantes.length) controlFotosData[id] = fotosRestantes;
+    else delete controlFotosData[id];
+    if(colaRestante.length) avisarGuardadoLocalPendiente(colaRestante.length);
+    else {
+      const aviso = document.getElementById('aviso-fallo-guardado');
+      if(aviso) aviso.style.display='none';
+    }
+    renderControlContent(document.getElementById('control-overlay'));
+    showToast('✓ Foto local eliminada');
+    return true;
+  }
   if(fotos.length>1){
     controlFotosData[id] = fotos.filter((_,i)=>i!==indice);
     const guardado = await persistControlFotosData(id);
@@ -8150,7 +8169,7 @@ function renderControlCardHTML(c, seccion){
   }).join('');
   cargarFotoControlSiFalta(c.id);
   const fotoHTML = fotosControlComoArray(controlFotosData[c.id]).map((foto,index) =>
-    `<span style="display:inline-flex;flex-direction:column;align-items:center;gap:3px;margin-right:8px"><img data-testid="control-photo-thumb-${c.id}-${index}" src="${fotoSrcMiniatura(foto)}" onclick="mostrarFotoControlAmpliada('${c.id}',${index})" style="max-height:64px;border-radius:8px;border:1px solid var(--border);cursor:pointer" title="Ver foto"><button type="button" aria-label="Eliminar foto ${index+1} de Control" data-testid="control-photo-delete-${c.id}-${index}" onclick="eliminarFotoControl('${c.id}',${index})" style="padding:2px 6px;border:1px solid #f0b0b0;border-radius:5px;background:#fdecea;color:#c62828;cursor:pointer;font-size:10px">Eliminar</button></span>`
+    `<span style="display:inline-flex;flex-direction:column;align-items:center;gap:3px;margin-right:8px"><img data-testid="control-photo-thumb-${c.id}-${index}" src="${fotoSrcMiniatura(foto)}" onclick="mostrarFotoControlAmpliada('${c.id}',${index})" style="max-height:64px;border-radius:8px;border:1px solid var(--border);cursor:pointer" title="Ver foto">${fotoControlFotoPendienteLocal(c.id,foto)?`<span data-testid="control-photo-status-${c.id}-${index}" style="font-size:9px;font-weight:700;color:#916100">Pendiente local</span>`:''}<button type="button" aria-label="Eliminar foto ${index+1} de Control" data-testid="control-photo-delete-${c.id}-${index}" onclick="eliminarFotoControl('${c.id}',${index})" style="padding:2px 6px;border:1px solid #f0b0b0;border-radius:5px;background:#fdecea;color:#c62828;cursor:pointer;font-size:10px">Eliminar</button></span>`
   ).join('');
 
   // Información del PDF del día de esta línea
@@ -8781,6 +8800,10 @@ function comprimirImagenParaControl(file){
 // {f,t}. Estos dos helpers dan igual el resultado correcto en ambos casos.
 function fotoSrcCompleta(entry){ if(Array.isArray(entry)) entry=entry[0]; return (entry && typeof entry==='object') ? entry.f : entry; }
 function fotoSrcMiniatura(entry){ return (entry && typeof entry==='object') ? (entry.t||entry.f) : entry; }
+function fotoControlFotoPendienteLocal(id, foto){
+  const src = fotoSrcCompleta(foto);
+  return leerColaOffline().some(accion => accion.fn==='aplicarFotoControl' && Array.isArray(accion.args) && String(accion.args[0])===String(id) && fotoSrcCompleta(accion.args[1])===src);
+}
 function fotosControlComoArray(entry){ return !entry ? [] : Array.isArray(entry) ? entry : [entry]; }
 // A petición de Paula (2026-08-27): buscar una partida en Partidas y
 // Específicos SIN importar en qué semana esté colocada en el mapa —
