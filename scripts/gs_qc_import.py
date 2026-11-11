@@ -405,30 +405,17 @@ def _merge_gs(existing: dict[str, Any] | None, incoming: dict[str, Any]) -> dict
     if (merged.get("tipo") in ("preinjerto_patron", "preinjerto_variedad")
             and isinstance(correction_fields, dict)):
         editable = ("partida", "cliente", "variedad", "numBandejas", "invId",
-                    "calleDesde", "calleHasta", "PAR_CAS", "PAR_UBIC")
+                    "calleDesde", "calleHasta")
+        legacy_raw_location = ("PAR_CAS" in correction_fields or "PAR_UBIC" in correction_fields)
         for field in editable:
+            if legacy_raw_location and field in ("invId", "calleDesde", "calleHasta"):
+                continue
             if field in correction_fields:
                 merged[field] = correction_fields[field]
-        if any(field in correction_fields for field in ("invId", "calleDesde", "calleHasta")):
-            inv_id = _text(merged.get("invId"))
-            desde = _number(merged.get("calleDesde"))
-            hasta = _number(merged.get("calleHasta"))
-            merged["ubicacionesGS"] = ([{
-                "invId": inv_id,
-                "invernadero": "",
-                "desde": desde,
-                "hasta": hasta,
-            }] if inv_id or desde or hasta else [])
         if "cliente" in correction_fields or "variedad" in correction_fields:
             customer = _text(merged.get("cliente"))
             variety = _text(merged.get("variedad"))
             merged["clienteVariedad"] = f"{customer} — {variety}" if variety else customer
-        if "PAR_CAS" in correction_fields or "PAR_UBIC" in correction_fields:
-            details = dict(merged.get("gsDetalles") or {})
-            for field in ("PAR_CAS", "PAR_UBIC"):
-                if field in correction_fields:
-                    details[field] = correction_fields[field] or None
-            merged["gsDetalles"] = details
     # Mantiene los campos de QC aun si una versión antigua tenía alguno ausente.
     for key in ("color", "tamano", "sanidad", "flores", "raices", "grosor",
                 "firmeza", "segado", "plagas", "enfermedades"):
