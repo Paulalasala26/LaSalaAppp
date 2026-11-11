@@ -232,7 +232,7 @@ def sync_test(by_date, controls_by_shard, start: date, end: date, credentials_pa
                 merged = dict(current or {})
                 preserve = ("observaciones", "color", "tamano", "sanidad", "flores",
                             "raices", "sanidadEnfermedades", "creadoPor", "creadoEn",
-                            "actualizadoPor", "actualizadoEn", "edicionQC")
+                            "actualizadoPor", "actualizadoEn", "edicionQC", "gsDetalles")
                 for key, source in incoming.items():
                     fresh = dict(source)
                     previous = current.get(key) if isinstance(current, dict) else None
