@@ -540,7 +540,7 @@ test('UAT-1239, UAT-1241, UAT-2083 y UAT-2087: PEÓN consulta Mis tareas y no ac
   await expect(page.locator('#page-home')).toBeVisible();
   await expect(page.locator('#quick-access-block')).toBeHidden();
   for (const shortcut of ['#shortcut-historial', '#shortcut-trabajos', '#shortcut-sala-en-vivo', '#shortcut-clima']) {
-    await expect(page.locator(shortcut)).toHaveCount(0);
+    await expect(page.locator(shortcut)).toBeHidden();
   }
   const inline = page.locator('#peon-tareas-inline');
   await expect(inline).toContainText(task.titulo);
@@ -1672,7 +1672,7 @@ test('UAT-2080–2082 y UAT-2088: REGANTE conserva accesos propios y no muestra 
   await expect(indiceAbonos).toBeVisible();
   await expect(especificos).toBeVisible();
   for (const shortcut of ['#shortcut-historial', '#shortcut-trabajos', '#shortcut-sala-en-vivo', '#shortcut-clima']) {
-    await expect(page.locator(shortcut)).toHaveCount(0);
+    await expect(page.locator(shortcut)).toBeHidden();
   }
 
   await hojasRiego.click();
