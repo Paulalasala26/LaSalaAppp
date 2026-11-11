@@ -1191,7 +1191,7 @@ test('UAT-2136: Trabajos carga Control QC al entrar en Pinzar sin abrir Control'
   await shortcut.click();
   await expect(overlay).toBeVisible();
   await overlay.getByRole('button', { name: 'Trabajos de Mujeres' }).click();
-  await overlay.getByRole('button', { name: 'Pinzar' }).click();
+  await overlay.locator('#trabajos-content-wrap').getByText('Pinzar', { exact: true }).click();
   await expect(overlay.locator('#trabajos-content-wrap')).toContainText('Pinzar');
   await expect(overlay.locator('#trabajos-content-wrap')).toContainText('Añadir trabajo');
   await expect.poll(() => qcDataRequests).toBeGreaterThan(0);
