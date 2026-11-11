@@ -310,6 +310,55 @@ test('UAT-1259: la tarjeta operativa muestra el horario guardado', async ({ page
 });
 
 
+
+test('UAT-1257–1258: Operativas no inventa calles y conserva varios tramos', async ({ page }) => {
+  const tomorrowISO = await fechaISOEnNavegador(page, 1);
+  const tasks = [{
+    id: 'e2e-uat-1257-no-street',
+    titulo: 'E2E sin calle UAT-1257',
+    descripcion: 'Sin calles declaradas',
+    asignadoA: 'PEON1',
+    origen: 'manual',
+    categoria: 'manual',
+    inv: '0A',
+    calles: '',
+    fechaISO: tomorrowISO,
+    fecha: 'mañana',
+    turno: 'Mañana',
+    prioridad: 'normal',
+    estado: 'pendiente'
+  }, {
+    id: 'e2e-uat-1258-multiple-streets',
+    titulo: 'E2E varios tramos UAT-1258',
+    descripcion: 'Tramos separados del fixture',
+    asignadoA: 'PEON1',
+    origen: 'manual',
+    categoria: 'manual',
+    inv: '0B',
+    calles: '1701-1703, 1708-1709',
+    fechaISO: tomorrowISO,
+    fecha: 'mañana',
+    turno: 'Mañana',
+    prioridad: 'normal',
+    estado: 'pendiente'
+  }];
+  const { database, writes } = await installFixture(page, {
+    'lasala-tareas-v1': JSON.stringify(tasks)
+  });
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  await overlay.getByRole('button', { name: 'Tareas de mañana' }).click();
+  const noStreet = overlay.locator('.tarea-card').filter({ hasText: tasks[0].titulo });
+  await expect(noStreet).toBeVisible();
+  await expect(noStreet).toContainText('INV 0A');
+  await expect(noStreet).not.toContainText(/calle/i);
+  const segments = overlay.locator('.tarea-card').filter({ hasText: tasks[1].titulo });
+  await expect(segments).toBeVisible();
+  await expect(segments).toContainText('1701-1703, 1708-1709');
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual(tasks);
+  expect(writes).toEqual([]);
+});
+
 test('UAT-1255: la descripción larga de una tarjeta Operativas se limita visualmente a tres líneas', async ({ page }) => {
   test.fail(true, 'La tarjeta actual muestra la descripción completa sin límite visual de tres líneas.');
   const tomorrowISO = await fechaISOEnNavegador(page, 1);
