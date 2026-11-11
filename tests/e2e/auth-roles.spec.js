@@ -1033,3 +1033,36 @@ test('UAT-2122–2123: recargar Inicio conserva la sesión y los permisos del pe
   await expect(page.locator('#topbar-notificaciones')).toHaveCount(0);
   await expect(page.locator('#quick-access-block')).toContainText('Control de Calidad');
 });
+
+test('UAT-2124: tras recargar Mis tareas mantiene el Inicio de PEÓN', async ({ page }) => {
+  const todayISO = await page.evaluate(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  });
+  const task = {
+    id: 'e2e-uat-2124-task',
+    titulo: 'E2E tarea PEON UAT-2124',
+    asignadoA: 'E2E_PEON',
+    origen: 'riego',
+    categoria: 'trabajo',
+    inv: '0A',
+    calles: '1-2',
+    fechaISO: todayISO,
+    fecha: 'hoy',
+    turno: 'Mañana',
+    prioridad: 'normal',
+    estado: 'pendiente'
+  };
+  await installAuthFixture(page, { 'lasala-tareas-v1': JSON.stringify([task]) });
+  await logInAs(page, 'E2E_PEON');
+
+  await expect(page.locator('#page-home')).toBeVisible();
+  await expect(page.locator('#peon-tareas-inline')).toContainText(task.titulo);
+  await page.reload();
+
+  await expect(page.locator('#page-home')).toBeVisible();
+  await expect(page.locator('#page-home-inner')).toContainText('Mis tareas');
+  await expect(page.locator('#peon-tareas-inline')).toContainText(task.titulo);
+  await expect(page.locator('#quick-access-block .home-shortcut-card')).toHaveCount(0);
+  await expect(page.locator('#page-home-inner')).not.toContainText('Acceso de Viveros');
+});
