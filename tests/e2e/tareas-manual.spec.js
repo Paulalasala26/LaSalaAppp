@@ -1784,6 +1784,58 @@ test('UAT-2097: REGANTE no dispone de gestión de tickets Mantenimiento', async 
 
 
 
+
+test('UAT-2112–2113: cerrar sesión con Avisos abierto y no heredar la bandeja', async ({ page }) => {
+  const users = { E2E_TECH: passwordHash, E2E_TECH2: passwordHash };
+  const roles = { E2E_TECH: 'TECNICO', E2E_TECH2: 'TECNICO' };
+  const avisoPrivado = {
+    id: 'e2e-uat-2113-privado',
+    mensaje: 'Aviso privado de la primera sesión UAT-2113',
+    fecha: '11/11/2026',
+    evaluacion: null,
+    observaciones: '',
+    leido: true
+  };
+  const { writes } = await installFixture(page, {
+    'lasala-users-v1': JSON.stringify(users),
+    'lasala-roles-v1': JSON.stringify(roles),
+    'lasala-avisos-usuario-v1': JSON.stringify({ E2E_TECH: [avisoPrivado], E2E_TECH2: [] })
+  }, { loginUser: 'E2E_TECH' });
+
+  const abrirAvisos = async () => {
+    const bell = page.locator('#topbar-avisos');
+    await expect(bell).toBeVisible();
+    await bell.click();
+    const inbox = page.locator('#avisos-tecnico-overlay');
+    await expect(inbox).toBeVisible();
+    return inbox;
+  };
+  const cerrarSesion = async () => {
+    await page.getByRole('button', { name: 'Salir' }).click();
+    await expect(page.locator('#login-screen')).toBeVisible();
+    await expect(page.locator('#avisos-tecnico-overlay')).toBeHidden();
+  };
+  const iniciarSesion = async user => {
+    await page.locator('#login-user').evaluate((select, value) => {
+      if (![...select.options].some(option => option.value === value)) select.add(new Option(value, value));
+    }, user);
+    await page.locator('#login-user').selectOption(user);
+    await page.locator('#login-pass').fill(password);
+    await page.locator('#login-btn').click();
+    await expect(page.locator('#page-home')).toBeVisible();
+  };
+
+  const inbox1 = await abrirAvisos();
+  await expect(inbox1).toContainText(avisoPrivado.mensaje);
+  await cerrarSesion();
+  await iniciarSesion('E2E_TECH2');
+  const inbox2 = await abrirAvisos();
+  await expect(inbox2).toContainText('No tienes avisos.');
+  await expect(inbox2).not.toContainText(avisoPrivado.mensaje);
+  await cerrarSesion();
+  expect(writes).toEqual([]);
+});
+
 test('UAT-2107–2109: Inicio se recalcula al cambiar ADMIN → TÉCNICO → PEÓN', async ({ page }) => {
   const { writes } = await installFixture(page);
   const loginAs = async user => {
