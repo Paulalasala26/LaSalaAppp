@@ -509,7 +509,7 @@ test('UAT-1233, UAT-1244, UAT-1235, UAT-1236, UAT-1242, UAT-1243, UAT-1246, UAT-
   expect(pageErrors).toEqual([]);
 });
 
-test('UAT-1239, UAT-1241 y UAT-2083: PEÓN consulta Mis tareas y no accede al gestor de supervisión', async ({ page }) => {
+test('UAT-1239, UAT-1241, UAT-2083 y UAT-2087: PEÓN consulta Mis tareas y no accede a accesos administrativos', async ({ page }) => {
   const todayISO = await fechaISOEnNavegador(page);
   const task = {
     id: 'e2e-uat-1239-peon',
@@ -539,6 +539,9 @@ test('UAT-1239, UAT-1241 y UAT-2083: PEÓN consulta Mis tareas y no accede al ge
   await page.locator('#login-btn').click();
   await expect(page.locator('#page-home')).toBeVisible();
   await expect(page.locator('#quick-access-block')).toBeHidden();
+  for (const shortcut of ['#shortcut-historial', '#shortcut-trabajos', '#shortcut-sala-en-vivo', '#shortcut-clima']) {
+    await expect(page.locator(shortcut)).toHaveCount(0);
+  }
   const inline = page.locator('#peon-tareas-inline');
   await expect(inline).toContainText(task.titulo);
 
@@ -1658,7 +1661,7 @@ test('UAT-2011, UAT-2044, UAT-2049 y UAT-2052: avisos ADMIN conservan contenido,
   expect(avisoWrites[1].VIGUERAS).toEqual([]);
 });
 
-test('UAT-2080, UAT-2081 y UAT-2082: REGANTE conserva destinos de Riego, Abonos y Específicos', async ({ page }) => {
+test('UAT-2080–2082 y UAT-2088: REGANTE conserva accesos propios y no muestra accesos de administración', async ({ page }) => {
   const { writes } = await installFixture(page, {}, { loginUser: 'REGANTE1' });
   const access = page.locator('#quick-access-block');
 
@@ -1668,6 +1671,9 @@ test('UAT-2080, UAT-2081 y UAT-2082: REGANTE conserva destinos de Riego, Abonos 
   await expect(hojasRiego).toBeVisible();
   await expect(indiceAbonos).toBeVisible();
   await expect(especificos).toBeVisible();
+  for (const shortcut of ['#shortcut-historial', '#shortcut-trabajos', '#shortcut-sala-en-vivo', '#shortcut-clima']) {
+    await expect(page.locator(shortcut)).toHaveCount(0);
+  }
 
   await hojasRiego.click();
   const riego = page.locator('#riego-overlay');
