@@ -1149,10 +1149,17 @@ test('UAT-219 y UAT-432: QC Túnel ofrece sus herramientas PDF y extensiones sin
   expect(unexpectedHosts).toEqual([]);
 });
 
-test('UAT-215: ADMIN y TÉCNICO pueden abrir y capturar QC Túnel', async ({ page }) => {
+test('UAT-166 y UAT-215: crear, volver a buscar y evaluar una línea QC Túnel', async ({ page }) => {
   const database = withControlRoles(fixtureDatabase(), { E2E_CONTROL_TECNICO: 'TECNICO' });
   const { overlay, unexpectedHosts } = await startControlTest(page, database);
-  await createNewTunnelLine(overlay, '26X09001');
+  const adminCard = await createNewTunnelLine(overlay, '26X09001');
+  const adminId = (await adminCard.getAttribute('id')).replace('control-card-', '');
+  const search = overlay.locator('#control-buscar-partida');
+  await search.fill('26X09001');
+  await overlay.getByTitle('Buscar').click();
+  await expect(overlay.locator(`#control-card-${adminId}`)).toBeVisible();
+  await expect(adminCard.getByTestId(`qc-v6-${adminId}-save`)).toBeVisible();
+  expect(Object.values(database['lasala-control-items-v1']).filter(item => item.partida === '26X09001')).toHaveLength(1);
 
   await overlay.getByRole('button', { name: '✕ Cerrar' }).click();
   await page.getByRole('button', { name: 'Salir' }).click();
