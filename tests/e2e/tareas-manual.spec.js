@@ -352,11 +352,11 @@ test('UAT-1251: la tarjeta de una tarea manual pendiente muestra todos sus campo
 
 
 
-test('UAT-1261: ADMIN consulta la tarea pendiente sin controles de ejecución ni firma', async ({ page }) => {
+test('UAT-1261 y UAT-1265: ADMIN consulta la tarea y el título largo se ajusta en móvil', async ({ page }) => {
   const tomorrowISO = await fechaISOEnNavegador(page, 1);
   const task = {
     id: 'e2e-uat-1261-admin-controls',
-    titulo: 'E2E tarea manual pendiente UAT-1261',
+    titulo: 'E2E tarea manual UAT-1261 con título largo para comprobar que el texto y las acciones se ajustan correctamente en una pantalla móvil estrecha',
     descripcion: 'Fixture para revisar las acciones del gestor',
     asignadoA: 'PEON1',
     origen: 'manual',
@@ -378,6 +378,12 @@ test('UAT-1261: ADMIN consulta la tarea pendiente sin controles de ejecución ni
   await overlay.getByRole('button', { name: 'Tareas de mañana' }).click();
   const card = overlay.locator('.tarea-card').filter({ hasText: task.titulo });
   await expect(card).toBeVisible();
+  const cardWidth = await card.evaluate(element => ({ client: element.clientWidth, scroll: element.scrollWidth, right: element.getBoundingClientRect().right }));
+  expect(cardWidth.scroll).toBeLessThanOrEqual(cardWidth.client);
+  expect(cardWidth.right).toBeLessThanOrEqual(390);
+  const title = card.getByText(task.titulo, { exact: true });
+  const titleWidth = await title.evaluate(element => ({ client: element.clientWidth, scroll: element.scrollWidth }));
+  expect(titleWidth.scroll).toBeLessThanOrEqual(titleWidth.client);
   await expect(card.getByRole('button', { name: 'Editar' })).toBeVisible();
   await expect(card.getByRole('button', { name: 'Imprimir' })).toBeVisible();
   await expect(card.getByRole('button', { name: 'Anular' })).toBeVisible();
