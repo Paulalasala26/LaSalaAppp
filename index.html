@@ -994,7 +994,8 @@ function ordenarTareasPorHorario(lista){
     return String(a.id).localeCompare(String(b.id));
   });
 }
-// Las tareas con fecha antigua se mantienen para consulta histórica.
+function esTareaVencidaParaBorrar(){ return false; }
+// Las tareas con fecha antigua se conservan para consulta histórica.
 // "Tareas antiguas" cambia la vista, no elimina registros.
 // horaFin se guarda con new Date().toLocaleString('es-ES'), formato
 // "D/M/YYYY, HH:MM:SS" — lo convertimos a ISO para poder usarlo como fecha
@@ -1008,9 +1009,13 @@ function parseFechaHoraToISO(str){
 function completadoISOBackfill(t){
   return parseFechaHoraToISO(t.horaFin) || t.fechaISO || fechaLocalISO(new Date());
 }
-async function mantenerMetadatosTareasCompletadas(){
-  // Las tareas antiguas se conservan para consulta histórica; abrir Archivo
-  // no borra registros. Solo se completa la fecha faltante en tareas legacy.
+async function limpiarTareasVencidas(){
+  // Tareas ya completadas antes de que existiera completadoISO (no tienen
+  // por dónde contar los días) se rellenan la primera vez que se detectan,
+  // usando la fecha real en que se marcaron como completadas (horaFin) para
+  // que el conteo de "Tareas antiguas" / borrado sea correcto desde ya — si
+  // no, se quedarían para siempre sin borrarse por no tener ninguna fecha de
+  // referencia.
   let necesitaGuardar = false;
   tareasData.forEach(t=>{
     if(t.estado==='completada' && !t.completadoISO){
@@ -1018,18 +1023,31 @@ async function mantenerMetadatosTareasCompletadas(){
       necesitaGuardar = true;
     }
   });
-  if(!necesitaGuardar) return;
+  const aBorrar = tareasData.filter(esTareaVencidaParaBorrar);
+  if(!aBorrar.length && !necesitaGuardar) return;
+  const idsBorrar = new Set(aBorrar.map(t=>t.id));
+  tareasData = tareasData.filter(t=>!idsBorrar.has(t.id));
   try{
     const r = await window.storage.get(TAREAS_KEY);
+    // Si la lectura falla, r es null — igual que si no hubiera tareas.
+    // Esta función se llama en CADA loadTareasData (es decir, en casi
+    // cualquier pantalla que toque Tareas) — tratar un fallo de red como
+    // "sin tareas" y escribir esa lista vacía borraría TODAS las tareas de
+    // todo el mundo, no solo las vencidas. Se omite la limpieza en la nube
+    // en vez de arriesgarse (se reintentará la próxima vez que se cargue).
+    // Detectado en la auditoría completa del 2026-09-09.
     if(!r) return;
-    const cloud = JSON.parse(r.value).map(t=>{
+    let cloud = JSON.parse(r.value);
+    cloud = cloud.filter(t=>!idsBorrar.has(t.id)).map(t=>{
       if(t.estado==='completada' && !t.completadoISO) return {...t, completadoISO: completadoISOBackfill(t)};
       return t;
     });
     await window.storage.set(TAREAS_KEY, JSON.stringify(cloud));
   }catch(e){}
 }
-// Se usa en aperturas que solo consultan; las escrituras fuerzan lectura fresca.
+let tareasDataCargadaEn = 0;
+const TAREAS_DATA_CACHE_TTL_MS = 30000;
+// forzar=false: mismo patrón/TTL que loadRiegoData (ver comentario ahí) — solo
 // se usa en aperturas de pantalla que no dependen de ver el segundo exacto en
 // que otro usuario asignó/completó algo; los flujos que van a escribir sobre
 // tareasData (asignar en lote, crear, completar...) siguen llamando sin
@@ -1039,7 +1057,7 @@ async function loadTareasData(forzar){
   // La marca de caché solo se pone si la lectura fue bien — si no, se
   // estaría cacheando 30s una lista vacía por un fallo de red.
   try{ const r=await window.storage.get(TAREAS_KEY); if(r){ tareasData=JSON.parse(r.value); tareasDataCargadaEn = Date.now(); } }catch(e){}
-  await mantenerMetadatosTareasCompletadas();
+  await limpiarTareasVencidas();
 }
 async function persistTareasData(){
   try{
@@ -1762,7 +1780,7 @@ async function loadMantenimientoData(){
   await revisarTicketsMantenimientoProgramados();
 }
 // Se comprueba cada vez que se cargan los datos (igual que
-// mantenerMetadatosTareasCompletadas dentro de loadTareasData) — no hay cron real en una
+// limpiarTareasVencidas dentro de loadTareasData) — no hay cron real en una
 // app de un solo archivo sin servidor, así que la comprobación es "perezosa":
 // se dispara la próxima vez que alguien abra el tablero.
 async function revisarTicketsMantenimientoProgramados(){
