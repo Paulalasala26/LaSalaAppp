@@ -353,6 +353,74 @@ test('UAT-1251: la tarjeta de una tarea manual pendiente muestra todos sus campo
 
 
 
+
+test('UAT-1256: tarjetas Pendiente, En proceso y Completada distinguen su estado', async ({ page }) => {
+  const todayISO = await fechaISOEnNavegador(page);
+  const tasks = [{
+    id: 'e2e-uat-1256-pending',
+    titulo: 'E2E estado pendiente UAT-1256',
+    descripcion: 'Contenido de pendiente conservado',
+    asignadoA: 'PEON1',
+    origen: 'manual',
+    categoria: 'manual',
+    inv: '0A',
+    calles: '1',
+    fechaISO: todayISO,
+    fecha: 'hoy',
+    turno: 'Mañana',
+    estado: 'pendiente'
+  }, {
+    id: 'e2e-uat-1256-started',
+    titulo: 'E2E estado iniciado UAT-1256',
+    descripcion: 'Contenido de iniciada conservado',
+    asignadoA: 'PEON1',
+    origen: 'manual',
+    categoria: 'manual',
+    inv: '0A',
+    calles: '2',
+    fechaISO: todayISO,
+    fecha: 'hoy',
+    turno: 'Mañana',
+    estado: 'iniciada',
+    horaInicio: '09:00'
+  }, {
+    id: 'e2e-uat-1256-completed',
+    titulo: 'E2E estado completado reciente UAT-1256',
+    descripcion: 'Contenido de completada conservado',
+    asignadoA: 'PEON1',
+    origen: 'manual',
+    categoria: 'manual',
+    inv: '0A',
+    calles: '3',
+    fechaISO: todayISO,
+    fecha: 'hoy',
+    completadoISO: todayISO,
+    turno: 'Mañana',
+    estado: 'completada',
+    horaFin: '10:00'
+  }];
+  const { database, writes } = await installFixture(page, {
+    'lasala-tareas-v1': JSON.stringify(tasks)
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  await overlay.getByRole('button', { name: 'Tareas de hoy' }).click();
+  for (const [task, label] of [
+    [tasks[0], /Pendiente/i],
+    [tasks[1], /En proceso/i],
+    [tasks[2], /Completada/i]
+  ]) {
+    const card = overlay.locator('.tarea-card').filter({ hasText: task.titulo });
+    await expect(card).toBeVisible();
+    await expect(card).toContainText(task.descripcion);
+    await expect(card).toContainText(label);
+  }
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual(tasks);
+  expect(writes).toEqual([]);
+});
+
+
 test('UAT-1252: la tarjeta Riego pendiente muestra ubicación, responsable, fecha y estado', async ({ page }) => {
   const tomorrowISO = await fechaISOEnNavegador(page, 1);
   const task = {
