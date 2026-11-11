@@ -205,7 +205,8 @@
     return html;
   }
   function qciGSLocationHTML(line){
-    const gs=line.gsDetalles&&typeof line.gsDetalles==='object'?line.gsDetalles:{};
+    const gs=line.gsDetalles&&typeof line.gsDetalles==='object'?line.gsDetalles:
+      (line.edicionQC?.ubicacionOrigenGS&&typeof line.edicionQC.ubicacionOrigenGS==='object'?line.edicionQC.ubicacionOrigenGS:{});
     const edited=!!line.edicionQC?.campos;
     const greenhouse=String(gs.invernadero||gs.invernaderoNombre||(!edited?line.invernadero:'')||'').trim();
     const greenhouseId=String(gs.idInvernadero??(!edited?line.invId:'')??'').trim();
@@ -319,7 +320,6 @@
     const line=controlChecksData.find(x=>x.id===id);
     const fields=edit&&edit.campos;
     if(!line||line.tipo!=='carga_injerto'||!fields)return false;
-    const qid=encolarAccionOffline('aplicarEditarControlCargaInjerto',[id,edit]);
     if(!line.edicionQC){
       const source={...(line.gsDetalles||{})};
       if(!Object.prototype.hasOwnProperty.call(source,'idInvernadero'))source.idInvernadero=line.invId??'';
@@ -327,7 +327,9 @@
       if(!Object.prototype.hasOwnProperty.call(source,'ubicacionDesde'))source.ubicacionDesde=line.calleDesde??null;
       if(!Object.prototype.hasOwnProperty.call(source,'ubicacionHasta'))source.ubicacionHasta=line.calleHasta??null;
       line.gsDetalles=source;
+      edit={...edit,ubicacionOrigenGS:source};
     }
+    const qid=encolarAccionOffline('aplicarEditarControlCargaInjerto',[id,edit]);
     line.partida=fields.partida;line.cliente=fields.cliente;line.variedad=fields.variedad;
     line.clienteVariedad=fields.cliente;line.numBandejas=fields.numBandejas;
     line.invId=fields.invId;line.calleDesde=fields.calleDesde;line.calleHasta=fields.calleHasta;
