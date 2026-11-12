@@ -3757,3 +3757,46 @@ test('UAT-1473: completar una manual como PEÓN la muestra en Operativas del dí
   expect(writes.length).toBeGreaterThanOrEqual(2);
   expect(writes.every(w => w.key==='lasala-tareas-v1')).toBe(true);
 });
+
+
+test('UAT-1594, 1596, 1598–1599, 1602, 1604–1606: PEÓN ejecuta y firma solo su mantenimiento asignado', async ({ page }) => {
+  const tickets = [
+    { id:'e2e-u1594-own', titulo:'E2E mantenimiento propio', descripcion:'Revisar válvula', prioridad:'alta', estado:'asignado', asignados:['PEON1'], asignadoPor:'E2E_ADMIN', visto:{ PEON1:false }, creadoEn:Date.now() },
+    { id:'e2e-u1594-other', titulo:'E2E mantenimiento ajeno', descripcion:'No mostrar a otro PEÓN', prioridad:'normal', estado:'asignado', asignados:['PEON2'], asignadoPor:'E2E_ADMIN', visto:{ PEON2:false }, creadoEn:Date.now() },
+    { id:'e2e-u1594-unassigned', titulo:'E2E mantenimiento sin asignar', prioridad:'normal', estado:'sin_asignar', asignados:[], asignadoPor:'E2E_ADMIN', creadoEn:Date.now() }
+  ];
+  const { database, writes } = await installFixture(page, { 'lasala-mantenimiento-v1': JSON.stringify(tickets) }, { loginUser:'PEON1' });
+  await page.evaluate(() => showMantenimientoPeonModule());
+  const overlay = page.locator('#mant-peon-overlay');
+  await expect(overlay).toBeVisible();
+  const own = overlay.locator('.tarea-card').filter({ hasText:'E2E mantenimiento propio' });
+  await expect(own).toBeVisible();
+  await expect(own).toContainText('Revisar válvula');
+  await expect(own).toContainText('PRIORIDAD ALTA');
+  await expect(overlay).not.toContainText('E2E mantenimiento ajeno');
+  await expect(overlay).not.toContainText('E2E mantenimiento sin asignar');
+  await expect(own.getByRole('button', { name:/Iniciar/ })).toBeVisible();
+  await own.getByRole('button', { name:/Iniciar/ }).click();
+  await expect.poll(() => JSON.parse(database['lasala-mantenimiento-v1']).find(t=>t.id==='e2e-u1594-own').estado).toBe('en_proceso');
+  await page.evaluate(() => { document.getElementById('mant-peon-overlay').style.display='none'; showMantenimientoPeonModule(); });
+  await expect(overlay.locator('.tarea-card').filter({ hasText:'E2E mantenimiento propio' }).getByRole('button', { name:/Completar y firmar/ })).toBeVisible();
+  await overlay.locator('.tarea-card').filter({ hasText:'E2E mantenimiento propio' }).getByRole('button', { name:/Completar y firmar/ }).click();
+  const modal = page.locator('#completar-mant-overlay');
+  await expect(modal).toBeVisible();
+  await expect(modal.locator('#cm-firma')).toHaveValue('Peon1');
+  await modal.locator('#cm-firma').fill('');
+  await modal.getByRole('button', { name:'Confirmar' }).click();
+  await expect.poll(() => JSON.parse(database['lasala-mantenimiento-v1']).find(t=>t.id==='e2e-u1594-own').estado).toBe('en_proceso');
+  await expect(modal).toBeVisible();
+  await modal.locator('#cm-firma').fill('Peon1');
+  await modal.getByRole('button', { name:'Confirmar' }).click();
+  await expect.poll(() => JSON.parse(database['lasala-mantenimiento-v1']).find(t=>t.id==='e2e-u1594-own').estado).toBe('cerrado');
+  const saved = JSON.parse(database['lasala-mantenimiento-v1']).find(t=>t.id==='e2e-u1594-own');
+  expect(saved.firmante).toBe('Peon1');
+  expect(saved.horaInicioTs).toBeTruthy();
+  expect(saved.horaFinTs).toBeTruthy();
+  expect(writes.every(w=>w.key==='lasala-mantenimiento-v1')).toBe(true);
+  await page.evaluate(() => { document.getElementById('mant-peon-overlay').style.display='none'; showMantenimientoPeonModule(); });
+  await expect(overlay.locator('.tarea-card').filter({ hasText:'E2E mantenimiento propio' })).toHaveCount(0);
+  expect(JSON.parse(database['lasala-mantenimiento-v1']).filter(t=>t.id==='e2e-u1594-own')).toHaveLength(1);
+});
