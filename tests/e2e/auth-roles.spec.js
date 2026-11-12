@@ -978,6 +978,83 @@ test('UAT-1434: no se puede completar una tarea PEÓN que sigue pendiente', asyn
   await expect(inline).not.toContainText('Completada');
 });
 
+test('UAT-1436–1440: solo el PEÓN asignado puede ejecutar y la secuencia se libera al completar', async ({ page }) => {
+  const todayISO = await page.evaluate(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  });
+  const pending = {
+    id: 'e2e-uat-1436-pending',
+    titulo: 'E2E tarea reasignada pendiente',
+    asignadoA: 'E2E_PEON2',
+    origen: 'manual',
+    categoria: 'manual',
+    inv: '0A',
+    calles: '1-2',
+    fechaISO: todayISO,
+    fecha: 'hoy',
+    turno: 'Mañana',
+    prioridad: 'normal',
+    estado: 'pendiente'
+  };
+  const initiated = {
+    ...pending,
+    id: 'e2e-uat-1437-initiated',
+    titulo: 'E2E tarea reasignada iniciada',
+    estado: 'iniciada',
+    horaInicio: '12/11/2026, 08:00:00',
+    horaInicioTs: Date.now() - 60000
+  };
+  const taskWrites = [];
+  const pageErrors = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
+  page.on('request', request => {
+    if (request.method() === 'PUT' && request.url().includes('/lasala-tareas-v1.json')) taskWrites.push(request);
+  });
+  await installAuthFixture(page, {
+    'lasala-users-v1': JSON.stringify({ E2E_PEON: passwordHash, E2E_PEON2: passwordHash }),
+    'lasala-roles-v1': JSON.stringify({ ...roleUsers, E2E_PEON2: 'PEON' }),
+    'lasala-tareas-v1': JSON.stringify([pending, initiated])
+  });
+
+  await logInAs(page, 'E2E_PEON');
+  const formerPeonView = page.locator('#peon-tareas-inline');
+  await expect(formerPeonView).not.toContainText(pending.titulo);
+  await expect(formerPeonView).not.toContainText(initiated.titulo);
+  await page.evaluate(id => iniciarTarea(id), pending.id);
+  await expect(page.getByText('Esta tarea no está asignada a tu usuario')).toBeVisible();
+  await page.evaluate(id => showCompletarTareaDialog(id), initiated.id);
+  const dialog = page.locator('#completar-tarea-overlay');
+  await dialog.getByRole('button', { name: 'Confirmar' }).click();
+  await expect(page.getByText('Esta tarea no está asignada a tu usuario')).toBeVisible();
+  expect(taskWrites).toHaveLength(0);
+
+  await page.getByRole('button', { name: 'Salir' }).click();
+  await expect(page.locator('#login-screen')).toBeVisible();
+  await logInAs(page, 'E2E_PEON2');
+  const newPeonView = page.locator('#peon-tareas-inline');
+  await expect(newPeonView).toContainText(pending.titulo);
+  await expect(newPeonView).toContainText(initiated.titulo);
+  await expect(newPeonView.getByRole('button', { name: 'Completar' })).toHaveCount(1);
+  await newPeonView.getByRole('button', { name: 'Completar' }).click();
+  await expect.poll(() => taskWrites.length).toBe(1);
+  const savedTasks = () => {
+    const posted = JSON.parse(taskWrites.at(-1).postData());
+    const raw = typeof posted === 'string' ? JSON.parse(posted) : posted;
+    return Array.isArray(raw) ? raw : Object.entries(raw).map(([id, value]) => ({ ...value, id: value.id || id }));
+  };
+  let saved = savedTasks();
+  expect(saved.find(value => value.id === initiated.id).estado).toBe('completada');
+  expect(saved.find(value => value.id === initiated.id).firmante).toBe('E2E_PEON2');
+
+  await expect(newPeonView.getByRole('button', { name: 'Iniciar' })).toHaveCount(1);
+  await newPeonView.getByRole('button', { name: 'Iniciar' }).click();
+  await expect.poll(() => taskWrites.length).toBe(2);
+  saved = savedTasks();
+  expect(saved.find(value => value.id === pending.id).estado).toBe('iniciada');
+  expect(pageErrors).toEqual([]);
+});
+
 test('UAT-1429 y UAT-1430: una tarea activa impide iniciar la siguiente del mismo PEÓN', async ({ page }) => {
   const todayISO = await page.evaluate(() => {
     const d = new Date();
