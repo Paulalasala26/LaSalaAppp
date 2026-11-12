@@ -835,7 +835,8 @@ test('UAT-083, UAT-088, UAT-112 y UAT-1375: agua y abono sin Trabajo no crean ta
   await expect(form.locator('input[name="rmb-modo-17"]').first()).toBeChecked();
   await form.locator('.rm-agua-min').first().selectOption('10');
   await form.locator('.rm-abono-cat').first().selectOption('SAL');
-  await form.locator('.rm-abono-tiempo').first().selectOption('5');
+  const abonoMinutos = await form.locator('.rm-abono-tiempo option:not([value=""])').first().getAttribute('value');
+  await form.locator('.rm-abono-tiempo').first().selectOption(abonoMinutos);
   await form.locator('#rm-guardar-btn').click();
   await expect(form).toBeHidden();
   await expect.poll(() => Object.keys(riegoGuardado(database)?.['17']?.[day] || {}).length).toBe(streets.length);
