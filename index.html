@@ -3636,6 +3636,10 @@ async function iniciarTarea(id){
   await loadTareasData();
   const t = tareasData.find(x=>x.id===id);
   if(!t) return;
+  if(t.asignadoA!==currentUser){
+    showToast('Esta tarea no está asignada a tu usuario');
+    return;
+  }
   const otraTareaIniciada = tareasData.find(x=>
     x.id!==id && x.asignadoA===currentUser && x.estado==='iniciada' && !esTareaDeAyer(x)
   );
@@ -3690,6 +3694,10 @@ async function completarTarea(id){
   await loadTareasData();
   const t = tareasData.find(x=>x.id===id);
   if(!t) return;
+  if(t.asignadoA!==currentUser){
+    showToast('Esta tarea no está asignada a tu usuario');
+    return;
+  }
   if(t.estado!=='iniciada'){
     showToast('Inicia la tarea antes de completarla');
     return;
