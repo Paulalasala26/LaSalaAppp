@@ -3057,12 +3057,14 @@ test('UAT-1370–1374: asignación en lote actualiza solo pendientes, permite RE
 
 
 test('UAT-1380–1384: Generar tareas asigna PEÓN por sala y agrupa calles contiguas', async ({ page }) => {
-  const { database, writes } = await installFixture(page);
-  const riego = JSON.parse(database['lasala-riego-v1']);
-  riego['17']['32'] = { '2': 'PP', '3': 'PP', '4': '10' };
-  riego['10A'] = { '32': { '2': 'PP', '3': '10' } };
-  riego['31'] = { '32': { '2': 'PP', '3': '10' } };
-  database['lasala-riego-v1'] = JSON.stringify(riego);
+  const riego = {
+    '17': { '32': { '2': 'PP', '3': 'PP', '4': '10' } },
+    '10A': { '32': { '2': 'PP', '3': '10' } },
+    '31': { '32': { '2': 'PP', '3': '10' } }
+  };
+  const { database, writes } = await installFixture(page, {
+    'lasala-riego-v1': JSON.stringify(riego)
+  });
 
   await page.evaluate(async () => {
     window.confirm = () => true;
