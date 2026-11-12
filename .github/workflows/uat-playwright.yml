@@ -71,7 +71,7 @@ jobs:
 
       - name: Ejecutar checks breves de auth en PR
         if: github.event_name == 'pull_request' && steps.scope.outputs.auth == 'true'
-        run: pnpm exec playwright test tests/e2e/auth-roles.spec.js --grep "UAT-1983|UAT-1989|UAT-1998|UAT-1999|UAT-2114|UAT-2115|UAT-2122|UAT-2123|UAT-2124|UAT-2129|UAT-2132|UAT-2134|UAT-2135|UAT-2136|UAT-2139|UAT-2143|UAT-2144|UAT-2146|UAT-2148|UAT-2150|UAT-2154|UAT-2155|UAT-2156|UAT-2157|UAT-2160|UAT-2163|UAT-2164|UAT-2167|UAT-2137|UAT-2138|UAT-2043|UAT-2048|UAT-2053|UAT-1428|UAT-1429|UAT-1430"
+        run: pnpm exec playwright test tests/e2e/auth-roles.spec.js --grep "UAT-1983|UAT-1989|UAT-1998|UAT-1999|UAT-2114|UAT-2115|UAT-2122|UAT-2123|UAT-2124|UAT-2129|UAT-2132|UAT-2134|UAT-2135|UAT-2136|UAT-2139|UAT-2143|UAT-2144|UAT-2146|UAT-2148|UAT-2150|UAT-2154|UAT-2155|UAT-2156|UAT-2157|UAT-2160|UAT-2163|UAT-2164|UAT-2167|UAT-2137|UAT-2138|UAT-2043|UAT-2048|UAT-2053|UAT-1428|UAT-1429|UAT-1430|UAT-1431|UAT-1432|UAT-1433|UAT-1434|UAT-1435"
 
       - name: Ejecutar check breve de Plaguicidas en PR
         if: github.event_name == 'pull_request' && steps.scope.outputs.fito == 'true'
