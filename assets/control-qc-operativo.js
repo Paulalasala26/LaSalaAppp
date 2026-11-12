@@ -57,9 +57,17 @@
   });
   // Cada bloque evaluado pesa igual. Carga incorpora Firmeza desde el corte de producción;
   // Sanidad participa una sola vez, aunque haya varias enfermedades.
+  function roundBlocksToTens(invalidBlocks,totalBlocks){
+    if(!totalBlocks)return 0;
+    const tenths=invalidBlocks*10;
+    const lower=Math.floor(tenths/totalBlocks);
+    const remainder=tenths%totalBlocks;
+    // Redondeo a decenas: los empates exactos (5) bajan; solo >5 sube.
+    return (lower+(remainder*2>totalBlocks?1:0))*10;
+  }
   function suggestedGlobal(){
     if(!active)return 0;
-    let sum=0,activeCount=0;
+    let invalidBlocks=0,activeCount=0;
     for(const [cat] of CATS){
       const wrap=active.querySelector('[data-qco-cat="'+cat+'"]');
       const picked=selectedOf(wrap);
@@ -67,13 +75,13 @@
       activeCount++;
       // Sanidad pesa igual que cada uno de los bloques activos: cualquier enfermedad
       // cuenta una vez. El desglose por enfermedad se conserva aparte y no duplica peso.
-      if(isMultiCategory(cat)&&picked.some(k=>isPercentOption(cat,k)))sum+=100;
-      else if(cat==='raicesInjerto'&&picked.includes('si'))sum+=100;
-      else if(cat==='flores'&&picked.includes('si'))sum+=100;
+      if(isMultiCategory(cat)&&picked.some(k=>isPercentOption(cat,k)))invalidBlocks++;
+      else if(cat==='raicesInjerto'&&picked.includes('si'))invalidBlocks++;
+      else if(cat==='flores'&&picked.includes('si'))invalidBlocks++;
       else if(!['sanidad','plagas','enfermedades','raicesInjerto','flores'].includes(cat)&&
-        (cat==='segado'?picked.includes('noSegado'):picked.some(k=>k!=='ok'&&k!=='noEvaluada')))sum+=100;
+        (cat==='segado'?picked.includes('noSegado'):picked.some(k=>k!=='ok'&&k!=='noEvaluada')))invalidBlocks++;
     }
-    return activeCount?Math.round((sum/activeCount)/10)*10:0;
+    return roundBlocksToTens(invalidBlocks,activeCount);
   }
   // El usuario puede cambiar el total calculado; no se recalcula al restaurar
   // ni al guardar, solo al editar algún estado o porcentaje de enfermedad.
