@@ -19369,6 +19369,10 @@ async function aplicarSugerenciaEspecifico(invId, calle, sugerencia){
   renderEspecificosGrid(invId);
 }
 function showEspecificosModule(){
+  if(currentUserRole==='REGANTE' || currentUserRole==='PEON'){
+    if(typeof showToast==='function') showToast('No tienes permiso para acceder a Específicos');
+    return;
+  }
   try {
     let overlay = document.getElementById('especificos-overlay');
     if(!overlay) {
