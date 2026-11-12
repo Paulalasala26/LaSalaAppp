@@ -2949,3 +2949,46 @@ test('UAT-1365–1366: la tarea reasignada sale del operario anterior y aparece 
   await expect(page.locator('#peon-tareas-inline')).toContainText(task.titulo);
   expect(JSON.parse(database['lasala-tareas-v1'])).toHaveLength(1);
 });
+
+
+test('UAT-1368–1369: el lote selecciona varias manuales y excluye Riego', async ({ page }) => {
+  const todayISO = await fechaISOEnNavegador(page);
+  const tasks = [
+    { id: 'e2e-uat-1368-manual-1', titulo: 'Manual 1 UAT-1368', asignadoA: 'PEON1', origen: 'manual', categoria: 'manual', inv: '17', calles: '1', fechaISO: todayISO, estado: 'pendiente' },
+    { id: 'e2e-uat-1368-manual-2', titulo: 'Manual 2 UAT-1368', asignadoA: 'PEON1', origen: 'manual', categoria: 'manual', inv: '17', calles: '2', fechaISO: todayISO, estado: 'pendiente' },
+    { id: 'e2e-uat-1369-riego', titulo: 'Riego protegido UAT-1369', asignadoA: 'PEON1', origen: 'riego', categoria: 'riego', inv: '17', calles: '3', fechaISO: todayISO, estado: 'pendiente' }
+  ];
+  const users = { E2E_ADMIN: passwordHash, PEON1: passwordHash, PEON2: passwordHash };
+  const roles = { E2E_ADMIN: 'ADMIN', PEON1: 'PEON', PEON2: 'PEON' };
+  const { database, writes } = await installFixture(page, {
+    'lasala-users-v1': JSON.stringify(users),
+    'lasala-roles-v1': JSON.stringify(roles),
+    'lasala-tareas-v1': JSON.stringify(tasks)
+  });
+
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  await overlay.getByRole('button', { name: 'Tareas de hoy' }).click();
+  const pane = overlay.locator('#tareas-gestor-content-wrap');
+  const manual1 = pane.locator('.tarea-card[data-id="e2e-uat-1368-manual-1"] .tarea-select-chk');
+  const manual2 = pane.locator('.tarea-card[data-id="e2e-uat-1368-manual-2"] .tarea-select-chk');
+  const riegoCard = pane.locator('.tarea-card[data-id="e2e-uat-1369-riego"]');
+
+  await expect(manual1).toBeVisible();
+  await expect(manual2).toBeVisible();
+  await expect(riegoCard.locator('.tarea-select-chk')).toHaveCount(0);
+  await manual1.check();
+  await manual2.check();
+  await expect(pane.locator('#lote-contador')).toHaveText('2');
+  await expect(pane.locator('#btn-asignar-lote')).toBeEnabled();
+
+  await manual1.uncheck();
+  await manual2.uncheck();
+  await pane.locator('#lote-asignado-select').selectOption('PEON2');
+  await page.evaluate(async id => {
+    tareasSeleccionadas.add(id);
+    await asignarTareasEnLote();
+  }, 'e2e-uat-1369-riego');
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual(tasks);
+  expect(writes).toEqual([]);
+});
