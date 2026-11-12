@@ -752,7 +752,7 @@ test('UAT-1252: la tarjeta Riego pendiente muestra ubicación, responsable, fech
 });
 
 
-test('UAT-1253–1254 y UAT-1416: tarjetas Pistola y Específicos identifican su origen y no exponen acciones manuales', async ({ page }) => {
+test('UAT-1253–1254, UAT-1416 y UAT-1425: tarjetas Pistola y Específicos identifican origen y ocultan acciones manuales', async ({ page }) => {
   const todayISO = await fechaISOEnNavegador(page);
   const tasks = [{
     id: 'e2e-uat-1253-pistola',
@@ -3440,4 +3440,34 @@ test('UAT-1418: anular una jornada Pistola archiva la tarea pendiente y conserva
   expect(tareas[0].motivoAnulacion).toBe('Tratamiento Pistola anulado desde Plaguicidas');
   expect(tareas[0].anuladaISO).toBeTruthy();
   expect(writes.filter(w => w.key === 'lasala-tareas-v1')).toHaveLength(1);
+});
+
+
+test('UAT-1419: supervisor consulta una Pistola iniciada sin alterar ejecución ni firmas', async ({ page }) => {
+  const todayISO = await fechaISOEnNavegador(page);
+  const task = { id:'e2e-uat-1419', titulo:'E2E Pistola iniciada 1419', asignadoA:'PEON1', origen:'pistola', categoria:'fumigacion', fechaISO:todayISO, estado:'iniciada', horaInicio:'10:15', horaInicioTs:Date.now()-60000, horaFin:null, firmante:null, objetivos:[{inv:'1A',calles:'C/102'}] };
+  const { database, writes } = await installFixture(page, { 'lasala-tareas-v1': JSON.stringify([task]) });
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  await overlay.getByRole('button', { name:/Tareas de hoy/ }).click();
+  const card = overlay.locator('.tarea-card').filter({ hasText:task.titulo });
+  await expect(card).toBeVisible();
+  for (const title of ['Editar','Anular','Reasignar','Eliminar']) await expect(card.getByTitle(title)).toHaveCount(0);
+  await expect(card.getByRole('button', { name:/Completar|Cerrar|Firmar/i })).toHaveCount(0);
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([task]);
+  expect(writes).toEqual([]);
+});
+
+test('UAT-1420: supervisor no cierra una Pistola pendiente sin la firma del PEÓN', async ({ page }) => {
+  const todayISO = await fechaISOEnNavegador(page);
+  const task = { id:'e2e-uat-1420', titulo:'E2E Pistola pendiente 1420', asignadoA:'PEON1', origen:'pistola', categoria:'fumigacion', fechaISO:todayISO, estado:'pendiente', horaInicio:null, horaFin:null, firmante:null, objetivos:[{inv:'1A',calles:'C/102'}] };
+  const { database, writes } = await installFixture(page, { 'lasala-tareas-v1': JSON.stringify([task]) });
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  await overlay.getByRole('button', { name:/Tareas de hoy/ }).click();
+  const card = overlay.locator('.tarea-card').filter({ hasText:task.titulo });
+  await expect(card).toBeVisible();
+  await expect(card.getByRole('button', { name:/Completar|Cerrar|Firmar/i })).toHaveCount(0);
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([task]);
+  expect(writes).toEqual([]);
 });
