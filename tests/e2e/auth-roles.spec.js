@@ -905,7 +905,77 @@ test('UAT-1428 y UAT-2413: PEÓN ve la tarea asignada con ubicación y la inicia
   await expect.poll(() => taskWrites.length).toBe(1);
   await expect(inline).toContainText('Iniciada');
   await expect(inline.getByText(task.titulo, { exact: false })).toHaveCount(1);
+  const readSavedTasks = () => {
+    const posted = JSON.parse(taskWrites.at(-1).postData());
+    const raw = typeof posted === 'string' ? JSON.parse(posted) : posted;
+    return Array.isArray(raw) ? raw : Object.entries(raw).map(([id, value]) => ({ ...value, id: value.id || id }));
+  };
+  let savedTask = readSavedTasks().find(value => value.id === task.id);
+  expect(savedTask.estado).toBe('iniciada');
+  expect(savedTask.horaInicio).toBeTruthy();
+  expect(savedTask.horaInicioTs).toBeGreaterThan(0);
+
+  await page.reload();
+  const reloadedInline = page.locator('#peon-tareas-inline');
+  await expect(reloadedInline).toContainText(task.titulo);
+  await expect(reloadedInline).toContainText('Iniciada');
+  await expect.poll(() => taskWrites.length).toBe(1);
+
+  await reloadedInline.getByRole('button', { name: 'Completar' }).click();
+  const completeDialog = page.locator('#completar-tarea-overlay');
+  await expect(completeDialog).toBeVisible();
+  await completeDialog.locator('#ct-firma').fill('');
+  await completeDialog.getByRole('button', { name: 'Confirmar' }).click();
+  await expect(page.getByText('Indica tu nombre para firmar')).toBeVisible();
+  expect(taskWrites).toHaveLength(1);
+  await expect(reloadedInline).toContainText('Iniciada');
+
+  await completeDialog.locator('#ct-firma').fill('E2E_PEON');
+  await completeDialog.getByRole('button', { name: 'Confirmar' }).click();
+  await expect.poll(() => taskWrites.length).toBe(2);
+  savedTask = readSavedTasks().find(value => value.id === task.id);
+  expect(savedTask.estado).toBe('completada');
+  expect(savedTask.firmante).toBe('E2E_PEON');
+  expect(savedTask.horaFin).toBeTruthy();
+  expect(savedTask.horaFinTs).toBeGreaterThan(0);
+  await expect(completeDialog).toBeHidden();
+  await expect(reloadedInline).toContainText('Completada');
   expect(pageErrors).toEqual([]);
+});
+
+test('UAT-1434: no se puede completar una tarea PEÓN que sigue pendiente', async ({ page }) => {
+  const task = {
+    id: 'e2e-uat-1434-pending',
+    titulo: 'E2E tarea pendiente UAT-1434',
+    asignadoA: 'E2E_PEON',
+    origen: 'manual',
+    categoria: 'manual',
+    inv: '0A',
+    calles: '1-2',
+    fechaISO: '2026-11-12',
+    fecha: 'hoy',
+    turno: 'Mañana',
+    prioridad: 'normal',
+    estado: 'pendiente'
+  };
+  const taskWrites = [];
+  page.on('request', request => {
+    if (request.method() === 'PUT' && request.url().includes('/lasala-tareas-v1.json')) taskWrites.push(request);
+  });
+  await installAuthFixture(page, { 'lasala-tareas-v1': JSON.stringify([task]) });
+  await logInAs(page, 'E2E_PEON');
+  const inline = page.locator('#peon-tareas-inline');
+  await expect(inline).toContainText(task.titulo);
+  await expect(inline).toContainText('Pendiente');
+
+  await page.evaluate(id => showCompletarTareaDialog(id), task.id);
+  const dialog = page.locator('#completar-tarea-overlay');
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: 'Confirmar' }).click();
+  await expect(page.getByText('Inicia la tarea antes de completarla')).toBeVisible();
+  expect(taskWrites).toHaveLength(0);
+  await expect(inline).toContainText('Pendiente');
+  await expect(inline).not.toContainText('Completada');
 });
 
 test('UAT-1429 y UAT-1430: una tarea activa impide iniciar la siguiente del mismo PEÓN', async ({ page }) => {
