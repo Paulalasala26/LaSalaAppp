@@ -752,7 +752,7 @@ test('UAT-1252: la tarjeta Riego pendiente muestra ubicación, responsable, fech
 });
 
 
-test('UAT-1253–1254: tarjetas Pistola y Específicos identifican su origen y no exponen acciones manuales', async ({ page }) => {
+test('UAT-1253–1254 y UAT-1416: tarjetas Pistola y Específicos identifican su origen y no exponen acciones manuales', async ({ page }) => {
   const todayISO = await fechaISOEnNavegador(page);
   const tasks = [{
     id: 'e2e-uat-1253-pistola',
