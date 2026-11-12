@@ -3759,7 +3759,7 @@ test('UAT-1473: completar una manual como PEÓN la muestra en Operativas del dí
 });
 
 
-test('UAT-1594, 1596, 1598–1599, 1602, 1604–1606: PEÓN ejecuta y firma solo su mantenimiento asignado', async ({ page }) => {
+test('UAT-1594, 1596, 1598–1599, 1602, 1604–1606, 1608: PEÓN ejecuta y firma solo su mantenimiento asignado', async ({ page }) => {
   const tickets = [
     { id:'e2e-u1594-own', titulo:'E2E mantenimiento propio', descripcion:'Revisar válvula', prioridad:'alta', estado:'asignado', asignados:['PEON1'], asignadoPor:'E2E_ADMIN', visto:{ PEON1:false }, creadoEn:Date.now() },
     { id:'e2e-u1594-other', titulo:'E2E mantenimiento ajeno', descripcion:'No mostrar a otro PEÓN', prioridad:'normal', estado:'asignado', asignados:['PEON2'], asignadoPor:'E2E_ADMIN', visto:{ PEON2:false }, creadoEn:Date.now() },
@@ -3784,6 +3784,11 @@ test('UAT-1594, 1596, 1598–1599, 1602, 1604–1606: PEÓN ejecuta y firma solo
   const modal = page.locator('#completar-mant-overlay');
   await expect(modal).toBeVisible();
   await expect(modal.locator('#cm-firma')).toHaveValue('Peon1');
+  await modal.getByRole('button', { name:'Cancelar' }).click();
+  await expect(modal).toBeHidden();
+  await expect.poll(() => JSON.parse(database['lasala-mantenimiento-v1']).find(t=>t.id==='e2e-u1594-own').estado).toBe('en_proceso');
+  await overlay.locator('.tarea-card').filter({ hasText:'E2E mantenimiento propio' }).getByRole('button', { name:/Completar y firmar/ }).click();
+  await expect(modal).toBeVisible();
   await modal.locator('#cm-firma').fill('');
   await modal.getByRole('button', { name:'Confirmar' }).click();
   await expect.poll(() => JSON.parse(database['lasala-mantenimiento-v1']).find(t=>t.id==='e2e-u1594-own').estado).toBe('en_proceso');
