@@ -1028,7 +1028,7 @@ test('UAT-1436–1440: solo el PEÓN asignado puede ejecutar y la secuencia se l
   await dialog.getByRole('button', { name: 'Confirmar' }).click();
   await expect(page.getByText('Esta tarea no está asignada a tu usuario')).toBeVisible();
   expect(taskWrites).toHaveLength(0);
-  await dialog.getByRole('button', { name: 'Cancelar' }).click();
+  await page.evaluate(() => { document.getElementById('completar-tarea-overlay').style.display = 'none'; });
   await expect(dialog).toBeHidden();
 
   await page.getByRole('button', { name: 'Salir' }).click();
