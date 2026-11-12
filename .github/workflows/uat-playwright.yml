@@ -74,7 +74,7 @@ jobs:
 
       - name: Ejecutar comprobaciones breves de Riego en PR
         if: github.event_name == 'pull_request' && steps.scope.outputs.riego == 'true'
-        run: pnpm exec playwright test tests/e2e/riego-quincena.spec.js --grep "UAT-1375|UAT-1376" --grep-invert "concurren|offline"
+        run: pnpm exec playwright test tests/e2e/riego-quincena.spec.js --grep "UAT-137[5-9]" --grep-invert "concurren|offline"
 
       - name: Ejecutar la suite UAT completa fuera de PR
         if: github.event_name != 'pull_request'
