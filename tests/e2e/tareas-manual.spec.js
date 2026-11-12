@@ -451,6 +451,7 @@ test('UAT-1266, UAT-1350–1355: acciones móviles y reasignación solo para pen
 
   await manual.getByTitle('Reasignar').click();
   const manualSelect = manual.getByTestId('tarea-reasignar-select');
+  expect(await manualSelect.evaluate(el => el.multiple)).toBe(false);
   await expect(manualSelect.locator('option[value="PEON2"]')).toHaveCount(1);
   await expect(manualSelect.locator('option[value="REGANTE1"]')).toHaveCount(1);
   await expect(manualSelect.locator('option[value="ADMIN"]')).toHaveCount(0);
@@ -459,6 +460,7 @@ test('UAT-1266, UAT-1350–1355: acciones móviles y reasignación solo para pen
 
   await riego.getByTitle('Reasignar').click();
   const riegoSelect = riego.getByTestId('tarea-reasignar-select');
+  expect(await riegoSelect.evaluate(el => el.multiple)).toBe(false);
   await expect(riegoSelect.locator('option[value="PEON1"]')).toHaveCount(1);
   await expect(riegoSelect.locator('option[value="PEON2"]')).toHaveCount(1);
   await expect(riegoSelect.locator('option[value="REGANTE1"]')).toHaveCount(0);
@@ -468,7 +470,7 @@ test('UAT-1266, UAT-1350–1355: acciones móviles y reasignación solo para pen
   expect(writes).toEqual([]);
 });
 
-test('UAT-1356–1359: cancelar no escribe y reasignar conserva ID y datos con roles válidos', async ({ page }) => {
+test('UAT-1356–1359, UAT-1363–1364: reasignación cancelable conserva historial, autor y aviso al nuevo usuario', async ({ page }) => {
   const todayISO = await fechaISOEnNavegador(page);
   const tasks = [{
     id: 'e2e-uat-1357-peon',
@@ -507,6 +509,7 @@ test('UAT-1356–1359: cancelar no escribe y reasignar conserva ID y datos con r
   const peonCard = card(tasks[0].titulo);
   await peonCard.getByTitle('Reasignar').click();
   const cancelSelect = peonCard.getByTestId('tarea-reasignar-select');
+  expect(await cancelSelect.evaluate(el => el.multiple)).toBe(false);
   await expect(cancelSelect.locator('option[value="ADMIN"]')).toHaveCount(0);
   await expect(cancelSelect.locator('option[value="TECNICO"]')).toHaveCount(0);
   await peonCard.getByRole('button', { name: 'Cancelar' }).click();
@@ -527,8 +530,9 @@ test('UAT-1356–1359: cancelar no escribe y reasignar conserva ID y datos con r
     calles: '1-2',
     asignadoA: 'PEON2',
     visto: false,
-    historialReasignaciones: [{ anterior: 'PEON1', nuevo: 'PEON2' }]
+    historialReasignaciones: [{ anterior: 'PEON1', nuevo: 'PEON2', por: 'E2E_ADMIN', fechaISO: todayISO }]
   });
+  expect(afterPeon.find(t => t.id === tasks[0].id).historialReasignaciones[0].fecha).toMatch(/.+/);
 
   const reganteCard = card(tasks[1].titulo);
   await reganteCard.getByTitle('Reasignar').click();
@@ -545,8 +549,9 @@ test('UAT-1356–1359: cancelar no escribe y reasignar conserva ID y datos con r
     inv: '0B',
     calles: '3-4',
     asignadoA: 'REGANTE1',
-    historialReasignaciones: [{ anterior: 'PEON1', nuevo: 'REGANTE1' }]
+    historialReasignaciones: [{ anterior: 'PEON1', nuevo: 'REGANTE1', por: 'E2E_ADMIN', fechaISO: todayISO }]
   });
+  expect(final.find(t => t.id === tasks[1].id).historialReasignaciones[0].fecha).toMatch(/.+/);
   expect(writes.filter(write => write.key === 'lasala-tareas-v1')).toHaveLength(2);
 });
 
