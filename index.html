@@ -5057,13 +5057,35 @@ const CONTROL_SECCIONES = [
   {key:'productos', label:'Check Prueba de Productos', icon:'ti-flask', color:'linear-gradient(135deg,#c47f00,#e0a530)', conCheck:false},
   // Conteo Tuta: tabla semanal (no checklist por día) — a petición de Paula
   // 2026-08-01, datos actualizados cada jueves.
-  {key:'conteo_tuta', label:'Conteo Tuta', icon:'ti-bug', color:'linear-gradient(135deg,#ad1457,#ec407a)', conCheck:false, tabla:true}
+  {key:'conteo_tuta', label:'Conteo Tuta', icon:'ti-bug', color:'linear-gradient(135deg,#ad1457,#ec407a)', conCheck:false, tabla:true, conteoTipo:'tuta'},
+  // Conteo Trips (de main, 2026-10-01, Vigueras): misma estructura semanal que Tuta, con sus campos propios.
+  {key:'conteo_trips', label:'Conteo Trips', icon:'ti-bug', color:'linear-gradient(135deg,#00838f,#4dd0e1)', conCheck:false, tabla:true, conteoTipo:'trips'}
 ];
 // Las secciones rotuladas Próximamente no pueden abrirse desde Control.
 function controlSeccionEsProximamente(s){ return !!s && !s.conCheck && !s.tabla; }
+// Conteos semanales (Tuta/Trips) — sistema genérico, un tipo por plaga (de main, 832b1d3/149eeda).
+// Cada tipo tiene su propia clave de datos y su propia LISTA EDITABLE de invernaderos/casetas.
+// Conteo Tuta conserva su clave de datos de siempre (lasala-conteo-tuta-v1) y usa como lista
+// inicial la que antes era fija (CONTEO_TUTA_FILAS_SEMILLA) hasta que alguien la edite.
+const CONTEO_TIPOS = {
+  tuta:  { label:'Conteo Tuta',  dataKey:'lasala-conteo-tuta-v1',  invsKey:'lasala-conteo-tuta-invs-v1',
+    campos:[
+      {key:'feromona', label:'Feromona', tipo:'fecha'},
+      {key:'placa', label:'Cambio placa', tipo:'fecha'},
+      {key:'conteo', label:'Conteo', tipo:'numero'}
+    ]},
+  trips: { label:'Conteo Trips', dataKey:'lasala-conteo-trips-v1', invsKey:'lasala-conteo-trips-invs-v1',
+    campos:[
+      {key:'placaColocacion', label:'Colocación placa', tipo:'fecha'},
+      {key:'placaCambio', label:'Cambio placa', tipo:'fecha'},
+      {key:'conteoParvispinus', label:'Trips Parvispinus', tipo:'numero'},
+      {key:'conteoOccidentalis', label:'Frankliniella occidentalis', tipo:'numero'},
+      {key:'conteoOtros', label:'Resto de familias', tipo:'numero'}
+    ]}
+};
 // Invernaderos/casetas de la trampa de Tuta — 19 y 20 tienen dos casetas
 // cada uno (verde y blanca), el resto una sola fila.
-const CONTEO_TUTA_FILAS = [
+const CONTEO_TUTA_FILAS_SEMILLA = [
   {key:'0A', label:'INV 0A'},
   {key:'0B', label:'INV 0B'},
   {key:'1A', label:'INV 1A'},
@@ -5079,164 +5101,216 @@ const CONTEO_TUTA_FILAS = [
   {key:'20-verde', label:'INV 20 — Caseta verde'},
   {key:'20-blanca', label:'INV 20 — Caseta blanca'}
 ];
+function conteoFilasSemilla(tipo){
+  return tipo==='tuta' ? CONTEO_TUTA_FILAS_SEMILLA.map(f=>({...f})) : [];
+}
 // Datos por SEMANA (a petición de Paula, 2026-08-01 — antes solo se
 // guardaba el último valor; ahora cada jueves crea/edita su propia semana,
-// para poder comparar entre semanas en el dashboard). conteoTutaData[dia]
-// = { [invCasetaKey]: {feromona, placa, conteo} } — "dia" es el mismo
-// contador de día que usa Riego/Túnel/Carga (riegoDiaDeHoy, etc.), aquí
-// representa la semana en la que Paula dio esos datos (normalmente jueves).
-const CONTEO_TUTA_KEY = 'lasala-conteo-tuta-v1';
-let conteoTutaData = {};
-async function loadConteoTutaData(){
-  try{ const r = await window.storage.get(CONTEO_TUTA_KEY); if(r) conteoTutaData = JSON.parse(r.value); }catch(e){}
+// para poder comparar entre semanas en el dashboard). data[dia] =
+// { [invCasetaKey]: {campo: valor} } — "dia" es el mismo contador de día
+// que usa Riego/Túnel/Carga (riegoDiaDeHoy, etc.), aquí representa la
+// semana en la que se dieron esos datos (normalmente jueves).
+let conteoEstado = {
+  tuta:  { data:{}, filas:[], quincenaOffset:0, diaSel:null, vista:'datos' },
+  trips: { data:{}, filas:[], quincenaOffset:0, diaSel:null, vista:'datos' }
+};
+async function loadConteoData(tipo){
+  try{ const r = await window.storage.get(CONTEO_TIPOS[tipo].dataKey); if(r) conteoEstado[tipo].data = JSON.parse(r.value); }catch(e){}
 }
-async function guardarConteoTutaCampo(dia,key,campo,valor){
-  const tx=await actualizarStorageJsonConEtag(CONTEO_TUTA_KEY,{},cloud=>{
+// La lista de invernaderos no se escribe al leerla: mientras no exista en la nube se usa la
+// inicial (la de Tuta de siempre; vacía en Trips) y se guarda al añadir o quitar el primero.
+async function loadConteoFilas(tipo){
+  let filas = null;
+  try{ const r = await window.storage.get(CONTEO_TIPOS[tipo].invsKey); if(r) filas = JSON.parse(r.value); }catch(e){}
+  conteoEstado[tipo].filas = Array.isArray(filas) ? filas : conteoFilasSemilla(tipo);
+}
+async function guardarFilasConteo(tipo, mutador){
+  const tx = await actualizarStorageJsonConEtag(CONTEO_TIPOS[tipo].invsKey, ()=>conteoFilasSemilla(tipo), cloud=>{
+    if(!Array.isArray(cloud)) cloud = conteoFilasSemilla(tipo);
+    return mutador(cloud);
+  });
+  if(!tx.ok){ avisarFalloGuardado(); return null; }
+  conteoEstado[tipo].filas = tx.value;
+  return tx;
+}
+async function anadirInvernaderoConteo(tipo){
+  const key = (prompt('Clave del invernadero/caseta (ej. 17, 19-verde):')||'').trim();
+  if(!key) return;
+  if(!/^[A-Za-z0-9_-]+$/.test(key)){ showToast('La clave solo puede llevar letras, números y guiones'); return; }
+  const label = (prompt('Nombre a mostrar:', 'INV '+key)||'').trim() || ('INV '+key);
+  const tx = await guardarFilasConteo(tipo, cloud=>cloud.some(f=>f.key===key) ? undefined : [...cloud,{key,label}]);
+  if(!tx) return;
+  if(tx.noChange) showToast('Ya existe ese invernadero en la lista');
+  renderControlContent(document.getElementById('control-overlay'));
+}
+async function quitarInvernaderoConteo(tipo, key){
+  if(!confirm('¿Quitar este invernadero de la lista del conteo?\n\nLos datos ya guardados de semanas anteriores no se borran, solo deja de aparecer para introducir datos nuevos.')) return;
+  const tx = await guardarFilasConteo(tipo, cloud=>cloud.some(f=>f.key===key) ? cloud.filter(f=>f.key!==key) : undefined);
+  if(!tx) return;
+  renderControlContent(document.getElementById('control-overlay'));
+}
+async function guardarConteoCampo(tipo, dia, key, campo, valor){
+  const tx=await actualizarStorageJsonConEtag(CONTEO_TIPOS[tipo].dataKey,{},cloud=>{
     if(!cloud||typeof cloud!=='object'||Array.isArray(cloud)) cloud={};
     cloud[dia]=cloud[dia]||{};
     cloud[dia][key]={...(cloud[dia][key]||{}),[campo]:valor};
     return cloud;
   });
   if(!tx.ok){ avisarFalloGuardado(); return false; }
-  conteoTutaData=tx.value;
+  conteoEstado[tipo].data=tx.value;
   showToast('✓ Guardado');
   return true;
 }
-let conteoTutaQuincenaOffset = 0;
-let conteoTutaDiaSel = null;
-let conteoTutaVista = 'datos'; // 'datos' | 'dashboard'
-function cambiarConteoTutaQuincena(delta){
-  conteoTutaQuincenaOffset = Math.max(0, conteoTutaQuincenaOffset + delta);
-  conteoTutaDiaSel = null;
+function cambiarConteoQuincena(tipo, delta){
+  conteoEstado[tipo].quincenaOffset = Math.max(0, conteoEstado[tipo].quincenaOffset + delta);
+  conteoEstado[tipo].diaSel = null;
   renderControlContent(document.getElementById('control-overlay'));
 }
-function cambiarConteoTutaDia(dia){
-  conteoTutaDiaSel = parseInt(dia,10);
+function cambiarConteoDia(tipo, dia){
+  conteoEstado[tipo].diaSel = parseInt(dia,10);
   renderControlContent(document.getElementById('control-overlay'));
 }
-function cambiarConteoTutaVista(vista){
-  conteoTutaVista = vista;
+function cambiarConteoVista(tipo, vista){
+  conteoEstado[tipo].vista = vista;
   renderControlContent(document.getElementById('control-overlay'));
 }
-// El conteo de Tuta solo se hace los jueves de cada semana — a petición de
-// Paula, 2026-08-10, no tiene sentido que aparezcan el resto de días. Un día
-// es "jueves" si riegoDiaToDate(d).getDay()===4 (0=domingo..6=sábado, JS
-// Date estándar).
-function esJuevesConteoTuta(dia){
+// El conteo solo se hace los jueves de cada semana — a petición de Paula,
+// 2026-08-10, no tiene sentido que aparezcan el resto de días. Un día es
+// "jueves" si riegoDiaToDate(d).getDay()===4 (0=domingo..6=sábado, JS Date
+// estándar).
+function esJuevesConteo(dia){
   return riegoDiaToDate(dia).getDay()===4;
 }
-function renderControlConteoTutaHTML(seccion){
-  const diasQ = riegoQuincenaDias(conteoTutaQuincenaOffset).filter(esJuevesConteoTuta);
-  if(conteoTutaDiaSel==null || !diasQ.includes(conteoTutaDiaSel)) conteoTutaDiaSel = diasQ.includes(riegoDiaDeHoy()) ? riegoDiaDeHoy() : diasQ[0];
+function renderControlConteoHTML(tipo, seccion){
+  const est = conteoEstado[tipo];
+  const diasQ = riegoQuincenaDias(est.quincenaOffset).filter(esJuevesConteo);
+  if(est.diaSel==null || !diasQ.includes(est.diaSel)) est.diaSel = diasQ.includes(riegoDiaDeHoy()) ? riegoDiaDeHoy() : diasQ[0];
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-  const tabBtn = (v,label) => `<button onclick="cambiarConteoTutaVista('${v}')" style="padding:9px 18px;border-radius:8px 8px 0 0;font-size:12px;font-weight:800;border:none;cursor:pointer;background:${conteoTutaVista===v?seccion.color:'#e8e2dc'};color:${conteoTutaVista===v?'#fff':'var(--muted)'}">${label}</button>`;
+  const tabBtn = (v,label) => `<button onclick="cambiarConteoVista('${tipo}','${v}')" style="padding:9px 18px;border-radius:8px 8px 0 0;font-size:12px;font-weight:800;border:none;cursor:pointer;background:${est.vista===v?seccion.color:'#e8e2dc'};color:${est.vista===v?'#fff':'var(--muted)'}">${label}</button>`;
   const header = `
-    <div style="margin-bottom:1.1rem">
-      <h2 style="font-size:22px;font-weight:800;color:var(--text);margin-bottom:4px">${seccion.label}</h2>
-      <p style="font-size:12px;color:var(--muted)">Datos actualizados semanalmente (cada jueves).</p>
+    <div style="margin-bottom:1.1rem;display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px">
+      <div>
+        <h2 style="font-size:22px;font-weight:800;color:var(--text);margin-bottom:4px">${seccion.label}</h2>
+        <p style="font-size:12px;color:var(--muted)">Datos actualizados semanalmente (cada jueves).</p>
+      </div>
+      <button onclick="anadirInvernaderoConteo('${tipo}')" class="btn-elevado" style="padding:9px 16px;font-size:12px;font-weight:700;background:${seccion.color};color:#fff;border:none;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;gap:6px">
+        <i class="ti ti-plus" style="font-size:14px"></i> Invernadero
+      </button>
     </div>
     <div style="display:flex;gap:4px">${tabBtn('datos','📋 Introducir datos')}${tabBtn('dashboard','📊 Dashboard')}</div>`;
 
-  if(conteoTutaVista === 'dashboard') return header + renderConteoTutaDashboardHTML(seccion);
+  if(est.vista === 'dashboard') return header + renderConteoDashboardHTML(tipo, seccion);
 
   const diaBotones = diasQ.map(d=>`
-    <button onclick="cambiarConteoTutaDia(${d})" style="flex-shrink:0;padding:8px 12px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid ${d===conteoTutaDiaSel?'transparent':'var(--border)'};background:${d===conteoTutaDiaSel?seccion.color:'#fff'};color:${d===conteoTutaDiaSel?'#fff':'var(--text)'}">
+    <button onclick="cambiarConteoDia('${tipo}',${d})" style="flex-shrink:0;padding:8px 12px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid ${d===est.diaSel?'transparent':'var(--border)'};background:${d===est.diaSel?seccion.color:'#fff'};color:${d===est.diaSel?'#fff':'var(--text)'}">
       ${riegoDiaLabelCorto(d)}<br><span style="font-weight:600;opacity:.85">${riegoDiaSemana(d)}</span>
     </button>`).join('');
 
-  const datosSemana = conteoTutaData[conteoTutaDiaSel] || {};
-  const tarjetas = CONTEO_TUTA_FILAS.map(f=>{
+  const datosSemana = est.data[est.diaSel] || {};
+  const camposFecha = CONTEO_TIPOS[tipo].campos.filter(c=>c.tipo==='fecha');
+  const camposNumero = CONTEO_TIPOS[tipo].campos.filter(c=>c.tipo==='numero');
+  const tarjetas = est.filas.map(f=>{
     const d = datosSemana[f.key] || {};
+    const fechasHTML = camposFecha.map(c=>`
+        <div>
+          <label style="font-size:9px;font-weight:800;opacity:.85;text-transform:uppercase;letter-spacing:.03em;display:block;margin-bottom:3px">${escapar(c.label)}</label>
+          <input type="date" value="${escapar(d[c.key])}" onchange="guardarConteoCampo('${tipo}',${est.diaSel},'${f.key}','${c.key}',this.value)" style="width:100%;padding:6px 7px;border:none;border-radius:6px;font-size:11px;background:rgba(255,255,255,.92);color:#1a1e18">
+        </div>`).join('');
+    const numerosHTML = camposNumero.map(c=>`
+      <div style="margin-top:8px;position:relative">
+        <label style="font-size:9px;font-weight:800;opacity:.85;text-transform:uppercase;letter-spacing:.03em;display:block;margin-bottom:3px">${escapar(c.label)}</label>
+        <input type="number" placeholder="0" value="${escapar(d[c.key])}" onchange="guardarConteoCampo('${tipo}',${est.diaSel},'${f.key}','${c.key}',this.value)" style="width:100%;padding:6px 7px;border:none;border-radius:6px;font-size:11px;background:rgba(255,255,255,.92);color:#1a1e18">
+      </div>`).join('');
     return `
     <div style="border-radius:14px;padding:14px 16px;background:${seccion.color};color:#fff;box-shadow:var(--shadow-sm);position:relative;overflow:hidden">
+      <button onclick="quitarInvernaderoConteo('${tipo}','${f.key}')" title="Quitar de la lista" style="position:absolute;top:8px;right:8px;width:20px;height:20px;padding:0;background:rgba(255,255,255,.2);color:#fff;border:none;border-radius:5px;font-size:11px;cursor:pointer;z-index:1">🗑️</button>
       <div style="position:absolute;right:-18px;top:-18px;width:80px;height:80px;background:rgba(255,255,255,.08);border-radius:50%;pointer-events:none"></div>
-      <div style="font-size:14px;font-weight:800;margin-bottom:10px;position:relative">${escapar(f.label)}</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;position:relative">
-        <div>
-          <label style="font-size:9px;font-weight:800;opacity:.85;text-transform:uppercase;letter-spacing:.03em;display:block;margin-bottom:3px">Feromona</label>
-          <input type="date" value="${escapar(d.feromona)}" onchange="guardarConteoTutaCampo(${conteoTutaDiaSel},'${f.key}','feromona',this.value)" style="width:100%;padding:6px 7px;border:none;border-radius:6px;font-size:11px;background:rgba(255,255,255,.92);color:#1a1e18">
-        </div>
-        <div>
-          <label style="font-size:9px;font-weight:800;opacity:.85;text-transform:uppercase;letter-spacing:.03em;display:block;margin-bottom:3px">Cambio placa</label>
-          <input type="date" value="${escapar(d.placa)}" onchange="guardarConteoTutaCampo(${conteoTutaDiaSel},'${f.key}','placa',this.value)" style="width:100%;padding:6px 7px;border:none;border-radius:6px;font-size:11px;background:rgba(255,255,255,.92);color:#1a1e18">
-        </div>
-      </div>
-      <div style="margin-top:8px;position:relative">
-        <label style="font-size:9px;font-weight:800;opacity:.85;text-transform:uppercase;letter-spacing:.03em;display:block;margin-bottom:3px">Conteo</label>
-        <input type="number" placeholder="0" value="${escapar(d.conteo)}" onchange="guardarConteoTutaCampo(${conteoTutaDiaSel},'${f.key}','conteo',this.value)" style="width:100%;padding:6px 7px;border:none;border-radius:6px;font-size:11px;background:rgba(255,255,255,.92);color:#1a1e18">
-      </div>
+      <div style="font-size:14px;font-weight:800;margin-bottom:10px;position:relative;padding-right:22px">${escapar(f.label)}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;position:relative">${fechasHTML}</div>
+      ${numerosHTML}
     </div>`;
   }).join('');
 
   return header + `
     <div style="background:#fff;border:1.5px solid var(--border);border-top:none;border-radius:0 0 12px 12px;padding:1.25rem">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-        <button onclick="cambiarConteoTutaQuincena(-1)" ${conteoTutaQuincenaOffset<=0?'disabled style="opacity:.35;cursor:default"':'style="cursor:pointer"'} style="background:#fff;border:1.5px solid var(--border);border-radius:6px;width:26px;height:26px">&#8249;</button>
-        <span style="font-size:11px;font-weight:700;color:var(--muted)">Quincena ${conteoTutaQuincenaOffset+1} · ${riegoQuincenaLabel(conteoTutaQuincenaOffset)}</span>
-        <button onclick="cambiarConteoTutaQuincena(1)" style="background:#fff;border:1.5px solid var(--border);border-radius:6px;width:26px;height:26px;cursor:pointer">&#8250;</button>
+        <button onclick="cambiarConteoQuincena('${tipo}',-1)" ${est.quincenaOffset<=0?'disabled style="opacity:.35;cursor:default"':'style="cursor:pointer"'} style="background:#fff;border:1.5px solid var(--border);border-radius:6px;width:26px;height:26px">&#8249;</button>
+        <span style="font-size:11px;font-weight:700;color:var(--muted)">Quincena ${est.quincenaOffset+1} · ${riegoQuincenaLabel(est.quincenaOffset)}</span>
+        <button onclick="cambiarConteoQuincena('${tipo}',1)" style="background:#fff;border:1.5px solid var(--border);border-radius:6px;width:26px;height:26px;cursor:pointer">&#8250;</button>
       </div>
       <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:1rem">${diaBotones}</div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px">${tarjetas}</div>
+      ${est.filas.length===0
+        ? `<div style="text-align:center;padding:2.5rem;color:var(--muted);font-style:italic;font-size:13px">Todavía no hay invernaderos en esta lista. Pulsa "+ Invernadero" para añadir el primero.</div>`
+        : `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px">${tarjetas}</div>`}
     </div>`;
 }
 // Dashboard comparativo (a petición de Paula, 2026-08-01): un mini gráfico
 // de barras + % de subida/bajada del conteo respecto a la semana anterior,
-// por cada invernadero/caseta — usa TODAS las semanas que tengan algún dato
-// guardado (no solo la quincena actual), mostrando como máximo las últimas
-// 8 para que el gráfico no quede ilegible.
-function renderConteoTutaDashboardHTML(seccion){
-  const semanas = Object.keys(conteoTutaData).map(Number).sort((a,b)=>a-b);
+// por cada invernadero/caseta y por cada campo numérico — usa TODAS las
+// semanas que tengan algún dato guardado (no solo la quincena actual),
+// mostrando como máximo las últimas 8 para que el gráfico no quede ilegible.
+function renderConteoDashboardHTML(tipo, seccion){
+  const est = conteoEstado[tipo];
+  const semanas = Object.keys(est.data).map(Number).sort((a,b)=>a-b);
   if(!semanas.length){
     return `<div style="background:#fff;border:1.5px solid var(--border);border-top:none;border-radius:0 0 12px 12px;padding:2rem;text-align:center;color:var(--muted);font-style:italic;font-size:13px">Todavía no hay datos de ninguna semana.</div>`;
   }
   const ultimas = semanas.slice(-8);
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const filasHTML = CONTEO_TUTA_FILAS.map(f=>{
-    const valores = ultimas.map(dia=>{
-      const v = conteoTutaData[dia]?.[f.key]?.conteo;
-      return (v!=null && v!=='') ? parseFloat(v) : null;
-    });
-    const conocidos = valores.filter(v=>v!=null);
-    const max = Math.max(1, ...conocidos);
-    const ultimo = valores[valores.length-1];
-    const penultimo = [...valores].slice(0,-1).reverse().find(v=>v!=null);
-    let cambioHTML = '<span style="font-size:11px;color:var(--muted)">—</span>';
-    if(ultimo!=null && penultimo!=null){
-      if(penultimo===0){
-        cambioHTML = ultimo>0 ? `<span style="font-size:11px;font-weight:800;color:#c62828">nuevo</span>` : `<span style="font-size:11px;font-weight:800;color:#2e7d32">0</span>`;
-      } else {
-        const pct = Math.round(((ultimo-penultimo)/penultimo)*100);
-        const subida = pct > 0;
-        cambioHTML = `<span style="font-size:11px;font-weight:800;color:${subida?'#c62828':(pct<0?'#2e7d32':'var(--muted)')}">${subida?'▲':(pct<0?'▼':'=')} ${Math.abs(pct)}%</span>`;
+  const camposNumero = CONTEO_TIPOS[tipo].campos.filter(c=>c.tipo==='numero');
+  const bloquesHTML = camposNumero.map(campo=>{
+    const filasHTML = est.filas.map(f=>{
+      const valores = ultimas.map(dia=>{
+        const v = est.data[dia]?.[f.key]?.[campo.key];
+        return (v!=null && v!=='') ? parseFloat(v) : null;
+      });
+      const conocidos = valores.filter(v=>v!=null);
+      const max = Math.max(1, ...conocidos);
+      const ultimo = valores[valores.length-1];
+      const penultimo = [...valores].slice(0,-1).reverse().find(v=>v!=null);
+      let cambioHTML = '<span style="font-size:11px;color:var(--muted)">—</span>';
+      if(ultimo!=null && penultimo!=null){
+        if(penultimo===0){
+          cambioHTML = ultimo>0 ? `<span style="font-size:11px;font-weight:800;color:#c62828">nuevo</span>` : `<span style="font-size:11px;font-weight:800;color:#2e7d32">0</span>`;
+        } else {
+          const pct = Math.round(((ultimo-penultimo)/penultimo)*100);
+          const subida = pct > 0;
+          cambioHTML = `<span style="font-size:11px;font-weight:800;color:${subida?'#c62828':(pct<0?'#2e7d32':'var(--muted)')}">${subida?'▲':(pct<0?'▼':'=')} ${Math.abs(pct)}%</span>`;
+        }
       }
-    }
-    const barrasHTML = ultimas.map((dia,i)=>{
-      const v = valores[i];
-      const alturaPct = v!=null ? Math.max(6, Math.round((v/max)*100)) : 2;
-      return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0">
-        <div style="width:100%;height:56px;display:flex;align-items:flex-end">
-          <div title="${riegoDiaLabelCorto(dia)}: ${v!=null?v:'sin dato'}" style="width:100%;height:${alturaPct}%;background:${v!=null?seccion.color:'#e0e0e0'};border-radius:4px 4px 0 0;min-height:2px"></div>
+      const barrasHTML = ultimas.map((dia,i)=>{
+        const v = valores[i];
+        const alturaPct = v!=null ? Math.max(6, Math.round((v/max)*100)) : 2;
+        return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0">
+          <div style="width:100%;height:56px;display:flex;align-items:flex-end">
+            <div title="${riegoDiaLabelCorto(dia)}: ${v!=null?v:'sin dato'}" style="width:100%;height:${alturaPct}%;background:${v!=null?seccion.color:'#e0e0e0'};border-radius:4px 4px 0 0;min-height:2px"></div>
+          </div>
+          <div style="font-size:8px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${riegoDiaLabelCorto(dia)}</div>
+        </div>`;
+      }).join('');
+      return `
+      <div style="border:1.5px solid var(--border);border-radius:12px;padding:12px 14px;background:#fff">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px">
+          <div style="font-size:13px;font-weight:800;color:var(--text)">${escapar(f.label)}</div>
+          <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+            <span style="font-size:16px;font-weight:800;color:var(--text)">${ultimo!=null?ultimo:'—'}</span>
+            ${cambioHTML}
+          </div>
         </div>
-        <div style="font-size:8px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${riegoDiaLabelCorto(dia)}</div>
+        <div style="display:flex;gap:4px;align-items:flex-end">${barrasHTML}</div>
       </div>`;
     }).join('');
     return `
-    <div style="border:1.5px solid var(--border);border-radius:12px;padding:12px 14px;background:#fff">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px">
-        <div style="font-size:13px;font-weight:800;color:var(--text)">${escapar(f.label)}</div>
-        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
-          <span style="font-size:16px;font-weight:800;color:var(--text)">${ultimo!=null?ultimo:'—'}</span>
-          ${cambioHTML}
-        </div>
-      </div>
-      <div style="display:flex;gap:4px;align-items:flex-end">${barrasHTML}</div>
+    <div style="margin-bottom:1.5rem">
+      <div style="font-size:13px;font-weight:800;color:var(--text);margin-bottom:.6rem">${escapar(campo.label)}</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px">${filasHTML}</div>
     </div>`;
   }).join('');
   return `
     <div style="background:#fff;border:1.5px solid var(--border);border-top:none;border-radius:0 0 12px 12px;padding:1.25rem">
-      <div style="font-size:11px;color:var(--muted);margin-bottom:1rem">Comparativa de conteo (últimas ${ultimas.length} semana${ultimas.length===1?'':'s'} con datos) — <span style="color:#c62828;font-weight:800">▲ rojo</span> sube la captura, <span style="color:#2e7d32;font-weight:800">▼ verde</span> baja.</div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px">${filasHTML}</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:1rem">Comparativa (últimas ${ultimas.length} semana${ultimas.length===1?'':'s'} con datos) — <span style="color:#c62828;font-weight:800">▲ rojo</span> sube la captura, <span style="color:#2e7d32;font-weight:800">▼ verde</span> baja.</div>
+      ${bloquesHTML}
     </div>`;
 }
 // ════════════════════════════════════════════════════════════════
@@ -6595,7 +6669,7 @@ async function showControlModule(){
   controlTunelInvFiltro='';
   const [v2ok] = await Promise.all([
     loadControlV2Index(false),
-    ...(esCargador?[]:[loadConteoTutaData(),loadControlInvernaderoData()])
+    ...(esCargador?[]:[loadConteoData('tuta'),loadConteoFilas('tuta'),loadConteoData('trips'),loadConteoFilas('trips'),loadControlInvernaderoData()])
   ]);
   if(!v2ok) await loadControlChecksData(false);
 
@@ -6648,10 +6722,11 @@ async function seleccionarSeccionControl(sec){
       controlWizardEnfermedades=false;
       controlWizardVista='partidas';
     }
-    if(sec==='conteo_tuta'){
-      conteoTutaQuincenaOffset=offset;
-      conteoTutaDiaSel=riegoDiaDeHoy();
-      conteoTutaVista='datos';
+    if(sec==='conteo_tuta'||sec==='conteo_trips'){
+      const tipoConteo=sec==='conteo_tuta'?'tuta':'trips';
+      conteoEstado[tipoConteo].quincenaOffset=offset;
+      conteoEstado[tipoConteo].diaSel=riegoDiaDeHoy();
+      conteoEstado[tipoConteo].vista='datos';
     }
     renderControlContent(document.getElementById('control-overlay'));
   });
@@ -6803,7 +6878,7 @@ let controlWizardEnfermedades = false; // sub-paso de Sanidad→Enferma
 let controlWizardVista = 'partidas'; // 'partidas' | 'dashboard' (a petición de Vigueras, 2026-09-15: conservar el dashboard del día también en el wizard)
 function renderControlSeccionHTML(seccion){
   if(!seccion) return '';
-  if(seccion.tabla) return renderControlConteoTutaHTML(seccion);
+  if(seccion.tabla) return renderControlConteoHTML(seccion.conteoTipo, seccion);
   if(seccion.key==='invernadero') return renderControlInvernaderoHTML();
   if(seccion.key==='tunel') return renderControlChecklistHTML(seccion); // 0.106: misma vista para todos; wizard queda histórico inactivo
   if(!seccion.conCheck){
