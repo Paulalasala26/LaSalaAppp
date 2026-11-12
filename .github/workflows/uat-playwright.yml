@@ -79,7 +79,7 @@ jobs:
 
       - name: Ejecutar spec de Tareas en PR
         if: github.event_name == 'pull_request' && steps.scope.outputs.tasks == 'true'
-        run: pnpm exec playwright test tests/e2e/tareas-manual.spec.js --grep "UAT-1448"
+        run: pnpm exec playwright test tests/e2e/tareas-manual.spec.js --grep "UAT-1448|UAT-1449|UAT-1450"
 
       - name: Ejecutar checks de Específicos en PR
         if: github.event_name == 'pull_request' && steps.scope.outputs.specifics == 'true'
