@@ -1658,7 +1658,7 @@ test('UAT-1493–1494, UAT-1496, UAT-1501–1503, UAT-1509 y UAT-1510: ADMIN y T
     await openTasks(page);
     const overlay = page.locator('#tareas-overlay');
     const title = overlay.locator('[style*="var(--grad-blue)"] > div').first();
-    const close = overlay.getByRole('button', { name: /✕ Cerrar/ });
+    const close = overlay.getByRole('button', { name: 'Cerrar Operativas' });
     await expect(title).toBeVisible();
     await expect(close).toBeVisible();
     const titleBox = await title.boundingBox();
@@ -1691,13 +1691,13 @@ test('UAT-1493–1494, UAT-1496, UAT-1501–1503, UAT-1509 y UAT-1510: ADMIN y T
     await ticketForm.getByRole('button', { name: 'Cancelar' }).click();
     await expect(ticketForm).toBeEmpty();
     if (user === 'E2E_ADMIN') {
-      await overlay.getByRole('button', { name: /✕ Cerrar/ }).click();
+      await overlay.getByRole('button', { name: 'Cerrar Operativas' }).click();
       await expect(overlay).toBeHidden();
       await openTasks(page);
       await overlay.getByRole('button', { name: 'Mantenimiento de Parcelas' }).click();
       await expect(overlay).toContainText('0 tickets abiertos');
     }
-    await overlay.getByRole('button', { name: /✕ Cerrar/ }).click();
+    await overlay.getByRole('button', { name: 'Cerrar Operativas' }).click();
     await expect(overlay).toBeHidden();
   }
 
@@ -2073,11 +2073,11 @@ test('UAT-1734, UAT-1735, UAT-1736–1737, UAT-1740, UAT-1742 y UAT-1744: Archiv
   await openArchive();
   await openArchive();
 
-  await overlay.getByRole('button', { name: /✕ Cerrar/ }).click();
+  await overlay.getByRole('button', { name: 'Cerrar Operativas' }).click();
   await expect(overlay).toBeHidden();
   await openTasks(page);
   await openArchive();
-  await overlay.getByRole('button', { name: /✕ Cerrar/ }).click();
+  await overlay.getByRole('button', { name: 'Cerrar Operativas' }).click();
   await expect(overlay).toBeHidden();
 
   await page.getByRole('button', { name: 'Salir' }).click();
@@ -2930,7 +2930,7 @@ test('UAT-1365–1366: la tarea reasignada sale del operario anterior y aparece 
   await card.getByRole('button', { name: 'Confirmar' }).click();
   await expect.poll(() => JSON.parse(database['lasala-tareas-v1'])[0].asignadoA).toBe('PEON2');
 
-  await overlay.getByRole('button', { name: /✕ Cerrar/ }).click();
+  await overlay.getByRole('button', { name: 'Cerrar Operativas' }).click();
   const loginAs = async user => {
     await page.getByRole('button', { name: 'Salir' }).click();
     await expect(page.locator('#login-screen')).toBeVisible();
