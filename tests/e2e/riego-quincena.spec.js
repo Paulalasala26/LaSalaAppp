@@ -1228,3 +1228,23 @@ test('UAT-1377–1379 y UAT-1403: Trabajo reconocido aparece sin acción masiva'
   await tareasOverlay.getByRole('button', { name: 'Tareas de mañana' }).click();
   await expect.soft(tareasOverlay.locator('#tareas-gestor-content-wrap .tarea-card')).toHaveCount(1);
 });
+
+
+test('UAT-1426: consultar Hojas de riego como REGANTE no genera tareas PEÓN', async ({ page }) => {
+  const database = fixtureDatabase({ user: 'REGANTE2', role: 'REGANTE' });
+  database['lasala-tareas-v1'] = JSON.stringify([]);
+  const { overlay, unexpectedHosts, writes } = await openRiego(page, database, {
+    user: 'REGANTE2',
+    quickAction: 'hojas-riego'
+  });
+
+  const celda = page.locator('#riego-grid-wrap td').filter({ hasText: 'E2E-RIEGO-DIA-31' }).first();
+  await celda.click();
+  const consulta = page.locator('#riego-consulta-overlay');
+  await expect(consulta).toBeVisible();
+  await expect(consulta.getByTestId('riego-consulta-texto')).toHaveText('E2E-RIEGO-DIA-31');
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([]);
+  expect(writes.filter(write => write.path === 'lasala-tareas-v1')).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+  await expect(overlay).toBeVisible();
+});
