@@ -3190,6 +3190,7 @@ test('UAT-1397–1398: conciliar calles nuevas conserva la reasignación manual'
   expect(tarea.id).toBe(manual.id);
   expect(tarea.asignadoA).toBe('PEON1');
   expect(tarea.calles).toBe('C/1703');
+  expect(tarea.callesOrigenRiego).toEqual([3]);
 
   await page.evaluate(async () => {
     await loadRiegoData();
@@ -3199,5 +3200,5 @@ test('UAT-1397–1398: conciliar calles nuevas conserva la reasignación manual'
   expect(tareas).toHaveLength(1);
   tarea = tareas[0];
   expect({ id: tarea.id, asignadoA: tarea.asignadoA, calles: tarea.calles, asignacionManual: tarea.asignacionManual })
-    .toEqual({ id: manual.id, asignadoA: 'PEON1', calles: 'C/1703', asignacionManual: true });
+    .toEqual({ id: manual.id, asignadoA: 'PEON1', calles: 'C/1703', asignacionManual: true, callesOrigenRiego: [3] });
 });
