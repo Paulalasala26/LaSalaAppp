@@ -55,10 +55,10 @@ jobs:
             });
             const paths = new Set((commit.data.files || []).map(file => file.filename));
             const workflowChanged = paths.has('.github/workflows/uat-playwright.yml');
-            core.setOutput('control', String(paths.has('index.html') || paths.has('tests/e2e/control-quincena.spec.js')));
-            core.setOutput('auth', String(paths.has('index.html') || paths.has('tests/e2e/auth-roles.spec.js')));
-            core.setOutput('tasks', String(paths.has('tests/e2e/tareas-manual.spec.js')));
-            core.setOutput('riego', String(paths.has('index.html') || paths.has('tests/e2e/riego-quincena.spec.js')));
+            core.setOutput('control', String(paths.has('tests/e2e/control-quincena.spec.js')));
+            core.setOutput('auth', String(paths.has('tests/e2e/auth-roles.spec.js')));
+            core.setOutput('tasks', String(paths.has('tests/e2e/tareas-manual.spec.js') || paths.has('index.html')));
+            core.setOutput('riego', String(paths.has('tests/e2e/riego-quincena.spec.js')));
             core.setOutput('fito', String(workflowChanged || paths.has('index.html') || paths.has('tests/e2e/fito-quincena.spec.js')));
 
       - name: Ejecutar Control QC en PR

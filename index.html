@@ -2907,6 +2907,7 @@ function confirmarImprimirTareasSeleccionadas(){
 function imprimirTareaSuelta(id){
   const t = tareasData.find(x=>x.id===id);
   if(!t){ showToast('Tarea no encontrada'); return; }
+  if(t.categoria==='fumigacion'){ imprimirHojaFumigacionTarea(id); return; }
   imprimirTareas([t]);
 }
 function imprimirTareas(tareasConPosiblesDuplicados){
@@ -2915,11 +2916,11 @@ function imprimirTareas(tareasConPosiblesDuplicados){
   // tarea salga una sola vez en la hoja impresa.
   const vistos = new Set();
   const tareas = tareasConPosiblesDuplicados.filter(t=>{
-    if(vistos.has(t.id)) return false;
+    if(t.categoria==='fumigacion' || vistos.has(t.id)) return false;
     vistos.add(t.id);
     return true;
   });
-  if(!tareas.length){ showToast('No hay tareas para imprimir'); return; }
+  if(!tareas.length){ showToast('No hay tareas ordinarias para imprimir'); return; }
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   // Mismo trabajo (mismo título) + mismo día + mismo horario: salen juntos
   // en UNA sola hoja, con un bloque INV→calles por cada invernadero, en vez
@@ -3787,6 +3788,10 @@ async function completarFumigacion(id){
 function imprimirHojaFumigacionTarea(id){
   const t = tareasData.find(x=>x.id===id);
   if(!t) return;
+  if(!Number.isFinite(Number(t.caldoLitros)) || Number(t.caldoLitros)<=0){
+    showToast('Faltan los litros reales de caldo; no se imprimió la hoja fitosanitaria.');
+    return;
+  }
   const listaObjetivos = (t.objetivos && t.objetivos.length) ? t.objetivos : [{inv:t.inv, calles:t.calles}];
   imprimirHojaFitoConDatos({
     producto: t.producto||'', dosis: t.dosis||'', caldoLitros: t.caldoLitros||null, caldoLabel: t.caldoLabel||'',

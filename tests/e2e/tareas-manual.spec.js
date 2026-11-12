@@ -3341,3 +3341,69 @@ test('UAT-1409: repetir asignación Pistola no duplica el mismo origen Fito', as
   expect(tareas).toHaveLength(1);
   expect(tareas[0].origenFito).toBeTruthy();
 });
+
+
+test('UAT-1410: la tarea Pistola ofrece abrir su jornada de origen', async ({ page }) => {
+  test.fail(true, 'La tarjeta solo ofrece Ver hoja; no hay vínculo ni acción Ver jornada hacia Plaguicidas.');
+  const todayISO = await fechaISOEnNavegador(page);
+  const task = { id:'e2e-uat-1410', titulo:'E2E Pistola 1410', asignadoA:'PEON1', origen:'pistola', categoria:'fumigacion', fechaISO:todayISO, estado:'pendiente', producto:'E2E', dosis:'1 cc/l', caldoLitros:25, caldoLabel:'25L', objetivos:[{inv:'1A',calles:'C/102'}] };
+  await installFixture(page, { 'lasala-tareas-v1': JSON.stringify([task]) });
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  await overlay.getByRole('button', { name:/Tareas de hoy/ }).click();
+  const card = overlay.locator('.tarea-card').filter({ hasText:task.titulo });
+  await expect(card.getByRole('button', { name:/Ver jornada/i })).toHaveCount(1, { timeout:800 });
+});
+
+test('UAT-1412: Pistola imprime el parte fitosanitario individual', async ({ page }) => {
+  await page.addInitScript(() => { window.print = () => {}; });
+  const todayISO = await fechaISOEnNavegador(page);
+  const task = { id:'e2e-uat-1412', titulo:'E2E Pistola 1412', asignadoA:'PEON1', asignadoPor:'E2E_ADMIN', origen:'pistola', categoria:'fumigacion', fechaISO:todayISO, fecha:'hoy', estado:'pendiente', producto:'E2E-TRATAMIENTO-1412', dosis:'1 cc/l', caldoLitros:25, caldoLabel:'25L', objetivos:[{inv:'1A',calles:'C/102'}] };
+  const { database, writes } = await installFixture(page, { 'lasala-tareas-v1': JSON.stringify([task]) });
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  await overlay.getByRole('button', { name:/Tareas de hoy/ }).click();
+  const card = overlay.locator('.tarea-card').filter({ hasText:task.titulo });
+  await card.getByTitle('Imprimir').click();
+  await expect.poll(() => page.evaluate(() => document.querySelector('#print-fito-iframe')?.contentDocument?.title || '')).toBe('Tratamientos con plaguicidas');
+  const printed = await page.evaluate(() => document.querySelector('#print-fito-iframe')?.contentDocument?.body?.innerText || '');
+  expect(printed).toContain('E2E-TRATAMIENTO-1412');
+  expect(printed).toContain('INV 1A');
+  expect(printed).toContain('C/102');
+  await expect(page.locator('#print-tareas-iframe')).toHaveCount(0);
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([task]);
+  expect(writes).toEqual([]);
+});
+
+test('UAT-1413: Pistola sin litros reales bloquea la impresión y avisa', async ({ page }) => {
+  await page.addInitScript(() => { window.print = () => {}; });
+  const todayISO = await fechaISOEnNavegador(page);
+  const task = { id:'e2e-uat-1413', titulo:'E2E Pistola 1413', asignadoA:'PEON1', asignadoPor:'E2E_ADMIN', origen:'pistola', categoria:'fumigacion', fechaISO:todayISO, estado:'pendiente', producto:'E2E-TRATAMIENTO-1413', dosis:'1 cc/l', caldoLitros:null, caldoLabel:'', objetivos:[{inv:'1A',calles:'C/102'}] };
+  const { database, writes } = await installFixture(page, { 'lasala-tareas-v1': JSON.stringify([task]) });
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  await overlay.getByRole('button', { name:/Tareas de hoy/ }).click();
+  const card = overlay.locator('.tarea-card').filter({ hasText:task.titulo });
+  await card.getByTitle('Imprimir').click();
+  await expect(page.locator('#app-toast')).toHaveText('Faltan los litros reales de caldo; no se imprimió la hoja fitosanitaria.');
+  await expect(page.locator('#print-fito-iframe')).toHaveCount(0);
+  await expect(page.locator('#print-tareas-iframe')).toHaveCount(0);
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([task]);
+  expect(writes).toEqual([]);
+});
+
+test('UAT-1414: la impresión general excluye las tareas Pistola', async ({ page }) => {
+  await page.addInitScript(() => { window.print = () => {}; });
+  const { database, writes } = await installFixture(page);
+  const tasksToPrint = [
+    { id:'e2e-uat-1414-manual', titulo:'E2E tarea ordinaria 1414', categoria:'manual', inv:'1A', calles:'C/102', fechaISO:'2026-11-12', estado:'pendiente' },
+    { id:'e2e-uat-1414-pistola', titulo:'E2E Pistola 1414', categoria:'fumigacion', producto:'E2E Pistola 1414', fechaISO:'2026-11-12', estado:'pendiente' }
+  ];
+  await page.evaluate(items => imprimirTareas(items), tasksToPrint);
+  const printed = await page.evaluate(() => document.querySelector('#print-tareas-iframe')?.contentDocument?.body?.innerText || '');
+  expect(printed).toContain('E2E tarea ordinaria 1414');
+  expect(printed).not.toContain('E2E Pistola 1414');
+  await expect(page.locator('#print-fito-iframe')).toHaveCount(0);
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([]);
+  expect(writes).toEqual([]);
+});
