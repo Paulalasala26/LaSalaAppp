@@ -1,0 +1,117 @@
+name: UAT Playwright
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: uat-playwright-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: UAT aislado en Chromium
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: true
+    steps:
+      - name: Obtener el código
+        uses: actions/checkout@v4
+
+      - name: Instalar pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+          run_install: false
+
+      - name: Instalar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
+
+      - name: Instalar Chromium
+        run: pnpm exec playwright install chromium
+
+      - name: Detectar specs modificados en PR
+        id: scope
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+              per_page: 100
+            });
+            const paths = new Set(files.map(file => file.filename));
+            const workflowChanged = paths.has('.github/workflows/uat-playwright.yml');
+            core.setOutput('control', String(paths.has('tests/e2e/control-quincena.spec.js')));
+            core.setOutput('auth', String(paths.has('tests/e2e/auth-roles.spec.js')));
+            core.setOutput('tasks', String(paths.has('tests/e2e/tareas-manual.spec.js') || paths.has('index.html')));
+            core.setOutput('specifics', String(paths.has('tests/e2e/especificos-quincena.spec.js') || paths.has('index.html')));
+            core.setOutput('photoHistory', String(paths.has('tests/e2e/control-fotos-historicas.spec.js') || paths.has('index.html')));
+            core.setOutput('riego', String(paths.has('tests/e2e/riego-quincena.spec.js')));
+            core.setOutput('partidas', String(paths.has('tests/e2e/partidas.spec.js')));
+            core.setOutput('fito', String(workflowChanged || paths.has('index.html') || paths.has('tests/e2e/fito-quincena.spec.js')));
+
+      - name: Ejecutar Control QC en PR
+        if: github.event_name == 'pull_request' && steps.scope.outputs.control == 'true'
+        run: pnpm exec playwright test tests/e2e/control-quincena.spec.js --grep-invert "concurren|offline"
+
+      - name: Ejecutar checks breves de auth en PR
+        if: github.event_name == 'pull_request' && steps.scope.outputs.auth == 'true'
+        run: pnpm exec playwright test tests/e2e/auth-roles.spec.js --grep "UAT-1983|UAT-1989|UAT-1998|UAT-1999|UAT-2114|UAT-2115|UAT-2122|UAT-2123|UAT-2124|UAT-2129|UAT-2132|UAT-2134|UAT-2135|UAT-2136|UAT-2139|UAT-2143|UAT-2144|UAT-2146|UAT-2148|UAT-2150|UAT-2154|UAT-2155|UAT-2156|UAT-2157|UAT-2160|UAT-2163|UAT-2164|UAT-2167|UAT-2137|UAT-2138|UAT-2043|UAT-2048|UAT-2053|UAT-1428|UAT-1429|UAT-1430|UAT-1431|UAT-1432|UAT-1433|UAT-1434|UAT-1435|UAT-1436|UAT-1437|UAT-1438|UAT-1439|UAT-1440"
+
+      - name: Ejecutar check breve de Plaguicidas en PR
+        if: github.event_name == 'pull_request' && steps.scope.outputs.fito == 'true'
+        run: pnpm exec playwright test tests/e2e/fito-quincena.spec.js --grep "UAT-1415"
+
+      - name: Ejecutar spec de Tareas en PR
+        if: github.event_name == 'pull_request' && steps.scope.outputs.tasks == 'true'
+        run: pnpm exec playwright test tests/e2e/tareas-manual.spec.js --grep-invert "offline|concurren|simult|a la vez|al mismo tiempo|en paralelo"
+
+      - name: Ejecutar checks de Específicos en PR
+        if: github.event_name == 'pull_request' && steps.scope.outputs.specifics == 'true'
+        run: pnpm exec playwright test tests/e2e/especificos-quincena.spec.js --grep "UAT-1421|UAT-1422|UAT-1423|UAT-1424"
+
+      - name: Ejecutar checks de cámara PC y fotos históricas QC en PR
+        if: github.event_name == 'pull_request' && steps.scope.outputs.photoHistory == 'true'
+        run: pnpm exec playwright test tests/e2e/control-fotos-historicas.spec.js --grep "UAT-377|UAT-378|UAT-379|UAT-380|UAT-381|UAT-407|UAT-408|UAT-410"
+
+      - name: Ejecutar comprobaciones breves de Riego en PR
+        if: github.event_name == 'pull_request' && steps.scope.outputs.riego == 'true'
+        run: pnpm exec playwright test tests/e2e/riego-quincena.spec.js --grep "UAT-137[5-9]|UAT-1426" --grep-invert "concurren|offline"
+
+      - name: Ejecutar check de Partidas en PR
+        if: github.event_name == 'pull_request' && steps.scope.outputs.partidas == 'true'
+        run: pnpm exec playwright test tests/e2e/partidas.spec.js --grep "UAT-1427"
+
+      - name: Ejecutar la suite UAT completa fuera de PR
+        if: github.event_name != 'pull_request'
+        run: pnpm test:e2e
+
+      - name: Exportar estados UAT para revisión
+        if: always() && hashFiles('test-results/report.json') != ''
+        run: node tests/export-uat-results.cjs
+
+      - name: Guardar informe JSON/HTML y trazas
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: uat-playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 14
