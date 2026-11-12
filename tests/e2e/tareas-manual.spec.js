@@ -3202,3 +3202,24 @@ test('UAT-1397–1398: conciliar calles nuevas conserva la reasignación manual'
   expect({ id: tarea.id, asignadoA: tarea.asignadoA, calles: tarea.calles, asignacionManual: tarea.asignacionManual, callesOrigenRiego: tarea.callesOrigenRiego })
     .toEqual({ id: manual.id, asignadoA: 'PEON1', calles: 'C/1703', asignacionManual: true, callesOrigenRiego: [3] });
 });
+
+
+test('UAT-1400: varios tramos del mismo trabajo se normalizan sin calles duplicadas', async ({ page }) => {
+  const riego = {
+    '1A': { '32': { '2': 'PP', '3': '10', '4': 'PP', '5': '10', '6': 'PP' } }
+  };
+  const { database } = await installFixture(page, {
+    'lasala-riego-v1': JSON.stringify(riego)
+  });
+
+  await page.evaluate(async () => {
+    window.confirm = () => true;
+    await loadRiegoData();
+    await generarTareasDesdeRiego();
+  });
+
+  const tareas = JSON.parse(database['lasala-tareas-v1']).filter(t => t.origen === 'riego' && t.inv === '1A');
+  expect(tareas).toHaveLength(1);
+  expect(tareas[0].calles).toBe('C/102, C/104, C/106');
+  expect(tareas[0].callesOrigenRiego).toEqual([2, 4, 6]);
+});
