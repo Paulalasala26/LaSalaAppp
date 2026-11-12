@@ -11,7 +11,9 @@ function fixtureDatabase(){
   const hash=createHash('sha256').update(login.password).digest('hex');
   return {
     'lasala-users-v1':JSON.stringify({[login.user]:hash,[regante.user]:hash,[tecnico.user]:hash}),
-    'lasala-roles-v1':JSON.stringify({[login.user]:'ADMIN',[regante.user]:'REGANTE',[tecnico.user]:'TECNICO'}),
+    'lasala-roles-v1':JSON.stringify({[login.user]:'ADMIN',[regante.user]:'REGANTE',[tecnico.user]:'TECNICO',REGANTE1:'REGANTE',REGANTE2:'REGANTE'}),
+    'lasala-tareas-v1':JSON.stringify([]),
+    'lasala-especificos-partida-v1':JSON.stringify({}),
     'lasala-especificos-v1':JSON.stringify({'17':{'30':{'18':'E2E-ESPECIFICO-INV17','17':'E2E-ESPECIFICO-DELETE'}},'18':{'30':{'18':'E2E-ESPECIFICO-INV18'}}})
   };
 }
@@ -602,5 +604,75 @@ test('UAT-1060: formulario de alta no ofrece imprimir',async({page})=>{
   await expect(editor).toBeVisible();
   await expect(editor.getByRole('button',{name:'Imprimir hoja'})).toHaveCount(0);
   expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+
+test('UAT-1421: la tarea nacida de Específicos conserva origen, INV, calles y regante de sala',async({page})=>{
+  const database=fixtureDatabase();
+  const {unexpectedHosts}=await openSpecifics(page,database);
+  const result=await page.evaluate(async()=>{
+    const dia=riegoDiaDeHoy();
+    await loadTareasData();
+    const id=await autoAsignarTareaEspecifico('1A',dia,'C/101','E2E tratamiento UAT-1421','Mañana','nota de prueba',{producto:ESPECIFICO_TRATAMIENTOS[0],dosis:ESPECIFICO_DOSIS[0],caldoLabel:'100L',caldoLitros:100});
+    return {id,tarea:tareasData.find(t=>t.id===id)};
+  });
+  expect(result.id).toBeTruthy();
+  expect(result.tarea).toMatchObject({origen:'especificos',categoria:'especifico',asignadoA:'REGANTE1',inv:'1A',calles:'C/101',horario:'Mañana',caldoLitros:100});
+  expect(JSON.parse(database['lasala-tareas-v1'])).toHaveLength(1);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-1422: imprimir la tarea Específicos genera su hoja de tratamiento y circuito',async({page})=>{
+  const database=fixtureDatabase();
+  const {unexpectedHosts}=await openSpecifics(page,database);
+  await page.evaluate(async()=>{
+    const task={id:'e2e-1422',titulo:'E2E tratamiento UAT-1422',origen:'especificos',categoria:'especifico',asignadoA:'REGANTE1',inv:'1A',calles:'C/101',fechaISO:fechaLocalISO(new Date()),horario:'Mañana',producto:ESPECIFICO_TRATAMIENTOS[0],dosis:ESPECIFICO_DOSIS[0],caldoLabel:'100L',caldoLitros:100,estado:'pendiente'};
+    tareasData=[task];
+    imprimirTareaSuelta(task.id);
+  });
+  const printed=await page.locator('#print-especifico-iframe').contentFrame().locator('body').innerText();
+  expect(printed).toContain('ESPECIFICOS');
+  expect(printed).toContain('C/101');
+  expect(printed).toContain('UAT-1422');
+  expect(printed).not.toContain('Pistola');
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-1423: editar el Específico vinculado actualiza la misma tarea sin duplicar ID',async({page})=>{
+  const database=fixtureDatabase();
+  const original={id:'e2e-1423-task',titulo:'Tratamiento inicial',origen:'especificos',categoria:'especifico',asignadoA:'REGANTE1',inv:'1A',calles:'C/101',fechaISO:'2026-06-30',horario:'Mañana',producto:'Tratamiento inicial',dosis:'1',caldoLabel:'100L',caldoLitros:100,estado:'pendiente'};
+  const association={trat:'Tratamiento inicial',dosis:'1',horario:'Mañana',fechaISO:'2026-06-30',fechaLabel:'30 jun',invId:'1A',dia:30,calles:[1],tareaId:original.id};
+  database['lasala-tareas-v1']=JSON.stringify([original]);
+  database['lasala-especificos-partida-v1']=JSON.stringify({'partida-1423':[association]});
+  const {unexpectedHosts}=await openSpecifics(page,database);
+  const [trat,dosis]=await page.evaluate(()=>[ESPECIFICO_TRATAMIENTOS[1]||ESPECIFICO_TRATAMIENTOS[0],ESPECIFICO_DOSIS[1]||ESPECIFICO_DOSIS[0]]);
+  await page.evaluate(async()=>{await loadTareasData();await loadEspecificosPartidaData();editarEspecificoPartidaBanner('partida-1423',0);});
+  await page.locator('#eeb-trat').selectOption(trat);
+  await page.locator('#eeb-dosis').selectOption(dosis);
+  await page.locator('#eeb-horario').selectOption('Tarde');
+  await page.evaluate(()=>guardarEspecificoPartidaBanner('partida-1423',0));
+  await expect.poll(()=>JSON.parse(database['lasala-tareas-v1'])[0]?.titulo).toBe(`${trat} ${dosis}`);
+  const tasks=JSON.parse(database['lasala-tareas-v1']);
+  expect(tasks).toHaveLength(1);
+  expect(tasks[0]).toMatchObject({id:original.id,origen:'especificos',categoria:'especifico',producto:trat,dosis,horario:'Tarde'});
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-1424: anular la partida archiva su tarea Específicos y conserva el histórico',async({page})=>{
+  const database=fixtureDatabase();
+  const task={id:'e2e-1424-task',titulo:'Tratamiento a anular',origen:'especificos',categoria:'especifico',asignadoA:'REGANTE1',inv:'1A',calles:'C/101',fechaISO:'2026-06-30',estado:'pendiente'};
+  const association={trat:'Tratamiento a anular',dosis:'1',horario:'Mañana',fechaISO:'2026-06-30',fechaLabel:'30 jun',invId:'1A',dia:30,calles:[1],tareaId:task.id};
+  database['lasala-tareas-v1']=JSON.stringify([task]);
+  database['lasala-especificos-partida-v1']=JSON.stringify({'partida-1424':[association]});
+  const {unexpectedHosts}=await openSpecifics(page,database);
+  await page.evaluate(async()=>{window.confirm=()=>true;await loadTareasData();await loadEspecificosPartidaData();await borrarEspecificoPartidaBanner('partida-1424',0);});
+  await expect.poll(()=>JSON.parse(database['lasala-tareas-v1'])[0]?.estado).toBe('anulada');
+  const tasks=JSON.parse(database['lasala-tareas-v1']);
+  expect(tasks).toHaveLength(1);
+  expect(tasks[0]).toMatchObject({id:task.id,estado:'anulada',motivoAnulacion:'Específico de partida eliminado'});
+  expect(tasks[0].anuladaEn).toBeTruthy();
+  expect(JSON.parse(database['lasala-especificos-partida-v1'])['partida-1424']).toEqual([]);
   expect(unexpectedHosts).toEqual([]);
 });
