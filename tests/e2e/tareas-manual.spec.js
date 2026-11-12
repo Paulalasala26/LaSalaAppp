@@ -179,7 +179,8 @@ test('UAT-2415: un doble clic rápido en Tareas deja una sola vista funcional y 
   const overlay = page.locator('#tareas-overlay');
   await expect(overlay).toBeVisible();
   await expect(page.locator('#tareas-overlay')).toHaveCount(1);
-  await expect(overlay.getByText('Resumen de Tareas', { exact: true })).toHaveCount(1);
+  await expect(overlay.getByRole('button', { name: 'Tareas de hoy' })).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+  await expect(overlay).not.toContainText('Resumen de Tareas');
   await expect(overlay.getByRole('button', { name: 'Mantenimiento de Parcelas' })).toHaveCount(1);
   expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([]);
   expect(JSON.parse(database['lasala-mantenimiento-v1'])).toEqual([]);
@@ -946,13 +947,13 @@ test('UAT-1255: la descripción larga de una tarjeta Operativas se limita visual
 });
 
 test('UAT-1232: ADMIN abre Tareas con Operativas seleccionada por defecto', async ({ page }) => {
-  test.fail(true, 'La vista actual abre Resumen de Tareas sin seleccionar Operativas.');
   await installFixture(page);
   await openTasks(page);
   const overlay = page.locator('#tareas-overlay');
   await expect(overlay).toBeVisible();
   const operativas = overlay.getByRole('button', { name: 'Tareas de hoy' });
   await expect(operativas).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+  await expect(overlay).not.toContainText('Resumen de Tareas');
 });
 
 test('UAT-1233, UAT-1244, UAT-1235, UAT-1236, UAT-1242, UAT-1243, UAT-1246, UAT-1495, UAT-1499, UAT-1500, UAT-1738, UAT-1741, UAT-1745, UAT-1762, UAT-1763, UAT-1764, UAT-1765, UAT-1766, UAT-1780, UAT-1768, UAT-1772, UAT-1773, UAT-1776, UAT-1777, UAT-1779, UAT-1743, UAT-1785 y UAT-1786: Archivo conserva historial sin inventar motivos', async ({ page }) => {
