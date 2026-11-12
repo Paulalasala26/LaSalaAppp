@@ -3158,3 +3158,43 @@ test('UAT-1393 y 1395: regenerar tareas conserva una ejecución iniciada y otra 
   for (const previa of previas) expect(tareas.find(t => t.id === previa.id)).toEqual(previa);
   expect(tareas).toHaveLength(2);
 });
+
+
+test('UAT-1397–1398: conciliar calles nuevas conserva la reasignación manual', async ({ page }) => {
+  const riego = { '17': { '32': { '3': 'PP' } } };
+  const { database } = await installFixture(page, {
+    'lasala-riego-v1': JSON.stringify(riego)
+  });
+  const fechaISO = await page.evaluate(() => fechaLocalISO(riegoDiaToDate(32)));
+  const manual = {
+    id: 'e2e-manual-riego-1397',
+    titulo: 'Puntas de pasillo',
+    asignadoA: 'PEON1',
+    origen: 'riego',
+    inv: '17',
+    calles: 'C/1702',
+    fechaISO,
+    estado: 'pendiente',
+    asignacionManual: true
+  };
+  database['lasala-tareas-v1'] = JSON.stringify([manual]);
+
+  await page.evaluate(async () => {
+    window.confirm = () => true;
+    await loadRiegoData();
+    await generarTareasDesdeRiego();
+  });
+  let tarea = JSON.parse(database['lasala-tareas-v1']).find(t => t.id === manual.id);
+  expect(tarea.asignadoA).toBe('PEON1');
+  expect(tarea.calles).toBe('C/1703');
+
+  await page.evaluate(async () => {
+    await loadRiegoData();
+    await generarTareasDesdeRiego();
+  });
+  const tareas = JSON.parse(database['lasala-tareas-v1']).filter(t => t.origen === 'riego' && t.inv === '17');
+  expect(tareas).toHaveLength(1);
+  tarea = tareas[0];
+  expect({ id: tarea.id, asignadoA: tarea.asignadoA, calles: tarea.calles, asignacionManual: tarea.asignacionManual })
+    .toEqual({ id: manual.id, asignadoA: 'PEON1', calles: 'C/1703', asignacionManual: true });
+});
