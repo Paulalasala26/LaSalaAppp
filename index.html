@@ -16347,12 +16347,9 @@ async function generarTareasDesdeRiego(){
             || tareasData.find(t=>t.asignadoA===peonAsignado && coincideOrigen(t));
           if(existente && existente.estado==='iniciada') return; // ya en marcha: no se toca ni se duplica
           if(existente){
-            // Una reasignación manual es una excepción explícita: conservar
-            // la etiqueta de calles y el ID que ve el coordinador. La orden
-            // se sigue cotejando con el riego por invernadero/fecha/trabajo.
-            if(existente.asignacionManual!==true){
-              existente._callesNumeros = [...new Set([...(existente._callesNumeros||[]), ...br.calles])];
-            }
+            // La reasignación manual conserva al PEÓN y el ID de la orden;
+            // las calles siguen la fuente Riego para mantener ubicaciones vigentes.
+            existente._callesNumeros = [...new Set([...(existente._callesNumeros||[]), ...br.calles])];
           } else {
             tareasData.push({
               id: 'tarea_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
