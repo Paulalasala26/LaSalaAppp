@@ -6604,7 +6604,7 @@ function qcImprimirDia(){
  const filtradas=controlLineasFiltradasInv(controlChecksData.filter(c=>c.tipo===tipo&&c.dia===dia),tipo);
  const lista=controlFiltroEstado==='completados'?filtradas.filter(controlLineaFinalizadaQC):controlFiltroEstado==='pendientes'?filtradas.filter(c=>!controlLineaFinalizadaQC(c)):filtradas;
  if(!lista.length){showToast('No hay inspecciones para imprimir.');return;}
- window.__controlListadoActual={titulo:(tipo==='tunel'?'QC Túnel':'QC Carga')+' · '+riegoDiaLabelCorto(dia),lineas:lista};
+ window.__controlListadoActual={titulo:(tipo==='tunel'?'QC Túnel':'QC Carga')+' · '+riegoDiaLabelCorto(dia),lineas:lista,conEstadoQC:true};
  imprimirListadoPartidasControl();
 }
 function qcPanel(title,content,cls){
@@ -7407,7 +7407,17 @@ function imprimirListadoPartidasControl(){
   const { titulo, lineas } = window.__controlListadoActual || { titulo:'', lineas:[] };
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const calleLabelDe = c => calleLabelDeCheckControl(c, escapar, 'Sin asignar');
-  const filasHTML = lineas.map(c=>`<tr><td>${escapar(c.partida)||'—'}</td><td>${escapar(clienteVariedadDeCheckControl(c))||'—'}</td><td>${calleLabelDe(c)}</td></tr>`).join('');
+  // Impresión del día (qcImprimirDia): añade la columna «Estado QC». Hecho = línea finalizada
+  // (check clásico completo o medición guardada). Pendiente solo si los estados de ese día ya
+  // están cargados; si no, «Sin comprobar» para no dar por pendiente algo que no se ha podido ver.
+  const conEstadoQC = !!(window.__controlListadoActual && window.__controlListadoActual.conEstadoQC);
+  const estadoQCDe = c => controlLineaFinalizadaQC(c) ? 'ok' : (controlQCEstados.has(claveEstadosQC(c.tipo,c.dia)) ? 'pend' : 'nd');
+  const estadoQCTxt = {ok:'Hecho', pend:'Pendiente', nd:'Sin comprobar'};
+  const estadosQC = conEstadoQC ? lineas.map(estadoQCDe) : [];
+  const resumenQC = conEstadoQC
+    ? `<p class="qc-resumen">Hechas: <b>${estadosQC.filter(e=>e==='ok').length}</b> · Pendientes: <b>${estadosQC.filter(e=>e==='pend').length}</b>${estadosQC.some(e=>e==='nd')?' · Sin comprobar: <b>'+estadosQC.filter(e=>e==='nd').length+'</b>':''}</p>`
+    : '';
+  const filasHTML = lineas.map((c,i)=>`<tr><td>${escapar(c.partida)||'—'}</td><td>${escapar(clienteVariedadDeCheckControl(c))||'—'}</td><td>${calleLabelDe(c)}</td>${conEstadoQC?`<td><span class="qc-est qc-est-${estadosQC[i]}">${estadoQCTxt[estadosQC[i]]}</span></td>`:''}</tr>`).join('');
   let iframe = document.getElementById('print-control-listado-iframe');
   if(!iframe){
     iframe = document.createElement('iframe');
@@ -7424,9 +7434,16 @@ function imprimirListadoPartidasControl(){
       table{width:100%;border-collapse:collapse;font-size:13px}
       th,td{padding:7px 10px;border-bottom:1px solid #ccc;text-align:left}
       th{font-size:11px;text-transform:uppercase;color:#555}
+      *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+      .qc-resumen{font-size:12px;margin:-6px 0 12px;color:#555}
+      .qc-est{display:inline-block;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700;white-space:nowrap}
+      .qc-est-ok{background:#e1f4e4;color:#1f6b2c}
+      .qc-est-pend{background:#fdece5;color:#a8412a}
+      .qc-est-nd{background:#eceff1;color:#555}
     </style></head><body>
       <h1>${escapar(titulo)} (${lineas.length})</h1>
-      <table><tr><th>Partida</th><th>Cliente y variedad</th><th>Calle real</th></tr>${filasHTML}</table>
+      ${resumenQC}
+      <table><tr><th>Partida</th><th>Cliente y variedad</th><th>Calle real</th>${conEstadoQC?'<th>Estado QC</th>':''}</tr>${filasHTML}</table>
     </body></html>`);
   doc.close();
   setTimeout(()=>{ iframe.contentWindow.focus(); iframe.contentWindow.print(); }, 200);
