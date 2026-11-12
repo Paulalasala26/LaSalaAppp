@@ -859,7 +859,7 @@ test('UAT-2417: reabrir Partidas y Específicos varias veces no duplica vistas n
 });
 
 
-test('UAT-2413: PEÓN imprime su lista e inicia una tarea desde Inicio sin errores ni duplicados', async ({ page }) => {
+test('UAT-1428 y UAT-2413: PEÓN ve la tarea asignada con ubicación y la inicia desde Inicio', async ({ page }) => {
   const todayISO = await page.evaluate(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -890,6 +890,8 @@ test('UAT-2413: PEÓN imprime su lista e inicia una tarea desde Inicio sin error
   await logInAs(page, 'E2E_PEON');
   const inline = page.locator('#peon-tareas-inline');
   await expect(inline).toContainText(task.titulo);
+  await expect(inline).toContainText('0A');
+  await expect(inline).toContainText('1-2');
 
   await inline.getByRole('button', { name: 'Imprimir tareas' }).click();
   const printSelector = page.locator('#imprimir-tareas-selector-overlay');
