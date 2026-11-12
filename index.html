@@ -10374,7 +10374,8 @@ async function guardarEspecificoPartidaBanner(partidaId, idx){
     }
   }
   document.getElementById('especifico-banner-editar-overlay').style.display = 'none';
-  renderPartidasMapaContent(document.getElementById('partidas-overlay'));
+  const mapa = document.getElementById('partidas-overlay');
+  if(mapa) renderPartidasMapaContent(mapa);
   showToast('✓ Específico actualizado');
 }
 async function borrarEspecificoPartidaBanner(partidaId, idx){
@@ -10418,8 +10419,10 @@ async function borrarEspecificoPartidaBanner(partidaId, idx){
     await guardarBorradoEspecifico([{invId:registro.invId, dia:registro.dia, calles:registro.calles}]);
     if(especificosInvSel===registro.invId) renderEspecificosGrid(registro.invId);
   }
-  document.getElementById('especifico-banner-editar-overlay').style.display = 'none';
-  renderPartidasMapaContent(document.getElementById('partidas-overlay'));
+  const editor = document.getElementById('especifico-banner-editar-overlay');
+  if(editor) editor.style.display = 'none';
+  const mapa = document.getElementById('partidas-overlay');
+  if(mapa) renderPartidasMapaContent(mapa);
   showToast('✓ Eliminado');
 }
 function iniciarArrastrePartida(id){
