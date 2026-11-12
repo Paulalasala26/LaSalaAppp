@@ -960,7 +960,7 @@ test('UAT-1429 y UAT-1430: una tarea activa impide iniciar la siguiente del mism
   await startButtons.first().click();
   await expect.poll(() => taskWrites.length).toBe(1);
   await expect(inline).toContainText('Iniciada');
-  const saved = JSON.parse(taskWrites.at(-1).postData());
+  const saved = Object.values(JSON.parse(taskWrites.at(-1).postData()));
   expect(saved.find(task => task.id === tasks[0].id).estado).not.toBe('pendiente');
   expect(saved.find(task => task.id === tasks[1].id).estado).toBe('pendiente');
 
