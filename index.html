@@ -5051,7 +5051,7 @@ async function eliminarTrabajoConfirmado(id){
 // ════════════════════════════════════════════════════════════════
 const CONTROL_SECCIONES = [
   {key:'tunel', label:'QC Túnel', icon:'ti-building-warehouse', color:'linear-gradient(135deg,#5c8df0,#3fc6b0)', conCheck:true},
-  {key:'carga', label:'QC Carga', icon:'ti-truck', color:'linear-gradient(135deg,#f5a35c,#f0715c)', conCheck:true},
+  {key:'carga', label:'QC Carga normal', icon:'ti-truck', color:'linear-gradient(135deg,#f5a35c,#f0715c)', conCheck:true},
   {key:'invernadero', label:'Check Invernadero', icon:'ti-plant-2', color:'linear-gradient(135deg,#1a5c2e,#3fa864)', conCheck:false},
   {key:'fechas', label:'Check Fechas', icon:'ti-calendar-event', color:'linear-gradient(135deg,#7b5cf0,#5c8df0)', conCheck:false},
   {key:'productos', label:'Check Prueba de Productos', icon:'ti-flask', color:'linear-gradient(135deg,#c47f00,#e0a530)', conCheck:false},
@@ -6604,7 +6604,7 @@ function qcImprimirDia(){
  const filtradas=controlLineasFiltradasInv(controlChecksData.filter(c=>c.tipo===tipo&&c.dia===dia),tipo);
  const lista=controlFiltroEstado==='completados'?filtradas.filter(controlLineaFinalizadaQC):controlFiltroEstado==='pendientes'?filtradas.filter(c=>!controlLineaFinalizadaQC(c)):filtradas;
  if(!lista.length){showToast('No hay inspecciones para imprimir.');return;}
- window.__controlListadoActual={titulo:(tipo==='tunel'?'QC Túnel':'QC Carga')+' · '+riegoDiaLabelCorto(dia),lineas:lista,conEstadoQC:true};
+ window.__controlListadoActual={titulo:(tipo==='tunel'?'QC Túnel':'QC Carga normal')+' · '+riegoDiaLabelCorto(dia),lineas:lista,conEstadoQC:true};
  imprimirListadoPartidasControl();
 }
 function qcPanel(title,content,cls){
@@ -6791,10 +6791,10 @@ function renderControlContent(overlay){
     </button>`;
   };
   const navHTML=controlSeccion===null ? '' : `<nav class="control-ui-nav" aria-label="Apartados de Control de Calidad">
-        ${CONTROL_SECCIONES.filter(s=>currentUserRole!=='CARGADOR'||s.key==='carga').map(navBtn).join('')}
+        ${CONTROL_SECCIONES.filter(s=>currentUserRole!=='CARGADOR'||s.key==='carga'||s.key==='carga_injerto').map(navBtn).join('')}
       </nav>`;
   overlay.innerHTML=`
-    <div class="control-ui-shell${controlSeccion==='tunel'||controlSeccion==='preinjerto_patron'||controlSeccion==='preinjerto_variedad'?' qc-tunel-work':controlSeccion==='carga'?' qc-carga-work':''}">
+    <div class="control-ui-shell${controlSeccion==='tunel'||controlSeccion==='carga_injerto'||controlSeccion==='preinjerto_patron'||controlSeccion==='preinjerto_variedad'?' qc-tunel-work':controlSeccion==='carga'?' qc-carga-work':''}">
       <header class="control-ui-header">
         <button type="button" class="control-ui-home" onclick="seleccionarSeccionControl(null)"
           aria-label="Volver al resumen de Control de Calidad" title="Volver al resumen">
@@ -6847,7 +6847,7 @@ function renderControlContent(overlay){
 function renderControlResumenHTML(){
   return `
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
-      ${CONTROL_SECCIONES.filter(s=>currentUserRole!=='CARGADOR'||s.key==='carga').map(s=>{
+      ${CONTROL_SECCIONES.filter(s=>currentUserRole!=='CARGADOR'||s.key==='carga'||s.key==='carga_injerto').map(s=>{
         const totalV2 = s.conCheck ? controlV2TotalTipo(s.key) : null;
         const n = s.conCheck ? (totalV2==null ? controlChecksData.filter(c=>c.tipo===s.key).length : totalV2) : null;
         const pendiente=controlSeccionEsProximamente(s);
@@ -7618,7 +7618,7 @@ function renderControlChecklistHTML(seccion){
   // verlas todas al filtrar por invernadero.
   const gruposYaPintados = new Set();
   const filas = listaMostrada.map(c=>{
-    if(seccion.key==='carga' || !c.partida) return renderControlCardHTML(c, seccion);
+    if(seccion.key==='carga' || seccion.key==='carga_injerto' || !c.partida) return renderControlCardHTML(c, seccion);
     const groupKey = seccion.key+'|'+c.partida;
     if(gruposYaPintados.has(groupKey)) return '';
     const grupo = controlLineasFiltradasInv(controlChecksData.filter(x=>x.tipo===seccion.key && x.partida===c.partida),seccion.key).sort((a,b)=>a.dia-b.dia);
@@ -7641,7 +7641,7 @@ function renderControlChecklistHTML(seccion){
   const cardsHTML = listaMostrada.length===0
     ? `<div class="qc-list-none">${listaDia.length===0?'Sin partidas para este día.':((seccion.key==='carga'?controlCargaInvFiltro:controlTunelInvFiltro)?'No hay partidas para ese invernadero y día.':'No hay líneas con el estado seleccionado.')}</div>`
     : `<div class="qc-list-cards">${filas}</div>`;
-  if(['tunel','carga','preinjerto_patron','preinjerto_variedad'].includes(seccion.key)){
+  if(['tunel','carga','carga_injerto','preinjerto_patron','preinjerto_variedad'].includes(seccion.key)){
     const moreOptions=(extraTunelHTML||pdfInfoHTML)
       ? '<details class="qc-list-more"><summary>Más opciones</summary><div class="qc-list-more-actions">'+extraTunelHTML+'</div>'+pdfInfoHTML+'</details>'
       : '';
@@ -25241,6 +25241,7 @@ function conGuardiaReentrada(fn){
 <script src="assets/fito-series-v3.js"></script>
 <script src="assets/qc-editar-linea-v3.js?v=109"></script>
 <script src="assets/gs-carga-feed.js?v=4"></script>
+<script src="assets/qc-carga-injerto-bootstrap.js?v=2" defer></script>
 <script src="assets/qc-preinjerto-bootstrap.js?v=8" defer></script>
 </body>
 </html>
