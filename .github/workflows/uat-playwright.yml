@@ -58,6 +58,7 @@ jobs:
             core.setOutput('control', String(paths.has('tests/e2e/control-quincena.spec.js')));
             core.setOutput('auth', String(paths.has('tests/e2e/auth-roles.spec.js')));
             core.setOutput('tasks', String(paths.has('tests/e2e/tareas-manual.spec.js') || paths.has('index.html')));
+            core.setOutput('specifics', String(paths.has('tests/e2e/especificos-quincena.spec.js') || paths.has('index.html')));
             core.setOutput('riego', String(paths.has('tests/e2e/riego-quincena.spec.js')));
             core.setOutput('fito', String(workflowChanged || paths.has('index.html') || paths.has('tests/e2e/fito-quincena.spec.js')));
 
@@ -76,6 +77,10 @@ jobs:
       - name: Ejecutar spec de Tareas en PR
         if: github.event_name == 'pull_request' && steps.scope.outputs.tasks == 'true'
         run: pnpm exec playwright test tests/e2e/tareas-manual.spec.js --grep-invert "offline|concurren|simult|a la vez|al mismo tiempo|en paralelo"
+
+      - name: Ejecutar checks de Específicos en PR
+        if: github.event_name == 'pull_request' && steps.scope.outputs.specifics == 'true'
+        run: pnpm exec playwright test tests/e2e/especificos-quincena.spec.js --grep "UAT-1421|UAT-1422|UAT-1423|UAT-1424"
 
       - name: Ejecutar comprobaciones breves de Riego en PR
         if: github.event_name == 'pull_request' && steps.scope.outputs.riego == 'true'
