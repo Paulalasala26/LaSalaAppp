@@ -17,10 +17,19 @@
    throw Error('La sesión ha cambiado. Foto conservada; vuelve a iniciar sesión.');
  }
  const text=(tag,v)=>{const e=document.createElement(tag);if(v!==undefined)e.textContent=String(v);return e;};
+ const QC_TYPES=['tunel','carga','carga_injerto','preinjerto_patron','preinjerto_variedad'];
+ function refShapeValid(r){
+  return !!(r&&RE_ID.test(r.id)&&RE_PART.test(r.partida)&&QC_TYPES.includes(r.tipo)&&
+   Number.isInteger(r.dia)&&r.dia>=15&&r.dia<=4000);
+ }
+ // La captura y subida aceptan todos los perfiles de QC autenticados.
+ // La visibilidad de galerías mantiene sus permisos propios en refValid.
+ function uploadRefValid(r){
+  return refShapeValid(r)&&['ADMIN','TECNICO','CARGADOR'].includes(role);
+ }
  function refValid(r){
-  return r&&RE_ID.test(r.id)&&RE_PART.test(r.partida)&&
-   ['tunel','carga','carga_injerto','preinjerto_patron','preinjerto_variedad'].includes(r.tipo)&&Number.isInteger(r.dia)&&r.dia>=15&&r.dia<=4000&&
-   (role==='ADMIN'||role==='TECNICO'||role==='CARGADOR'&&(r.tipo==='carga'||r.tipo==='carga_injerto'));
+  return refShapeValid(r)&&(role==='ADMIN'||role==='TECNICO'||
+   role==='CARGADOR'&&(r.tipo==='carga'||r.tipo==='carga_injerto'));
  }
  function db(){
   if(!window.indexedDB)return Promise.reject(Error('Almacenamiento sin conexión no disponible.'));
@@ -46,7 +55,7 @@
    tx.onabort=()=>{connection.close();reject(Error('No se ha guardado la fotografía.'));};
   });
  }
- const owned=x=>x&&x.owner===owner&&x.role===role&&refValid(x.ref)&&
+ const owned=x=>x&&x.owner===owner&&x.role===role&&refShapeValid(x.ref)&&
   typeof x.photoId==='string'&&typeof x.capturedAt==='string'&&
   (x.status==='PENDIENTE_LOCAL'||x.status==='ENVIO_INCIERTO')&&x.blob instanceof Blob&&
   x.blob.size>100&&x.blob.size<=MAX_BYTES;
@@ -308,7 +317,7 @@
   summary();window.dispatchEvent(new Event('qc-local-updated'));
  }
  async function syncFor(ref,button,status,repaint,globalConfirmed=false){
-  if(sending||!refValid(ref))return;
+  if(sending||!uploadRefValid(ref))return;
   const chosen=listFor(ref).slice();
   if(!chosen.length)return;
   requireSession();
@@ -427,7 +436,7 @@
  // protocolo de envío comprobado del capturador sin conexión.
  async function galleryCapture(ref,files){
   requireSession();
-  if(!refValid(ref))throw Error('Inspección no autorizada.');
+  if(!uploadRefValid(ref))throw Error('Inspección no autorizada para esta sesión.');
   const selected=Array.from(files||[]);
   let saved=0,sent=0,tokenValue=null,canSend=navigator.onLine!==false&&!sending;
   const errors=[];
@@ -525,7 +534,7 @@
   return r.blob();
  }
  async function gallerySend(ref){
-  requireSession();if(!refValid(ref))throw Error('Registro no válido.');
+  requireSession();if(!uploadRefValid(ref))throw Error('Registro no válido para subir fotos.');
   const status={textContent:''},button={disabled:false};
   await syncFor(ref,button,status,()=>{});
   return status.textContent;

@@ -34,7 +34,7 @@ function reference(input){
     throw httpError(400,'INVALID_REFERENCE');
   return {id,tipo,dia};
 }
-async function authorize(req,tipo){
+async function authorize(req,tipo,{photoUpload=false}={}){
   const raw=req.headers.authorization||'';
   if(!raw.startsWith('Bearer '))throw httpError(401,'UNAUTHORIZED');
   const actor=await verifyFirebaseIdToken(raw.slice(7).trim());
@@ -43,7 +43,9 @@ async function authorize(req,tipo){
     readKey('lasala-roles-v1',firebaseToken),readKey('lasala-users-v1',firebaseToken)
   ]);
   const role=roles[actor];
-  const allowed=role==='ADMIN'||role==='TECNICO'||(role==='CARGADOR'&&(tipo==='carga'||tipo==='carga_injerto'));
+  const roleExists=['ADMIN','TECNICO','CARGADOR'].includes(role);
+  const allowed=photoUpload?roleExists&&Object.hasOwn(TYPES,tipo):
+    role==='ADMIN'||role==='TECNICO'||(role==='CARGADOR'&&(tipo==='carga'||tipo==='carga_injerto'));
   if(!allowed||!validHash(accounts[actor]))throw httpError(403,'FORBIDDEN');
   return {actor,role,firebaseToken};
 }
@@ -780,8 +782,8 @@ module.exports=async function handler(req,res){
     const candidatesRequested=req.method==='GET'&&req.query?.details==='1';
     const photo=req.method==='POST'&&!prepareFolders?photoInput(body):null;
     const ref=(diagnostic||prepareFolders)?null:(photo?.ref||reference(req.query));
-    const session=await authorize(req,ref?.tipo||null);
-    // Túnel: ADMIN/TÉCNICO. Carga: ADMIN/TÉCNICO/CARGADOR.\n    // authorize() valida rol ACTIVO contra Firebase, además de ID token.\n    // Los diagnósticos de biblioteca y candidatos siguen solo ADMIN.
+    const session=await authorize(req,ref?.tipo||null,{photoUpload:!!photo});
+    // Las vistas y acciones de galería mantienen sus permisos por tipo.\n    // Solo la subida POST de fotos acepta los tres perfiles en cualquier QC.\n    // Los diagnósticos de biblioteca y candidatos siguen solo ADMIN.
     if(diagnostic&&session.role!=='ADMIN')throw httpError(403,'FORBIDDEN');
     if(candidatesRequested&&session.role!=='ADMIN')throw httpError(403,'FORBIDDEN');
     if(prepareFolders){
