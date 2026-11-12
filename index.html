@@ -2904,10 +2904,22 @@ function confirmarImprimirTareasSeleccionadas(){
 // Botón "Imprimir" junto a Editar/Eliminar en la tabla de gestión — imprime
 // esa única tarea directamente, sin el selector de día/sala (ya se sabe
 // exactamente cuál se quiere) — a petición de Paula, 2026-08-10.
+function imprimirHojaEspecificoTarea(id){
+  const t = tareasData.find(x=>x.id===id);
+  if(!t) return false;
+  const litrosGuardados = Number(t.caldoLitros);
+  const litrosDeEtiqueta = Number(String(t.caldoLabel||'').match(/[\\d.,]+/)?.[0]?.replace(',','.'));
+  const caldoLitros = Number.isFinite(litrosGuardados) && litrosGuardados>0 ? litrosGuardados : litrosDeEtiqueta;
+  return imprimirHojaEspecificoConDatos({
+    fechaISO:t.fechaISO, trat:t.producto||t.trat||'', dosis:t.dosis||'', caldoLitros,
+    horario:t.horario||'', filas:[{invId:t.inv,calles:t.calles,tipo:t.tipo||'',obs:t.descripcion||''}]
+  });
+}
 function imprimirTareaSuelta(id){
   const t = tareasData.find(x=>x.id===id);
   if(!t){ showToast('Tarea no encontrada'); return; }
   if(t.categoria==='fumigacion'){ imprimirHojaFumigacionTarea(id); return; }
+  if(t.categoria==='especifico' || t.origen==='especificos'){ imprimirHojaEspecificoTarea(id); return; }
   imprimirTareas([t]);
 }
 function imprimirTareas(tareasConPosiblesDuplicados){
@@ -10244,7 +10256,7 @@ async function aplicarEspecificoAPartidasSeleccionadas(){
       JSON.stringify(registro.calles||[])===JSON.stringify(calles)
     );
     if(!registroExistente) especificosPartidaData[id].push({trat, dosis, horario, fechaLabel, fechaISO, invId:c.invId, dia, calles});
-    tareasPorAsignar.push({invId:c.invId, callesLabel});
+    tareasPorAsignar.push({invId:c.invId, callesLabel, partidaId:id});
   }
   const especificosGuardados = await saveEspecificosData();
   if(!especificosGuardados){
@@ -10258,11 +10270,17 @@ async function aplicarEspecificoAPartidasSeleccionadas(){
     return;
   }
   for(const tarea of tareasPorAsignar){
-    const tareaGuardada = await autoAsignarTareaEspecifico(tarea.invId, dia, tarea.callesLabel, tratDosis, horario, '', {producto:trat, dosis, caldoLabel, gastoLabel});
+    const tareaGuardada = await autoAsignarTareaEspecifico(tarea.invId, dia, tarea.callesLabel, tratDosis, horario, '', {producto:trat, dosis, caldoLabel, caldoLitros, gastoLabel});
     if(!tareaGuardada){
       showToast('Específico guardado; conciliación pendiente: no se confirmó la tarea del regante. Reintenta para completar.');
       return;
     }
+    const registro = (especificosPartidaData[tarea.partidaId]||[]).find(r=>r.trat===trat && r.dosis===dosis && r.horario===horario && r.fechaISO===fechaISO && r.invId===tarea.invId);
+    if(registro) registro.tareaId = tareaGuardada;
+  }
+  if(!await saveEspecificosPartidaData()){
+    showToast('Específico creado; no se confirmó el vínculo con su tarea. Revisa el guardado e inténtalo de nuevo.');
+    return;
   }
   document.getElementById('especifico-por-partidas-overlay').style.display = 'none';
   partidasEspecificoModo = false;
@@ -10323,16 +10341,38 @@ function editarEspecificoPartidaBanner(partidaId, idx){
     </div>`;
   overlay.style.display = 'flex';
 }
-function guardarEspecificoPartidaBanner(partidaId, idx){
+async function guardarEspecificoPartidaBanner(partidaId, idx){
   const registros = especificosPartidaData[partidaId];
   if(!registros || !registros[idx]) return;
+  const editado = registros[idx];
   const dia = parseInt(document.getElementById('eeb-dia').value, 10);
-  registros[idx].trat = document.getElementById('eeb-trat').value;
-  registros[idx].dosis = document.getElementById('eeb-dosis').value;
-  registros[idx].horario = document.getElementById('eeb-horario').value;
-  registros[idx].fechaLabel = riegoDiaLabelCorto(dia);
-  registros[idx].fechaISO = fechaLocalISO(riegoDiaToDate(dia));
-  saveEspecificosPartidaData();
+  const trat = document.getElementById('eeb-trat').value;
+  const dosis = document.getElementById('eeb-dosis').value;
+  const horario = document.getElementById('eeb-horario').value;
+  const fechaLabel = riegoDiaLabelCorto(dia);
+  const fechaISO = fechaLocalISO(riegoDiaToDate(dia));
+  const vinculados = Object.values(especificosPartidaData).flat().filter(r=>editado.tareaId && r.tareaId===editado.tareaId);
+  for(const registro of (vinculados.length ? vinculados : [editado])){
+    registro.trat = trat; registro.dosis = dosis; registro.horario = horario;
+    registro.fechaLabel = fechaLabel; registro.fechaISO = fechaISO;
+  }
+  if(!await saveEspecificosPartidaData()){
+    showToast('No se confirmó la edición del Específico. Reintenta el guardado.');
+    return;
+  }
+  if(editado.tareaId){
+    await loadTareasData();
+    const tarea = tareasData.find(t=>t.id===editado.tareaId);
+    if(tarea){
+      tarea.titulo = [trat,dosis].filter(Boolean).join(' ');
+      tarea.producto = trat; tarea.dosis = dosis; tarea.horario = horario;
+      tarea.fecha = fechaLabel; tarea.fechaISO = fechaISO;
+      if(!await persistTareasData()){
+        showToast('Específico actualizado; no se confirmó la tarea vinculada. Reintenta para completar.');
+        return;
+      }
+    }
+  }
   document.getElementById('especifico-banner-editar-overlay').style.display = 'none';
   renderPartidasMapaContent(document.getElementById('partidas-overlay'));
   showToast('✓ Específico actualizado');
@@ -10342,7 +10382,31 @@ async function borrarEspecificoPartidaBanner(partidaId, idx){
   const registros = especificosPartidaData[partidaId];
   const registro = registros?.[idx];
   registros.splice(idx,1);
-  saveEspecificosPartidaData();
+  if(!await saveEspecificosPartidaData()){
+    registros.splice(idx,0,registro);
+    showToast('No se confirmó la anulación del Específico. Reintenta.');
+    return;
+  }
+  if(registro?.tareaId){
+    const referencias = Object.values(especificosPartidaData).flat().filter(r=>r.tareaId===registro.tareaId);
+    await loadTareasData();
+    const tarea = tareasData.find(t=>t.id===registro.tareaId);
+    if(tarea){
+      if(referencias.length){
+        const calles = [...new Set(referencias.flatMap(r=>Array.isArray(r.calles)?r.calles:[]).map(Number).filter(Number.isFinite))].sort((a,b)=>a-b);
+        if(calles.length) tarea.calles = formatCallesConEnteroParaImprimir(tarea.inv, calles);
+      }else{
+        tarea.estado = 'anulada';
+        tarea.anuladaEn = new Date().toLocaleString('es-ES');
+        tarea.anuladaISO = fechaLocalISO(new Date());
+        tarea.motivoAnulacion = 'Específico de partida eliminado';
+      }
+      if(!await persistTareasData()){
+        showToast('Específico quitado; la tarea vinculada conserva su histórico pendiente de actualizar. Reintenta.');
+        return;
+      }
+    }
+  }
   // A petición de Paula (2026-08-18): "se debe de poder borrar tanto de ahí
   // como de la cuadrícula" — antes solo se quitaba el banner, la celda
   // seguía marcada en Específicos. Solo se puede vaciar la celda si el
@@ -19789,8 +19853,8 @@ async function autoAsignarTareaEspecifico(invId, dia, callesLabel, titulo, horar
     id: 'tarea_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
     titulo, descripcion: obs||'', asignadoA, asignadoPor: currentUser||'—',
     inv: invId, calles: callesLabel, fecha: fechaLabel, fechaISO, turno: '',
-    horario: horario||'', categoria: 'especifico',
-    producto: extra?.producto||'', dosis: extra?.dosis||'', caldoLabel: extra?.caldoLabel||'', gastoLabel: extra?.gastoLabel||'',
+    horario: horario||'', origen: 'especificos', categoria: 'especifico',
+    producto: extra?.producto||'', dosis: extra?.dosis||'', caldoLabel: extra?.caldoLabel||'', caldoLitros: Number(extra?.caldoLitros)||null, gastoLabel: extra?.gastoLabel||'',
     prioridad: 'normal', estado: 'pendiente', horaInicio: null, horaFin: null, firmante: null,
     visto: false, creadoEn: new Date().toLocaleString('es-ES')
   });
@@ -19818,7 +19882,7 @@ async function autoAsignarTareaEspecifico(invId, dia, callesLabel, titulo, horar
   }
   logHistorial(`Auto-asignó tarea de específico desde INV ${invId}`);
   refreshTareasViews();
-  return true;
+  return tareasData.find(t=>t.inv===invId && t.fechaISO===fechaISO && t.asignadoA===reganteAsignar && t.titulo===titulo && t.categoria==='especifico' && t.estado!=='completada')?.id || false;
 }
 // Imprimir hoja de específico directamente desde el formulario de alta manual
 // (igual que el botón "Imprimir hoja" de Plaguicidas) — usa los mismos datos
