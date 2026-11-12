@@ -3730,3 +3730,30 @@ test('UAT-1476–1480 y UAT-1483–1484: Operativas y Archivo conservan estados 
   expect(JSON.parse(database['lasala-tareas-v1'])).toEqual(tasks);
 });
 
+
+
+test('UAT-1473: completar una manual como PEÓN la muestra en Operativas del día', async ({ page }) => {
+  const today = await fechaISOEnNavegador(page);
+  const task = { id:'e2e-uat-1473-complete', titulo:'E2E completar manual 1473', asignadoA:'PEON1', asignadoPor:'E2E_ADMIN', origen:'manual', categoria:'manual', inv:'0A', calles:'1-2', fechaISO:today, estado:'pendiente' };
+  const { database, writes } = await installFixture(page, { 'lasala-tareas-v1': JSON.stringify([task]) }, { loginUser:'PEON1' });
+  await page.evaluate(() => showTareasModule());
+  const overlay = page.locator('#tareas-overlay');
+  await expect(overlay).toBeVisible();
+  const card = overlay.locator('.tarea-card').filter({ hasText:task.titulo });
+  await expect(card.getByRole('button', { name:/Iniciar/ })).toBeVisible();
+  await card.getByRole('button', { name:/Iniciar/ }).click();
+  await expect.poll(() => JSON.parse(database['lasala-tareas-v1'])[0].estado).toBe('iniciada');
+  await card.getByRole('button', { name:/Completar/ }).click();
+  const modal = page.locator('#completar-tarea-overlay');
+  await expect(modal).toBeVisible();
+  await expect(modal.locator('#ct-firma')).toHaveValue('Peon1');
+  await modal.getByRole('button', { name:'Confirmar' }).click();
+  await expect.poll(() => JSON.parse(database['lasala-tareas-v1'])[0].estado).toBe('completada');
+  const saved = JSON.parse(database['lasala-tareas-v1'])[0];
+  expect(saved.firmante).toBe('Peon1');
+  expect(saved.completadoISO).toBe(today);
+  expect(saved.horaFin).toBeTruthy();
+  await expect(overlay.locator('.tarea-card').filter({ hasText:task.titulo })).toBeVisible();
+  expect(writes.length).toBeGreaterThanOrEqual(2);
+  expect(writes.every(w => w.key==='lasala-tareas-v1')).toBe(true);
+});
