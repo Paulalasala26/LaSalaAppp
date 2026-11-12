@@ -1033,6 +1033,8 @@ test('UAT-1436–1440: solo el PEÓN asignado puede ejecutar y la secuencia se l
 
   await page.getByRole('button', { name: 'Salir' }).click();
   await expect(page.locator('#login-screen')).toBeVisible();
+  await page.reload();
+  await expect(page.locator('#login-screen')).toBeVisible();
   await logInAs(page, 'E2E_PEON2');
   const newPeonView = page.locator('#peon-tareas-inline');
   await expect(newPeonView).toContainText(pending.titulo);
