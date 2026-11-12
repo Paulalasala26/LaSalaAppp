@@ -445,7 +445,7 @@ test('UAT-007, UAT-1949, UAT-1951–1953, UAT-1954–1960 y UAT-1963: los acceso
     }
     expect(pageErrors, `Errores al abrir ${action}`).toEqual([]);
     const overlay = page.locator(expectedOverlay);
-    await overlay.getByRole('button', { name: /✕/ }).last().click();
+    await overlay.locator('button').filter({ hasText: '✕' }).last().click();
     await expect(overlay).toBeHidden();
     await expect(page.locator('#page-home')).toBeVisible();
   }
