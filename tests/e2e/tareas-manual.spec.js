@@ -3471,3 +3471,31 @@ test('UAT-1420: supervisor no cierra una Pistola pendiente sin la firma del PEÓ
   expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([task]);
   expect(writes).toEqual([]);
 });
+
+test('UAT-1448–1450: impresión general tiene un solo icono y selector con días y salas imprimibles', async ({ page }) => {
+  const today = await fechaISOEnNavegador(page);
+  const tomorrow = await fechaISOEnNavegador(page, 1);
+  const tasks = [
+    { id: 'e2e-uat-1448-sala1-hoy', titulo: 'E2E imprimir Sala 1', asignadoA: 'PEON1', origen: 'manual', categoria: 'manual', inv: '0A', calles: '1-2', fechaISO: today, fecha: 'hoy', turno: 'Mañana', estado: 'pendiente' },
+    { id: 'e2e-uat-1449-sala2-manana', titulo: 'E2E imprimir Sala 2', asignadoA: 'PEON1', origen: 'manual', categoria: 'manual', inv: '10A', calles: '3-4', fechaISO: tomorrow, fecha: 'mañana', turno: 'Mañana', estado: 'pendiente' }
+  ];
+  const { writes } = await installFixture(page, { 'lasala-tareas-v1': JSON.stringify(tasks) });
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  const printButton = overlay.getByRole('button', { name: 'Imprimir tareas de peones' });
+  const closeButton = overlay.getByRole('button', { name: 'Cerrar Operativas' });
+  await expect(printButton).toHaveCount(1);
+  await expect(closeButton).toBeVisible();
+  expect(await printButton.evaluate(el => el.parentElement === document.querySelector('#tareas-overlay [aria-label="Cerrar Operativas"]').parentElement)).toBe(true);
+  await printButton.click();
+  const selector = page.locator('#imprimir-tareas-selector-overlay');
+  await expect(selector).toBeVisible();
+  await expect(selector.getByText('Días con tareas', { exact: true })).toBeVisible();
+  await expect(selector.getByText('Salas con tareas', { exact: true })).toBeVisible();
+  await expect(selector.locator('.it-dia-chk')).toHaveCount(2);
+  await expect(selector.locator('.it-sala-chk')).toHaveCount(2);
+  await expect(selector.getByText('Sala 1', { exact: true })).toBeVisible();
+  await expect(selector.getByText('Sala 2', { exact: true })).toBeVisible();
+  await expect(selector.getByText('Sala 3', { exact: true })).toHaveCount(0);
+  expect(writes).toEqual([]);
+});
