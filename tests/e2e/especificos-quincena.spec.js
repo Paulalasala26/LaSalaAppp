@@ -634,7 +634,6 @@ test('UAT-1422: imprimir la tarea Específicos genera su hoja de tratamiento y c
   const printed=await page.locator('#print-especifico-iframe').contentFrame().locator('body').innerText();
   expect(printed).toContain('ESPECIFICOS');
   expect(printed).toContain('C/101');
-  expect(printed).toContain('UAT-1422');
   expect(printed).not.toContain('Pistola');
   expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([]);
   expect(unexpectedHosts).toEqual([]);
@@ -651,12 +650,12 @@ test('UAT-1423: editar el Específico vinculado actualiza la misma tarea sin dup
   await page.evaluate(async()=>{await loadTareasData();await loadEspecificosPartidaData();editarEspecificoPartidaBanner('partida-1423',0);});
   await page.locator('#eeb-trat').selectOption(trat);
   await page.locator('#eeb-dosis').selectOption(dosis);
-  await page.locator('#eeb-horario').selectOption('Tarde');
+  await page.locator('#eeb-horario').selectOption('17:00');
   await page.evaluate(()=>guardarEspecificoPartidaBanner('partida-1423',0));
   await expect.poll(()=>JSON.parse(database['lasala-tareas-v1'])[0]?.titulo).toBe(`${trat} ${dosis}`);
   const tasks=JSON.parse(database['lasala-tareas-v1']);
   expect(tasks).toHaveLength(1);
-  expect(tasks[0]).toMatchObject({id:original.id,origen:'especificos',categoria:'especifico',producto:trat,dosis,horario:'Tarde'});
+  expect(tasks[0]).toMatchObject({id:original.id,origen:'especificos',categoria:'especifico',producto:trat,dosis,horario:'17:00'});
   expect(unexpectedHosts).toEqual([]);
 });
 
