@@ -2359,6 +2359,13 @@ function imprimirListadoPartidasControl(){
   const calleLabelDe = c => calleLabelDeCheckControl(c, escapar, 'Sin asignar');
   // La impresión resume las mismas cinco categorías y los mismos iconos
   // del QC. Cada fila conserva también el valor aunque no haya checks.
+  const iconosQCImpresion = {
+    color:'<svg class="qc-print-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18h1.2a2 2 0 0 0 1.4-3.4 1.8 1.8 0 0 1 1.3-3.1H18a3 3 0 0 0 3-3c0-4.7-4-8.5-9-8.5Z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10" cy="7.5" r="1"/><circle cx="15" cy="8" r="1"/></svg>',
+    tamano:'<svg class="qc-print-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4zM8 6v4m4-4v2m4-2v4m-8 6v-4m4 4v-2m4 2v-4"/></svg>',
+    sanidad:'<svg class="qc-print-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4a3 3 0 0 0-3 3v2a5 5 0 0 0 10 0V7a3 3 0 0 0-3-3m-2 0v5m-2 8v2a3 3 0 0 0 6 0v-2m0 0a3 3 0 1 0 6 0 3 3 0 0 0-6 0Zm-5-9H3m12 0h4"/></svg>',
+    flores:'<svg class="qc-print-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 13v8m0-8c-5 0-6-5-2-6-1-4 5-4 4 0 4 1 3 6-2 6Zm0 4c-2-3-5-2-6 0 2 2 4 2 6 0Zm0-2c2-3 5-2 6 0-2 2-4 2-6 0Z"/><circle cx="12" cy="9" r="1.5"/></svg>',
+    raices:'<svg class="qc-print-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21V9m0 5c-5 0-7-3-7-6 4 0 7 2 7 6Zm0-3c0-4 2-7 7-7 0 4-2 7-7 7Zm0 4-3 3m3-3 3 3"/></svg>'
+  };
   const categoriasHTML = c => CONTROL_CHECK_CATEGORIAS.map(cat=>{
     const marcadas = cat.opciones.filter(o=>c[cat.key]?.[o.key]).map(o=>o.label);
     let detalle = marcadas.join(', ');
@@ -2366,7 +2373,7 @@ function imprimirListadoPartidasControl(){
       const enfermedades = SANIDAD_ENFERMEDADES.filter(e=>c.sanidadEnfermedades[e.key]).map(e=>e.label);
       if(enfermedades.length) detalle += (detalle?' · ':'')+enfermedades.join(', ');
     }
-    return '<span class="qc-print-cat" style="background:'+escapar(cat.tinte)+'"><i class="ti '+escapar(cat.icon)+'" aria-hidden="true"></i><b>'+escapar(cat.label)+':</b> '+escapar(detalle||'—')+'</span>';
+    return '<span class="qc-print-cat" style="background:'+escapar(cat.tinte)+'">'+iconosQCImpresion[cat.key]+'<b>'+escapar(cat.label)+':</b> '+escapar(detalle||'—')+'</span>';
   }).join('');
   const filasHTML = lineas.map(c=>'<tr><td>'+(escapar(c.partida)||'—')+'</td><td>'+(escapar(clienteVariedadDeCheckControl(c))||'—')+'</td><td>'+calleLabelDe(c)+'</td><td>'+categoriasHTML(c)+'</td></tr>').join('');
   let iframe = document.getElementById('print-control-listado-iframe');
@@ -2389,7 +2396,7 @@ function imprimirListadoPartidasControl(){
       th,td{padding:7px 8px;border-bottom:1px solid #ccc;text-align:left;vertical-align:top}
       th{font-size:10px;text-transform:uppercase;color:#555}
       .qc-print-cat{display:inline-flex;align-items:center;gap:4px;margin:0 4px 4px 0;padding:4px 7px;border-radius:6px;font-size:10px;white-space:nowrap}
-      .qc-print-cat .ti{font-size:13px}
+      .qc-print-icon{width:16px;height:16px;flex:0 0 16px;stroke:#263746;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;fill:none}\n      .qc-print-cat b{font-weight:700}
     </style></head><body>
       <h1>${escapar(titulo)} (${lineas.length})</h1>
       <table><thead><tr><th>Partida</th><th>Cliente y variedad</th><th>Calle real</th><th>Evaluación QC</th></tr></thead><tbody>${filasHTML}</tbody></table>
