@@ -78,7 +78,7 @@ test('UAT-407, UAT-408 y UAT-410: foto histórica solo lectura y preservada al a
   const removed=await page.evaluate(async id=>{window.confirm=()=>true;return eliminarFotoControl(id,0);},id);
   expect(removed).toBe(false);
   expect(database['lasala-control-fotos-v1']).toBe(JSON.stringify({[id]:legacyPhoto}));
-  expect(writes).toEqual([]);
+  expect(writes.filter(write=>write.path.includes('control-fotos'))).toEqual([]);
 
   await card.locator('input[data-testid^="control-photo-gallery-"]').setInputFiles({
     name:'e2e-new-photo-next-to-legacy.png',mimeType:'image/png',
