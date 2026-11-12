@@ -1133,7 +1133,7 @@ test('UAT-1427: cambiar entre Partidas y Operativas conserva el Específico y la
 
   await expect(map).toContainText('E2E-PARTIDA-001');
   await expect(map).toContainText('E2E-TRATAMIENTO');
-  await overlay.getByRole('button', { name: '✕', exact: true }).first().click();
+  await overlay.getByRole('button', { name: /Cerrar/ }).click();
   await expect(overlay).toBeHidden();
 
   await page.locator(`#quick-access-block .home-shortcut-card[onclick="handleQuickAction('tareas')"]`).click();
