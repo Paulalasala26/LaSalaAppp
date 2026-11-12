@@ -2045,9 +2045,11 @@ async function guardarReasignacionTarea(id){
     fechaISO: fechaLocalISO(ahora),
     fecha: ahora.toLocaleString('es-ES')
   };
+  const origen = String(tarea.origen||tarea.categoria||'manual').toLocaleLowerCase('es-ES');
   tareasData = tareasData.map(t=>t.id===id ? {
     ...t,
     asignadoA: destino,
+    ...(origen==='riego' ? {asignacionManual: destino!==peonDelaSala(tarea.inv)} : {}),
     visto: false,
     historialReasignaciones: [...(Array.isArray(t.historialReasignaciones)?t.historialReasignaciones:[]), registro]
   } : t);
@@ -16291,7 +16293,7 @@ async function generarTareasDesdeRiego(){
   // iniciadas (el peón ya está en ello), las completadas y las creadas a mano
   // (origen:'manual') se conservan. Las tareas generadas antes de este cambio
   // no llevan marca de origen y se tratan como de riego (como hasta ahora).
-  tareasData = tareasData.filter(t => !((['PEON1','PEON2','PEON3'].includes(t.asignadoA)) && !t.categoria && t.estado==='pendiente' && t.origen!=='manual'));
+  tareasData = tareasData.filter(t => !((['PEON1','PEON2','PEON3'].includes(t.asignadoA)) && !t.categoria && t.estado==='pendiente' && t.origen!=='manual' && t.asignacionManual!==true));
   const invIds = [...Object.keys(INV_LAYOUT_SALA1), ...Object.keys(INV_LAYOUT_SALA2), ...Object.keys(INV_LAYOUT_SALA3), ...Object.keys(INV_LAYOUT_SALA4), ...Object.keys(INV_LAYOUT_SALA5)];
   let creadas = 0;
   invIds.forEach(invId=>{
@@ -16323,7 +16325,9 @@ async function generarTareasDesdeRiego(){
         const crearOFusionar = (tituloBruto, horarioTarea, esFoliar) => {
           const tituloExpandido = expandirAbreviaturasRiego(tituloBruto);
           const peonAsignado = peonDelaSala(invId);
-          const existente = tareasData.find(t=>t.asignadoA===peonAsignado && !t.categoria && t.origen!=='manual' && t.inv===invId && t.fechaISO===fechaISO && t.titulo===tituloExpandido && (t.horario||'')===(horarioTarea||''));
+          const coincideOrigen = t=>!t.categoria && t.origen!=='manual' && t.inv===invId && t.fechaISO===fechaISO && t.titulo===tituloExpandido && (t.horario||'')===(horarioTarea||'');
+          const existente = tareasData.find(t=>t.asignacionManual===true && t.estado==='pendiente' && coincideOrigen(t))
+            || tareasData.find(t=>t.asignadoA===peonAsignado && coincideOrigen(t));
           if(existente && existente.estado==='iniciada') return; // ya en marcha: no se toca ni se duplica
           if(existente){
             existente._callesNumeros = [...new Set([...(existente._callesNumeros||[]), ...br.calles])];
