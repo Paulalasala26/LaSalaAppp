@@ -691,3 +691,16 @@ test('UAT-980–983: quinto acceso, primer módulo, cierre y reapertura de Espec
   await expect(overlay.locator('button').filter({hasText:'✕'})).toHaveCount(1);
   expect(unexpectedHosts).toEqual([]);
 });
+
+
+test('UAT-1012 y UAT-1013: la cuadrícula muestra INV vacío y tratamiento existente',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openSpecifics(page,database);
+  const occupied=page.locator('#especificos-grid-wrap [data-einv="17"][data-edia="30"][data-erc="18"]');
+  const empty=page.locator('#especificos-grid-wrap [data-einv="17"][data-edia="30"][data-erc="16"]');
+  await expect(overlay).toBeVisible();
+  await expect(occupied).toHaveValue('E2E-ESPECIFICO-INV17');
+  await expect(empty).toHaveValue('');
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
