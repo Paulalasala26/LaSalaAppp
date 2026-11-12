@@ -3499,3 +3499,80 @@ test('UAT-1448–1450: impresión general tiene un solo icono y selector con dí
   await expect(selector.getByText('Sala 3', { exact: true })).toHaveCount(0);
   expect(writes).toEqual([]);
 });
+
+
+test('UAT-1455: impresión sin tareas avisa y no abre una hoja vacía', async ({ page }) => {
+  const { writes } = await installFixture(page);
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  await overlay.getByRole('button', { name: 'Imprimir tareas de peones' }).click();
+  await expect(page.locator('#app-toast')).toHaveText('No hay tareas para imprimir');
+  await expect(page.locator('#imprimir-tareas-selector-overlay')).toBeHidden();
+  expect(writes).toEqual([]);
+});
+
+test('UAT-1456: impresión selecciona hoy cuando hay tareas de hoy', async ({ page }) => {
+  const today = await fechaISOEnNavegador(page);
+  const tomorrow = await fechaISOEnNavegador(page, 1);
+  const tasks = [
+    { id:'e2e-uat-1456-hoy', titulo:'E2E hoy 1456', asignadoA:'PEON1', origen:'manual', categoria:'manual', inv:'0A', calles:'1', fechaISO:today, fecha:'hoy', turno:'Mañana', estado:'pendiente' },
+    { id:'e2e-uat-1456-mañana', titulo:'E2E mañana 1456', asignadoA:'PEON1', origen:'manual', categoria:'manual', inv:'0A', calles:'2', fechaISO:tomorrow, fecha:'mañana', turno:'Mañana', estado:'pendiente' }
+  ];
+  const { writes } = await installFixture(page, { 'lasala-tareas-v1': JSON.stringify(tasks) });
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  await overlay.getByRole('button', { name: 'Imprimir tareas de peones' }).click();
+  const selector = page.locator('#imprimir-tareas-selector-overlay');
+  await expect(selector.locator('.it-dia-chk')).toHaveCount(2);
+  await expect(selector.locator('.it-dia-chk').nth(0)).toBeChecked();
+  await expect(selector.locator('.it-dia-chk').nth(1)).not.toBeChecked();
+  await expect(selector.locator('#imprimir-tareas-count')).toHaveText('Tareas seleccionadas: 1');
+  expect(writes).toEqual([]);
+});
+
+test('UAT-1457: sin tareas de hoy la impresión selecciona el primer día disponible', async ({ page }) => {
+  const tomorrow = await fechaISOEnNavegador(page, 1);
+  const tasks = [{ id:'e2e-uat-1457-mañana', titulo:'E2E mañana 1457', asignadoA:'PEON1', origen:'manual', categoria:'manual', inv:'0A', calles:'1', fechaISO:tomorrow, fecha:'mañana', turno:'Mañana', estado:'pendiente' }];
+  const { writes } = await installFixture(page, { 'lasala-tareas-v1': JSON.stringify(tasks) });
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  await overlay.getByRole('button', { name: 'Imprimir tareas de peones' }).click();
+  const selector = page.locator('#imprimir-tareas-selector-overlay');
+  await expect(selector.locator('.it-dia-chk')).toHaveCount(1);
+  await expect(selector.locator('.it-dia-chk').first()).toBeChecked();
+  await expect(selector.locator('#imprimir-tareas-count')).toHaveText('Tareas seleccionadas: 1');
+  expect(writes).toEqual([]);
+});
+
+test('UAT-1458–1461: el contador responde a días y salas, bloquea cero y cancelar no escribe', async ({ page }) => {
+  const today = await fechaISOEnNavegador(page);
+  const tomorrow = await fechaISOEnNavegador(page, 1);
+  const tasks = [
+    { id:'e2e-uat-1458-sala1', titulo:'E2E sala 1 1458', asignadoA:'PEON1', origen:'manual', categoria:'manual', inv:'0A', calles:'1', fechaISO:today, fecha:'hoy', turno:'Mañana', estado:'pendiente' },
+    { id:'e2e-uat-1458-sala2', titulo:'E2E sala 2 1458', asignadoA:'PEON1', origen:'manual', categoria:'manual', inv:'10A', calles:'2', fechaISO:tomorrow, fecha:'mañana', turno:'Mañana', estado:'pendiente' }
+  ];
+  const { database, writes } = await installFixture(page, { 'lasala-tareas-v1': JSON.stringify(tasks) });
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  await overlay.getByRole('button', { name: 'Imprimir tareas de peones' }).click();
+  const selector = page.locator('#imprimir-tareas-selector-overlay');
+  const days = selector.locator('.it-dia-chk');
+  const rooms = selector.locator('.it-sala-chk');
+  const print = selector.locator('#imprimir-tareas-confirmar-btn');
+  await expect(selector.locator('#imprimir-tareas-count')).toHaveText('Tareas seleccionadas: 1');
+  await days.first().uncheck();
+  await expect(selector.locator('#imprimir-tareas-count')).toHaveText('Tareas seleccionadas: 0');
+  await expect(print).toBeDisabled();
+  await days.nth(1).check();
+  await expect(selector.locator('#imprimir-tareas-count')).toHaveText('Tareas seleccionadas: 1');
+  await rooms.first().uncheck();
+  await rooms.nth(1).uncheck();
+  await expect(selector.locator('#imprimir-tareas-count')).toHaveText('Tareas seleccionadas: 0');
+  await expect(print).toBeDisabled();
+  await rooms.nth(1).check();
+  await expect(selector.locator('#imprimir-tareas-count')).toHaveText('Tareas seleccionadas: 1');
+  await selector.getByRole('button', { name: 'Cancelar' }).click();
+  await expect(selector).toBeHidden();
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual(tasks);
+  expect(writes).toEqual([]);
+});
