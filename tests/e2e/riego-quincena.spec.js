@@ -1264,7 +1264,7 @@ test('UAT-1426: consultar Hojas de riego como REGANTE no genera tareas PEÓN', a
   await page.locator('#login-pass').fill(login.password);
   await page.getByRole('button', { name: 'Iniciar sesión' }).click();
   await expect(page.locator('#page-home')).toBeVisible();
-  await page.locator('#quick-access-block .home-shortcut-card[onclick="handleQuickAction('tareas')"]').click();
+  await page.locator(`#quick-access-block .home-shortcut-card[onclick="handleQuickAction('tareas')"]`).click();
   const tasksOverlay = page.locator('#tareas-overlay');
   await expect(tasksOverlay).toBeVisible();
   await expect(tasksOverlay.locator('.tarea-card')).toHaveCount(0);
