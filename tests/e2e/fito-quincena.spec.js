@@ -813,7 +813,7 @@ test('UAT-522: dos jornadas con el mismo producto conservan litros de caldo inde
   expect(unexpectedHosts).toEqual([]);
 });
 
-test('UAT-523: cambiar de Pistola a Cañón antes de guardar no asigna una tarea de PEÓN',async({page})=>{
+test('UAT-523 y UAT-1415: cambiar de Pistola a Cañón antes de guardar no asigna una tarea de PEÓN',async({page})=>{
   const database=fixtureDatabase();
   const {overlay,unexpectedHosts}=await openFito(page,database);
   await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
