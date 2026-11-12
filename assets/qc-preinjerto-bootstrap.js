@@ -207,7 +207,7 @@
         const response=await fetch('/api/admin-qc-mediciones',{
           method:'POST',
           headers:{Authorization:'Bearer '+firebaseIdToken,'Content-Type':'application/json'},
-          body:JSON.stringify({modo:'estados',tipo, dia,registros:refs.slice(i,i+60).map(({id,partida})=>({id,partida}))}),
+          body:JSON.stringify({modo:'estados',tipo:type,dia:day,registros:refs.slice(i,i+60).map(({id,partida})=>({id,partida}))}),
           cache:'no-store'
         });
         if(!response.ok)throw Error('QC_STATUS_UNAVAILABLE');

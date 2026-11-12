@@ -6794,7 +6794,7 @@ function renderControlContent(overlay){
         ${CONTROL_SECCIONES.filter(s=>currentUserRole!=='CARGADOR'||s.key==='carga').map(navBtn).join('')}
       </nav>`;
   overlay.innerHTML=`
-    <div class="control-ui-shell${controlSeccion==='tunel'?' qc-tunel-work':controlSeccion==='carga'?' qc-carga-work':''}">
+    <div class="control-ui-shell${controlSeccion==='tunel'||controlSeccion==='preinjerto_patron'||controlSeccion==='preinjerto_variedad'?' qc-tunel-work':controlSeccion==='carga'?' qc-carga-work':''}">
       <header class="control-ui-header">
         <button type="button" class="control-ui-home" onclick="seleccionarSeccionControl(null)"
           aria-label="Volver al resumen de Control de Calidad" title="Volver al resumen">
@@ -7641,7 +7641,7 @@ function renderControlChecklistHTML(seccion){
   const cardsHTML = listaMostrada.length===0
     ? `<div class="qc-list-none">${listaDia.length===0?'Sin partidas para este día.':((seccion.key==='carga'?controlCargaInvFiltro:controlTunelInvFiltro)?'No hay partidas para ese invernadero y día.':'No hay líneas con el estado seleccionado.')}</div>`
     : `<div class="qc-list-cards">${filas}</div>`;
-  if(seccion.key==='tunel'||seccion.key==='carga'){
+  if(['tunel','carga','preinjerto_patron','preinjerto_variedad'].includes(seccion.key)){
     const moreOptions=(extraTunelHTML||pdfInfoHTML)
       ? '<details class="qc-list-more"><summary>Más opciones</summary><div class="qc-list-more-actions">'+extraTunelHTML+'</div>'+pdfInfoHTML+'</details>'
       : '';
@@ -25241,6 +25241,7 @@ function conGuardiaReentrada(fn){
 <script src="assets/fito-series-v3.js"></script>
 <script src="assets/qc-editar-linea-v3.js?v=109"></script>
 <script src="assets/gs-carga-feed.js?v=4"></script>
+<script src="assets/qc-preinjerto-bootstrap.js?v=8" defer></script>
 </body>
 </html>
 <!-- VERCEL TEST v1.0 deployment trigger 2026-09-22 -->
