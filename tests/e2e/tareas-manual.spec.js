@@ -3248,3 +3248,37 @@ test('UAT-1401: repetir conciliación sin cambios conserva la tarea Riego existe
   expect(tareas).toHaveLength(1);
   expect(tareas[0].id).toBe(primeraId);
 });
+
+
+test('UAT-1405: la anulación de Riego no se reactiva al abrir Operativas', async ({ page }) => {
+  const riego = { '1A': { '32': { '2': 'PP' } } };
+  const { database } = await installFixture(page, {
+    'lasala-riego-v1': JSON.stringify(riego)
+  });
+  const fechaISO = await page.evaluate(() => fechaLocalISO(riegoDiaToDate(32)));
+  const cancelada = {
+    id: 'e2e-riego-cancelado-1405',
+    titulo: 'Puntas de pasillo',
+    asignadoA: 'PEON1',
+    origen: 'riego',
+    inv: '1A',
+    calles: 'C/102',
+    callesOrigenRiego: [2],
+    fechaISO,
+    estado: 'anulada',
+    anuladaISO: fechaISO,
+    motivoAnulacion: 'Cambio autorizado UAT-1405'
+  };
+  database['lasala-tareas-v1'] = JSON.stringify([cancelada]);
+
+  await page.evaluate(async () => {
+    window.confirm = () => true;
+    await loadRiegoData();
+    await generarTareasDesdeRiego();
+  });
+  await openTasks(page);
+  const tareas = JSON.parse(database['lasala-tareas-v1']);
+  expect(tareas).toHaveLength(1);
+  expect(tareas[0]).toEqual(cancelada);
+  await expect(page.locator('#tareas-overlay')).toBeVisible();
+});
