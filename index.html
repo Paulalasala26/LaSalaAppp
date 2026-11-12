@@ -6507,13 +6507,13 @@ function qcMoverDia(delta,modo){
 }
 function qcImprimirDia(){
  const tipo=controlSeccion;
- if(tipo!=='tunel'&&tipo!=='carga')return;
+ if(!['tunel','carga','carga_injerto','preinjerto_patron','preinjerto_variedad'].includes(tipo))return;
  const dia=controlDiaSel;
  if(!Number.isInteger(dia))return;
  const filtradas=controlLineasFiltradasInv(controlChecksData.filter(c=>c.tipo===tipo&&c.dia===dia),tipo);
  const lista=controlFiltroEstado==='completados'?filtradas.filter(controlLineaFinalizadaQC):controlFiltroEstado==='pendientes'?filtradas.filter(c=>!controlLineaFinalizadaQC(c)):filtradas;
  if(!lista.length){showToast('No hay inspecciones para imprimir.');return;}
- window.__controlListadoActual={titulo:(tipo==='tunel'?'QC Túnel':'QC Carga normal')+' · '+riegoDiaLabelCorto(dia),lineas:lista};
+ window.__controlListadoActual={titulo:(CONTROL_SECCIONES.find(s=>s.key===tipo)?.label||'QC')+' · '+riegoDiaLabelCorto(dia),lineas:lista};
  imprimirListadoPartidasControl();
 }
 function qcPanel(title,content,cls){
@@ -6713,7 +6713,7 @@ function renderControlContent(overlay){
           ${controlDesdeBackoffice ? `<button type="button" onclick="volverAlListadoControlBackoffice()"
             style="background:#1558a0;border:1px solid #a8c4e8;color:#fff;border-radius:7px;font-size:12px;font-weight:800;padding:7px 11px;cursor:pointer;white-space:nowrap"
             title="Volver al listado de Control del Backoffice">← Backoffice</button>` : ''}
-          ${(controlSeccion==='tunel'||controlSeccion==='carga')?'<button type="button" class="qc-work-print" onclick="qcImprimirDia()" aria-label="Imprimir listado del día" title="Imprimir listado del día"><i class="ti ti-printer" aria-hidden="true"></i></button>':''}
+          ${(['tunel','carga','carga_injerto','preinjerto_patron','preinjerto_variedad'].includes(controlSeccion))?'<button type="button" class="qc-work-print" onclick="qcImprimirDia()" aria-label="Imprimir listado del día" title="Imprimir listado del día"><i class="ti ti-printer" aria-hidden="true"></i></button>':''}
           <span class="control-ui-section-label" aria-live="polite">${controlSeccion ? (CONTROL_SECCIONES.find(s=>s.key===controlSeccion)?.label || '') : 'Resumen'}</span>
           <button type="button" class="control-ui-close" onclick="cerrarControlModule()"
             title="Cerrar Control de Calidad" aria-label="Cerrar Control de Calidad">&times;</button>
