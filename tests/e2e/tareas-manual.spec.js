@@ -3680,3 +3680,53 @@ test('UAT-1466–1468 y UAT-1470: iconos imprimen el documento adecuado y anunci
   expect(JSON.parse(database['lasala-tareas-v1'])).toEqual(tasks);
   expect(writes).toEqual([]);
 });
+
+
+test('UAT-1476–1480 y UAT-1483–1484: Operativas y Archivo conservan estados e historial', async ({ page }) => {
+  const today = await fechaISOEnNavegador(page);
+  const older = await fechaISOEnNavegador(page, -2);
+  const tasks = [
+    { id:'e2e-uat-1476-old-completed', titulo:'E2E completada antigua 1476', asignadoA:'PEON1', origen:'manual', categoria:'manual', inv:'0A', calles:'1', fechaISO:older, completadoISO:older, estado:'completada', horaInicio:'09:10', horaFin:'09:45', firmante:'PEON1' },
+    { id:'e2e-uat-1476-recent-completed', titulo:'E2E completada reciente 1476', asignadoA:'PEON2', origen:'manual', categoria:'manual', inv:'0B', calles:'2', fechaISO:today, completadoISO:today, estado:'completada', horaInicio:'08:50', horaFin:'09:05', firmante:'PEON2' },
+    { id:'e2e-uat-1477-cancelled', titulo:'E2E anulada 1477', descripcion:'Motivo de prueba 1477', asignadoA:'PEON1', origen:'manual', categoria:'manual', inv:'0C', calles:'3', fechaISO:today, anuladaISO:today, motivoAnulacion:'Motivo de prueba 1477', estado:'anulada' },
+    { id:'e2e-uat-1479-old-pending', titulo:'E2E pendiente antigua 1479', asignadoA:'PEON2', origen:'manual', categoria:'manual', inv:'0D', calles:'4', fechaISO:older, estado:'pendiente' },
+    { id:'e2e-uat-1483-legacy', titulo:'E2E histórica legacy 1483', asignadoA:'PEON2', inv:'0E', calles:'5', fechaISO:older, completadoISO:older, estado:'completada', horaFin:'11:00', firmante:'PEON2' }
+  ];
+  const { database, writes } = await installFixture(page, { 'lasala-tareas-v1': JSON.stringify(tasks) });
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  const todayTab = overlay.getByRole('button', { name:'Tareas de hoy' });
+  await todayTab.click();
+  const pane = overlay.locator('#tareas-gestor-content-wrap');
+  await expect(pane.locator('.tarea-card').filter({ hasText:'E2E anulada 1477' })).toHaveCount(0);
+  const recentDone = pane.locator('.tarea-card').filter({ hasText:'E2E completada reciente 1476' });
+  await expect(recentDone).toBeVisible();
+  await expect(recentDone).toContainText('08:50');
+  await expect(recentDone).toContainText('09:05');
+  await expect(recentDone).toContainText('PEON2');
+  await expect(pane.getByText('✓ Completadas (1)', { exact:true })).toBeVisible();
+  const oldTab = overlay.getByRole('button', { name:'Tareas antiguas' });
+  await oldTab.click();
+  await expect(overlay.locator('.tarea-card').filter({ hasText:'E2E pendiente antigua 1479' })).toBeVisible();
+  const archive = overlay.getByRole('button', { name:/Archivo/ });
+  await archive.click();
+  const archived = overlay.locator('#tareas-archivo-anuladas');
+  const cancelled = archived.locator('.tarea-archivo-card').filter({ hasText:'E2E anulada 1477' });
+  await expect(cancelled).toContainText('Anulada');
+  await expect(cancelled).toContainText('Motivo de prueba 1477');
+  const completedArchive = overlay.locator('#tareas-archivo-completadas');
+  const oldDone = completedArchive.locator('.tarea-archivo-card').filter({ hasText:'E2E completada antigua 1476' });
+  await expect(oldDone).toContainText(older);
+  await expect(oldDone).toContainText('PEON1');
+  await expect(completedArchive).not.toContainText('E2E completada reciente 1476');
+  const legacy = completedArchive.locator('.tarea-archivo-card').filter({ hasText:'E2E histórica legacy 1483' });
+  await expect(legacy).toContainText('Completada');
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual(tasks);
+  expect(writes).toEqual([]);
+  await page.reload();
+  await openTasks(page);
+  await page.locator('#tareas-overlay').getByRole('button', { name:'Tareas antiguas' }).click();
+  await expect(page.locator('#tareas-overlay').locator('.tarea-card').filter({ hasText:'E2E pendiente antigua 1479' })).toBeVisible();
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual(tasks);
+});
+
