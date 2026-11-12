@@ -826,7 +826,7 @@ test('UAT-087: los tramos configurados en dos salas sobreviven al actualizar la 
   await expect(overlay).toBeVisible();
 });
 
-test('UAT-083, UAT-088 y UAT-112: Entero guarda la instrucción completa y agua ordinaria no crea tareas', async ({ page }) => {
+test('UAT-083, UAT-088, UAT-112 y UAT-1375: agua y abono sin Trabajo no crean tareas', async ({ page }) => {
   const database = fixtureDatabase();
   const tasksBefore = JSON.stringify(database['lasala-tareas-v1'] ?? null);
   const { overlay, unexpectedHosts } = await openRiego(page, database);
@@ -834,6 +834,8 @@ test('UAT-083, UAT-088 y UAT-112: Entero guarda la instrucción completa y agua 
   const streets = await callesVisiblesDelDia(grid, day);
   await expect(form.locator('input[name="rmb-modo-17"]').first()).toBeChecked();
   await form.locator('.rm-agua-min').first().selectOption('10');
+  await form.locator('.rm-abono-cat').first().selectOption('SAL');
+  await form.locator('.rm-abono-tiempo').first().selectOption('5');
   await form.locator('#rm-guardar-btn').click();
   await expect(form).toBeHidden();
   await expect.poll(() => Object.keys(riegoGuardado(database)?.['17']?.[day] || {}).length).toBe(streets.length);
@@ -1161,4 +1163,23 @@ test('UAT-073: la cuadrícula y sus acciones siguen utilizables en móvil vertic
   pageWidth = await page.evaluate(() => document.documentElement.scrollWidth);
   expect(pageWidth).toBeLessThanOrEqual(845);
   expect(unexpectedHosts).toEqual([]);
+});
+
+
+test('UAT-1376: PREPARAR sin Trabajo reconocido no crea tarea de PEÓN', async ({ page }) => {
+  const database = fixtureDatabase();
+  const tasksBefore = JSON.stringify(database['lasala-tareas-v1'] ?? null);
+  const { overlay, unexpectedHosts } = await openRiego(page, database);
+  const { form, grid, day } = await openManualRiegoOnFutureDay(page);
+  const streets = await callesVisiblesDelDia(grid, day);
+
+  await form.locator('.rm-trabajo-chk[value="PREPARAR"]').check();
+  await form.locator('#rm-guardar-btn').click();
+  await expect(form).toBeHidden();
+  await expect.poll(() => Object.keys(riegoGuardado(database)?.['17']?.[day] || {}).length).toBe(streets.length);
+  const saved = riegoGuardado(database)['17'][day];
+  expect(Object.values(saved).every(value => JSON.stringify(value).includes('PREPARAR'))).toBe(true);
+  expect(JSON.stringify(database['lasala-tareas-v1'] ?? null)).toBe(tasksBefore);
+  expect(unexpectedHosts).toEqual([]);
+  await expect(overlay).toBeVisible();
 });
