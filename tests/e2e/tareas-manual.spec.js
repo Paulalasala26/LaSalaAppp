@@ -3058,8 +3058,8 @@ test('UAT-1370–1374: asignación en lote actualiza solo pendientes, permite RE
 
 test('UAT-1380–1384: Generar tareas asigna PEÓN por sala y agrupa calles contiguas', async ({ page }) => {
   const riego = {
-    '17': { '32': { '2': 'PP', '3': 'PP', '4': '10' } },
-    '10A': { '32': { '2': 'PP', '3': '10' } },
+    '1A': { '32': { '2': 'PP', '3': 'PP', '4': '10' } },
+    '17': { '32': { '2': 'PP', '3': '10' } },
     '31': { '32': { '2': 'PP', '3': '10' } }
   };
   const { database, writes } = await installFixture(page, {
@@ -3074,14 +3074,14 @@ test('UAT-1380–1384: Generar tareas asigna PEÓN por sala y agrupa calles cont
   const tareas = JSON.parse(database['lasala-tareas-v1']).filter(t => t.origen === 'riego');
   expect(tareas).toHaveLength(3);
   const tareaPorInv = Object.fromEntries(tareas.map(t => [t.inv, t]));
-  expect(tareaPorInv['17'].asignadoA).toBe('PEON1');
-  expect(tareaPorInv['10A'].asignadoA).toBe('PEON2');
+  expect(tareaPorInv['1A'].asignadoA).toBe('PEON1');
+  expect(tareaPorInv['17'].asignadoA).toBe('PEON2');
   expect(tareaPorInv['31'].asignadoA).toBe('PEON3');
-  expect(tareaPorInv['17'].calles).toBe('C/1702-1703');
-  expect(tareaPorInv['10A'].calles).toBe('C/1002');
+  expect(tareaPorInv['1A'].calles).toBe('C/102-103');
+  expect(tareaPorInv['17'].calles).toBe('C/1702');
   expect(tareaPorInv['31'].calles).toBe('C/3102');
-  const tarjeta = await page.evaluate(task => buildTareaGestorRow(task, false), tareaPorInv['17']);
-  expect(tarjeta).toContain('INV 17');
-  expect(tarjeta).toContain('C/1702-1703');
+  const tarjeta = await page.evaluate(task => buildTareaGestorRow(task, false), tareaPorInv['1A']);
+  expect(tarjeta).toContain('INV 1A');
+  expect(tarjeta).toContain('C/102-103');
   expect(writes.filter(write => write.key === 'lasala-tareas-v1')).toHaveLength(1);
 });
