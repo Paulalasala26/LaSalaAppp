@@ -3106,3 +3106,28 @@ test('UAT-1385: dos trabajos distintos del mismo invernadero y día generan órd
   expect(new Set(tareas.map(t => t.titulo))).toEqual(new Set(['Puntas de pasillo', 'Puntas de atrás']));
   expect(new Set(tareas.map(t => t.id)).size).toBe(2);
 });
+
+
+test('UAT-1390–1392: conciliar Riego conserva tareas manuales, Pistola y Específicos', async ({ page }) => {
+  const riego = { '1A': { '32': { '2': 'PP' } } };
+  const previas = [
+    { id: 'e2e-manual-1390', titulo: 'Puntas de pasillo', origen: 'manual', asignadoA: 'PEON1', inv: '1A', calles: 'C/102', estado: 'pendiente' },
+    { id: 'e2e-pistola-1391', titulo: 'Pistola', origen: 'pistola', categoria: 'pistola', asignadoA: 'PEON1', inv: '1A', estado: 'pendiente' },
+    { id: 'e2e-especificos-1392', titulo: 'Específicos', origen: 'especificos', categoria: 'especificos', asignadoA: 'PEON1', inv: '1A', estado: 'pendiente' }
+  ];
+  const { database } = await installFixture(page, {
+    'lasala-riego-v1': JSON.stringify(riego),
+    'lasala-tareas-v1': JSON.stringify(previas)
+  });
+
+  await page.evaluate(async () => {
+    window.confirm = () => true;
+    await loadRiegoData();
+    await generarTareasDesdeRiego();
+  });
+
+  const tareas = JSON.parse(database['lasala-tareas-v1']);
+  for (const previa of previas) expect(tareas.find(t => t.id === previa.id)).toEqual(previa);
+  expect(tareas.filter(t => t.origen === 'riego' && t.inv === '1A')).toHaveLength(1);
+  expect(tareas).toHaveLength(4);
+});
