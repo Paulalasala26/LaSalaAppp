@@ -1270,7 +1270,6 @@ test('UAT-1239, UAT-1241, UAT-2083 y UAT-2087: PEÓN consulta Mis tareas y no ac
 });
 
 test('UAT-1240: REGANTE ve su tarea manual desde Mis tareas', async ({ page }) => {
-  test.fail(true, 'La sesión REGANTE no muestra el acceso Mis tareas aunque sí muestra Hojas de riego.');
   const task = {
     id: 'e2e-uat-1240-regante',
     titulo: 'E2E tarea REGANTE UAT-1240',
