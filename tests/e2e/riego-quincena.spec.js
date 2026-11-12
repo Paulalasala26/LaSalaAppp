@@ -1255,6 +1255,8 @@ test('UAT-1426: consultar Hojas de riego como REGANTE no genera tareas PEÓN', a
   expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([]);
   expect(writes.filter(write => write.path === 'lasala-tareas-v1')).toEqual([]);
 
+  await consulta.getByRole('button', { name: 'Cerrar consulta' }).click();
+  await expect(consulta).toBeHidden();
   await overlay.getByRole('button', { name: '✕', exact: true }).click();
   await expect(overlay).toBeHidden();
   await page.getByRole('button', { name: 'Salir' }).click();
