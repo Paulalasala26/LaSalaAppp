@@ -2837,6 +2837,7 @@ function showImprimirTareasSelector(tareas){
   const ordenSalas = ['sala1','sala2','sala3','sala4','sala5'];
   const salasDisponibles = [...new Set(tareas.map(t=>t.inv ? salaDeInv(t.inv) : null).filter(Boolean))].sort((a,b)=>ordenSalas.indexOf(a)-ordenSalas.indexOf(b));
   const hoyISO = fechaLocalISO(new Date());
+  const fechaInicial = fechas.includes(hoyISO) ? hoyISO : (fechas[0] || null);
   const mo = getOrCreateOverlay('imprimir-tareas-selector-overlay');
   mo.dataset.itIds = JSON.stringify(tareas.map(t=>t.id));
   const labelFecha = f => {
@@ -2851,13 +2852,13 @@ function showImprimirTareasSelector(tareas){
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
         <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Días con tareas</label>
         <label style="font-size:11px;font-weight:600;display:flex;align-items:center;gap:4px;cursor:pointer">
-          <input type="checkbox" onchange="document.querySelectorAll('.it-dia-chk').forEach(c=>c.checked=this.checked)"> Todos
+          <input type="checkbox" onchange="document.querySelectorAll('.it-dia-chk').forEach(c=>c.checked=this.checked);actualizarConteoImprimirTareas()"> Todos
         </label>
       </div>
       <div style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:7px;padding:8px;margin-bottom:14px">
         ${fechas.map(f=>`
           <label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer">
-            <input type="checkbox" class="it-dia-chk" value="${f}" ${f===hoyISO?'checked':''}> ${labelFecha(f)}
+            <input type="checkbox" class="it-dia-chk" value="${f}" onchange="actualizarConteoImprimirTareas()" ${f===fechaInicial?'checked':''}> ${labelFecha(f)}
           </label>`).join('')}
       </div>` : `
       <div style="font-size:12px;color:var(--muted);font-style:italic;margin-bottom:14px">Estas tareas no tienen fecha asignada — se imprimirán todas.</div>`}
@@ -2866,15 +2867,41 @@ function showImprimirTareasSelector(tareas){
       <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px">
         ${salasDisponibles.map(sala=>`
           <label style="font-size:12px;font-weight:600;display:flex;align-items:center;gap:5px;cursor:pointer">
-            <input type="checkbox" class="it-sala-chk" value="${sala}" checked> Sala ${sala.replace("sala","")}
+            <input type="checkbox" class="it-sala-chk" value="${sala}" onchange="actualizarConteoImprimirTareas()" checked> Sala ${sala.replace("sala","")}
           </label>`).join("")}
       </div>` : `<div style="font-size:12px;color:var(--muted);font-style:italic;margin-bottom:14px">No hay tareas asociadas a una sala.</div>`}
+      <div id="imprimir-tareas-count" style="font-size:12px;color:var(--muted);margin:12px 0;text-align:right">Tareas seleccionadas: 0</div>
       <div style="display:flex;justify-content:flex-end;gap:10px">
         <button onclick="this.closest('.modal-overlay-dyn').style.display='none'" style="padding:9px 16px;font-size:12px;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:7px;cursor:pointer">Cancelar</button>
-        <button onclick="confirmarImprimirTareasSeleccionadas()" style="padding:9px 18px;font-size:12px;font-weight:800;background:#1558a0;color:#fff;border:none;border-radius:7px;cursor:pointer">Imprimir</button>
+        <button id="imprimir-tareas-confirmar-btn" onclick="confirmarImprimirTareasSeleccionadas()" style="padding:9px 18px;font-size:12px;font-weight:800;background:#1558a0;color:#fff;border:none;border-radius:7px;cursor:pointer">Imprimir</button>
       </div>
     </div>`;
   mo.style.display='flex';
+  actualizarConteoImprimirTareas();
+}
+function actualizarConteoImprimirTareas(){
+  const mo = document.getElementById('imprimir-tareas-selector-overlay');
+  if(!mo) return;
+  const ids = JSON.parse(mo.dataset.itIds || '[]');
+  const diasChk = Array.from(mo.querySelectorAll('.it-dia-chk'));
+  const diasSeleccionados = diasChk.filter(c=>c.checked).map(c=>c.value);
+  const salasChk = Array.from(mo.querySelectorAll('.it-sala-chk'));
+  const salasSeleccionadas = salasChk.filter(c=>c.checked).map(c=>c.value);
+  const cantidad = tareasData.filter(t=>{
+    if(!ids.includes(t.id)) return false;
+    if(diasChk.length && !diasSeleccionados.includes(t.fechaISO)) return false;
+    const sala = t.inv ? salaDeInv(t.inv) : null;
+    if(salasChk.length && sala && !salasSeleccionadas.includes(sala)) return false;
+    return true;
+  }).length;
+  const contador = mo.querySelector('#imprimir-tareas-count');
+  const boton = mo.querySelector('#imprimir-tareas-confirmar-btn');
+  if(contador) contador.textContent = `Tareas seleccionadas: ${cantidad}`;
+  if(boton){
+    boton.disabled = cantidad===0;
+    boton.style.opacity = cantidad===0 ? '.55' : '1';
+    boton.style.cursor = cantidad===0 ? 'not-allowed' : 'pointer';
+  }
 }
 function confirmarImprimirTareasSeleccionadas(){
   const mo = document.getElementById('imprimir-tareas-selector-overlay');
