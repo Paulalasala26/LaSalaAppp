@@ -2396,7 +2396,8 @@ function imprimirListadoPartidasControl(){
       th,td{padding:7px 8px;border-bottom:1px solid #ccc;text-align:left;vertical-align:top}
       th{font-size:10px;text-transform:uppercase;color:#555}
       .qc-print-cat{display:inline-flex;align-items:center;gap:4px;margin:0 4px 4px 0;padding:4px 7px;border-radius:6px;font-size:10px;white-space:nowrap}
-      .qc-print-icon{width:16px;height:16px;flex:0 0 16px;stroke:#263746;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;fill:none}\n      .qc-print-cat b{font-weight:700}
+      .qc-print-icon{width:16px;height:16px;flex:0 0 16px;stroke:#263746;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;fill:none}
+      .qc-print-cat b{font-weight:700}
     </style></head><body>
       <h1>${escapar(titulo)} (${lineas.length})</h1>
       <table><thead><tr><th>Partida</th><th>Cliente y variedad</th><th>Calle real</th><th>Evaluación QC</th></tr></thead><tbody>${filasHTML}</tbody></table>
