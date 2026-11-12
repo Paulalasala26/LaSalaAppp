@@ -84,9 +84,9 @@ jobs:
         if: github.event_name == 'pull_request' && steps.scope.outputs.specifics == 'true'
         run: pnpm exec playwright test tests/e2e/especificos-quincena.spec.js --grep "UAT-1421|UAT-1422|UAT-1423|UAT-1424"
 
-      - name: Ejecutar check de fotos históricas QC en PR
+      - name: Ejecutar checks de cámara PC y fotos históricas QC en PR
         if: github.event_name == 'pull_request' && steps.scope.outputs.photoHistory == 'true'
-        run: pnpm exec playwright test tests/e2e/control-fotos-historicas.spec.js --grep "UAT-407|UAT-408|UAT-410"
+        run: pnpm exec playwright test tests/e2e/control-fotos-historicas.spec.js --grep "UAT-377|UAT-378|UAT-379|UAT-380|UAT-381|UAT-407|UAT-408|UAT-410"
 
       - name: Ejecutar comprobaciones breves de Riego en PR
         if: github.event_name == 'pull_request' && steps.scope.outputs.riego == 'true'
