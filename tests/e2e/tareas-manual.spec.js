@@ -3226,7 +3226,6 @@ test('UAT-1400: varios tramos del mismo trabajo se normalizan sin calles duplica
 
 
 test('UAT-1401: repetir conciliación sin cambios conserva la tarea Riego existente', async ({ page }) => {
-  test.fail(true, 'La acción explícita «Generar tareas» reconstruye las órdenes pendientes en vez de conciliarlas de forma idempotente.');
   const riego = { '1A': { '32': { '2': 'PP' } } };
   const { database } = await installFixture(page, {
     'lasala-riego-v1': JSON.stringify(riego)
