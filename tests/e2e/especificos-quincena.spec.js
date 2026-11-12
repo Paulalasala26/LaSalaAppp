@@ -355,18 +355,18 @@ test('UAT-988: un rol REGANTE no accede directamente a Específicos',async({page
 });
 
 test('UAT-989: cabecera de Específicos es azul compacta e incluye imprimir y cerrar',async({page})=>{
-  test.fail(true,'La implementación actual usa cabecera verde, aunque conserva imprimir y cerrar.');
+
   const database=fixtureDatabase();
   const {overlay,unexpectedHosts}=await openSpecifics(page,database);
   await expect(overlay.locator('button[onclick="showImprimirEspecificoSelector()"]')).toBeVisible();
   await expect(overlay.locator('button[onclick*="especificos-overlay"]')).toBeVisible();
-  const color=await overlay.locator(':scope > div').first().evaluate(element=>getComputedStyle(element).backgroundColor);
+  const color=await overlay.locator(':scope > div > div').first().evaluate(element=>getComputedStyle(element).backgroundColor);
   expect(color).toBe('rgb(21, 88, 160)');
   expect(unexpectedHosts).toEqual([]);
 });
 
 test('UAT-990: Específicos no muestra Añadir general en la cabecera',async({page})=>{
-  test.fail(true,'La implementación actual todavía tiene Añadir manualmente en la cabecera.');
+
   const database=fixtureDatabase();
   const {overlay,unexpectedHosts}=await openSpecifics(page,database);
   await expect(overlay.locator('button[onclick="showEspecificoManualForm()"]')).toHaveCount(0);
@@ -374,7 +374,7 @@ test('UAT-990: Específicos no muestra Añadir general en la cabecera',async({pa
 });
 
 test('UAT-991: Específicos no muestra Guardar general en la cabecera',async({page})=>{
-  test.fail(true,'La implementación actual todavía tiene Guardar general en la cabecera.');
+
   const database=fixtureDatabase();
   const {overlay,unexpectedHosts}=await openSpecifics(page,database);
   await expect(overlay.locator('button[onclick="saveEspecificosData()"]')).toHaveCount(0);
@@ -541,7 +541,7 @@ test('UAT-1031, UAT-1036, UAT-1037 y UAT-1038: alta desde calle muestra campos b
 });
 
 test('UAT-1033–1035: formulario desde calle fija la ubicación y no ofrece alcance global',async({page})=>{
-  test.fail(true,'El formulario desde calle aún muestra selectores de sala/invernadero y modos globales.');
+
   const database=fixtureDatabase();
   const {overlay,unexpectedHosts,writes}=await openSpecifics(page,database);
   await overlay.locator('#especificos-grid-wrap td[title="Pulsa para añadir un específico este día"]').first().click();
@@ -596,7 +596,7 @@ test('UAT-1058: botón Aplicar de alta queda alineado a la derecha',async({page}
 });
 
 test('UAT-1060: formulario de alta no ofrece imprimir',async({page})=>{
-  test.fail(true,'El formulario de alta aún muestra «Imprimir hoja».');
+
   const database=fixtureDatabase();
   const {overlay,unexpectedHosts,writes}=await openSpecifics(page,database);
   await overlay.locator('#especificos-grid-wrap td[title="Pulsa para añadir un específico este día"]').first().click();
