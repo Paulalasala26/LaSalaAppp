@@ -3284,7 +3284,6 @@ test('UAT-1405: la anulación de Riego no se reactiva al abrir Operativas', asyn
 
 
 test('UAT-1406: la tarea Pistola conserva la referencia a su serie y jornada autorizadas', async ({ page }) => {
-  test.fail(true, 'La tarea de fumigación se crea sin serieId ni jornadaId enlazados al tratamiento de Plaguicidas.');
   const { database } = await installFixture(page);
   await page.evaluate(async () => {
     await autoAsignarTareaFumigacion(
@@ -3315,24 +3314,23 @@ test('UAT-1407: dos jornadas de Pistola en días distintos producen tareas separ
 });
 
 test('UAT-1408: Pistola separa jornadas homónimas con igual producto, fecha y PEÓN', async ({ page }) => {
-  test.fail(true, 'La asignación fusiona jornadas del mismo producto, fecha y PEÓN, y no registra origenFito para verificar el reintento.');
   const { database } = await installFixture(page);
   await page.evaluate(async () => {
     const objetivo = [{ invId: '1A', callesLabel: 'C/102' }];
-    const extra = { producto: 'E2E-MISMO-DIA-1408', dosis: '1 cc/l', caldoLabel: '25L', caldoLitros: 25 };
-    await autoAsignarTareaFumigacion(objetivo, 32, 'E2E-MISMO-DIA-1408', '18:00', extra);
-    await autoAsignarTareaFumigacion([{ invId: '1A', callesLabel: 'C/104' }], 32, 'E2E-MISMO-DIA-1408', '18:00', extra);
+    const serieId = 'E2E-SERIE-1408';
+    const extra = { producto: 'E2E-MISMO-DIA-1408', dosis: '1 cc/l', caldoLabel: '25L', caldoLitros: 25, serieId };
+    await autoAsignarTareaFumigacion(objetivo, 32, 'E2E-MISMO-DIA-1408', '18:00', { ...extra, jornadaId: 'E2E-JORNADA-1408-A' });
+    await autoAsignarTareaFumigacion([{ invId: '1A', callesLabel: 'C/104' }], 32, 'E2E-MISMO-DIA-1408', '18:00', { ...extra, jornadaId: 'E2E-JORNADA-1408-B' });
   });
   const tareas = JSON.parse(database['lasala-tareas-v1']).filter(t => t.titulo === 'E2E-MISMO-DIA-1408');
   expect(tareas).toHaveLength(2);
 });
 
 test('UAT-1409: repetir asignación Pistola no duplica el mismo origen Fito', async ({ page }) => {
-  test.fail(true, 'La tarea no guarda origenFito, por lo que no puede verificarse la deduplicación por jornada de origen.');
   const { database } = await installFixture(page);
   await page.evaluate(async () => {
     const objetivo = [{ invId: '1A', callesLabel: 'C/102' }];
-    const extra = { producto: 'E2E-REINTENTO-1409', dosis: '1 cc/l', caldoLabel: '25L', caldoLitros: 25 };
+    const extra = { producto: 'E2E-REINTENTO-1409', dosis: '1 cc/l', caldoLabel: '25L', caldoLitros: 25, serieId: 'E2E-SERIE-1409', jornadaId: 'E2E-JORNADA-1409' };
     await autoAsignarTareaFumigacion(objetivo, 32, 'E2E-REINTENTO-1409', '18:00', extra);
     await autoAsignarTareaFumigacion(objetivo, 32, 'E2E-REINTENTO-1409', '18:00', extra);
   });
@@ -3343,7 +3341,6 @@ test('UAT-1409: repetir asignación Pistola no duplica el mismo origen Fito', as
 
 
 test('UAT-1410: la tarea Pistola ofrece abrir su jornada de origen', async ({ page }) => {
-  test.fail(true, 'La tarjeta solo ofrece Ver hoja; no hay vínculo ni acción Ver jornada hacia Plaguicidas.');
   const todayISO = await fechaISOEnNavegador(page);
   const task = { id:'e2e-uat-1410', titulo:'E2E Pistola 1410', asignadoA:'PEON1', origen:'pistola', categoria:'fumigacion', fechaISO:todayISO, estado:'pendiente', producto:'E2E', dosis:'1 cc/l', caldoLitros:25, caldoLabel:'25L', objetivos:[{inv:'1A',calles:'C/102'}] };
   await installFixture(page, { 'lasala-tareas-v1': JSON.stringify([task]) });
@@ -3351,7 +3348,9 @@ test('UAT-1410: la tarea Pistola ofrece abrir su jornada de origen', async ({ pa
   const overlay = page.locator('#tareas-overlay');
   await overlay.getByRole('button', { name:/Tareas de hoy/ }).click();
   const card = overlay.locator('.tarea-card').filter({ hasText:task.titulo });
-  await expect(card.getByRole('button', { name:/Ver jornada/i })).toHaveCount(1, { timeout:800 });
+  await card.getByRole('button', { name:/Ver jornada/i }).click();
+  await expect(page.locator('#fito-overlay')).toBeVisible();
+  await expect(page.locator('#fito-overlay button[data-finv="1A"]')).toHaveCSS('background-color', 'rgb(0, 0, 0)');
 });
 
 test('UAT-1412: Pistola imprime el parte fitosanitario individual', async ({ page }) => {
