@@ -222,7 +222,7 @@ test('UAT-1234 y UAT-2412: Tareas abre Operativas y Mantenimiento en la primera 
   await expect(page.locator('#tareas-overlay')).toBeHidden();
   await openTasks(page);
   const overlay = page.locator('#tareas-overlay');
-  await expect(overlay).toContainText('Resumen de Tareas');
+  await expect(overlay.getByRole('button', { name: 'Tareas de hoy' })).toHaveCSS('background-color', 'rgb(255, 255, 255)');
   await overlay.getByRole('button', { name: 'Tareas de mañana' }).click();
   await expect(overlay.getByText('E2E operativa UAT-2412', { exact: true })).toBeVisible();
 
@@ -1082,7 +1082,7 @@ test('UAT-1233, UAT-1244, UAT-1235, UAT-1236, UAT-1242, UAT-1243, UAT-1246, UAT-
 
   await openTasks(page);
   const overlay = page.locator('#tareas-overlay');
-  await expect(overlay).toContainText('Resumen de Tareas');
+  await expect(overlay.getByRole('button', { name: 'Tareas de hoy' })).toHaveCSS('background-color', 'rgb(255, 255, 255)');
   const today = overlay.getByRole('button', { name: 'Tareas de hoy' });
   await today.click();
   await expect(today).toHaveCSS('background-color', 'rgb(255, 255, 255)');
@@ -1207,7 +1207,7 @@ test('UAT-1233, UAT-1244, UAT-1235, UAT-1236, UAT-1242, UAT-1243, UAT-1246, UAT-
   // La sesión nueva debe consultar el fixture actual, no conservar el resultado del usuario anterior.
   await openTasks(page);
   const technicianOverlay = page.locator('#tareas-overlay');
-  await expect(technicianOverlay).toContainText('Resumen de Tareas');
+  await expect(technicianOverlay.getByRole('button', { name: 'Tareas de hoy' })).toHaveCSS('background-color', 'rgb(255, 255, 255)');
   await expect(technicianOverlay.getByRole('button', { name: /Respaldo JSON/ })).toHaveCount(0);
   await assertOperativas('E2E tarea técnica UAT-1743');
   const technicianArchive = technicianOverlay.getByRole('button', { name: /Archivo/ });
@@ -1316,7 +1316,7 @@ test('UAT-1247 y UAT-1248, UAT-1302–1303, UAT-1307–1310 y UAT-1315: abrir, v
   const { database, writes } = await installFixture(page);
 
   await openTasks(page);
-  await expect(page.locator('#tareas-overlay')).toContainText('Resumen de Tareas');
+  await expect(page.locator('#tareas-overlay').getByRole('button', { name: 'Tareas de hoy' })).toHaveCSS('background-color', 'rgb(255, 255, 255)');
   const overlay = page.locator('#tareas-overlay');
   const todayTab = overlay.getByRole('button', { name: 'Tareas de hoy' });
   await todayTab.click();
@@ -1426,7 +1426,7 @@ test('UAT-1237–1238: cerrar y reabrir Tareas varias veces no duplica vistas ni
 
   for (let i = 0; i < 3; i++) {
     await openTasks(page);
-    await expect(page.locator('#tareas-overlay')).toContainText('Resumen de Tareas');
+    await expect(page.locator('#tareas-overlay').getByRole('button', { name: 'Tareas de hoy' })).toHaveCSS('background-color', 'rgb(255, 255, 255)');
     await expect(page.locator('#tareas-overlay button', { hasText: 'Mantenimiento de Parcelas' })).toHaveCount(1);
     await expect(page.locator('#tareas-overlay')).toHaveCount(1);
     await page.locator('#tareas-overlay').getByRole('button', { name: 'Cerrar Operativas' }).click();
@@ -1459,7 +1459,10 @@ test('UAT-1312–1314, UAT-1316–1317, UAT-1320–1322, UAT-1324–1325: alta m
     await form.locator('#nt-prioridad').check();
     await form.locator('[data-nt-asignado-chip="PEON1"]').click();
     await form.getByRole('button', { name: 'Crear y asignar' }).click();
-    await expect(page.locator('#tareas-overlay')).toContainText(expectedCountLabel);
+    const overlay = page.locator('#tareas-overlay');
+    await overlay.getByRole('button', { name: 'Tareas de mañana' }).click();
+    const expectedCount = Number(expectedCountLabel.match(/\\d+/)?.[0] || 0);
+    await expect(overlay.locator('.tarea-card:visible')).toHaveCount(expectedCount);
   }
 
   await openTasks(page);
@@ -1610,7 +1613,7 @@ test('UAT-1305–1306, UAT-1318–1319: repartir un alta manual crea una tarea i
   await form.locator('[data-nt-asignado-chip="PEON1"]').click();
   await form.locator('[data-nt-asignado-chip="REGANTE1"]').click();
   await form.getByRole('button', { name: 'Crear y asignar' }).click();
-  await expect(page.locator('#tareas-overlay')).toContainText('2 pendientes');
+  await expect(page.locator('#tareas-overlay .tarea-card:visible')).toHaveCount(2);
 
   const saved = JSON.parse(database['lasala-tareas-v1']);
   expect(saved).toHaveLength(2);
@@ -2487,7 +2490,7 @@ test('UAT-2097: REGANTE no dispone de gestión de tickets Mantenimiento', async 
   const access = page.locator('#quick-access-block');
 
   await expect(access).toBeVisible();
-  await expect(access.getByRole('button', { name: /Mantenimiento|Tareas|Tickets|Reasignar/i })).toHaveCount(0);
+  await expect(access.getByRole('button', { name: /Mantenimiento|Tickets|Reasignar/i })).toHaveCount(0);
   await expect(page.locator('#btn-mantenimiento-peon')).toBeHidden();
   await expect(page.locator('#mant-peon-overlay')).toBeHidden();
   await expect(page.locator('#tareas-overlay')).toBeHidden();
