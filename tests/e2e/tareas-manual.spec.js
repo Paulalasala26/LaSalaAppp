@@ -3143,8 +3143,8 @@ test('UAT-1393 y 1395: regenerar tareas conserva una ejecución iniciada y otra 
   });
   const fechaISO = await page.evaluate(() => fechaLocalISO(riegoDiaToDate(32)));
   const previas = [
-    { id: 'e2e-started-1393', titulo: 'Puntas de pasillo', asignadoA: 'PEON1', origen: 'riego', inv: '1A', calles: 'C/102', fechaISO, estado: 'iniciada', horaInicio: '09:00', firmante: 'PEON1' },
-    { id: 'e2e-completed-1395', titulo: 'Puntas de pasillo', asignadoA: 'PEON2', origen: 'riego', inv: '17', calles: 'C/1702', fechaISO, estado: 'completada', horaInicio: '09:00', horaFin: '10:00', firmante: 'PEON2' }
+    { id: 'e2e-started-1393', titulo: 'Puntas de pasillo', asignadoA: 'PEON1', origen: 'riego', inv: '1A', calles: 'C/102', callesOrigenRiego: [2], fechaISO, estado: 'iniciada', horaInicio: '09:00', firmante: 'PEON1' },
+    { id: 'e2e-completed-1395', titulo: 'Puntas de pasillo', asignadoA: 'PEON2', origen: 'riego', inv: '17', calles: 'C/1702', callesOrigenRiego: [2], fechaISO, estado: 'completada', horaInicio: '09:00', horaFin: '10:00', firmante: 'PEON2' }
   ];
   database['lasala-tareas-v1'] = JSON.stringify(previas);
 
@@ -3199,6 +3199,6 @@ test('UAT-1397–1398: conciliar calles nuevas conserva la reasignación manual'
   tareas = JSON.parse(database['lasala-tareas-v1']).filter(t => t.origen === 'riego' && t.inv === '17');
   expect(tareas).toHaveLength(1);
   tarea = tareas[0];
-  expect({ id: tarea.id, asignadoA: tarea.asignadoA, calles: tarea.calles, asignacionManual: tarea.asignacionManual })
+  expect({ id: tarea.id, asignadoA: tarea.asignadoA, calles: tarea.calles, asignacionManual: tarea.asignacionManual, callesOrigenRiego: tarea.callesOrigenRiego })
     .toEqual({ id: manual.id, asignadoA: 'PEON1', calles: 'C/1703', asignacionManual: true, callesOrigenRiego: [3] });
 });
