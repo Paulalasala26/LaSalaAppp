@@ -3236,7 +3236,8 @@ test('UAT-1401: repetir conciliación sin cambios conserva la tarea Riego existe
     window.confirm = () => true;
     await loadRiegoData();
     await generarTareasDesdeRiego();
-    return JSON.parse(await window.storage.get('lasala-tareas-v1')).find(t => t.origen === 'riego')?.id;
+    const stored = await window.storage.get('lasala-tareas-v1');
+    return JSON.parse(stored.value).find(t => t.origen === 'riego')?.id;
   });
   await page.evaluate(async () => {
     await loadRiegoData();
