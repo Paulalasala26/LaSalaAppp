@@ -3805,3 +3805,39 @@ test('UAT-1594, 1596, 1598–1599, 1602, 1604–1606, 1608: PEÓN ejecuta y firm
   await expect(overlay.locator('.tarea-card').filter({ hasText:'E2E mantenimiento propio' })).toHaveCount(0);
   expect(JSON.parse(database['lasala-mantenimiento-v1']).filter(t=>t.id==='e2e-u1594-own')).toHaveLength(1);
 });
+
+
+test('UAT-1566–1569, 1570–1573: asignar a un PEÓN válido conserva datos y persiste', async ({ page }) => {
+  const ticket = { id:'e2e-u1566-assignment', titulo:'E2E asignar mantenimiento', descripcion:'Trabajo de prueba', prioridad:'alta', estado:'sin_asignar', asignados:[], creadoEn:'2026-11-12' };
+  const { database, writes } = await installFixture(page, { 'lasala-mantenimiento-v1': JSON.stringify([ticket]) });
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  await overlay.getByRole('button', { name:'Mantenimiento de Parcelas' }).click();
+  const card = overlay.locator('.tarea-card[data-id="e2e-u1566-assignment"]');
+  await expect(card).toBeVisible();
+  const eligible = await page.evaluate(() => Object.keys(USERS).filter(user => USER_ROLES[user] === 'PEON').sort());
+  const options = await card.locator('.mant-persona-chk').evaluateAll(nodes => nodes.map(node => node.value).sort());
+  expect(options).toEqual(eligible);
+  expect(await card.locator('.mant-persona-chk').evaluateAll(nodes => nodes.every(node => node.type === 'checkbox'))).toBe(true);
+  const confirm = overlay.locator('#mant-btn-confirmar-todas');
+  await expect(confirm).toBeDisabled();
+  await card.locator('.mant-persona-chk[value="PEON1"]').check();
+  await expect(confirm).toBeEnabled();
+  await confirm.click();
+  await expect.poll(() => JSON.parse(database['lasala-mantenimiento-v1'])[0].estado).toBe('asignado');
+  let saved = JSON.parse(database['lasala-mantenimiento-v1'])[0];
+  expect(saved.asignados).toEqual(['PEON1']);
+  expect(saved.visto.PEON1).toBe(false);
+  expect(saved.titulo).toBe(ticket.titulo);
+  expect(saved.prioridad).toBe('alta');
+  expect(writes.every(write => write.key==='lasala-mantenimiento-v1')).toBe(true);
+  await page.reload();
+  await openTasks(page);
+  await page.locator('#tareas-overlay').getByRole('button', { name:'Mantenimiento de Parcelas' }).click();
+  const reloaded = page.locator('#tareas-overlay').locator('.tarea-card[data-id="e2e-u1566-assignment"]');
+  await expect(reloaded).toBeVisible();
+  await expect(reloaded).toContainText('PEON1');
+  saved = JSON.parse(database['lasala-mantenimiento-v1'])[0];
+  expect(saved.estado).toBe('asignado');
+  expect(saved.asignados).toEqual(['PEON1']);
+});
