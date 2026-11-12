@@ -397,6 +397,30 @@ test('UAT-1260: botones azules de tarjeta y edición ofrecen una zona táctil de
   expect(writes).toEqual([]);
 });
 
+test('UAT-1304: el selector plegable muestra usuarios elegibles y actualiza el contador', async ({ page }) => {
+  const { database, writes } = await installFixture(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  await overlay.getByRole('button', { name: /Tareas de hoy/ }).click();
+  await overlay.getByRole('button', { name: 'Nueva tarea' }).click();
+  const form = overlay.locator('#nueva-tarea-form-wrap');
+  const details = form.locator('#nt-asignado-details');
+  await expect(details).toBeVisible();
+  await expect(details).not.toHaveAttribute('open');
+  await details.locator('summary').click();
+  const peon = details.locator('[data-nt-asignado-chip="PEON1"]');
+  const regante = details.locator('[data-nt-asignado-chip="REGANTE1"]');
+  await expect(peon).toBeVisible();
+  await expect(regante).toBeVisible();
+  await expect(details.locator('[data-nt-asignado-chip="ADMIN"]')).toHaveCount(0);
+  await expect(details.locator('[data-nt-asignado-chip="TECNICO"]')).toHaveCount(0);
+  await peon.click();
+  await expect(details.locator('#nt-asignado-summary')).toHaveText('Asignar a (uno o varios) · 1 seleccionado');
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([]);
+  expect(writes).toEqual([]);
+});
+
 test('UAT-1262–1264: los contadores coinciden y cada tarea aparece una sola vez', async ({ page }) => {
   const todayISO = await fechaISOEnNavegador(page);
   const tasks = [{
