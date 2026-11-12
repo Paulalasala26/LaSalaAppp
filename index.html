@@ -1856,7 +1856,7 @@ async function persistMantenimientoData(){
 async function showTareasModule(){
   if(tareasModuleOpening) return;
   tareasModuleOpening = true;
-  tareasGestorVista = null;
+  tareasGestorVista = 'hoy';
   try{
     await loadTareasData(false);
     const overlay = getOrCreateOverlay('tareas-overlay');
@@ -1874,7 +1874,7 @@ async function showTareasModule(){
     const esGestor = currentUserRole!=='REGANTE' && currentUserRole!=='PEON';
     if(!esGestor) await avisarNuevasTareas(currentUser);
     if(esGestor) await loadMantenimientoData();
-    tareasGestorVista = null;
+    tareasGestorVista = 'hoy';
     renderTareasContent(overlay, esGestor);
     overlay.style.display='flex';
   }finally{
