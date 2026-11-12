@@ -344,7 +344,6 @@ test('UAT-986 y UAT-987: ADMIN y TÉCNICO pueden entrar en Específicos con sus 
 
 
 test('UAT-988: un rol REGANTE no accede directamente a Específicos',async({page})=>{
-  test.fail(true,'La ruta global showEspecificosModule no comprueba el rol antes de abrir el módulo.');
   const database=fixtureDatabase();
   const {unexpectedHosts,writes}=await openSpecifics(page,database);
   await switchSpecificsUser(page,regante);
