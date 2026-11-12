@@ -3407,3 +3407,37 @@ test('UAT-1414: la impresión general excluye las tareas Pistola', async ({ page
   expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([]);
   expect(writes).toEqual([]);
 });
+
+
+test('UAT-1417: al cambiar calles de una jornada Fito se conserva el ID y se actualiza la ubicación', async ({ page }) => {
+  const { database, writes } = await installFixture(page);
+  const dateISO = await page.evaluate(() => fechaLocalISO(riegoDiaToDate(32)));
+  const titulo = 'E2E-EDICION-1417 1 cc/l';
+  const task = { id:'e2e-uat-1417-task', titulo, asignadoA:'PEON1', origen:'pistola', categoria:'fumigacion', inv:'1A', calles:'C/102', objetivos:[{inv:'1A',calles:'C/102'}], fechaISO:dateISO, estado:'pendiente' };
+  database['lasala-fito-v1'] = JSON.stringify({ '1A': { '32': { '3': { texto:titulo+' 18:00', tipoTrat:'Pistola', caldoLitros:25, caldoLabel:'25L' } } } });
+  database['lasala-tareas-v1'] = JSON.stringify([task]);
+  await page.evaluate(async () => reconciliarTareasConTratamiento('fito', [{invId:'1A',dia:32}]));
+  const tareas = JSON.parse(database['lasala-tareas-v1']);
+  expect(tareas).toHaveLength(1);
+  expect(tareas[0].id).toBe(task.id);
+  expect(tareas[0].objetivos).toEqual([{inv:'1A',calles:'C/103'}]);
+  expect(writes.filter(w => w.key === 'lasala-tareas-v1')).toHaveLength(1);
+});
+
+test('UAT-1418: anular una jornada Pistola archiva la tarea pendiente y conserva su ID', async ({ page }) => {
+  const { database, writes } = await installFixture(page);
+  const dateISO = await page.evaluate(() => fechaLocalISO(riegoDiaToDate(32)));
+  const titulo = 'E2E-ANULACION-1418 1 cc/l';
+  const task = { id:'e2e-uat-1418-task', titulo, asignadoA:'PEON1', origen:'pistola', categoria:'fumigacion', inv:'', calles:'', objetivos:[{inv:'1A',calles:'C/102'}], fechaISO:dateISO, estado:'pendiente' };
+  database['lasala-fito-v1'] = JSON.stringify({ '1A': { '32': { '2': { texto:titulo+' 18:00', tipoTrat:'Pistola', caldoLitros:25, caldoLabel:'25L' } } } });
+  database['lasala-tareas-v1'] = JSON.stringify([task]);
+  await page.evaluate(async () => guardarBorradoFito([{invId:'1A',dia:32,calles:[2]}]));
+  expect(JSON.parse(database['lasala-fito-v1'])['1A']['32']['2']).toBeUndefined();
+  const tareas = JSON.parse(database['lasala-tareas-v1']);
+  expect(tareas).toHaveLength(1);
+  expect(tareas[0].id).toBe(task.id);
+  expect(tareas[0].estado).toBe('anulada');
+  expect(tareas[0].motivoAnulacion).toBe('Tratamiento Pistola anulado desde Plaguicidas');
+  expect(tareas[0].anuladaISO).toBeTruthy();
+  expect(writes.filter(w => w.key === 'lasala-tareas-v1')).toHaveLength(1);
+});

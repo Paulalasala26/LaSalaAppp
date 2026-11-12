@@ -18561,7 +18561,12 @@ async function reconciliarTareasConTratamiento(tipo, entradas){
           if(!vivas.length){
             t.objetivos = objs.filter(o=>o!==obj);
             cambios++;
-            if(!t.objetivos.length) aBorrar.add(t.id);
+            if(!t.objetivos.length){
+              t.estado = 'anulada';
+              t.anuladaISO = fechaLocalISO(new Date());
+              t.motivoAnulacion = 'Tratamiento Pistola anulado desde Plaguicidas';
+              t.anuladaPor = currentUser || '—';
+            }
           } else {
             const etiqueta = formatCallesParaImprimir(invId, vivas);
             if(etiqueta !== obj.calles){ obj.calles = etiqueta; cambios++; }
