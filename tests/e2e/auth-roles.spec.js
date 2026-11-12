@@ -967,9 +967,15 @@ test('UAT-1429 y UAT-1430: una tarea activa impide iniciar la siguiente del mism
   expect(saved.find(task => task.id === tasks[1].id).estado).toBe('pendiente');
 
   const secondStart = inline.getByRole('button', { name: 'Iniciar' }).last();
-  await expect(secondStart).toBeDisabled();
+  const blockedLayerPointerEvents = await secondStart.evaluate(button => {
+    let node = button;
+    while (node && !node.textContent.includes('Completa la anterior')) node = node.parentElement;
+    return node ? getComputedStyle(node).pointerEvents : null;
+  });
+  expect(blockedLayerPointerEvents).toBe('none');
+  await page.evaluate(id => iniciarTarea(id), tasks[1].id);
   expect(taskWrites).toHaveLength(1);
-  expect(JSON.parse(taskWrites.at(-1).postData()).find(task => task.id === tasks[1].id).estado).toBe('pendiente');
+  expect(saved.find(task => task.id === tasks[1].id).estado).toBe('pendiente');
 });
 
 
