@@ -1194,10 +1194,11 @@ test('UAT-1376: PREPARAR sin Trabajo reconocido no crea tarea de PEÓN', async (
 });
 
 
-test('UAT-1377–1379: Trabajo reconocido aparece automáticamente en Operativas hoy y mañana', async ({ page }) => {
+test('UAT-1377–1379 y UAT-1403: Trabajo reconocido aparece sin acción masiva', async ({ page }) => {
   test.fail(true, 'La expectativa UAT requiere generación automática; la versión actual conserva la acción explícita «Generar tareas».');
   const database = fixtureDatabase();
   const { overlay } = await openRiego(page, database);
+  await expect(overlay.locator('button[onclick="generarTareasDesdeRiego()"]')).toHaveCount(0);
   const grid = page.locator('#riego-grid-wrap');
 
   const guardarTrabajo = async dia => {
