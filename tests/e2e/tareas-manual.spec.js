@@ -3184,7 +3184,10 @@ test('UAT-1397–1398: conciliar calles nuevas conserva la reasignación manual'
     await loadRiegoData();
     await generarTareasDesdeRiego();
   });
-  let tarea = JSON.parse(database['lasala-tareas-v1']).find(t => t.id === manual.id);
+  let tareas = JSON.parse(database['lasala-tareas-v1']).filter(t => t.origen === 'riego' && t.inv === '17');
+  expect(tareas).toHaveLength(1);
+  let tarea = tareas[0];
+  expect(tarea.id).toBe(manual.id);
   expect(tarea.asignadoA).toBe('PEON1');
   expect(tarea.calles).toBe('C/1703');
 
@@ -3192,7 +3195,7 @@ test('UAT-1397–1398: conciliar calles nuevas conserva la reasignación manual'
     await loadRiegoData();
     await generarTareasDesdeRiego();
   });
-  const tareas = JSON.parse(database['lasala-tareas-v1']).filter(t => t.origen === 'riego' && t.inv === '17');
+  tareas = JSON.parse(database['lasala-tareas-v1']).filter(t => t.origen === 'riego' && t.inv === '17');
   expect(tareas).toHaveLength(1);
   tarea = tareas[0];
   expect({ id: tarea.id, asignadoA: tarea.asignadoA, calles: tarea.calles, asignacionManual: tarea.asignacionManual })
