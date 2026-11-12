@@ -2819,7 +2819,7 @@ test('UAT-1245: Tareas no duplica los accesos específicos de Riego', async ({ p
 });
 
 
-test('UAT-1360–1362: Riego conserva la reasignación manual, rechaza REGANTE y evita duplicados al volver a la sala', async ({ page }) => {
+test('UAT-1360–1362: Riego conserva ID y calles, rechaza REGANTE y evita duplicados al volver a la sala', async ({ page }) => {
   const users = { E2E_ADMIN: passwordHash, PEON1: passwordHash, PEON2: passwordHash, REGANTE1: passwordHash };
   const roles = { E2E_ADMIN: 'ADMIN', PEON1: 'PEON', PEON2: 'PEON', REGANTE1: 'REGANTE' };
   const riego = { '17': { '32': { '2': 'PP + 1º HORA' } } };
