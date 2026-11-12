@@ -908,6 +908,70 @@ test('UAT-1428 y UAT-2413: PEÓN ve la tarea asignada con ubicación y la inicia
   expect(pageErrors).toEqual([]);
 });
 
+test('UAT-1429 y UAT-1430: una tarea activa impide iniciar la siguiente del mismo PEÓN', async ({ page }) => {
+  const todayISO = await page.evaluate(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  });
+  const tasks = [
+    {
+      id: 'e2e-uat-1429-first',
+      titulo: 'E2E primera tarea 1429',
+      asignadoA: 'E2E_PEON',
+      origen: 'manual',
+      categoria: 'manual',
+      inv: '0A',
+      calles: '1-2',
+      fechaISO: todayISO,
+      fecha: 'hoy',
+      turno: 'Mañana',
+      prioridad: 'normal',
+      estado: 'pendiente'
+    },
+    {
+      id: 'e2e-uat-1429-second',
+      titulo: 'E2E segunda tarea 1429',
+      asignadoA: 'E2E_PEON',
+      origen: 'manual',
+      categoria: 'manual',
+      inv: '0B',
+      calles: '3-4',
+      fechaISO: todayISO,
+      fecha: 'hoy',
+      turno: 'Mañana',
+      prioridad: 'normal',
+      estado: 'pendiente'
+    }
+  ];
+  const taskWrites = [];
+  await page.on('request', request => {
+    if (request.method() === 'PUT' && request.url().includes('/lasala-tareas-v1.json')) taskWrites.push(request);
+  });
+  await installAuthFixture(page, { 'lasala-tareas-v1': JSON.stringify(tasks) });
+  await logInAs(page, 'E2E_PEON');
+  const inline = page.locator('#peon-tareas-inline');
+  await expect(inline).toContainText(tasks[0].titulo);
+  await expect(inline).toContainText(tasks[1].titulo);
+  const initialText = await inline.innerText();
+  expect(initialText.indexOf(tasks[0].titulo)).toBeLessThan(initialText.indexOf(tasks[1].titulo));
+
+  const startButtons = inline.getByRole('button', { name: 'Iniciar' });
+  await expect(startButtons).toHaveCount(2);
+  await startButtons.first().click();
+  await expect.poll(() => taskWrites.length).toBe(1);
+  await expect(inline).toContainText('Iniciada');
+  const saved = JSON.parse(taskWrites.at(-1).postData());
+  expect(saved.find(task => task.id === tasks[0].id).estado).not.toBe('pendiente');
+  expect(saved.find(task => task.id === tasks[1].id).estado).toBe('pendiente');
+
+  const secondStart = inline.getByRole('button', { name: 'Iniciar' }).last();
+  await expect(secondStart).toBeDisabled();
+  await secondStart.click({ force: true });
+  await expect.poll(() => taskWrites.length).toBe(1);
+  const finalSaved = JSON.parse(taskWrites.at(-1).postData());
+  expect(finalSaved.find(task => task.id === tasks[1].id).estado).toBe('pendiente');
+});
+
 
 
 test('UAT-2414 y UAT-2144: PEÓN abre Mantenimiento desde Inicio y regresa sin cambios', async ({ page }) => {
