@@ -1492,13 +1492,13 @@ function qcMoverDia(delta,modo){
 }
 function qcImprimirDia(){
  const tipo=controlSeccion;
- if(tipo!=='tunel'&&tipo!=='carga'&&tipo!=='carga_injerto')return;
+ if(!['tunel','carga','carga_injerto','preinjerto_patron','preinjerto_variedad'].includes(tipo))return;
  const dia=controlDiaSel;
  if(!Number.isInteger(dia))return;
  const filtradas=controlLineasFiltradasInv(controlChecksData.filter(c=>c.tipo===tipo&&c.dia===dia),tipo);
  const lista=controlFiltroEstado==='completados'?filtradas.filter(controlLineaFinalizadaQC):controlFiltroEstado==='pendientes'?filtradas.filter(c=>!controlLineaFinalizadaQC(c)):filtradas;
  if(!lista.length){showToast('No hay inspecciones para imprimir.');return;}
- window.__controlListadoActual={titulo:(tipo==='tunel'?'QC Túnel':'QC Carga normal')+' · '+riegoDiaLabelCorto(dia),lineas:lista};
+ window.__controlListadoActual={titulo:(CONTROL_SECCIONES.find(s=>s.key===tipo)?.label||'QC')+' · '+riegoDiaLabelCorto(dia),lineas:lista};
  imprimirListadoPartidasControl();
 }
 function qcPanel(title,content,cls){
@@ -1732,7 +1732,7 @@ function renderControlContent(overlay){
           ${controlDesdeBackoffice ? `<button type="button" onclick="volverAlListadoControlBackoffice()"
             style="background:#1558a0;border:1px solid #a8c4e8;color:#fff;border-radius:7px;font-size:12px;font-weight:800;padding:7px 11px;cursor:pointer;white-space:nowrap"
             title="Volver al listado de Control del Backoffice">← Backoffice</button>` : ''}
-          ${(controlSeccion==='tunel'||controlSeccion==='carga'||controlSeccion==='carga_injerto')?'<button type="button" class="qc-work-print" onclick="qcImprimirDia()" aria-label="Imprimir listado del día" title="Imprimir listado del día"><i class="ti ti-printer" aria-hidden="true"></i></button>':''}
+          ${(['tunel','carga','carga_injerto','preinjerto_patron','preinjerto_variedad'].includes(controlSeccion))?'<button type="button" class="qc-work-print" onclick="qcImprimirDia()" aria-label="Imprimir listado del día" title="Imprimir listado del día"><i class="ti ti-printer" aria-hidden="true"></i></button>':''}
           <span class="control-ui-section-label" aria-live="polite">${controlSeccion ? (CONTROL_SECCIONES.find(s=>s.key===controlSeccion)?.label || '') : 'Resumen'}</span>
           <button type="button" class="control-ui-close" onclick="cerrarControlModule()"
             title="Cerrar Control de Calidad" aria-label="Cerrar Control de Calidad">&times;</button>
@@ -2366,7 +2366,16 @@ function imprimirListadoPartidasControl(){
     flores:'<svg class="qc-print-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 13v8m0-8c-5 0-6-5-2-6-1-4 5-4 4 0 4 1 3 6-2 6Zm0 4c-2-3-5-2-6 0 2 2 4 2 6 0Zm0-2c2-3 5-2 6 0-2 2-4 2-6 0Z"/><circle cx="12" cy="9" r="1.5"/></svg>',
     raices:'<svg class="qc-print-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21V9m0 5c-5 0-7-3-7-6 4 0 7 2 7 6Zm0-3c0-4 2-7 7-7 0 4-2 7-7 7Zm0 4-3 3m3-3 3 3"/></svg>'
   };
-  const categoriasHTML = c => CONTROL_CHECK_CATEGORIAS.map(cat=>{
+  Object.assign(iconosQCImpresion,{
+    grosor:iconosQCImpresion.tamano,firmeza:iconosQCImpresion.raices,
+    segado:iconosQCImpresion.tamano,plagas:iconosQCImpresion.sanidad,
+    enfermedades:iconosQCImpresion.sanidad,raicesInjerto:iconosQCImpresion.raices
+  });
+  const qcLineas=Array.isArray(lineas)?lineas:[];
+  const definicionesQC=window.QCOperativo?.printCategories?.(qcLineas[0]?.tipo,qcLineas[0]?.dia);
+  const categoriasImpresion=Array.isArray(definicionesQC)&&definicionesQC.length
+    ?definicionesQC:CONTROL_CHECK_CATEGORIAS;
+  const categoriasHTML = c => categoriasImpresion.map(cat=>{
     const marcadas = cat.opciones.filter(o=>c[cat.key]?.[o.key]).map(o=>o.label);
     let detalle = marcadas.join(', ');
     if(cat.key==='sanidad' && c.sanidad?.enferma && c.sanidadEnfermedades){
