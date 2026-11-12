@@ -5052,14 +5052,15 @@ async function eliminarTrabajoConfirmado(id){
 const CONTROL_SECCIONES = [
   {key:'tunel', label:'QC Túnel', icon:'ti-building-warehouse', color:'linear-gradient(135deg,#5c8df0,#3fc6b0)', conCheck:true},
   {key:'carga', label:'QC Carga normal', icon:'ti-truck', color:'linear-gradient(135deg,#f5a35c,#f0715c)', conCheck:true},
-  {key:'invernadero', label:'Check Invernadero', icon:'ti-plant-2', color:'linear-gradient(135deg,#1a5c2e,#3fa864)', conCheck:false},
-  {key:'fechas', label:'Check Fechas', icon:'ti-calendar-event', color:'linear-gradient(135deg,#7b5cf0,#5c8df0)', conCheck:false},
-  {key:'productos', label:'Check Prueba de Productos', icon:'ti-flask', color:'linear-gradient(135deg,#c47f00,#e0a530)', conCheck:false},
-  // Conteo Tuta: tabla semanal (no checklist por día) — a petición de Paula
-  // 2026-08-01, datos actualizados cada jueves.
-  {key:'conteo_tuta', label:'Conteo Tuta', icon:'ti-bug', color:'linear-gradient(135deg,#ad1457,#ec407a)', conCheck:false, tabla:true, conteoTipo:'tuta'},
-  // Conteo Trips (de main, 2026-10-01, Vigueras): misma estructura semanal que Tuta, con sus campos propios.
-  {key:'conteo_trips', label:'Conteo Trips', icon:'ti-bug', color:'linear-gradient(135deg,#00838f,#4dd0e1)', conCheck:false, tabla:true, conteoTipo:'trips'}
+  // 2026-11-12 (petición del usuario): el menú de Control queda solo con los QC. Se retiran del menú
+  // Check Invernadero, Check Fechas, Check Prueba de Productos y los Conteos (Tuta/Trips). El código y los
+  // datos se conservan sin tocar: para recuperar una sección basta volver a añadir su entrada aquí
+  // (con tabla:true y conteoTipo:'tuta'|'trips' para los conteos) y su carga en showControlModule.
+  // Invernadero: {key:'invernadero', label:'Check Invernadero', icon:'ti-plant-2', color:'linear-gradient(135deg,#1a5c2e,#3fa864)', conCheck:false}
+  // Fechas: {key:'fechas', label:'Check Fechas', icon:'ti-calendar-event', color:'linear-gradient(135deg,#7b5cf0,#5c8df0)', conCheck:false}
+  // Productos: {key:'productos', label:'Check Prueba de Productos', icon:'ti-flask', color:'linear-gradient(135deg,#c47f00,#e0a530)', conCheck:false}
+  // Conteo Tuta: {key:'conteo_tuta', label:'Conteo Tuta', icon:'ti-bug', color:'linear-gradient(135deg,#ad1457,#ec407a)', conCheck:false, tabla:true, conteoTipo:'tuta'}
+  // Conteo Trips: {key:'conteo_trips', label:'Conteo Trips', icon:'ti-bug', color:'linear-gradient(135deg,#00838f,#4dd0e1)', conCheck:false, tabla:true, conteoTipo:'trips'}
 ];
 // Las secciones rotuladas Próximamente no pueden abrirse desde Control.
 function controlSeccionEsProximamente(s){ return !!s && !s.conCheck && !s.tabla; }
@@ -6667,9 +6668,9 @@ async function showControlModule(){
   const esCargador=currentUserRole==='CARGADOR';
   controlCargaInvFiltro='';
   controlTunelInvFiltro='';
+  // Conteos e Invernadero ya no están en el menú (12/11/2026): no se cargan sus datos al abrir Control.
   const [v2ok] = await Promise.all([
-    loadControlV2Index(false),
-    ...(esCargador?[]:[loadConteoData('tuta'),loadConteoFilas('tuta'),loadConteoData('trips'),loadConteoFilas('trips'),loadControlInvernaderoData()])
+    loadControlV2Index(false)
   ]);
   if(!v2ok) await loadControlChecksData(false);
 
