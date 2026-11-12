@@ -2817,3 +2817,81 @@ test('UAT-1245: Tareas no duplica los accesos específicos de Riego', async ({ p
   expect(JSON.parse(database['lasala-mantenimiento-v1'])).toEqual([]);
   expect(writes).toEqual([]);
 });
+
+
+test('UAT-1360–1362: Riego conserva la reasignación manual, rechaza REGANTE y evita duplicados al volver a la sala', async ({ page }) => {
+  const users = { E2E_ADMIN: passwordHash, PEON1: passwordHash, PEON2: passwordHash, REGANTE1: passwordHash };
+  const roles = { E2E_ADMIN: 'ADMIN', PEON1: 'PEON', PEON2: 'PEON', REGANTE1: 'REGANTE' };
+  const riego = { '17': { '32': { '2': 'PP + 1º HORA' } } };
+  const { database, writes } = await installFixture(page, {
+    'lasala-users-v1': JSON.stringify(users),
+    'lasala-roles-v1': JSON.stringify(roles),
+    'lasala-riego-v1': JSON.stringify(riego)
+  });
+
+  const original = await page.evaluate(async () => {
+    window.confirm = () => true;
+    await loadRiegoData();
+    await generarTareasDesdeRiego();
+    await loadTareasData();
+    const task = tareasData.find(item => item.origen === 'riego' && item.inv === '17');
+    return task && { id: task.id, asignadoA: task.asignadoA, titulo: task.titulo, fechaISO: task.fechaISO, calles: task.calles };
+  });
+  expect(original).toBeTruthy();
+  const destino = original.asignadoA === 'PEON1' ? 'PEON2' : 'PEON1';
+
+  const reasignar = async destino => page.evaluate(async ({ id, destino }) => {
+    await loadTareasData();
+    const card = document.createElement('div');
+    card.className = 'tarea-card';
+    card.dataset.id = id;
+    const wrap = document.createElement('div');
+    wrap.className = 'tarea-reasignar-wrap';
+    const select = document.createElement('select');
+    select.setAttribute('data-testid', 'tarea-reasignar-select');
+    for (const user of ['PEON1', 'PEON2', 'REGANTE1']) select.add(new Option(user, user));
+    select.value = destino;
+    wrap.append(select);
+    card.append(wrap);
+    document.body.append(card);
+    await guardarReasignacionTarea(id);
+    card.remove();
+    return tareasData.find(item => item.id === id);
+  }, { id: original.id, destino });
+
+  const manual = await reasignar(destino);
+  expect({
+    id: manual.id,
+    asignadoA: manual.asignadoA,
+    titulo: manual.titulo,
+    fechaISO: manual.fechaISO,
+    calles: manual.calles,
+    asignacionManual: manual.asignacionManual
+  }).toEqual({ ...original, asignadoA: destino, asignacionManual: true });
+
+  const antesRechazo = writes.length;
+  const rechazada = await reasignar('REGANTE1');
+  expect(rechazada.asignadoA).toBe(destino);
+  expect(writes).toHaveLength(antesRechazo);
+
+  await page.evaluate(async () => {
+    await loadRiegoData();
+    await generarTareasDesdeRiego();
+    await loadTareasData();
+  });
+  let tareas = JSON.parse(database['lasala-tareas-v1']).filter(item => item.origen === 'riego' && item.inv === '17');
+  expect(tareas).toHaveLength(1);
+  expect({ id: tareas[0].id, asignadoA: tareas[0].asignadoA, titulo: tareas[0].titulo, fechaISO: tareas[0].fechaISO, calles: tareas[0].calles })
+    .toEqual({ ...original, asignadoA: destino });
+
+  const devuelta = await reasignar(original.asignadoA);
+  expect(devuelta.asignacionManual).toBe(false);
+  await page.evaluate(async () => {
+    await loadRiegoData();
+    await generarTareasDesdeRiego();
+  });
+  tareas = JSON.parse(database['lasala-tareas-v1']).filter(item => item.origen === 'riego' && item.inv === '17');
+  expect(tareas).toHaveLength(1);
+  expect(tareas[0].asignadoA).toBe(original.asignadoA);
+  expect(tareas[0].asignacionManual).not.toBe(true);
+});
