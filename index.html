@@ -1956,6 +1956,9 @@ function estadoTareaColores(estado){
 function buildTareaGestorRow(t, conSeleccion){
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const est = estadoTareaColores(t.estado);
+  const origenTarea = String(t.origen||t.categoria||'').toLocaleLowerCase('es-ES');
+  const esTareaGenerada = ['riego','pistola','especificos','especifico'].includes(origenTarea);
+  const esTareaManualPendiente = !esTareaGenerada && t.estado==='pendiente';
   const subtitulo = t.objetivos && t.objetivos.length ? invCallesLabelDeTarea(t) : ((t.inv?('INV '+t.inv):'')+(t.calles?(' · '+(/\(INV completo\)$/.test(t.calles)?'ENTERO':t.calles)):''));
   const detalles = [
     t.horaInicio ? `Inicio: ${escapar(t.horaInicio)}` : '',
@@ -1979,10 +1982,10 @@ function buildTareaGestorRow(t, conSeleccion){
       </div>
       ${detalles ? `<div style="font-size:11px;color:var(--muted);margin-top:8px;padding-top:8px;border-top:1px dashed var(--border)">${detalles}</div>` : ''}
       <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
-        <button onclick="showEditarTareaForm('${t.id}')" title="Editar" style="padding:5px 10px;font-size:10.5px;font-weight:700;background:#eef4fb;color:#1558a0;border:1px solid #a8c4e8;border-radius:6px;cursor:pointer">✏️ Editar</button>
+        ${esTareaManualPendiente ? `<button onclick="showEditarTareaForm('${t.id}')" title="Editar" style="padding:5px 10px;font-size:10.5px;font-weight:700;background:#eef4fb;color:#1558a0;border:1px solid #a8c4e8;border-radius:6px;cursor:pointer">✏️ Editar</button>` : ''}
         <button onclick="imprimirTareaSuelta('${t.id}')" title="Imprimir" style="padding:5px 10px;font-size:10.5px;font-weight:700;background:#eef9f0;color:#2e7d32;border:1px solid #a8dcb0;border-radius:6px;cursor:pointer">🖨️ Imprimir</button>
-        <button onclick="anularTarea('${t.id}')" title="Anular" style="padding:5px 10px;font-size:10.5px;font-weight:700;background:#fff8e1;color:#8a5a00;border:1px solid #f0c060;border-radius:6px;cursor:pointer">↪ Anular</button>
-        <button onclick="eliminarTarea('${t.id}')" title="Eliminar" style="padding:5px 10px;font-size:10.5px;font-weight:700;background:#fdecea;color:#c62828;border:1px solid #f0b0b0;border-radius:6px;cursor:pointer">🗑️ Eliminar</button>
+        ${esTareaManualPendiente ? `<button onclick="anularTarea('${t.id}')" title="Anular" style="padding:5px 10px;font-size:10.5px;font-weight:700;background:#fff8e1;color:#8a5a00;border:1px solid #f0c060;border-radius:6px;cursor:pointer">↪ Anular</button>` : ''}
+        ${!esTareaGenerada ? `<button onclick="eliminarTarea('${t.id}')" title="Eliminar" style="padding:5px 10px;font-size:10.5px;font-weight:700;background:#fdecea;color:#c62828;border:1px solid #f0b0b0;border-radius:6px;cursor:pointer">🗑️ Eliminar</button>` : ''}
       </div>
     </div>`;
 }
