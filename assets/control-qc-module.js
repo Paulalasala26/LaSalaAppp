@@ -2357,7 +2357,18 @@ function imprimirListadoPartidasControl(){
   const { titulo, lineas } = window.__controlListadoActual || { titulo:'', lineas:[] };
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const calleLabelDe = c => calleLabelDeCheckControl(c, escapar, 'Sin asignar');
-  const filasHTML = lineas.map(c=>`<tr><td>${escapar(c.partida)||'—'}</td><td>${escapar(clienteVariedadDeCheckControl(c))||'—'}</td><td>${calleLabelDe(c)}</td></tr>`).join('');
+  // La impresión resume las mismas cinco categorías y los mismos iconos
+  // del QC. Cada fila conserva también el valor aunque no haya checks.
+  const categoriasHTML = c => CONTROL_CHECK_CATEGORIAS.map(cat=>{
+    const marcadas = cat.opciones.filter(o=>c[cat.key]?.[o.key]).map(o=>o.label);
+    let detalle = marcadas.join(', ');
+    if(cat.key==='sanidad' && c.sanidad?.enferma && c.sanidadEnfermedades){
+      const enfermedades = SANIDAD_ENFERMEDADES.filter(e=>c.sanidadEnfermedades[e.key]).map(e=>e.label);
+      if(enfermedades.length) detalle += (detalle?' · ':'')+enfermedades.join(', ');
+    }
+    return '<span class="qc-print-cat" style="background:'+escapar(cat.tinte)+'"><i class="ti '+escapar(cat.icon)+'" aria-hidden="true"></i><b>'+escapar(cat.label)+':</b> '+escapar(detalle||'—')+'</span>';
+  }).join('');
+  const filasHTML = lineas.map(c=>'<tr><td>'+escapar(c.partida)||'—'+'</td><td>'+escapar(clienteVariedadDeCheckControl(c))||'—'+'</td><td>'+calleLabelDe(c)+'</td><td>'+categoriasHTML(c)+'</td></tr>').join('');
   let iframe = document.getElementById('print-control-listado-iframe');
   if(!iframe){
     iframe = document.createElement('iframe');
@@ -2368,18 +2379,25 @@ function imprimirListadoPartidasControl(){
   const doc = iframe.contentWindow.document;
   doc.open();
   doc.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapar(titulo)}</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.2.0/dist/tabler-icons.min.css">
     <style>
+      @page{size:landscape;margin:10mm}
+      *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
       body{font-family:Arial,Helvetica,sans-serif;color:#1a1e18;padding:20px}
       h1{font-size:18px;margin-bottom:14px}
-      table{width:100%;border-collapse:collapse;font-size:13px}
-      th,td{padding:7px 10px;border-bottom:1px solid #ccc;text-align:left}
-      th{font-size:11px;text-transform:uppercase;color:#555}
+      table{width:100%;border-collapse:collapse;font-size:12px}
+      th,td{padding:7px 8px;border-bottom:1px solid #ccc;text-align:left;vertical-align:top}
+      th{font-size:10px;text-transform:uppercase;color:#555}
+      .qc-print-cat{display:inline-flex;align-items:center;gap:4px;margin:0 4px 4px 0;padding:4px 7px;border-radius:6px;font-size:10px;white-space:nowrap}
+      .qc-print-cat .ti{font-size:13px}
     </style></head><body>
       <h1>${escapar(titulo)} (${lineas.length})</h1>
-      <table><tr><th>Partida</th><th>Cliente y variedad</th><th>Calle real</th></tr>${filasHTML}</table>
+      <table><thead><tr><th>Partida</th><th>Cliente y variedad</th><th>Calle real</th><th>Evaluación QC</th></tr></thead><tbody>${filasHTML}</tbody></table>
     </body></html>`);
   doc.close();
-  setTimeout(()=>{ iframe.contentWindow.focus(); iframe.contentWindow.print(); }, 200);
+  const lanzar = ()=>{ iframe.contentWindow.focus(); iframe.contentWindow.print(); };
+  if(doc.fonts?.ready)doc.fonts.ready.then(lanzar).catch(lanzar);
+  else setTimeout(lanzar,500);
 }
 // Informe CSV de un día (a petición de Vigueras, 2026-09-15) — se abre
 // directo en Excel con un doble clic, sin depender de ninguna librería
