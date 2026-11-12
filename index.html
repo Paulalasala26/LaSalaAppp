@@ -1971,6 +1971,7 @@ function buildTareaGestorRow(t, conSeleccion){
   const origenTarea = String(t.origen||t.categoria||'').toLocaleLowerCase('es-ES');
   const etiquetaImpresion = t.categoria==='fumigacion' || origenTarea==='pistola' ? 'Imprimir parte fitosanitaria' : (t.categoria==='especifico' || ['especifico','especificos'].includes(origenTarea)) ? 'Imprimir hoja de Específicos' : (t.categoria==='riego' || origenTarea==='riego') ? 'Imprimir hoja de Riego' : 'Imprimir tarea';
   const esTareaGenerada = ['riego','pistola','especificos','especifico'].includes(origenTarea);
+  const esTareaFito = t.categoria==='fumigacion' || origenTarea==='pistola';
   const esTareaManualPendiente = !esTareaGenerada && t.estado==='pendiente';
   const origenAsignable = origenTarea || 'manual';
   const puedeReasignar = t.estado==='pendiente' && ['manual','riego'].includes(origenAsignable);
@@ -1999,6 +2000,7 @@ function buildTareaGestorRow(t, conSeleccion){
       <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
         ${esTareaManualPendiente ? `<button onclick="showEditarTareaForm('${t.id}')" title="Editar" style="min-height:44px;padding:8px 12px;font-size:12px;font-weight:700;background:#eef4fb;color:#1558a0;border:1px solid #a8c4e8;border-radius:6px;cursor:pointer">✏️ Editar</button>` : ''}
         ${puedeReasignar ? `<button onclick="showReasignarTareaForm('${t.id}')" title="Reasignar" data-testid="tarea-reasignar" style="min-height:44px;padding:8px 12px;font-size:12px;font-weight:700;background:#eef4fb;color:#1558a0;border:1px solid #a8c4e8;border-radius:6px;cursor:pointer">⇄ Reasignar</button>` : ''}
+        ${esTareaFito ? `<button onclick="verJornadaFitoDesdeTarea('${t.id}')" title="Ver jornada" style="min-height:44px;padding:8px 12px;font-size:12px;font-weight:700;background:#fff4f4;color:#a32020;border:1px solid #e8b0b0;border-radius:6px;cursor:pointer">📋 Ver jornada</button>` : ''}
         <button onclick="imprimirTareaSuelta('${t.id}')" title="Imprimir" aria-label="${etiquetaImpresion}" style="min-height:44px;padding:8px 12px;font-size:12px;font-weight:700;background:#eef9f0;color:#2e7d32;border:1px solid #a8dcb0;border-radius:6px;cursor:pointer">🖨️ Imprimir</button>
         ${esTareaManualPendiente ? `<button onclick="anularTarea('${t.id}')" title="Anular" style="min-height:44px;padding:8px 12px;font-size:12px;font-weight:700;background:#fff8e1;color:#8a5a00;border:1px solid #f0c060;border-radius:6px;cursor:pointer">↪ Anular</button>` : ''}
         ${!esTareaGenerada ? `<button onclick="eliminarTarea('${t.id}')" title="Eliminar" style="min-height:44px;padding:8px 12px;font-size:12px;font-weight:700;background:#fdecea;color:#c62828;border:1px solid #f0b0b0;border-radius:6px;cursor:pointer">🗑️ Eliminar</button>` : ''}
@@ -3992,10 +3994,13 @@ async function autoAsignarTareaFumigacion(objetivos, dia, titulo, horario, extra
   const fechaLabel = riegoDiaLabelCorto(dia);
   const fechaISO = fechaLocalISO(riegoDiaToDate(dia));
   const caldoLabel = extra?.caldoLabel || '';
+  const serieId = extra?.serieId || `fito_serie_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+  const jornadaId = extra?.jornadaId || `fito_jornada_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
   await loadTareasData();
   const crearTareaAuto = (asignadoA) => ({
     id: 'tarea_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
     titulo, descripcion:'', asignadoA, asignadoPor: currentUser||'—',
+    serieId, jornadaId, origenFito:{serieId, jornadaId},
     inv:'', calles:'', objetivos: objetivos.map(o=>({inv:o.invId, calles:o.callesLabel})),
     fecha: fechaLabel, fechaISO, turno:'',
     horario: horario||'', categoria:'fumigacion',
@@ -4007,7 +4012,7 @@ async function autoAsignarTareaFumigacion(objetivos, dia, titulo, horario, extra
   const fusionarOCrear = (asignadoA) => {
     // Igual que en autoAsignarTareasRiego: fusiona con pendiente O iniciada,
     // solo crea aparte si ya está completada (evita duplicados al re-guardar).
-    const existente = tareasData.find(t => t.fechaISO===fechaISO && t.asignadoA===asignadoA && t.titulo===titulo && t.categoria==='fumigacion' && t.estado!=='completada' && (t.caldoLabel||'')===caldoLabel);
+    const existente = tareasData.find(t => t.fechaISO===fechaISO && t.asignadoA===asignadoA && t.titulo===titulo && t.categoria==='fumigacion' && t.estado!=='completada' && (t.caldoLabel||'')===caldoLabel && (t.jornadaId===jornadaId || t.origenFito?.jornadaId===jornadaId));
     if(existente){
       if(!existente.objetivos) existente.objetivos = [];
       objetivos.forEach(o=>{
@@ -14373,12 +14378,33 @@ function getFito(invId,dia,calle){
   return typeof raw==='string' ? raw : (raw.texto||'');
 }
 
+async function verJornadaFitoDesdeTarea(tareaId){
+  const tarea = tareasData.find(t=>t.id===tareaId);
+  const invId = tarea?.objetivos?.[0]?.inv || tarea?.inv;
+  const fechaISO = tarea?.fechaISO;
+  if(!invId || !fechaISO){
+    showToast('No se puede localizar la jornada de Plaguicidas de esta tarea');
+    return;
+  }
+  const fecha = new Date(fechaISO+'T00:00:00');
+  if(Number.isNaN(fecha.getTime())){
+    showToast('La fecha de la jornada no es válida');
+    return;
+  }
+  const diffDias = Math.round((fecha - RIEGO_ANCHOR_DATE) / 86400000);
+  fitoQuincenaOffset = Math.max(0, Math.floor(diffDias / 14));
+  const tareasOverlay = document.getElementById('tareas-overlay');
+  if(tareasOverlay) tareasOverlay.style.display='none';
+  await showFitoModule();
+  renderFitoQuincenaBar();
+  selectFitoInv(invId);
+}
 function showFitoModule(){
   // loadTareasData() se añade aquí solo para poder sacar el caldo de las
   // fumigaciones a Pistola en el resumen de la quincena (ver
   // renderResumenQuincenaTratamientos) — a Cañón nunca se guarda caldo en
   // ningún sitio persistente, así que ahí ese dato queda en blanco.
-  Promise.all([loadFitoData(false), loadPresenciaData(), loadTareasData(false)]).then(()=>{
+  return Promise.all([loadFitoData(false), loadPresenciaData(), loadTareasData(false)]).then(()=>{
     // Se fija ANTES de construir el dashboard (que ya usa fitoQuincenaOffset
     // para el resumen de la quincena) — antes se fijaba después de pintar el
     // innerHTML, así que el resumen se calculaba con el valor viejo (0, la
@@ -18912,6 +18938,8 @@ async function saveFitoManual(){
   // guardan bien"). Mismo patrón que aplicarTextoRiegoManual/
   // guardarRiegoConLimpieza en Riego.
   const contextoOriginal = fmEditContextoOriginal;
+  const serieId = contextoOriginal?.serieId || `fito_serie_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+  const jornadaId = contextoOriginal?.jornadaId || `fito_jornada_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
   fmEditContextoOriginal = null;
   let sobrantes = [];
   if(contextoOriginal){
@@ -18932,7 +18960,7 @@ async function saveFitoManual(){
     // "Esperar a la carga"/Orden (a petición de Paula, 2026-08-19): entrados
     // aquí mismo en "Añadir manualmente" (ver renderFmBulkPanels) en vez de
     // en la cuadrícula, para que salgan en la hoja impresa de este alta.
-    const extraOrdenEspera = { esperaCarga: !!fmBulkConfig[invId]?.esperaCarga, orden: fmBulkConfig[invId]?.orden ?? null };
+    const extraOrdenEspera = { esperaCarga: !!fmBulkConfig[invId]?.esperaCarga, orden: fmBulkConfig[invId]?.orden ?? null, serieId, jornadaId };
     if(tramos){
       for(const {desde,hasta,obs} of tramos){
         const valorTramo = obs ? `${valor} — ${obs}` : valor;
@@ -18953,7 +18981,7 @@ async function saveFitoManual(){
     }
   }
   if(tipoTrat==='Pistola' && objetivosFumigacion.length){
-    await autoAsignarTareaFumigacion(objetivosFumigacion, dia, tituloTarea, horario, {producto:trat, dosis, caldoLabel, caldoLitros});
+    await autoAsignarTareaFumigacion(objetivosFumigacion, dia, tituloTarea, horario, {producto:trat, dosis, caldoLabel, caldoLitros, serieId, jornadaId});
   }
   document.getElementById('fito-manual-overlay').style.display = 'none';
   completarUndoFitoParaTodosGrupos();
