@@ -3636,6 +3636,13 @@ async function iniciarTarea(id){
   await loadTareasData();
   const t = tareasData.find(x=>x.id===id);
   if(!t) return;
+  const otraTareaIniciada = tareasData.find(x=>
+    x.id!==id && x.asignadoA===currentUser && x.estado==='iniciada' && !esTareaDeAyer(x)
+  );
+  if(otraTareaIniciada){
+    showToast('Completa la tarea iniciada antes de empezar otra');
+    return;
+  }
   t.estado='iniciada';
   t.horaInicio = new Date().toLocaleString('es-ES');
   t.horaInicioTs = Date.now(); // timestamp numérico — lo usa el cronómetro en pantalla de las fumigaciones
