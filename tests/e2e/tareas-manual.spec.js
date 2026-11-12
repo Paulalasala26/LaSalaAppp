@@ -355,6 +355,48 @@ test('UAT-1251: la tarjeta de una tarea manual pendiente muestra todos sus campo
 
 
 
+test('UAT-1260: botones azules de tarjeta y edición ofrecen una zona táctil de 44 px', async ({ page }) => {
+  const todayISO = await fechaISOEnNavegador(page);
+  const task = {
+    id: 'e2e-uat-1260-touch',
+    titulo: 'E2E botones azules UAT-1260',
+    asignadoA: 'PEON1',
+    origen: 'manual',
+    categoria: 'manual',
+    inv: '0A',
+    calles: '1',
+    fechaISO: todayISO,
+    estado: 'pendiente'
+  };
+  const { database, writes } = await installFixture(page, {
+    'lasala-tareas-v1': JSON.stringify([task])
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  await overlay.getByRole('button', { name: /Tareas de hoy/ }).click();
+  const card = overlay.locator('.tarea-card').filter({ hasText: task.titulo });
+  const edit = card.getByTitle('Editar');
+  const editStyle = await edit.evaluate(element => {
+    const rect = element.getBoundingClientRect();
+    return { height: rect.height, background: getComputedStyle(element).backgroundColor };
+  });
+  expect(editStyle.height).toBeGreaterThanOrEqual(44);
+  expect(editStyle.background).toBe('rgb(238, 244, 251)');
+
+  await edit.click();
+  const form = overlay.locator('#nueva-tarea-form-wrap');
+  const save = form.getByRole('button', { name: 'Guardar cambios' });
+  const saveStyle = await save.evaluate(element => {
+    const rect = element.getBoundingClientRect();
+    return { height: rect.height, background: getComputedStyle(element).backgroundColor };
+  });
+  expect(saveStyle.height).toBeGreaterThanOrEqual(44);
+  expect(saveStyle.background).toBe('rgb(21, 88, 160)');
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([task]);
+  expect(writes).toEqual([]);
+});
+
 test('UAT-1262–1264: los contadores coinciden y cada tarea aparece una sola vez', async ({ page }) => {
   const todayISO = await fechaISOEnNavegador(page);
   const tasks = [{
