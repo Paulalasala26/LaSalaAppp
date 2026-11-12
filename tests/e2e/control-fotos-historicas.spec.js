@@ -70,7 +70,7 @@ async function openControl(page,database){
 test('UAT-407, UAT-408 y UAT-410: foto histórica solo lectura y preservada al añadir otra',async({page})=>{
   const database=fixtureDatabase();
   const {overlay,writes,unexpectedHosts}=await openControl(page,database);
-  const card=overlay.locator(`#control-card-${id}`);
+  const card=overlay.locator(`#control-card-${id}:visible`).first();
   await expect(card.locator('img[title="Ver foto"]')).toHaveCount(1);
   await expect(card.getByTestId(`control-photo-status-${id}-0`)).toContainText('Histórica');
   await expect(card.getByTestId(`control-photo-delete-${id}-0`)).toHaveCount(0);
@@ -86,8 +86,10 @@ test('UAT-407, UAT-408 y UAT-410: foto histórica solo lectura y preservada al a
   });
   await expect(card.locator('img[title="Ver foto"]')).toHaveCount(2);
   await expect(card.getByTestId(`control-photo-status-${id}-0`)).toContainText('Histórica');
-  await expect(card.getByTestId(`control-photo-delete-${id}-0`)).toHaveCount(0);
-  await expect(card.locator('[data-testid^="control-photo-delete-"]')).toHaveCount(1);
+  const oldThumb=card.getByTestId(`control-photo-thumb-${id}-0`);
+  const newThumb=card.getByTestId(`control-photo-thumb-${id}-1`);
+  await expect(oldThumb.locator('xpath=..').locator('[data-testid^="control-photo-delete-"]')).toHaveCount(0);
+  await expect(newThumb.locator('xpath=..').getByTestId(`control-photo-delete-${id}-1`)).toBeVisible();
   const preserved=await page.evaluate(id=>fotoSrcCompleta(controlFotosData[id][0]),id);
   expect(preserved).toBe(legacyPhoto);
   expect(writes.some(write=>write.path==='lasala-control-fotos-v1')).toBe(true);
