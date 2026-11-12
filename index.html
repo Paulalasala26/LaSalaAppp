@@ -16347,8 +16347,9 @@ async function generarTareasDesdeRiego(){
             || tareasData.find(t=>t.asignadoA===peonAsignado && coincideOrigen(t));
           if(existente && existente.estado==='iniciada') return; // ya en marcha: no se toca ni se duplica
           if(existente){
-            // La reasignación manual conserva al PEÓN y el ID de la orden;
-            // las calles siguen la fuente Riego para mantener ubicaciones vigentes.
+            // La reasignación manual conserva al PEÓN y el ID de la orden.
+            // Se acumulan las calles actuales de Riego; abajo se conserva el rótulo
+            // anterior si el conjunto no cambió y se actualiza si sí cambió.
             existente._callesNumeros = [...new Set([...(existente._callesNumeros||[]), ...br.calles])];
           } else {
             tareasData.push({
@@ -16401,7 +16402,14 @@ async function generarTareasDesdeRiego(){
         return !!texto;
       });
     }
-    t.calles = formatCallesConEnteroParaTareaPeon(t.inv, t._callesNumeros, universo);
+    const callesRiegoActual = [...new Set(t._callesNumeros)].sort((a,b)=>a-b);
+    const mismasCallesRiego = Array.isArray(t.callesOrigenRiego)
+      && t.callesOrigenRiego.length === callesRiegoActual.length
+      && t.callesOrigenRiego.every((calle, i) => calle === callesRiegoActual[i]);
+    if(t.asignacionManual!==true || !mismasCallesRiego){
+      t.calles = formatCallesConEnteroParaTareaPeon(t.inv, callesRiegoActual, universo);
+    }
+    t.callesOrigenRiego = callesRiegoActual;
     delete t._callesNumeros;
     delete t._diaOrigen;
   });
