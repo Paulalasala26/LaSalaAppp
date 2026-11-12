@@ -7652,6 +7652,18 @@ async function extraerLineasControlPdf(bytes){
   }
   return lineas;
 }
+// "1,110.0" (millares con coma + decimal con punto) o "1,0"/"30,0" (decimal con
+// coma) -> entero limpio ("1110", "1", "30"). Antes "1,110.0" acababa como
+// "1.110" y el total de bandejas lo sumaba como 1,11 (de main, 170be4f,
+// 2026-10-30). Un decimal distinto de .0 se conserva.
+function normalizarBandejasPdf(s){
+  const t = String(s==null?'':s).trim();
+  const m = /^(\d{1,3}(?:,\d{3})+|\d+)(?:[.,](\d+))?$/.exec(t);
+  if(!m) return t.replace(',', '.').replace(/\.0$/, '');
+  const ent = m[1].replace(/,/g, '');
+  const dec = m[2];
+  return (!dec || /^0+$/.test(dec)) ? ent : ent+'.'+dec;
+}
 function parseControlPdfPartidas(lineas){
   const PARTIDA_RE = '\\d{2}[A-Z]{1,2}\\d{4,5}';
   // Nº Band viene a veces con punto decimal ("65.0") y a veces con coma
@@ -7897,9 +7909,9 @@ async function autoCrearLineasDesdePdfControl(tipo, dia, pdfB64){
     let creadas = 0;
     partidas.forEach((p,idx)=>{
       const clienteVariedad = p.variedad ? `${p.cliente} — ${p.variedad}` : p.cliente;
-      // Normaliza tanto "65.0" como "1,0"/"30,0" (coma o punto decimal según
-      // el PDF) a un entero limpio ("65", "1", "30").
-      const numBandejas = p.nband.replace(',', '.').replace(/\.0$/, '');
+      // Normaliza "65.0", "1,0"/"30,0" (coma o punto decimal según el PDF) y
+      // "1,110.0" (millares con coma) a un entero limpio ("65", "1", "30", "1110").
+      const numBandejas = normalizarBandejasPdf(p.nband);
       const clave = p.partida+'|'+numBandejas+'|'+clienteVariedad;
       if(existentes.has(clave)) return;
       existentes.add(clave);
