@@ -2583,7 +2583,7 @@ function renderTareasGestorFullScreen(overlay){
         <button onclick="mostrarOrdenTareasPorPersona()" title="Ver las tareas de cada persona ordenadas por prioridad" style="padding:9px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid rgba(255,255,255,.4);background:transparent;color:#fff;display:flex;align-items:center;gap:7px;white-space:nowrap">
           <i class="ti ti-arrows-sort" style="font-size:14px"></i> Ordenar
         </button>
-        <button onclick="generarTareasDesdeRiego()" title="Borra las tareas de peón pendientes/iniciadas y las reconstruye desde lo que hay escrito ahora mismo en Riego" style="padding:9px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid rgba(255,255,255,.4);background:transparent;color:#fff;display:flex;align-items:center;gap:7px;white-space:nowrap">
+        <button onclick="generarTareasDesdeRiego()" title="Concilia las tareas pendientes con Riego y conserva la identidad de las órdenes coincidentes" style="padding:9px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid rgba(255,255,255,.4);background:transparent;color:#fff;display:flex;align-items:center;gap:7px;white-space:nowrap">
           <i class="ti ti-refresh" style="font-size:14px"></i> Generar tareas
         </button>
         <button onclick="avanzarRiegoReganteDia()" title="Avanza las hojas de riego de los regantes al día siguiente" style="padding:9px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid rgba(255,255,255,.4);background:transparent;color:#fff;display:flex;align-items:center;gap:7px;white-space:nowrap">
@@ -16461,7 +16461,7 @@ function parsearTrabajoDeTexto(texto){
 // "categoria" y no se tocan — que no estén ya completadas) y las vuelve a
 // crear desde cero recorriendo riegoData entero.
 async function generarTareasDesdeRiego(){
-  if(!confirm('¿Generar tareas de peón desde lo que hay escrito ahora mismo en Riego?\n\nSe borrarán y volverán a crearse las tareas de peón PENDIENTES generadas desde Riego. Se conservan las completadas, las ya iniciadas y las que hayas creado a mano con «Nueva tarea».')) return;
+  if(!confirm('¿Conciliar las tareas de peón con lo escrito ahora mismo en Riego?\n\nLas tareas pendientes coincidentes conservarán su identidad; se retirarán las que ya no tengan origen en Riego. Se conservan las completadas, las iniciadas y las creadas a mano.')) return;
   showToast('Generando tareas…');
   // persistTareasData() solo FUSIONA con la nube (nunca borra, ver
   // persistTareasData) — si se usara aquí, las tareas obsoletas que se
@@ -16484,7 +16484,11 @@ async function generarTareasDesdeRiego(){
   // iniciadas (el peón ya está en ello), las completadas y las creadas a mano
   // (origen:'manual') se conservan. Las tareas generadas antes de este cambio
   // no llevan marca de origen y se tratan como de riego (como hasta ahora).
-  tareasData = tareasData.filter(t => !((['PEON1','PEON2','PEON3'].includes(t.asignadoA)) && !t.categoria && t.estado==='pendiente' && t.origen!=='manual' && t.asignacionManual!==true));
+  const esTareaRiegoPendiente = t => ['PEON1','PEON2','PEON3'].includes(t.asignadoA)
+    && !t.categoria && t.estado==='pendiente' && t.origen!=='manual' && t.asignacionManual!==true;
+  const tareasRiegoPendientesPrevias = tareasData.filter(esTareaRiegoPendiente);
+  const tareasRiegoPreviasReutilizadas = new Set();
+  tareasData = tareasData.filter(t => !esTareaRiegoPendiente(t));
   const invIds = [...Object.keys(INV_LAYOUT_SALA1), ...Object.keys(INV_LAYOUT_SALA2), ...Object.keys(INV_LAYOUT_SALA3), ...Object.keys(INV_LAYOUT_SALA4), ...Object.keys(INV_LAYOUT_SALA5)];
   let creadas = 0;
   invIds.forEach(invId=>{
@@ -16517,8 +16521,16 @@ async function generarTareasDesdeRiego(){
           const tituloExpandido = expandirAbreviaturasRiego(tituloBruto);
           const peonAsignado = peonDelaSala(invId);
           const coincideOrigen = t=>!t.categoria && t.origen!=='manual' && t.inv===invId && t.fechaISO===fechaISO && t.titulo===tituloExpandido && (t.horario||'')===(horarioTarea||'');
-          const existente = tareasData.find(t=>t.asignacionManual===true && t.estado==='pendiente' && coincideOrigen(t))
+          let existente = tareasData.find(t=>t.asignacionManual===true && t.estado==='pendiente' && coincideOrigen(t))
             || tareasData.find(t=>t.asignadoA===peonAsignado && coincideOrigen(t));
+          if(!existente){
+            existente = tareasRiegoPendientesPrevias.find(t=>!tareasRiegoPreviasReutilizadas.has(t)
+              && t.asignadoA===peonAsignado && coincideOrigen(t));
+            if(existente){
+              tareasRiegoPreviasReutilizadas.add(existente);
+              tareasData.push(existente);
+            }
+          }
           if(existente && existente.estado==='iniciada') return; // ya en marcha: no se toca ni se duplica
           if(existente){
             // La reasignación manual conserva al PEÓN y el ID de la orden.
