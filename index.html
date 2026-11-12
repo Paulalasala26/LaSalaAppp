@@ -1927,9 +1927,18 @@ async function asignarTareasEnLote(){
   if(!tareasSeleccionadas.size){ showToast('Selecciona al menos una tarea'); return; }
   await loadTareasData();
   let cambios = 0;
-  tareasSeleccionadas.forEach(id=>{
-    const t = tareasData.find(x=>x.id===id);
-    if(t && t.asignadoA!==persona){ t.asignadoA = persona; t.visto = false; cambios++; }
+  const seleccionables = [...tareasSeleccionadas].map(id=>tareasData.find(t=>t.id===id)).filter(t=>{
+    const origen = String(t?.origen||t?.categoria||'manual').toLocaleLowerCase('es-ES');
+    return t && t.estado==='pendiente' && !['riego','pistola','especificos','especifico'].includes(origen);
+  });
+  if(!seleccionables.length){
+    tareasSeleccionadas.clear();
+    actualizarBotonAsignarLote();
+    showToast('No hay tareas manuales pendientes seleccionadas');
+    return;
+  }
+  seleccionables.forEach(t=>{
+    if(t.asignadoA!==persona){ t.asignadoA = persona; t.visto = false; cambios++; }
   });
   await persistTareasData();
   logHistorial(`Asignó ${cambios} tarea(s) a ${persona} en lote`);
@@ -1970,8 +1979,8 @@ function buildTareaGestorRow(t, conSeleccion){
   return `
     <div class="tarea-card" data-id="${escapar(t.id)}" style="position:relative;margin-top:10px;border-radius:4px 4px 12px 12px;background:#fff;border:1.5px solid var(--border);border-top:none;box-shadow:var(--shadow-sm);padding:14px 16px 12px">
       <div style="position:absolute;top:-9px;left:18px;width:38px;height:16px;background:${est.color};border-radius:5px 5px 0 0;box-shadow:0 -1px 3px rgba(0,0,0,.15)"></div>
-      ${conSeleccion ? `<input type="checkbox" class="tarea-select-chk" value="${t.id}" ${tareasSeleccionadas.has(t.id)?'checked':''} onchange="toggleSeleccionTarea('${t.id}',this.checked)" style="position:absolute;top:12px;right:14px;width:16px;height:16px;cursor:pointer">` : ''}
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;padding-right:${conSeleccion?'26px':'0'}">
+      ${conSeleccion && esTareaManualPendiente ? `<input type="checkbox" class="tarea-select-chk" value="${t.id}" ${tareasSeleccionadas.has(t.id)?'checked':''} onchange="toggleSeleccionTarea('${t.id}',this.checked)" style="position:absolute;top:12px;right:14px;width:16px;height:16px;cursor:pointer">` : ''}
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;padding-right:${conSeleccion && esTareaManualPendiente?'26px':'0'}">
         <div style="font-size:15px;font-weight:800;color:var(--text)">${escapar(t.titulo)}${t.prioridad==='alta'?' <span style="color:#c62828;font-size:11px;font-weight:800">● ALTA</span>':''}</div>
         <span style="font-size:10px;font-weight:800;padding:4px 11px;border-radius:20px;background:${est.bg};color:${est.color};white-space:nowrap">${est.label}</span>
       </div>
@@ -2678,7 +2687,11 @@ function renderTareasGestorVistaHTML(vista, porFecha){
   // vez de editarlas una a una. Solo tiene sentido sobre las pendientes. Una
   // sola barra para toda la sección (no una por sala) — la selección ya es
   // global (tareasSeleccionadas), así que puede mezclar tareas de las dos salas.
-  const loteToolbar = activasOrdenadas.length ? `
+  const hayTareasManualesPendientes = activasOrdenadas.some(t=>{
+    const origen = String(t.origen||t.categoria||'manual').toLocaleLowerCase('es-ES');
+    return t.estado==='pendiente' && !['riego','pistola','especificos','especifico'].includes(origen);
+  });
+  const loteToolbar = hayTareasManualesPendientes ? `
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:8px 10px;background:#eef4fb;border:1px solid #a8c4e8;border-radius:8px;flex-wrap:wrap">
       <span style="font-size:11px;font-weight:700;color:#1558a0">Asignar seleccionadas a:</span>
       <select id="lote-asignado-select" style="padding:6px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:12px">
@@ -2736,13 +2749,17 @@ function renderTareaSalaBloque(salaLabel, activasSala, completadasSala){
   if(!activasSala.length && !completadasSala.length) return '';
   const filasActivas = activasSala.map(t=>buildTareaGestorRow(t,true)).join('');
   const filasCompletadas = completadasSala.map(t=>buildTareaGestorRow(t,false)).join('');
+  const hayTareasManualesPendientes = activasSala.some(t=>{
+    const origen = String(t.origen||t.categoria||'manual').toLocaleLowerCase('es-ES');
+    return t.estado==='pendiente' && !['riego','pistola','especificos','especifico'].includes(origen);
+  });
   return `
     <div style="margin:0 0 .6rem;font-size:13px;font-weight:800;color:#1558a0;text-transform:uppercase;letter-spacing:.04em;display:flex;align-items:center;gap:8px">
       <i class="ti ti-building-warehouse" style="font-size:15px"></i> ${salaLabel}
     </div>
     ${activasSala.length===0 ? `<div style="padding:.75rem 0 1rem;color:var(--muted);font-style:italic;font-size:12px">No hay tareas pendientes.</div>` : `
     <div style="margin-bottom:${completadasSala.length?'1rem':'1.5rem'}">
-      ${tareaTableHead(true)}
+      ${hayTareasManualesPendientes ? tareaTableHead(true) : ''}
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px 16px;margin-top:6px">
         ${filasActivas}
       </div>
