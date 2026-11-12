@@ -397,6 +397,155 @@ test('UAT-1260: botones azules de tarjeta y edición ofrecen una zona táctil de
   expect(writes).toEqual([]);
 });
 
+test('UAT-1266, UAT-1350–1355: acciones móviles y reasignación solo para pendientes compatibles', async ({ page }) => {
+  const todayISO = await fechaISOEnNavegador(page);
+  const tasks = [
+    { id: 'e2e-uat-1266-manual', titulo: 'Manual pendiente UAT-1266', asignadoA: 'PEON1', origen: 'manual', categoria: 'manual', inv: '0A', calles: '1', fechaISO: todayISO, estado: 'pendiente' },
+    { id: 'e2e-uat-1351-riego', titulo: 'Riego pendiente UAT-1351', asignadoA: 'PEON1', origen: 'riego', categoria: 'riego', inv: '0A', calles: '2', fechaISO: todayISO, estado: 'pendiente' },
+    { id: 'e2e-uat-1352-pistola', titulo: 'Pistola UAT-1352', asignadoA: 'PEON1', origen: 'pistola', categoria: 'fumigacion', inv: '0A', calles: '3', fechaISO: todayISO, estado: 'pendiente' },
+    { id: 'e2e-uat-1353-especificos', titulo: 'Específicos UAT-1353', asignadoA: 'REGANTE1', origen: 'especificos', categoria: 'especifico', inv: '0A', calles: '4', fechaISO: todayISO, estado: 'pendiente' },
+    { id: 'e2e-uat-1354-started', titulo: 'Manual iniciada UAT-1354', asignadoA: 'PEON1', origen: 'manual', categoria: 'manual', inv: '0A', calles: '5', fechaISO: todayISO, estado: 'iniciada' },
+    { id: 'e2e-uat-1355-completed', titulo: 'Manual completada UAT-1355', asignadoA: 'PEON1', origen: 'manual', categoria: 'manual', inv: '0A', calles: '6', fechaISO: todayISO, completadoISO: todayISO, estado: 'completada' }
+  ];
+  const { database, writes } = await installFixture(page, {
+    'lasala-tareas-v1': JSON.stringify(tasks)
+  });
+  await page.setViewportSize({ width: 320, height: 760 });
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  await overlay.getByRole('button', { name: /Tareas de hoy/ }).click();
+  const pane = overlay.locator('#tareas-gestor-content-wrap');
+  const card = title => pane.locator('.tarea-card').filter({ hasText: title });
+  const manual = card(tasks[0].titulo);
+  const actions = [
+    manual.getByTitle('Editar'),
+    manual.getByTitle('Reasignar'),
+    manual.getByTitle('Anular'),
+    manual.getByTitle('Imprimir')
+  ];
+  for (const action of actions) await expect(action).toBeVisible();
+  const rects = await Promise.all(actions.map(action => action.evaluate(el => {
+    const r = el.getBoundingClientRect();
+    return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, height: r.height };
+  })));
+  for (let i = 0; i < rects.length; i++) {
+    expect(rects[i].height).toBeGreaterThanOrEqual(44);
+    expect(rects[i].right).toBeLessThanOrEqual(321);
+    for (let j = i + 1; j < rects.length; j++) {
+      const overlaps = rects[i].left < rects[j].right && rects[i].right > rects[j].left
+        && rects[i].top < rects[j].bottom && rects[i].bottom > rects[j].top;
+      expect(overlaps).toBe(false);
+    }
+  }
+
+  const riego = card(tasks[1].titulo);
+  const pistola = card(tasks[2].titulo);
+  const especificos = card(tasks[3].titulo);
+  await expect(riego.getByTitle('Reasignar')).toBeVisible();
+  await expect(pistola.getByTitle('Reasignar')).toHaveCount(0);
+  await expect(especificos.getByTitle('Reasignar')).toHaveCount(0);
+  await expect(card(tasks[4].titulo).getByTitle('Reasignar')).toHaveCount(0);
+  await expect(card(tasks[5].titulo).getByTitle('Reasignar')).toHaveCount(0);
+
+  await manual.getByTitle('Reasignar').click();
+  const manualSelect = manual.getByTestId('tarea-reasignar-select');
+  await expect(manualSelect.locator('option[value="PEON2"]')).toHaveCount(1);
+  await expect(manualSelect.locator('option[value="REGANTE1"]')).toHaveCount(1);
+  await expect(manualSelect.locator('option[value="ADMIN"]')).toHaveCount(0);
+  await expect(manualSelect.locator('option[value="TECNICO"]')).toHaveCount(0);
+  await manual.getByRole('button', { name: 'Cancelar' }).click();
+
+  await riego.getByTitle('Reasignar').click();
+  const riegoSelect = riego.getByTestId('tarea-reasignar-select');
+  await expect(riegoSelect.locator('option[value="PEON1"]')).toHaveCount(1);
+  await expect(riegoSelect.locator('option[value="PEON2"]')).toHaveCount(1);
+  await expect(riegoSelect.locator('option[value="REGANTE1"]')).toHaveCount(0);
+  await riego.getByRole('button', { name: 'Cancelar' }).click();
+
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual(tasks);
+  expect(writes).toEqual([]);
+});
+
+test('UAT-1356–1359: cancelar no escribe y reasignar conserva ID y datos con roles válidos', async ({ page }) => {
+  const todayISO = await fechaISOEnNavegador(page);
+  const tasks = [{
+    id: 'e2e-uat-1357-peon',
+    titulo: 'Manual reasignada a PEON UAT-1357',
+    descripcion: 'Mantener descripción y fecha',
+    asignadoA: 'PEON1',
+    origen: 'manual',
+    categoria: 'manual',
+    inv: '0A',
+    calles: '1-2',
+    fechaISO: todayISO,
+    estado: 'pendiente',
+    visto: true
+  }, {
+    id: 'e2e-uat-1358-regante',
+    titulo: 'Manual reasignada a REGANTE UAT-1358',
+    asignadoA: 'PEON1',
+    origen: 'manual',
+    categoria: 'manual',
+    inv: '0B',
+    calles: '3-4',
+    fechaISO: todayISO,
+    estado: 'pendiente'
+  }];
+  const { database, writes } = await installFixture(page, {
+    'lasala-tareas-v1': JSON.stringify(tasks)
+  });
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  await overlay.getByRole('button', { name: /Tareas de hoy/ }).click();
+  const pane = overlay.locator('#tareas-gestor-content-wrap');
+  const card = title => pane.locator('.tarea-card').filter({ hasText: title });
+
+  const peonCard = card(tasks[0].titulo);
+  await peonCard.getByTitle('Reasignar').click();
+  const cancelSelect = peonCard.getByTestId('tarea-reasignar-select');
+  await expect(cancelSelect.locator('option[value="ADMIN"]')).toHaveCount(0);
+  await expect(cancelSelect.locator('option[value="TECNICO"]')).toHaveCount(0);
+  await peonCard.getByRole('button', { name: 'Cancelar' }).click();
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual(tasks);
+  expect(writes.filter(write => write.key === 'lasala-tareas-v1')).toHaveLength(0);
+
+  await peonCard.getByTitle('Reasignar').click();
+  await peonCard.getByTestId('tarea-reasignar-select').selectOption('PEON2');
+  await peonCard.getByRole('button', { name: 'Confirmar' }).click();
+  await expect.poll(() => JSON.parse(database['lasala-tareas-v1']).find(t => t.id === tasks[0].id)?.asignadoA).toBe('PEON2');
+  const afterPeon = JSON.parse(database['lasala-tareas-v1']);
+  expect(afterPeon).toHaveLength(2);
+  expect(afterPeon.find(t => t.id === tasks[0].id)).toMatchObject({
+    titulo: tasks[0].titulo,
+    descripcion: tasks[0].descripcion,
+    fechaISO: todayISO,
+    inv: '0A',
+    calles: '1-2',
+    asignadoA: 'PEON2',
+    visto: false,
+    historialReasignaciones: [{ anterior: 'PEON1', nuevo: 'PEON2' }]
+  });
+
+  const reganteCard = card(tasks[1].titulo);
+  await reganteCard.getByTitle('Reasignar').click();
+  const reganteSelect = reganteCard.getByTestId('tarea-reasignar-select');
+  await expect(reganteSelect.locator('option[value="REGANTE1"]')).toHaveCount(1);
+  await reganteSelect.selectOption('REGANTE1');
+  await reganteCard.getByRole('button', { name: 'Confirmar' }).click();
+  await expect.poll(() => JSON.parse(database['lasala-tareas-v1']).find(t => t.id === tasks[1].id)?.asignadoA).toBe('REGANTE1');
+  const final = JSON.parse(database['lasala-tareas-v1']);
+  expect(final).toHaveLength(2);
+  expect(final.find(t => t.id === tasks[1].id)).toMatchObject({
+    titulo: tasks[1].titulo,
+    fechaISO: todayISO,
+    inv: '0B',
+    calles: '3-4',
+    asignadoA: 'REGANTE1',
+    historialReasignaciones: [{ anterior: 'PEON1', nuevo: 'REGANTE1' }]
+  });
+  expect(writes.filter(write => write.key === 'lasala-tareas-v1')).toHaveLength(2);
+});
+
 test('UAT-1304: el selector plegable muestra usuarios elegibles y actualiza el contador', async ({ page }) => {
   const { database, writes } = await installFixture(page);
   await page.setViewportSize({ width: 390, height: 844 });
