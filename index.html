@@ -1966,6 +1966,7 @@ function buildTareaGestorRow(t, conSeleccion){
   const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const est = estadoTareaColores(t.estado);
   const origenTarea = String(t.origen||t.categoria||'').toLocaleLowerCase('es-ES');
+  const etiquetaImpresion = t.categoria==='fumigacion' || origenTarea==='pistola' ? 'Imprimir parte fitosanitaria' : (t.categoria==='especifico' || ['especifico','especificos'].includes(origenTarea)) ? 'Imprimir hoja de Específicos' : (t.categoria==='riego' || origenTarea==='riego') ? 'Imprimir hoja de Riego' : 'Imprimir tarea';
   const esTareaGenerada = ['riego','pistola','especificos','especifico'].includes(origenTarea);
   const esTareaManualPendiente = !esTareaGenerada && t.estado==='pendiente';
   const origenAsignable = origenTarea || 'manual';
@@ -1995,7 +1996,7 @@ function buildTareaGestorRow(t, conSeleccion){
       <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
         ${esTareaManualPendiente ? `<button onclick="showEditarTareaForm('${t.id}')" title="Editar" style="min-height:44px;padding:8px 12px;font-size:12px;font-weight:700;background:#eef4fb;color:#1558a0;border:1px solid #a8c4e8;border-radius:6px;cursor:pointer">✏️ Editar</button>` : ''}
         ${puedeReasignar ? `<button onclick="showReasignarTareaForm('${t.id}')" title="Reasignar" data-testid="tarea-reasignar" style="min-height:44px;padding:8px 12px;font-size:12px;font-weight:700;background:#eef4fb;color:#1558a0;border:1px solid #a8c4e8;border-radius:6px;cursor:pointer">⇄ Reasignar</button>` : ''}
-        <button onclick="imprimirTareaSuelta('${t.id}')" title="Imprimir" style="min-height:44px;padding:8px 12px;font-size:12px;font-weight:700;background:#eef9f0;color:#2e7d32;border:1px solid #a8dcb0;border-radius:6px;cursor:pointer">🖨️ Imprimir</button>
+        <button onclick="imprimirTareaSuelta('${t.id}')" title="Imprimir" aria-label="${etiquetaImpresion}" style="min-height:44px;padding:8px 12px;font-size:12px;font-weight:700;background:#eef9f0;color:#2e7d32;border:1px solid #a8dcb0;border-radius:6px;cursor:pointer">🖨️ Imprimir</button>
         ${esTareaManualPendiente ? `<button onclick="anularTarea('${t.id}')" title="Anular" style="min-height:44px;padding:8px 12px;font-size:12px;font-weight:700;background:#fff8e1;color:#8a5a00;border:1px solid #f0c060;border-radius:6px;cursor:pointer">↪ Anular</button>` : ''}
         ${!esTareaGenerada ? `<button onclick="eliminarTarea('${t.id}')" title="Eliminar" style="min-height:44px;padding:8px 12px;font-size:12px;font-weight:700;background:#fdecea;color:#c62828;border:1px solid #f0b0b0;border-radius:6px;cursor:pointer">🗑️ Eliminar</button>` : ''}
       </div>
@@ -2949,7 +2950,7 @@ function imprimirTareas(tareasConPosiblesDuplicados){
   // tarea salga una sola vez en la hoja impresa.
   const vistos = new Set();
   const tareas = tareasConPosiblesDuplicados.filter(t=>{
-    if(t.categoria==='fumigacion' || vistos.has(t.id)) return false;
+    if(t.categoria==='fumigacion' || t.categoria==='especifico' || ['pistola','especifico','especificos'].includes(String(t.origen||'').toLocaleLowerCase('es-ES')) || vistos.has(t.id)) return false;
     vistos.add(t.id);
     return true;
   });

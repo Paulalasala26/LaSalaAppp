@@ -3620,3 +3620,63 @@ test('UAT-1464: el abono foliar separa hojas de cubas diferentes', async ({ page
   expect(JSON.parse(database['lasala-tareas-v1'])).toEqual(tasks);
   expect(writes).toEqual([]);
 });
+
+
+test('UAT-1465: el lote A5 conserva Riego y excluye Pistola y Específicos', async ({ page }) => {
+  const today = await fechaISOEnNavegador(page);
+  const tasks = [
+    { id:'e2e-uat-1465-manual', titulo:'E2E manual 1465', asignadoA:'PEON1', origen:'manual', categoria:'manual', inv:'0A', calles:'1', fechaISO:today, fecha:'hoy', turno:'Mañana', estado:'pendiente' },
+    { id:'e2e-uat-1465-riego', titulo:'E2E riego 1465', asignadoA:'PEON1', origen:'riego', categoria:'riego', inv:'1A', calles:'2', fechaISO:today, fecha:'hoy', turno:'Mañana', estado:'pendiente' },
+    { id:'e2e-uat-1465-especifico', titulo:'E2E específico 1465', asignadoA:'PEON1', origen:'especificos', categoria:'especifico', inv:'2A', calles:'3', fechaISO:today, fecha:'hoy', turno:'Mañana', estado:'pendiente', producto:'E2E producto' },
+    { id:'e2e-uat-1465-pistola', titulo:'E2E Pistola 1465', asignadoA:'PEON1', origen:'pistola', categoria:'fumigacion', inv:'3A', calles:'4', fechaISO:today, fecha:'hoy', turno:'Mañana', estado:'pendiente', producto:'E2E tratamiento', caldoLitros:25, caldoLabel:'25L', objetivos:[{inv:'3A',calles:'4'}] }
+  ];
+  const { database, writes } = await installFixture(page, { 'lasala-tareas-v1': JSON.stringify(tasks) });
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  await overlay.getByRole('button', { name:'Imprimir tareas de peones' }).click();
+  await page.locator('#imprimir-tareas-selector-overlay').getByRole('button', { name:'Imprimir' }).click();
+  const printed = await page.frameLocator('#print-tareas-iframe').locator('body').innerText();
+  expect(printed).toContain('E2E manual 1465');
+  expect(printed).toContain('E2E riego 1465');
+  expect(printed).not.toContain('E2E específico 1465');
+  expect(printed).not.toContain('E2E Pistola 1465');
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual(tasks);
+  expect(writes).toEqual([]);
+});
+
+test('UAT-1466–1468 y UAT-1470: iconos imprimen el documento adecuado y anuncian su tipo', async ({ page }) => {
+  const today = await fechaISOEnNavegador(page);
+  const tasks = [
+    { id:'e2e-uat-1466', titulo:'E2E manual 1466', asignadoA:'PEON1', origen:'manual', categoria:'manual', inv:'1A', calles:'C/1', fechaISO:today, fecha:'hoy', turno:'Mañana', estado:'pendiente' },
+    { id:'e2e-uat-1467', titulo:'E2E riego 1467', asignadoA:'PEON1', origen:'riego', categoria:'riego', inv:'2A', calles:'C/2', fechaISO:today, fecha:'hoy', turno:'Mañana', estado:'pendiente' },
+    { id:'e2e-uat-1468', titulo:'E2E específicos 1468', asignadoA:'REGANTE1', origen:'especificos', categoria:'especifico', inv:'0A', calles:'C/3', fechaISO:today, fecha:'hoy', turno:'Mañana', estado:'pendiente', producto:'TC', dosis:'1', caldoLitros:25, caldoLabel:'25L' },
+    { id:'e2e-uat-1470', titulo:'E2E Pistola 1470', asignadoA:'PEON1', origen:'pistola', categoria:'fumigacion', inv:'3A', calles:'C/4', fechaISO:today, fecha:'hoy', estado:'pendiente', producto:'E2E tratamiento 1470', dosis:'1 cc/l', caldoLitros:25, caldoLabel:'25L', objetivos:[{inv:'3A',calles:'C/4'}] }
+  ];
+  const { database, writes } = await installFixture(page, { 'lasala-tareas-v1': JSON.stringify(tasks) });
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  await overlay.getByRole('button', { name:/Tareas de hoy/ }).click();
+  const card = title => overlay.locator('.tarea-card').filter({ hasText:title });
+  const labels = ['Imprimir tarea','Imprimir hoja de Riego','Imprimir hoja de Específicos','Imprimir parte fitosanitaria'];
+  for (let i=0;i<tasks.length;i++) await expect(card(tasks[i].titulo).getByTitle('Imprimir')).toHaveAttribute('aria-label',labels[i]);
+  await card(tasks[0].titulo).getByTitle('Imprimir').click();
+  const manualPrint = page.frameLocator('#print-tareas-iframe');
+  await expect(manualPrint.locator('.p-trabajo')).toHaveText(tasks[0].titulo);
+  await expect(manualPrint.locator('.p-inv-box')).toHaveText('INV 1A');
+  await expect(manualPrint.locator('.p-calles')).toHaveText('C/1');
+  await card(tasks[1].titulo).getByTitle('Imprimir').click();
+  const riegoPrint = page.frameLocator('#print-tareas-iframe');
+  await expect(riegoPrint.locator('.p-trabajo')).toHaveText(tasks[1].titulo);
+  await expect(riegoPrint.locator('.p-inv-box')).toHaveText('INV 2A');
+  await expect(riegoPrint.locator('.p-calles')).toHaveText('C/2');
+  await card(tasks[2].titulo).getByTitle('Imprimir').click();
+  const especificoFrame = page.frameLocator('#print-especifico-iframe');
+  await expect.poll(() => page.locator('#print-especifico-iframe').count()).toBe(1);
+  const especificoText = await especificoFrame.locator('body').innerText();
+  expect(especificoText).toContain('TC 1');
+  expect(especificoText).toContain('0A');
+  expect(especificoText).toContain('C/3');
+  await expect(page.locator('#print-tareas-iframe')).toHaveCount(1);
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual(tasks);
+  expect(writes).toEqual([]);
+});
