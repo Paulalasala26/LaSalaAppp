@@ -3690,6 +3690,10 @@ async function completarTarea(id){
   await loadTareasData();
   const t = tareasData.find(x=>x.id===id);
   if(!t) return;
+  if(t.estado!=='iniciada'){
+    showToast('Inicia la tarea antes de completarla');
+    return;
+  }
   t.estado='completada';
   t.horaFin = new Date().toLocaleString('es-ES');
   t.horaFinTs = Date.now(); // a petición de Paula, 2026-08-11: poder mostrar cuánto tardó (inicio→ejecución)
