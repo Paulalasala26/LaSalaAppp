@@ -2368,7 +2368,7 @@ function imprimirListadoPartidasControl(){
     }
     return '<span class="qc-print-cat" style="background:'+escapar(cat.tinte)+'"><i class="ti '+escapar(cat.icon)+'" aria-hidden="true"></i><b>'+escapar(cat.label)+':</b> '+escapar(detalle||'—')+'</span>';
   }).join('');
-  const filasHTML = lineas.map(c=>'<tr><td>'+escapar(c.partida)||'—'+'</td><td>'+escapar(clienteVariedadDeCheckControl(c))||'—'+'</td><td>'+calleLabelDe(c)+'</td><td>'+categoriasHTML(c)+'</td></tr>').join('');
+  const filasHTML = lineas.map(c=>'<tr><td>'+(escapar(c.partida)||'—')+'</td><td>'+(escapar(clienteVariedadDeCheckControl(c))||'—')+'</td><td>'+calleLabelDe(c)+'</td><td>'+categoriasHTML(c)+'</td></tr>').join('');
   let iframe = document.getElementById('print-control-listado-iframe');
   if(!iframe){
     iframe = document.createElement('iframe');
