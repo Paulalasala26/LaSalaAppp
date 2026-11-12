@@ -1959,6 +1959,8 @@ function buildTareaGestorRow(t, conSeleccion){
   const origenTarea = String(t.origen||t.categoria||'').toLocaleLowerCase('es-ES');
   const esTareaGenerada = ['riego','pistola','especificos','especifico'].includes(origenTarea);
   const esTareaManualPendiente = !esTareaGenerada && t.estado==='pendiente';
+  const origenAsignable = origenTarea || 'manual';
+  const puedeReasignar = t.estado==='pendiente' && ['manual','riego'].includes(origenAsignable);
   const subtitulo = t.objetivos && t.objetivos.length ? invCallesLabelDeTarea(t) : ((t.inv?('INV '+t.inv):'')+(t.calles?(' · '+(/\(INV completo\)$/.test(t.calles)?'ENTERO':t.calles)):''));
   const detalles = [
     t.horaInicio ? `Inicio: ${escapar(t.horaInicio)}` : '',
@@ -1966,7 +1968,7 @@ function buildTareaGestorRow(t, conSeleccion){
     t.firmante ? `Firma: ${escapar(t.firmante)}` : ''
   ].filter(Boolean).join(' · ');
   return `
-    <div class="tarea-card" style="position:relative;margin-top:10px;border-radius:4px 4px 12px 12px;background:#fff;border:1.5px solid var(--border);border-top:none;box-shadow:var(--shadow-sm);padding:14px 16px 12px">
+    <div class="tarea-card" data-id="${escapar(t.id)}" style="position:relative;margin-top:10px;border-radius:4px 4px 12px 12px;background:#fff;border:1.5px solid var(--border);border-top:none;box-shadow:var(--shadow-sm);padding:14px 16px 12px">
       <div style="position:absolute;top:-9px;left:18px;width:38px;height:16px;background:${est.color};border-radius:5px 5px 0 0;box-shadow:0 -1px 3px rgba(0,0,0,.15)"></div>
       ${conSeleccion ? `<input type="checkbox" class="tarea-select-chk" value="${t.id}" ${tareasSeleccionadas.has(t.id)?'checked':''} onchange="toggleSeleccionTarea('${t.id}',this.checked)" style="position:absolute;top:12px;right:14px;width:16px;height:16px;cursor:pointer">` : ''}
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;padding-right:${conSeleccion?'26px':'0'}">
@@ -1983,11 +1985,77 @@ function buildTareaGestorRow(t, conSeleccion){
       ${detalles ? `<div style="font-size:11px;color:var(--muted);margin-top:8px;padding-top:8px;border-top:1px dashed var(--border)">${detalles}</div>` : ''}
       <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
         ${esTareaManualPendiente ? `<button onclick="showEditarTareaForm('${t.id}')" title="Editar" style="min-height:44px;padding:8px 12px;font-size:12px;font-weight:700;background:#eef4fb;color:#1558a0;border:1px solid #a8c4e8;border-radius:6px;cursor:pointer">✏️ Editar</button>` : ''}
+        ${puedeReasignar ? `<button onclick="showReasignarTareaForm('${t.id}')" title="Reasignar" data-testid="tarea-reasignar" style="min-height:44px;padding:8px 12px;font-size:12px;font-weight:700;background:#eef4fb;color:#1558a0;border:1px solid #a8c4e8;border-radius:6px;cursor:pointer">⇄ Reasignar</button>` : ''}
         <button onclick="imprimirTareaSuelta('${t.id}')" title="Imprimir" style="min-height:44px;padding:8px 12px;font-size:12px;font-weight:700;background:#eef9f0;color:#2e7d32;border:1px solid #a8dcb0;border-radius:6px;cursor:pointer">🖨️ Imprimir</button>
         ${esTareaManualPendiente ? `<button onclick="anularTarea('${t.id}')" title="Anular" style="min-height:44px;padding:8px 12px;font-size:12px;font-weight:700;background:#fff8e1;color:#8a5a00;border:1px solid #f0c060;border-radius:6px;cursor:pointer">↪ Anular</button>` : ''}
         ${!esTareaGenerada ? `<button onclick="eliminarTarea('${t.id}')" title="Eliminar" style="min-height:44px;padding:8px 12px;font-size:12px;font-weight:700;background:#fdecea;color:#c62828;border:1px solid #f0b0b0;border-radius:6px;cursor:pointer">🗑️ Eliminar</button>` : ''}
       </div>
+      ${puedeReasignar ? `<div class="tarea-reasignar-wrap" data-testid="tarea-reasignar-form" hidden></div>` : ''}
     </div>`;
+}
+function usuariosElegiblesReasignacion(tarea){
+  const origen = String(tarea?.origen||tarea?.categoria||'manual').toLocaleLowerCase('es-ES');
+  if(!tarea || tarea.estado!=='pendiente' || !['manual','riego'].includes(origen)) return [];
+  return Object.keys(USERS).filter(usuario=>{
+    const rol = USER_ROLES[usuario];
+    return origen==='riego' ? rol==='PEON' : ['PEON','REGANTE'].includes(rol);
+  });
+}
+function tarjetaTareaPorId(id){
+  return Array.from(document.querySelectorAll('.tarea-card[data-id]')).find(card=>card.dataset.id===String(id));
+}
+function showReasignarTareaForm(id){
+  const tarea = tareasData.find(t=>t.id===id);
+  const card = tarjetaTareaPorId(id);
+  const wrap = card?.querySelector('.tarea-reasignar-wrap');
+  const usuarios = usuariosElegiblesReasignacion(tarea);
+  if(!tarea || !wrap || !usuarios.length) return;
+  const opciones = usuarios.map(usuario=>`<option value="${usuario}" ${usuario===tarea.asignadoA?'selected':''}>${usuario}</option>`).join('');
+  wrap.hidden = false;
+  wrap.innerHTML = `
+    <div style="margin-top:10px;padding:10px;background:#eef4fb;border:1px solid #a8c4e8;border-radius:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <label style="font-size:11px;font-weight:700;color:#1558a0">Reasignar a
+        <select data-testid="tarea-reasignar-select" style="min-height:44px;min-width:150px;padding:8px 10px;border:1px solid #a8c4e8;border-radius:7px;background:#fff">
+          ${opciones}
+        </select>
+      </label>
+      <button type="button" onclick="cancelarReasignacionTarea('${id}')" style="min-height:44px;padding:8px 12px;background:#fff;color:#1558a0;border:1px solid #a8c4e8;border-radius:7px;cursor:pointer">Cancelar</button>
+      <button type="button" onclick="guardarReasignacionTarea('${id}')" style="min-height:44px;padding:8px 12px;background:#1558a0;color:#fff;border:0;border-radius:7px;font-weight:800;cursor:pointer">Confirmar</button>
+    </div>`;
+}
+function cancelarReasignacionTarea(id){
+  const wrap = tarjetaTareaPorId(id)?.querySelector('.tarea-reasignar-wrap');
+  if(wrap){ wrap.innerHTML=''; wrap.hidden=true; }
+}
+async function guardarReasignacionTarea(id){
+  const card = tarjetaTareaPorId(id);
+  const destino = card?.querySelector('[data-testid="tarea-reasignar-select"]')?.value;
+  if(!destino){ showToast('Elige un destinatario'); return; }
+  await loadTareasData();
+  const tarea = tareasData.find(t=>t.id===id);
+  const elegibles = usuariosElegiblesReasignacion(tarea);
+  if(!tarea || !elegibles.includes(destino)){ showToast('No se puede reasignar esta tarea a ese usuario'); return; }
+  if(tarea.asignadoA===destino){ cancelarReasignacionTarea(id); return; }
+  const anteriores = tareasData;
+  const ahora = new Date();
+  const registro = {
+    anterior: tarea.asignadoA,
+    nuevo: destino,
+    por: currentUser || 'ADMIN',
+    fechaISO: fechaLocalISO(ahora),
+    fecha: ahora.toLocaleString('es-ES')
+  };
+  tareasData = tareasData.map(t=>t.id===id ? {
+    ...t,
+    asignadoA: destino,
+    visto: false,
+    historialReasignaciones: [...(Array.isArray(t.historialReasignaciones)?t.historialReasignaciones:[]), registro]
+  } : t);
+  const guardado = await persistTareasData();
+  if(!guardado){ tareasData=anteriores; return; }
+  logHistorial(`Reasignó la tarea "${tarea.titulo}" de ${registro.anterior} a ${destino}`);
+  showToast(`✓ Tarea reasignada a ${destino}`);
+  refreshTareasViews();
 }
 function tareaTableHead(conSeleccion){
   return conSeleccion ? `
