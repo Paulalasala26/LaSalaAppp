@@ -3576,3 +3576,27 @@ test('UAT-1458–1461: el contador responde a días y salas, bloquea cero y canc
   expect(JSON.parse(database['lasala-tareas-v1'])).toEqual(tasks);
   expect(writes).toEqual([]);
 });
+
+
+test('UAT-1462–1463: la vista A5 agrupa dos tareas iguales y conserva cada ubicación', async ({ page }) => {
+  const today = await fechaISOEnNavegador(page);
+  const title = 'E2E abonado compartido 1462';
+  const tasks = [
+    { id:'e2e-uat-1462-inv0a', titulo:title, asignadoA:'PEON1', origen:'manual', categoria:'manual', inv:'0A', calles:'1-2', fechaISO:today, fecha:'hoy', turno:'Mañana', estado:'pendiente' },
+    { id:'e2e-uat-1463-inv1a', titulo:title, asignadoA:'PEON1', origen:'manual', categoria:'manual', inv:'1A', calles:'3-4', fechaISO:today, fecha:'hoy', turno:'Mañana', estado:'pendiente' }
+  ];
+  const { database, writes } = await installFixture(page, { 'lasala-tareas-v1': JSON.stringify(tasks) });
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  await overlay.getByRole('button', { name: 'Imprimir tareas de peones' }).click();
+  await page.locator('#imprimir-tareas-selector-overlay').getByRole('button', { name: 'Imprimir' }).click();
+  const preview = page.frameLocator('#print-tareas-iframe');
+  await expect(preview.locator('.hoja-tarea')).toHaveCount(1);
+  await expect(preview.locator('.p-trabajo')).toHaveText(title);
+  await expect(preview.locator('.p-inv-box')).toHaveCount(2);
+  await expect(preview.locator('.p-calles')).toHaveText(['1-2', '3-4']);
+  const printCss = await preview.locator('style').innerText();
+  expect(printCss).toContain('@page { size: 148mm 210mm;');
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual(tasks);
+  expect(writes).toEqual([]);
+});
