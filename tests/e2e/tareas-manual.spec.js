@@ -2992,3 +2992,63 @@ test('UAT-1368–1369: el lote selecciona varias manuales y excluye Riego', asyn
   expect(JSON.parse(database['lasala-tareas-v1'])).toEqual(tasks);
   expect(writes).toEqual([]);
 });
+
+
+test('UAT-1370–1374: asignación en lote actualiza solo pendientes, permite REGANTE y persiste al refrescar', async ({ page }) => {
+  const todayISO = await fechaISOEnNavegador(page);
+  const tasks = [
+    { id: 'e2e-uat-1370-manual-1', titulo: 'Manual 1 UAT-1370', asignadoA: 'PEON1', origen: 'manual', categoria: 'manual', inv: '17', calles: '1', fechaISO: todayISO, estado: 'pendiente' },
+    { id: 'e2e-uat-1370-manual-2', titulo: 'Manual 2 UAT-1370', asignadoA: 'PEON1', origen: 'manual', categoria: 'manual', inv: '17', calles: '2', fechaISO: todayISO, estado: 'pendiente' },
+    { id: 'e2e-uat-1372-started', titulo: 'Manual iniciada UAT-1372', asignadoA: 'PEON1', origen: 'manual', categoria: 'manual', inv: '17', calles: '3', fechaISO: todayISO, estado: 'iniciada' }
+  ];
+  const users = { E2E_ADMIN: passwordHash, PEON1: passwordHash, PEON2: passwordHash, REGANTE1: passwordHash };
+  const roles = { E2E_ADMIN: 'ADMIN', PEON1: 'PEON', PEON2: 'PEON', REGANTE1: 'REGANTE' };
+  const { database, writes } = await installFixture(page, {
+    'lasala-users-v1': JSON.stringify(users),
+    'lasala-roles-v1': JSON.stringify(roles),
+    'lasala-tareas-v1': JSON.stringify(tasks)
+  });
+
+  const openToday = async () => {
+    await openTasks(page);
+    const overlay = page.locator('#tareas-overlay');
+    await overlay.getByRole('button', { name: 'Tareas de hoy' }).click();
+    return overlay.locator('#tareas-gestor-content-wrap');
+  };
+  let pane = await openToday();
+  const row = id => pane.locator(`.tarea-card[data-id="${id}"]`);
+  const one = row('e2e-uat-1370-manual-1').locator('.tarea-select-chk');
+  const two = row('e2e-uat-1370-manual-2').locator('.tarea-select-chk');
+  await expect(row('e2e-uat-1372-started').locator('.tarea-select-chk')).toHaveCount(0);
+
+  await one.check();
+  await two.check();
+  await pane.locator('#lote-asignado-select').selectOption('PEON2');
+  await pane.locator('#btn-asignar-lote').click();
+  await expect.poll(() => JSON.parse(database['lasala-tareas-v1']).filter(t => t.estado === 'pendiente').map(t => t.asignadoA))
+    .toEqual(['PEON2', 'PEON2']);
+  expect(JSON.parse(database['lasala-tareas-v1']).map(t => t.id)).toEqual(tasks.map(t => t.id));
+
+  pane = await openToday();
+  await row('e2e-uat-1370-manual-1').locator('.tarea-select-chk').check();
+  await row('e2e-uat-1370-manual-2').locator('.tarea-select-chk').check();
+  await pane.locator('#lote-asignado-select').selectOption('REGANTE1');
+  await pane.locator('#btn-asignar-lote').click();
+  await expect.poll(() => JSON.parse(database['lasala-tareas-v1']).filter(t => t.estado === 'pendiente').map(t => t.asignadoA))
+    .toEqual(['REGANTE1', 'REGANTE1']);
+  const writesBeforeCancel = writes.filter(write => write.key === 'lasala-tareas-v1').length;
+
+  pane = await openToday();
+  const pendingSelection = row('e2e-uat-1370-manual-1').locator('.tarea-select-chk');
+  await pendingSelection.check();
+  await pendingSelection.uncheck();
+  await expect(pane.locator('#btn-asignar-lote')).toBeDisabled();
+  expect(writes.filter(write => write.key === 'lasala-tareas-v1')).toHaveLength(writesBeforeCancel);
+
+  await page.reload();
+  await expect(page.locator('#page-home')).toBeVisible();
+  pane = await openToday();
+  await expect(row('e2e-uat-1370-manual-1')).toContainText('REGANTE1');
+  await expect(row('e2e-uat-1370-manual-2')).toContainText('REGANTE1');
+  expect(JSON.parse(database['lasala-tareas-v1'])).toHaveLength(3);
+});
