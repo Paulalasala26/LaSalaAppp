@@ -3085,3 +3085,24 @@ test('UAT-1380–1384: Generar tareas asigna PEÓN por sala y agrupa calles cont
   expect(tarjeta).toContain('C/102-103');
   expect(writes.filter(write => write.key === 'lasala-tareas-v1')).toHaveLength(1);
 });
+
+
+test('UAT-1385: dos trabajos distintos del mismo invernadero y día generan órdenes separadas', async ({ page }) => {
+  const riego = {
+    '1A': { '32': { '2': 'PP', '3': '10', '4': 'PA' } }
+  };
+  const { database } = await installFixture(page, {
+    'lasala-riego-v1': JSON.stringify(riego)
+  });
+
+  await page.evaluate(async () => {
+    window.confirm = () => true;
+    await loadRiegoData();
+    await generarTareasDesdeRiego();
+  });
+
+  const tareas = JSON.parse(database['lasala-tareas-v1']).filter(t => t.origen === 'riego' && t.inv === '1A');
+  expect(tareas).toHaveLength(2);
+  expect(new Set(tareas.map(t => t.titulo))).toEqual(new Set(['Puntas de pasillo', 'Puntas de atrás']));
+  expect(new Set(tareas.map(t => t.id)).size).toBe(2);
+});
