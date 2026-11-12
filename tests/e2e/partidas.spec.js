@@ -1143,7 +1143,7 @@ test('UAT-1427: cambiar entre Partidas y Operativas conserva el Específico y la
   await expect(tasksOverlay.getByText('E2E operativa vinculada UAT-1427', { exact: true })).toBeVisible();
   expect(JSON.stringify(fixture['lasala-tareas-v1'])).toBe(taskSnapshot);
 
-  await tasksOverlay.getByRole('button', { name: '✕', exact: true }).click();
+  await tasksOverlay.getByRole('button', { name: /✕ Cerrar/ }).click();
   await expect(tasksOverlay).toBeHidden();
   await page.getByTestId('home-partidas').click();
   await expect(overlay).toBeVisible();
