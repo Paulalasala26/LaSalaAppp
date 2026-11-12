@@ -677,7 +677,7 @@ test('UAT-1424: anular la partida archiva su tarea Específicos y conserva el hi
 });
 
 
-test('UAT-980–982: quinto acceso, primer módulo y reapertura de Específicos desde Inicio',async({page})=>{
+test('UAT-980–983: quinto acceso, primer módulo, cierre y reapertura de Específicos',async({page})=>{
   const database=fixtureDatabase();
   const {overlay,unexpectedHosts}=await openSpecifics(page,database,{fromHome:true});
   await expect(overlay).toBeVisible();
