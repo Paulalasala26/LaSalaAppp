@@ -3315,19 +3315,29 @@ test('UAT-1407: dos jornadas de Pistola en días distintos producen tareas separ
   expect(new Set(tareas.map(t => t.fechaISO)).size).toBe(2);
 });
 
-test('UAT-1408–1409: Pistola separa jornadas homónimas y vincula los reintentos al mismo origen', async ({ page }) => {
+test('UAT-1408: Pistola separa jornadas homónimas con igual producto, fecha y PEÓN', async ({ page }) => {
   test.fail(true, 'La asignación fusiona jornadas del mismo producto, fecha y PEÓN, y no registra origenFito para verificar el reintento.');
   const { database } = await installFixture(page);
   await page.evaluate(async () => {
     const objetivo = [{ invId: '1A', callesLabel: 'C/102' }];
     const extra = { producto: 'E2E-MISMO-DIA-1408', dosis: '1 cc/l', caldoLabel: '25L', caldoLitros: 25 };
     await autoAsignarTareaFumigacion(objetivo, 32, 'E2E-MISMO-DIA-1408', '18:00', extra);
-    await autoAsignarTareaFumigacion([{ invId: '17', callesLabel: 'C/1702' }], 32, 'E2E-MISMO-DIA-1408', '18:00', extra);
-    await autoAsignarTareaFumigacion(objetivo, 32, 'E2E-MISMO-DIA-1408', '18:00', extra);
+    await autoAsignarTareaFumigacion([{ invId: '1A', callesLabel: 'C/104' }], 32, 'E2E-MISMO-DIA-1408', '18:00', extra);
   });
   const tareas = JSON.parse(database['lasala-tareas-v1']).filter(t => t.titulo === 'E2E-MISMO-DIA-1408');
   expect(tareas).toHaveLength(2);
-  const origenes = tareas.map(t => t.origenFito).filter(Boolean);
-  expect(origenes).toHaveLength(2);
-  expect(new Set(origenes).size).toBe(2);
+});
+
+test('UAT-1409: repetir asignación Pistola no duplica el mismo origen Fito', async ({ page }) => {
+  test.fail(true, 'La tarea no guarda origenFito, por lo que no puede verificarse la deduplicación por jornada de origen.');
+  const { database } = await installFixture(page);
+  await page.evaluate(async () => {
+    const objetivo = [{ invId: '1A', callesLabel: 'C/102' }];
+    const extra = { producto: 'E2E-REINTENTO-1409', dosis: '1 cc/l', caldoLabel: '25L', caldoLitros: 25 };
+    await autoAsignarTareaFumigacion(objetivo, 32, 'E2E-REINTENTO-1409', '18:00', extra);
+    await autoAsignarTareaFumigacion(objetivo, 32, 'E2E-REINTENTO-1409', '18:00', extra);
+  });
+  const tareas = JSON.parse(database['lasala-tareas-v1']).filter(t => t.titulo === 'E2E-REINTENTO-1409');
+  expect(tareas).toHaveLength(1);
+  expect(tareas[0].origenFito).toBeTruthy();
 });
