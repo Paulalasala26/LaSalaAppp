@@ -826,10 +826,11 @@ test('UAT-087: los tramos configurados en dos salas sobreviven al actualizar la 
   await expect(overlay).toBeVisible();
 });
 
-test('UAT-083, UAT-088, UAT-112 y UAT-1375: agua y abono sin Trabajo no crean tareas', async ({ page }) => {
+test('UAT-083, UAT-088, UAT-112, UAT-1375 y UAT-1396: no se crean tareas sin Trabajo ni desde fechas pasadas', async ({ page }) => {
   const database = fixtureDatabase();
-  const tasksBefore = JSON.stringify(database['lasala-tareas-v1'] ?? null);
-  const { overlay, unexpectedHosts } = await openRiego(page, database);
+  database['lasala-tareas-v1'] = JSON.stringify([]);
+  const tasksBefore = JSON.stringify(database['lasala-tareas-v1']);
+  const { overlay, unexpectedHosts, writes } = await openRiego(page, database);
   const { form, grid, day } = await openManualRiegoOnFutureDay(page);
   const streets = await callesVisiblesDelDia(grid, day);
   await expect(form.locator('input[name="rmb-modo-17"]').first()).toBeChecked();
@@ -844,7 +845,14 @@ test('UAT-083, UAT-088, UAT-112 y UAT-1375: agua y abono sin Trabajo no crean ta
   const saved = riegoGuardado(database)['17'][day];
   expect(Object.keys(saved).map(Number).sort((a,b) => a-b)).toEqual(streets);
   expect(Object.values(saved).every(value => JSON.stringify(value).includes('10')), JSON.stringify(saved)).toBe(true);
-  expect(JSON.stringify(database['lasala-tareas-v1'] ?? null)).toBe(tasksBefore);
+  expect(JSON.stringify(database['lasala-tareas-v1'])).toBe(tasksBefore);
+
+  const filaHistorica = page.locator('#riego-grid-wrap tr').filter({ hasText: '29 jun' }).first();
+  await filaHistorica.locator('td').last().click();
+  await expect(page.locator('#riego-manual-overlay')).toBeHidden();
+  await expect(page.locator('#riego-consulta-overlay')).toBeHidden();
+  expect(JSON.stringify(database['lasala-tareas-v1'])).toBe(tasksBefore);
+  expect(writes.filter(write => write.path === 'lasala-tareas-v1')).toEqual([]);
   expect(unexpectedHosts).toEqual([]);
   await expect(overlay).toBeVisible();
 });
