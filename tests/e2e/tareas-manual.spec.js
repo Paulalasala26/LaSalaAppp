@@ -3131,3 +3131,30 @@ test('UAT-1390–1392: conciliar Riego conserva tareas manuales, Pistola y Espec
   expect(tareas.filter(t => t.origen === 'riego' && t.inv === '1A')).toHaveLength(1);
   expect(tareas).toHaveLength(4);
 });
+
+
+test('UAT-1393 y 1395: regenerar tareas conserva una ejecución iniciada y otra completada', async ({ page }) => {
+  const riego = {
+    '1A': { '32': { '2': 'PP' } },
+    '17': { '32': { '2': 'PP' } }
+  };
+  const { database } = await installFixture(page, {
+    'lasala-riego-v1': JSON.stringify(riego)
+  });
+  const fechaISO = await page.evaluate(() => fechaLocalISO(riegoDiaToDate(32)));
+  const previas = [
+    { id: 'e2e-started-1393', titulo: 'Puntas de pasillo', asignadoA: 'PEON1', origen: 'riego', inv: '1A', calles: 'C/102', fechaISO, estado: 'iniciada', horaInicio: '09:00', firmante: 'PEON1' },
+    { id: 'e2e-completed-1395', titulo: 'Puntas de pasillo', asignadoA: 'PEON2', origen: 'riego', inv: '17', calles: 'C/1702', fechaISO, estado: 'completada', horaInicio: '09:00', horaFin: '10:00', firmante: 'PEON2' }
+  ];
+  database['lasala-tareas-v1'] = JSON.stringify(previas);
+
+  await page.evaluate(async () => {
+    window.confirm = () => true;
+    await loadRiegoData();
+    await generarTareasDesdeRiego();
+  });
+
+  const tareas = JSON.parse(database['lasala-tareas-v1']);
+  for (const previa of previas) expect(tareas.find(t => t.id === previa.id)).toEqual(previa);
+  expect(tareas).toHaveLength(2);
+});
