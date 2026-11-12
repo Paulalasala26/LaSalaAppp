@@ -1053,7 +1053,7 @@ test('UAT-1436–1440: solo el PEÓN asignado puede ejecutar y la secuencia se l
   };
   let saved = savedTasks();
   expect(saved.find(value => value.id === initiated.id).estado).toBe('completada');
-  expect(saved.find(value => value.id === initiated.id).firmante).toBe('E2E_PEON2');
+  expect(saved.find(value => value.id === initiated.id).firmante).toBe('E2e_peon2');
 
   await expect(newPeonView.getByRole('button', { name: 'Iniciar' })).toHaveCount(1);
   await newPeonView.getByRole('button', { name: 'Iniciar' }).click();
