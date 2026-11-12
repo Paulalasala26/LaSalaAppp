@@ -408,6 +408,8 @@ test('UAT-1266, UAT-1350–1355: acciones móviles y reasignación solo para pen
     { id: 'e2e-uat-1355-completed', titulo: 'Manual completada UAT-1355', asignadoA: 'PEON1', origen: 'manual', categoria: 'manual', inv: '0A', calles: '6', fechaISO: todayISO, completadoISO: todayISO, estado: 'completada' }
   ];
   const { database, writes } = await installFixture(page, {
+    'lasala-users-v1': JSON.stringify({ E2E_ADMIN: passwordHash, E2E_TECH: passwordHash, PEON1: passwordHash, PEON2: passwordHash, REGANTE1: passwordHash }),
+    'lasala-roles-v1': JSON.stringify({ E2E_ADMIN: 'ADMIN', E2E_TECH: 'TECNICO', PEON1: 'PEON', PEON2: 'PEON', REGANTE1: 'REGANTE' }),
     'lasala-tareas-v1': JSON.stringify(tasks)
   });
   await page.setViewportSize({ width: 320, height: 760 });
@@ -492,6 +494,8 @@ test('UAT-1356–1359: cancelar no escribe y reasignar conserva ID y datos con r
     estado: 'pendiente'
   }];
   const { database, writes } = await installFixture(page, {
+    'lasala-users-v1': JSON.stringify({ E2E_ADMIN: passwordHash, E2E_TECH: passwordHash, PEON1: passwordHash, PEON2: passwordHash, REGANTE1: passwordHash }),
+    'lasala-roles-v1': JSON.stringify({ E2E_ADMIN: 'ADMIN', E2E_TECH: 'TECNICO', PEON1: 'PEON', PEON2: 'PEON', REGANTE1: 'REGANTE' }),
     'lasala-tareas-v1': JSON.stringify(tasks)
   });
   await openTasks(page);
