@@ -3600,3 +3600,23 @@ test('UAT-1462–1463: la vista A5 agrupa dos tareas iguales y conserva cada ubi
   expect(JSON.parse(database['lasala-tareas-v1'])).toEqual(tasks);
   expect(writes).toEqual([]);
 });
+
+test('UAT-1464: el abono foliar separa hojas de cubas diferentes', async ({ page }) => {
+  const today = await fechaISOEnNavegador(page);
+  const title = 'E2E abono foliar cubas 1464';
+  const tasks = [
+    { id:'e2e-uat-1464-eco', titulo:title, asignadoA:'PEON1', origen:'manual', categoria:'manual', esFoliar:true, inv:'28', calles:'1', fechaISO:today, fecha:'hoy', turno:'Mañana', estado:'pendiente' },
+    { id:'e2e-uat-1464-principal', titulo:title, asignadoA:'PEON1', origen:'manual', categoria:'manual', esFoliar:true, inv:'0A', calles:'2', fechaISO:today, fecha:'hoy', turno:'Mañana', estado:'pendiente' }
+  ];
+  const { database, writes } = await installFixture(page, { 'lasala-tareas-v1': JSON.stringify(tasks) });
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  await overlay.getByRole('button', { name: 'Imprimir tareas de peones' }).click();
+  await page.locator('#imprimir-tareas-selector-overlay').getByRole('button', { name: 'Imprimir' }).click();
+  const preview = page.frameLocator('#print-tareas-iframe');
+  await expect(preview.locator('.hoja-tarea')).toHaveCount(2);
+  await expect(preview.locator('.p-trabajo')).toHaveText([title, title]);
+  await expect(preview.locator('.p-inv-box')).toHaveText(['INV 28', 'INV 0A']);
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual(tasks);
+  expect(writes).toEqual([]);
+});
