@@ -1184,3 +1184,38 @@ test('UAT-1376: PREPARAR sin Trabajo reconocido no crea tarea de PEÓN', async (
   expect(unexpectedHosts).toEqual([]);
   await expect(overlay).toBeVisible();
 });
+
+
+test('UAT-1377–1379: Trabajo reconocido aparece automáticamente en Operativas hoy y mañana', async ({ page }) => {
+  test.fail(true, 'La expectativa UAT requiere generación automática; la versión actual conserva la acción explícita «Generar tareas».');
+  const database = fixtureDatabase();
+  const { overlay } = await openRiego(page, database);
+  const grid = page.locator('#riego-grid-wrap');
+
+  const guardarTrabajo = async dia => {
+    const row = grid.locator(`tr:has(input[data-rinv="17"][data-dia="${dia}"])`).first();
+    await row.locator('td').first().click();
+    const form = page.locator('#riego-manual-overlay');
+    await expect(form).toBeVisible();
+    await form.locator('.rm-trabajo-chk[value="PP"]').check();
+    await form.locator('#rm-guardar-btn').click();
+    await expect(form).toBeHidden();
+    return form;
+  };
+
+  await guardarTrabajo('30');
+  expect.soft(JSON.parse(database['lasala-tareas-v1'] ?? '[]')).toHaveLength(1);
+  await guardarTrabajo('31');
+  const tareas = JSON.parse(database['lasala-tareas-v1'] ?? '[]');
+  expect.soft(tareas.filter(t => t.fechaISO === '2026-06-30')).toHaveLength(1);
+  expect.soft(tareas.filter(t => t.fechaISO === '2026-07-01')).toHaveLength(1);
+
+  await overlay.getByRole('button').filter({ hasText: '✕' }).click();
+  await page.locator(`#quick-access-block .home-shortcut-card[onclick="handleQuickAction('tareas')"]`).click();
+  const tareasOverlay = page.locator('#tareas-overlay');
+  await expect(tareasOverlay).toBeVisible();
+  await tareasOverlay.getByRole('button', { name: 'Tareas de hoy' }).click();
+  await expect.soft(tareasOverlay.locator('#tareas-gestor-content-wrap .tarea-card')).toHaveCount(1);
+  await tareasOverlay.getByRole('button', { name: 'Tareas de mañana' }).click();
+  await expect.soft(tareasOverlay.locator('#tareas-gestor-content-wrap .tarea-card')).toHaveCount(1);
+});
