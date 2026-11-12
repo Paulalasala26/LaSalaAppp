@@ -2895,3 +2895,57 @@ test('UAT-1360–1362: Riego conserva ID y calles, rechaza REGANTE y evita dupli
   expect(tareas[0].asignadoA).toBe(original.asignadoA);
   expect(tareas[0].asignacionManual).not.toBe(true);
 });
+
+
+test('UAT-1365–1366: la tarea reasignada sale del operario anterior y aparece al nuevo', async ({ page }) => {
+  const todayISO = await fechaISOEnNavegador(page);
+  const task = {
+    id: 'e2e-uat-1365-riego',
+    titulo: 'Riego reasignado UAT-1365',
+    asignadoA: 'PEON1',
+    asignadoPor: 'E2E_ADMIN',
+    origen: 'riego',
+    inv: '17',
+    calles: 'C/1702',
+    fechaISO: todayISO,
+    fecha: 'hoy',
+    estado: 'pendiente',
+    visto: false
+  };
+  const users = { E2E_ADMIN: passwordHash, PEON1: passwordHash, PEON2: passwordHash };
+  const roles = { E2E_ADMIN: 'ADMIN', PEON1: 'PEON', PEON2: 'PEON' };
+  const { database } = await installFixture(page, {
+    'lasala-users-v1': JSON.stringify(users),
+    'lasala-roles-v1': JSON.stringify(roles),
+    'lasala-tareas-v1': JSON.stringify([task])
+  });
+
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  await overlay.getByRole('button', { name: 'Tareas de hoy' }).click();
+  const pane = overlay.locator('#tareas-gestor-content-wrap');
+  const card = pane.locator(`.tarea-card[data-id="${task.id}"]`);
+  await card.getByTestId('tarea-reasignar').click();
+  await card.getByTestId('tarea-reasignar-select').selectOption('PEON2');
+  await card.getByRole('button', { name: 'Confirmar' }).click();
+  await expect.poll(() => JSON.parse(database['lasala-tareas-v1'])[0].asignadoA).toBe('PEON2');
+
+  await overlay.getByRole('button', { name: /✕ Cerrar/ }).click();
+  const loginAs = async user => {
+    await page.getByRole('button', { name: 'Salir' }).click();
+    await expect(page.locator('#login-screen')).toBeVisible();
+    await page.locator('#login-user').evaluate((select, value) => {
+      if (![...select.options].some(option => option.value === value)) select.add(new Option(value, value));
+    }, user);
+    await page.locator('#login-user').selectOption(user);
+    await page.locator('#login-pass').fill(password);
+    await page.locator('#login-btn').click();
+    await expect(page.locator('#page-home')).toBeVisible();
+  };
+
+  await loginAs('PEON1');
+  await expect(page.locator('#peon-tareas-inline')).not.toContainText(task.titulo);
+  await loginAs('PEON2');
+  await expect(page.locator('#peon-tareas-inline')).toContainText(task.titulo);
+  expect(JSON.parse(database['lasala-tareas-v1'])).toHaveLength(1);
+});
