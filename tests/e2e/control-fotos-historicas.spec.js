@@ -95,3 +95,75 @@ test('UAT-407, UAT-408 y UAT-410: foto histórica solo lectura y preservada al a
   expect(writes.some(write=>write.path==='lasala-control-fotos-v1')).toBe(true);
   expect(unexpectedHosts).toEqual([]);
 });
+
+
+async function stubDesktopCamera(page,mode='available'){
+  await page.evaluate(mode=>{
+    if(mode==='available'){
+      const track={stopped:false,stop(){this.stopped=true;}};
+      const stream=new MediaStream();
+      Object.defineProperty(stream,'getTracks',{value:()=>[track]});
+      window.__e2eCameraTrack=track;
+      Object.defineProperty(navigator,'mediaDevices',{configurable:true,value:{getUserMedia:async()=>stream}});
+      try{Object.defineProperty(CanvasRenderingContext2D.prototype,'drawImage',{configurable:true,value(){}});}catch(e){}
+    }else{
+      Object.defineProperty(navigator,'mediaDevices',{configurable:true,value:{getUserMedia:async()=>{
+        const name=mode==='denied'?'NotAllowedError':'NotFoundError';
+        throw Object.assign(new Error(name),{name});
+      }}});
+    }
+  },mode);
+}
+
+test('UAT-377 y UAT-378: en PC abre cámara, captura una imagen y cierra el flujo',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts}=await openControl(page,database);
+  await stubDesktopCamera(page);
+  await overlay.getByTestId(`control-photo-camera-open-${id}`).click();
+  const dialog=page.getByTestId('control-camera-dialog');
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByTestId('control-camera-preview')).toBeVisible();
+  await expect(dialog.getByTestId('control-camera-capture')).toBeEnabled();
+  await dialog.getByTestId('control-camera-capture').click();
+  await expect(dialog).toBeHidden();
+  await expect(overlay.locator(`#control-card-${id} img[title="Ver foto"]`)).toHaveCount(2);
+  expect(await page.evaluate(()=>window.__e2eCameraTrack.stopped)).toBe(true);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-379: cancelar cámara PC libera el stream y no crea foto',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,writes,unexpectedHosts}=await openControl(page,database);
+  await stubDesktopCamera(page);
+  await overlay.getByTestId(`control-photo-camera-open-${id}`).click();
+  await page.getByTestId('control-camera-cancel').click();
+  await expect(page.getByTestId('control-camera-dialog')).toBeHidden();
+  await expect(overlay.locator(`#control-card-${id} img[title="Ver foto"]`)).toHaveCount(1);
+  expect(await page.evaluate(()=>window.__e2eCameraTrack.stopped)).toBe(true);
+  expect(writes.filter(write=>write.path.includes('control-fotos'))).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-380: permiso de cámara denegado informa y conserva la inspección',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,writes,unexpectedHosts}=await openControl(page,database);
+  await stubDesktopCamera(page,'denied');
+  await overlay.getByTestId(`control-photo-camera-open-${id}`).click();
+  await expect(page.locator('#app-toast')).toContainText('Permite el acceso a la cámara');
+  await expect(overlay.locator(`#control-card-${id} img[title="Ver foto"]`)).toHaveCount(1);
+  await expect(overlay.locator(`#control-card-${id}`)).toContainText('Elegir fotos');
+  expect(writes.filter(write=>write.path.includes('control-fotos'))).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-381: sin webcam informa y deja elegir fotos',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,writes,unexpectedHosts}=await openControl(page,database);
+  await stubDesktopCamera(page,'missing');
+  await overlay.getByTestId(`control-photo-camera-open-${id}`).click();
+  await expect(page.locator('#app-toast')).toContainText('No se detecta una cámara disponible');
+  await expect(overlay.locator(`#control-card-${id}`)).toContainText('Elegir fotos');
+  await expect(overlay.locator(`#control-card-${id} img[title="Ver foto"]`)).toHaveCount(1);
+  expect(writes.filter(write=>write.path.includes('control-fotos'))).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
