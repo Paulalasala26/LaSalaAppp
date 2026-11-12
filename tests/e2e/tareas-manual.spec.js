@@ -528,6 +528,51 @@ test('UAT-1252: la tarjeta Riego pendiente muestra ubicación, responsable, fech
 });
 
 
+test('UAT-1253–1254: tarjetas Pistola y Específicos identifican su origen y no exponen acciones manuales', async ({ page }) => {
+  const todayISO = await fechaISOEnNavegador(page);
+  const tasks = [{
+    id: 'e2e-uat-1253-pistola',
+    titulo: 'E2E tarea Pistola UAT-1253',
+    descripcion: 'Origen Pistola',
+    asignadoA: 'PEON1',
+    origen: 'pistola',
+    categoria: 'fumigacion',
+    inv: '0A',
+    calles: '1',
+    fechaISO: todayISO,
+    estado: 'pendiente'
+  }, {
+    id: 'e2e-uat-1254-especificos',
+    titulo: 'E2E tarea Específicos UAT-1254',
+    descripcion: 'Origen Específicos',
+    asignadoA: 'PEON1',
+    origen: 'especificos',
+    categoria: 'especifico',
+    inv: '0A',
+    calles: '2',
+    fechaISO: todayISO,
+    estado: 'pendiente'
+  }];
+  const { database, writes } = await installFixture(page, {
+    'lasala-tareas-v1': JSON.stringify(tasks)
+  });
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  await overlay.getByRole('button', { name: /Tareas de hoy/ }).click();
+  const pane = overlay.locator('#tareas-gestor-content-wrap');
+  for (const task of tasks) {
+    const card = pane.locator('.tarea-card').filter({ hasText: task.titulo });
+    await expect(card).toBeVisible();
+    await expect(card).toContainText(task.origen);
+    await expect(card.getByTitle('Imprimir')).toBeVisible();
+    await expect(card.getByTitle('Editar')).toHaveCount(0);
+    await expect(card.getByTitle('Anular')).toHaveCount(0);
+    await expect(card.getByTitle('Eliminar')).toHaveCount(0);
+  }
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual(tasks);
+  expect(writes).toEqual([]);
+});
+
 test('UAT-1261 y UAT-1265: ADMIN consulta la tarea y el título largo se ajusta en móvil', async ({ page }) => {
   const tomorrowISO = await fechaISOEnNavegador(page, 1);
   const task = {
