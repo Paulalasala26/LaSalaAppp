@@ -41,7 +41,7 @@ async function switchSpecificsUser(page,account){
   await expect(page.locator('#app')).toBeVisible();
 }
 
-async function openSpecifics(page,database,{loginFirst=true,writeDelayMs=0,now='2026-06-30T10:00:00+02:00'}={}){
+async function openSpecifics(page,database,{loginFirst=true,writeDelayMs=0,now='2026-06-30T10:00:00+02:00',fromHome=false}={}){
   const unexpectedHosts=[],writes=[];
   const corsHeaders={
     'access-control-allow-origin':'*',
@@ -78,7 +78,8 @@ async function openSpecifics(page,database,{loginFirst=true,writeDelayMs=0,now='
     await page.getByRole('button',{name:'Iniciar sesión'}).click();
   }
   await expect(page.locator('#app')).toBeVisible();
-  await page.evaluate(()=>showEspecificosModule());
+  if(fromHome)await page.getByRole('button',{name:'Específicos',exact:true}).click();
+  else await page.evaluate(()=>showEspecificosModule());
   const overlay=page.locator('#especificos-overlay');
   await expect(overlay).toBeVisible();
   await overlay.locator('[data-einv="17"]').click();
@@ -672,5 +673,21 @@ test('UAT-1424: anular la partida archiva su tarea Específicos y conserva el hi
   expect(tasks[0]).toMatchObject({id:task.id,estado:'anulada',motivoAnulacion:'Específico de partida eliminado'});
   expect(tasks[0].anuladaEn).toBeTruthy();
   expect(JSON.parse(database['lasala-especificos-partida-v1'])['partida-1424']).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+
+test('UAT-980–982: quinto acceso, primer módulo y reapertura de Específicos desde Inicio',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts}=await openSpecifics(page,database,{fromHome:true});
+  await expect(overlay).toBeVisible();
+  await expect(overlay.getByRole('button',{name:'17',exact:true})).toBeVisible();
+  await expect(overlay.locator('button').filter({hasText:'✕'})).toHaveCount(1);
+  await overlay.locator('button').filter({hasText:'✕'}).click();
+  await expect(overlay).toBeHidden();
+  await page.getByRole('button',{name:'Específicos',exact:true}).click();
+  await expect(overlay).toBeVisible();
+  await expect(overlay.getByRole('button',{name:'17',exact:true})).toBeVisible();
+  await expect(overlay.locator('button').filter({hasText:'✕'})).toHaveCount(1);
   expect(unexpectedHosts).toEqual([]);
 });
