@@ -1461,7 +1461,7 @@ test('UAT-1312–1314, UAT-1316–1317, UAT-1320–1322, UAT-1324–1325: alta m
     await form.getByRole('button', { name: 'Crear y asignar' }).click();
     const overlay = page.locator('#tareas-overlay');
     await overlay.getByRole('button', { name: 'Tareas de mañana' }).click();
-    const expectedCount = Number(expectedCountLabel.match(/\\d+/)?.[0] || 0);
+    const expectedCount = Number(expectedCountLabel.match(/\d+/)?.[0] || 0);
     await expect(overlay.locator('.tarea-card:visible')).toHaveCount(expectedCount);
   }
 
