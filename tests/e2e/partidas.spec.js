@@ -1045,7 +1045,10 @@ test('UAT-2423: si falla el vínculo después de guardar Específicos por calle,
   expect(associations['e2e-partida-001'].filter(item => item.trat === 'TC' && item.dia === Number(day))).toHaveLength(1);
   expect(JSON.parse(database['lasala-tareas-v1'])).toHaveLength(1);
   expect(unexpectedHosts).toEqual([]);
-  expect(writes.filter(write => write.path === 'lasala-especificos-partida-v1')).toHaveLength(4);
+  const savedTask = JSON.parse(database['lasala-tareas-v1'])[0];
+  const savedAssociation = associations['e2e-partida-001'].find(item => item.trat === 'TC' && item.dia === Number(day));
+  expect(savedAssociation.tareaId).toBe(savedTask.id);
+  expect(writes.filter(write => write.path === 'lasala-especificos-partida-v1')).toHaveLength(5);
 });
 
 test('UAT-2424: si falla Tareas después de confirmar el Específico por partida, informa conciliación pendiente y reintenta sin duplicar', async ({ page }) => {
@@ -1143,7 +1146,7 @@ test('UAT-1427: cambiar entre Partidas y Operativas conserva el Específico y la
   await expect(tasksOverlay.getByText('E2E operativa vinculada UAT-1427', { exact: true })).toBeVisible();
   expect(JSON.stringify(fixture['lasala-tareas-v1'])).toBe(taskSnapshot);
 
-  await tasksOverlay.getByRole('button', { name: /✕ Cerrar/ }).click();
+  await tasksOverlay.getByRole('button', { name: /Cerrar Operativas/ }).click();
   await expect(tasksOverlay).toBeHidden();
   await page.getByTestId('home-partidas').click();
   await expect(overlay).toBeVisible();
