@@ -964,6 +964,16 @@
         'No se han podido recuperar las cantidades. El guardado está desactivado para evitar sobrescribir información.','error');
     }
   }
-  window.QCOperativo=Object.freeze({open,prepareRecordSwitch});
+  function printCategories(type,day){
+    const cats=type==='preinjerto_variedad'?CATS_PREINJERTO_VARIEDAD:
+      type==='preinjerto_patron'?CATS_PREINJERTO_PATRON:
+      type==='carga'?(Number(day)>=155?[...CATS_CARGA_BASE,CAT_FIRMEZA]:CATS_CARGA_BASE):
+      type==='carga_injerto'?(Number(day)>=155?[...CATS_CARGA_BASE,CAT_FIRMEZA,CAT_RAICES_INJERTO]:[...CATS_CARGA_BASE,CAT_RAICES_INJERTO]):CATS_TUNEL;
+    const icons={color:'ti-palette',tamano:'ti-ruler-2',sanidad:'ti-stethoscope',flores:'ti-flower',
+      raices:'ti-plant-2',grosor:'ti-arrows-horizontal',firmeza:'ti-hand-finger',plagas:'ti-bug',
+      enfermedades:'ti-virus',segado:'ti-scissors',raicesInjerto:'ti-plant-2'};
+    return cats.map(([key,label])=>({key,label,icon:icons[key]||'ti-circle-check'}));
+  }
+  window.QCOperativo=Object.freeze({open,prepareRecordSwitch,printCategories});
 })();
 
