@@ -3282,3 +3282,52 @@ test('UAT-1405: la anulación de Riego no se reactiva al abrir Operativas', asyn
   expect(tareas[0]).toEqual(cancelada);
   await expect(page.locator('#tareas-overlay')).toBeVisible();
 });
+
+
+test('UAT-1406: la tarea Pistola conserva la referencia a su serie y jornada autorizadas', async ({ page }) => {
+  test.fail(true, 'La tarea de fumigación se crea sin serieId ni jornadaId enlazados al tratamiento de Plaguicidas.');
+  const { database } = await installFixture(page);
+  await page.evaluate(async () => {
+    await autoAsignarTareaFumigacion(
+      [{ invId: '1A', callesLabel: 'C/102' }],
+      32,
+      'E2E-JORNADA-1406',
+      '18:00',
+      { producto: 'E2E-JORNADA-1406', dosis: '1 cc/l', caldoLabel: '25L', caldoLitros: 25 }
+    );
+  });
+  const tarea = JSON.parse(database['lasala-tareas-v1']).find(t => t.titulo === 'E2E-JORNADA-1406');
+  expect(tarea).toBeTruthy();
+  expect(tarea.serieId).toBeTruthy();
+  expect(tarea.jornadaId).toBeTruthy();
+});
+
+test('UAT-1407: dos jornadas de Pistola en días distintos producen tareas separadas', async ({ page }) => {
+  const { database } = await installFixture(page);
+  await page.evaluate(async () => {
+    const extra = { producto: 'E2E-SERIE-1407', dosis: '1 cc/l', caldoLabel: '25L', caldoLitros: 25 };
+    await autoAsignarTareaFumigacion([{ invId: '1A', callesLabel: 'C/102' }], 31, 'E2E-SERIE-1407', '18:00', extra);
+    await autoAsignarTareaFumigacion([{ invId: '1A', callesLabel: 'C/102' }], 32, 'E2E-SERIE-1407', '18:00', extra);
+  });
+  const tareas = JSON.parse(database['lasala-tareas-v1']).filter(t => t.titulo === 'E2E-SERIE-1407');
+  expect(tareas).toHaveLength(2);
+  expect(new Set(tareas.map(t => t.id)).size).toBe(2);
+  expect(new Set(tareas.map(t => t.fechaISO)).size).toBe(2);
+});
+
+test('UAT-1408–1409: Pistola separa jornadas homónimas y vincula los reintentos al mismo origen', async ({ page }) => {
+  test.fail(true, 'La asignación fusiona jornadas del mismo producto, fecha y PEÓN, y no registra origenFito para verificar el reintento.');
+  const { database } = await installFixture(page);
+  await page.evaluate(async () => {
+    const objetivo = [{ invId: '1A', callesLabel: 'C/102' }];
+    const extra = { producto: 'E2E-MISMO-DIA-1408', dosis: '1 cc/l', caldoLabel: '25L', caldoLitros: 25 };
+    await autoAsignarTareaFumigacion(objetivo, 32, 'E2E-MISMO-DIA-1408', '18:00', extra);
+    await autoAsignarTareaFumigacion([{ invId: '17', callesLabel: 'C/1702' }], 32, 'E2E-MISMO-DIA-1408', '18:00', extra);
+    await autoAsignarTareaFumigacion(objetivo, 32, 'E2E-MISMO-DIA-1408', '18:00', extra);
+  });
+  const tareas = JSON.parse(database['lasala-tareas-v1']).filter(t => t.titulo === 'E2E-MISMO-DIA-1408');
+  expect(tareas).toHaveLength(2);
+  const origenes = tareas.map(t => t.origenFito).filter(Boolean);
+  expect(origenes).toHaveLength(2);
+  expect(new Set(origenes).size).toBe(2);
+});
