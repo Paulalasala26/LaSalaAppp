@@ -3010,6 +3010,8 @@ test('UAT-1370–1374: asignación en lote actualiza solo pendientes, permite RE
   });
 
   const openToday = async () => {
+    const existing = page.locator('#tareas-overlay');
+    if (await existing.isVisible()) await existing.getByRole('button', { name: /✕ Cerrar/ }).click();
     await openTasks(page);
     const overlay = page.locator('#tareas-overlay');
     await overlay.getByRole('button', { name: 'Tareas de hoy' }).click();
