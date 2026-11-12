@@ -1106,3 +1106,53 @@ test('UAT-2432: tras fallar el guardado, el historial conserva QC de la última 
   expect(writes.some(write => write.path.startsWith('lasala-control-items-v1'))).toBe(true);
   expect(unexpectedHosts).toEqual([]);
 });
+
+
+test('UAT-1427: cambiar entre Partidas y Operativas conserva el Específico y la tarea', async ({ page }) => {
+  const database = fixtureDatabase();
+  const tasks = [{
+    id: 'e2e-uat-1427-task',
+    titulo: 'E2E operativa vinculada UAT-1427',
+    descripcion: 'Fixture para alternar módulos',
+    asignadoA: 'PEON1',
+    origen: 'manual',
+    categoria: 'manual',
+    inv: '0A',
+    calles: '1-2',
+    fechaISO: '2026-07-28',
+    fecha: 'mañana',
+    turno: 'Mañana',
+    prioridad: 'normal',
+    estado: 'pendiente'
+  }];
+  database['lasala-tareas-v1'] = JSON.stringify(tasks);
+  const taskSnapshot = JSON.stringify(database['lasala-tareas-v1']);
+  const specificSnapshot = JSON.stringify(database['lasala-especificos-partida-v1']);
+  const { overlay, database: fixture, writes, unexpectedHosts } = await openPartidas(page, { database });
+  const map = page.locator('#partidas-content-wrap');
+
+  await expect(map).toContainText('E2E-PARTIDA-001');
+  await expect(map).toContainText('E2E-TRATAMIENTO');
+  await overlay.getByRole('button', { name: '✕', exact: true }).click();
+  await expect(overlay).toBeHidden();
+
+  await page.locator(`#quick-access-block .home-shortcut-card[onclick="handleQuickAction('tareas')"]`).click();
+  const tasksOverlay = page.locator('#tareas-overlay');
+  await expect(tasksOverlay).toBeVisible();
+  await tasksOverlay.getByRole('button', { name: 'Tareas de mañana' }).click();
+  await expect(tasksOverlay.getByText('E2E operativa vinculada UAT-1427', { exact: true })).toBeVisible();
+  expect(JSON.stringify(fixture['lasala-tareas-v1'])).toBe(taskSnapshot);
+
+  await tasksOverlay.getByRole('button', { name: '✕', exact: true }).click();
+  await expect(tasksOverlay).toBeHidden();
+  await page.getByTestId('home-partidas').click();
+  await expect(overlay).toBeVisible();
+  await overlay.getByRole('button', { name: 'Sala 2', exact: true }).click();
+  await overlay.getByRole('button', { name: '17', exact: true }).click();
+  await expect(map).toContainText('E2E-TRATAMIENTO');
+
+  expect(JSON.stringify(fixture['lasala-tareas-v1'])).toBe(taskSnapshot);
+  expect(JSON.stringify(fixture['lasala-especificos-partida-v1'])).toBe(specificSnapshot);
+  expect(writes.filter(write => ['lasala-tareas-v1', 'lasala-especificos-partida-v1'].includes(write.path))).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
