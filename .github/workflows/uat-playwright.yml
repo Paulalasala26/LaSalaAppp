@@ -58,6 +58,7 @@ jobs:
             core.setOutput('control', String(workflowChanged || paths.has('index.html') || paths.has('tests/e2e/control-quincena.spec.js')));
             core.setOutput('auth', String(workflowChanged || paths.has('index.html') || paths.has('tests/e2e/auth-roles.spec.js')));
             core.setOutput('tasks', String(paths.has('tests/e2e/tareas-manual.spec.js')));
+            core.setOutput('riego', String(workflowChanged || paths.has('index.html') || paths.has('tests/e2e/riego-quincena.spec.js')));
 
       - name: Ejecutar Control QC en PR
         if: github.event_name == 'pull_request' && steps.scope.outputs.control == 'true'
@@ -70,6 +71,10 @@ jobs:
       - name: Ejecutar spec de Tareas en PR
         if: github.event_name == 'pull_request' && steps.scope.outputs.tasks == 'true'
         run: pnpm exec playwright test tests/e2e/tareas-manual.spec.js --grep-invert "offline|concurren|simult|a la vez|al mismo tiempo|en paralelo"
+
+      - name: Ejecutar comprobaciones breves de Riego en PR
+        if: github.event_name == 'pull_request' && steps.scope.outputs.riego == 'true'
+        run: pnpm exec playwright test tests/e2e/riego-quincena.spec.js --grep "UAT-1375|UAT-1376" --grep-invert "concurren|offline"
 
       - name: Ejecutar la suite UAT completa fuera de PR
         if: github.event_name != 'pull_request'
