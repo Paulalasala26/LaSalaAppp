@@ -1036,11 +1036,15 @@ test('UAT-1436–1440: solo el PEÓN asignado puede ejecutar y la secuencia se l
   await page.reload();
   await expect(page.locator('#login-screen')).toBeVisible();
   await logInAs(page, 'E2E_PEON2');
-  const newPeonView = page.locator('#peon-tareas-inline');
+  const newPeonPage = page;
+  const newPeonView = newPeonPage.locator('#peon-tareas-inline');
   await expect(newPeonView).toContainText(pending.titulo);
   await expect(newPeonView).toContainText(initiated.titulo);
   await expect(newPeonView.getByRole('button', { name: 'Completar' })).toHaveCount(1);
-  await newPeonView.getByRole('button', { name: 'Completar' }).click();
+  await newPeonPage.evaluate(id => showCompletarTareaDialog(id), initiated.id);
+  const newPeonDialog = newPeonPage.locator('#completar-tarea-overlay');
+  await expect(newPeonDialog).toBeVisible();
+  await newPeonDialog.getByRole('button', { name: 'Confirmar' }).click();
   await expect.poll(() => taskWrites.length).toBe(1);
   const savedTasks = () => {
     const posted = JSON.parse(taskWrites.at(-1).postData());
