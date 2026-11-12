@@ -1232,6 +1232,15 @@ test('UAT-1377–1379 y UAT-1403: Trabajo reconocido aparece sin acción masiva'
 
 test('UAT-1426: consultar Hojas de riego como REGANTE no genera tareas PEÓN', async ({ page }) => {
   const database = fixtureDatabase({ user: 'REGANTE2', role: 'REGANTE' });
+  const passwordHash = createHash('sha256').update(login.password).digest('hex');
+  database['lasala-users-v1'] = JSON.stringify({
+    REGANTE2: passwordHash,
+    E2E_RIEGO_ADMIN2: passwordHash
+  });
+  database['lasala-roles-v1'] = JSON.stringify({
+    REGANTE2: 'REGANTE',
+    E2E_RIEGO_ADMIN2: 'ADMIN'
+  });
   database['lasala-tareas-v1'] = JSON.stringify([]);
   const { overlay, unexpectedHosts, writes } = await openRiego(page, database, {
     user: 'REGANTE2',
@@ -1245,6 +1254,21 @@ test('UAT-1426: consultar Hojas de riego como REGANTE no genera tareas PEÓN', a
   await expect(consulta.getByTestId('riego-consulta-texto')).toHaveText('E2E-RIEGO-DIA-31');
   expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([]);
   expect(writes.filter(write => write.path === 'lasala-tareas-v1')).toEqual([]);
+
+  await overlay.getByRole('button', { name: '✕', exact: true }).click();
+  await expect(overlay).toBeHidden();
+  await page.getByRole('button', { name: 'Salir' }).click();
+  await expect(page.locator('#login-screen')).toBeVisible();
+  await page.locator('#login-user').evaluate(select => select.add(new Option('E2E_RIEGO_ADMIN2', 'E2E_RIEGO_ADMIN2')));
+  await page.locator('#login-user').selectOption('E2E_RIEGO_ADMIN2');
+  await page.locator('#login-pass').fill(login.password);
+  await page.getByRole('button', { name: 'Iniciar sesión' }).click();
+  await expect(page.locator('#page-home')).toBeVisible();
+  await page.locator('#quick-access-block .home-shortcut-card[onclick="handleQuickAction('tareas')"]').click();
+  const tasksOverlay = page.locator('#tareas-overlay');
+  await expect(tasksOverlay).toBeVisible();
+  await expect(tasksOverlay.locator('.tarea-card')).toHaveCount(0);
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([]);
+  expect(writes.filter(write => write.path === 'lasala-tareas-v1')).toEqual([]);
   expect(unexpectedHosts).toEqual([]);
-  await expect(overlay).toBeVisible();
 });
