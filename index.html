@@ -5645,6 +5645,7 @@ async function eliminarFotoControl(id, indiceFoto=null){
   if(!fotos.length){showToast('No hay una foto guardada para eliminar');return false;}
   const indice = indiceFoto==null ? fotos.length-1 : Number(indiceFoto);
   if(!Number.isInteger(indice)||indice<0||indice>=fotos.length)return false;
+  if(fotoControlFotoHistorica(id,fotos[indice])){showToast('Las fotos históricas son de solo lectura');return false;}
   if(!confirm('¿Eliminar esta foto de la línea de Control?'))return false;
   const accionPendiente = leerColaOffline().find(accion =>
     accion.fn==='aplicarFotoControl' && Array.isArray(accion.args) &&
@@ -8287,7 +8288,7 @@ function renderControlCardHTML(c, seccion){
   }).join('');
   cargarFotoControlSiFalta(c.id);
   const fotoHTML = fotosControlComoArray(controlFotosData[c.id]).map((foto,index) =>
-    `<span style="display:inline-flex;flex-direction:column;align-items:center;gap:3px;margin-right:8px"><img data-testid="control-photo-thumb-${c.id}-${index}" src="${fotoSrcMiniatura(foto)}" onclick="mostrarFotoControlAmpliada('${c.id}',${index})" style="max-height:64px;border-radius:8px;border:1px solid var(--border);cursor:pointer" title="Ver foto">${fotoControlFotoPendienteLocal(c.id,foto)?`<span data-testid="control-photo-status-${c.id}-${index}" style="font-size:9px;font-weight:700;color:#916100">Pendiente local</span>`:''}<button type="button" aria-label="Eliminar foto ${index+1} de Control" data-testid="control-photo-delete-${c.id}-${index}" onclick="eliminarFotoControl('${c.id}',${index})" style="padding:2px 6px;border:1px solid #f0b0b0;border-radius:5px;background:#fdecea;color:#c62828;cursor:pointer;font-size:10px">Eliminar</button></span>`
+    `<span style="display:inline-flex;flex-direction:column;align-items:center;gap:3px;margin-right:8px"><img data-testid="control-photo-thumb-${c.id}-${index}" src="${fotoSrcMiniatura(foto)}" onclick="mostrarFotoControlAmpliada('${c.id}',${index})" style="max-height:64px;border-radius:8px;border:1px solid var(--border);cursor:pointer" title="Ver foto">${fotoControlFotoHistorica(c.id,foto)?`<span data-testid="control-photo-status-${c.id}-${index}" style="font-size:9px;font-weight:700;color:#555">Histórica · Solo lectura</span>`:fotoControlFotoPendienteLocal(c.id,foto)?`<span data-testid="control-photo-status-${c.id}-${index}" style="font-size:9px;font-weight:700;color:#916100">Pendiente local</span>`:''}${fotoControlFotoHistorica(c.id,foto)?'':`<button type="button" aria-label="Eliminar foto ${index+1} de Control" data-testid="control-photo-delete-${c.id}-${index}" onclick="eliminarFotoControl('${c.id}',${index})" style="padding:2px 6px;border:1px solid #f0b0b0;border-radius:5px;background:#fdecea;color:#c62828;cursor:pointer;font-size:10px">Eliminar</button>`}</span>`
   ).join('');
 
   // Información del PDF del día de esta línea
@@ -8800,7 +8801,9 @@ async function aplicarFotoControl(id, fotoB64){
   const c = controlChecksData.find(x=>x.id===id);
   if(!c) return false;
   if(!puedeEditarControlItem(c)){ avisarControlSinAcceso(); return false; }
-  controlFotosData[id] = [...fotosControlComoArray(controlFotosData[id]), fotoB64];
+  const existente = controlFotosData[id];
+  const fotosPrevias = fotosControlComoArray(existente).map(foto=>typeof existente==='string' && typeof foto==='string' ? {f:foto,t:foto,historica:true} : foto);
+  controlFotosData[id] = [...fotosPrevias, fotoB64];
   showToast('✓ Foto guardada');
   renderControlContent(document.getElementById('control-overlay'));
   const qid = encolarAccionOffline('aplicarFotoControl', [id, fotoB64]);
@@ -8924,6 +8927,10 @@ function fotoSrcMiniatura(entry){ return (entry && typeof entry==='object') ? (e
 function fotoControlFotoPendienteLocal(id, foto){
   const src = fotoSrcCompleta(foto);
   return leerColaOffline().some(accion => accion.fn==='aplicarFotoControl' && Array.isArray(accion.args) && String(accion.args[0])===String(id) && fotoSrcCompleta(accion.args[1])===src);
+}
+function fotoControlFotoHistorica(id, foto){
+  if(foto && typeof foto==='object' && foto.historica===true) return true;
+  return typeof controlFotosData[id]==='string' && fotoSrcCompleta(foto)===controlFotosData[id];
 }
 function fotosControlComoArray(entry){ return !entry ? [] : Array.isArray(entry) ? entry : [entry]; }
 // A petición de Paula (2026-08-27): buscar una partida en Partidas y
