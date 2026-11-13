@@ -1916,21 +1916,51 @@ function wizardCabeceraPartidaHTML(c){
 function controlQCInfoVisual(c){
   const tunel=c.tipo==='tunel';
   const preinjerto=c.tipo==='preinjerto_patron'||c.tipo==='preinjerto_variedad';
-  // Preinjerto muestra solo asignaciones físicas de partidas_par_ubic.
   const tramo=tunel?calleTramoDeTunel(c):(preinjerto?null:calleTramoDeCarga(c));
-  const gsLocations=preinjerto&&Array.isArray(c.ubicacionesGS)
-    ?c.ubicacionesGS.filter(x=>x&&typeof x==='object'):[];
+  const correction=c.edicionQC?.campos&&typeof c.edicionQC.campos==='object'?c.edicionQC.campos:{};
+  const legacyRawLocation=Object.prototype.hasOwnProperty.call(correction,'PAR_CAS')||
+    Object.prototype.hasOwnProperty.call(correction,'PAR_UBIC');
+  const calleLabel=(desde,hasta)=>{
+    if(desde==null||String(desde).trim()==='')return '';
+    const a=Number(desde),b=hasta==null||hasta===''?a:Number(hasta);
+    if(!Number.isInteger(a)||a<=0||!Number.isInteger(b)||b<=0)return '';
+    return a===b?String(a):Math.min(a,b)+'–'+Math.max(a,b);
+  };
   if(preinjerto){
-    const invs=[...new Set(gsLocations.map(x=>{
-      const name=String(x.invernadero||'').trim(),id=String(x.invId||'').trim();
+    // Las ubicaciones físicas pueden venir anidadas en gsDetalles. Si el
+    // usuario corrigió la ubicación en ViguerAPP, esa corrección prevalece.
+    const appLocationEdited=!legacyRawLocation&&
+      ['invId','calleDesde','calleHasta'].some(key=>Object.prototype.hasOwnProperty.call(correction,key));
+    if(appLocationEdited){
+      const inv=String(correction.invId??c.invId??'').trim();
+      const desde=correction.calleDesde??c.calleDesde;
+      const hasta=correction.calleHasta??c.calleHasta??desde;
+      return {inv:inv?'INV '+inv:'—',calles:calleLabel(desde,hasta)||'—'};
+    }
+    const gsLocations=Array.isArray(c.gsDetalles?.ubicacionesGS)
+      ?c.gsDetalles.ubicacionesGS
+      :(Array.isArray(c.ubicacionesGS)?c.ubicacionesGS:[]);
+    const locations=gsLocations.filter(x=>x&&typeof x==='object');
+    const invs=[...new Set(locations.map(x=>{
+      const name=String(x.invernadero||'').trim();
+      const id=String(x.invId??x.invernaderoId??'').trim();
       return name||(id?'INV '+id:'');
     }).filter(Boolean))];
-    const calles=[...new Set(gsLocations.map(x=>{
-      const a=Number(x.desde),b=x.hasta==null||x.hasta===''?a:Number(x.hasta);
-      if(!Number.isInteger(a)||a<=0||!Number.isInteger(b)||b<=0)return '';
-      return a===b?String(a):Math.min(a,b)+'–'+Math.max(a,b);
-    }).filter(Boolean))];
-    return {inv:invs.join(', ')||'—',calles:calles.join(', ')||'—'};
+    const calles=[...new Set(locations.map(x=>
+      calleLabel(x.desde??x.calleDesde,x.hasta??x.calleHasta??x.desde??x.calleDesde)
+    ).filter(Boolean))];
+    if(invs.length||calles.length)
+      return {inv:invs.join(', ')||'—',calles:calles.join(', ')||'—'};
+    // Una asignación física única también puede estar en los campos planos.
+    // No usar PAR_CAS/PAR_UBIC: son códigos GS, no ubicación acreditada.
+    if(!legacyRawLocation){
+      const inv=String(c.invId??c.gsDetalles?.idInvernadero??'').trim();
+      const desde=c.calleDesde??c.gsDetalles?.ubicacionDesde;
+      const hasta=c.calleHasta??c.gsDetalles?.ubicacionHasta??desde;
+      if(inv||calleLabel(desde,hasta))
+        return {inv:inv?'INV '+inv:'—',calles:calleLabel(desde,hasta)||'—'};
+    }
+    return {inv:'—',calles:'—'};
   }
   const codigoGS=String(c.PAR_CAS??c.gsDetalles?.PAR_CAS??'').trim();
   const invAsignado=String((tunel?c.invId:tramo?.invId)||c.invId||
@@ -1942,20 +1972,14 @@ function controlQCInfoVisual(c){
     ?(codigoGS&&invAsignado===codigoGS?'Código GS '+codigoGS:'INV '+invAsignado)
     :(codigoGS?'Código GS '+codigoGS:(rawGreenhouse||'—'));
   const desde=c.calleDesde??c.ubicacion_2??
-    (tunel?(c.PIN_LOCA??c.gsDetalles?.PIN_LOCA):
-      preinjerto?(c.PAR_UBIC??c.gsDetalles?.PAR_UBIC):null);
+    (tunel?(c.PIN_LOCA??c.gsDetalles?.PIN_LOCA):null);
   const hasta=c.calleHasta??c.ubicacion_3??
-    (tunel?(c.PIN_LOCA??c.gsDetalles?.PIN_LOCA):
-      preinjerto?(c.PAR_UBIC??c.gsDetalles?.PAR_UBIC):null);
+    (tunel?(c.PIN_LOCA??c.gsDetalles?.PIN_LOCA):null);
   const tramos=Array.isArray(c.tramos)&&c.tramos.length
     ?c.tramos:(tramo?[{desde:tramo.desde,hasta:tramo.hasta}]:[{desde,hasta}]);
-  const calles=tramos.map(t=>{
-    if(t.desde==null||String(t.desde).trim()==='')return '';
-    const nDesde=Number(t.desde),nHasta=t.hasta==null||t.hasta===''?nDesde:Number(t.hasta);
-    if(!Number.isInteger(nDesde)||nDesde<=0||!Number.isInteger(nHasta)||nHasta<=0)return '';
-    return nDesde===nHasta?String(nDesde):Math.min(nDesde,nHasta)+'–'+Math.max(nDesde,nHasta);
-  }).filter(Boolean).join(', ');
-  return {inv,calles:calles||'—'};
+  const calles=tramos.map(t=>calleLabel(t?.desde,t?.hasta)).filter(Boolean).join(', ');
+  const calleGS=tunel?Number(c.PIN_LOCA??c.gsDetalles?.PIN_LOCA):NaN;
+  return {inv,calles:calles||(Number.isInteger(calleGS)&&calleGS>0?String(calleGS):'—')};
 }
 function renderControlIdentidadQC(c,estadoWizard=false){
   const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
@@ -4568,26 +4592,4 @@ async function eliminarControlCheck(id){
   const nombre = clienteVariedadDeCheckControl(c);
   if(!confirm(`¿Eliminar este registro de partida${nombre?' ("'+nombre+'")':''}? Esta acción no se puede deshacer.`)) return false;
   // Antes de actualizar el listado, cerrar la inspección cuantitativa abierta.
-  // Respetar su protección de cambios y no eliminar si el usuario cancela la salida.
-  if(!(await confirmarSalidaQC()))return false;
-  await eliminarControlCheckConfirmado(id);
-  return true;
-}
-async function eliminarControlCheckConfirmado(id){
-  // Borrar SIEMPRE se aplica también en local, aunque la nube no responda —
-  // borrar es idempotente (reintentarlo no hace daño), así que si falla se
-  // encola para reintentarlo en vez de dejar la línea "medio borrada" solo
-  // en pantalla pero viva en la nube.
-  controlChecksData = controlChecksData.filter(x=>x.id!==id);
-  // No conservar como activo un guión cuya línea ya no existe.
-  Object.keys(controlGuionActivo).forEach(key=>{if(controlGuionActivo[key]===id)delete controlGuionActivo[key];});
-  showToast('✓ Registro de partida eliminado');
-  renderControlContent(document.getElementById('control-overlay'));
-  const qid = encolarAccionOffline('eliminarControlCheckConfirmado', [id]);
-  // Documento atómico propio (ver persistControlChecksData): al no
-  // encontrar el id en controlChecksData, envía un DELETE en vez de un PUT.
-  marcarControlCheckSucio(id);
-  const ok = await persistControlChecksData([id]);
-  if(ok) desencolarAccion(qid); else avisarGuardadoLocalPendiente(leerColaOffline().length);
-}
-
+  // Respetar su protección de cambios y no eliminar si el usuario cancela
