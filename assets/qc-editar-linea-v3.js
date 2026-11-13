@@ -364,11 +364,13 @@
     return {inv:String(location.invId??'').trim(),from:String(location.desde??'').trim(),to:String(location.hasta??location.desde??'').trim()};
   }
   function qcpSourceLocationHTML(line){
-    const locations=Array.isArray(line.gsDetalles?.ubicacionesGS)?line.gsDetalles.ubicacionesGS:
-      (line.edicionQC?.campos&&(Object.prototype.hasOwnProperty.call(line.edicionQC.campos,'PAR_CAS')||
-        Object.prototype.hasOwnProperty.call(line.edicionQC.campos,'PAR_UBIC'))?[]:
-        line.gsDetalles&&Object.prototype.hasOwnProperty.call(line.gsDetalles,'ubicacionesGS')?[]:
-        Array.isArray(line.ubicacionesGS)?line.ubicacionesGS:[]);
+    const hasPhysicalLocation=x=>x&&typeof x==='object'&&(
+      String(x.invernadero||x.invId||x.invernaderoId||'').trim()!==''||
+      (x.desde??x.calleDesde??x.hasta??x.calleHasta)!=null
+    );
+    const locationArrays=[line.gsDetalles?.ubicacionesGS,line.ubicacionesGS]
+      .filter(Array.isArray);
+    const locations=locationArrays.find(items=>items.some(hasPhysicalLocation))||[];
     const allocations=locations.map(location=>{
       const greenhouse=String(location?.invernadero||'').trim()||
         (location?.invId!=null?'INV '+String(location.invId).trim():'');

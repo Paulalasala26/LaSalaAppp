@@ -6918,9 +6918,16 @@ function controlQCInfoVisual(c){
       const hasta=correction.calleHasta??c.calleHasta??desde;
       return {inv:inv?'INV '+inv:'—',calles:calleLabel(desde,hasta)||'—'};
     }
-    const gsLocations=Array.isArray(c.gsDetalles?.ubicacionesGS)
-      ?c.gsDetalles.ubicacionesGS
-      :(Array.isArray(c.ubicacionesGS)?c.ubicacionesGS:[]);
+    // Algunas filas históricas conservan un array gsDetalles vacío y, a la
+    // vez, la ubicación válida en el campo plano. Un array vacío anidado no
+    // debe ocultar una asignación física que sí está presente en la ficha.
+    const hasPhysicalLocation=x=>x&&typeof x==='object'&&(
+      String(x.invernadero||x.invId||x.invernaderoId||'').trim()!==''||
+      (x.desde??x.calleDesde??x.hasta??x.calleHasta)!=null
+    );
+    const locationArrays=[c.gsDetalles?.ubicacionesGS,c.ubicacionesGS]
+      .filter(Array.isArray);
+    const gsLocations=locationArrays.find(items=>items.some(hasPhysicalLocation))||[];
     const locations=gsLocations.filter(x=>x&&typeof x==='object');
     const invs=[...new Set(locations.map(x=>{
       const name=String(x.invernadero||'').trim();
@@ -24995,7 +25002,7 @@ function conGuardiaReentrada(fn){
 
 </script>
 <script src="assets/fito-series-v3.js"></script>
-<script src="assets/qc-editar-linea-v3.js?v=112"></script>
+<script src="assets/qc-editar-linea-v3.js?v=113"></script>
 <script src="assets/gs-carga-feed.js?v=5"></script>
 <script src="assets/qc-carga-injerto-bootstrap.js?v=2" defer></script>
 <script src="assets/qc-preinjerto-bootstrap.js?v=8" defer></script>
