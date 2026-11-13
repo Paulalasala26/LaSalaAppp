@@ -6611,6 +6611,12 @@ async function seleccionarSeccionControl(sec){
   if(currentUserRole==='CARGADOR' && sec!==null && sec!=='carga')return;
   if(sec===controlSeccion)return;
   return navegarControlQC(async()=>{
+    // Preinjerto puede tener una ubicación ya registrada en la ficha de
+    // Partidas aunque GS aún no la haya replicado en partidas_par_ubic.
+    // Cargar esa fuente solo al abrir Preinjerto; el resto de la app conserva
+    // la carga diferida de la base de Partidas.
+    if((sec==='preinjerto_patron'||sec==='preinjerto_variedad')&&!partidasDBCargada)
+      await loadPartidasFromStorage();
     const offset=riegoQuincenaOffsetActual();
     if(sec==='tunel'||sec==='carga'){
       const ok=await loadControlSeccionSlice(sec,offset,false);
@@ -6890,6 +6896,34 @@ function wizardCabeceraPartidaHTML(c){
     </div>`;
 }
 
+// Ubicación persistida en el módulo Partidas. Solo se usa una coincidencia
+// exacta por número de partida y filas activas; nunca se infiere desde PAR_CAS.
+function qcUbicacionesFichaPartida(c){
+  const num=String(c?.partida||'').trim().toUpperCase();
+  if(!num||!Array.isArray(partidasDB))return [];
+  const calle=v=>{
+    const raw=String(v??'').trim();
+    const match=raw.match(/(?:C\s*\/\s*)?0*(\d+)$/i);
+    if(!match)return '';
+    const n=Number(match[1]);
+    return Number.isInteger(n)&&n>0?String(n):'';
+  };
+  const seen=new Set(),result=[];
+  for(const p of partidasDB){
+    if(String(p?.num||'').trim().toUpperCase()!==num||p.pendienteSalida)continue;
+    if(typeof partidaEsPasada==='function'&&partidaEsPasada(p))continue;
+    const inv=String(p.inv??p.invId??'').trim();
+    const desde=calle(p.calle_inicio??p.calleDesde);
+    const hasta=calle(p.calle_fin??p.calleHasta)||desde;
+    if(!inv&&!desde&&!hasta)continue;
+    const key=[inv,desde,hasta].join('|');
+    if(seen.has(key))continue;
+    seen.add(key);
+    result.push({inv,desde,hasta,fuente:'Partidas'});
+  }
+  return result;
+}
+
 /* 0.99. Presentación única de metadatos QC (no altera documentos Túnel/Carga).
  * Túnel usa invId y tramos; Carga interpreta NN-inicio-fin solo para mostrar.
  * No deducir lados A/B si el parte de Carga no los identifica.
@@ -6947,6 +6981,12 @@ function controlQCInfoVisual(c){
       const hasta=c.calleHasta??c.gsDetalles?.ubicacionHasta??desde;
       if(inv||calleLabel(desde,hasta))
         return {inv:inv?'INV '+inv:'—',calles:calleLabel(desde,hasta)||'—'};
+    }
+    const fichaLocations=qcUbicacionesFichaPartida(c);
+    if(fichaLocations.length){
+      const invs=[...new Set(fichaLocations.map(x=>x.inv).filter(Boolean))];
+      const calles=[...new Set(fichaLocations.map(x=>calleLabel(x.desde,x.hasta)).filter(Boolean))];
+      return {inv:invs.map(x=>'INV '+x).join(', ')||'—',calles:calles.join(', ')||'—'};
     }
     return {inv:'—',calles:'—'};
   }
@@ -25002,7 +25042,7 @@ function conGuardiaReentrada(fn){
 
 </script>
 <script src="assets/fito-series-v3.js"></script>
-<script src="assets/qc-editar-linea-v3.js?v=113"></script>
+<script src="assets/qc-editar-linea-v3.js?v=114"></script>
 <script src="assets/gs-carga-feed.js?v=5"></script>
 <script src="assets/qc-carga-injerto-bootstrap.js?v=2" defer></script>
 <script src="assets/qc-preinjerto-bootstrap.js?v=8" defer></script>

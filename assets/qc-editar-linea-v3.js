@@ -357,11 +357,26 @@
     const correction=line?.edicionQC?.campos||{};
     const legacyRaw=Object.prototype.hasOwnProperty.call(correction,'PAR_CAS')||
       Object.prototype.hasOwnProperty.call(correction,'PAR_UBIC');
-    if(!legacyRaw)return qciLocation(line);
-    const locations=Array.isArray(line.gsDetalles?.ubicacionesGS)?line.gsDetalles.ubicacionesGS:[];
-    if(locations.length!==1)return {inv:'',from:'',to:''};
-    const location=locations[0]||{};
-    return {inv:String(location.invId??'').trim(),from:String(location.desde??'').trim(),to:String(location.hasta??location.desde??'').trim()};
+    if(!legacyRaw){
+      const current=qciLocation(line);
+      if(current.inv||current.from||current.to)return current;
+    }
+    const hasPhysicalLocation=x=>x&&typeof x==='object'&&(
+      String(x.invernadero||x.invId||x.invernaderoId||'').trim()!==''||
+      (x.desde??x.calleDesde??x.hasta??x.calleHasta)!=null
+    );
+    const arrays=[line.gsDetalles?.ubicacionesGS,line.ubicacionesGS].filter(Array.isArray);
+    const locations=arrays.find(items=>items.some(hasPhysicalLocation))||[];
+    if(locations.length===1){
+      const location=locations[0]||{};
+      return {inv:String(location.invId??location.invernaderoId??'').trim(),
+        from:String(location.desde??location.calleDesde??'').trim(),
+        to:String(location.hasta??location.calleHasta??location.desde??location.calleDesde??'').trim()};
+    }
+    if(locations.length>1)return {inv:'',from:'',to:''};
+    const ficha=window.qcUbicacionesFichaPartida?.(line)||[];
+    if(ficha.length===1)return {inv:String(ficha[0].inv||''),from:String(ficha[0].desde||''),to:String(ficha[0].hasta||ficha[0].desde||'')};
+    return {inv:'',from:'',to:''};
   }
   function qcpSourceLocationHTML(line){
     const hasPhysicalLocation=x=>x&&typeof x==='object'&&(
@@ -374,17 +389,25 @@
     const allocations=locations.map(location=>{
       const greenhouse=String(location?.invernadero||'').trim()||
         (location?.invId!=null?'INV '+String(location.invId).trim():'');
-      const from=location?.desde==null?'':String(location.desde),to=location?.hasta==null?from:String(location.hasta);
+      const from=String(location?.desde??location?.calleDesde??'');
+      const to=String(location?.hasta??location?.calleHasta??location?.desde??location?.calleDesde??'');
       const streets=from?(from===to?'Calle '+esc(from):'Calles '+esc(from)+'–'+esc(to)):'Calles sin informar';
       return '<li>'+esc(greenhouse||'Invernadero sin informar')+' · '+streets+'</li>';
+    }).join('');
+    const ficha=window.qcUbicacionesFichaPartida?.(line)||[];
+    const fichaAllocations=ficha.map(location=>{
+      const from=String(location.desde||''),to=String(location.hasta||location.desde||'');
+      const streets=from?(from===to?'Calle '+esc(from):'Calles '+esc(from)+'–'+esc(to)):'Calles sin informar';
+      return '<li>'+(location.inv?'INV '+esc(location.inv):'Invernadero sin informar')+' · '+streets+'</li>';
     }).join('');
     return '<section class="qc107-section"><h3>Ubicación recibida de GS</h3><div class="qc107-grid">'+
       field('PAR_CAS · código GS','<input type="text" disabled value="'+esc(qcpRaw(line,'PAR_CAS'))+'">')+
       field('PAR_UBIC · código GS','<input type="text" disabled value="'+esc(qcpRaw(line,'PAR_UBIC'))+'">')+
-      '</div><p class="qc107-note">Son códigos de origen. Por sí solos no identifican el invernadero y la calle físicos.</p>'+ 
+      '</div><p class="qc107-note">Son códigos de origen. Por sí solos no identifican el invernadero y la calle físicos.</p>'+
       '<div class="qc107-note"><strong>Ubicaciones físicas que GS aporta</strong>'+
       (allocations?'<ul>'+allocations+'</ul>':'<div>GS no ha devuelto una asignación física para esta partida.</div>')+
-      '</div></section>';
+      '</div>'+(fichaAllocations?'<div class="qc107-note"><strong>Ubicación de la ficha de Partidas</strong><ul>'+fichaAllocations+'</ul><div>Coincidencia por número exacto de partida.</div></div>':'')+
+      '</section>';
   }
   function qcpLocationSection(line){
     const original=qcpAppLocation(line);
