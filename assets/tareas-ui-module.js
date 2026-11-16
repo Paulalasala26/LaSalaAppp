@@ -1100,11 +1100,12 @@ function showNuevaTareaForm(){
       <input id="nt-fecha" type="date" aria-label="Fecha" value="${hoyISO}">
       <select id="nt-turno" aria-label="Turno"><option value="">Turno (opcional)</option><option value="Mañana">Mañana</option><option value="Tarde">Tarde</option></select>
     </div>
-    <details class="op-personal"><summary>Asignar usuarios · <span id="nt-asignados-resumen">0 seleccionados</span></summary>
-      <div id="nt-asignado-chips">
-        ${asignables.map(u=>`<button type="button" data-nt-asignado-chip="${u}" onclick="this.classList.toggle('chip-asignado-on');actualizarResumenAsignacionOperativas('nt')" class="chip-asignado">${u}</button>`).join('')}
-      </div>
-    </details>
+    <label for="nt-asignado" style="display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:700;color:#1558a0">Responsable
+      <select id="nt-asignado" aria-label="Responsable de la tarea" style="width:100%;padding:8px;border:1px solid #a8c4e8;border-radius:7px;color:#1558a0;background:#fff">
+        <option value="">Seleccionar una persona…</option>
+        ${asignables.map(u=>`<option value="${u}">${u}</option>`).join('')}
+      </select>
+    </label>
     <textarea id="nt-desc" aria-label="Descripción" placeholder="Descripción (opcional)"></textarea>
     <div class="op-nt-footer">
       <label><input type="checkbox" id="nt-prioridad"> Prioridad alta</label>
@@ -1116,14 +1117,9 @@ function showNuevaTareaForm(){
 async function crearTarea(){
   if(!['ADMIN','TECNICO'].includes(currentUserRole)){showToast('Solo ADMIN y TÉCNICO pueden gestionar Tareas.');return;}
   const titulo = document.getElementById('nt-titulo')?.value?.trim();
-  // Asignar a varias personas a la vez (a petición de Paula, 2026-08-11) —
-  // se crea UNA TAREA POR CADA PERSONA marcada (mismo título/descripción/
-  // horario/prioridad, cada una con su propio asignadoA), en vez de meter un
-  // array en asignadoA. Mismo patrón fan-out que ya usa
-  // autoAsignarTareaEspecifico para REGANTE — así ningún sitio de lectura
-  // existente (filtros t.asignadoA===currentUser, contarTareasNuevas,
-  // generarTareasDesdeRiego, impresión...) necesita cambiar.
-  const asignados = Array.from(document.querySelectorAll('#nt-asignado-chips .chip-asignado-on')).map(b=>b.dataset.ntAsignadoChip);
+  // Una tarea tiene un único responsable. Si cambia el responsable, ADMIN/TÉCNICO
+  // reasigna esta misma tarea mientras siga pendiente.
+  const asignadoA = document.getElementById('nt-asignado')?.value||'';
   const descripcion = document.getElementById('nt-desc')?.value?.trim()||'';
   const prioridad = document.getElementById('nt-prioridad')?.checked ? 'alta' : 'normal';
   const inv = document.getElementById('nt-inv')?.value||'';
@@ -1131,26 +1127,23 @@ async function crearTarea(){
   const turno = document.getElementById('nt-turno')?.value||'';
   const fechaRaw = document.getElementById('nt-fecha')?.value;
   const fecha = fechaRaw ? new Date(fechaRaw+'T00:00:00').toLocaleDateString('es-ES',{day:'2-digit',month:'short'}).replace('.','') : '';
-  if(!titulo||!asignados.length||asignados.some(u=>!usuariosAsignablesOperativas('manual').includes(u))){ showToast('Indica título y operarios válidos'); return; }
-  const nuevasTareas=[];
-  asignados.forEach(asignadoA=>{
-    nuevasTareas.push({
-      id: 'tarea_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
-      titulo, descripcion, asignadoA, asignadoPor: currentUser||'—',
-      inv, calles, fecha, fechaISO: fechaRaw||null, turno,
-      categoria:'manual', origenTarea:'manual', prioridad, estado:'pendiente', horaInicio:null, horaFin:null, firmante:null,
-      visto: false,
-      creadoEn: new Date().toLocaleString('es-ES')
-    });
-  });
+  if(!titulo||!usuariosAsignablesOperativas('manual').includes(asignadoA)){ showToast('Indica un título y un responsable válido'); return; }
+  const nuevaTarea={
+    id: 'tarea_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
+    titulo, descripcion, asignadoA, asignadoPor: currentUser||'—',
+    inv, calles, fecha, fechaISO: fechaRaw||null, turno,
+    categoria:'manual', origenTarea:'manual', prioridad, estado:'pendiente', horaInicio:null, horaFin:null, firmante:null,
+    visto: false,
+    creadoEn: new Date().toLocaleString('es-ES')
+  };
   const tx=await actualizarStorageJsonConEtag(TAREAS_KEY,[],cloud=>{
     if(!Array.isArray(cloud))throw Error('Tareas: formato inválido');
-    return cloud.concat(nuevasTareas);
+    return cloud.concat(nuevaTarea);
   });
   if(!tx.ok){avisarFalloGuardado();showToast('No se ha confirmado la creación de la tarea');return;}
   tareasData=tx.value;
-  logHistorial(`Creó la tarea "${titulo}" y la asignó a ${asignados.join(', ')}`);
-  showToast('✓ Tarea creada y asignada a '+asignados.join(', '));
+  logHistorial(`Creó la tarea "${titulo}" y la asignó a ${asignadoA}`);
+  showToast('✓ Tarea creada y asignada a '+asignadoA);
   showTareasModule();
 }
 
@@ -1192,12 +1185,11 @@ function showEditarTareaForm(id){
         <option value="Tarde" ${t.turno==='Tarde'?'selected':''}>Tarde</option>
       </select>
     </div>
-    <details class="op-personal"><summary>Asignar usuarios · <span id="et-asignados-resumen">1 seleccionado</span></summary>
-      <div id="et-asignado-chips">
-        ${asignables.map(u=>`<button type="button" data-et-asignado-chip="${esc(u)}" onclick="this.classList.toggle('chip-asignado-on');actualizarResumenAsignacionOperativas('et')" class="chip-asignado${t.asignadoA===u?' chip-asignado-on':''}">${esc(u)}</button>`).join('')}
-      </div>
-      <div style="font-size:10.5px;color:#5a7288;padding:0 9px 8px">Seleccionar varios crea una tarea individual adicional por cada usuario nuevo.</div>
-    </details>
+    <label for="et-asignado" style="display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:700;color:#1558a0">Responsable
+      <select id="et-asignado" aria-label="Responsable de la tarea" style="width:100%;padding:8px;border:1px solid #a8c4e8;border-radius:7px;color:#1558a0;background:#fff">
+        ${asignables.map(u=>`<option value="${esc(u)}" ${t.asignadoA===u?'selected':''}>${esc(u)}</option>`).join('')}
+      </select>
+    </label>
     <textarea id="et-desc" aria-label="Descripción" placeholder="Descripción (opcional)">${esc(t.descripcion)}</textarea>
     <div class="op-nt-footer">
       <label><input type="checkbox" id="et-prioridad" ${t.prioridad==='alta'?'checked':''}> Prioridad alta</label>
@@ -1205,15 +1197,13 @@ function showEditarTareaForm(id){
       <button type="button" class="op-btn" onclick="guardarEdicionTarea('${t.id}')"><i class="ti ti-check"></i> Guardar cambios</button>
     </div>
   </div>`;
-  actualizarResumenAsignacionOperativas('et');
+
 }
 async function guardarEdicionTarea(id){
   if(!['ADMIN','TECNICO'].includes(currentUserRole)){showToast('Solo ADMIN y TÉCNICO pueden gestionar Tareas.');return;}
   const titulo=document.getElementById('et-titulo')?.value?.trim();
-  const asignadosMarcados=Array.from(document.querySelectorAll('#et-asignado-chips .chip-asignado-on')).map(b=>b.dataset.etAsignadoChip);
-  const asignadoA=asignadosMarcados[0];
-  const extraAsignados=asignadosMarcados.slice(1);
-  if(!titulo||!asignadoA||asignadosMarcados.some(u=>!usuariosAsignablesOperativas('manual').includes(u))){ showToast('Indica título y operarios válidos'); return; }
+  const asignadoA=document.getElementById('et-asignado')?.value||'';
+  if(!titulo||!usuariosAsignablesOperativas('manual').includes(asignadoA)){ showToast('Indica un título y un responsable válido'); return; }
   const nuevoEstado='pendiente'; // La ejecución/cierre se realiza exclusivamente desde el operario
   const fechaRaw=document.getElementById('et-fecha')?.value||'';
   const fechaLabel=fechaRaw ? new Date(fechaRaw+'T00:00:00').toLocaleDateString('es-ES',{day:'2-digit',month:'short'}).replace('.','') : '';
@@ -1239,7 +1229,6 @@ async function guardarEdicionTarea(id){
     if(nuevoEstado==='iniciada'){ actualizada.horaFin=null;actualizada.firmante=null;actualizada.completadoISO=null;if(!actualizada.horaInicio) actualizada.horaInicio=new Date().toLocaleString('es-ES'); }
     if(nuevoEstado==='completada' && !actualizada.horaFin){ actualizada.horaFin=new Date().toLocaleString('es-ES');actualizada.completadoISO=fechaLocalISO(new Date());if(!actualizada.firmante) actualizada.firmante=currentUser||'—'; }
     cloud[idx]=actualizada;
-    extraAsignados.forEach(u=>cloud.push({...actualizada,id:'tarea_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),asignadoA:u,visto:false}));
     return {value:cloud,result:{missing:false}};
   });
   if(!tx.ok){ avisarFalloGuardado();showToast('✗ No se han podido guardar los cambios');return; }
@@ -1247,7 +1236,7 @@ async function guardarEdicionTarea(id){
   if(tx.result?.protected){showToast('La jornada Pistola protege su tarea vinculada.');return;}
    if(tx.result?.archived){showToast('El archivo es de solo consulta.');return;}
    tareasData=tx.value;
-  logHistorial(`Editó la tarea "${titulo}" (asignada a ${asignadosMarcados.join(', ')})`);
+  logHistorial(`Editó la tarea "${titulo}" (responsable: ${asignadoA})`);
   const wrap=document.getElementById('nueva-tarea-form-wrap');
   if(wrap) wrap.innerHTML='';
   showToast('✓ Cambios guardados');
