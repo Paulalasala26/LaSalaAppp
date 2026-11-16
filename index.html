@@ -661,6 +661,26 @@ async function actualizarStorageJsonConEtag(key, valorInicial, mutador){
       const tieneValue=cambio && typeof cambio==='object' && !Array.isArray(cambio) && Object.prototype.hasOwnProperty.call(cambio,'value');
       const siguiente=tieneValue ? cambio.value : cambio;
       const result=tieneValue ? cambio.result : undefined;
+      if(key===TAREAS_KEY){
+        await ensureFirebaseIdTokenFresh();
+        if(!firebaseIdToken) throw new Error('No hay sesión Firebase válida');
+        const putRes=await window.fetch('/api/tasks-write',{
+          method:'POST',
+          headers:{'Content-Type':'application/json','Authorization':'Bearer '+firebaseIdToken},
+          body:JSON.stringify({expectedEtag:etag,value:siguiente})
+        });
+        if(putRes.status===409){
+          if(intento===5) return {ok:false,conflict:true};
+          continue;
+        }
+        if(!putRes.ok){
+          let code='HTTP '+putRes.status;
+          try{const errorBody=await putRes.json();if(errorBody?.error)code=errorBody.error;}catch(e){}
+          throw new Error(code);
+        }
+        const saved=await putRes.json();
+        return {ok:true,value:saved.value,result};
+      }
       const putRes=await appFetch(url,{
         method:'PUT',
         headers:{'Content-Type':'application/json','if-match':etag},
