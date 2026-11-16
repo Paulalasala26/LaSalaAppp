@@ -17,3 +17,5 @@
 .qco-inline .qco-photo-top{margin:10px 0 15px;padding:12px 13px;border:1px solid #c2d7ed;border-radius:10px;background:#f2f8ff}
 .qco-inline .qco-photo-top .qco-extras-heading{margin-bottom:8px}
 @media(max-width:460px){.qc107-modal{padding:11px}.qc107-section{padding:10px}.qc107-grid{grid-template-columns:minmax(0,1fr)}}
+/* Ocultar temporalmente la edición avanzada de tramos/invernaderos en los QC. */
+.qc107-advanced{display:none!important}
