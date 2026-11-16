@@ -6,6 +6,22 @@
   let ctx=null;
   const esc=v=>String(v??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   const field=(name,html)=>'<label class="qc107-field">'+esc(name)+html+'</label>';
+  const greenhouseLabel=(name,id='')=>{
+    let raw=String(name||'').trim();
+    if(/^código\s+gs\b/i.test(raw))return raw;
+    if(!raw)raw=String(id||'').trim();
+    if(!raw||raw==='—'||/^sin invernadero/i.test(raw))return 'Invernadero sin asignar';
+    return 'Invernadero '+raw.replace(/^invernadero\s*/i,'').replace(/^inv\.?\s*/i,'').trim();
+  };
+  const streetsLabel=(from,to)=>{
+    const a=String(from??'').trim(),b=String(to??'').trim();
+    if(!a||a==='—'||/^sin calles/i.test(a))return 'Calles sin asignar';
+    if(/^calles?\s/i.test(a))return a;
+    const end=(!b||b==='—')?a:b;
+    return a===end&&!/[–-]/.test(a)?'Calle '+a:'Calles '+a+'–'+end;
+  };
+  const locationSummary=(inv,from,to)=>greenhouseLabel(inv)+' · '+streetsLabel(from,to);
+  const locationSummaryFromDisplay=info=>locationSummary(info?.inv,info?.calles,info?.calles);
   const selectInv=actual=>{
     const salas=[['Sala 1',ALL_INV_IDS_SALA1],['Sala 2',ALL_INV_IDS],
       ['Sala 3',ALL_INV_IDS_SALA3],['Sala 4',ALL_INV_IDS_SALA4],['Sala 5',ALL_INV_IDS_SALA5]];
@@ -75,7 +91,7 @@
       field('Bandejas','<input id="qc107-bandejas" type="number" min="1" step="1" value="'+esc(line.numBandejas)+'">')+
       '</div></section>'+
       '<section class="qc107-section"><h3>Ubicación</h3>'+
-      '<div class="qc107-location-current">Actual: '+esc(locationDisplay.inv)+' · Calle '+esc(locationDisplay.calles)+'</div>'+
+      '<div class="qc107-location-current">Ubicación actual: '+esc(locationSummaryFromDisplay(locationDisplay))+'</div>'+
       '<div class="qc107-grid">'+
       field('Invernadero','<select id="qc107-inv" onchange="qc107CambiarInv()">'+selectInv(loc.inv)+'</select>')+
       field('Calle desde','<select id="qc107-from" onchange="qc107CambiarCalle()">'+calleOptions(loc.inv,loc.from)+'</select>')+
@@ -213,11 +229,11 @@
     const from=String(gs.ubicacionDesde??(!edited?line.calleDesde:'')??'').trim();
     const to=String(gs.ubicacionHasta??(!edited?line.calleHasta:'')??'').trim();
     const values=greenhouse||greenhouseId||from||to;
-    if(!values)return '<section class="qc107-section"><h3>Ubicación recibida de GS</h3><p class="qc107-note">Esta línea no trae una ubicación de origen en los datos disponibles de GS.</p></section>';
-    return '<section class="qc107-section"><h3>Ubicación recibida de GS</h3><div class="qc107-grid">'+
-      field('Invernadero · GS','<input type="text" disabled value="'+esc(greenhouse||greenhouseId)+'">')+
-      field('Calle desde · GS','<input type="text" disabled value="'+esc(from)+'">')+
-      field('Calle hasta · GS','<input type="text" disabled value="'+esc(to)+'">')+
+    if(!values)return '<section class="qc107-section"><h3>Ubicación informada por GS</h3><p class="qc107-note">GS no ha devuelto una asignación física para esta partida.</p></section>';
+    return '<section class="qc107-section"><h3>Ubicación informada por GS</h3><div class="qc107-grid">'+
+      field('Invernadero','<input type="text" disabled value="'+esc(greenhouseLabel(greenhouse,greenhouseId))+'">')+
+      field('Calle desde','<input type="text" disabled value="'+esc(from?streetsLabel(from,to):'Calles sin asignar')+'">')+
+      field('Calle hasta','<input type="text" disabled value="'+esc(to||from||'—')+'">')+
       '</div><p class="qc107-note">Origen de los datos. La ubicación efectiva en ViguerAPP se configura abajo.</p></section>';
   }
   function qciSetError(message){
@@ -239,8 +255,7 @@
       field('Variedad','<input id="qci-variedad" type="text" maxlength="180" value="'+esc(line.variedad)+'">')+
       field('Bandejas','<input id="qci-bandejas" type="number" min="1" step="1" value="'+esc(line.numBandejas)+'">')+
       '</div></section>'+qciGSLocationHTML(line)+'<section class="qc107-section"><h3>Ubicación en ViguerAPP</h3>'+
-      '<div class="qc107-location-current">Ubicación actual: '+esc(original.inv?('INV '+original.inv):'Sin invernadero')+' · '+
-      esc(original.from?(original.from===original.to?'Calle '+original.from:'Calles '+original.from+'–'+original.to):'Sin calles asignadas')+'</div>'+
+      '<div class="qc107-location-current">Ubicación actual: '+esc(locationSummary(original.inv,original.from,original.to))+'</div>'+
       '<p class="qc107-note">Es la ubicación física que utiliza la app para esta partida.</p>'+
       '<div class="qc107-grid">'+
       field('Invernadero','<select id="qci-inv" onchange="qciCambiarInv()">'+qciInvOptions(original)+'</select>')+
@@ -387,22 +402,21 @@
       .filter(Array.isArray);
     const locations=locationArrays.find(items=>items.some(hasPhysicalLocation))||[];
     const allocations=locations.map(location=>{
-      const greenhouse=String(location?.invernadero||'').trim()||
-        (location?.invId!=null?'INV '+String(location.invId).trim():'');
+      const greenhouse=greenhouseLabel(location?.invernadero,location?.invId??location?.invernaderoId);
       const from=String(location?.desde??location?.calleDesde??'');
       const to=String(location?.hasta??location?.calleHasta??location?.desde??location?.calleDesde??'');
-      const streets=from?(from===to?'Calle '+esc(from):'Calles '+esc(from)+'–'+esc(to)):'Calles sin informar';
-      return '<li>'+esc(greenhouse||'Invernadero sin informar')+' · '+streets+'</li>';
+      const streets=streetsLabel(from,to);
+      return '<li>'+esc(greenhouse)+' · '+esc(streets)+'</li>';
     }).join('');
     const ficha=window.qcUbicacionesFichaPartida?.(line)||[];
     const fichaAllocations=ficha.map(location=>{
       const from=String(location.desde||''),to=String(location.hasta||location.desde||'');
-      const streets=from?(from===to?'Calle '+esc(from):'Calles '+esc(from)+'–'+esc(to)):'Calles sin informar';
-      return '<li>'+(location.inv?'INV '+esc(location.inv):'Invernadero sin informar')+' · '+streets+'</li>';
+      const streets=streetsLabel(from,to);
+      return '<li>'+esc(greenhouseLabel(location.inv))+' · '+esc(streets)+'</li>';
     }).join('');
-    return '<section class="qc107-section"><h3>Ubicación recibida de GS</h3><div class="qc107-grid">'+
-      field('PAR_CAS · código GS','<input type="text" disabled value="'+esc(qcpRaw(line,'PAR_CAS'))+'">')+
-      field('PAR_UBIC · código GS','<input type="text" disabled value="'+esc(qcpRaw(line,'PAR_UBIC'))+'">')+
+    return '<section class="qc107-section"><h3>Ubicación informada por GS</h3><div class="qc107-grid">'+
+      field('Código GS · PAR_CAS','<input type="text" disabled value="'+esc(qcpRaw(line,'PAR_CAS'))+'">')+
+      field('Código GS · PAR_UBIC','<input type="text" disabled value="'+esc(qcpRaw(line,'PAR_UBIC'))+'">')+
       '</div><p class="qc107-note">Son códigos de origen. Por sí solos no identifican el invernadero y la calle físicos.</p>'+
       '<div class="qc107-note"><strong>Ubicaciones físicas que GS aporta</strong>'+
       (allocations?'<ul>'+allocations+'</ul>':'<div>GS no ha devuelto una asignación física para esta partida.</div>')+
@@ -412,8 +426,7 @@
   function qcpLocationSection(line){
     const original=qcpAppLocation(line);
     return '<section class="qc107-section"><h3>Ubicación en ViguerAPP</h3>'+ 
-      '<div class="qc107-location-current">Ubicación actual: '+esc(original.inv?('INV '+original.inv):'Sin invernadero')+
-      ' · '+esc(original.from?(original.from===original.to?'Calle '+original.from:'Calles '+original.from+'–'+original.to):'Sin calles asignadas')+'</div>'+ 
+      '<div class="qc107-location-current">Ubicación actual: '+esc(locationSummary(original.inv,original.from,original.to))+'</div>'+ 
       '<p class="qc107-note">Esta es la ubicación física que utiliza la app para la partida.</p><div class="qc107-grid">'+
       field('Invernadero','<select id="qcp-inv" onchange="qcpCambiarInv()">'+qciInvOptions(original)+'</select>')+
       field('Calle desde','<select id="qcp-from">'+qciStreetOptions(original.inv,original.from)+'</select>')+
