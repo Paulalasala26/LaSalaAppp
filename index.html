@@ -19466,7 +19466,7 @@ function _renderPartidaDetail(p, num, inv){
 function generarInformePostMortem(num, inv){
   const p = partidasDB.find(x=>x.num===num&&x.inv===inv)||partidasDB.find(x=>x.num===num);
   if(!p) return;
-  Promise.all([loadChecksData(), loadRiegoData(false), loadFitoData(false)]).then(()=>{
+  Promise.all([loadChecksData(), loadRiegoData(false), loadFitoData(false), (typeof incHtmlPostMortem==='function' ? incHtmlPostMortem(num, inv) : Promise.resolve(''))]).then(([,,,incidenciasHtml])=>{
     const riegoLog = getFullRiegoLog(p);
     const fitoLog = getFullFitoLog(p);
     const fotoEntradaSrc = fotoEntrada[p.fotoKey||p.num] || p.fotoEntradaB64 || null;
@@ -19542,6 +19542,8 @@ function generarInformePostMortem(num, inv){
   <h2>Registro de plaguicidas</h2>
   <table><thead><tr><th>Día planta</th><th>Tratamiento</th><th>Calles</th></tr></thead>
   <tbody>${logRows(fitoLog, 'Sin registros de plaguicidas.')}</tbody></table>
+
+  ${incidenciasHtml||''}
 
   <footer>Informe post-mortem generado autom&#225;ticamente por App La Sala — Viveros y Semilleros.</footer>`;
 
@@ -19798,6 +19800,75 @@ const INC_TRANSICIONES = {
 let incidenciasData = [];
 let incFiltros = {q:'', tipo:'', gravedad:'', estado:'', anuladas:''};
 
+// ── Fotos ─────────────────────────────────────────────────────
+// Cada foto va en SU PROPIA clave de la nube (miniatura y foto completa por
+// separado), NUNCA dentro de la lista de incidencias: las fotos embebidas
+// llenaron ya dos veces otras claves de La Sala (Control, 2026-08) y dejaron
+// de guardar. La incidencia solo guarda la referencia {id, en, por}.
+const INC_FOTO_T = 'lasala-incidencias-foto-t-';
+const INC_FOTO_F = 'lasala-incidencias-foto-f-';
+const INC_MAX_FOTOS = 6;
+const incFotoCache = {};      // id -> {t, f}
+const incFotoPendiente = {};  // clave -> promesa en curso (para no pedir dos veces lo mismo)
+let incFotosForm = [];        // fotos elegidas en el formulario, aún sin subir: [{id,t,f}]
+function incNuevoIdFoto(){ return 'f_'+Date.now()+'_'+Math.random().toString(36).slice(2,8); }
+function incLeerFoto(id, tipo){
+  const c = incFotoCache[id] || (incFotoCache[id] = {});
+  if(c[tipo]) return Promise.resolve(c[tipo]);
+  const k = (tipo==='t' ? INC_FOTO_T : INC_FOTO_F) + id;
+  if(!incFotoPendiente[k]){
+    incFotoPendiente[k] = window.storage.get(k)
+      .then(r=>{ if(r && r.value) c[tipo] = r.value; return c[tipo] || null; })
+      .catch(()=>null)
+      .then(v=>{ delete incFotoPendiente[k]; return v; });
+  }
+  return incFotoPendiente[k];
+}
+async function incGuardarFoto(id, data){
+  const okT = await window.storage.set(INC_FOTO_T + id, data.t);
+  const okF = okT && await window.storage.set(INC_FOTO_F + id, data.f);
+  if(okT && okF) incFotoCache[id] = {t:data.t, f:data.f};
+  return !!(okT && okF);
+}
+// Comprime con la misma función que ya usa Control (1280px / miniatura 320px,
+// con respaldo al original si el navegador no puede leerla, p.ej. HEIC)
+async function incPrepararFoto(file){
+  const r = await comprimirImagenParaControl(file);
+  if(!r){ incAviso('✗ No se ha podido leer esa foto — prueba con otra'); return null; }
+  if(!r.comprimida && String(r.data.f).length > 2.5*1024*1024){
+    incAviso('✗ Esa foto pesa demasiado y no se ha podido reducir — prueba con otra'); return null;
+  }
+  return {id: incNuevoIdFoto(), t: r.data.t, f: r.data.f};
+}
+function incFotosRestantes(extra){
+  const ov = document.getElementById('inc-form-overlay');
+  const yaEnForm = ov ? Number(ov.dataset.fotos||0) : 0;
+  return INC_MAX_FOTOS - yaEnForm - incFotosForm.length - (extra||0);
+}
+async function incFotosElegidas(input){
+  const files = Array.from(input.files||[]); input.value = '';
+  for(const file of files){
+    if(incFotosRestantes()<=0){ incAviso('Máximo '+INC_MAX_FOTOS+' fotos por incidencia.'); break; }
+    const f = await incPrepararFoto(file);
+    if(f){ incFotosForm.push(f); incPintarFotosForm(); }
+  }
+}
+function incQuitarFotoForm(ix){ incFotosForm.splice(ix,1); incPintarFotosForm(); }
+function incPintarFotosForm(){
+  const w = document.getElementById('inc-fm-fotos');
+  if(!w) return;
+  const lleno = incFotosRestantes()<=0;
+  w.innerHTML = incFotosForm.map((f,ix)=>`
+    <div style="position:relative;width:76px;height:76px;flex-shrink:0">
+      <img src="${f.t}" style="width:76px;height:76px;object-fit:cover;border-radius:8px;border:1px solid var(--border)">
+      <button type="button" onclick="incQuitarFotoForm(${ix})" title="Quitar" style="position:absolute;top:-6px;right:-6px;width:22px;height:22px;border-radius:50%;border:none;background:#c62828;color:#fff;font-size:11px;cursor:pointer;line-height:1">✕</button>
+    </div>`).join('')
+    + (lleno ? '' : `<label style="width:76px;height:76px;border:1.5px dashed var(--border);border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;color:var(--muted);font-size:11px;font-weight:700;flex-shrink:0;background:#fafbf9">
+        <i class="ti ti-camera-plus" style="font-size:22px"></i>Foto
+        <input type="file" accept="image/*" multiple onchange="incFotosElegidas(this)" style="display:none">
+      </label>`);
+}
+
 // ── Utilidades ────────────────────────────────────────────────
 function incEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 // Para meter un texto dentro de onclick="f('…')": solo deja letras, cifras y
@@ -19850,7 +19921,12 @@ function incFusionar(nube, local){
       if(!hist.some(y=>y.fecha===h.fecha && y.a===h.a && y.usuario===h.usuario)) hist.push(h);
     });
     hist.sort((a,b)=>String(a.fecha).localeCompare(String(b.fecha)));
-    mapa.set(x.id, Object.assign({}, ganador, {historial:hist, anulada: ganador.anulada || otro.anulada || null}));
+    const quitadas = [];
+    [ganador, otro].forEach(v=>(v.fotosQuitadas||[]).forEach(q=>{ if(!quitadas.some(y=>y.id===q.id)) quitadas.push(q); }));
+    const fotos = [];
+    [ganador, otro].forEach(v=>(v.fotos||[]).forEach(f=>{ if(!fotos.some(y=>y.id===f.id) && !quitadas.some(q=>q.id===f.id)) fotos.push(f); }));
+    fotos.sort((a,b)=>String(a.en).localeCompare(String(b.en)));
+    mapa.set(x.id, Object.assign({}, ganador, {historial:hist, fotos, fotosQuitadas:quitadas, anulada: ganador.anulada || otro.anulada || null}));
   });
   return Array.from(mapa.values());
 }
@@ -20030,7 +20106,7 @@ function incRenderLista(){
               <div style="font-size:11px;color:var(--muted)">${incEsc(i.variedad||'')}${i.inv?` · INV ${incEsc(i.inv)}`:''}</div>
               <div class="inc-solo-m" style="font-size:11px;color:var(--muted);margin-top:2px">${incFechaES(i.fecha)} · ${incEsc(incEtq(INC_TIPOS,i.tipo))}</div>
             </td>
-            <td style="padding:10px 12px;max-width:420px;font-size:12px;color:#444">${incEsc(i.descripcion)}${i.creadoPor?`<div style="margin-top:3px;color:var(--muted)">— ${incEsc(i.creadoPor)}</div>`:''}</td>
+            <td style="padding:10px 12px;max-width:420px;font-size:12px;color:#444">${incEsc(i.descripcion)}${(i.fotos&&i.fotos.length)?` <span title="Fotos adjuntas" style="white-space:nowrap;color:var(--muted)">📷 ${i.fotos.length}</span>`:''}${i.creadoPor?`<div style="margin-top:3px;color:var(--muted)">— ${incEsc(i.creadoPor)}</div>`:''}</td>
             <td class="inc-hide-m" style="padding:10px 12px;text-align:right;white-space:nowrap"><button onclick="event.stopPropagation();incAbrirDetalle('${incJs(i.id)}')" style="padding:6px 12px;border-radius:7px;font-size:12px;font-weight:700;background:#f2f4f0;border:1.5px solid var(--border);cursor:pointer">Abrir</button></td>
           </tr>`).join('')}
         </tbody>
@@ -20062,6 +20138,7 @@ async function incAbrirFormulario(id, partidaIni, invIni){
     if(inc.anulada){ incAviso('Esta incidencia está anulada: ya no se puede editar.'); return; }
   }
   const nueva = !inc;
+  incFotosForm = [];
   const codigo = inc ? inc.partida : (partidaIni||'');
   const inv = inc ? (inc.inv||'') : (invIni||'');
   const ov = getOrCreateOverlay('inc-form-overlay');
@@ -20109,6 +20186,10 @@ async function incAbrirFormulario(id, partidaIni, invIni){
           <label style="${lbl}">Acción tomada o prevista (opcional)</label>
           <textarea id="inc-fm-accion" rows="2" style="${campo};resize:vertical">${incEsc(inc?(inc.accion||''):'')}</textarea>
         </div>
+        <div style="grid-column:1/-1">
+          <label style="${lbl}">Fotos (opcional, máx. ${INC_MAX_FOTOS})</label>
+          <div id="inc-fm-fotos" style="display:flex;gap:10px;flex-wrap:wrap"></div>
+        </div>
         <div style="grid-column:1/-1;font-size:12px;color:var(--muted)">Registrada por: <b>${incEsc(inc?(inc.creadoPor||'—'):(currentUser||'—'))}</b>${nueva?'':' · el estado se cambia desde la ficha de la incidencia'}</div>
         <div id="inc-fm-error" style="grid-column:1/-1;display:none;background:#fdf0f0;border:1px solid #e8b0b0;color:#a32020;border-radius:8px;padding:9px 12px;font-size:12px;font-weight:600"></div>
       </div>
@@ -20117,10 +20198,12 @@ async function incAbrirFormulario(id, partidaIni, invIni){
         <button id="inc-fm-guardar" onclick="incGuardarFormulario()" style="padding:10px 20px;border-radius:9px;font-size:13px;font-weight:800;background:#c62828;color:#fff;border:none;cursor:pointer">${nueva?'Registrar incidencia':'Guardar cambios'}</button>
       </div>
     </div>`;
+  ov.dataset.fotos = String(inc ? (inc.fotos||[]).length : 0);
   ov.style.display = 'flex';
+  incPintarFotosForm();
   incPartidaEscrita(true);
 }
-function incCerrarFormulario(){ const ov = document.getElementById('inc-form-overlay'); if(ov) ov.style.display='none'; }
+function incCerrarFormulario(){ incFotosForm = []; const ov = document.getElementById('inc-form-overlay'); if(ov) ov.style.display='none'; }
 function incErrorForm(msg){
   const e = document.getElementById('inc-fm-error');
   if(e){ e.textContent = msg; e.style.display = msg ? 'block' : 'none'; }
@@ -20192,6 +20275,17 @@ async function incGuardarFormulario(){
   const btn = document.getElementById('inc-fm-guardar');
   if(btn){ btn.disabled = true; btn.style.opacity = '.6'; }
   const ahora = new Date().toISOString();
+  // Primero las fotos (cada una en su clave); si alguna falla no se guarda nada
+  const refsFotos = [];
+  for(const f of incFotosForm){
+    if(!(await incGuardarFoto(f.id, f))){
+      if(btn){ btn.disabled = false; btn.style.opacity = '1'; }
+      return incErrorForm('No se han podido subir las fotos. Revisa la conexión e inténtalo de nuevo.');
+    }
+    refsFotos.push({id:f.id, en:ahora, por:currentUser||'—'});
+  }
+  const gravedadAntes = actual ? actual.gravedad : null;
+  let registro = null;
   if(nueva){
     const p = incPartidasPorCodigo(partida).find(x=>String(x.inv)===inv) || incPartidasPorCodigo(partida)[0] || null;
     incidenciasData.push({
@@ -20199,10 +20293,13 @@ async function incGuardarFormulario(){
       variedad: p ? (p.variedad||'') : '', cliente: p ? (p.cliente||'') : '',
       tipo, gravedad, fecha, descripcion, accion: accion||null,
       estado: 'ABIERTA', creadoPor: currentUser||'—', creadoEn: ahora, actualizadoEn: ahora,
-      historial: [], anulada: null
+      historial: [], anulada: null, fotos: refsFotos, fotosQuitadas: []
     });
+    registro = incidenciasData[incidenciasData.length-1];
   } else {
     Object.assign(actual, {tipo, gravedad, fecha, descripcion, accion: accion||null, actualizadoEn: ahora});
+    actual.fotos = (actual.fotos||[]).concat(refsFotos);
+    registro = actual;
   }
   const ok = await incGuardar();
   if(!ok){
@@ -20211,7 +20308,8 @@ async function incGuardarFormulario(){
   }
   logHistorial(`${nueva?'Registró':'Editó'} incidencia (${incEtq(INC_TIPOS,tipo)}, ${incEtq(INC_GRAVEDADES,gravedad).toLowerCase()}) de la partida ${partida}`);
   incCerrarFormulario();
-  incAviso(nueva ? '✓ Incidencia registrada' : '✓ Cambios guardados');
+  const avisada = (gravedad==='ALTA' && gravedadAntes!=='ALTA') ? await incAvisarGrave(registro, !nueva) : false;
+  incAviso((nueva ? '✓ Incidencia registrada' : '✓ Cambios guardados') + (avisada ? ' · aviso enviado a Vigueras' : ''));
   incRefrescarTodo(partida, inv);
 }
 // Repinta lo que esté abierto (listado, detalle y bloque de la ficha)
@@ -20258,6 +20356,7 @@ function incPintarDetalle(id){
         </div>
         <div style="margin-bottom:.75rem">${dato('Descripción', `<div style="white-space:pre-wrap">${incEsc(i.descripcion)}</div>`)}</div>
         ${i.accion ? `<div style="margin-bottom:1rem">${dato('Acción tomada o prevista', `<div style="white-space:pre-wrap">${incEsc(i.accion)}</div>`)}</div>` : ''}
+        ${incBloqueFotosDetalle(i)}
         ${!i.anulada && incPuedeEditar() ? `
         <div style="background:#f7f8f5;border:1px solid var(--border);border-radius:10px;padding:.9rem 1rem;margin-bottom:1rem">
           <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Cambio de estado</div>
@@ -20280,6 +20379,7 @@ function incPintarDetalle(id){
         </div>` : `<div style="font-size:12px;color:var(--muted);font-style:italic">Aún no hay cambios de estado. El primero se registrará al usar los botones de arriba.</div>`}
       </div>
     </div>`;
+  incCargarMiniaturas(i);
 }
 async function incCambiarEstado(id, nuevo){
   if(!incPuedeEditar()) return;
@@ -20351,7 +20451,7 @@ async function incRefrescarFicha(num, inv){
       ${lista.map(i=>`
       <div onclick="incAbrirDetalle('${incJs(i.id)}')" style="cursor:pointer;border:1px solid var(--border);border-radius:9px;padding:8px 10px;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;background:#fff">
         <div style="min-width:0;flex:1"><div style="font-size:12px;font-weight:700">${incEsc(incEtq(INC_TIPOS,i.tipo))} <span style="color:var(--muted);font-weight:400">· ${incFechaES(i.fecha)}</span></div>
-        <div style="font-size:12px;color:#555;margin-top:2px">${incEsc(i.descripcion)}</div></div>
+        <div style="font-size:12px;color:#555;margin-top:2px">${incEsc(i.descripcion)}${(i.fotos&&i.fotos.length)?` <span style="white-space:nowrap;color:var(--muted)">📷 ${i.fotos.length}</span>`:''}</div></div>
         <div style="display:flex;gap:6px;align-items:flex-start">${incChip(INC_GRAVEDADES,i.gravedad)}${incChip(INC_ESTADOS,i.estado)}</div>
       </div>`).join('')}
     </div>` : `<div style="font-size:12px;color:#aaa;font-style:italic;padding:4px 0 8px">Aún no hay incidencias registradas para esta partida.</div>`}`;
@@ -20364,15 +20464,159 @@ async function incAbrirFichaPartida(num, inv){
   _renderPartidaDetail(p, p.num, p.inv);
 }
 
+// ── Fotos en el detalle ───────────────────────────────────────
+function incBloqueFotosDetalle(i){
+  const fotos = i.fotos || [];
+  const puedeAnadir = !i.anulada && incPuedeEditar() && fotos.length < INC_MAX_FOTOS;
+  if(!fotos.length && !puedeAnadir) return '';
+  return `
+    <div style="margin-bottom:1rem">
+      <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Fotos (${fotos.length}/${INC_MAX_FOTOS})</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        ${fotos.map(f=>`
+        <div style="position:relative;width:96px;height:96px;flex-shrink:0">
+          <img data-incfoto="${incEsc(f.id)}" src="${(incFotoCache[f.id]&&incFotoCache[f.id].t)||'data:image/gif;base64,R0lGODlhAQABAAAAACw='}" onclick="incAbrirFotoGrande('${incJs(f.id)}')" title="${incEsc(incFechaHoraES(f.en))} · ${incEsc(f.por||'')}" style="width:96px;height:96px;object-fit:cover;border-radius:9px;border:1px solid var(--border);cursor:zoom-in;background:#eef0ec">
+          ${incPuedeAnular() && !i.anulada ? `<button onclick="incQuitarFoto('${incJs(i.id)}','${incJs(f.id)}')" title="Quitar foto" style="position:absolute;top:-6px;right:-6px;width:22px;height:22px;border-radius:50%;border:none;background:#c62828;color:#fff;font-size:11px;cursor:pointer;line-height:1">✕</button>`:''}
+        </div>`).join('')}
+        ${puedeAnadir ? `<label style="width:96px;height:96px;border:1.5px dashed var(--border);border-radius:9px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;color:var(--muted);font-size:11px;font-weight:700;flex-shrink:0;background:#fafbf9">
+          <i class="ti ti-camera-plus" style="font-size:24px"></i>Añadir foto
+          <input type="file" accept="image/*" multiple onchange="incAnadirFotosDetalle('${incJs(i.id)}',this)" style="display:none">
+        </label>` : ''}
+      </div>
+    </div>`;
+}
+// Pide solo las miniaturas que faltan y las pone en su sitio (sin repintar nada más)
+function incCargarMiniaturas(i){
+  (i.fotos||[]).forEach(async f=>{
+    if(incFotoCache[f.id] && incFotoCache[f.id].t) return;
+    const t = await incLeerFoto(f.id, 't');
+    const el = document.querySelector('#inc-detalle-overlay img[data-incfoto="'+f.id+'"]');
+    if(el && t) el.src = t;
+    else if(el) el.title = 'Foto no disponible';
+  });
+}
+async function incAbrirFotoGrande(id){
+  const ov = getOrCreateOverlay('inc-foto-overlay');
+  ov.style.zIndex = '2300';
+  ov.style.background = 'rgba(0,0,0,.85)';
+  ov.onclick = ()=>{ ov.style.display='none'; };
+  const miniatura = incFotoCache[id] && incFotoCache[id].t;
+  ov.innerHTML = `<div style="color:#fff;font-size:13px;text-align:center"><img id="inc-foto-grande" src="${miniatura||'data:image/gif;base64,R0lGODlhAQABAAAAACw='}" style="max-width:96vw;max-height:88vh;border-radius:8px;display:block;margin:0 auto 8px;${miniatura?'filter:blur(2px)':'min-height:80px;min-width:80px'}"><span id="inc-foto-estado">Cargando foto…</span> · toca para cerrar</div>`;
+  ov.style.display = 'flex';
+  const f = await incLeerFoto(id, 'f');
+  const img = document.getElementById('inc-foto-grande'), est = document.getElementById('inc-foto-estado');
+  if(!img) return;
+  if(f){ img.src = f; img.style.filter = 'none'; if(est) est.textContent = ''; }
+  else if(est) est.textContent = 'No se ha podido cargar la foto completa';
+}
+async function incAnadirFotosDetalle(id, input){
+  if(!incPuedeEditar()) return;
+  const files = Array.from(input.files||[]); input.value = '';
+  await incCargar();
+  const i = incidenciasData.find(x=>x.id===id);
+  if(!i){ incAviso('La incidencia ya no existe.'); return; }
+  if(i.anulada){ incAviso('Esta incidencia está anulada: ya no se pueden añadir fotos.'); return; }
+  const libres = INC_MAX_FOTOS - (i.fotos||[]).length;
+  if(libres<=0){ incAviso('Máximo '+INC_MAX_FOTOS+' fotos por incidencia.'); return; }
+  if(files.length>libres) incAviso('Solo caben '+libres+' foto'+(libres===1?'':'s')+' más: se añaden las primeras.');
+  incAviso('Subiendo foto…');
+  const ahora = new Date().toISOString(), refs = [];
+  for(const file of files.slice(0,libres)){
+    const f = await incPrepararFoto(file);
+    if(!f) continue;
+    if(!(await incGuardarFoto(f.id, f))){ incAviso('✗ No se ha podido subir una foto. Revisa la conexión.'); continue; }
+    refs.push({id:f.id, en:ahora, por:currentUser||'—'});
+  }
+  if(!refs.length) return;
+  await incCargar();
+  const j = incidenciasData.find(x=>x.id===id);
+  if(!j){ incAviso('La incidencia ya no existe.'); return; }
+  j.fotos = (j.fotos||[]).concat(refs);
+  j.actualizadoEn = ahora;
+  if(!(await incGuardar())){ incAviso('✗ Las fotos se subieron pero no se han podido asociar. Inténtalo de nuevo.'); return; }
+  logHistorial('Añadió '+refs.length+' foto'+(refs.length===1?'':'s')+' a una incidencia de la partida '+j.partida);
+  incAviso('✓ '+refs.length+' foto'+(refs.length===1?'':'s')+' añadida'+(refs.length===1?'':'s'));
+  incRefrescarTodo(j.partida, j.inv);
+}
+// Solo un administrador. La foto se desvincula de la incidencia pero se conserva
+// en la nube (no se borra ningún dato), y no vuelve a aparecer al fusionar.
+async function incQuitarFoto(id, fotoId){
+  if(!incPuedeAnular()){ incAviso('Solo un administrador puede quitar fotos.'); return; }
+  if(!confirm('¿Quitar esta foto de la incidencia?')) return;
+  await incCargar();
+  const i = incidenciasData.find(x=>x.id===id);
+  if(!i || i.anulada) return;
+  const ahora = new Date().toISOString();
+  i.fotos = (i.fotos||[]).filter(f=>f.id!==fotoId);
+  (i.fotosQuitadas = i.fotosQuitadas||[]).push({id:fotoId, por:currentUser||'—', en:ahora});
+  i.actualizadoEn = ahora;
+  if(!(await incGuardar())){ incAviso('No se ha podido guardar. Revisa la conexión.'); return; }
+  logHistorial('Quitó una foto de una incidencia de la partida '+i.partida);
+  incAviso('Foto quitada');
+  incRefrescarTodo(i.partida, i.inv);
+}
+
+// ── Aviso a Vigueras cuando hay una incidencia grave ─────────
+// Notificación normal de La Sala (aparece en «Notificaciones» y llega como
+// aviso del dispositivo si lo tiene activado). Si la registra el propio
+// Vigueras no se avisa a sí mismo.
+async function incAvisarGrave(i, esSubida){
+  try{
+    if(!i || i.gravedad!=='ALTA' || currentUser==='VIGUERAS') return false;
+    const desc = String(i.descripcion||'').replace(/\s+/g,' ').trim();
+    const txt = (esSubida ? 'Gravedad subida a ALTA: ' : '') +
+      incEtq(INC_TIPOS,i.tipo)+' GRAVE en la partida '+i.partida+
+      (i.variedad?' ('+i.variedad+')':'')+(i.inv?', INV '+i.inv:'')+
+      '. Registrada por '+(currentUser||'—')+': '+(desc.length>110?desc.slice(0,110)+'…':desc);
+    await notificarUsuario('VIGUERAS', txt, '🚨 Incidencia grave');
+    return true;
+  }catch(e){ return false; }
+}
+
+// ── Sección para el informe post-mortem de una partida ───────
+// Devuelve el HTML (con formato Word, mismo estilo que el resto del informe) de
+// las incidencias de esa partida, con sus fotos. Las anuladas no se incluyen.
+async function incHtmlPostMortem(num, inv){
+  const celda = 'border:0.5pt solid #999;padding:4pt 8pt;font-size:10pt';
+  try{
+    await incCargar();
+    const lista = incVisibles()
+      .filter(i=>String(i.partida).toUpperCase()===String(num).toUpperCase() && (!i.inv || String(i.inv)===String(inv)))
+      .sort((a,b)=>String(a.fecha).localeCompare(String(b.fecha)));
+    if(!lista.length) return `<h2>Incidencias</h2><table><tr><td style="${celda};font-style:italic;color:#888">Sin incidencias registradas para esta partida.</td></tr></table>`;
+    let html = '<h2>Incidencias ('+lista.length+')</h2>';
+    for(const i of lista){
+      const fotos = await Promise.all((i.fotos||[]).map(async f=> (await incLeerFoto(f.id,'f')) || (await incLeerFoto(f.id,'t'))));
+      const fila = (l,v)=>`<tr><td style="${celda};color:#555;white-space:nowrap;width:28%">${l}</td><td style="${celda};font-weight:700">${v||'—'}</td></tr>`;
+      const hist = (i.historial||[]).slice().sort((a,b)=>String(a.fecha).localeCompare(String(b.fecha)))
+        .map(h=>incEsc(incFechaHoraES(h.fecha))+': '+incEsc(incEtq(INC_ESTADOS,h.de))+' → '+incEsc(incEtq(INC_ESTADOS,h.a))+(h.motivo?' ('+incEsc(h.motivo)+')':'')+' · '+incEsc(h.usuario||'—')).join('<br>');
+      html += `<table style="margin-bottom:10pt">
+        ${fila('Fecha', incEsc(incFechaES(i.fecha)))}
+        ${fila('Tipo', incEsc(incEtq(INC_TIPOS,i.tipo)))}
+        ${fila('Gravedad', incEsc(incEtq(INC_GRAVEDADES,i.gravedad)))}
+        ${fila('Estado actual', incEsc(incEtq(INC_ESTADOS,i.estado)))}
+        ${fila('Descripción', incEsc(i.descripcion).replace(/\n/g,'<br>'))}
+        ${i.accion?fila('Acción tomada o prevista', incEsc(i.accion).replace(/\n/g,'<br>')):''}
+        ${fila('Registrada por', incEsc(i.creadoPor||'—')+' · '+incEsc(incFechaHoraES(i.creadoEn)))}
+        ${hist?fila('Cambios de estado', hist):''}
+        ${fotos.some(Boolean)?`<tr><td style="${celda};color:#555">Fotos</td><td style="${celda}">${fotos.filter(Boolean).map(src=>`<img src="${src}" style="max-width:170pt;max-height:150pt;margin:0 6pt 6pt 0">`).join('')}</td></tr>`:''}
+      </table>`;
+    }
+    return html;
+  }catch(e){
+    return `<h2>Incidencias</h2><table><tr><td style="${celda};color:#a32020">No se han podido cargar las incidencias de esta partida.</td></tr></table>`;
+  }
+}
+
 // ── Exportar ──────────────────────────────────────────────────
 function incFilasExport(){
   const lista = incFiltrarLista();
   const conAnuladas = incFiltros.anuladas !== '';
-  const cab = ['Fecha','Tipo','Gravedad','Estado','Partida','Invernadero','Variedad','Cliente','Descripción','Acción tomada','Registrada por'];
+  const cab = ['Fecha','Tipo','Gravedad','Estado','Partida','Invernadero','Variedad','Cliente','Descripción','Acción tomada','Registrada por','Fotos'];
   if(conAnuladas) cab.push('Anulada el','Anulada por','Motivo de anulación');
   const filas = lista.map(i=>{
     const f = [incFechaES(i.fecha), incEtq(INC_TIPOS,i.tipo), incEtq(INC_GRAVEDADES,i.gravedad), incEtq(INC_ESTADOS,i.estado),
-      i.partida, i.inv||'', i.variedad||'', i.cliente||'', i.descripcion||'', i.accion||'', i.creadoPor||''];
+      i.partida, i.inv||'', i.variedad||'', i.cliente||'', i.descripcion||'', i.accion||'', i.creadoPor||'', (i.fotos||[]).length||''];
     if(conAnuladas) f.push(i.anulada?incFechaHoraES(i.anulada.en):'', i.anulada?(i.anulada.por||''):'', i.anulada?(i.anulada.motivo||''):'');
     return f;
   });
