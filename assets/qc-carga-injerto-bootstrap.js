@@ -60,9 +60,8 @@
 
   window.renderControlFiltroYAltaHTML=function(type,day,wizard){
     if(type!==TYPE)return originalFilterToolbar(type,day,wizard);
-    return '<div class="qc-alta-toolbar" style="display:flex;align-items:flex-end;gap:8px;min-width:0;margin-bottom:11px">'+
-      '<div style="flex:1 1 0;min-width:0">'+renderControlFiltroInvHTML('carga')+'</div></div>'+
-      '<div id="nuevo-control-form-wrap"></div>';
+    // QC Carga Injerto no muestra el selector de invernadero en Operativa del día.
+    return '<div id="nuevo-control-form-wrap"></div>';
   };
 
   window.renderControlCardHTML=function(record,section){
