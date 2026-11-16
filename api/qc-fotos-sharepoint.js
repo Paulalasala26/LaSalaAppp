@@ -23,7 +23,10 @@ const NEW_LIBRARY_ENABLED=()=>process.env.GRAPH_QC_NEW_LIBRARY_ENABLED==='true';
 const PHOTO_RE=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MONTHS=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const RE_ID=/^[A-Za-z0-9_-]{1,180}$/;
-const RE_PARTIDA=/^[A-Za-z0-9._-]{1,100}$/;
+// GS admite códigos de partida con separadores y caracteres Unicode. No se
+// usa este valor en rutas: solo se conserva como metadato y se sanea al crear
+// nombres de archivo.
+const RE_PARTIDA=/^[^\p{C}]{1,160}$/u;
 
 function reference(input){
   const id=input?.id,tipo=input?.tipo;
@@ -43,8 +46,7 @@ async function authorize(req,tipo,{photoUpload=false}={}){
     readKey('lasala-roles-v1',firebaseToken),readKey('lasala-users-v1',firebaseToken)
   ]);
   const role=roles[actor];
-  const roleExists=['ADMIN','TECNICO','CARGADOR'].includes(role);
-  const allowed=photoUpload?roleExists&&Object.hasOwn(TYPES,tipo):
+  const allowed=photoUpload?Object.hasOwn(TYPES,tipo):
     role==='ADMIN'||role==='TECNICO'||(role==='CARGADOR'&&(tipo==='carga'||tipo==='carga_injerto'));
   if(!allowed||!validHash(accounts[actor]))throw httpError(403,'FORBIDDEN');
   return {actor,role,firebaseToken};
@@ -60,6 +62,7 @@ async function sourceFor(ref,token){
   const record=await response.json();
   if(!record||typeof record!=='object'||record.id!==ref.id||
      record.tipo!==ref.tipo||record.dia!==ref.dia||
+     typeof record.partida!=='string'||record.partida.trim()!==record.partida||
      !RE_PARTIDA.test(record.partida))
     throw httpError(409,'CONTROL_RECORD_CHANGED');
   return record;
