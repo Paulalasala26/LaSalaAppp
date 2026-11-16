@@ -379,7 +379,12 @@
     const rawCode=String(gsDetails.PAR_CAS??(
       Object.prototype.hasOwnProperty.call(correction,'PAR_CAS')?'':line?.PAR_CAS
     )??'').trim();
-    const actualGreenhouse=original.inv?'INV '+original.inv:(rawCode?'Código GS '+rawCode:'—');
+    const greenhouseValue=String(original.inv||rawCode||'').trim();
+    const greenhouseDigits=greenhouseValue.match(/\\d+/)?.[0]||'';
+    const greenhouseLabel=greenhouseDigits
+      ?'INV '+String(Number(greenhouseDigits)).padStart(2,'0')
+      :(greenhouseValue?'INV '+greenhouseValue:'—');
+    const actualGreenhouse=greenhouseLabel;
     const actualStreet=original.from
       ?(original.from===original.to?'Calle '+original.from:'Calles '+original.from+'–'+original.to)
       :'Calle —';
