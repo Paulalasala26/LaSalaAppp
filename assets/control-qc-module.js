@@ -1967,10 +1967,15 @@ function controlQCInfoVisual(c){
     c.idInvernadero||c.gsDetalles?.idInvernadero||'').trim();
   const rawGreenhouse=String(c.invernadero||c.gsDetalles?.invernadero||
     (tunel?'':c.invernaderosGS)||'').trim();
-  // PAR_CAS es código bruto, no equivale a un nombre de invernadero verificado.
+  const formatoInvernadero=value=>{
+    const raw=String(value??'').trim();
+    const id=raw.replace(/^(?:INVERNADERO|INV)\\s*/i,'').trim();
+    if(!id)return '—';
+    return 'INV '+(/^\\d+$/.test(id)?String(Number(id)).padStart(2,'0'):id);
+  };
   const inv=invAsignado
-    ?(codigoGS&&invAsignado===codigoGS?'Código GS '+codigoGS:'INV '+invAsignado)
-    :(codigoGS?'Código GS '+codigoGS:(rawGreenhouse||'—'));
+    ?formatoInvernadero(invAsignado)
+    :(codigoGS?formatoInvernadero(codigoGS):(rawGreenhouse?formatoInvernadero(rawGreenhouse):'—'));
   const desde=c.calleDesde??c.ubicacion_2??
     (tunel?(c.PIN_LOCA??c.gsDetalles?.PIN_LOCA):null);
   const hasta=c.calleHasta??c.ubicacion_3??
