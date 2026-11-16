@@ -19,6 +19,9 @@ IMPORT_INDEX = "lasala-gs-qc-import-index-v1"
 ANCHOR_DATE = date(2026, 6, 15)
 ANCHOR_DAY = 15
 
+PARTIDA_CARGA_NORMAL_RE = re.compile(r"^\d+$")
+PARTIDA_CARGA_INJERTO_RE = re.compile(r"^\d+X\d+$", re.IGNORECASE)
+
 
 def _text(value: Any) -> str:
     return "" if value is None else str(value).strip()
@@ -186,6 +189,15 @@ def _load_rows(payload: Any) -> list[dict[str, Any]]:
         part = _text(row.get("partida"))
         if not source_id or not part:
             continue
+        # La partida X pertenece exclusivamente a QC Carga Injerto. La carga
+        # normal admite solo partidas numéricas; códigos desconocidos detienen
+        # la importación para no clasificarlos silenciosamente.
+        if PARTIDA_CARGA_INJERTO_RE.fullmatch(part):
+            continue
+        if not PARTIDA_CARGA_NORMAL_RE.fullmatch(part):
+            raise ValueError(
+                f"Partida GS no clasificable como Carga normal ({source_id}): {part!r}"
+            )
         delivery_iso = _date_iso(row.get("fecha_entrega"))
         day_iso = (date.fromisoformat(delivery_iso) - timedelta(days=2)).isoformat()
         customer = _text(row.get("cliente")) or _text(row.get("cliente_carga"))
