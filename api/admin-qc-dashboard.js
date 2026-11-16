@@ -307,6 +307,7 @@ async function verifyAdmin(req){
   return {actor,token};
 }
 module.exports=async function handler(req,res){
+  if(req.query?.modo==='tareas-write')return require('../lib/tasks-write-handler')(req,res);
   res.setHeader('Cache-Control','no-store');
   res.setHeader('X-Content-Type-Options','nosniff');
   if(req.method!=='GET'){
