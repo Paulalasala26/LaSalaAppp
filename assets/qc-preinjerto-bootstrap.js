@@ -141,8 +141,8 @@
       (record.variedad?'<div class="qc-card-variedad">'+esc(record.variedad)+'</div>':'')+'</div>'+
       '<div class="qc-card-facts qc-card-facts-ordenado">'+
       '<span><i class="ti ti-box" aria-hidden="true"></i> Bandejas: <strong>'+(esc(record.numBandejas)||'—')+'</strong></span>'+
-      '<span><i class="ti ti-building-warehouse" aria-hidden="true"></i> Invernadero: <strong>'+esc(location.inv)+'</strong></span>'+
-      '<span><i class="ti ti-map-pin" aria-hidden="true"></i> Calle: <strong>'+esc(location.calles)+'</strong></span>'+
+      '<span><i class="ti ti-map-pin" aria-hidden="true"></i> Ubicación: <strong>'+
+      esc(typeof controlQCUbicacionVisual==='function'?controlQCUbicacionVisual(record):('Invernadero '+location.inv+' · Calle '+location.calles))+'</strong></span>'+
       '<span><i class="ti ti-calendar-event" aria-hidden="true"></i> F. siembra: <strong>'+(esc(record.fSiembra)||'—')+'</strong></span>'+
       '<span><i class="ti ti-calendar-check" aria-hidden="true"></i> F. entrega: <strong>'+(esc(record.fEntrega)||'—')+'</strong></span>'+
       '<span><i class="ti ti-seeding" aria-hidden="true"></i> Plantas sol./sem.: <strong>'+plants(record.plantasSol)+' / '+plants(record.plantasSem)+'</strong></span>'+
