@@ -10,7 +10,11 @@
     },
     "$other": {
       ".read": "auth != null && auth.token.appUser != null",
-      ".write": "auth != null && auth.token.appUser != null"
+      ".write": "auth != null && auth.token.appUser != null && $other !== 'lasala-tareas-v1'"
+    },
+    "lasala-tareas-v1": {
+      ".read": "auth != null && auth.token.appUser != null",
+      ".write": false
     }
   }
 }
