@@ -230,11 +230,9 @@
     const to=String(gs.ubicacionHasta??(!edited?line.calleHasta:'')??'').trim();
     const values=greenhouse||greenhouseId||from||to;
     if(!values)return '<section class="qc107-section"><h3>Ubicación informada por GS</h3><p class="qc107-note">GS no ha devuelto una asignación física para esta partida.</p></section>';
-    return '<section class="qc107-section"><h3>Ubicación informada por GS</h3><div class="qc107-grid">'+
-      field('Invernadero','<input type="text" disabled value="'+esc(greenhouseLabel(greenhouse,greenhouseId))+'">')+
-      field('Calle desde','<input type="text" disabled value="'+esc(from?streetsLabel(from,to):'Calles sin asignar')+'">')+
-      field('Calle hasta','<input type="text" disabled value="'+esc(to||from||'—')+'">')+
-      '</div><p class="qc107-note">Origen de los datos. La ubicación efectiva en ViguerAPP se configura abajo.</p></section>';
+    return '<section class="qc107-section"><h3>Ubicación informada por GS</h3>'+
+      '<div class="qc107-location-current">'+esc(locationSummary(greenhouse||greenhouseId,from,to))+'</div>'+
+      '<p class="qc107-note">Origen de los datos. La ubicación efectiva en ViguerAPP se configura abajo.</p></section>';
   }
   function qciSetError(message){
     const el=document.getElementById('qci-error');if(el)el.textContent=message;
