@@ -90,8 +90,9 @@
       field('Variedad','<select id="qc107-variedad"'+(pair.legacy?' disabled':'')+'>'+varHTML+'</select>')+
       field('Bandejas','<input id="qc107-bandejas" type="number" min="1" step="1" value="'+esc(line.numBandejas)+'">')+
       '</div></section>'+
-      '<section class="qc107-section"><h3>Ubicación</h3>'+
+      '<section class="qc107-section"><h3>Ubicación operativa en ViguerAPP</h3>'+
       '<div class="qc107-location-current">Ubicación actual: '+esc(locationSummaryFromDisplay(locationDisplay))+'</div>'+
+      '<p class="qc107-note">Es la ubicación física que utiliza la app para esta partida.</p>'+
       '<div class="qc107-grid">'+
       field('Invernadero','<select id="qc107-inv" onchange="qc107CambiarInv()">'+selectInv(loc.inv)+'</select>')+
       field('Calle desde','<select id="qc107-from" onchange="qc107CambiarCalle()">'+calleOptions(loc.inv,loc.from)+'</select>')+
@@ -252,7 +253,7 @@
       field('Cliente','<input id="qci-cliente" type="text" maxlength="180" value="'+esc(line.cliente)+'">')+
       field('Variedad','<input id="qci-variedad" type="text" maxlength="180" value="'+esc(line.variedad)+'">')+
       field('Bandejas','<input id="qci-bandejas" type="number" min="1" step="1" value="'+esc(line.numBandejas)+'">')+
-      '</div></section>'+qciGSLocationHTML(line)+'<section class="qc107-section"><h3>Ubicación en ViguerAPP</h3>'+
+      '</div></section>'+qciGSLocationHTML(line)+'<section class="qc107-section"><h3>Ubicación operativa en ViguerAPP</h3>'+
       '<div class="qc107-location-current">Ubicación actual: '+esc(locationSummary(original.inv,original.from,original.to))+'</div>'+
       '<p class="qc107-note">Es la ubicación física que utiliza la app para esta partida.</p>'+
       '<div class="qc107-grid">'+
@@ -423,9 +424,9 @@
   }
   function qcpLocationSection(line){
     const original=qcpAppLocation(line);
-    return '<section class="qc107-section"><h3>Ubicación en ViguerAPP</h3>'+ 
+    return '<section class="qc107-section"><h3>Ubicación operativa en ViguerAPP</h3>'+ 
       '<div class="qc107-location-current">Ubicación actual: '+esc(locationSummary(original.inv,original.from,original.to))+'</div>'+ 
-      '<p class="qc107-note">Esta es la ubicación física que utiliza la app para la partida.</p><div class="qc107-grid">'+
+      '<p class="qc107-note">Es la ubicación física que utiliza la app para esta partida.</p><div class="qc107-grid">'+
       field('Invernadero','<select id="qcp-inv" onchange="qcpCambiarInv()">'+qciInvOptions(original)+'</select>')+
       field('Calle desde','<select id="qcp-from">'+qciStreetOptions(original.inv,original.from)+'</select>')+
       field('Calle hasta','<select id="qcp-to">'+qciStreetOptions(original.inv,original.to)+'</select>')+
