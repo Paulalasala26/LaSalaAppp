@@ -380,7 +380,7 @@
       Object.prototype.hasOwnProperty.call(correction,'PAR_CAS')?'':line?.PAR_CAS
     )??'').trim();
     const greenhouseValue=String(original.inv||rawCode||'').trim();
-    const greenhouseDigits=greenhouseValue.match(/\\d+/)?.[0]||'';
+    const greenhouseDigits=greenhouseValue.match(/\d+/)?.[0]||'';
     const greenhouseLabel=greenhouseDigits
       ?'INV '+String(Number(greenhouseDigits)).padStart(2,'0')
       :(greenhouseValue?'INV '+greenhouseValue:'—');
