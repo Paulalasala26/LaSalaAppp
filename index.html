@@ -25287,6 +25287,15 @@ const INC_TIPOS = [
   {k:'FISIOPATIA', l:'Fisiopatía'},
   {k:'OTRO', l:'Otro'}
 ];
+// Plaga concreta (solo cuando el tipo es PLAGA). «Otra» permite escribir cual.
+const INC_PLAGAS = [
+  {k:'TRIPS', l:'Trips'},
+  {k:'TUTA', l:'Tuta'},
+  {k:'GUSANO', l:'Gusano'},
+  {k:'ACARO', l:'Ácaro'},
+  {k:'MOSCA_BLANCA', l:'Mosca blanca'},
+  {k:'OTRA', l:'Otra'}
+];
 const INC_GRAVEDADES = [
   {k:'BAJA', l:'Baja', bg:'#eef0ec', fg:'#555'},
   {k:'MEDIA', l:'Media', bg:'#fdf3dc', fg:'#7a5000'},
@@ -25304,7 +25313,7 @@ const INC_TRANSICIONES = {
 };
 
 let incidenciasData = [];
-let incFiltros = {q:'', tipo:'', gravedad:'', estado:'', anuladas:''};
+let incFiltros = {q:'', tipo:'', plaga:'', gravedad:'', estado:'', anuladas:''};
 
 // ── Fotos ─────────────────────────────────────────────────────
 // Cada foto va en SU PROPIA clave de la nube (miniatura y foto completa por
@@ -25381,6 +25390,9 @@ function incEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/<
 // unos pocos signos; el resto va como escape \uXXXX (nunca rompe el atributo).
 function incJs(s){ return String(s==null?'':s).replace(/[^A-Za-z0-9 _.\-\/]/g, c=>'\\u'+c.charCodeAt(0).toString(16).padStart(4,'0')); }
 function incEtq(lista, k){ const x = lista.find(e=>e.k===k); return x ? x.l : (k||'—'); }
+// Nombre de la plaga de una incidencia ('' si no tiene) y «Tipo · Plaga» para mostrar
+function incPlagaTxt(i){ if(!i || !i.plaga) return ''; return i.plaga==='OTRA' ? (i.plagaOtra || 'Otra') : incEtq(INC_PLAGAS, i.plaga); }
+function incTipoTxt(i){ const t = incEtq(INC_TIPOS, i.tipo), p = incPlagaTxt(i); return p ? t+' · '+p : t; }
 function incChip(lista, k){
   const x = lista.find(e=>e.k===k) || {l:k||'—', bg:'#eee', fg:'#555'};
   return `<span style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:700;background:${x.bg};color:${x.fg};white-space:nowrap">${incEsc(x.l)}</span>`;
@@ -25504,11 +25516,12 @@ function incFiltrarLista(){
     if(f.anuladas==='' && i.anulada) return false;
     if(f.anuladas==='solo' && !i.anulada) return false;
     if(f.tipo && i.tipo!==f.tipo) return false;
+    if(f.plaga && i.plaga!==f.plaga) return false;
     if(f.gravedad && i.gravedad!==f.gravedad) return false;
     if(f.estado==='SIN_CERRAR'){ if(i.estado==='CERRADA') return false; }
     else if(f.estado && i.estado!==f.estado) return false;
     if(q){
-      const txt = [i.descripcion,i.accion,i.partida,i.variedad,i.cliente,i.inv].join(' ').toLowerCase();
+      const txt = [i.descripcion,i.accion,i.partida,i.variedad,i.cliente,i.inv,incPlagaTxt(i)].join(' ').toLowerCase();
       if(!txt.includes(q)) return false;
     }
     return true;
@@ -25557,6 +25570,7 @@ function incRender(){
         <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:1rem 1.25rem;margin-bottom:1rem;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
           <input id="inc-f-q" type="text" value="${incEsc(incFiltros.q)}" placeholder="Buscar (descripción, partida, variedad…)" oninput="incCambiarFiltro(true)" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;min-width:230px;flex:1">
           ${sel('inc-f-tipo', incFiltros.tipo, INC_TIPOS, 'Todos los tipos')}
+          ${sel('inc-f-plaga', incFiltros.plaga, INC_PLAGAS, 'Todas las plagas')}
           ${sel('inc-f-gravedad', incFiltros.gravedad, INC_GRAVEDADES, 'Toda gravedad')}
           <select id="inc-f-estado" onchange="incCambiarFiltro()" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;background:#fff">
             <option value="">Todos los estados</option>
@@ -25586,7 +25600,7 @@ function incRenderLista(){
   const cont = document.getElementById('inc-lista');
   if(!cont) return;
   const lista = incFiltrarLista();
-  const hayFiltros = !!(incFiltros.q || incFiltros.tipo || incFiltros.gravedad || incFiltros.estado || incFiltros.anuladas);
+  const hayFiltros = !!(incFiltros.q || incFiltros.tipo || incFiltros.plaga || incFiltros.gravedad || incFiltros.estado || incFiltros.anuladas);
   if(!lista.length){
     cont.innerHTML = `<div style="text-align:center;padding:2.5rem;color:var(--muted);font-style:italic;font-size:13px;background:#fff;border:1px solid var(--border);border-radius:12px">${hayFiltros?'Ninguna incidencia coincide con los filtros.':'Aún no hay incidencias registradas.'}</div>`;
     return;
@@ -25604,13 +25618,13 @@ function incRenderLista(){
           ${lista.map(i=>`
           <tr onclick="incAbrirDetalle('${incJs(i.id)}')" style="cursor:pointer;border-top:1px solid var(--border);${i.anulada?'opacity:.6;background:#fafafa':''}">
             <td class="inc-hide-m" style="padding:10px 12px;white-space:nowrap;color:var(--muted)">${incFechaES(i.fecha)}</td>
-            <td class="inc-hide-m" style="padding:10px 12px;white-space:nowrap">${incEsc(incEtq(INC_TIPOS,i.tipo))}</td>
+            <td class="inc-hide-m" style="padding:10px 12px;white-space:nowrap">${incEsc(incTipoTxt(i))}</td>
             <td class="inc-hide-m" style="padding:10px 12px">${incChip(INC_GRAVEDADES,i.gravedad)}</td>
             <td style="padding:10px 12px">${incChip(INC_ESTADOS,i.estado)}<div class="inc-solo-m" style="margin-top:4px">${incChip(INC_GRAVEDADES,i.gravedad)}</div>${i.anulada?`<div style="margin-top:4px;font-size:11px;color:#c62828"><b>Anulada</b> ${incFechaHoraES(i.anulada.en)} por ${incEsc(i.anulada.por||'—')}: ${incEsc(i.anulada.motivo||'')}</div>`:''}</td>
             <td style="padding:10px 12px;white-space:nowrap">
               <a href="#" onclick="event.stopPropagation();incAbrirFichaPartida('${incJs(i.partida)}','${incJs(i.inv||'')}');return false" style="font-family:monospace;font-size:12px;font-weight:700;color:#1558a0;text-decoration:none">${incEsc(i.partida)}</a>
               <div style="font-size:11px;color:var(--muted)">${incEsc(i.variedad||'')}${i.inv?` · INV ${incEsc(i.inv)}`:''}</div>
-              <div class="inc-solo-m" style="font-size:11px;color:var(--muted);margin-top:2px">${incFechaES(i.fecha)} · ${incEsc(incEtq(INC_TIPOS,i.tipo))}</div>
+              <div class="inc-solo-m" style="font-size:11px;color:var(--muted);margin-top:2px">${incFechaES(i.fecha)} · ${incEsc(incTipoTxt(i))}</div>
             </td>
             <td style="padding:10px 12px;max-width:420px;font-size:12px;color:#444">${incEsc(i.descripcion)}${(i.fotos&&i.fotos.length)?` <span title="Fotos adjuntas" style="white-space:nowrap;color:var(--muted)">📷 ${i.fotos.length}</span>`:''}${i.creadoPor?`<div style="margin-top:3px;color:var(--muted)">— ${incEsc(i.creadoPor)}</div>`:''}</td>
             <td class="inc-hide-m" style="padding:10px 12px;text-align:right;white-space:nowrap"><button onclick="event.stopPropagation();incAbrirDetalle('${incJs(i.id)}')" style="padding:6px 12px;border-radius:7px;font-size:12px;font-weight:700;background:#f2f4f0;border:1.5px solid var(--border);cursor:pointer">Abrir</button></td>
@@ -25622,12 +25636,12 @@ function incRenderLista(){
 
 function incCambiarFiltro(soloLista){
   const g = id => { const el = document.getElementById(id); return el ? el.value : ''; };
-  incFiltros = {q:g('inc-f-q'), tipo:g('inc-f-tipo'), gravedad:g('inc-f-gravedad'), estado:g('inc-f-estado'), anuladas:g('inc-f-anuladas')};
+  incFiltros = {q:g('inc-f-q'), tipo:g('inc-f-tipo'), plaga:g('inc-f-plaga'), gravedad:g('inc-f-gravedad'), estado:g('inc-f-estado'), anuladas:g('inc-f-anuladas')};
   incRenderLista();
 }
-function incLimpiarFiltros(){ incFiltros = {q:'', tipo:'', gravedad:'', estado:'', anuladas:''}; incRender(); }
+function incLimpiarFiltros(){ incFiltros = {q:'', tipo:'', plaga:'', gravedad:'', estado:'', anuladas:''}; incRender(); }
 function incAplicarAtajo(estado, gravedad){
-  incFiltros = {q:'', tipo:'', gravedad:gravedad||'', estado:estado||'', anuladas:''};
+  incFiltros = {q:'', tipo:'', plaga:'', gravedad:gravedad||'', estado:estado||'', anuladas:''};
   incRender();
 }
 
@@ -25678,7 +25692,12 @@ async function incAbrirFormulario(id, partidaIni, invIni){
         </div>
         <div>
           <label style="${lbl}">Tipo</label>
-          <select id="inc-fm-tipo" style="${campo}">${INC_TIPOS.map(o=>`<option value="${o.k}" ${(inc?inc.tipo:'PLAGA')===o.k?'selected':''}>${o.l}</option>`).join('')}</select>
+          <select id="inc-fm-tipo" onchange="incTipoCambiado()" style="${campo}">${INC_TIPOS.map(o=>`<option value="${o.k}" ${(inc?inc.tipo:'PLAGA')===o.k?'selected':''}>${o.l}</option>`).join('')}</select>
+        </div>
+        <div id="inc-fm-plaga-wrap" style="${(inc?inc.tipo:'PLAGA')==='PLAGA'?'':'display:none'}">
+          <label style="${lbl}">Plaga</label>
+          <select id="inc-fm-plaga" onchange="incTipoCambiado()" style="${campo}"><option value="">— Elige la plaga —</option>${INC_PLAGAS.map(o=>`<option value="${o.k}" ${(inc&&inc.plaga)===o.k?'selected':''}>${o.l}</option>`).join('')}</select>
+          <input id="inc-fm-plaga-otra" type="text" maxlength="60" value="${incEsc(inc?(inc.plagaOtra||''):'')}" placeholder="¿Cuál? (opcional)" style="${campo};margin-top:6px;${(inc&&inc.plaga==='OTRA')?'':'display:none'}">
         </div>
         <div>
           <label style="${lbl}">Gravedad</label>
@@ -25708,6 +25727,15 @@ async function incAbrirFormulario(id, partidaIni, invIni){
   ov.style.display = 'flex';
   incPintarFotosForm();
   incPartidaEscrita(true);
+}
+// Muestra u oculta «Plaga» según el tipo, y el cuadro de texto solo con «Otra»
+function incTipoCambiado(){
+  const t = document.getElementById('inc-fm-tipo'), w = document.getElementById('inc-fm-plaga-wrap');
+  const p = document.getElementById('inc-fm-plaga'), o = document.getElementById('inc-fm-plaga-otra');
+  if(!t || !w) return;
+  const esPlaga = t.value === 'PLAGA';
+  w.style.display = esPlaga ? '' : 'none';
+  if(o) o.style.display = (esPlaga && p && p.value === 'OTRA') ? '' : 'none';
 }
 function incCerrarFormulario(){ incFotosForm = []; const ov = document.getElementById('inc-form-overlay'); if(ov) ov.style.display='none'; }
 function incErrorForm(msg){
@@ -25755,10 +25783,13 @@ async function incGuardarFormulario(){
   const tipo = val('inc-fm-tipo'), gravedad = val('inc-fm-gravedad');
   const fecha = val('inc-fm-fecha'), descripcion = val('inc-fm-descripcion'), accion = val('inc-fm-accion');
   const inv = val('inc-fm-inv');
+  const plaga = tipo === 'PLAGA' ? val('inc-fm-plaga') : '';
+  const plagaOtra = plaga === 'OTRA' ? val('inc-fm-plaga-otra').slice(0,60) : '';
 
   if(!partida) return incErrorForm('La incidencia debe enlazarse a una partida: escribe su código.');
   if(!INC_TIPOS.some(t=>t.k===tipo)) return incErrorForm('Tipo de incidencia no válido.');
   if(!INC_GRAVEDADES.some(g=>g.k===gravedad)) return incErrorForm('Gravedad no válida.');
+  if(plaga && !INC_PLAGAS.some(x=>x.k===plaga)) return incErrorForm('Plaga no válida.');
   if(!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return incErrorForm('Indica la fecha de la incidencia.');
   if(!descripcion) return incErrorForm('La descripción es obligatoria.');
 
@@ -25766,6 +25797,8 @@ async function incGuardarFormulario(){
   const actual = id ? incidenciasData.find(x=>x.id===id) : null;
   if(id && !actual) return incErrorForm('La incidencia ya no existe.');
   if(actual && actual.anulada) return incErrorForm('Esta incidencia está anulada: ya no se puede editar.');
+  // Una plaga hay que concretarla (Trips, Tuta…); las antiguas sin plaga se pueden seguir editando
+  if(tipo === 'PLAGA' && !plaga && (nueva || (actual && actual.plaga))) return incErrorForm('Indica qué plaga es (Trips, Tuta, Gusano, Ácaro, Mosca blanca u Otra).');
 
   // Fechas: la fecha solo se vuelve a comprobar si se cambia (como en SemilleroAVP)
   const v = incVentana(partida);
@@ -25797,13 +25830,13 @@ async function incGuardarFormulario(){
     incidenciasData.push({
       id: incNuevoId(), partida, inv: inv || (p?String(p.inv||''):''),
       variedad: p ? (p.variedad||'') : '', cliente: p ? (p.cliente||'') : '',
-      tipo, gravedad, fecha, descripcion, accion: accion||null,
+      tipo, plaga: plaga||null, plagaOtra: plagaOtra||null, gravedad, fecha, descripcion, accion: accion||null,
       estado: 'ABIERTA', creadoPor: currentUser||'—', creadoEn: ahora, actualizadoEn: ahora,
       historial: [], anulada: null, fotos: refsFotos, fotosQuitadas: []
     });
     registro = incidenciasData[incidenciasData.length-1];
   } else {
-    Object.assign(actual, {tipo, gravedad, fecha, descripcion, accion: accion||null, actualizadoEn: ahora});
+    Object.assign(actual, {tipo, plaga: plaga||null, plagaOtra: plagaOtra||null, gravedad, fecha, descripcion, accion: accion||null, actualizadoEn: ahora});
     actual.fotos = (actual.fotos||[]).concat(refsFotos);
     registro = actual;
   }
@@ -25812,7 +25845,7 @@ async function incGuardarFormulario(){
     if(btn){ btn.disabled = false; btn.style.opacity = '1'; }
     return incErrorForm('No se ha podido guardar. Revisa la conexión e inténtalo de nuevo.');
   }
-  logHistorial(`${nueva?'Registró':'Editó'} incidencia (${incEtq(INC_TIPOS,tipo)}, ${incEtq(INC_GRAVEDADES,gravedad).toLowerCase()}) de la partida ${partida}`);
+  logHistorial(`${nueva?'Registró':'Editó'} incidencia (${incEtq(INC_TIPOS,tipo)}${plaga?' · '+(plaga==='OTRA'?(plagaOtra||'Otra'):incEtq(INC_PLAGAS,plaga)):''}, ${incEtq(INC_GRAVEDADES,gravedad).toLowerCase()}) de la partida ${partida}`);
   incCerrarFormulario();
   const avisada = (gravedad==='ALTA' && gravedadAntes!=='ALTA') ? await incAvisarGrave(registro, !nueva) : false;
   incAviso((nueva ? '✓ Incidencia registrada' : '✓ Cambios guardados') + (avisada ? ' · aviso enviado a Vigueras' : ''));
@@ -25848,7 +25881,7 @@ function incPintarDetalle(id){
   ov.innerHTML = `
     <div style="background:#fff;border-radius:14px;max-width:720px;width:100%;max-height:93vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.3)">
       <div style="background:linear-gradient(135deg,#b71c1c,#e53935);color:#fff;padding:1rem 1.4rem;border-radius:14px 14px 0 0;display:flex;justify-content:space-between;align-items:center;gap:10px;position:sticky;top:0">
-        <div style="font-size:16px;font-weight:800">${i.anulada?'Incidencia anulada':'Incidencia'} · ${incEsc(incEtq(INC_TIPOS,i.tipo))}</div>
+        <div style="font-size:16px;font-weight:800">${i.anulada?'Incidencia anulada':'Incidencia'} · ${incEsc(incTipoTxt(i))}</div>
         <button onclick="incCerrarDetalle()" style="padding:5px 11px;border-radius:7px;background:rgba(255,255,255,.18);color:#fff;border:none;cursor:pointer;font-size:12px">✕</button>
       </div>
       <div style="padding:1.25rem 1.4rem">
@@ -25956,7 +25989,7 @@ async function incRefrescarFicha(num, inv){
     ${lista.length ? `<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:.5rem">
       ${lista.map(i=>`
       <div onclick="incAbrirDetalle('${incJs(i.id)}')" style="cursor:pointer;border:1px solid var(--border);border-radius:9px;padding:8px 10px;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;background:#fff">
-        <div style="min-width:0;flex:1"><div style="font-size:12px;font-weight:700">${incEsc(incEtq(INC_TIPOS,i.tipo))} <span style="color:var(--muted);font-weight:400">· ${incFechaES(i.fecha)}</span></div>
+        <div style="min-width:0;flex:1"><div style="font-size:12px;font-weight:700">${incEsc(incTipoTxt(i))} <span style="color:var(--muted);font-weight:400">· ${incFechaES(i.fecha)}</span></div>
         <div style="font-size:12px;color:#555;margin-top:2px">${incEsc(i.descripcion)}${(i.fotos&&i.fotos.length)?` <span style="white-space:nowrap;color:var(--muted)">📷 ${i.fotos.length}</span>`:''}</div></div>
         <div style="display:flex;gap:6px;align-items:flex-start">${incChip(INC_GRAVEDADES,i.gravedad)}${incChip(INC_ESTADOS,i.estado)}</div>
       </div>`).join('')}
@@ -26071,7 +26104,7 @@ async function incAvisarGrave(i, esSubida){
     if(!i || i.gravedad!=='ALTA' || currentUser==='VIGUERAS') return false;
     const desc = String(i.descripcion||'').replace(/\s+/g,' ').trim();
     const txt = (esSubida ? 'Gravedad subida a ALTA: ' : '') +
-      incEtq(INC_TIPOS,i.tipo)+' GRAVE en la partida '+i.partida+
+      incTipoTxt(i)+' GRAVE en la partida '+i.partida+
       (i.variedad?' ('+i.variedad+')':'')+(i.inv?', INV '+i.inv:'')+
       '. Registrada por '+(currentUser||'—')+': '+(desc.length>110?desc.slice(0,110)+'…':desc);
     await notificarUsuario('VIGUERAS', txt, '🚨 Incidencia grave');
@@ -26098,7 +26131,7 @@ async function incHtmlPostMortem(num, inv){
         .map(h=>incEsc(incFechaHoraES(h.fecha))+': '+incEsc(incEtq(INC_ESTADOS,h.de))+' → '+incEsc(incEtq(INC_ESTADOS,h.a))+(h.motivo?' ('+incEsc(h.motivo)+')':'')+' · '+incEsc(h.usuario||'—')).join('<br>');
       html += `<table style="margin-bottom:10pt">
         ${fila('Fecha', incEsc(incFechaES(i.fecha)))}
-        ${fila('Tipo', incEsc(incEtq(INC_TIPOS,i.tipo)))}
+        ${fila('Tipo', incEsc(incTipoTxt(i)))}
         ${fila('Gravedad', incEsc(incEtq(INC_GRAVEDADES,i.gravedad)))}
         ${fila('Estado actual', incEsc(incEtq(INC_ESTADOS,i.estado)))}
         ${fila('Descripción', incEsc(i.descripcion).replace(/\n/g,'<br>'))}
@@ -26118,11 +26151,11 @@ async function incHtmlPostMortem(num, inv){
 function incFilasExport(){
   const lista = incFiltrarLista();
   const conAnuladas = incFiltros.anuladas !== '';
-  const cab = ['Fecha','Tipo','Gravedad','Estado','Partida','Invernadero','Variedad','Cliente','Descripción','Acción tomada','Registrada por','Fotos'];
+  const cab = ['Fecha','Tipo','Gravedad','Estado','Partida','Invernadero','Variedad','Cliente','Descripción','Acción tomada','Registrada por','Fotos','Plaga'];
   if(conAnuladas) cab.push('Anulada el','Anulada por','Motivo de anulación');
   const filas = lista.map(i=>{
     const f = [incFechaES(i.fecha), incEtq(INC_TIPOS,i.tipo), incEtq(INC_GRAVEDADES,i.gravedad), incEtq(INC_ESTADOS,i.estado),
-      i.partida, i.inv||'', i.variedad||'', i.cliente||'', i.descripcion||'', i.accion||'', i.creadoPor||'', (i.fotos||[]).length||''];
+      i.partida, i.inv||'', i.variedad||'', i.cliente||'', i.descripcion||'', i.accion||'', i.creadoPor||'', (i.fotos||[]).length||'', incPlagaTxt(i)];
     if(conAnuladas) f.push(i.anulada?incFechaHoraES(i.anulada.en):'', i.anulada?(i.anulada.por||''):'', i.anulada?(i.anulada.motivo||''):'');
     return f;
   });
@@ -26163,7 +26196,7 @@ function incImprimir(){
   const w = window.open('', '_blank');
   if(!w){ incAviso('El navegador ha bloqueado la ventana de impresión. Permite las ventanas emergentes.'); return; }
   const f = incFiltros;
-  const filtros = [f.estado==='SIN_CERRAR'?'Sin cerrar':(f.estado?incEtq(INC_ESTADOS,f.estado):''), f.tipo?incEtq(INC_TIPOS,f.tipo):'', f.gravedad?'Gravedad '+incEtq(INC_GRAVEDADES,f.gravedad).toLowerCase():'', f.q?'«'+f.q+'»':''].filter(Boolean).join(' · ');
+  const filtros = [f.estado==='SIN_CERRAR'?'Sin cerrar':(f.estado?incEtq(INC_ESTADOS,f.estado):''), f.tipo?incEtq(INC_TIPOS,f.tipo):'', f.plaga?incEtq(INC_PLAGAS,f.plaga):'', f.gravedad?'Gravedad '+incEtq(INC_GRAVEDADES,f.gravedad).toLowerCase():'', f.q?'«'+f.q+'»':''].filter(Boolean).join(' · ');
   w.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Incidencias — La Sala</title>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@100;600&display=swap" rel="stylesheet">
     <style>
@@ -26180,7 +26213,7 @@ function incImprimir(){
     </style></head><body>
     <header>${logo?`<img src="${logo}" alt="Viveros La Sala">`:'<b>VIVEROS LA SALA</b>'}<div style="text-align:right"><h1>Incidencias de las partidas</h1><div class="sub">${incEsc(incFechaES(incHoy()))}${filtros?' · '+incEsc(filtros):''} · ${filas.length} incidencia${filas.length===1?'':'s'}</div></div></header>
     <table><thead><tr>${['Fecha','Tipo','Gravedad','Estado','Partida','INV','Descripción y acción','Registró'].map(h=>`<th>${h}</th>`).join('')}</tr></thead>
-    <tbody>${filas.map(r=>`<tr><td>${incEsc(r[0])}</td><td>${incEsc(r[1])}</td><td>${incEsc(r[2])}</td><td>${incEsc(r[3])}</td><td>${incEsc(r[4])}<br>${incEsc(r[6])}</td><td>${incEsc(r[5])}</td><td>${incEsc(r[8])}${r[9]?'<br><i>Acción: '+incEsc(r[9])+'</i>':''}</td><td>${incEsc(r[10])}</td></tr>`).join('')||'<tr><td colspan="8">Sin incidencias con estos filtros.</td></tr>'}</tbody></table>
+    <tbody>${filas.map(r=>`<tr><td>${incEsc(r[0])}</td><td>${incEsc(r[1])}${r[12]?' · '+incEsc(r[12]):''}</td><td>${incEsc(r[2])}</td><td>${incEsc(r[3])}</td><td>${incEsc(r[4])}<br>${incEsc(r[6])}</td><td>${incEsc(r[5])}</td><td>${incEsc(r[8])}${r[9]?'<br><i>Acción: '+incEsc(r[9])+'</i>':''}</td><td>${incEsc(r[10])}</td></tr>`).join('')||'<tr><td colspan="8">Sin incidencias con estos filtros.</td></tr>'}</tbody></table>
     <script>window.onload=function(){setTimeout(function(){window.print()},600)}<\/script></body></html>`);
   w.document.close();
 }
