@@ -2645,7 +2645,7 @@ function renderControlChecklistHTML(seccion){
     ? `<div class="qc-list-none">${listaDia.length===0?'Sin partidas para este día.':(((seccion.key==='carga'||seccion.key==='carga_injerto')?controlCargaInvFiltro:controlTunelInvFiltro)?'No hay partidas para ese invernadero y día.':'No hay líneas con el estado seleccionado.')}</div>`
     : `<div class="qc-list-cards">${filas}</div>`;
   if(seccion.key==='tunel'||seccion.key==='carga'){
-    const moreOptions=(extraTunelHTML||pdfInfoHTML)
+    const moreOptions=seccion.key!=='tunel'&&(extraTunelHTML||pdfInfoHTML)
       ? '<details class="qc-list-more"><summary>Más opciones</summary><div class="qc-list-more-actions">'+extraTunelHTML+'</div>'+pdfInfoHTML+'</details>'
       : '';
     const operativa=filtroInvHTML+
