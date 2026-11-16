@@ -2265,6 +2265,8 @@ function renderControlFiltroInvHTML(tipo){
 }
 /* 0.104. CTA común junto al filtro INV, una única línea compacta. */
 function renderControlFiltroYAltaHTML(tipo,dia,wizard=false){
+  // Alta de líneas y selector asociado quedan ocultos temporalmente en Túnel y Carga normal.
+  if(tipo==='tunel'||tipo==='carga')return '<div id="nuevo-control-form-wrap"></div>';
   const accion=tipo==='tunel' ? "mostrarFormNuevoControlCheck('tunel',"+(wizard?'true':'false')+")" :
     'mostrarFormNuevoControlCargaCheck()';
   const alta=tipo!=='carga_injerto'&&puedeCrearLineaControlQC(dia)
