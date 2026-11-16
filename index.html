@@ -6988,11 +6988,11 @@ function controlQCInfoVisual(c){
       const calles=[...new Set(fichaLocations.map(x=>calleLabel(x.desde,x.hasta)).filter(Boolean))];
       return {inv:invs.map(x=>'INV '+x).join(', ')||'—',calles:calles.join(', ')||'—'};
     }
-    // Equivalencia comprobada en el catálogo GS: PAR_CAS 007 corresponde
-    // exactamente a invernaderos.id 07 (INVERNADERO 7). No extrapolarla a
-    // otros códigos sin validar su fila en el catálogo.
+    // Equivalencias comprobadas en el catálogo GS. No inferir códigos que
+    // todavía no tengan correspondencia validada.
     const cas=String(c.PAR_CAS??c.gsDetalles?.PAR_CAS??'').trim();
-    if(cas==='007')return {inv:'INVERNADERO 7',calles:'—'};
+    const casaGS={'007':'INVERNADERO 7','017':'INVERNADERO 17'}[cas];
+    if(casaGS)return {inv:casaGS,calles:'—'};
     return {inv:'—',calles:'—'};
   }
   const codigoGS=String(c.PAR_CAS??c.gsDetalles?.PAR_CAS??'').trim();
