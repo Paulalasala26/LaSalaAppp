@@ -25305,10 +25305,29 @@ const INC_ENFERMEDADES = [
   {k:'DAMPING_OFF', l:'Damping off'},
   {k:'OTRA', l:'Otra'}
 ];
-// Qué se concreta según el tipo: en qué campo se guarda y de qué lista se elige
+const INC_ESTRES = [
+  {k:'EXCESO', l:'Exceso'},
+  {k:'FALTA', l:'Falta'}
+];
+const INC_DANOS = [
+  {k:'EXCESO_CALOR', l:'Exceso de calor'},
+  {k:'EXCESO_FRIO', l:'Exceso de frío'},
+  {k:'EXCESO_HUMEDAD', l:'Exceso de humedad'},
+  {k:'FALTA_HUMEDAD', l:'Falta de humedad'}
+];
+const INC_FISIOPATIAS = [
+  {k:'MECANICA', l:'Mecánica'},
+  {k:'FISICA', l:'Física'},
+  {k:'QUIMICA', l:'Química'}
+];
+// Qué se concreta según el tipo: en qué campo se guarda y de qué lista se elige.
+// «otro» es el campo del texto libre cuando la lista tiene «Otra» (null si no la tiene).
 const INC_DETALLE = {
   PLAGA: {campo:'plaga', otro:'plagaOtra', etq:'Plaga', pl:'Plagas', elige:'la plaga', lista:INC_PLAGAS},
-  ENFERMEDAD: {campo:'enfermedad', otro:'enfermedadOtra', etq:'Enfermedad', pl:'Enfermedades', elige:'la enfermedad', lista:INC_ENFERMEDADES}
+  ENFERMEDAD: {campo:'enfermedad', otro:'enfermedadOtra', etq:'Enfermedad', pl:'Enfermedades', elige:'la enfermedad', lista:INC_ENFERMEDADES},
+  ESTRES_HIDRICO: {campo:'estres', otro:null, etq:'Estrés', pl:'Estrés hídrico', elige:'el tipo de estrés', lista:INC_ESTRES},
+  DANO_CLIMATICO: {campo:'dano', otro:null, etq:'Daño', pl:'Daño climático', elige:'el tipo de daño', lista:INC_DANOS},
+  FISIOPATIA: {campo:'fisiopatia', otro:null, etq:'Fisiopatía', pl:'Fisiopatías', elige:'el tipo de fisiopatía', lista:INC_FISIOPATIAS}
 };
 const INC_GRAVEDADES = [
   {k:'BAJA', l:'Baja', bg:'#eef0ec', fg:'#555'},
@@ -25585,7 +25604,7 @@ function incRender(){
           <input id="inc-f-q" type="text" value="${incEsc(incFiltros.q)}" placeholder="Buscar (descripción, partida, variedad…)" oninput="incCambiarFiltro(true)" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;min-width:230px;flex:1">
           ${sel('inc-f-tipo', incFiltros.tipo, INC_TIPOS, 'Todos los tipos')}
           <select id="inc-f-detalle" onchange="incCambiarFiltro()" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;background:#fff">
-            <option value="">Plaga o enfermedad</option>
+            <option value="">Todos los detalles</option>
             ${Object.keys(INC_DETALLE).map(t=>`<optgroup label="${INC_DETALLE[t].pl}">${INC_DETALLE[t].lista.map(o=>`<option value="${t}|${o.k}" ${incFiltros.detalle===t+'|'+o.k?'selected':''}>${incEsc(o.l)}</option>`).join('')}</optgroup>`).join('')}
           </select>
           ${sel('inc-f-gravedad', incFiltros.gravedad, INC_GRAVEDADES, 'Toda gravedad')}
@@ -25813,8 +25832,8 @@ async function incGuardarFormulario(){
   const detalle = cfgDet ? val('inc-fm-detalle') : '';
   const detalleOtra = detalle === 'OTRA' ? val('inc-fm-det-otra').slice(0,60) : '';
   // Solo se guarda el campo que corresponde al tipo; los demás quedan vacíos
-  const det = {plaga:null, plagaOtra:null, enfermedad:null, enfermedadOtra:null};
-  if(cfgDet && detalle){ det[cfgDet.campo] = detalle; det[cfgDet.otro] = detalleOtra || null; }
+  const det = {plaga:null, plagaOtra:null, enfermedad:null, enfermedadOtra:null, estres:null, dano:null, fisiopatia:null};
+  if(cfgDet && detalle){ det[cfgDet.campo] = detalle; if(cfgDet.otro) det[cfgDet.otro] = detalleOtra || null; }
 
   if(!partida) return incErrorForm('La incidencia debe enlazarse a una partida: escribe su código.');
   if(!INC_TIPOS.some(t=>t.k===tipo)) return incErrorForm('Tipo de incidencia no válido.');
@@ -26181,7 +26200,7 @@ async function incHtmlPostMortem(num, inv){
 function incFilasExport(){
   const lista = incFiltrarLista();
   const conAnuladas = incFiltros.anuladas !== '';
-  const cab = ['Fecha','Tipo','Gravedad','Estado','Partida','Invernadero','Variedad','Cliente','Descripción','Acción tomada','Registrada por','Fotos','Plaga / enfermedad'];
+  const cab = ['Fecha','Tipo','Gravedad','Estado','Partida','Invernadero','Variedad','Cliente','Descripción','Acción tomada','Registrada por','Fotos','Detalle'];
   if(conAnuladas) cab.push('Anulada el','Anulada por','Motivo de anulación');
   const filas = lista.map(i=>{
     const f = [incFechaES(i.fecha), incEtq(INC_TIPOS,i.tipo), incEtq(INC_GRAVEDADES,i.gravedad), incEtq(INC_ESTADOS,i.estado),
