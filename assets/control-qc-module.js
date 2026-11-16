@@ -1984,17 +1984,15 @@ function controlQCInfoVisual(c){
 }
 function controlQCEtiquetaInvernaderoVisual(value){
   const raw=String(value??'').trim();
-  if(!raw||raw==='—'||/^sin invernadero/i.test(raw))return 'Invernadero sin asignar';
-  if(/^código\s+gs\b/i.test(raw))return raw;
+  if(!raw||raw==='—'||/^sin invernadero/i.test(raw)||/^código\s+gs\b/i.test(raw))return 'Sin asignar';
   const label=raw.replace(/^invernadero\s*/i,'').replace(/^inv\.?\s*/i,'').trim();
-  return label?'Invernadero '+label:'Invernadero sin asignar';
+  return label?'INV '+label:'Sin asignar';
 }
 function controlQCEtiquetaCallesVisual(value){
   const raw=String(value??'').trim();
-  if(!raw||raw==='—'||/^sin calles/i.test(raw))return 'Calles sin asignar';
-  const clean=raw.replace(/^calles?\s*/i,'').trim();
-  if(!clean)return 'Calles sin asignar';
-  return /[–-]/.test(clean)?'Calles '+clean:'Calle '+clean;
+  if(!raw||raw==='—'||/^sin calles/i.test(raw))return 'Sin asignar';
+  const clean=raw.replace(/^calles?\s*/i,'').replace(/^calle\s*/i,'').trim();
+  return clean||'Sin asignar';
 }
 function controlQCUbicacionVisual(c){
   const location=controlQCInfoVisual(c);
@@ -2017,11 +2015,15 @@ function renderControlIdentidadQC(c,estadoWizard=false){
     +'</div>';
 }
 function renderControlDatosQC(c){
-  const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+  const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   const ubicacion=controlQCInfoVisual(c);
+  const invernaderos=[...new Set(String(ubicacion.inv??'').split(',').map(controlQCEtiquetaInvernaderoVisual))].join(', ');
+  const calles=[...new Set(String(ubicacion.calles??'').split(',').map(controlQCEtiquetaCallesVisual))].join(', ');
+  const etiquetaCalles=/[,–-]/.test(calles)?'Calles':'Calle';
   return '<div class="qc-card-facts qc-card-facts-ordenado">'
     +'<span><i class="ti ti-box" aria-hidden="true"></i> Bandejas declaradas: <strong>'+ (esc(c.numBandejas)||'—')+'</strong></span>'
-    +'<span><i class="ti ti-map-pin" aria-hidden="true"></i> Ubicación: <strong>'+esc(controlQCUbicacionVisual(c))+'</strong></span>'
+    +'<span><i class="ti ti-building-community" aria-hidden="true"></i> Invernadero: <strong>'+esc(invernaderos)+'</strong></span>'
+    +'<span><i class="ti ti-map-pin" aria-hidden="true"></i> '+etiquetaCalles+': <strong>'+esc(calles)+'</strong></span>'
     +'</div>';
 }
 /* 1.00. Mismo botón operativo de inspección en Túnel y Carga. */
