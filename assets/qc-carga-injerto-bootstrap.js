@@ -3,6 +3,14 @@
 // El array y las funciones principales son globales del script clásico de la app.
 (function(){
   const TYPE='carga_injerto';
+  const PARTIDA_INJERTO_RE=/^\d+X\d+$/i;
+  const PARTIDA_CARGA_NORMAL_RE=/^\d+$/;
+  function tipoCargaDePartida(value){
+    const partida=String(value==null?'':value).trim();
+    if(PARTIDA_INJERTO_RE.test(partida))return TYPE;
+    if(PARTIDA_CARGA_NORMAL_RE.test(partida))return 'carga';
+    return null;
+  }
   const originalSection=window.seleccionarSeccionControl;
   const originalChangePeriod=window.cambiarControlQuincena;
   const originalRenderSummary=window.renderControlResumenHTML;
@@ -55,7 +63,13 @@
   };
 
   window.controlLineasFiltradasInv=function(lines,type){
-    return originalFilterLines?originalFilterLines(lines,type===TYPE?'carga':type):lines;
+    const filtered=originalFilterLines?originalFilterLines(lines,type===TYPE?'carga':type):
+      (Array.isArray(lines)?lines:[]);
+    if(type==='carga'||type===TYPE){
+      const expected=type===TYPE?TYPE:'carga';
+      return filtered.filter(record=>tipoCargaDePartida(record?.partida)===expected);
+    }
+    return filtered;
   };
 
   window.renderControlFiltroYAltaHTML=function(type,day,wizard){
