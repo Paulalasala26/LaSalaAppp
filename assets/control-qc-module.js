@@ -1969,9 +1969,13 @@ function controlQCInfoVisual(c){
     (tunel?'':c.invernaderosGS)||'').trim();
   const formatoInvernadero=value=>{
     const raw=String(value??'').trim();
-    const id=raw.replace(/^(?:INVERNADERO|INV)\\s*/i,'').trim();
+    const upper=raw.toUpperCase();
+    const prefix='INVERNADERO ';
+    const id=(upper.startsWith(prefix)?raw.slice(prefix.length):
+      (upper.startsWith('INV ')?raw.slice(4):raw)).trim();
     if(!id)return '—';
-    return 'INV '+(/^\\d+$/.test(id)?String(Number(id)).padStart(2,'0'):id);
+    const numeric=[...id].every(ch=>ch>='0'&&ch<='9');
+    return 'INV '+(numeric?String(Number(id)).padStart(2,'0'):id);
   };
   const inv=invAsignado
     ?formatoInvernadero(invAsignado)
