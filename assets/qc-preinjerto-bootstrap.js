@@ -112,7 +112,7 @@
   };
 
   window.renderControlCardHTML=function(record,section){
-    if(record&&['preinjerto_patron','preinjerto_variedad'].includes(record.tipo))return oldCard(record,section);
+    if(record&&['preinjerto_patron','preinjerto_variedad'].includes(record.tipo))return window.renderControlCardCompactHTML(record,section);
     if(!record||!keySet.has(record.tipo))return oldCard(record,section);
     const esc=value=>String(value==null?'':value).replace(/[&<>"']/g,char=>({
       '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
