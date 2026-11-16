@@ -1960,7 +1960,8 @@ function controlQCInfoVisual(c){
       if(inv||calleLabel(desde,hasta))
         return {inv:inv?'INV '+inv:'—',calles:calleLabel(desde,hasta)||'—'};
     }
-    return {inv:'—',calles:'—'};
+    const codigoSinAsignacion=String(c.PAR_CAS??c.gsDetalles?.PAR_CAS??'').trim();
+    return {inv:codigoSinAsignacion?'Código GS '+codigoSinAsignacion:'Sin invernadero asignado',calles:'Sin calles informadas'};
   }
   const codigoGS=String(c.PAR_CAS??c.gsDetalles?.PAR_CAS??'').trim();
   const invAsignado=String((tunel?c.invId:tramo?.invId)||c.invId||
@@ -1981,6 +1982,26 @@ function controlQCInfoVisual(c){
   const calleGS=tunel?Number(c.PIN_LOCA??c.gsDetalles?.PIN_LOCA):NaN;
   return {inv,calles:calles||(Number.isInteger(calleGS)&&calleGS>0?String(calleGS):'—')};
 }
+function controlQCEtiquetaInvernaderoVisual(value){
+  const raw=String(value??'').trim();
+  if(!raw||raw==='—'||/^sin invernadero/i.test(raw))return 'Invernadero sin asignar';
+  if(/^código\s+gs\b/i.test(raw))return raw;
+  const label=raw.replace(/^invernadero\s*/i,'').replace(/^inv\.?\s*/i,'').trim();
+  return label?'Invernadero '+label:'Invernadero sin asignar';
+}
+function controlQCEtiquetaCallesVisual(value){
+  const raw=String(value??'').trim();
+  if(!raw||raw==='—'||/^sin calles/i.test(raw))return 'Calles sin asignar';
+  const clean=raw.replace(/^calles?\s*/i,'').trim();
+  if(!clean)return 'Calles sin asignar';
+  return /[–-]/.test(clean)?'Calles '+clean:'Calle '+clean;
+}
+function controlQCUbicacionVisual(c){
+  const location=controlQCInfoVisual(c);
+  const greenhouses=String(location.inv??'').split(',').map(x=>controlQCEtiquetaInvernaderoVisual(x)).filter(Boolean);
+  const streets=String(location.calles??'').split(',').map(x=>controlQCEtiquetaCallesVisual(x)).filter(Boolean);
+  return [...new Set(greenhouses)].join(', ')+' · '+[...new Set(streets)].join(', ');
+}
 function renderControlIdentidadQC(c,estadoWizard=false){
   const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
   const tunel=c.tipo==='tunel';
@@ -2000,8 +2021,7 @@ function renderControlDatosQC(c){
   const ubicacion=controlQCInfoVisual(c);
   return '<div class="qc-card-facts qc-card-facts-ordenado">'
     +'<span><i class="ti ti-box" aria-hidden="true"></i> Bandejas declaradas: <strong>'+ (esc(c.numBandejas)||'—')+'</strong></span>'
-    +'<span><i class="ti ti-building-warehouse" aria-hidden="true"></i> Invernadero: <strong>'+esc(ubicacion.inv)+'</strong></span>'
-    +'<span><i class="ti ti-map-pin" aria-hidden="true"></i> Calle: <strong>'+esc(ubicacion.calles)+'</strong></span>'
+    +'<span><i class="ti ti-map-pin" aria-hidden="true"></i> Ubicación: <strong>'+esc(controlQCUbicacionVisual(c))+'</strong></span>'
     +'</div>';
 }
 /* 1.00. Mismo botón operativo de inspección en Túnel y Carga. */
