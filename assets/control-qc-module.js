@@ -3512,8 +3512,17 @@ function renderControlCardCompactHTML(c,seccion){
     </article>`;
 }
 function renderControlCargaInjertoCardHTML(c){
-  const esc=v=>String(v==null?'':v).replace(/[&<>\"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[ch]));
-  return `<article id="control-card-${esc(c.id)}" class="qc-card-compact"><div class="qc-card-main">${renderControlIdentidadQC(c)}${renderControlDatosQC(c)}${renderControlAbrirInspeccionHTML(c)}</div></article>`;
+  const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  return `<article id="control-card-${esc(c.id)}" class="qc-card-compact">
+    <div class="qc-card-main">${renderControlIdentidadQC(c)}${renderControlDatosQC(c)}${renderControlAbrirInspeccionHTML(c)}</div>
+    <details class="qc-card-more">
+      <summary>Detalles y acciones</summary>
+      <div class="qc-card-details"><div class="qc-card-actionbar">
+        <button type="button" onclick="mostrarEditarControlCargaInjerto('${esc(c.id)}')"><i class="ti ti-pencil" aria-hidden="true"></i> Editar partida</button>
+        <button type="button" class="qc-card-danger qc-card-trash" onclick="eliminarControlCheck('${esc(c.id)}')" title="Eliminar registro de partida" aria-label="Eliminar registro de partida"><i class="ti ti-trash" aria-hidden="true"></i></button>
+      </div></div>
+    </details>
+  </article>`;
 }
 function renderControlCardHTML(c, seccion){
   // Carga tiene una ficha distinta (Cliente/Partida/Variedad/Nº bandejas/
