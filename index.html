@@ -664,7 +664,7 @@ async function actualizarStorageJsonConEtag(key, valorInicial, mutador){
       if(key===TAREAS_KEY){
         await ensureFirebaseIdTokenFresh();
         if(!firebaseIdToken) throw new Error('No hay sesión Firebase válida');
-        const putRes=await window.fetch('/api/tasks-write',{
+        const putRes=await window.fetch('/api/admin-qc-dashboard?modo=tareas-write',{
           method:'POST',
           headers:{'Content-Type':'application/json','Authorization':'Bearer '+firebaseIdToken},
           body:JSON.stringify({expectedEtag:etag,value:siguiente})
