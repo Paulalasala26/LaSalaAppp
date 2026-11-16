@@ -25296,6 +25296,20 @@ const INC_PLAGAS = [
   {k:'MOSCA_BLANCA', l:'Mosca blanca'},
   {k:'OTRA', l:'Otra'}
 ];
+const INC_ENFERMEDADES = [
+  {k:'BOTRYTIS', l:'Botrytis'},
+  {k:'MILDIU', l:'Mildiu'},
+  {k:'OIDIO', l:'Oídio'},
+  {k:'DIDYMELLA', l:'Didymella'},
+  {k:'ALTERNARIA', l:'Alternaria'},
+  {k:'DAMPING_OFF', l:'Damping off'},
+  {k:'OTRA', l:'Otra'}
+];
+// Qué se concreta según el tipo: en qué campo se guarda y de qué lista se elige
+const INC_DETALLE = {
+  PLAGA: {campo:'plaga', otro:'plagaOtra', etq:'Plaga', pl:'Plagas', elige:'la plaga', lista:INC_PLAGAS},
+  ENFERMEDAD: {campo:'enfermedad', otro:'enfermedadOtra', etq:'Enfermedad', pl:'Enfermedades', elige:'la enfermedad', lista:INC_ENFERMEDADES}
+};
 const INC_GRAVEDADES = [
   {k:'BAJA', l:'Baja', bg:'#eef0ec', fg:'#555'},
   {k:'MEDIA', l:'Media', bg:'#fdf3dc', fg:'#7a5000'},
@@ -25313,7 +25327,7 @@ const INC_TRANSICIONES = {
 };
 
 let incidenciasData = [];
-let incFiltros = {q:'', tipo:'', plaga:'', gravedad:'', estado:'', anuladas:''};
+let incFiltros = {q:'', tipo:'', detalle:'', gravedad:'', estado:'', anuladas:''};
 
 // ── Fotos ─────────────────────────────────────────────────────
 // Cada foto va en SU PROPIA clave de la nube (miniatura y foto completa por
@@ -25391,8 +25405,8 @@ function incEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/<
 function incJs(s){ return String(s==null?'':s).replace(/[^A-Za-z0-9 _.\-\/]/g, c=>'\\u'+c.charCodeAt(0).toString(16).padStart(4,'0')); }
 function incEtq(lista, k){ const x = lista.find(e=>e.k===k); return x ? x.l : (k||'—'); }
 // Nombre de la plaga de una incidencia ('' si no tiene) y «Tipo · Plaga» para mostrar
-function incPlagaTxt(i){ if(!i || !i.plaga) return ''; return i.plaga==='OTRA' ? (i.plagaOtra || 'Otra') : incEtq(INC_PLAGAS, i.plaga); }
-function incTipoTxt(i){ const t = incEtq(INC_TIPOS, i.tipo), p = incPlagaTxt(i); return p ? t+' · '+p : t; }
+function incDetalleTxt(i){ const c = i && INC_DETALLE[i.tipo]; if(!c || !i[c.campo]) return ''; return i[c.campo]==='OTRA' ? (i[c.otro] || 'Otra') : incEtq(c.lista, i[c.campo]); }
+function incTipoTxt(i){ const t = incEtq(INC_TIPOS, i.tipo), p = incDetalleTxt(i); return p ? t+' · '+p : t; }
 function incChip(lista, k){
   const x = lista.find(e=>e.k===k) || {l:k||'—', bg:'#eee', fg:'#555'};
   return `<span style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:700;background:${x.bg};color:${x.fg};white-space:nowrap">${incEsc(x.l)}</span>`;
@@ -25516,12 +25530,12 @@ function incFiltrarLista(){
     if(f.anuladas==='' && i.anulada) return false;
     if(f.anuladas==='solo' && !i.anulada) return false;
     if(f.tipo && i.tipo!==f.tipo) return false;
-    if(f.plaga && i.plaga!==f.plaga) return false;
+    if(f.detalle){ const [t,k] = f.detalle.split('|'); if(i.tipo!==t || !INC_DETALLE[t] || i[INC_DETALLE[t].campo]!==k) return false; }
     if(f.gravedad && i.gravedad!==f.gravedad) return false;
     if(f.estado==='SIN_CERRAR'){ if(i.estado==='CERRADA') return false; }
     else if(f.estado && i.estado!==f.estado) return false;
     if(q){
-      const txt = [i.descripcion,i.accion,i.partida,i.variedad,i.cliente,i.inv,incPlagaTxt(i)].join(' ').toLowerCase();
+      const txt = [i.descripcion,i.accion,i.partida,i.variedad,i.cliente,i.inv,incDetalleTxt(i)].join(' ').toLowerCase();
       if(!txt.includes(q)) return false;
     }
     return true;
@@ -25570,7 +25584,10 @@ function incRender(){
         <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:1rem 1.25rem;margin-bottom:1rem;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
           <input id="inc-f-q" type="text" value="${incEsc(incFiltros.q)}" placeholder="Buscar (descripción, partida, variedad…)" oninput="incCambiarFiltro(true)" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;min-width:230px;flex:1">
           ${sel('inc-f-tipo', incFiltros.tipo, INC_TIPOS, 'Todos los tipos')}
-          ${sel('inc-f-plaga', incFiltros.plaga, INC_PLAGAS, 'Todas las plagas')}
+          <select id="inc-f-detalle" onchange="incCambiarFiltro()" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;background:#fff">
+            <option value="">Plaga o enfermedad</option>
+            ${Object.keys(INC_DETALLE).map(t=>`<optgroup label="${INC_DETALLE[t].pl}">${INC_DETALLE[t].lista.map(o=>`<option value="${t}|${o.k}" ${incFiltros.detalle===t+'|'+o.k?'selected':''}>${incEsc(o.l)}</option>`).join('')}</optgroup>`).join('')}
+          </select>
           ${sel('inc-f-gravedad', incFiltros.gravedad, INC_GRAVEDADES, 'Toda gravedad')}
           <select id="inc-f-estado" onchange="incCambiarFiltro()" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;background:#fff">
             <option value="">Todos los estados</option>
@@ -25600,7 +25617,7 @@ function incRenderLista(){
   const cont = document.getElementById('inc-lista');
   if(!cont) return;
   const lista = incFiltrarLista();
-  const hayFiltros = !!(incFiltros.q || incFiltros.tipo || incFiltros.plaga || incFiltros.gravedad || incFiltros.estado || incFiltros.anuladas);
+  const hayFiltros = !!(incFiltros.q || incFiltros.tipo || incFiltros.detalle || incFiltros.gravedad || incFiltros.estado || incFiltros.anuladas);
   if(!lista.length){
     cont.innerHTML = `<div style="text-align:center;padding:2.5rem;color:var(--muted);font-style:italic;font-size:13px;background:#fff;border:1px solid var(--border);border-radius:12px">${hayFiltros?'Ninguna incidencia coincide con los filtros.':'Aún no hay incidencias registradas.'}</div>`;
     return;
@@ -25636,12 +25653,12 @@ function incRenderLista(){
 
 function incCambiarFiltro(soloLista){
   const g = id => { const el = document.getElementById(id); return el ? el.value : ''; };
-  incFiltros = {q:g('inc-f-q'), tipo:g('inc-f-tipo'), plaga:g('inc-f-plaga'), gravedad:g('inc-f-gravedad'), estado:g('inc-f-estado'), anuladas:g('inc-f-anuladas')};
+  incFiltros = {q:g('inc-f-q'), tipo:g('inc-f-tipo'), detalle:g('inc-f-detalle'), gravedad:g('inc-f-gravedad'), estado:g('inc-f-estado'), anuladas:g('inc-f-anuladas')};
   incRenderLista();
 }
-function incLimpiarFiltros(){ incFiltros = {q:'', tipo:'', plaga:'', gravedad:'', estado:'', anuladas:''}; incRender(); }
+function incLimpiarFiltros(){ incFiltros = {q:'', tipo:'', detalle:'', gravedad:'', estado:'', anuladas:''}; incRender(); }
 function incAplicarAtajo(estado, gravedad){
-  incFiltros = {q:'', tipo:'', plaga:'', gravedad:gravedad||'', estado:estado||'', anuladas:''};
+  incFiltros = {q:'', tipo:'', detalle:'', gravedad:gravedad||'', estado:estado||'', anuladas:''};
   incRender();
 }
 
@@ -25694,10 +25711,10 @@ async function incAbrirFormulario(id, partidaIni, invIni){
           <label style="${lbl}">Tipo</label>
           <select id="inc-fm-tipo" onchange="incTipoCambiado()" style="${campo}">${INC_TIPOS.map(o=>`<option value="${o.k}" ${(inc?inc.tipo:'PLAGA')===o.k?'selected':''}>${o.l}</option>`).join('')}</select>
         </div>
-        <div id="inc-fm-plaga-wrap" style="${(inc?inc.tipo:'PLAGA')==='PLAGA'?'':'display:none'}">
-          <label style="${lbl}">Plaga</label>
-          <select id="inc-fm-plaga" onchange="incTipoCambiado()" style="${campo}"><option value="">— Elige la plaga —</option>${INC_PLAGAS.map(o=>`<option value="${o.k}" ${(inc&&inc.plaga)===o.k?'selected':''}>${o.l}</option>`).join('')}</select>
-          <input id="inc-fm-plaga-otra" type="text" maxlength="60" value="${incEsc(inc?(inc.plagaOtra||''):'')}" placeholder="¿Cuál? (opcional)" style="${campo};margin-top:6px;${(inc&&inc.plaga==='OTRA')?'':'display:none'}">
+        <div id="inc-fm-det-wrap" data-ini="${incEsc(inc&&INC_DETALLE[inc.tipo]?(inc[INC_DETALLE[inc.tipo].campo]||''):'')}" style="display:none">
+          <label id="inc-fm-det-lbl" style="${lbl}">Plaga</label>
+          <select id="inc-fm-detalle" onchange="incTipoCambiado()" style="${campo}"></select>
+          <input id="inc-fm-det-otra" type="text" maxlength="60" value="${incEsc(inc&&INC_DETALLE[inc.tipo]?(inc[INC_DETALLE[inc.tipo].otro]||''):'')}" placeholder="¿Cuál? (opcional)" style="${campo};margin-top:6px;display:none">
         </div>
         <div>
           <label style="${lbl}">Gravedad</label>
@@ -25726,16 +25743,25 @@ async function incAbrirFormulario(id, partidaIni, invIni){
   ov.dataset.fotos = String(inc ? (inc.fotos||[]).length : 0);
   ov.style.display = 'flex';
   incPintarFotosForm();
+  incTipoCambiado();
   incPartidaEscrita(true);
 }
-// Muestra u oculta «Plaga» según el tipo, y el cuadro de texto solo con «Otra»
+// Según el tipo muestra «Plaga» o «Enfermedad» con su lista (nada en otros tipos),
+// y el cuadro de texto solo con «Otra». La primera vez recoge el valor ya guardado.
 function incTipoCambiado(){
-  const t = document.getElementById('inc-fm-tipo'), w = document.getElementById('inc-fm-plaga-wrap');
-  const p = document.getElementById('inc-fm-plaga'), o = document.getElementById('inc-fm-plaga-otra');
-  if(!t || !w) return;
-  const esPlaga = t.value === 'PLAGA';
-  w.style.display = esPlaga ? '' : 'none';
-  if(o) o.style.display = (esPlaga && p && p.value === 'OTRA') ? '' : 'none';
+  const t = document.getElementById('inc-fm-tipo'), w = document.getElementById('inc-fm-det-wrap');
+  const s = document.getElementById('inc-fm-detalle'), o = document.getElementById('inc-fm-det-otra'), l = document.getElementById('inc-fm-det-lbl');
+  if(!t || !w || !s) return;
+  const c = INC_DETALLE[t.value];
+  if(!c){ w.style.display = 'none'; return; }
+  w.style.display = '';
+  if(s.dataset.tipo !== t.value){
+    const inicial = (s.dataset.tipo === undefined) ? (w.dataset.ini || '') : '';
+    s.innerHTML = '<option value="">— Elige '+c.elige+' —</option>' + c.lista.map(x=>'<option value="'+x.k+'">'+incEsc(x.l)+'</option>').join('');
+    s.dataset.tipo = t.value; s.value = inicial;
+    if(l) l.textContent = c.etq;
+  }
+  if(o) o.style.display = s.value === 'OTRA' ? '' : 'none';
 }
 function incCerrarFormulario(){ incFotosForm = []; const ov = document.getElementById('inc-form-overlay'); if(ov) ov.style.display='none'; }
 function incErrorForm(msg){
@@ -25783,13 +25809,17 @@ async function incGuardarFormulario(){
   const tipo = val('inc-fm-tipo'), gravedad = val('inc-fm-gravedad');
   const fecha = val('inc-fm-fecha'), descripcion = val('inc-fm-descripcion'), accion = val('inc-fm-accion');
   const inv = val('inc-fm-inv');
-  const plaga = tipo === 'PLAGA' ? val('inc-fm-plaga') : '';
-  const plagaOtra = plaga === 'OTRA' ? val('inc-fm-plaga-otra').slice(0,60) : '';
+  const cfgDet = INC_DETALLE[tipo] || null;
+  const detalle = cfgDet ? val('inc-fm-detalle') : '';
+  const detalleOtra = detalle === 'OTRA' ? val('inc-fm-det-otra').slice(0,60) : '';
+  // Solo se guarda el campo que corresponde al tipo; los demás quedan vacíos
+  const det = {plaga:null, plagaOtra:null, enfermedad:null, enfermedadOtra:null};
+  if(cfgDet && detalle){ det[cfgDet.campo] = detalle; det[cfgDet.otro] = detalleOtra || null; }
 
   if(!partida) return incErrorForm('La incidencia debe enlazarse a una partida: escribe su código.');
   if(!INC_TIPOS.some(t=>t.k===tipo)) return incErrorForm('Tipo de incidencia no válido.');
   if(!INC_GRAVEDADES.some(g=>g.k===gravedad)) return incErrorForm('Gravedad no válida.');
-  if(plaga && !INC_PLAGAS.some(x=>x.k===plaga)) return incErrorForm('Plaga no válida.');
+  if(detalle && !cfgDet.lista.some(x=>x.k===detalle)) return incErrorForm(cfgDet.etq+' no válida.');
   if(!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return incErrorForm('Indica la fecha de la incidencia.');
   if(!descripcion) return incErrorForm('La descripción es obligatoria.');
 
@@ -25797,8 +25827,8 @@ async function incGuardarFormulario(){
   const actual = id ? incidenciasData.find(x=>x.id===id) : null;
   if(id && !actual) return incErrorForm('La incidencia ya no existe.');
   if(actual && actual.anulada) return incErrorForm('Esta incidencia está anulada: ya no se puede editar.');
-  // Una plaga hay que concretarla (Trips, Tuta…); las antiguas sin plaga se pueden seguir editando
-  if(tipo === 'PLAGA' && !plaga && (nueva || (actual && actual.plaga))) return incErrorForm('Indica qué plaga es (Trips, Tuta, Gusano, Ácaro, Mosca blanca u Otra).');
+  // La plaga o la enfermedad hay que concretarla; las antiguas sin concretar se pueden seguir editando
+  if(cfgDet && !detalle && (nueva || (actual && actual[cfgDet.campo]))) return incErrorForm('Indica '+cfgDet.elige+' ('+cfgDet.lista.map(x=>x.l).join(', ')+').');
 
   // Fechas: la fecha solo se vuelve a comprobar si se cambia (como en SemilleroAVP)
   const v = incVentana(partida);
@@ -25830,13 +25860,13 @@ async function incGuardarFormulario(){
     incidenciasData.push({
       id: incNuevoId(), partida, inv: inv || (p?String(p.inv||''):''),
       variedad: p ? (p.variedad||'') : '', cliente: p ? (p.cliente||'') : '',
-      tipo, plaga: plaga||null, plagaOtra: plagaOtra||null, gravedad, fecha, descripcion, accion: accion||null,
+      tipo, ...det, gravedad, fecha, descripcion, accion: accion||null,
       estado: 'ABIERTA', creadoPor: currentUser||'—', creadoEn: ahora, actualizadoEn: ahora,
       historial: [], anulada: null, fotos: refsFotos, fotosQuitadas: []
     });
     registro = incidenciasData[incidenciasData.length-1];
   } else {
-    Object.assign(actual, {tipo, plaga: plaga||null, plagaOtra: plagaOtra||null, gravedad, fecha, descripcion, accion: accion||null, actualizadoEn: ahora});
+    Object.assign(actual, {tipo, ...det, gravedad, fecha, descripcion, accion: accion||null, actualizadoEn: ahora});
     actual.fotos = (actual.fotos||[]).concat(refsFotos);
     registro = actual;
   }
@@ -25845,7 +25875,7 @@ async function incGuardarFormulario(){
     if(btn){ btn.disabled = false; btn.style.opacity = '1'; }
     return incErrorForm('No se ha podido guardar. Revisa la conexión e inténtalo de nuevo.');
   }
-  logHistorial(`${nueva?'Registró':'Editó'} incidencia (${incEtq(INC_TIPOS,tipo)}${plaga?' · '+(plaga==='OTRA'?(plagaOtra||'Otra'):incEtq(INC_PLAGAS,plaga)):''}, ${incEtq(INC_GRAVEDADES,gravedad).toLowerCase()}) de la partida ${partida}`);
+  logHistorial(`${nueva?'Registró':'Editó'} incidencia (${incEtq(INC_TIPOS,tipo)}${detalle?' · '+(detalle==='OTRA'?(detalleOtra||'Otra'):incEtq(cfgDet.lista,detalle)):''}, ${incEtq(INC_GRAVEDADES,gravedad).toLowerCase()}) de la partida ${partida}`);
   incCerrarFormulario();
   const avisada = (gravedad==='ALTA' && gravedadAntes!=='ALTA') ? await incAvisarGrave(registro, !nueva) : false;
   incAviso((nueva ? '✓ Incidencia registrada' : '✓ Cambios guardados') + (avisada ? ' · aviso enviado a Vigueras' : ''));
@@ -26151,11 +26181,11 @@ async function incHtmlPostMortem(num, inv){
 function incFilasExport(){
   const lista = incFiltrarLista();
   const conAnuladas = incFiltros.anuladas !== '';
-  const cab = ['Fecha','Tipo','Gravedad','Estado','Partida','Invernadero','Variedad','Cliente','Descripción','Acción tomada','Registrada por','Fotos','Plaga'];
+  const cab = ['Fecha','Tipo','Gravedad','Estado','Partida','Invernadero','Variedad','Cliente','Descripción','Acción tomada','Registrada por','Fotos','Plaga / enfermedad'];
   if(conAnuladas) cab.push('Anulada el','Anulada por','Motivo de anulación');
   const filas = lista.map(i=>{
     const f = [incFechaES(i.fecha), incEtq(INC_TIPOS,i.tipo), incEtq(INC_GRAVEDADES,i.gravedad), incEtq(INC_ESTADOS,i.estado),
-      i.partida, i.inv||'', i.variedad||'', i.cliente||'', i.descripcion||'', i.accion||'', i.creadoPor||'', (i.fotos||[]).length||'', incPlagaTxt(i)];
+      i.partida, i.inv||'', i.variedad||'', i.cliente||'', i.descripcion||'', i.accion||'', i.creadoPor||'', (i.fotos||[]).length||'', incDetalleTxt(i)];
     if(conAnuladas) f.push(i.anulada?incFechaHoraES(i.anulada.en):'', i.anulada?(i.anulada.por||''):'', i.anulada?(i.anulada.motivo||''):'');
     return f;
   });
@@ -26196,7 +26226,7 @@ function incImprimir(){
   const w = window.open('', '_blank');
   if(!w){ incAviso('El navegador ha bloqueado la ventana de impresión. Permite las ventanas emergentes.'); return; }
   const f = incFiltros;
-  const filtros = [f.estado==='SIN_CERRAR'?'Sin cerrar':(f.estado?incEtq(INC_ESTADOS,f.estado):''), f.tipo?incEtq(INC_TIPOS,f.tipo):'', f.plaga?incEtq(INC_PLAGAS,f.plaga):'', f.gravedad?'Gravedad '+incEtq(INC_GRAVEDADES,f.gravedad).toLowerCase():'', f.q?'«'+f.q+'»':''].filter(Boolean).join(' · ');
+  const filtros = [f.estado==='SIN_CERRAR'?'Sin cerrar':(f.estado?incEtq(INC_ESTADOS,f.estado):''), f.tipo?incEtq(INC_TIPOS,f.tipo):'', f.detalle?incEtq(INC_DETALLE[f.detalle.split('|')[0]].lista, f.detalle.split('|')[1]):'', f.gravedad?'Gravedad '+incEtq(INC_GRAVEDADES,f.gravedad).toLowerCase():'', f.q?'«'+f.q+'»':''].filter(Boolean).join(' · ');
   w.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Incidencias — La Sala</title>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@100;600&display=swap" rel="stylesheet">
     <style>
