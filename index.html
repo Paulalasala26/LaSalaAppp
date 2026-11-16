@@ -195,6 +195,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
           <i class="ti ti-clipboard-check" style="font-size:26px;opacity:.9"></i>
           <div style="font-size:14px;font-weight:700;margin-top:12px">Control</div>
         </div>
+        <div id="shortcut-incidencias" class="home-shortcut-card" onclick="handleQuickAction('incidencias')" style="background:linear-gradient(135deg,#b71c1c,#e53935);color:#fff;border-radius:14px;padding:1.4rem 1.25rem">
+          <i class="ti ti-flag" style="font-size:26px;opacity:.9"></i>
+          <div style="font-size:14px;font-weight:700;margin-top:12px">Incidencias</div>
+        </div>
         <div class="home-shortcut-card" onclick="handleQuickAction('partidas')" style="background:linear-gradient(135deg,#0f5c4a,#1a9c78);color:#fff;border-radius:14px;padding:1.4rem 1.25rem">
           <i class="ti ti-layout-grid" style="font-size:26px;opacity:.9"></i>
           <div style="font-size:14px;font-weight:700;margin-top:12px">Partidas y Espec&#237;ficos</div>
@@ -3616,6 +3620,8 @@ function handleQuickAction(val){
     showPartidasModule();return;
   } else if(val==='hojas-riego'){
     showHojasRiego();return;
+  } else if(val==='incidencias'){
+    showIncidenciasModule();return;
   } else if(val==='sala-en-vivo'){
     showSalaEnVivoModule();return;
   } else if(val==='tratamientos'){
@@ -19411,6 +19417,9 @@ function _renderPartidaDetail(p, num, inv){
           <div style="font-size:10px;color:var(--muted);margin-top:5px">Guarda los checks de Entrada y Carga junto con la Fecha Técnico en el registro de esta partida.</div>
         </div>
 
+        <!-- ═══ INCIDENCIAS (módulo Incidencias) ═══ -->
+        <div id="inc-ficha-bloque" data-num="${num}" data-inv="${inv}"></div>
+
         <!-- ═══ FOTOGRAFÍAS ═══ -->
         ${sectionHdr('camera','Fotograf&#237;as','var(--muted)')}
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:1rem">
@@ -19442,6 +19451,7 @@ function _renderPartidaDetail(p, num, inv){
     </div>`;
 
   overlay.style.display = 'flex';
+  if(typeof incRefrescarFicha==='function') incRefrescarFicha(num, inv);
 }
 
 
@@ -19733,6 +19743,697 @@ function conGuardiaReentrada(fn){
 ].forEach(nombre=>{
   if(typeof window[nombre] === 'function') window[nombre] = conGuardiaReentrada(window[nombre]);
 });
+
+</script>
+<script>
+// ════════════════════════════════════════════════════════════════
+// INCIDENCIAS — plagas, enfermedades, estrés, daños y otros sucesos que
+// afectan a una partida, con seguimiento (Abierta → En seguimiento → Cerrada).
+//
+// Es el mismo módulo que ya existe en SemilleroAVP (Viveros La Sala), adaptado
+// a La Sala: se guarda en la base de datos compartida (Firebase) como el resto
+// de la app, con el patrón get/set de window.storage.
+//
+// Reglas (iguales a SemilleroAVP):
+//  - Una incidencia va siempre enlazada a UNA partida (se da de alta desde la
+//    ficha de la partida o desde Incidencias, escribiendo su código).
+//  - La fecha no puede ser posterior a hoy, ni anterior a la entrada de la
+//    partida, ni posterior a su Fecha Técnico si ya salió (partida pasada).
+//  - El estado solo cambia con los botones de estado (con motivo opcional) y
+//    cada cambio queda en el historial.
+//  - No se borra: un ADMINISTRADOR la anula con motivo (queda quién, cuándo y
+//    por qué). Las anuladas no cuentan ni se ven salvo con el filtro «Anuladas».
+//
+// Datos (clave lasala-incidencias-v1): lista de
+//  {id, partida, inv, variedad, cliente, tipo, gravedad, fecha(YYYY-MM-DD),
+//   descripcion, accion, estado, creadoPor, creadoEn, actualizadoEn,
+//   historial:[{fecha, de, a, motivo, usuario}], anulada:null|{en,por,motivo}}
+// ════════════════════════════════════════════════════════════════
+const INCIDENCIAS_KEY = 'lasala-incidencias-v1';
+
+const INC_TIPOS = [
+  {k:'PLAGA', l:'Plaga'},
+  {k:'ENFERMEDAD', l:'Enfermedad'},
+  {k:'ESTRES_HIDRICO', l:'Estrés hídrico'},
+  {k:'DANO_CLIMATICO', l:'Daño climático'},
+  {k:'FISIOPATIA', l:'Fisiopatía'},
+  {k:'OTRO', l:'Otro'}
+];
+const INC_GRAVEDADES = [
+  {k:'BAJA', l:'Baja', bg:'#eef0ec', fg:'#555'},
+  {k:'MEDIA', l:'Media', bg:'#fdf3dc', fg:'#7a5000'},
+  {k:'ALTA', l:'Alta', bg:'#fdecea', fg:'#c62828'}
+];
+const INC_ESTADOS = [
+  {k:'ABIERTA', l:'Abierta', bg:'#fdecea', fg:'#c62828'},
+  {k:'EN_SEGUIMIENTO', l:'En seguimiento', bg:'#fdf3dc', fg:'#7a5000'},
+  {k:'CERRADA', l:'Cerrada', bg:'#e8f5e9', fg:'#2e7d32'}
+];
+const INC_TRANSICIONES = {
+  ABIERTA: ['EN_SEGUIMIENTO','CERRADA'],
+  EN_SEGUIMIENTO: ['CERRADA','ABIERTA'],
+  CERRADA: ['ABIERTA']
+};
+
+let incidenciasData = [];
+let incFiltros = {q:'', tipo:'', gravedad:'', estado:'', anuladas:''};
+
+// ── Utilidades ────────────────────────────────────────────────
+function incEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+// Para meter un texto dentro de onclick="f('…')": solo deja letras, cifras y
+// unos pocos signos; el resto va como escape \uXXXX (nunca rompe el atributo).
+function incJs(s){ return String(s==null?'':s).replace(/[^A-Za-z0-9 _.\-\/]/g, c=>'\\u'+c.charCodeAt(0).toString(16).padStart(4,'0')); }
+function incEtq(lista, k){ const x = lista.find(e=>e.k===k); return x ? x.l : (k||'—'); }
+function incChip(lista, k){
+  const x = lista.find(e=>e.k===k) || {l:k||'—', bg:'#eee', fg:'#555'};
+  return `<span style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:700;background:${x.bg};color:${x.fg};white-space:nowrap">${incEsc(x.l)}</span>`;
+}
+// Hoy en España (YYYY-MM-DD), aunque el aparato tenga otra zona horaria
+function incHoy(){ return new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Madrid'}).format(new Date()); }
+function incFechaES(iso){ if(!iso) return '—'; const [y,m,d]=String(iso).slice(0,10).split('-'); return (d&&m&&y)?`${d}/${m}/${y}`:String(iso); }
+function incFechaHoraES(iso){
+  if(!iso) return '—';
+  try{ return new Date(iso).toLocaleString('es-ES',{timeZone:'Europe/Madrid',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}); }
+  catch(e){ return String(iso); }
+}
+// «25/06/2026» → «2026-06-25» (o null si no es una fecha así)
+function incISOdeES(txt){
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(String(txt||'').trim());
+  if(!m) return null;
+  return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+}
+function incNuevoId(){ return 'inc_'+Date.now()+'_'+Math.random().toString(36).slice(2,8); }
+function incPuedeVer(){ return ['ADMIN','TECNICO'].includes(currentUserRole); }
+function incPuedeAnular(){ return currentUserRole==='ADMIN'; }
+function incPuedeEditar(){ return incPuedeVer(); }
+function incAviso(msg){ try{ showToast(msg); }catch(e){ alert(msg); } }
+
+// ── Datos en la nube ──────────────────────────────────────────
+async function incCargar(){
+  try{
+    const r = await window.storage.get(INCIDENCIAS_KEY);
+    incidenciasData = (r && r.value) ? JSON.parse(r.value) : [];
+  }catch(e){}
+}
+// Une lo de la nube con lo local: de cada incidencia manda la modificada más
+// recientemente, los historiales se juntan y una anulación nunca se pierde.
+function incFusionar(nube, local){
+  const mapa = new Map();
+  (nube||[]).forEach(x=>mapa.set(x.id, x));
+  (local||[]).forEach(x=>{
+    const o = mapa.get(x.id);
+    if(!o){ mapa.set(x.id, x); return; }
+    const ganador = String(x.actualizadoEn||'') >= String(o.actualizadoEn||'') ? x : o;
+    const otro = ganador===x ? o : x;
+    const hist = (ganador.historial||[]).slice();
+    (otro.historial||[]).forEach(h=>{
+      if(!hist.some(y=>y.fecha===h.fecha && y.a===h.a && y.usuario===h.usuario)) hist.push(h);
+    });
+    hist.sort((a,b)=>String(a.fecha).localeCompare(String(b.fecha)));
+    mapa.set(x.id, Object.assign({}, ganador, {historial:hist, anulada: ganador.anulada || otro.anulada || null}));
+  });
+  return Array.from(mapa.values());
+}
+// Devuelve true si se guardó. Relee la nube antes de escribir para no pisar lo
+// que haya guardado otra persona mientras tanto.
+async function incGuardar(){
+  try{
+    const r = await window.storage.get(INCIDENCIAS_KEY);
+    let nube = [];
+    if(r && r.value) nube = JSON.parse(r.value);
+    // get() devuelve null igual si la clave no existe todavía que si ha fallado
+    // la red: solo es seguro tratarlo como "vacío" si de verdad lo está (si no,
+    // se escribiría la lista local y se perderían incidencias de otros).
+    else if(!(await esClaveRealmenteVacia(INCIDENCIAS_KEY))) return false;
+    incidenciasData = incFusionar(nube, incidenciasData);
+    return await window.storage.set(INCIDENCIAS_KEY, JSON.stringify(incidenciasData));
+  }catch(e){ return false; }
+}
+async function incAsegurarPartidas(){
+  try{ if(typeof partidasDBCargada!=='undefined' && !partidasDBCargada) await loadPartidasFromStorage(); }catch(e){}
+}
+function incPartidasPorCodigo(codigo){
+  const c = String(codigo||'').trim().toUpperCase();
+  if(!c || typeof partidasDB==='undefined') return [];
+  return partidasDB.filter(p=>String(p.num||'').toUpperCase()===c);
+}
+
+// Entre qué fechas se puede registrar algo en la partida (misma idea que en
+// SemilleroAVP): desde su entrada hasta hoy o, si ya salió (Fecha Técnico
+// pasada), hasta ese día.
+function incVentana(codigo){
+  const hoy = incHoy();
+  const ps = incPartidasPorCodigo(codigo);
+  if(!ps.length) return {conocida:false, min:null, max:hoy, motivoMax:null, motivoMin:null, pasada:false};
+  const p = ps[0];
+  const min = incISOdeES(p.entrada);
+  let max = hoy, motivoMax = null;
+  const pasada = !!(typeof partidaEsPasada==='function' && partidaEsPasada(p));
+  if(pasada && p.fechaTecnico && p.fechaTecnico < hoy){ max = p.fechaTecnico; motivoMax = `salió el ${incFechaES(p.fechaTecnico)}`; }
+  return {conocida:true, min, max, motivoMax, motivoMin: min?`entró el ${incFechaES(min)}`:null, pasada};
+}
+
+// ── Pantalla principal ────────────────────────────────────────
+// En móvil se esconden columnas del listado y sus datos pasan a otra celda
+function incEstilos(){
+  if(document.getElementById('inc-estilos')) return;
+  const st = document.createElement('style');
+  st.id = 'inc-estilos';
+  st.textContent = '.inc-solo-m{display:none}@media (max-width:640px){.inc-hide-m{display:none!important}.inc-solo-m{display:block}}';
+  document.head.appendChild(st);
+}
+function showIncidenciasModule(){
+  if(!incPuedeVer()){ incAviso('No tienes acceso a Incidencias.'); return; }
+  incEstilos();
+  incCargar().then(()=>{
+    const ov = getOrCreateOverlay('inc-overlay');
+    ov.style.padding = '0';
+    ov.style.display = 'flex';
+    incRender();
+  });
+}
+function incCerrarModulo(){ const ov = document.getElementById('inc-overlay'); if(ov) ov.style.display='none'; }
+
+function incVisibles(){ return incidenciasData.filter(i=>!i.anulada); }
+function incFiltrarLista(){
+  const f = incFiltros, q = f.q.trim().toLowerCase();
+  const orden = {ABIERTA:0, EN_SEGUIMIENTO:1, CERRADA:2};
+  return incidenciasData.filter(i=>{
+    if(f.anuladas==='' && i.anulada) return false;
+    if(f.anuladas==='solo' && !i.anulada) return false;
+    if(f.tipo && i.tipo!==f.tipo) return false;
+    if(f.gravedad && i.gravedad!==f.gravedad) return false;
+    if(f.estado==='SIN_CERRAR'){ if(i.estado==='CERRADA') return false; }
+    else if(f.estado && i.estado!==f.estado) return false;
+    if(q){
+      const txt = [i.descripcion,i.accion,i.partida,i.variedad,i.cliente,i.inv].join(' ').toLowerCase();
+      if(!txt.includes(q)) return false;
+    }
+    return true;
+  }).sort((a,b)=>{
+    const d = (orden[a.estado]??9) - (orden[b.estado]??9);
+    return d || String(b.fecha).localeCompare(String(a.fecha)) || String(b.creadoEn).localeCompare(String(a.creadoEn));
+  });
+}
+
+function incRender(){
+  const ov = document.getElementById('inc-overlay');
+  if(!ov) return;
+  const v = incVisibles();
+  const abiertas = v.filter(i=>i.estado==='ABIERTA').length;
+  const seg = v.filter(i=>i.estado==='EN_SEGUIMIENTO').length;
+  const graves = v.filter(i=>i.estado!=='CERRADA' && i.gravedad==='ALTA').length;
+  const cerradas = v.filter(i=>i.estado==='CERRADA').length;
+  const tarjeta = (titulo, n, color, icono, estado, gravedad) => `
+    <div onclick="incAplicarAtajo('${estado}','${gravedad}')" class="home-shortcut-card" style="background:${color};color:#fff;border-radius:14px;padding:.85rem 1rem">
+      <i class="ti ${icono}" style="font-size:18px;opacity:.9"></i>
+      <div style="font-size:24px;font-weight:800;margin-top:2px">${n}</div>
+      <div style="font-size:12px;font-weight:700;opacity:.92">${titulo}</div>
+    </div>`;
+  const sel = (id, valor, opciones, todos) => `
+    <select id="${id}" onchange="incCambiarFiltro()" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;background:#fff">
+      <option value="">${todos}</option>
+      ${opciones.map(o=>`<option value="${o.k}" ${valor===o.k?'selected':''}>${incEsc(o.l)}</option>`).join('')}
+    </select>`;
+  ov.innerHTML = `
+    <div style="background:#f2f4f0;width:100vw;height:100vh;max-width:100vw;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.3)">
+      <div style="background:linear-gradient(135deg,#b71c1c,#e53935);color:#fff;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;flex-wrap:wrap;gap:10px">
+        <div style="font-size:17px;font-weight:800;display:flex;align-items:center;gap:8px"><i class="ti ti-flag" style="font-size:20px"></i> Incidencias</div>
+        <button onclick="incCerrarModulo()" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700;background:rgba(255,255,255,.15);color:#fff;border:none;cursor:pointer">✕ Cerrar</button>
+      </div>
+      <div id="inc-contenido" style="flex:1;overflow-y:auto;padding:1.25rem clamp(1rem,4vw,2rem)">
+        <div style="margin-bottom:1.25rem">
+          <h2 style="font-size:22px;font-weight:800;color:var(--text);margin-bottom:4px">Incidencias de las partidas</h2>
+          <p style="font-size:13px;color:var(--muted)">Plagas, enfermedades, estrés, daños y otros sucesos que afectan a una partida. Para dar de alta una nueva, pulsa «Nueva incidencia» o entra en la ficha de la partida afectada.</p>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:1.25rem">
+          ${tarjeta('Abiertas', abiertas, 'linear-gradient(135deg,#c62828,#e57373)', 'ti-flag', 'ABIERTA', '')}
+          ${tarjeta('En seguimiento', seg, 'linear-gradient(135deg,#c47f00,#e0a530)', 'ti-eye', 'EN_SEGUIMIENTO', '')}
+          ${tarjeta('Graves sin cerrar', graves, 'linear-gradient(135deg,#7f1d1d,#c62828)', 'ti-alert-triangle', 'SIN_CERRAR', 'ALTA')}
+          ${tarjeta('Cerradas', cerradas, 'linear-gradient(135deg,#1b5e20,#43a047)', 'ti-check', 'CERRADA', '')}
+        </div>
+        <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:1rem 1.25rem;margin-bottom:1rem;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+          <input id="inc-f-q" type="text" value="${incEsc(incFiltros.q)}" placeholder="Buscar (descripción, partida, variedad…)" oninput="incCambiarFiltro(true)" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;min-width:230px;flex:1">
+          ${sel('inc-f-tipo', incFiltros.tipo, INC_TIPOS, 'Todos los tipos')}
+          ${sel('inc-f-gravedad', incFiltros.gravedad, INC_GRAVEDADES, 'Toda gravedad')}
+          <select id="inc-f-estado" onchange="incCambiarFiltro()" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;background:#fff">
+            <option value="">Todos los estados</option>
+            <option value="SIN_CERRAR" ${incFiltros.estado==='SIN_CERRAR'?'selected':''}>Sin cerrar</option>
+            ${INC_ESTADOS.map(o=>`<option value="${o.k}" ${incFiltros.estado===o.k?'selected':''}>${o.l}</option>`).join('')}
+          </select>
+          <select id="inc-f-anuladas" onchange="incCambiarFiltro()" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;background:#fff">
+            <option value="">Ocultar anuladas</option>
+            <option value="incluir" ${incFiltros.anuladas==='incluir'?'selected':''}>Mostrar también anuladas</option>
+            <option value="solo" ${incFiltros.anuladas==='solo'?'selected':''}>Solo anuladas</option>
+          </select>
+          <button onclick="incLimpiarFiltros()" style="padding:8px 12px;border-radius:8px;font-size:12px;font-weight:700;background:#f2f4f0;border:1.5px solid var(--border);cursor:pointer">Quitar filtros</button>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:1rem">
+          ${incPuedeEditar() ? `<button onclick="incAbrirFormulario(null)" style="padding:10px 16px;border-radius:9px;font-size:13px;font-weight:800;background:#c62828;color:#fff;border:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px"><i class="ti ti-plus" style="font-size:15px"></i> Nueva incidencia</button>` : ''}
+          <button onclick="incExportarCSV()" style="padding:10px 14px;border-radius:9px;font-size:12px;font-weight:700;background:#fff;border:1.5px solid var(--border);cursor:pointer"><i class="ti ti-file-text" style="font-size:14px"></i> CSV</button>
+          <button onclick="incExportarExcel()" style="padding:10px 14px;border-radius:9px;font-size:12px;font-weight:700;background:#fff;border:1.5px solid var(--border);cursor:pointer"><i class="ti ti-file-spreadsheet" style="font-size:14px"></i> Excel</button>
+          <button onclick="incImprimir()" style="padding:10px 14px;border-radius:9px;font-size:12px;font-weight:700;background:#fff;border:1.5px solid var(--border);cursor:pointer"><i class="ti ti-printer" style="font-size:14px"></i> Imprimir / PDF</button>
+        </div>
+        <div id="inc-lista"></div>
+      </div>
+    </div>`;
+  incRenderLista();
+}
+
+function incRenderLista(){
+  const cont = document.getElementById('inc-lista');
+  if(!cont) return;
+  const lista = incFiltrarLista();
+  const hayFiltros = !!(incFiltros.q || incFiltros.tipo || incFiltros.gravedad || incFiltros.estado || incFiltros.anuladas);
+  if(!lista.length){
+    cont.innerHTML = `<div style="text-align:center;padding:2.5rem;color:var(--muted);font-style:italic;font-size:13px;background:#fff;border:1px solid var(--border);border-radius:12px">${hayFiltros?'Ninguna incidencia coincide con los filtros.':'Aún no hay incidencias registradas.'}</div>`;
+    return;
+  }
+  const th = 'padding:9px 12px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);background:#fafbf9;white-space:nowrap';
+  cont.innerHTML = `
+    <div style="font-size:12px;color:var(--muted);margin-bottom:6px">${lista.length} incidencia${lista.length===1?'':'s'}</div>
+    <div style="overflow-x:auto;background:#fff;border:1px solid var(--border);border-radius:12px">
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr>
+          <th class="inc-hide-m" style="${th}">Fecha</th><th class="inc-hide-m" style="${th}">Tipo</th><th class="inc-hide-m" style="${th}">Gravedad</th><th style="${th}">Estado</th>
+          <th style="${th}">Partida</th><th style="${th}">Descripción</th><th class="inc-hide-m" style="${th}"></th>
+        </tr></thead>
+        <tbody>
+          ${lista.map(i=>`
+          <tr onclick="incAbrirDetalle('${incJs(i.id)}')" style="cursor:pointer;border-top:1px solid var(--border);${i.anulada?'opacity:.6;background:#fafafa':''}">
+            <td class="inc-hide-m" style="padding:10px 12px;white-space:nowrap;color:var(--muted)">${incFechaES(i.fecha)}</td>
+            <td class="inc-hide-m" style="padding:10px 12px;white-space:nowrap">${incEsc(incEtq(INC_TIPOS,i.tipo))}</td>
+            <td class="inc-hide-m" style="padding:10px 12px">${incChip(INC_GRAVEDADES,i.gravedad)}</td>
+            <td style="padding:10px 12px">${incChip(INC_ESTADOS,i.estado)}<div class="inc-solo-m" style="margin-top:4px">${incChip(INC_GRAVEDADES,i.gravedad)}</div>${i.anulada?`<div style="margin-top:4px;font-size:11px;color:#c62828"><b>Anulada</b> ${incFechaHoraES(i.anulada.en)} por ${incEsc(i.anulada.por||'—')}: ${incEsc(i.anulada.motivo||'')}</div>`:''}</td>
+            <td style="padding:10px 12px;white-space:nowrap">
+              <a href="#" onclick="event.stopPropagation();incAbrirFichaPartida('${incJs(i.partida)}','${incJs(i.inv||'')}');return false" style="font-family:monospace;font-size:12px;font-weight:700;color:#1558a0;text-decoration:none">${incEsc(i.partida)}</a>
+              <div style="font-size:11px;color:var(--muted)">${incEsc(i.variedad||'')}${i.inv?` · INV ${incEsc(i.inv)}`:''}</div>
+              <div class="inc-solo-m" style="font-size:11px;color:var(--muted);margin-top:2px">${incFechaES(i.fecha)} · ${incEsc(incEtq(INC_TIPOS,i.tipo))}</div>
+            </td>
+            <td style="padding:10px 12px;max-width:420px;font-size:12px;color:#444">${incEsc(i.descripcion)}${i.creadoPor?`<div style="margin-top:3px;color:var(--muted)">— ${incEsc(i.creadoPor)}</div>`:''}</td>
+            <td class="inc-hide-m" style="padding:10px 12px;text-align:right;white-space:nowrap"><button onclick="event.stopPropagation();incAbrirDetalle('${incJs(i.id)}')" style="padding:6px 12px;border-radius:7px;font-size:12px;font-weight:700;background:#f2f4f0;border:1.5px solid var(--border);cursor:pointer">Abrir</button></td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function incCambiarFiltro(soloLista){
+  const g = id => { const el = document.getElementById(id); return el ? el.value : ''; };
+  incFiltros = {q:g('inc-f-q'), tipo:g('inc-f-tipo'), gravedad:g('inc-f-gravedad'), estado:g('inc-f-estado'), anuladas:g('inc-f-anuladas')};
+  incRenderLista();
+}
+function incLimpiarFiltros(){ incFiltros = {q:'', tipo:'', gravedad:'', estado:'', anuladas:''}; incRender(); }
+function incAplicarAtajo(estado, gravedad){
+  incFiltros = {q:'', tipo:'', gravedad:gravedad||'', estado:estado||'', anuladas:''};
+  incRender();
+}
+
+// ── Alta y edición ────────────────────────────────────────────
+// id=null → nueva (partidaIni/invIni opcionales, cuando se abre desde la ficha)
+async function incAbrirFormulario(id, partidaIni, invIni){
+  if(!incPuedeEditar()){ incAviso('No tienes permiso para registrar incidencias.'); return; }
+  await incAsegurarPartidas();
+  await incCargar();
+  let inc = null;
+  if(id){
+    inc = incidenciasData.find(x=>x.id===id);
+    if(!inc){ incAviso('La incidencia ya no existe.'); return; }
+    if(inc.anulada){ incAviso('Esta incidencia está anulada: ya no se puede editar.'); return; }
+  }
+  const nueva = !inc;
+  const codigo = inc ? inc.partida : (partidaIni||'');
+  const inv = inc ? (inc.inv||'') : (invIni||'');
+  const ov = getOrCreateOverlay('inc-form-overlay');
+  ov.style.zIndex = '2100';
+  ov.onclick = null; // un clic fuera no debe borrar lo escrito
+  ov.dataset.id = id||'';
+  ov.dataset.nueva = nueva ? '1' : '';
+  const campo = 'width:100%;padding:9px 11px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;background:#fff;font-family:inherit';
+  const lbl = 'font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px';
+  const opcionesPartidas = (typeof partidasDB!=='undefined' ? partidasDB : [])
+    .filter((p,ix,arr)=>arr.findIndex(q=>q.num===p.num)===ix)
+    .map(p=>`<option value="${incEsc(p.num)}">${incEsc((p.variedad||'')+(p.cliente?' · '+p.cliente:''))}</option>`).join('');
+  const v0 = incVentana(codigo);
+  ov.innerHTML = `
+    <div style="background:#fff;border-radius:14px;max-width:640px;width:100%;max-height:93vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.3)">
+      <div style="background:linear-gradient(135deg,#b71c1c,#e53935);color:#fff;padding:1rem 1.4rem;border-radius:14px 14px 0 0;font-size:16px;font-weight:800">${nueva?'Nueva incidencia':'Editar incidencia'}</div>
+      <div style="padding:1.25rem 1.4rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px">
+        <div style="grid-column:1/-1">
+          <label style="${lbl}">Partida afectada</label>
+          <input id="inc-fm-partida" list="inc-fm-partidas" type="text" value="${incEsc(codigo)}" ${nueva?'':'disabled'} placeholder="Código de la partida (p. ej. 25X09492)" oninput="incPartidaEscrita()" style="${campo};font-family:monospace;${nueva?'':'background:#f2f4f0'}">
+          <datalist id="inc-fm-partidas">${opcionesPartidas}</datalist>
+          <div id="inc-fm-partida-info" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
+        </div>
+        <div>
+          <label style="${lbl}">Invernadero (opcional)</label>
+          <input id="inc-fm-inv" type="text" value="${incEsc(inv)}" ${nueva?'':'disabled'} placeholder="p. ej. 17" style="${campo};${nueva?'':'background:#f2f4f0'}">
+        </div>
+        <div>
+          <label style="${lbl}">Fecha</label>
+          <input id="inc-fm-fecha" type="date" value="${incEsc(inc?inc.fecha:(v0.max<incHoy()?v0.max:incHoy()))}" ${v0.min?`min="${v0.min}"`:''} max="${v0.max}" style="${campo}">
+        </div>
+        <div>
+          <label style="${lbl}">Tipo</label>
+          <select id="inc-fm-tipo" style="${campo}">${INC_TIPOS.map(o=>`<option value="${o.k}" ${(inc?inc.tipo:'PLAGA')===o.k?'selected':''}>${o.l}</option>`).join('')}</select>
+        </div>
+        <div>
+          <label style="${lbl}">Gravedad</label>
+          <select id="inc-fm-gravedad" style="${campo}">${INC_GRAVEDADES.map(o=>`<option value="${o.k}" ${(inc?inc.gravedad:'MEDIA')===o.k?'selected':''}>${o.l}</option>`).join('')}</select>
+        </div>
+        <div style="grid-column:1/-1">
+          <label style="${lbl}">Descripción</label>
+          <textarea id="inc-fm-descripcion" rows="3" style="${campo};resize:vertical">${incEsc(inc?inc.descripcion:'')}</textarea>
+        </div>
+        <div style="grid-column:1/-1">
+          <label style="${lbl}">Acción tomada o prevista (opcional)</label>
+          <textarea id="inc-fm-accion" rows="2" style="${campo};resize:vertical">${incEsc(inc?(inc.accion||''):'')}</textarea>
+        </div>
+        <div style="grid-column:1/-1;font-size:12px;color:var(--muted)">Registrada por: <b>${incEsc(inc?(inc.creadoPor||'—'):(currentUser||'—'))}</b>${nueva?'':' · el estado se cambia desde la ficha de la incidencia'}</div>
+        <div id="inc-fm-error" style="grid-column:1/-1;display:none;background:#fdf0f0;border:1px solid #e8b0b0;color:#a32020;border-radius:8px;padding:9px 12px;font-size:12px;font-weight:600"></div>
+      </div>
+      <div style="padding:0 1.4rem 1.25rem;display:flex;gap:10px;justify-content:flex-end">
+        <button onclick="incCerrarFormulario()" style="padding:10px 18px;border-radius:9px;font-size:13px;font-weight:700;background:#f2f4f0;border:1.5px solid var(--border);cursor:pointer">Cancelar</button>
+        <button id="inc-fm-guardar" onclick="incGuardarFormulario()" style="padding:10px 20px;border-radius:9px;font-size:13px;font-weight:800;background:#c62828;color:#fff;border:none;cursor:pointer">${nueva?'Registrar incidencia':'Guardar cambios'}</button>
+      </div>
+    </div>`;
+  ov.style.display = 'flex';
+  incPartidaEscrita(true);
+}
+function incCerrarFormulario(){ const ov = document.getElementById('inc-form-overlay'); if(ov) ov.style.display='none'; }
+function incErrorForm(msg){
+  const e = document.getElementById('inc-fm-error');
+  if(e){ e.textContent = msg; e.style.display = msg ? 'block' : 'none'; }
+}
+// Al escribir el código: muestra qué partida es y ajusta los límites de fecha
+function incPartidaEscrita(inicial){
+  const ov = document.getElementById('inc-form-overlay');
+  const inp = document.getElementById('inc-fm-partida');
+  if(!ov || !inp) return;
+  const codigo = inp.value.trim();
+  const info = document.getElementById('inc-fm-partida-info');
+  const fecha = document.getElementById('inc-fm-fecha');
+  const ps = incPartidasPorCodigo(codigo);
+  const v = incVentana(codigo);
+  if(info){
+    if(!codigo) info.textContent = '';
+    else if(!ps.length) info.innerHTML = '<span style="color:#a35d00">No aparece en las partidas de La Sala: se guardará igualmente con ese código.</span>';
+    else {
+      info.innerHTML = `${incEsc(ps[0].variedad||'—')}${ps[0].cliente?' · '+incEsc(ps[0].cliente):''} · INV ${ps.map(p=>incEsc(p.inv)).join(', ')}`
+        + (v.motivoMax?` · <span style="color:#a35d00">${incEsc(v.motivoMax)}</span>`:'');
+    }
+  }
+  if(ov.dataset.nueva==='1'){
+    const invEl = document.getElementById('inc-fm-inv');
+    if(!inicial && invEl && ps.length===1) invEl.value = ps[0].inv || '';
+    else if(!inicial && invEl && !ps.length) {/* se respeta lo escrito */}
+  }
+  if(fecha){
+    if(v.min) fecha.min = v.min; else fecha.removeAttribute('min');
+    fecha.max = v.max;
+    if(fecha.value && fecha.value>v.max) fecha.value = v.max;
+    if(fecha.value && v.min && fecha.value<v.min) fecha.value = v.min;
+  }
+}
+async function incGuardarFormulario(){
+  const ov = document.getElementById('inc-form-overlay');
+  if(!ov) return;
+  const id = ov.dataset.id || null;
+  const nueva = ov.dataset.nueva === '1';
+  const val = x => { const el = document.getElementById(x); return el ? el.value.trim() : ''; };
+  incErrorForm('');
+  const partida = val('inc-fm-partida').toUpperCase();
+  const tipo = val('inc-fm-tipo'), gravedad = val('inc-fm-gravedad');
+  const fecha = val('inc-fm-fecha'), descripcion = val('inc-fm-descripcion'), accion = val('inc-fm-accion');
+  const inv = val('inc-fm-inv');
+
+  if(!partida) return incErrorForm('La incidencia debe enlazarse a una partida: escribe su código.');
+  if(!INC_TIPOS.some(t=>t.k===tipo)) return incErrorForm('Tipo de incidencia no válido.');
+  if(!INC_GRAVEDADES.some(g=>g.k===gravedad)) return incErrorForm('Gravedad no válida.');
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return incErrorForm('Indica la fecha de la incidencia.');
+  if(!descripcion) return incErrorForm('La descripción es obligatoria.');
+
+  await incCargar();
+  const actual = id ? incidenciasData.find(x=>x.id===id) : null;
+  if(id && !actual) return incErrorForm('La incidencia ya no existe.');
+  if(actual && actual.anulada) return incErrorForm('Esta incidencia está anulada: ya no se puede editar.');
+
+  // Fechas: la fecha solo se vuelve a comprobar si se cambia (como en SemilleroAVP)
+  const v = incVentana(partida);
+  const cambiaFecha = !actual || actual.fecha !== fecha;
+  if(cambiaFecha){
+    if(fecha > incHoy()) return incErrorForm('La fecha no puede ser posterior a hoy.');
+    if(fecha > v.max) return incErrorForm(`La partida ${partida} ${v.motivoMax}: la incidencia no puede tener una fecha posterior.`);
+    if(v.min && fecha < v.min) return incErrorForm(`La partida ${partida} ${v.motivoMin}: la incidencia no puede tener una fecha anterior.`);
+  }
+  if(nueva && v.pasada) return incErrorForm(`La partida ${partida} ya salió (Fecha Técnico pasada): no admite incidencias nuevas.`);
+  if(nueva && !v.conocida && !confirm(`El código ${partida} no aparece en las partidas de La Sala.\n\n¿Registrar la incidencia igualmente?`)) return;
+
+  const btn = document.getElementById('inc-fm-guardar');
+  if(btn){ btn.disabled = true; btn.style.opacity = '.6'; }
+  const ahora = new Date().toISOString();
+  if(nueva){
+    const p = incPartidasPorCodigo(partida).find(x=>String(x.inv)===inv) || incPartidasPorCodigo(partida)[0] || null;
+    incidenciasData.push({
+      id: incNuevoId(), partida, inv: inv || (p?String(p.inv||''):''),
+      variedad: p ? (p.variedad||'') : '', cliente: p ? (p.cliente||'') : '',
+      tipo, gravedad, fecha, descripcion, accion: accion||null,
+      estado: 'ABIERTA', creadoPor: currentUser||'—', creadoEn: ahora, actualizadoEn: ahora,
+      historial: [], anulada: null
+    });
+  } else {
+    Object.assign(actual, {tipo, gravedad, fecha, descripcion, accion: accion||null, actualizadoEn: ahora});
+  }
+  const ok = await incGuardar();
+  if(!ok){
+    if(btn){ btn.disabled = false; btn.style.opacity = '1'; }
+    return incErrorForm('No se ha podido guardar. Revisa la conexión e inténtalo de nuevo.');
+  }
+  logHistorial(`${nueva?'Registró':'Editó'} incidencia (${incEtq(INC_TIPOS,tipo)}, ${incEtq(INC_GRAVEDADES,gravedad).toLowerCase()}) de la partida ${partida}`);
+  incCerrarFormulario();
+  incAviso(nueva ? '✓ Incidencia registrada' : '✓ Cambios guardados');
+  incRefrescarTodo(partida, inv);
+}
+// Repinta lo que esté abierto (listado, detalle y bloque de la ficha)
+function incRefrescarTodo(partida, inv){
+  const main = document.getElementById('inc-overlay');
+  if(main && main.style.display==='flex') incRender();
+  const det = document.getElementById('inc-detalle-overlay');
+  if(det && det.style.display==='flex' && det.dataset.id) incPintarDetalle(det.dataset.id);
+  incRefrescarFicha(partida, inv);
+}
+
+// ── Detalle, cambio de estado, anulación ──────────────────────
+async function incAbrirDetalle(id){
+  await incCargar();
+  const ov = getOrCreateOverlay('inc-detalle-overlay');
+  ov.style.zIndex = '2050';
+  ov.dataset.id = id;
+  ov.style.display = 'flex';
+  incPintarDetalle(id);
+}
+function incCerrarDetalle(){ const ov = document.getElementById('inc-detalle-overlay'); if(ov) ov.style.display='none'; }
+function incPintarDetalle(id){
+  const ov = document.getElementById('inc-detalle-overlay');
+  const i = incidenciasData.find(x=>x.id===id);
+  if(!ov) return;
+  if(!i){ ov.innerHTML = `<div style="background:#fff;border-radius:14px;padding:2rem;max-width:420px;width:100%;text-align:center">La incidencia ya no existe.<br><br><button onclick="incCerrarDetalle()" style="padding:8px 16px;border-radius:8px;border:1.5px solid var(--border);cursor:pointer">Cerrar</button></div>`; return; }
+  const dato = (t,v) => `<div><div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">${t}</div><div style="font-size:14px;margin-top:2px">${v}</div></div>`;
+  const permitidos = INC_TRANSICIONES[i.estado] || [];
+  const hist = (i.historial||[]).slice().sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha)));
+  ov.innerHTML = `
+    <div style="background:#fff;border-radius:14px;max-width:720px;width:100%;max-height:93vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.3)">
+      <div style="background:linear-gradient(135deg,#b71c1c,#e53935);color:#fff;padding:1rem 1.4rem;border-radius:14px 14px 0 0;display:flex;justify-content:space-between;align-items:center;gap:10px;position:sticky;top:0">
+        <div style="font-size:16px;font-weight:800">${i.anulada?'Incidencia anulada':'Incidencia'} · ${incEsc(incEtq(INC_TIPOS,i.tipo))}</div>
+        <button onclick="incCerrarDetalle()" style="padding:5px 11px;border-radius:7px;background:rgba(255,255,255,.18);color:#fff;border:none;cursor:pointer;font-size:12px">✕</button>
+      </div>
+      <div style="padding:1.25rem 1.4rem">
+        ${i.anulada ? `<div style="background:#fdf0f0;border:1px solid #e8b0b0;color:#a32020;border-radius:8px;padding:10px 12px;font-size:12px;margin-bottom:1rem">Anulada el ${incFechaHoraES(i.anulada.en)} por ${incEsc(i.anulada.por||'—')}. Motivo: ${incEsc(i.anulada.motivo||'—')}. Ya no cuenta en listados, fichas ni paneles y no se puede editar.</div>` : ''}
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-bottom:1rem">
+          ${dato('Partida', `<a href="#" onclick="incAbrirFichaPartida('${incJs(i.partida)}','${incJs(i.inv||'')}');return false" style="font-family:monospace;font-weight:700;color:#1558a0;text-decoration:none">${incEsc(i.partida)}</a><div style="font-size:11px;color:var(--muted)">${incEsc(i.variedad||'')}${i.inv?` · INV ${incEsc(i.inv)}`:''}</div>`)}
+          ${dato('Fecha', incFechaES(i.fecha))}
+          ${dato('Gravedad', incChip(INC_GRAVEDADES,i.gravedad))}
+          ${dato('Estado', incChip(INC_ESTADOS,i.estado))}
+          ${dato('Registrada por', incEsc(i.creadoPor||'—')+`<div style="font-size:11px;color:var(--muted)">${incFechaHoraES(i.creadoEn)}</div>`)}
+        </div>
+        <div style="margin-bottom:.75rem">${dato('Descripción', `<div style="white-space:pre-wrap">${incEsc(i.descripcion)}</div>`)}</div>
+        ${i.accion ? `<div style="margin-bottom:1rem">${dato('Acción tomada o prevista', `<div style="white-space:pre-wrap">${incEsc(i.accion)}</div>`)}</div>` : ''}
+        ${!i.anulada && incPuedeEditar() ? `
+        <div style="background:#f7f8f5;border:1px solid var(--border);border-radius:10px;padding:.9rem 1rem;margin-bottom:1rem">
+          <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Cambio de estado</div>
+          <input id="inc-motivo-estado" type="text" placeholder="Motivo del cambio (opcional). Ej. Foco controlado, sin nuevos síntomas" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;margin-bottom:8px">
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            ${permitidos.map(e=>`<button onclick="incCambiarEstado('${incJs(i.id)}','${e}')" style="padding:8px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid ${e==='CERRADA'?'#a5d6a7':'#e0a530'};background:${e==='CERRADA'?'#e8f5e9':'#fdf3dc'};color:${e==='CERRADA'?'#2e7d32':'#7a5000'}">→ ${incEtq(INC_ESTADOS,e)}</button>`).join('')}
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:1rem">
+          <button onclick="incAbrirFormulario('${incJs(i.id)}')" style="padding:8px 14px;border-radius:8px;font-size:12px;font-weight:700;background:#f2f4f0;border:1.5px solid var(--border);cursor:pointer">Editar</button>
+          ${incPuedeAnular() ? `<button onclick="incAnular('${incJs(i.id)}')" style="padding:8px 14px;border-radius:8px;font-size:12px;font-weight:700;background:#fff;color:#c62828;border:1.5px solid #e8b0b0;cursor:pointer">Anular</button>` : ''}
+        </div>` : ''}
+        <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Historial de cambios de estado</div>
+        ${hist.length ? `
+        <div style="overflow-x:auto;border:1px solid var(--border);border-radius:9px">
+          <table style="width:100%;border-collapse:collapse;font-size:12px">
+            <thead><tr style="background:#fafbf9;color:var(--muted);text-align:left"><th style="padding:7px 10px">Fecha</th><th style="padding:7px 10px">De</th><th style="padding:7px 10px">A</th><th style="padding:7px 10px">Motivo</th><th style="padding:7px 10px">Usuario</th></tr></thead>
+            <tbody>${hist.map(h=>`<tr style="border-top:1px solid var(--border)"><td style="padding:7px 10px;white-space:nowrap">${incFechaHoraES(h.fecha)}</td><td style="padding:7px 10px">${incEtq(INC_ESTADOS,h.de)}</td><td style="padding:7px 10px">${incEtq(INC_ESTADOS,h.a)}</td><td style="padding:7px 10px">${incEsc(h.motivo||'—')}</td><td style="padding:7px 10px">${incEsc(h.usuario||'—')}</td></tr>`).join('')}</tbody>
+          </table>
+        </div>` : `<div style="font-size:12px;color:var(--muted);font-style:italic">Aún no hay cambios de estado. El primero se registrará al usar los botones de arriba.</div>`}
+      </div>
+    </div>`;
+}
+async function incCambiarEstado(id, nuevo){
+  if(!incPuedeEditar()) return;
+  const motivoEl = document.getElementById('inc-motivo-estado');
+  const motivo = motivoEl ? motivoEl.value.trim() : '';
+  const visto = incidenciasData.find(x=>x.id===id);
+  const estadoVisto = visto ? visto.estado : null;
+  await incCargar(); // lo último de la nube: otra persona pudo cambiarla
+  const i = incidenciasData.find(x=>x.id===id);
+  if(!i){ incAviso('La incidencia ya no existe.'); incRefrescarTodo(); return; }
+  if(i.anulada){ incAviso('Esta incidencia está anulada: ya no se puede cambiar su estado.'); incRefrescarTodo(i.partida, i.inv); return; }
+  if(estadoVisto && i.estado !== estadoVisto){
+    incAviso('Otra persona ya ha cambiado el estado de esta incidencia. Se muestra el actual.');
+    incRefrescarTodo(i.partida, i.inv); return;
+  }
+  if(!(INC_TRANSICIONES[i.estado]||[]).includes(nuevo)){
+    incAviso(`Cambio no permitido: ${incEtq(INC_ESTADOS,i.estado)} → ${incEtq(INC_ESTADOS,nuevo)}.`); return;
+  }
+  const ahora = new Date().toISOString();
+  (i.historial = i.historial||[]).push({fecha:ahora, de:i.estado, a:nuevo, motivo:motivo||null, usuario:currentUser||'—'});
+  const antes = i.estado;
+  i.estado = nuevo; i.actualizadoEn = ahora;
+  const ok = await incGuardar();
+  if(!ok){ incAviso('No se ha podido guardar el cambio. Revisa la conexión.'); return; }
+  logHistorial(`Incidencia de ${i.partida}: ${incEtq(INC_ESTADOS,antes)} → ${incEtq(INC_ESTADOS,nuevo)}${motivo?' ('+motivo+')':''}`);
+  incAviso('✓ Estado actualizado');
+  incRefrescarTodo(i.partida, i.inv);
+}
+async function incAnular(id){
+  if(!incPuedeAnular()){ incAviso('Solo un administrador puede anular incidencias.'); return; }
+  const motivo = (window.prompt('Motivo de la anulación (queda registrado junto a tu nombre):')||'').trim();
+  if(!motivo) return;
+  await incCargar();
+  const i = incidenciasData.find(x=>x.id===id);
+  if(!i){ incAviso('La incidencia ya no existe.'); return; }
+  if(i.anulada){ incAviso('Esta incidencia ya estaba anulada.'); incRefrescarTodo(i.partida, i.inv); return; }
+  const ahora = new Date().toISOString();
+  i.anulada = {en:ahora, por:currentUser||'—', motivo:motivo.slice(0,500)};
+  i.actualizadoEn = ahora;
+  const ok = await incGuardar();
+  if(!ok){ incAviso('No se ha podido guardar. Revisa la conexión.'); return; }
+  logHistorial(`Anuló incidencia de ${i.partida}: ${motivo}`);
+  incAviso('Incidencia anulada');
+  incRefrescarTodo(i.partida, i.inv);
+}
+
+// ── Bloque dentro de la ficha de la partida ───────────────────
+// La ficha (_renderPartidaDetail) deja un hueco con id inc-ficha-bloque y,
+// al terminar de pintarse, llama a incRefrescarFicha(num, inv).
+async function incRefrescarFicha(num, inv){
+  const hueco = document.getElementById('inc-ficha-bloque');
+  if(!hueco) return;
+  if(!incPuedeVer()){ hueco.innerHTML = ''; return; }
+  const codigo = num || hueco.dataset.num;
+  const invernadero = inv || hueco.dataset.inv || '';
+  await incCargar();
+  const lista = incVisibles().filter(i=>String(i.partida).toUpperCase()===String(codigo).toUpperCase())
+    .sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha)));
+  const v = incVentana(codigo);
+  const boton = incPuedeEditar()
+    ? (v.pasada ? `<span style="font-size:11px;color:var(--muted)">No admite incidencias nuevas (partida pasada)</span>`
+        : `<button onclick="incAbrirFormulario(null,'${incJs(codigo)}','${incJs(invernadero)}')" style="padding:6px 12px;border-radius:8px;font-size:11px;font-weight:800;background:#c62828;color:#fff;border:none;cursor:pointer">+ Nueva incidencia</button>`)
+    : '';
+  hueco.innerHTML = `
+    <div style="font-size:10px;font-weight:700;color:#c62828;text-transform:uppercase;letter-spacing:.05em;margin:1rem 0 .5rem;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+      <span style="display:flex;align-items:center;gap:5px"><i class="ti ti-flag" style="font-size:13px"></i>Incidencias (${lista.length})</span>${boton}
+    </div>
+    ${lista.length ? `<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:.5rem">
+      ${lista.map(i=>`
+      <div onclick="incAbrirDetalle('${incJs(i.id)}')" style="cursor:pointer;border:1px solid var(--border);border-radius:9px;padding:8px 10px;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;background:#fff">
+        <div style="min-width:0;flex:1"><div style="font-size:12px;font-weight:700">${incEsc(incEtq(INC_TIPOS,i.tipo))} <span style="color:var(--muted);font-weight:400">· ${incFechaES(i.fecha)}</span></div>
+        <div style="font-size:12px;color:#555;margin-top:2px">${incEsc(i.descripcion)}</div></div>
+        <div style="display:flex;gap:6px;align-items:flex-start">${incChip(INC_GRAVEDADES,i.gravedad)}${incChip(INC_ESTADOS,i.estado)}</div>
+      </div>`).join('')}
+    </div>` : `<div style="font-size:12px;color:#aaa;font-style:italic;padding:4px 0 8px">Aún no hay incidencias registradas para esta partida.</div>`}`;
+}
+// Abre la ficha de una partida desde Incidencias
+async function incAbrirFichaPartida(num, inv){
+  await incAsegurarPartidas();
+  const p = (typeof partidasDB!=='undefined') ? (partidasDB.find(x=>x.num===num && String(x.inv)===String(inv)) || partidasDB.find(x=>x.num===num)) : null;
+  if(!p){ incAviso('Esa partida no está en las partidas de La Sala.'); return; }
+  _renderPartidaDetail(p, p.num, p.inv);
+}
+
+// ── Exportar ──────────────────────────────────────────────────
+function incFilasExport(){
+  const lista = incFiltrarLista();
+  const conAnuladas = incFiltros.anuladas !== '';
+  const cab = ['Fecha','Tipo','Gravedad','Estado','Partida','Invernadero','Variedad','Cliente','Descripción','Acción tomada','Registrada por'];
+  if(conAnuladas) cab.push('Anulada el','Anulada por','Motivo de anulación');
+  const filas = lista.map(i=>{
+    const f = [incFechaES(i.fecha), incEtq(INC_TIPOS,i.tipo), incEtq(INC_GRAVEDADES,i.gravedad), incEtq(INC_ESTADOS,i.estado),
+      i.partida, i.inv||'', i.variedad||'', i.cliente||'', i.descripcion||'', i.accion||'', i.creadoPor||''];
+    if(conAnuladas) f.push(i.anulada?incFechaHoraES(i.anulada.en):'', i.anulada?(i.anulada.por||''):'', i.anulada?(i.anulada.motivo||''):'');
+    return f;
+  });
+  return {cab, filas};
+}
+function incNombreArchivo(ext){ return `lasala-incidencias-${incHoy()}.${ext}`; }
+function incDescargar(blob, nombre){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = nombre; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 2000);
+}
+function incExportarCSV(){
+  const {cab, filas} = incFilasExport();
+  const esc = c => { const s = String(c==null?'':c); return /[";\n\r]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; };
+  const csv = '﻿' + [cab, ...filas].map(r=>r.map(esc).join(';')).join('\r\n');
+  incDescargar(new Blob([csv], {type:'text/csv;charset=utf-8'}), incNombreArchivo('csv'));
+  incAviso(`✓ ${filas.length} incidencia${filas.length===1?'':'s'} exportada${filas.length===1?'':'s'}`);
+}
+async function incExportarExcel(){
+  try{
+    await loadScriptOnce('https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js');
+    const {cab, filas} = incFilasExport();
+    const ws = XLSX.utils.aoa_to_sheet([cab, ...filas]);
+    ws['!cols'] = cab.map((c,ix)=>({wch: ix===8||ix===9 ? 50 : (ix>=4&&ix<=7 ? 18 : 14)}));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Incidencias');
+    XLSX.writeFile(wb, incNombreArchivo('xlsx'));
+    incAviso(`✓ ${filas.length} incidencia${filas.length===1?'':'s'} exportada${filas.length===1?'':'s'}`);
+  }catch(e){ incAviso('No se ha podido crear el Excel (¿hay conexión?). Prueba con CSV.'); }
+}
+// Listado para imprimir o guardar como PDF: con el logotipo de La Sala y el
+// cuerpo en Montserrat fino a 10 pt (norma de la organización para documentos)
+function incImprimir(){
+  const {cab, filas} = incFilasExport();
+  const logoEl = document.querySelector('.topbar-brand img');
+  const logo = logoEl ? logoEl.src : '';
+  const w = window.open('', '_blank');
+  if(!w){ incAviso('El navegador ha bloqueado la ventana de impresión. Permite las ventanas emergentes.'); return; }
+  const f = incFiltros;
+  const filtros = [f.estado==='SIN_CERRAR'?'Sin cerrar':(f.estado?incEtq(INC_ESTADOS,f.estado):''), f.tipo?incEtq(INC_TIPOS,f.tipo):'', f.gravedad?'Gravedad '+incEtq(INC_GRAVEDADES,f.gravedad).toLowerCase():'', f.q?'«'+f.q+'»':''].filter(Boolean).join(' · ');
+  w.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Incidencias — La Sala</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@100;600&display=swap" rel="stylesheet">
+    <style>
+      @page{size:A4 landscape;margin:14mm}
+      body{font-family:'Montserrat',Arial,sans-serif;font-weight:100;font-size:10pt;color:#18181b}
+      header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #1B3F8F;padding-bottom:8px;margin-bottom:12px}
+      header img{height:34px}
+      h1{font-size:14pt;font-weight:600;color:#1B3F8F;margin:0}
+      .sub{font-size:9pt;color:#71717a;margin-top:2px}
+      table{width:100%;border-collapse:collapse;font-size:9pt}
+      th{font-weight:600;text-align:left;background:#f4f4f5;border-bottom:1px solid #d4d4d8;padding:5px 6px;font-size:8pt;text-transform:uppercase}
+      td{border-bottom:.5px solid #d4d4d8;padding:5px 6px;vertical-align:top}
+      tr{page-break-inside:avoid}
+    </style></head><body>
+    <header>${logo?`<img src="${logo}" alt="Viveros La Sala">`:'<b>VIVEROS LA SALA</b>'}<div style="text-align:right"><h1>Incidencias de las partidas</h1><div class="sub">${incEsc(incFechaES(incHoy()))}${filtros?' · '+incEsc(filtros):''} · ${filas.length} incidencia${filas.length===1?'':'s'}</div></div></header>
+    <table><thead><tr>${['Fecha','Tipo','Gravedad','Estado','Partida','INV','Descripción y acción','Registró'].map(h=>`<th>${h}</th>`).join('')}</tr></thead>
+    <tbody>${filas.map(r=>`<tr><td>${incEsc(r[0])}</td><td>${incEsc(r[1])}</td><td>${incEsc(r[2])}</td><td>${incEsc(r[3])}</td><td>${incEsc(r[4])}<br>${incEsc(r[6])}</td><td>${incEsc(r[5])}</td><td>${incEsc(r[8])}${r[9]?'<br><i>Acción: '+incEsc(r[9])+'</i>':''}</td><td>${incEsc(r[10])}</td></tr>`).join('')||'<tr><td colspan="8">Sin incidencias con estos filtros.</td></tr>'}</tbody></table>
+    <script>window.onload=function(){setTimeout(function(){window.print()},600)}<\/script></body></html>`);
+  w.document.close();
+}
 
 </script>
 </body>
