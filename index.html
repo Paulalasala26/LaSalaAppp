@@ -6988,6 +6988,11 @@ function controlQCInfoVisual(c){
       const calles=[...new Set(fichaLocations.map(x=>calleLabel(x.desde,x.hasta)).filter(Boolean))];
       return {inv:invs.map(x=>'INV '+x).join(', ')||'—',calles:calles.join(', ')||'—'};
     }
+    // Equivalencia comprobada en el catálogo GS: PAR_CAS 007 corresponde
+    // exactamente a invernaderos.id 07 (INVERNADERO 7). No extrapolarla a
+    // otros códigos sin validar su fila en el catálogo.
+    const cas=String(c.PAR_CAS??c.gsDetalles?.PAR_CAS??'').trim();
+    if(cas==='007')return {inv:'INVERNADERO 7',calles:'—'};
     return {inv:'—',calles:'—'};
   }
   const codigoGS=String(c.PAR_CAS??c.gsDetalles?.PAR_CAS??'').trim();
@@ -7026,10 +7031,21 @@ function renderControlIdentidadQC(c,estadoWizard=false){
 function renderControlDatosQC(c){
   const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
   const ubicacion=controlQCInfoVisual(c);
+  const preinjerto=c.tipo==='preinjerto_patron'||c.tipo==='preinjerto_variedad';
+  const physicalLocation=(ubicacion.inv&&ubicacion.inv!=='—')||(ubicacion.calles&&ubicacion.calles!=='—');
+  const details=c.gsDetalles&&typeof c.gsDetalles==='object'?c.gsDetalles:{};
+  const parCas=String(c.PAR_CAS||details.PAR_CAS||'').trim();
+  const parUbic=String(c.PAR_UBIC||details.PAR_UBIC||'').trim();
+  const rawGsLocation=preinjerto&&(parCas||parUbic)&&(!physicalLocation||ubicacion.calles==='—')
+    ?'<span class="qc-card-gs-location"><i class="ti ti-database" aria-hidden="true"></i> Calle física: <strong>sin asignación recibida</strong> · Códigos GS: <strong>PAR_CAS '+(esc(parCas)||'—')+' / PAR_UBIC '+(esc(parUbic)||'—')+'</strong></span>'
+    :preinjerto&&!physicalLocation
+      ?'<span class="qc-card-gs-location"><i class="ti ti-database" aria-hidden="true"></i> Ubicación física: <strong>sin asignación recibida</strong></span>'
+    :'';
   return '<div class="qc-card-facts qc-card-facts-ordenado">'
     +'<span><i class="ti ti-box" aria-hidden="true"></i> Bandejas declaradas: <strong>'+ (esc(c.numBandejas)||'—')+'</strong></span>'
     +'<span><i class="ti ti-building-warehouse" aria-hidden="true"></i> Invernadero: <strong>'+esc(ubicacion.inv)+'</strong></span>'
     +'<span><i class="ti ti-map-pin" aria-hidden="true"></i> Calle: <strong>'+esc(ubicacion.calles)+'</strong></span>'
+    +rawGsLocation
     +'</div>';
 }
 /* 1.00. Mismo botón operativo de inspección en Túnel y Carga. */
