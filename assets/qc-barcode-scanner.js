@@ -24,6 +24,7 @@
   var detector = null;
   var scanTimer = null;
   var detecting = false;
+  var lookupSequence = 0;
 
   function setStatus(message, isError) {
     if (!statusNode) return;
@@ -47,6 +48,7 @@
   }
 
   function closeOverlay() {
+    lookupSequence++;
     stopCamera();
     if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
     overlay = null;
@@ -224,12 +226,14 @@
       return;
     }
     if (resultsNode) resultsNode.textContent = '';
+    var requestId = ++lookupSequence;
     var types = supportedTypes();
     try {
       if (typeof loadControlTipoCompleto !== 'function') throw new Error('QC_LOADER_UNAVAILABLE');
       for (var i = 0; i < types.length; i++) {
         setStatus('Cargando registros QC: ' + labelForType(types[i]) + '…');
         var loaded = await loadControlTipoCompleto(types[i], false);
+        if (!overlay || requestId !== lookupSequence) return;
         if (!loaded) throw new Error('QC_LOAD_FAILED');
       }
       var matches = exactMatches(code);
@@ -248,6 +252,7 @@
       }
       renderMatches(code, matches);
     } catch (error) {
+      if (!overlay || requestId !== lookupSequence) return;
       setStatus('No se pudieron consultar todos los registros QC. Comprueba la conexión e inténtalo de nuevo.', true);
       if (window.console && console.error) console.error('[QC barcode lookup]', error);
     }
