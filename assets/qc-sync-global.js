@@ -33,36 +33,6 @@
      p.filter(x=>x.status==='ENVIO_INCIERTO').length};
  }
  function refsLabel(items,tipo){return items.filter(x=>x?.ref?.tipo===tipo).length;}
- const CATEGORY_LABELS={color:'Color',tamano:'Tamaño',sanidad:'Sanidad',flores:'Flores',raices:'Raíces'};
- const OPTION_LABELS={ok:'OK',noEvaluada:'No evaluada',verde:'Verde',amarillo:'Amarillo',
-  verdeClaro:'Verde claro',grande:'Grande',pequeno:'Pequeño',enfermedad1:'Enfermedad 1',
-  enfermedad2:'Enfermedad 2',enfermedad3:'Enfermedad 3',enfermedad4:'Enfermedad 4',
-  si:'Sí',no:'No',pocaRaiz:'Poca raíz',raizVariedad:'Raíz en variedad'};
- function localDraftLines(item){
-  const source=item.categorias||item.mediciones||{},lines=[];
-  if(Number.isFinite(item.bandejasInspeccionadas))
-   lines.push('Bandejas inspeccionadas: '+item.bandejasInspeccionadas);
-  for(const [key,value] of Object.entries(source)){
-   const label=CATEGORY_LABELS[key]||key;
-   if(Array.isArray(value?.opciones)){
-    const options=value.opciones.map(option=>{
-     const name=key==='flores'&&option==='ok'?'No':(OPTION_LABELS[option]||option);
-     const pct=value.porcentajesEnfermedades?.[option];
-     return Number.isFinite(pct)?name+' ('+pct+'%)':name;
-    });
-    if(Number.isFinite(value.porcentajeInvalidas))
-     options.push('Porcentaje afectado '+value.porcentajeInvalidas+'%');
-    lines.push(label+': '+(options.join(', ')||'—'));
-   }else if(value&&typeof value==='object'){
-    const active=Object.entries(value).filter(([,count])=>typeof count==='number'&&count>0)
-     .map(([option,count])=>(OPTION_LABELS[option]||option)+': '+count);
-    lines.push(label+': '+(active.join(', ')||'—'));
-   }else lines.push(label+': '+String(value));
-  }
-  if(Number.isFinite(item.porcentajeInvalidasGlobal))
-   lines.push('Porcentaje global: '+item.porcentajeInvalidasGlobal+'%');
-  return lines.length?lines:['El borrador no contiene datos de evaluación legibles.'];
- }
  function show(){
   const anchor=$('avisos-sync-anchor')||$('qc-global-sync-anchor'),host=$('avisos-sync-panel')||$('qc-global-sync-panel');
   if(!anchor||!host)return;
@@ -107,79 +77,6 @@
    row.append(text('span',name),text('strong',String(count)));desc.append(row);
   }
   panel.append(desc);
-  if(state.drafts.length){
-   const local=text('div',null,'qc-sync-local-drafts');
-   local.style.cssText='margin:12px 0;padding:10px;border:1px solid #c8d9e8;border-radius:10px;background:#fff';
-   local.append(text('strong','Borradores de inspección guardados en este dispositivo'));
-   for(const item of state.drafts){
-    const details=text('details',null,'qc-sync-local-draft');
-    details.style.cssText='margin-top:8px;padding:8px;border:1px solid #d5e2ee;border-radius:8px;background:#f7fbff';
-    const kind=item.ref.tipo==='tunel'?'QC Túnel':'QC Carga normal';
-    details.append(text('summary','Ver borrador local · '+kind+' · '+item.ref.partida+' ('+item.ref.id+')'));
-    details.append(text('p',item.status==='ENVIO_INCIERTO'?
-      'Estado: envío anterior por verificar. Vista de solo lectura; no se ha cambiado ningún dato.':
-      'Estado: pendiente de sincronizar. Vista de solo lectura.'));
-    for(const line of localDraftLines(item))details.append(text('p',line));
-    const serverCheck=text('button','Consultar valores del servidor (solo lectura)');
-    serverCheck.type='button';
-    serverCheck.style.cssText='margin-top:8px;padding:8px 10px;border:1px solid #9fb6d2;border-radius:7px;background:#e5eef8;color:#1558a0;font-weight:700';
-    const serverValues=text('div',null,'qc-sync-server-values');
-    serverValues.style.cssText='margin-top:8px;padding:8px;border:1px solid #c8d9e8;border-radius:8px;background:#fff';
-    serverValues.hidden=true;
-    serverCheck.addEventListener('click',async()=>{
-     if(serverCheck.disabled)return;
-     serverCheck.disabled=true;
-     serverValues.hidden=false;
-     serverValues.replaceChildren(text('p','Consultando el servidor QC…'));
-     try{
-      const result=await window.QCOfflineDraftEditor?.checkServer?.(item.ref);
-      if(!result)throw Error('La consulta de servidor no está disponible en esta versión.');
-      serverValues.replaceChildren();
-      if(result.state==='EMPTY'){
-       serverValues.append(text('p','El servidor no tiene cantidades guardadas para esta inspección. El borrador local se conserva.'));
-      }else{
-       serverValues.append(text('strong','Valores encontrados en el servidor · versión '+result.record.version));
-       for(const line of localDraftLines(result.record))serverValues.append(text('p',line));
-       serverValues.append(text('p',result.sameValues?
-        'Coincidencia exacta de mediciones: sí.':
-        'Coincidencia exacta de mediciones: no; no se retirará el borrador.'));
-       if(result.sameValues&&!result.attributed){
-        serverValues.append(text('p','El sistema no puede atribuir esta escritura al intento anterior por usuario o fecha.'));
-       }
-       serverValues.append(text('p','Consulta de solo lectura; no se ha enviado ni modificado ningún dato.'));
-       if(result.sameValues&&result.record.version===1&&item.status==='ENVIO_INCIERTO'){
-        const resolve=text('button','Retirar copia local tras verificar coincidencia');
-        resolve.type='button';
-        resolve.style.cssText='margin-top:6px;padding:8px 10px;border:1px solid #c47f00;border-radius:7px;background:#fff8e8;color:#805000;font-weight:700';
-        resolve.addEventListener('click',async()=>{
-         if(!window.confirm('Una nueva consulta confirma que el servidor ya tiene exactamente estas mediciones. ¿Retirar solo la copia local pendiente? No se enviará ni modificará el registro del servidor.'))return;
-         resolve.disabled=true;
-         resolve.textContent='Verificando coincidencia…';
-         try{
-          await window.QCOfflineDraftEditor.resolveMatchingRemote(item.ref);
-          lastNotice='Copia local retirada tras verificar coincidencia. La inspección del servidor permanece intacta; no se envió nada.';
-          serverValues.replaceChildren(text('p',lastNotice));
-          details.open=false;
-          await refresh(true);
-          void window.actualizarCampanaAvisos?.();
-         }catch(e){
-          resolve.disabled=false;
-          resolve.textContent='Retirar copia local tras verificar coincidencia';
-          serverValues.append(text('p','No se retiró el borrador: '+(e?.message||'la verificación ya no coincide.')));
-         }
-        });
-        serverValues.append(resolve);
-       }
-      }
-     }catch(e){
-      serverValues.replaceChildren(text('p','No se pudo consultar: '+(e?.message||'error desconocido')+'. El borrador local se conserva.'));
-     }finally{serverCheck.disabled=false;}
-    });
-    details.append(serverCheck,serverValues);
-    local.append(details);
-   }
-   panel.append(local);
-  }
   const uncertainDrafts=state.drafts.filter(x=>x.status==='ENVIO_INCIERTO').length;
   const uncertainPhotos=state.photos.filter(x=>x.status==='ENVIO_INCIERTO').length;
   if(uncertainDrafts){

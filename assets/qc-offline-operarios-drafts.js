@@ -449,14 +449,7 @@
    if(result.record!==null){
     if(!Number.isInteger(result.record.version)||result.record.version<1)
      throw Error('La medición remota no tiene una versión válida.');
-    const d=drafts.get(key(ref));
-    const started=Date.parse(d?.attemptedAt||'');
-    const written=Date.parse(result.record.updatedAt||'');
-    const attributed=!!d&&d.status==='ENVIO_INCIERTO'&&result.record.version===1&&
-     result.record.updatedBy===owner&&Number.isFinite(started)&&Number.isFinite(written)&&
-     written>=started-2000;
-    return {state:'CONFLICT',token,record:result.record,
-     sameValues:!!d&&matches(result.record,d),attributed};
+    return {state:'CONFLICT',token,record:result.record};
    }
    return {state:'EMPTY',token,record:null};
   }catch(e){
@@ -537,7 +530,7 @@
        current.at!==d.at||canonical(current.categorias||current.mediciones)!==canonical(d.categorias||d.mediciones)||
        current.bandejasInspeccionadas!==d.bandejasInspeccionadas||
        !refValid(current.ref)||current.ref.id!==d.ref.id||
-       current.status!=='ENVIO_INCIERTO'){
+       !['PENDIENTE_LOCAL','ENVIO_INCIERTO'].includes(current.status)){
       tx.abort();return;
     }
     store.delete(d.key);
@@ -570,17 +563,6 @@
   const top=document.getElementById('status');
   if(top)top.textContent='✓ Sincronización QC confirmada; cantidades verificadas en servidor.';
  }
- async function resolveMatchingRemote(ref){
-  requireSession();
-  if(syncing||editor)throw Error('Cierra la edición QC antes de resolver.');
-  const d=drafts.get(key(ref));
-  if(!d||d.status!=='ENVIO_INCIERTO')throw Error('El borrador incierto ya no está disponible.');
-  const result=await checkServer(ref);
-  if(result.state!=='CONFLICT'||result.record?.version!==1||!matches(result.record,d))
-   throw Error('La inspección ya no coincide exactamente. El borrador local se conserva.');
-  await removeVerified(d);
-  return {ok:true,version:result.record.version};
- }
  async function syncDraft(ref,label,button,status,globalConfirmed=false){
   requireSession();
   if(syncing||editor)return;
@@ -603,15 +585,18 @@
    if(drafts.get(key(ref))!==d)
     throw Error('El borrador cambió durante la comprobación. No se ha enviado.');
    if(before.state!=='EMPTY'){
-    if(!ownedRemote(before.record,d))
-     throw Error('Conflicto: la inspección ya tiene cantidades distintas o '+
-      'no se puede atribuir el guardado a este borrador. No sobrescribir.');
+    if(!matches(before.record,d))
+     throw Error('Conflicto: las cantidades del servidor son distintas. '+
+      'No sobrescribir; se conserva el borrador local.');
     const remote=await readWritten(ref,before.token);
     requireSession();
-    if(!ownedRemote(remote,d))
-     throw Error('La inspección ha cambiado durante la verificación. No sobrescribir.');
-    await finishVerified(ref,d,label,button,status,
-     '✓ Envío anterior recuperado y verificado. Borrador local retirado; sin nuevo POST.');
+    if(!remote||remote.version!==before.record.version||!matches(remote,d))
+     throw Error('La inspección ha cambiado durante la verificación. '+
+      'No sobrescribir; se conserva el borrador.');
+    const attributed=ownedRemote(before.record,d)&&ownedRemote(remote,d);
+    await finishVerified(ref,d,label,button,status,attributed?
+     '✓ Envío anterior verificado. Copia local retirada; no se hizo un nuevo envío.':
+     '✓ El servidor ya tenía exactamente estas cantidades. Copia local retirada sin reenviar.');
     confirmed=true;return;
    }
    validate(d);
@@ -759,13 +744,7 @@
  function pendingGlobal(){return [...drafts.values()].filter(d=>
    d&&d.key===key(d.ref)&&refValid(d.ref)&&
    (d.status==='PENDIENTE_LOCAL'||d.status==='ENVIO_INCIERTO'))
-  .map(d=>({
-   ref:{...d.ref},status:d.status,schemaVersion:d.schemaVersion,
-   bandejasInspeccionadas:d.bandejasInspeccionadas??null,
-   porcentajeInvalidasGlobal:d.porcentajeInvalidasGlobal??null,
-   categorias:d.categorias?JSON.parse(JSON.stringify(d.categorias)):null,
-   mediciones:d.mediciones?JSON.parse(JSON.stringify(d.mediciones)):null
-  }));}
+  .map(d=>({ref:{...d.ref},status:d.status}));}
  async function syncGlobal(onProgress){
   requireSession();
   if(syncing||editor)throw Error('Cierra la edición QC antes de sincronizar.');
@@ -793,5 +772,5 @@
   return {total:queue.length,verified,blocked,errors,remaining:pendingGlobal().length};
  }
 
- window.QCOfflineDraftEditor=Object.freeze({init,decorate,renderSaved,lock,pendingGlobal,checkServer,resolveMatchingRemote,syncGlobal});
+ window.QCOfflineDraftEditor=Object.freeze({init,decorate,renderSaved,lock,pendingGlobal,syncGlobal});
 })();
