@@ -28,9 +28,10 @@
  function snapshot(){
   const d=window.QCOfflineDraftEditor?.pendingGlobal?.()||[];
   const p=window.QCOfflinePhotos?.pendingGlobal?.()||[];
-  return {drafts:d,photos:p,total:d.length+p.length,
-   uncertain:d.filter(x=>x.status==='ENVIO_INCIERTO').length+
-     p.filter(x=>x.status==='ENVIO_INCIERTO').length};
+  const uncertainDrafts=d.filter(x=>x.status==='ENVIO_INCIERTO').length;
+  const uncertainPhotos=p.filter(x=>x.status==='ENVIO_INCIERTO').length;
+  return {drafts:d,photos:p,total:d.length+p.length,uncertainDrafts,uncertainPhotos,
+   uncertain:uncertainDrafts+uncertainPhotos};
  }
  function refsLabel(items,tipo){return items.filter(x=>x?.ref?.tipo===tipo).length;}
  function show(){
@@ -76,13 +77,16 @@
    row.append(text('span',name),text('strong',String(count)));desc.append(row);
   }
   panel.append(desc);
+  const reviewKinds=[];
+  if(state.uncertainDrafts)reviewKinds.push(state.uncertainDrafts+' inspección'+(state.uncertainDrafts===1?'':'es')+' QC');
+  if(state.uncertainPhotos)reviewKinds.push(state.uncertainPhotos+' foto'+(state.uncertainPhotos===1?'':'s'));
   if(state.uncertain)panel.append(text('p',
-    state.uncertain+' envío(s) anterior(es) por verificar. Se comprobarán en SharePoint antes de reintentar el mismo archivo.','qc-sync-warning'));
+    reviewKinds.join(' y ')+' con envío anterior pendiente de verificar. Se consultará Firebase para inspecciones y SharePoint para fotos antes de decidir si hay que reenviar.','qc-sync-warning'));
   const action=text('button',state.total?'Sincronizar todo':'Sin pendientes','qc-sync-action');
   action.type='button';action.disabled=busy||navigator.onLine===false||!state.total;
   action.addEventListener('click',()=>{void synchronize();});
   panel.append(action);
-  const status=text('p',state.total?'Orden: inspecciones → fotos a SharePoint. Cada elemento se verifica antes de retirarlo del dispositivo.':'Se mostrará aquí cuando haya fotos o inspecciones guardadas para sincronizar.','qc-sync-status');
+  const status=text('p',state.total?'Orden: inspecciones QC primero; fotos después. Las inspecciones se verifican en Firebase y las fotos en SharePoint antes de retirar cada elemento del dispositivo.':'Se mostrará aquí cuando haya fotos o inspecciones guardadas para sincronizar.','qc-sync-status');
   status.id='qc-global-sync-status';status.setAttribute('role','status');panel.append(status);
   if(lastErrors.length){
     const errors=text('details',null,'qc-sync-errors');
