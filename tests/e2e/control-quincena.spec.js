@@ -4280,6 +4280,45 @@ test('UAT-425: el índice Firebase de QC guarda referencias y no bytes de fotos'
   expect(unexpectedHosts).toEqual([]);
 });
 
+test('UAT-421: una miniatura remota tardía no sustituye la galería al cambiar a Carga', async ({ page }) => {
+  const database = fixtureDatabase();
+  const tunnelId = 'e2e-control-current-fortnight';
+  const cargaId = 'e2e-control-carga-current-fortnight';
+  const slowSrc = '/__fixture__/slow-photo-421.png';
+  const cargaPhoto = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/XxsAAAAASUVORK5CYII=';
+  database['lasala-control-fotos-indice-v1'] = JSON.stringify({
+    [tunnelId]: 'lasala-control-fotos-v1',
+    [cargaId]: 'lasala-control-fotos-v1'
+  });
+  database['lasala-control-fotos-shards-index'] = JSON.stringify(['lasala-control-fotos-v1']);
+  database['lasala-control-fotos-v1'] = JSON.stringify({
+    [tunnelId]: [{ f: slowSrc, t: slowSrc, origen: 'SharePoint', itemId: 'fixture-slow-421' }],
+    [cargaId]: { f: cargaPhoto, t: cargaPhoto, origen: 'SharePoint', itemId: 'fixture-carga-421' }
+  });
+  let slowRequested = false;
+  let finishSlowResponse;
+  const slowResponseFinished = new Promise(resolve => { finishSlowResponse = resolve; });
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/XxsAAAAASUVORK5CYII=', 'base64');
+  await page.route(`**${slowSrc}`, async route => {
+    slowRequested = true;
+    await new Promise(resolve => setTimeout(resolve, 300));
+    await route.fulfill({ status: 200, contentType: 'image/png', body: png });
+    finishSlowResponse();
+  });
+
+  const { overlay, unexpectedHosts } = await startControlTest(page, database);
+  const tunnelCard = overlay.locator(`#control-card-${tunnelId}`);
+  const tunnelImage = tunnelCard.locator('img[title="Ver foto"]');
+  await expect(tunnelImage).toHaveAttribute('src', slowSrc);
+  await expect.poll(() => slowRequested).toBe(true);
+  await overlay.getByRole('button', { name: 'Check Carga Injerto' }).click();
+  const cargaImage = overlay.locator(`#control-card-${cargaId} img[title="Ver foto"]`);
+  await expect(cargaImage).toHaveAttribute('src', cargaPhoto);
+  await slowResponseFinished;
+  await expect(cargaImage).toHaveAttribute('src', cargaPhoto);
+  expect(unexpectedHosts).toEqual([]);
+});
+
 test('UAT-439: un PDF de Carga en Túnel no mezcla líneas y muestra error controlado', async ({ page }) => {
   const database = fixtureDatabase();
   const { overlay, unexpectedHosts } = await startControlTest(page, database);
