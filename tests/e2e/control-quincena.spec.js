@@ -4062,6 +4062,31 @@ test('UAT-403: abrir una foto SharePoint mediante acceso autenticado', async ({ 
   expect(unexpectedHosts).toEqual([]);
 });
 
+test('UAT-404: retirar de la galería una foto confirmada en SharePoint sin borrado remoto', async ({ page }) => {
+  const database = fixtureDatabase();
+  const id = 'e2e-control-current-fortnight';
+  const photo = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/XxsAAAAASUVORK5CYII=';
+  const remotePhoto = { f: photo, t: photo, origen: 'SharePoint', itemId: 'fixture-item-404' };
+  database['lasala-control-fotos-indice-v1'] = JSON.stringify({ [id]: 'lasala-control-fotos-v1' });
+  database['lasala-control-fotos-shards-index'] = JSON.stringify(['lasala-control-fotos-v1']);
+  database['lasala-control-fotos-v1'] = JSON.stringify({ [id]: [remotePhoto] });
+  const { overlay, unexpectedHosts } = await startControlTest(page, database);
+  const card = overlay.locator(`#control-card-${id}`);
+  const remoteDeletes = [];
+  page.on('request', request => {
+    if (request.method() === 'DELETE' && /sharepoint|graph\\.microsoft\\.com/i.test(request.url())) remoteDeletes.push(request.url());
+  });
+  await expect(card.getByTestId(`control-photo-status-${id}-0`)).toHaveText('SharePoint');
+  await expect(card.locator('img[title="Ver foto"]')).toBeVisible();
+  page.once('dialog', dialog => dialog.accept());
+  await card.getByTestId(`control-photo-delete-${id}`).click();
+  await expect(card.locator('img[title="Ver foto"]')).toHaveCount(0);
+  expect(JSON.parse(database['lasala-control-fotos-indice-v1'])).not.toHaveProperty(id);
+  expect(JSON.parse(database['lasala-control-fotos-v1'])).not.toHaveProperty(id);
+  expect(remoteDeletes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
 test('UAT-405: cancelar la retirada de una foto SharePoint conserva la referencia', async ({ page }) => {
   const database = fixtureDatabase();
   const id = 'e2e-control-current-fortnight';
