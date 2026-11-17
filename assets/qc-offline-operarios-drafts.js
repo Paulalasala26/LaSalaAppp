@@ -764,5 +764,5 @@
   return {total:queue.length,verified,blocked,errors,remaining:pendingGlobal().length};
  }
 
- window.QCOfflineDraftEditor=Object.freeze({init,decorate,renderSaved,lock,pendingGlobal,syncGlobal});
+ window.QCOfflineDraftEditor=Object.freeze({init,decorate,renderSaved,lock,pendingGlobal,checkServer,syncGlobal});
 })();

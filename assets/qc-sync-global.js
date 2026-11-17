@@ -119,6 +119,33 @@
       'Estado: envío anterior por verificar. Vista de solo lectura; no se ha cambiado ningún dato.':
       'Estado: pendiente de sincronizar. Vista de solo lectura.'));
     for(const line of localDraftLines(item))details.append(text('p',line));
+    const serverCheck=text('button','Consultar valores del servidor (solo lectura)');
+    serverCheck.type='button';
+    serverCheck.style.cssText='margin-top:8px;padding:8px 10px;border:1px solid #9fb6d2;border-radius:7px;background:#e5eef8;color:#1558a0;font-weight:700';
+    const serverValues=text('div',null,'qc-sync-server-values');
+    serverValues.style.cssText='margin-top:8px;padding:8px;border:1px solid #c8d9e8;border-radius:8px;background:#fff';
+    serverValues.hidden=true;
+    serverCheck.addEventListener('click',async()=>{
+     if(serverCheck.disabled)return;
+     serverCheck.disabled=true;
+     serverValues.hidden=false;
+     serverValues.replaceChildren(text('p','Consultando el servidor QC…'));
+     try{
+      const result=await window.QCOfflineDraftEditor?.checkServer?.(item.ref);
+      if(!result)throw Error('La consulta de servidor no está disponible en esta versión.');
+      serverValues.replaceChildren();
+      if(result.state==='EMPTY'){
+       serverValues.append(text('p','El servidor no tiene cantidades guardadas para esta inspección. El borrador local se conserva.'));
+      }else{
+       serverValues.append(text('strong','Valores encontrados en el servidor · versión '+result.record.version));
+       for(const line of localDraftLines(result.record))serverValues.append(text('p',line));
+       serverValues.append(text('p','Consulta de solo lectura; no se ha enviado ni modificado ningún dato.'));
+      }
+     }catch(e){
+      serverValues.replaceChildren(text('p','No se pudo consultar: '+(e?.message||'error desconocido')+'. El borrador local se conserva.'));
+     }finally{serverCheck.disabled=false;}
+    });
+    details.append(serverCheck,serverValues);
     local.append(details);
    }
    panel.append(local);
