@@ -1288,6 +1288,31 @@ test('UAT-619: dos registros Pistola del mismo producto y día generan jornadas 
   expect(unexpectedHosts).toEqual([]);
 });
 
+test('UAT-625–627: editar Pistola pendiente actualiza la tarea vinculada y conserva su ID',async({page})=>{
+  test.fail(true,'Editar la jornada crea una tarea nueva y anula la pendiente anterior, incumpliendo el vínculo/ID y la actualización esperados por QC.');
+  const database=fixtureDatabase();
+  const data=JSON.parse(database['lasala-fito-v1']);
+  data['17']['30']['2']={texto:'E2E-LINK-ORIGINAL 1 cc/l 18:00',caldoLitros:25,caldoLabel:'25L CUBA DE RUEDAS',tipoTrat:'Pistola',serieId:'e2e-serie-625',jornadaId:'e2e-jornada-625'};
+  database['lasala-fito-v1']=JSON.stringify(data);
+  const task={id:'e2e-task-625',titulo:'E2E-LINK-ORIGINAL 1 cc/l',asignadoA:'PEON2',origen:'pistola',categoria:'fumigacion',fechaISO:'2026-06-30',estado:'pendiente',horario:'18:00',producto:'E2E-LINK-ORIGINAL',dosis:'1 cc/l',caldoLitros:25,caldoLabel:'25L CUBA DE RUEDAS',serieId:'e2e-serie-625',jornadaId:'e2e-jornada-625',origenFito:{serieId:'e2e-serie-625',jornadaId:'e2e-jornada-625'},objetivos:[{inv:'17',calles:'INV 17 CALLES 2'}]};
+  database['lasala-tareas-v1']=JSON.stringify([task]);
+  const {overlay,unexpectedHosts}=await openFito(page,database);
+  await overlay.locator('#fito-grid-wrap textarea[data-finv="17"][data-fdia="30"][data-frc="2"]').dblclick();
+  const form=page.locator('#fito-manual-overlay');
+  await expect(form).toBeVisible();
+  await form.locator('#fm-trat').fill('E2E-LINK-EDITADO');
+  await form.locator('#fm-dosis').fill('2 cc/l');
+  await form.locator('#fm-caldo').selectOption('50');
+  await form.locator('#fm-horario').selectOption('19:00');
+  await form.getByRole('button',{name:'Guardar'}).click();
+  await expect(form).toBeHidden();
+  await expect.poll(()=>fitoData(database)?.['17']?.['30']?.['2']).toMatchObject({texto:'E2E-LINK-EDITADO 2 cc/l 19:00',tipoTrat:'Pistola',caldoLitros:50});
+  const tasks=JSON.parse(database['lasala-tareas-v1']||'[]').filter(t=>t.categoria==='fumigacion');
+  expect(tasks).toHaveLength(1);
+  expect(tasks[0]).toMatchObject({id:task.id,estado:'pendiente',titulo:'E2E-LINK-EDITADO 2 cc/l',horario:'19:00',caldoLitros:50});
+  expect(unexpectedHosts).toEqual([]);
+});
+
 test('UAT-500 y UAT-501: Pistola y Cañón no guardan una jornada sin producto ni dosis',async({page})=>{
   const database=fixtureDatabase();
   const original=database['lasala-fito-v1'];
