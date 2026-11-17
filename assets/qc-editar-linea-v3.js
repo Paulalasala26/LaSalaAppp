@@ -479,11 +479,28 @@
     if(overlay)overlay.style.display='none';
     qcpState=null;
   };
+  function qcpLocationKey(location){
+    const rawInv=String(location?.invId??location?.inv??'').trim().replace(/^INV\\s*/i,'').toUpperCase();
+    const from=Number(location?.calleDesde??location?.from),to=Number(location?.calleHasta??location?.to);
+    if(!rawInv||!Number.isInteger(from)||!Number.isInteger(to))return '';
+    const inv=/^\\d+$/.test(rawInv)?String(Number(rawInv)):rawInv;
+    return inv+'|'+Math.min(from,to)+'|'+Math.max(from,to);
+  }
+  function qcpHasDuplicate(line,partida,location){
+    const target=qcpLocationKey(location);
+    if(!target)return false;
+    return controlChecksData.some(other=>{
+      if(other.id===line.id||other.tipo!==line.tipo||other.dia!==line.dia||
+         String(other.partida||'').trim().toUpperCase()!==partida)return false;
+      return qcpLocationKey(qcpAppLocation(other))===target;
+    });
+  }
   function qcpFields(line,withLocation){
     const partida=read('qcp-partida').trim().toUpperCase();
     if(!/^[A-Za-z0-9._-]{1,100}$/.test(partida))throw Error('Nº de partida no válido.');
-    if(controlChecksData.some(x=>x.id!==line.id&&x.tipo===line.tipo&&x.dia===line.dia&&
-       String(x.partida||'').toUpperCase()===partida))throw Error('Ya existe otra línea con esa partida y fecha.');
+    const location=withLocation?qcpAppLocationFields():null;
+    if(location&&qcpHasDuplicate(line,partida,location))
+      throw Error('Ya existe otra línea con esa partida, fecha y ubicación.');
     const cliente=read('qcp-cliente').trim(),variedad=read('qcp-variedad').trim();
     if(cliente.length>180||variedad.length>180)throw Error('Cliente o variedad superan el máximo permitido.');
     const rawTrays=read('qcp-bandejas').trim();
@@ -493,7 +510,7 @@
       if(!Number.isSafeInteger(numBandejas)||numBandejas<=0)throw Error('Bandejas debe ser un entero positivo o quedar vacío.');
     }
     const campos={partida,cliente,variedad,numBandejas};
-    if(withLocation)Object.assign(campos,qcpAppLocationFields());
+    if(location)Object.assign(campos,location);
     return campos;
   }
   async function applyPreinjerto(line,campos){
@@ -571,8 +588,12 @@
     const state=qcpState;if(!state||!state.locationOnly||state.busy)return false;
     const line=controlChecksData.find(x=>x.id===state.id);if(!line)return false;
     let campos;
-    try{campos=qcpAppLocationFields();}
-    catch(error){qcpSetError(error.message);return false;}
+    try{
+      campos=qcpAppLocationFields();
+      if(qcpHasDuplicate(line,String(line.partida||'').trim().toUpperCase(),campos)){
+        qcpSetError('Ya existe otra línea con esa partida, fecha y ubicación.');return false;
+      }
+    }catch(error){qcpSetError(error.message);return false;}
     state.busy=true;const button=document.getElementById('qcp-save');if(button)button.disabled=true;
     try{
       const ok=await applyPreinjerto(line,campos);
