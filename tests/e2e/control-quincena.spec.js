@@ -2465,6 +2465,26 @@ test('UAT-022: crear una línea de Control la muestra y la guarda', async ({ pag
   expect(unexpectedHosts).toEqual([]);
 });
 
+test('UAT-178: abrir por primera vez Editar partida tras recargar permite guardar la línea de QC Túnel', async ({ page }) => {
+  const database = fixtureDatabase();
+  const { unexpectedHosts } = await startControlTest(page, database);
+  await page.reload();
+
+  const overlay = await openControlTunnel(page);
+  const id = 'e2e-control-current-fortnight';
+  const card = overlay.locator(`#control-card-${id}`);
+  await card.getByTestId(`control-edit-${id}`).click();
+
+  const editor = page.locator('#control-editar-overlay');
+  await expect(editor).toBeVisible();
+  await expect(editor.locator('#ec-partida')).toHaveValue('E2E-QUINCENA-ACTUAL-DIA-30');
+  await editor.locator('#ec-partida').fill('E2E-QC-178-TRAS-RECARGA');
+  await editor.getByRole('button', { name: 'Guardar', exact: true }).click();
+
+  await expect.poll(() => database['lasala-control-items-v1'][id].partida).toBe('E2E-QC-178-TRAS-RECARGA');
+  expect(unexpectedHosts).toEqual([]);
+});
+
 test('UAT-023: editar una línea de Control solo cambia la línea seleccionada', async ({ page }) => {
   const database = fixtureDatabase();
   const { overlay, unexpectedHosts } = await startControlTest(page, database);
