@@ -469,12 +469,23 @@
  // Es obligatorio persistir el intento ANTES de enviar: nunca tratar una foto
  // o un borrador con POST incierto como si nunca hubiera sido enviado.
  const canonical=value=>JSON.stringify(value);
+ const normalizeMeasurement=(value,key='')=>{
+  if(Array.isArray(value)){
+   const items=value.map(item=>normalizeMeasurement(item));
+   if(key==='opciones')items.sort((a,b)=>String(a).localeCompare(String(b),'es'));
+   return items;
+  }
+  if(value&&typeof value==='object')
+   return Object.fromEntries(Object.keys(value).sort().map(k=>[k,normalizeMeasurement(value[k],k)]));
+  return value;
+ };
+ const sameMeasurement=(a,b)=>JSON.stringify(normalizeMeasurement(a))===JSON.stringify(normalizeMeasurement(b));
  const matches=(stored,draft)=>{
   if(!stored||draft.schemaVersion!==6&&stored.bandejasInspeccionadas!==draft.bandejasInspeccionadas)return false;
   if(draft.categorias)return
     (![5,6].includes(draft.schemaVersion)||
       stored.schemaVersion===draft.schemaVersion&&stored.porcentajeInvalidasGlobal===draft.porcentajeInvalidasGlobal)&&
-    CATS.every(([cat])=>JSON.stringify(stored.categorias?.[cat])===JSON.stringify(draft.categorias[cat]));
+    CATS.every(([cat])=>sameMeasurement(stored.categorias?.[cat],draft.categorias[cat]));
   return CATS.every(([cat])=>{
    const actual=stored.mediciones?.[cat],expected=draft.mediciones?.[cat];
    return !!actual&&!!expected&&Object.keys(actual).length===Object.keys(expected).length&&

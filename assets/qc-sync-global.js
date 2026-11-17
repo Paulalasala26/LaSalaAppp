@@ -5,7 +5,7 @@
  */
 (function(){
  const ALLOWED=new Set(['ADMIN','TECNICO','CARGADOR']);
- let user='',role='',busy=false,opened=false,interval=null,lastErrors=[],runId=0;
+ let user='',role='',busy=false,opened=false,interval=null,lastErrors=[],lastNotice='',runId=0;
  const $=id=>document.getElementById(id);
  const text=(tag,value,cls)=>{
   const n=document.createElement(tag);
@@ -93,6 +93,7 @@
     (navigator.onLine===false?'Sin conexión. Todo permanece en este dispositivo.':
       'Conexión disponible. Hay elementos pendientes de enviar o verificar.')+' Pendientes: '+state.total+'.':
     'No hay elementos QC pendientes guardados en este dispositivo.'));
+  if(lastNotice)panel.append(text('p',lastNotice,'qc-sync-status'));
   const desc=text('div',null,'qc-sync-details');
   const rows=[
    ['QC Túnel · Inspecciones',refsLabel(state.drafts,'tunel')],
@@ -156,8 +157,11 @@
          resolve.textContent='Verificando coincidencia…';
          try{
           await window.QCOfflineDraftEditor.resolveMatchingRemote(item.ref);
-          serverValues.replaceChildren(text('p','Copia local retirada. La inspección del servidor permanece intacta; no se envió nada.'));
+          lastNotice='Copia local retirada tras verificar coincidencia. La inspección del servidor permanece intacta; no se envió nada.';
+          serverValues.replaceChildren(text('p',lastNotice));
+          details.open=false;
           await refresh(true);
+          void window.actualizarCampanaAvisos?.();
          }catch(e){
           resolve.disabled=false;
           resolve.textContent='Retirar copia local tras verificar coincidencia';
@@ -208,6 +212,10 @@
   const status=$('qc-global-sync-status');
   if(status)status.textContent=message;
  }
+ function hasOpenDraftDetail(){
+  const host=$('avisos-sync-panel')||$('qc-global-sync-panel');
+  return !!host?.querySelector('details.qc-sync-local-draft[open]');
+ }
  async function refresh(force){
   if(busy||!user||!ALLOWED.has(role)||!validSession())return;
   const turn=runId;
@@ -218,8 +226,8 @@
       window.QCOfflinePhotos?.init?.(user,role)
     ]);
    }
-   if(turn===runId)show();
-  }catch(e){if(turn===runId){opened=true;lastErrors=[e?.message||'No se pueden leer los pendientes locales.'];show();}}
+   if(turn===runId&&!hasOpenDraftDetail())show();
+  }catch(e){if(turn===runId){opened=true;lastErrors=[e?.message||'No se pueden leer los pendientes locales.'];if(!hasOpenDraftDetail())show();}}
  }
  async function synchronize(){
   if(busy||!validSession()||!ALLOWED.has(role))return;
@@ -229,7 +237,7 @@
   if(!confirm('¿Sincronizar '+state.total+' elementos QC pendientes de este dispositivo?\n'+
    'Primero se verificarán las inspecciones y después las fotos en SharePoint. '+
    'Los conflictos se conservarán localmente para revisión.'))return;
-  busy=true;opened=true;lastErrors=[];show();
+  busy=true;opened=true;lastErrors=[];lastNotice='';show();
   let resultDraft=null,resultPhotos=null;
   const identity=user+'|'+role;
   try{
@@ -258,7 +266,7 @@
  async function start(nextUser,nextRole){
   if(!ALLOWED.has(nextRole)||!nextUser){stop();return;}
   if(user!==nextUser||role!==nextRole){
-   runId++;user=nextUser;role=nextRole;opened=false;lastErrors=[];
+   runId++;user=nextUser;role=nextRole;opened=false;lastErrors=[];lastNotice='';
   }
   if(interval)clearInterval(interval);
   interval=setInterval(()=>{if(!document.hidden)void refresh(true);},15000);
