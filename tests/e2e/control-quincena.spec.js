@@ -9813,3 +9813,20 @@ test('UAT-443: cancelar el selector PDF conserva adjuntos y líneas', async ({ p
   expect(database['lasala-control-pdfs-indice-v1']).toBe(pdfIndexBefore);
   expect(unexpectedHosts).toEqual([]);
 });
+
+
+test('UAT-426: la galería QC no expone como src un enlace anónimo de SharePoint', async ({ page }) => {
+  const database = fixtureDatabase();
+  const id = 'e2e-control-current-fortnight';
+  const anonymousLink = 'https://viveroslasala.sharepoint.com/sites/Tecnologia/_layouts/15/download.aspx?share=E2E-ANON-UAT-426';
+  database['lasala-control-fotos-indice-v1'] = JSON.stringify({ [id]: 'lasala-control-fotos-v1' });
+  database['lasala-control-fotos-shards-index'] = JSON.stringify(['lasala-control-fotos-v1']);
+  database['lasala-control-fotos-v1'] = JSON.stringify({
+    [id]: [{ f: anonymousLink, t: anonymousLink, origen: 'SharePoint', itemId: 'fixture-item-426' }]
+  });
+  const { overlay, unexpectedHosts } = await startControlTest(page, database);
+  const image = overlay.locator(`#control-card-${id} img[title="Ver foto"]`);
+  await expect(image).toBeVisible();
+  await expect(image).not.toHaveAttribute('src', /sharepoint\\.com/i);
+  expect(unexpectedHosts).toEqual([]);
+});
