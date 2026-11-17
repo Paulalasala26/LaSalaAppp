@@ -390,6 +390,37 @@ async function applySpecificToPartida(page, overlay, entryId, tratamiento) {
   return day;
 }
 
+test('UAT-757 y UAT-758: INV 1A muestra cinco filas y permite recorrer ambas bandas', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  const database = fixtureDatabase();
+  database['lasala-control-items-v1'] = {};
+  databaseWithStack({ calle: 10, count: 7, prefix: 'inv1a-upper', invId: '1A', database });
+  databaseWithStack({ calle: 25, count: 7, prefix: 'inv1a-lower', invId: '1A', database });
+  const { overlay, unexpectedHosts, writes } = await openPartidas(page, { database, selectInv: false });
+  await overlay.getByRole('button', { name: 'Sala 1', exact: true }).click();
+  await overlay.getByRole('button', { name: '1A', exact: true }).click();
+  const map = overlay.locator('#partidas-content-wrap');
+  const grid = map.locator('div[style*="overflow-x:auto"]');
+  const upper = grid.locator(':scope > div:nth-child(2)');
+  const lower = grid.locator(':scope > div:nth-child(4)');
+  const upperRows = upper.locator(':scope > div[style*="min-height:58px"]');
+  const lowerRows = lower.locator(':scope > div[style*="min-height:58px"]');
+  await expect(upperRows).toHaveCount(7);
+  await expect(lowerRows).toHaveCount(7);
+  const insideMap = async row => {
+    const [viewport, box] = await Promise.all([map.boundingBox(), row.boundingBox()]);
+    return !!viewport && !!box && box.y >= viewport.y - 1 && box.y + box.height <= viewport.y + viewport.height + 1;
+  };
+  await expect.poll(() => insideMap(upperRows.nth(4))).toBe(true);
+  await expect.poll(() => insideMap(upperRows.nth(5))).toBe(false);
+  await upperRows.nth(5).evaluate(element => element.scrollIntoView({ block: 'end' }));
+  await expect.poll(() => insideMap(upperRows.nth(5))).toBe(true);
+  await lowerRows.last().evaluate(element => element.scrollIntoView({ block: 'end' }));
+  await expect.poll(() => insideMap(lowerRows.last())).toBe(true);
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
 test('UAT-760: el mapa no muestra la banda de acciones de sincronización y recuperación', async ({ page }) => {
   const { overlay, unexpectedHosts } = await openPartidas(page);
   const map = overlay.locator('#partidas-content-wrap');
