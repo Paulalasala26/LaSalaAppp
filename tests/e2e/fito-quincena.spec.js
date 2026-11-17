@@ -516,6 +516,33 @@ test('UAT-553: continuar una serie en un día no consecutivo no crea jornadas in
   expect(unexpectedHosts).toEqual([]);
 });
 
+test('UAT-555: un nuevo INV inicia su tramo y conserva la serie global',async({page})=>{
+  const database=fixtureDatabase();
+  const data=JSON.parse(database['lasala-fito-v1']);
+  data['17']['30']['2']={texto:'E2E-SERIE-555 1 cc/l',caldoLitros:25,caldoLabel:'25L CUBA DE RUEDAS',tipoTrat:'Cañón',primerDia:true,serieId:'e2e-serie-555',jornadaId:'e2e-jornada-555-17'};
+  database['lasala-fito-v1']=JSON.stringify(data);
+  const {overlay,unexpectedHosts}=await openFito(page,database);
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await form.locator('#fm-dia').selectOption('31');
+  await form.locator('.fm-inv-chk[value="17"]').uncheck();
+  await form.locator('.fm-inv-chk[value="18"]').check();
+  await form.locator('#fm-trat').fill('E2E-SERIE-555');
+  await form.locator('#fm-dosis').fill('1 cc/l');
+  await form.locator('#fm-tipo-trat').selectOption('Cañón');
+  await form.locator('#fm-caldo').selectOption('25');
+  await form.locator('#fm-bulk-panels').getByLabel('Primer día de tratamiento (marca la celda en morado)').check();
+  await form.getByRole('button',{name:'Guardar'}).click();
+  await expect(form).toBeHidden();
+  const original=fitoData(database)?.['17']?.['30']?.['2'];
+  const added=fitoData(database)?.['18']?.['31']?.['2'];
+  expect(added?.primerDia).toBe(true);
+  test.fail(true,'El INV nuevo queda como primer día, pero recibe una serieId nueva y no hereda la serie global existente.');
+  expect(added?.serieId).toBe(original?.serieId);
+  expect(added?.jornadaId).not.toBe(original?.jornadaId);
+  expect(unexpectedHosts).toEqual([]);
+});
+
 test('UAT-566: editar una jornada conserva el inicio global y la identidad de la serie',async({page})=>{
   const database=fixtureDatabase();
   const data=JSON.parse(database['lasala-fito-v1']);
