@@ -44,8 +44,23 @@
     overlay.innerHTML='<div class="qc107-modal" role="status">Cargando opciones de los partes…</div>';
     overlay.style.display='flex';
     const loaded=await loadControlTipoCompleto(c.tipo,false);
-    if(loaded&&c.tipo==='tunel'&&['ADMIN','TECNICO'].includes(currentUserRole))
-      await loadControlTipoCompleto('carga',false);
+    if(ctx!==state||overlay.style.display!=='flex')return;
+    if(!loaded){
+      overlay.innerHTML='<div class="qc107-modal" role="alert"><h2>No se puede editar ahora</h2>'+
+        '<p>No se pudo cargar la lista actualizada de partidas. Cierra esta ventana y vuelve a intentarlo.</p>'+
+        '<div class="qc107-actions"><button type="button" class="qc107-cancel" onclick="qc107Cancelar()">Cerrar</button></div></div>';
+      return;
+    }
+    if(c.tipo==='tunel'&&['ADMIN','TECNICO'].includes(currentUserRole)){
+      const cargaLoaded=await loadControlTipoCompleto('carga',false);
+      if(ctx!==state||overlay.style.display!=='flex')return;
+      if(!cargaLoaded){
+        overlay.innerHTML='<div class="qc107-modal" role="alert"><h2>No se puede editar ahora</h2>'+
+          '<p>No se pudo cargar el catálogo completo de partidas. Cierra esta ventana y vuelve a intentarlo.</p>'+
+          '<div class="qc107-actions"><button type="button" class="qc107-cancel" onclick="qc107Cancelar()">Cerrar</button></div></div>';
+        return;
+      }
+    }
     if(ctx!==state||overlay.style.display!=='flex')return;
     const line=controlChecksData.find(x=>x.id===id);
     if(!line){setError('No se ha encontrado la línea.');return;}
