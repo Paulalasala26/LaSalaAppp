@@ -49,7 +49,7 @@
   glyph.className='ti '+(lastErrors.length?'ti-alert-triangle':'ti-upload');
   glyph.setAttribute('aria-hidden','true');
   toggle.append(glyph,text('span',state.total?String(state.total)+' por sincronizar':'Sin pendientes'));
-  if(state.photos.length){
+  if(state.total){
     const dot=text('span');dot.className='qc-sync-dot';dot.setAttribute('aria-hidden','true');
     toggle.append(dot);
   }
@@ -135,6 +135,7 @@
    await refresh(true);
    opened=!!snapshot().total;
    show();
+   void window.actualizarCampanaAvisos?.();
    const count=snapshot().total;
    if(count){
     progress(count+' pendiente(s) conservado(s) en el dispositivo.'+
@@ -150,6 +151,7 @@
   if(interval)clearInterval(interval);
   interval=setInterval(()=>{if(!document.hidden)void refresh(true);},15000);
   await refresh(true);
+  void window.actualizarCampanaAvisos?.();
  }
  function stop(){
   runId++;user='';role='';opened=false;lastErrors=[];
@@ -160,7 +162,9 @@
  window.addEventListener('online',()=>{void refresh(true);});
  window.addEventListener('offline',show);
  window.addEventListener('focus',()=>{void refresh(true);});
- window.addEventListener('qc-local-updated',()=>{void refresh(true);});
+ window.addEventListener('qc-local-updated',()=>{
+  void refresh(true).then(()=>window.actualizarCampanaAvisos?.());
+ });
  document.addEventListener('visibilitychange',()=>{if(!document.hidden)void refresh(true);});
  window.QCGlobalSync=Object.freeze({start,stop,refresh:()=>refresh(true),snapshot,synchronize});
 })();

@@ -345,7 +345,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 <script src="assets/qc-offline-operarios-store.js" defer></script>
 <script src="assets/qc-offline-operarios-photos.js?v=117" defer></script>
 <script src="assets/qc-offline-operarios-drafts.js?v=115" defer></script>
-<script src="assets/qc-sync-global.js?v=119" defer></script>
+<script src="assets/qc-sync-global.js?v=120" defer></script>
 </head>
 <body>
 
@@ -1426,15 +1426,24 @@ async function actualizarCampanaAvisos(){
   const habilitado=!!usuario&&(currentUserRole==='ADMIN'||currentUserRole==='TECNICO'||currentUserRole==='CARGADOR');
   btn.style.display=habilitado?'grid':'none';
   if(!habilitado){dot.hidden=true;btn.title='Avisos';btn.setAttribute('aria-label','Abrir Avisos');return;}
-  if(currentUserRole==='CARGADOR'){dot.hidden=true;btn.title='Sincronización QC';btn.setAttribute('aria-label','Abrir sincronización QC');return;}
+  const pendientesQC=Math.max(0,Number(window.QCGlobalSync?.snapshot?.()?.total)||0);
+  const sincronizacion=pendientesQC===1?'1 elemento QC por sincronizar':pendientesQC+' elementos QC por sincronizar';
+  if(currentUserRole==='CARGADOR'){
+    dot.hidden=pendientesQC===0;
+    const etiqueta=pendientesQC?sincronizacion:'Sincronización QC';
+    btn.title=etiqueta;btn.setAttribute('aria-label',etiqueta);return;
+  }
   try{
     const r=await window.storage.get(AVISOS_USUARIO_KEY);
     if(currentUser!==usuario||!(currentUserRole==='ADMIN'||currentUserRole==='TECNICO'))return;
     const cloud=r?JSON.parse(r.value):{};
     const lista=Array.isArray(cloud?.[usuario])?cloud[usuario]:[];
     const sinLeer=lista.filter(a=>!a.leido).length;
-    dot.hidden=sinLeer===0;
-    const etiqueta=sinLeer>0?'Avisos: '+sinLeer+' sin leer':'Abrir Avisos';
+    dot.hidden=sinLeer===0&&pendientesQC===0;
+    const etiquetas=[];
+    if(sinLeer)etiquetas.push(sinLeer===1?'1 aviso sin leer':sinLeer+' avisos sin leer');
+    if(pendientesQC)etiquetas.push(sincronizacion);
+    const etiqueta=etiquetas.length?'Avisos: '+etiquetas.join(' · '):'Abrir Avisos';
     btn.title=etiqueta;
     btn.setAttribute('aria-label',etiqueta);
   }catch(e){/* sin alterar el último estado visible si falla la red */}
