@@ -1559,7 +1559,7 @@ test('UAT-677: la hoja oficial usa formato A4 en la previsualización',async({pa
   await page.locator('#fito-manual-overlay').getByRole('button',{name:'Imprimir hoja'}).click();
   const style=await page.frameLocator('#print-fito-iframe').locator('style').innerText();
   test.fail(true,'La hoja utiliza tamaño personalizado 210×298,6 mm y no declara A4.');
-  expect(style).toMatch(/@page\\s*\\{\\s*size:\\s*A4\\b/i);
+  expect(style).toContain('@page { size: A4;');
 });
 
 test('UAT-500 y UAT-501: Pistola y Cañón no guardan una jornada sin producto ni dosis',async({page})=>{
