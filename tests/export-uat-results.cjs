@@ -28,8 +28,8 @@ for (const spec of specs) {
   let state = 'PASA_FIXTURE';
   const expectedProductFailure = tests.some(test => test.status === 'expected' && test.expectedStatus === 'failed');
   if (statuses.some(status => status === 'skipped')) state = 'NO_EJECUTADO';
-  else if (statuses.some(status => status === 'flaky') || (spec.ok && attempts.some(attempt => attempt.status !== 'passed'))) state = 'INESTABLE';
   else if (!spec.ok || expectedProductFailure || statuses.some(status => status !== 'expected')) state = 'FALLA_FIXTURE';
+  else if (statuses.some(status => status === 'flaky') || attempts.some(attempt => attempt.status !== 'passed')) state = 'INESTABLE';
 
   const duration = attempts.reduce((sum, attempt) => sum + (attempt.duration || 0), 0);
   const evidence = {
