@@ -3716,6 +3716,16 @@ test('UAT-399–400: abrir y eliminar una foto pendiente local sin tocar las fot
     name: 'foto-confirmada.png', mimeType: 'image/png', buffer: Buffer.from(firstBase64, 'base64')
   });
   await expect.poll(() => JSON.parse(database['lasala-control-fotos-v1'] || '{}')[id]).toHaveLength(1);
+  const gallery = card.getByTestId(`control-photo-gallery-${id}`);
+  await expect(gallery).not.toHaveAttribute('capture', /.+/);
+  const galleryPhoto = await page.evaluate(() => {
+    const canvas = document.createElement('canvas'); canvas.width = 12; canvas.height = 12;
+    const context = canvas.getContext('2d'); context.fillStyle = '#1565c0'; context.fillRect(0, 0, 12, 12);
+    return canvas.toDataURL('image/png').split(',')[1];
+  });
+  await gallery.setInputFiles({ name: 'e2e-uat-373-gallery.png', mimeType: 'image/png', buffer: Buffer.from(galleryPhoto, 'base64') });
+  await expect(card.locator('img[title="Ver foto"]')).toHaveCount(2);
+  await expect.poll(() => JSON.parse(database['lasala-control-fotos-v1'] || '{}')[id]).toHaveLength(2);
   const firstSource = await page.evaluate(id => fotoSrcCompleta(controlFotosData[id][0]), id);
 
   unexpectedHosts.setWriteFailure(true);
@@ -3820,7 +3830,7 @@ test('UAT-361: la galería distingue fotos SharePoint, históricas y pendientes 
   expect(unexpectedHosts).toEqual([]);
 });
 
-test('UAT-371: Hacer foto solicita cámara trasera y vincula la captura (Chromium móvil simulado)', async ({ page }) => {
+test('UAT-371 y UAT-373: cámara trasera y galería vinculan fotos en Chromium móvil simulado', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const database = fixtureDatabase();
   const id = 'e2e-control-current-fortnight';
