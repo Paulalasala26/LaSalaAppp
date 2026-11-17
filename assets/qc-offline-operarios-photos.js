@@ -19,9 +19,10 @@
  const text=(tag,v)=>{const e=document.createElement(tag);if(v!==undefined)e.textContent=String(v);return e;};
  const QC_TYPES=['tunel','carga','carga_injerto','preinjerto_patron','preinjerto_variedad'];
  function refShapeValid(r){
-  // La ficha QC comprueba id, tipo y día. La validación de esos datos en el
-  // servidor se hace contra Firebase; no se bloquea la copia local por formato.
-  return !!(r&&RE_ID.test(r.id)&&QC_TYPES.includes(r.tipo)&&Number.isInteger(r.dia));
+  // Los QC importados pueden traer dia como entero o como texto numérico.
+  // Normalizar el valor para no confundir su representación con autorización.
+  const dia=typeof r?.dia==='string'&&/^\\d+$/.test(r.dia)?Number(r.dia):r?.dia;
+  return !!(r&&RE_ID.test(r.id)&&QC_TYPES.includes(r.tipo)&&Number.isInteger(dia));
  }
   // La captura no depende del perfil; los permisos de visualización siguen
   // definidos por separado en refValid.
