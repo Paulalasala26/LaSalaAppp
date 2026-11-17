@@ -4271,3 +4271,31 @@ test('UAT-1770: Mantenimiento permite archivar administrativamente un ticket pen
   expect(JSON.parse(database['lasala-mantenimiento-v1'])).toEqual([ticket]);
   expect(writes).toEqual([]);
 });
+
+test('UAT-1836: Archivo conserva el día de una tarea anulada cerca de medianoche', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-11-17T23:58:00+01:00'));
+  const task = {
+    id: 'e2e-uat-1836-midnight',
+    titulo: 'E2E tarea anulada cerca de medianoche UAT-1836',
+    descripcion: 'Fecha de calendario sin conversión de zona horaria',
+    asignadoA: 'PEON1',
+    origen: 'manual',
+    categoria: 'manual',
+    inv: '0A',
+    calles: '1-2',
+    fechaISO: '2026-11-17',
+    anuladaISO: '2026-11-17',
+    estado: 'anulada'
+  };
+  const { database, writes } = await installFixture(page, {
+    'lasala-tareas-v1': JSON.stringify([task])
+  });
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  await overlay.getByRole('button', { name: 'Archivo' }).click();
+  const archived = overlay.locator('#tareas-archivo-anuladas').locator('.tarea-archivo-card').filter({ hasText: task.titulo });
+  await expect(archived).toContainText('2026-11-17');
+  await expect(archived).not.toContainText('2026-11-18');
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([task]);
+  expect(writes).toEqual([]);
+});
