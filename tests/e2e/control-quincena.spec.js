@@ -1650,7 +1650,7 @@ test('UAT-232: QC Carga descarga una sola vez su módulo diferido al entrar en u
   expect(unexpectedHosts).toEqual([]);
 });
 
-test('UAT-358, UAT-359, UAT-360 y UAT-389–390: tarjeta QC sin controles de foto duplicados', async ({ page }) => {
+test('UAT-358, UAT-359, UAT-360, UAT-362, UAT-363 y UAT-389–390: tarjeta QC sin controles de foto duplicados', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const database = fixtureDatabase();
   database['lasala-control-fotos-indice-v1'] = JSON.stringify({});
@@ -1667,6 +1667,13 @@ test('UAT-358, UAT-359, UAT-360 y UAT-389–390: tarjeta QC sin controles de fot
     await expect(card.getByTestId(`control-photo-gallery-${id}`)).not.toHaveAttribute('capture', /.+/);
     await expect(card.locator('input[data-testid^="control-photo-camera-"]')).toHaveCount(1);
     await expect(card.locator('input[data-testid^="control-photo-gallery-"]')).toHaveCount(1);
+    if (section) {
+      const photo = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/XxsAAAAASUVORK5CYII=', 'base64');
+      await card.locator('input[data-testid^="control-photo-gallery-"]').setInputFiles({ name: `${id}.png`, mimeType: 'image/png', buffer: photo });
+      await expect(card.locator('img[title="Ver foto"]')).toHaveCount(1);
+      await expect.poll(() => JSON.parse(database['lasala-control-fotos-indice-v1'] || '{}')[id]).toBe('lasala-control-fotos-v1');
+      expect(JSON.parse(database['lasala-control-fotos-v1'] || '{}')[id]).toBeTruthy();
+    }
     const cameraAction = card.getByTestId(`control-photo-camera-${id}`).locator('xpath=..');
     const galleryAction = card.getByTestId(`control-photo-gallery-${id}`).locator('xpath=..');
     const cameraBox = await cameraAction.boundingBox();
