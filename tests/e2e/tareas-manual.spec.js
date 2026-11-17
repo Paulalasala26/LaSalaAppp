@@ -4204,3 +4204,49 @@ test('UAT-1490: cancelar la firma de cierre no cambia la tarea ni escribe histor
   expect(writes).toHaveLength(writeCountBeforeCancel);
   expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([task]);
 });
+
+
+test('UAT-1489: Operativas informa del fallo de lectura y recupera los datos al reintentar', async ({ page }) => {
+  const todayISO = await fechaISOEnNavegador(page, 0);
+  const task = {
+    id: 'e2e-uat-1489-recover-read',
+    titulo: 'E2E tarea tras recuperar lectura UAT-1489',
+    asignadoA: 'PEON1',
+    origen: 'manual',
+    categoria: 'manual',
+    inv: '0A',
+    calles: '1-2',
+    fechaISO: todayISO,
+    estado: 'pendiente'
+  };
+  const { database, writes } = await installFixture(page, {
+    'lasala-tareas-v1': JSON.stringify([task])
+  });
+  let failedTaskReads = 0;
+  await page.route(firebaseUrl, async route => {
+    const url = new URL(route.request().url());
+    const key = decodeURIComponent(url.pathname.slice(1).replace('.json', ''));
+    if (route.request().method() === 'GET' && key === 'lasala-tareas-v1' && failedTaskReads < 3) {
+      failedTaskReads += 1;
+      await route.fulfill({ status: 500, contentType: 'text/plain', body: 'Simulated temporary read failure' });
+      return;
+    }
+    await route.fallback();
+  });
+
+  await openTasks(page);
+  const banner = page.locator('#aviso-fallo-guardado');
+  await expect(banner).toContainText('No se han podido cargar los datos');
+  await expect(banner.getByRole('button', { name: 'Reintentar' })).toBeVisible();
+  expect(failedTaskReads).toBe(3);
+  expect(database['lasala-tareas-v1']).toBe(JSON.stringify([task]));
+  expect(writes).toEqual([]);
+
+  await banner.getByRole('button', { name: 'Reintentar' }).click();
+  await expect(page.locator('#page-home')).toBeVisible();
+  await openTasks(page);
+  await page.locator('#tareas-overlay').getByRole('button', { name: 'Tareas de hoy' }).click();
+  await expect(page.locator('#tareas-overlay .tarea-card').filter({ hasText: task.titulo })).toBeVisible();
+  expect(database['lasala-tareas-v1']).toBe(JSON.stringify([task]));
+  expect(writes).toEqual([]);
+});
