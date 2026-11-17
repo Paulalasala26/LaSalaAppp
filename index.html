@@ -23494,10 +23494,14 @@ async function procesarOperacionEspecificoManual(op){
   if(op.partidas.length&&!op.etapas?.partidas){
     await guardarVinculosEspecificoManualIdempotentes(op);
     etapaOperacionEspecificoManual(op,'partidas');
+  }else if(!op.partidas.length&&!op.etapas?.partidas){
+    etapaOperacionEspecificoManual(op,'partidas');
   }
   renderAvisoOperacionEspecificoPendiente();
   if(op.tareas.length&&!op.etapas?.tareas){
     await guardarTareasEspecificoManualEnLote(op);
+    etapaOperacionEspecificoManual(op,'tareas');
+  }else if(!op.tareas.length&&!op.etapas?.tareas){
     etapaOperacionEspecificoManual(op,'tareas');
   }
   localStorage.removeItem(ESPECIFICOS_MANUAL_OUTBOX_KEY);
@@ -23613,10 +23617,6 @@ async function saveEspecificoManual(){
     renderAvisoOperacionEspecificoPendiente();
   }finally{especificoManualProcesando=false;}
 }
-rEspecificosGrid(especificosInvSel);
-  showToast(`✓ Día ${dia} → aplicado a ${bulkInvIds.length} invernadero(s) (${count} calles)`);
-}
-
 // Borrado atómico: lee la nube fresca y borra directamente esas claves —
 // mismo patrón que guardarBorradoFito/guardarBorradoRiego (la fusión normal
 // no sabe "borrar", una celda ya vacía en local heredaría el valor antiguo
