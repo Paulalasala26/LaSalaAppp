@@ -925,7 +925,7 @@
   async function open(rec,context){
     if(!rec||!['tunel','carga','carga_injerto','preinjerto_patron','preinjerto_variedad'].includes(rec.tipo)||typeof rec.id!=='string'||
       !/^[A-Za-z0-9_-]{1,180}$/.test(rec.id)||!
-      Number.isInteger(rec.dia)||rec.dia<15||rec.dia>4000||
+      !Number.isInteger(rec.dia)||rec.dia<15||rec.dia>4000||
       typeof rec.partida!=='string'||!/^[A-Za-z0-9._-]{1,100}$/.test(rec.partida)){
       alert('Este control no tiene todos los identificadores necesarios para cuantificarlo.');
       return;
