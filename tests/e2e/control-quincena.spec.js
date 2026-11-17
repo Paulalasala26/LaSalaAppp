@@ -4319,6 +4319,44 @@ test('UAT-421: una miniatura remota tardía no sustituye la galería al cambiar 
   expect(unexpectedHosts).toEqual([]);
 });
 
+test('UAT-428: un 403 al retirar foto SharePoint conserva la foto y el índice QC', async ({ page }) => {
+  const database = fixtureDatabase();
+  const id = 'e2e-control-current-fortnight';
+  const photo = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/XxsAAAAASUVORK5CYII=';
+  const sharePointPhoto = { f: photo, t: photo, origen: 'SharePoint', itemId: 'fixture-item-428' };
+  const originalIndex = JSON.stringify({ [id]: 'lasala-control-fotos-v1' });
+  const originalShard = JSON.stringify({ [id]: [sharePointPhoto] });
+  database['lasala-control-fotos-indice-v1'] = originalIndex;
+  database['lasala-control-fotos-shards-index'] = JSON.stringify(['lasala-control-fotos-v1']);
+  database['lasala-control-fotos-v1'] = originalShard;
+  const { overlay, unexpectedHosts } = await startControlTest(page, database);
+  const card = overlay.locator(`#control-card-${id}`);
+  await expect(card.locator('img[title="Ver foto"]')).toHaveCount(1);
+  const deniedWrites = [];
+  await page.route('**/lasala-control-fotos-v1.json*', async route => {
+    if (route.request().method() !== 'PUT') return route.fallback();
+    deniedWrites.push(route.request().url());
+    await route.fulfill({
+      status: 403,
+      contentType: 'application/json',
+      headers: {
+        'access-control-allow-origin': '*',
+        'access-control-allow-methods': 'GET, PUT, PATCH, DELETE, OPTIONS',
+        'access-control-allow-headers': 'Content-Type, If-Match, X-Firebase-ETag',
+        'access-control-expose-headers': 'ETag'
+      },
+      body: JSON.stringify({ error: 'Permission denied' })
+    });
+  });
+  page.on('dialog', dialog => dialog.accept());
+  await card.getByTestId(`control-photo-delete-${id}-0`).click();
+  await expect.poll(() => deniedWrites.length).toBe(1);
+  await expect(card.locator('img[title="Ver foto"]')).toHaveCount(1);
+  expect(database['lasala-control-fotos-indice-v1']).toBe(originalIndex);
+  expect(database['lasala-control-fotos-v1']).toBe(originalShard);
+  expect(unexpectedHosts).toEqual([]);
+});
+
 test('UAT-439: un PDF de Carga en Túnel no mezcla líneas y muestra error controlado', async ({ page }) => {
   const database = fixtureDatabase();
   const { overlay, unexpectedHosts } = await startControlTest(page, database);
