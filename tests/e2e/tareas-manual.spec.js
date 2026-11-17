@@ -3506,7 +3506,7 @@ test('UAT-1412: Pistola imprime el parte fitosanitario individual', async ({ pag
   expect(writes).toEqual([]);
 });
 
-test('UAT-1413: Pistola sin litros reales bloquea la impresión y avisa', async ({ page }) => {
+test('UAT-1413 y UAT-668: Pistola sin litros reales bloquea la impresión y avisa', async ({ page }) => {
   await page.addInitScript(() => { window.print = () => {}; });
   const todayISO = await fechaISOEnNavegador(page);
   const task = { id:'e2e-uat-1413', titulo:'E2E Pistola 1413', asignadoA:'PEON1', asignadoPor:'E2E_ADMIN', origen:'pistola', categoria:'fumigacion', fechaISO:todayISO, estado:'pendiente', producto:'E2E-TRATAMIENTO-1413', dosis:'1 cc/l', caldoLitros:null, caldoLabel:'', objetivos:[{inv:'1A',calles:'C/102'}] };
@@ -3521,6 +3521,48 @@ test('UAT-1413: Pistola sin litros reales bloquea la impresión y avisa', async 
   await expect(page.locator('#print-tareas-iframe')).toHaveCount(0);
   expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([task]);
   expect(writes).toEqual([]);
+});
+
+test('UAT-665: Pistola sin producto bloquea la impresión y avisa', async ({ page }) => {
+  await page.addInitScript(() => { window.print = () => {}; });
+  const todayISO = await fechaISOEnNavegador(page);
+  const task = { id:'e2e-uat-665', titulo:'E2E Pistola sin producto 665', asignadoA:'PEON1', asignadoPor:'E2E_ADMIN', origen:'pistola', categoria:'fumigacion', fechaISO:todayISO, estado:'pendiente', producto:'', dosis:'1 cc/l', caldoLitros:25, caldoLabel:'25L', objetivos:[{inv:'1A',calles:'C/102'}] };
+  await installFixture(page, { 'lasala-tareas-v1': JSON.stringify([task]) });
+  await openTasks(page);
+  const overlay=page.locator('#tareas-overlay');
+  await overlay.getByRole('button',{name:/Tareas de hoy/}).click();
+  await overlay.locator('.tarea-card').filter({hasText:task.titulo}).getByTitle('Imprimir').click();
+  test.fail(true,'La impresión valida litros, pero no detecta que el producto está vacío y abre una hoja incompleta.');
+  await expect.soft(page.locator('#app-toast')).toContainText(/producto/i);
+  await expect(page.locator('#print-fito-iframe')).toHaveCount(0);
+});
+
+test('UAT-666: Pistola sin dosis completa bloquea la impresión y avisa', async ({ page }) => {
+  await page.addInitScript(() => { window.print = () => {}; });
+  const todayISO = await fechaISOEnNavegador(page);
+  const task = { id:'e2e-uat-666', titulo:'E2E Pistola sin dosis 666', asignadoA:'PEON1', asignadoPor:'E2E_ADMIN', origen:'pistola', categoria:'fumigacion', fechaISO:todayISO, estado:'pendiente', producto:'E2E-TRATAMIENTO-666', dosis:'', caldoLitros:25, caldoLabel:'25L', objetivos:[{inv:'1A',calles:'C/102'}] };
+  await installFixture(page, { 'lasala-tareas-v1': JSON.stringify([task]) });
+  await openTasks(page);
+  const overlay=page.locator('#tareas-overlay');
+  await overlay.getByRole('button',{name:/Tareas de hoy/}).click();
+  await overlay.locator('.tarea-card').filter({hasText:task.titulo}).getByTitle('Imprimir').click();
+  test.fail(true,'La impresión no valida la dosis y produce una hoja sin pauta de aplicación completa.');
+  await expect.soft(page.locator('#app-toast')).toContainText(/dosis/i);
+  await expect(page.locator('#print-fito-iframe')).toHaveCount(0);
+});
+
+test('UAT-667: Pistola sin método explícito bloquea el parte y avisa', async ({ page }) => {
+  await page.addInitScript(() => { window.print = () => {}; });
+  const todayISO = await fechaISOEnNavegador(page);
+  const task = { id:'e2e-uat-667', titulo:'E2E Pistola sin método 667', asignadoA:'PEON1', asignadoPor:'E2E_ADMIN', origen:'pistola', categoria:'fumigacion', tipoTrat:'', fechaISO:todayISO, estado:'pendiente', producto:'E2E-TRATAMIENTO-667', dosis:'1 cc/l', caldoLitros:25, caldoLabel:'25L', objetivos:[{inv:'1A',calles:'C/102'}] };
+  await installFixture(page, { 'lasala-tareas-v1': JSON.stringify([task]) });
+  await openTasks(page);
+  const overlay=page.locator('#tareas-overlay');
+  await overlay.getByRole('button',{name:/Tareas de hoy/}).click();
+  await overlay.locator('.tarea-card').filter({hasText:task.titulo}).getByTitle('Imprimir').click();
+  test.fail(true,'El parte se genera con el operario PEÓN por defecto sin verificar que la tarea tenga un método explícito.');
+  await expect.soft(page.locator('#app-toast')).toContainText(/método|método de aplicación/i);
+  await expect(page.locator('#print-fito-iframe')).toHaveCount(0);
 });
 
 test('UAT-1414: la impresión general excluye las tareas Pistola', async ({ page }) => {
