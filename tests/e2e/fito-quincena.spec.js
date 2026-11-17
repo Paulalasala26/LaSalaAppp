@@ -465,6 +465,26 @@ test('UAT-551: continuar al día siguiente conserva serieId y crea una jornadaId
   expect(unexpectedHosts).toEqual([]);
 });
 
+test('UAT-558: dos altas del mismo producto en fechas distintas conservan series independientes',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts}=await openFito(page,database);
+  for(const dia of ['30','31']){
+    await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+    const form=page.locator('#fito-manual-overlay');
+    await form.locator('#fm-dia').selectOption(dia);
+    await completarFitoValido(form,'E2E-SERIE-INDEPENDIENTE');
+    await form.getByRole('button',{name:'Guardar'}).click();
+    await expect(form).toBeHidden();
+  }
+  const first=fitoData(database)?.['17']?.['30']?.['2'];
+  const second=fitoData(database)?.['17']?.['31']?.['2'];
+  expect(first?.texto).toBe('E2E-SERIE-INDEPENDIENTE 1 cc/l');
+  expect(second?.texto).toBe(first?.texto);
+  expect(second?.serieId).not.toBe(first?.serieId);
+  expect(second?.jornadaId).not.toBe(first?.jornadaId);
+  expect(unexpectedHosts).toEqual([]);
+});
+
 test('UAT-559 y UAT-560: la marca de primer día por calle se conserva y la continuación mantiene color normal',async({page})=>{
   const database=fixtureDatabase();
   const data=JSON.parse(database['lasala-fito-v1']);
