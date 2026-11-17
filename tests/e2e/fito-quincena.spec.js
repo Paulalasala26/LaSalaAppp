@@ -1552,6 +1552,16 @@ test('UAT-664: imprimir una jornada guardada de Pistola identifica PEÓN',async(
   expect(unexpectedHosts).toEqual([]);
 });
 
+test('UAT-677: la hoja oficial usa formato A4 en la previsualización',async({page})=>{
+  const database=fixtureDatabase();
+  await openFito(page,database);
+  await page.locator('#fito-grid-wrap textarea[data-finv="17"][data-fdia="30"][data-frc="3"]').dblclick();
+  await page.locator('#fito-manual-overlay').getByRole('button',{name:'Imprimir hoja'}).click();
+  const style=await page.frameLocator('#print-fito-iframe').locator('style').innerText();
+  test.fail(true,'La hoja utiliza tamaño personalizado 210×298,6 mm y no declara A4.');
+  expect(style).toMatch(/@page\\s*\\{\\s*size:\\s*A4\\b/i);
+});
+
 test('UAT-500 y UAT-501: Pistola y Cañón no guardan una jornada sin producto ni dosis',async({page})=>{
   const database=fixtureDatabase();
   const original=database['lasala-fito-v1'];
