@@ -4208,28 +4208,32 @@ test('UAT-416: la galería solo presenta fotos con índice activo de la inspecci
 });
 
 test('UAT-417: al consultar fotos de Túnel y Carga cada galería conserva su inspección', async ({ page }) => {
-  test.fail(true, 'La foto fixture aparece en QC Túnel, pero no se muestra en la tarjeta de QC Carga.');
+  test.fail(true, 'En QC Carga se crea la miniatura, pero su src queda como undefined aunque el shard contiene la foto de esa inspección.');
   const database = fixtureDatabase();
   const tunnelId = 'e2e-control-current-fortnight';
   const cargaId = 'e2e-control-carga-current-fortnight';
-  const photo = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/XxsAAAAASUVORK5CYII=';
+  const tunnelPhoto = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%221%22 height=%221%22%3E%3Crect width=%221%22 height=%221%22 fill=%22red%22/%3E%3C/svg%3E';
+  const cargaPhoto = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%221%22 height=%221%22%3E%3Crect width=%221%22 height=%221%22 fill=%22blue%22/%3E%3C/svg%3E';
   database['lasala-control-fotos-indice-v1'] = JSON.stringify({
     [tunnelId]: 'lasala-control-fotos-v1',
     [cargaId]: 'lasala-control-fotos-v1'
   });
   database['lasala-control-fotos-shards-index'] = JSON.stringify(['lasala-control-fotos-v1']);
   database['lasala-control-fotos-v1'] = JSON.stringify({
-    [tunnelId]: [{ f: photo, t: photo, origen: 'SharePoint', itemId: 'fixture-tunnel-417' }],
-    [cargaId]: [{ f: photo, t: photo, origen: 'SharePoint', itemId: 'fixture-carga-417' }]
+    [tunnelId]: [{ f: tunnelPhoto, t: tunnelPhoto, origen: 'SharePoint', itemId: 'fixture-tunnel-417' }],
+    [cargaId]: [{ f: cargaPhoto, t: cargaPhoto, origen: 'SharePoint', itemId: 'fixture-carga-417' }]
   });
 
   const { overlay, unexpectedHosts } = await startControlTest(page, database);
   const tunnelCard = overlay.locator(`#control-card-${tunnelId}`);
   const cargaCard = overlay.locator(`#control-card-${cargaId}`);
-  await expect(tunnelCard.locator('img[title="Ver foto"]')).toHaveCount(1);
-  await expect(cargaCard.locator('img[title="Ver foto"]')).toHaveCount(1);
-  await expect(tunnelCard.getByTestId(`control-photo-status-${tunnelId}-0`)).toHaveText('SharePoint');
-  await expect(cargaCard.getByTestId(`control-photo-status-${cargaId}-0`)).toHaveText('SharePoint');
+  const tunnelImage = tunnelCard.locator('img[title="Ver foto"]');
+  await expect(tunnelImage).toHaveCount(1);
+  await expect(tunnelImage).toHaveAttribute('src', tunnelPhoto);
+  await overlay.getByRole('button', { name: 'Check Carga Injerto' }).click();
+  const cargaImage = cargaCard.locator('img[title="Ver foto"]');
+  await expect(cargaImage).toHaveCount(1);
+  await expect(cargaImage).toHaveAttribute('src', cargaPhoto);
   expect(unexpectedHosts).toEqual([]);
 });
 
