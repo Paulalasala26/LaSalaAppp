@@ -3,7 +3,7 @@
 // Sin red, se conservan en este dispositivo hasta pulsar Sincronizar todo.
 (function(){
  const DB='viguerapp-qc-operarios-photos-test-v1',STORE='photos';
- const LIMIT=30,MAX_BYTES=2450000,RE_ID=/^[A-Za-z0-9_-]{1,180}$/,RE_PART=/^[^\p{C}]{1,160}$/u;
+ const LIMIT=30,MAX_BYTES=2450000,RE_ID=/^[A-Za-z0-9_-]{1,180}$/;
  const TYPES=['image/jpeg','image/png','image/webp','image/heic','image/heif'];
  let owner='',role='',items=[],sending=false,previewClose=null;
  let galleryTokenValue='',galleryTokenExpires=0,galleryTokenPending=null;
@@ -19,9 +19,10 @@
  const text=(tag,v)=>{const e=document.createElement(tag);if(v!==undefined)e.textContent=String(v);return e;};
  const QC_TYPES=['tunel','carga','carga_injerto','preinjerto_patron','preinjerto_variedad'];
  function refShapeValid(r){
+  // La ficha QC ya valida id, tipo y día antes de llamar a fotos. No se exige
+  // un formato de partida ni límites del calendario para guardar la captura local.
   return !!(r&&RE_ID.test(r.id)&&typeof r.partida==='string'&&
-   r.partida.trim()===r.partida&&RE_PART.test(r.partida)&&QC_TYPES.includes(r.tipo)&&
-   Number.isInteger(r.dia)&&r.dia>=15&&r.dia<=4000);
+   QC_TYPES.includes(r.tipo)&&Number.isInteger(r.dia));
  }
   // La captura no depende del perfil; los permisos de visualización siguen
   // definidos por separado en refValid.
