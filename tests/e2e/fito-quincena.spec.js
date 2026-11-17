@@ -465,6 +465,29 @@ test('UAT-551: continuar al día siguiente conserva serieId y crea una jornadaId
   expect(unexpectedHosts).toEqual([]);
 });
 
+test('UAT-552: una calle nueva en la segunda jornada queda marcada como primer día',async({page})=>{
+  const database=fixtureDatabase();
+  const data=JSON.parse(database['lasala-fito-v1']);
+  data['17']['29']['2']={texto:'E2E-SERIE-552 1 cc/l',caldoLitros:25,caldoLabel:'25L CUBA DE RUEDAS',tipoTrat:'Cañón',primerDia:true,serieId:'e2e-serie-552',jornadaId:'e2e-jornada-552-a'};
+  database['lasala-fito-v1']=JSON.stringify(data);
+  const {overlay,unexpectedHosts}=await openFito(page,database);
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await form.locator('#fm-dia').selectOption('30');
+  await form.locator('input[name="fm-bulk-modo-17"]').nth(2).check();
+  const tramo=form.locator('#fm-bulk-tramos-17 .fm-bulk-tramo-row').first();
+  await tramo.locator('.fm-bulk-tramo-desde').selectOption('6');
+  await tramo.locator('.fm-bulk-tramo-hasta').selectOption('6');
+  await form.getByText(/Primer día de tratamiento/).locator('input').check();
+  await completarFitoValido(form,'E2E-SERIE-552');
+  await form.getByRole('button',{name:'Guardar'}).click();
+  await expect(form).toBeHidden();
+  const saved=fitoData(database);
+  expect(saved?.['17']?.['29']?.['2']).toMatchObject({texto:'E2E-SERIE-552 1 cc/l',serieId:'e2e-serie-552',primerDia:true});
+  expect(saved?.['17']?.['30']?.['6']).toMatchObject({texto:'E2E-SERIE-552 1 cc/l',primerDia:true});
+  expect(unexpectedHosts).toEqual([]);
+});
+
 test('UAT-558: dos altas del mismo producto en fechas distintas conservan series independientes',async({page})=>{
   const database=fixtureDatabase();
   const {overlay,unexpectedHosts}=await openFito(page,database);
