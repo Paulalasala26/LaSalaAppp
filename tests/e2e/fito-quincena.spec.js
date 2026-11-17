@@ -1179,11 +1179,15 @@ test('UAT-523 y UAT-1415: cambiar de Pistola a Cañón antes de guardar no asign
   expect(unexpectedHosts).toEqual([]);
 });
 
-test('UAT-524: cambiar de Cañón a Pistola antes de guardar asigna el PEÓN de la sala',async({page})=>{
+test('UAT-524 y UAT-614: Pistola en una zona libre crea una tarea vinculada al PEÓN de la sala',async({page})=>{
   const database=fixtureDatabase();
   const {overlay,unexpectedHosts}=await openFito(page,database);
   await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
   const form=page.locator('#fito-manual-overlay');
+  await form.locator('input[name="fm-bulk-modo-17"]').nth(2).check();
+  const tramo=form.locator('#fm-bulk-tramos-17 .fm-bulk-tramo-row').first();
+  await tramo.locator('.fm-bulk-tramo-desde').selectOption('7');
+  await tramo.locator('.fm-bulk-tramo-hasta').selectOption('7');
   await form.locator('#fm-trat').fill('E2E-CAMBIO-METODO');
   await form.locator('#fm-dosis').fill('1 cc/l');
   await form.locator('#fm-tipo-trat').selectOption('Cañón');
@@ -1192,11 +1196,17 @@ test('UAT-524: cambiar de Cañón a Pistola antes de guardar asigna el PEÓN de 
   await form.locator('#fm-horario').selectOption('18:00');
   await form.getByRole('button',{name:'Guardar'}).click();
   await expect(form).toBeHidden();
-  await expect.poll(()=>fitoData(database)?.['17']?.['30']?.['2']).toMatchObject({tipoTrat:'Pistola'});
+  await expect.poll(()=>fitoData(database)?.['17']?.['30']?.['7']).toMatchObject({tipoTrat:'Pistola'});
   await expect.poll(()=>JSON.parse(database['lasala-tareas-v1']||'[]').filter(t=>t.categoria==='fumigacion')).toHaveLength(1);
   const tareas=JSON.parse(database['lasala-tareas-v1']||'[]').filter(t=>t.categoria==='fumigacion');
   expect(tareas[0]).toMatchObject({horario:'18:00',estado:'pendiente'});
   expect(tareas[0].asignadoA).toMatch(/PEON/i);
+  const tratamiento=fitoData(database)?.['17']?.['30']?.['7'];
+  expect(tareas[0].jornadaId).toBe(tratamiento.jornadaId);
+  expect(tareas[0].serieId).toBe(tratamiento.serieId);
+  expect(tareas[0].objetivos).toHaveLength(1);
+  expect(tareas[0].objetivos[0]).toMatchObject({inv:'17'});
+  expect(tareas[0].objetivos[0].calles).toContain('7');
   expect(unexpectedHosts).toEqual([]);
 });
 
