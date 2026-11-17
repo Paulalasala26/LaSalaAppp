@@ -443,6 +443,28 @@ test('UAT-550: existe acceso para continuar una serie de Plaguicidas ya iniciada
   expect(unexpectedHosts).toEqual([]);
 });
 
+test('UAT-551: continuar al día siguiente conserva serieId y crea una jornadaId nueva',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts}=await openFito(page,database);
+  for(const [dia,primerDia] of [['30',true],['31',false]]){
+    await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+    const form=page.locator('#fito-manual-overlay');
+    await form.locator('#fm-dia').selectOption(dia);
+    const firstDay=form.locator('#fm-bulk-panels').getByLabel('Primer día de tratamiento (marca la celda en morado)');
+    if(primerDia) await firstDay.check(); else await firstDay.uncheck();
+    await completarFitoValido(form,'E2E-SERIE-UAT-551');
+    await form.getByRole('button',{name:'Guardar'}).click();
+    await expect(form).toBeHidden();
+  }
+  const first=fitoData(database)?.['17']?.['30']?.['2'];
+  const second=fitoData(database)?.['17']?.['31']?.['2'];
+  expect(first?.primerDia).toBe(true);
+  expect(second?.primerDia).toBe(false);
+  expect(second?.serieId).toBe(first?.serieId);
+  expect(second?.jornadaId).not.toBe(first?.jornadaId);
+  expect(unexpectedHosts).toEqual([]);
+});
+
 test('UAT-559 y UAT-560: la marca de primer día por calle se conserva y la continuación mantiene color normal',async({page})=>{
   const database=fixtureDatabase();
   const data=JSON.parse(database['lasala-fito-v1']);
