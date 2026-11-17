@@ -488,6 +488,26 @@ test('UAT-552: una calle nueva en la segunda jornada queda marcada como primer d
   expect(unexpectedHosts).toEqual([]);
 });
 
+test('UAT-566: editar una jornada conserva el inicio global y la identidad de la serie',async({page})=>{
+  const database=fixtureDatabase();
+  const data=JSON.parse(database['lasala-fito-v1']);
+  data['17']['29']['2']={texto:'E2E-SERIE-566 ORIGINAL 1 cc/l',caldoLitros:25,caldoLabel:'25L CUBA DE RUEDAS',tipoTrat:'Cañón',primerDia:true,serieId:'e2e-serie-566',jornadaId:'e2e-jornada-566-a'};
+  data['17']['30']['2']={texto:'E2E-SERIE-566 ORIGINAL 1 cc/l',caldoLitros:25,caldoLabel:'25L CUBA DE RUEDAS',tipoTrat:'Cañón',primerDia:false,serieId:'e2e-serie-566',jornadaId:'e2e-jornada-566-b'};
+  database['lasala-fito-v1']=JSON.stringify(data);
+  const {overlay,unexpectedHosts}=await openFito(page,database);
+  await overlay.locator('#fito-grid-wrap [data-finv="17"][data-fdia="30"][data-frc="2"]').dblclick();
+  const form=page.locator('#fito-manual-overlay');
+  await expect(form.locator('#fm-trat')).toHaveValue('E2E-SERIE-566 ORIGINAL');
+  await form.locator('#fm-trat').fill('E2E-SERIE-566 EDITADO');
+  await expect(form.locator('#fm-trat')).toHaveValue('E2E-SERIE-566 EDITADO');
+  await form.getByRole('button',{name:'Guardar'}).click();
+  await expect(form).toBeHidden();
+  const saved=fitoData(database);
+  expect(saved?.['17']?.['29']?.['2']).toMatchObject({texto:'E2E-SERIE-566 ORIGINAL 1 cc/l',primerDia:true,serieId:'e2e-serie-566',jornadaId:'e2e-jornada-566-a'});
+  expect(saved?.['17']?.['30']?.['2']).toMatchObject({texto:'E2E-SERIE-566 EDITADO 1 cc/l',primerDia:false,serieId:'e2e-serie-566',jornadaId:'e2e-jornada-566-b'});
+  expect(unexpectedHosts).toEqual([]);
+});
+
 test('UAT-565: el alta bloquea sobrescribir una calle ocupada por otra serie',async({page})=>{
   const database=fixtureDatabase();
   const data=JSON.parse(database['lasala-fito-v1']);
