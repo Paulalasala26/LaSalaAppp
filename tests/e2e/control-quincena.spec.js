@@ -4237,6 +4237,28 @@ test('UAT-417: al consultar fotos de Túnel y Carga cada galería conserva su in
   expect(unexpectedHosts).toEqual([]);
 });
 
+test('UAT-424: una foto QC guardada conserva UUID y huella SHA-256', async ({ page }) => {
+  test.fail(true, 'La foto guardada en el fixture no incluye photoId; no se puede verificar su identidad SHA-256.');
+  const database = fixtureDatabase();
+  const id = 'e2e-control-current-fortnight';
+  database['lasala-control-fotos-indice-v1'] = JSON.stringify({});
+  database['lasala-control-fotos-shards-index'] = JSON.stringify(['lasala-control-fotos-v1']);
+  database['lasala-control-fotos-v1'] = JSON.stringify({});
+  const { overlay, unexpectedHosts } = await startControlTest(page, database);
+  const card = overlay.locator(`#control-card-${id}`);
+  const photo = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/XxsAAAAASUVORK5CYII=', 'base64');
+
+  await card.locator('input[data-testid^="control-photo-gallery-"]').setInputFiles({
+    name: 'uat-424-foto.png', mimeType: 'image/png', buffer: photo
+  });
+  await expect.poll(() => JSON.parse(database['lasala-control-fotos-v1'] || '{}')[id]).toHaveLength(1);
+  const savedPhoto = JSON.parse(database['lasala-control-fotos-v1'])[id][0];
+  expect(typeof savedPhoto).toBe('object');
+  expect(savedPhoto.photoId).toMatch(/^[0-9a-f-]{36}$/i);
+  expect(savedPhoto.sha256).toMatch(/^[a-f0-9]{64}$/i);
+  expect(unexpectedHosts).toEqual([]);
+});
+
 test('UAT-439: un PDF de Carga en Túnel no mezcla líneas y muestra error controlado', async ({ page }) => {
   const database = fixtureDatabase();
   const { overlay, unexpectedHosts } = await startControlTest(page, database);
