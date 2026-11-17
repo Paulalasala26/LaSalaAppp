@@ -38,7 +38,7 @@ self.addEventListener('notificationclick', (event) => {
 // QC operarios TEST: copia estática para abrir SOLO la consulta de partidas
 // previamente leídas. No almacenar API, Firebase, datos QC ni credenciales en CacheStorage.
 // Se integra en el SW existente para NO interferir en las suscripciones PUSH.
-const QC_SHELL_CACHE='viguerapp-qc-operarios-shell-test-v46';
+const QC_SHELL_CACHE='viguerapp-qc-operarios-shell-test-v47';
 const QC_SHELL_PREFIX='viguerapp-qc-operarios-shell-test-';
 const QC_BASE=new URL('./',self.location.href).pathname;
 const QC_FILES=['qc-offline.html','assets/qc-offline-operarios-store.js',
@@ -46,7 +46,14 @@ const QC_FILES=['qc-offline.html','assets/qc-offline-operarios-store.js',
   'assets/qc-offline-operarios-screen.js',
   'assets/qc-sync-global.js','assets/qc-sync-global.css'].map(p=>QC_BASE+p);
 self.addEventListener('install',event=>{
-  event.waitUntil(caches.open(QC_SHELL_CACHE).then(cache=>cache.addAll(QC_FILES)));
+  event.waitUntil((async()=>{
+    const cache=await caches.open(QC_SHELL_CACHE);
+    for(const url of QC_FILES){
+      const response=await fetch(new Request(url,{cache:'reload'}));
+      if(!response.ok)throw new Error('QC offline shell fetch failed: '+response.status);
+      await cache.put(url,response);
+    }
+  })());
 });
 self.addEventListener('activate',event=>{
   event.waitUntil(caches.keys().then(keys=>Promise.all(
