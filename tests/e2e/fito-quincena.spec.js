@@ -99,6 +99,14 @@ test('UAT-469: Inicio ofrece Registrar y Consultar tratamientos antes de abrir P
   expect(unexpectedHosts).toEqual([]);
 });
 
+test('UAT-568: Consultar tratamientos abre un listado de jornadas registradas',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database,{selectINV:false});
+  await expect.soft(overlay.getByRole('button',{name:'Consultar tratamientos',exact:true}),{timeout:1000}).toBeVisible();
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
 test('UAT-470 y UAT-471: otros módulos funcionan antes de la primera carga de Plaguicidas',async({page})=>{
   const pageErrors=[];
   page.on('pageerror',error=>pageErrors.push(error.message));
