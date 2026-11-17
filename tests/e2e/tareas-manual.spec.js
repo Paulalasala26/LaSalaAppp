@@ -3552,6 +3552,21 @@ test('UAT-1418: anular una jornada Pistola archiva la tarea pendiente y conserva
 });
 
 
+test('UAT-642: confirmar anulación conserva el tratamiento y archiva su tarea', async ({ page }) => {
+  const { database } = await installFixture(page);
+  const titulo = 'E2E-ANULACION-642 1 cc/l';
+  database['lasala-fito-v1'] = JSON.stringify({ '1A': { '32': { '2': { texto:titulo+' 18:00', tipoTrat:'Pistola', caldoLitros:25, caldoLabel:'25L', serieId:'e2e-serie-642', jornadaId:'e2e-jornada-642' } } } });
+  const task = { id:'e2e-uat-642-task', titulo, asignadoA:'PEON1', origen:'pistola', categoria:'fumigacion', objetivos:[{inv:'1A',calles:'C/102'}], serieId:'e2e-serie-642', jornadaId:'e2e-jornada-642', fechaISO:'2026-06-30', estado:'pendiente' };
+  database['lasala-tareas-v1'] = JSON.stringify([task]);
+  test.fail(true, 'El borrado actual elimina la celda Plaguicidas; UAT requiere conservar el tratamiento y marcar la jornada/tarea como anuladas.');
+  await page.evaluate(async () => guardarBorradoFito([{invId:'1A',dia:32,calles:[2]}]));
+  const treatment = JSON.parse(database['lasala-fito-v1'])['1A']?.['32']?.['2'];
+  expect(treatment).toBeTruthy();
+  expect(treatment).toMatchObject({ anulada:true, serieId:'e2e-serie-642', jornadaId:'e2e-jornada-642' });
+  expect(JSON.parse(database['lasala-tareas-v1'])[0]).toMatchObject({ id:task.id, estado:'anulada', serieId:task.serieId, jornadaId:task.jornadaId });
+});
+
+
 test('UAT-1419: supervisor consulta una Pistola iniciada sin alterar ejecución ni firmas', async ({ page }) => {
   const todayISO = await fechaISOEnNavegador(page);
   const task = { id:'e2e-uat-1419', titulo:'E2E Pistola iniciada 1419', asignadoA:'PEON1', origen:'pistola', categoria:'fumigacion', fechaISO:todayISO, estado:'iniciada', horaInicio:'10:15', horaInicioTs:Date.now()-60000, horaFin:null, firmante:null, objetivos:[{inv:'1A',calles:'C/102'}] };
