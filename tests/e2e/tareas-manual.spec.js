@@ -3424,6 +3424,46 @@ test('UAT-635: iniciar Pistola como PEÓN conserva ID y datos de origen', async 
   expect(writes.filter(write => write.key === 'lasala-tareas-v1')).toHaveLength(1);
 });
 
+test('UAT-636: completar Pistola conserva firmas, sobrante e identidad de jornada', async ({ page }) => {
+  const todayISO = await fechaISOEnNavegador(page);
+  const task = { id:'e2e-uat-636', titulo:'E2E Pistola 636', asignadoA:'PEON1', origen:'pistola', categoria:'fumigacion', fechaISO:todayISO, estado:'iniciada', horaInicio:'09:00', horaInicioTs:Date.now()-60000, producto:'E2E-636', dosis:'1 cc/l', caldoLitros:25, serieId:'e2e-serie-636', jornadaId:'e2e-jornada-636', objetivos:[{inv:'1A',calles:'C/102'}] };
+  const { database, writes } = await installFixture(page, { 'lasala-tareas-v1': JSON.stringify([task]) }, { loginUser:'PEON1' });
+  await expect(page.getByRole('button', { name:'Completar', exact:true })).toBeVisible();
+  await page.getByRole('button', { name:'Completar', exact:true }).click();
+  const modal = page.locator('#completar-fumigacion-overlay');
+  await expect(modal).toBeVisible();
+  await modal.locator('#cf-caldo-sobrante').fill('5 L');
+  await modal.locator('#cf-firma-preparador').fill('Preparador E2E');
+  await modal.locator('#cf-firma-aplicador').fill('Peon1');
+  await modal.getByRole('button', { name:'Confirmar' }).click();
+  await expect.poll(() => JSON.parse(database['lasala-tareas-v1'])[0]).toMatchObject({ id:task.id, estado:'completada', serieId:task.serieId, jornadaId:task.jornadaId, caldoSobrante:'5 L', firmaPreparador:'Preparador E2E', firmaAplicador:'Peon1', firmante:'Peon1' });
+  const saved = JSON.parse(database['lasala-tareas-v1'])[0];
+  expect(saved.horaFin).toBeTruthy();
+  expect(saved.completadoISO).toBe(todayISO);
+  expect(writes.filter(write => write.key === 'lasala-tareas-v1')).toHaveLength(1);
+});
+
+test('UAT-637: una segunda finalización Pistola no altera firma ni horas previas', async ({ page }) => {
+  const todayISO = await fechaISOEnNavegador(page);
+  const task = { id:'e2e-uat-637', titulo:'E2E Pistola 637', asignadoA:'PEON1', origen:'pistola', categoria:'fumigacion', fechaISO:todayISO, estado:'iniciada', horaInicio:'09:00', horaInicioTs:Date.now()-60000, producto:'E2E-637', dosis:'1 cc/l', caldoLitros:25, serieId:'e2e-serie-637', jornadaId:'e2e-jornada-637', objetivos:[{inv:'1A',calles:'C/102'}] };
+  const { database } = await installFixture(page, { 'lasala-tareas-v1': JSON.stringify([task]) }, { loginUser:'PEON1' });
+  await page.getByRole('button', { name:'Completar', exact:true }).click();
+  const modal = page.locator('#completar-fumigacion-overlay');
+  await modal.locator('#cf-caldo-sobrante').fill('5 L');
+  await modal.locator('#cf-firma-preparador').fill('Preparador original');
+  await modal.locator('#cf-firma-aplicador').fill('Aplicador original');
+  await modal.getByRole('button', { name:'Confirmar' }).click();
+  await expect.poll(() => JSON.parse(database['lasala-tareas-v1'])[0].estado).toBe('completada');
+  const primera = JSON.parse(database['lasala-tareas-v1'])[0];
+  test.fail(true, 'El manejador de finalización no comprueba el estado completada y permite sobrescribir firmas/horas si se repite la acción.');
+  await page.evaluate(id => showCompletarFumigacionDialog(id), task.id);
+  await modal.locator('#cf-caldo-sobrante').fill('0 L');
+  await modal.locator('#cf-firma-preparador').fill('Firma repetida');
+  await modal.locator('#cf-firma-aplicador').fill('Aplicador repetido');
+  await page.evaluate(id => completarFumigacion(id), task.id);
+  expect(JSON.parse(database['lasala-tareas-v1'])[0]).toEqual(primera);
+});
+
 test('UAT-1412: Pistola imprime el parte fitosanitario individual', async ({ page }) => {
   await page.addInitScript(() => { window.print = () => {}; });
   const todayISO = await fechaISOEnNavegador(page);
