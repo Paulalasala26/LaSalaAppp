@@ -646,7 +646,7 @@ test('UAT-247–257: filtros, ubicaciones, estados y contadores de QC Carga resp
   expect(unexpectedHosts).toEqual([]);
 });
 
-test('UAT-258–263: buscar partidas y presentar la inspección y ubicación de Carga correctamente', async ({ page }) => {
+test('UAT-258–263 y UAT-449: buscar partidas y presentar la inspección y ubicación de Carga correctamente', async ({ page }) => {
   const database = fixtureDatabase();
   const { overlay, unexpectedHosts } = await startControlTest(page, database);
   await overlay.getByRole('button', { name: 'Check Carga Injerto' }).click();
