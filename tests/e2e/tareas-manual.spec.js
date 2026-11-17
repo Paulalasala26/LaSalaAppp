@@ -3346,7 +3346,7 @@ test('UAT-1408: Pistola separa jornadas homónimas con igual producto, fecha y P
   expect(tareas).toHaveLength(2);
 });
 
-test('UAT-1409: repetir asignación Pistola no duplica el mismo origen Fito', async ({ page }) => {
+test('UAT-1409 y UAT-633: repetir asignación Pistola no duplica el mismo origen Fito', async ({ page }) => {
   const { database } = await installFixture(page);
   await page.evaluate(async () => {
     const objetivo = [{ invId: '1A', callesLabel: 'C/102' }];
@@ -3398,7 +3398,7 @@ test('UAT-620 y UAT-1411: volver a consultar la misma jornada Pistola no duplica
   expect(writes).toEqual([]);
 });
 
-test('UAT-621–623: la tarjeta Pistola ofrece consulta reabrible del estado de tarea', async ({ page }) => {
+test('UAT-621–623 y UAT-631: la tarjeta Pistola ofrece revisión del estado de tarea incierto', async ({ page }) => {
   test.fail(true, 'En la tarjeta actual solo existe «Ver jornada»; no aparece la acción «Estado de tarea» solicitada por QC.');
   const todayISO = await fechaISOEnNavegador(page);
   const task = { id:'e2e-uat-621-623', titulo:'E2E estado Pistola 621-623', asignadoA:'PEON1', origen:'pistola', categoria:'fumigacion', fechaISO:todayISO, estado:'pendiente', producto:'E2E-ESTADO', dosis:'1 cc/l', caldoLitros:25, caldoLabel:'25L', serieId:'e2e-serie-621', jornadaId:'e2e-jornada-621', objetivos:[{inv:'1A',calles:'C/102'}] };
