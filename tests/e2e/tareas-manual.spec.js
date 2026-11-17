@@ -4070,3 +4070,42 @@ test('UAT-1566–1569, 1570–1573: asignar a un PEÓN válido conserva datos y 
   await form.getByRole('button', { name: 'Cancelar' }).click();
   expect(writes.filter(write => write.key === 'lasala-tareas-v1')).toEqual([]);
 });
+
+
+test('UAT-1474: consultar una tarea completada conserva fecha, horas, responsable y firma', async ({ page }) => {
+  const todayISO = await fechaISOEnNavegador(page, 0);
+  const task = {
+    id: 'e2e-uat-1474-completed-details',
+    titulo: 'E2E tarea completada UAT-1474',
+    descripcion: 'Tarea cerrada para comprobar su histórico',
+    asignadoA: 'PEON2',
+    asignadoPor: 'E2E_ADMIN',
+    origen: 'manual',
+    categoria: 'manual',
+    inv: '0B',
+    calles: '3-4',
+    fechaISO: todayISO,
+    completadoISO: todayISO,
+    estado: 'completada',
+    horaInicio: '08:12',
+    horaFin: '09:03',
+    firmante: 'Peon2'
+  };
+  const { database, writes } = await installFixture(page, {
+    'lasala-tareas-v1': JSON.stringify([task])
+  });
+  await openTasks(page);
+
+  const overlay = page.locator('#tareas-overlay');
+  await overlay.getByRole('button', { name: 'Tareas de hoy' }).click();
+  const card = overlay.locator(`.tarea-card[data-id="${task.id}"]`);
+  await expect(card).toBeVisible();
+  await expect(card).toContainText('Completada');
+  await expect(card).toContainText(todayISO);
+  await expect(card).toContainText('PEON2');
+  await expect(card).toContainText('Inicio: 08:12');
+  await expect(card).toContainText('Fin: 09:03');
+  await expect(card).toContainText('Firma: Peon2');
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([task]);
+  expect(writes).toEqual([]);
+});
