@@ -52,8 +52,8 @@
   const HEALTH_KEYS=['enfermedad1','enfermedad2','enfermedad3','enfermedad4'];
   const isDisease=k=>HEALTH_KEYS.includes(k);
   const isMultiCategory=cat=>['sanidad','plagas','enfermedades'].includes(cat);
-  const isPercentOption=(cat,key)=>cat==='sanidad'?isDisease(key):
-    ['plagas','enfermedades'].includes(cat)&&key!=='ok';
+  const isPercentOption=(cat,key)=>key!=='noEvaluada'&&
+    (cat==='sanidad'?isDisease(key):['plagas','enfermedades'].includes(cat)&&key!=='ok');
   const percentProperty=cat=>cat==='sanidad'?'porcentajesEnfermedades':'porcentajesIncidencias';
   const selectedOf=wrap=>Array.from(wrap.querySelectorAll('input[type="checkbox"]:checked')).map(b=>b.value);
   const sumHealth=wrap=>Array.from(wrap.querySelectorAll('.qco-disease-select')).reduce((n,p)=>
