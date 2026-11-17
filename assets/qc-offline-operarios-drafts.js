@@ -473,16 +473,34 @@
   return value;
  };
  const sameMeasurement=(a,b)=>JSON.stringify(normalizeMeasurement(a))===JSON.stringify(normalizeMeasurement(b));
+ // En QC, la clave local «ok» en Flores representa «No»; en servidor se usa «no».
+ function normalizeFlower(value){
+  if(!value||typeof value!=='object'||Array.isArray(value))return value;
+  const copy=JSON.parse(JSON.stringify(value));
+  if(Array.isArray(copy.opciones)){
+   copy.opciones=copy.opciones.map(option=>option==='ok'?'no':option);
+  }else if(Object.prototype.hasOwnProperty.call(copy,'ok')){
+   copy.no=(Number(copy.no)||0)+(Number(copy.ok)||0);
+   delete copy.ok;
+  }
+  return copy;
+ }
+ const semanticCategory=(cat,value)=>cat==='flores'?normalizeFlower(value):value;
+ const normalizeDraftData=data=>{
+  const copy=JSON.parse(JSON.stringify(data||{}));
+  if(copy.flores)copy.flores=normalizeFlower(copy.flores);
+  return copy;
+ };
  const matches=(stored,draft)=>{
   if(!stored||draft.schemaVersion!==6&&stored.bandejasInspeccionadas!==draft.bandejasInspeccionadas)return false;
   if(draft.categorias)return
     (![5,6].includes(draft.schemaVersion)||
       stored.schemaVersion===draft.schemaVersion&&stored.porcentajeInvalidasGlobal===draft.porcentajeInvalidasGlobal)&&
-    CATS.every(([cat])=>sameMeasurement(stored.categorias?.[cat],draft.categorias[cat]));
+    CATS.every(([cat])=>sameMeasurement(semanticCategory(cat,stored.categorias?.[cat]),semanticCategory(cat,draft.categorias[cat])));
   return CATS.every(([cat])=>{
-   const actual=stored.mediciones?.[cat],expected=draft.mediciones?.[cat];
-   return !!actual&&!!expected&&Object.keys(actual).length===Object.keys(expected).length&&
-    Object.keys(expected).every(k=>actual[k]===expected[k]);
+   const actual=semanticCategory(cat,stored.mediciones?.[cat]);
+   const expected=semanticCategory(cat,draft.mediciones?.[cat]);
+   return !!actual&&!!expected&&sameMeasurement(actual,expected);
   });
  };
  // El servidor no almacena ID de intento. Para dar por nuestro un envío
@@ -586,8 +604,8 @@
     throw Error('El borrador cambió durante la comprobación. No se ha enviado.');
    if(before.state!=='EMPTY'){
     if(!matches(before.record,d))
-     throw Error('Conflicto: las cantidades del servidor son distintas. '+
-      'No sobrescribir; se conserva el borrador local.');
+     throw Error('Conflicto real: el servidor contiene mediciones distintas. '+
+      'No se ha enviado ni sobrescrito nada; se conserva el borrador local.');
     const remote=await readWritten(ref,before.token);
     requireSession();
     if(!remote||remote.version!==before.record.version||!matches(remote,d))
@@ -610,7 +628,7 @@
     version:0,...(d.schemaVersion===6?{}:{bandejasInspeccionadas:d.bandejasInspeccionadas}),
     ...([4,5,6].includes(d.schemaVersion)?{schemaVersion:d.schemaVersion}:{}),
     ...([5,6].includes(d.schemaVersion)?{porcentajeInvalidasGlobal:d.porcentajeInvalidasGlobal}:{}),
-    ...(d.categorias?{categorias:d.categorias}:{mediciones:d.mediciones})};
+    ...(d.categorias?{categorias:normalizeDraftData(d.categorias)}:{mediciones:normalizeDraftData(d.mediciones)})};
    // Persistir el hecho del intento antes del POST; resiste recarga o cierre.
    const attempted=await markAttempt(d);
    postAttempted=true;
