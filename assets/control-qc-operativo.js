@@ -511,6 +511,8 @@
     if(details)details.hidden=!isSaved;
     document.querySelectorAll('#control-overlay .qco-live-indicator').forEach(el=>el.hidden=!isSaved);
   }
+  window.addEventListener('online',updateIndicatorVisibility);
+  window.addEventListener('offline',updateIndicatorVisibility);
   function syncInlineIndicators(){ /* Porcentaje agregado por categoría. */ }
   function renderIndicators(expand){
     const d=active?.querySelector('.qco-indicators');if(!d)return;d.hidden=true;
