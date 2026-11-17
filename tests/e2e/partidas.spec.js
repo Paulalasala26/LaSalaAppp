@@ -732,6 +732,23 @@ test('UAT-862 y UAT-863: la ficha muestra QC de Túnel y Carga por separado, sin
   expect(unexpectedHosts).toEqual([]);
 });
 
+test('UAT-868: abrir dos fichas seguidas no arrastra datos de la primera', async ({ page }) => {
+  const { overlay, unexpectedHosts, writes } = await openPartidas(page);
+  const map = overlay.locator('#partidas-content-wrap');
+  const history = page.locator('#partidas-historial-overlay');
+  await map.getByText('E2E-PARTIDA-001', { exact: true }).click();
+  await expect(history).toBeVisible();
+  await expect(history).toContainText('Observación de fixture E2E');
+  await history.getByRole('button', { name: 'Cerrar' }).click();
+  await map.getByText('E2E-PARTIDA-002', { exact: true }).click();
+  await expect(history).toBeVisible();
+  await expect(history).toContainText('Segunda observación de fixture');
+  await expect(history).not.toContainText('Observación de fixture E2E');
+  await history.getByRole('button', { name: 'Cerrar' }).click();
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
 test('UAT-031 y UAT-744: buscar el número completo abre el historial sin cambiar los datos', async ({ page }) => {
   const { overlay, unexpectedHosts, writes } = await openPartidas(page);
   const search = overlay.getByPlaceholder('Buscar Nº partida...');
