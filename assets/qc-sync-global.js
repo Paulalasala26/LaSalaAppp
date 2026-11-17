@@ -132,8 +132,8 @@
   const state=snapshot();
   if(!state.total)return;
   if(!confirm('¿Sincronizar '+state.total+' elementos QC pendientes de este dispositivo?\n'+
-   'Primero se verificarán las inspecciones y después las fotos en SharePoint. '+
-   'Los conflictos se conservarán localmente para revisión.'))return;
+   'Se comprobarán primero las inspecciones y después las fotos en SharePoint. '+
+   'Si una inspección local difiere, se guardará como nueva versión y la versión anterior quedará en historial.'))return;
   busy=true;opened=true;lastErrors=[];lastNotice='';show();
   let resultDraft=null,resultPhotos=null;
   const identity=user+'|'+role;

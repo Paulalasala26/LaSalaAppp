@@ -8,6 +8,7 @@ const {
 }=require('./admin-users')._adminCatalogHelpers;
 const DB='https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app';
 const PREFIX='lasala-qc-mediciones-v1';
+const HISTORY_PREFIX='lasala-qc-mediciones-history-v1';
 const OPTIONS=Object.freeze({
   color:['verde','amarillo','verdeClaro','ok'],tamano:['grande','pequeno','ok'],
   sanidad:['ok','enferma'],flores:['si','no','ok'],raices:['pocaRaiz','raizVariedad','ok']
@@ -358,6 +359,16 @@ function validateEvaluationV9(input){
   return {categorias:clean,porcentajeInvalidasGlobal:global};
 }
 function pathFor(id){return DB+'/'+PREFIX+'/'+encodeURIComponent(id)+'.json';}
+function historyPathFor(id,version){
+  return DB+'/'+HISTORY_PREFIX+'/'+encodeURIComponent(id)+'/'+String(version)+'.json';
+}
+function stableValue(value){
+  if(Array.isArray(value))return value.map(stableValue);
+  if(value&&typeof value==='object')
+    return Object.fromEntries(Object.keys(value).sort().map(k=>[k,stableValue(value[k])]));
+  return value;
+}
+function sameValue(a,b){return JSON.stringify(stableValue(a))===JSON.stringify(stableValue(b));}
 function sourcePath(ref){
   const q=Math.floor((ref.dia-15)/14);
   const key='lasala-control-items-v2-'+ref.tipo+'-q'+q;
@@ -525,6 +536,27 @@ module.exports=async function handler(req,res){
       updatedAt:now,updatedBy:actor,
       resultadoQC:null
     };
+    if(before.version>0){
+      phase='HISTORY_ARCHIVE';
+      const historyUrl=historyPathFor(ref.id,before.version);
+      const history=await getJson(historyUrl,token,true);
+      if(!history.etag)throw new Error('Firebase history ETag unavailable');
+      if(history.value===null){
+        const archived={record:before,archivedAt:now,archivedBy:actor,
+          replacedByVersion:next.version};
+        const archiveWrite=await fetch(historyUrl,{
+          method:'PUT',
+          headers:{Authorization:'Bearer '+token,'Content-Type':'application/json',
+            'if-match':history.etag},
+          body:JSON.stringify(archived),
+          signal:AbortSignal.timeout(10000)
+        });
+        if(archiveWrite.status===412)throw httpError(409,'REVISION_ARCHIVE_RACE');
+        if(!archiveWrite.ok)throw new Error('Firebase history write failed: '+archiveWrite.status);
+      }else if(!sameValue(history.value.record,before)){
+        throw httpError(409,'REVISION_ARCHIVE_CONFLICT');
+      }
+    }
     phase='WRITE';
     const write=await fetch(pathFor(ref.id),{
       method:'PUT',

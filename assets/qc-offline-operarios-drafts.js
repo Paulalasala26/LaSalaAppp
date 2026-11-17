@@ -525,11 +525,12 @@
  function ownedRemote(record,d){
   const started=Date.parse(d.attemptedAt||'');
   const written=Date.parse(record?.updatedAt||'');
-  return d.status==='ENVIO_INCIERTO'&&record?.version===1&&
+  const expectedVersion=Number.isInteger(d.attemptedVersion)?d.attemptedVersion+1:1;
+  return d.status==='ENVIO_INCIERTO'&&record?.version===expectedVersion&&
    record.updatedBy===owner&&Number.isFinite(started)&&
    Number.isFinite(written)&&written>=started-2000&&matches(record,d);
  }
- async function markAttempt(d){
+ async function markAttempt(d,baseVersion){
   const connection=await db();
   return new Promise((resolve,reject)=>{
    const tx=connection.transaction(STORE,'readwrite');
@@ -545,7 +546,7 @@
        !['PENDIENTE_LOCAL','ENVIO_INCIERTO'].includes(current.status)){
       tx.abort();return;
     }
-    next={...current,status:'ENVIO_INCIERTO',attemptedAt:new Date().toISOString()};
+    next={...current,status:'ENVIO_INCIERTO',attemptedAt:new Date().toISOString(),attemptedVersion:baseVersion};
     store.put(next);
    };
    tx.oncomplete=()=>{connection.close();drafts.set(d.key,next);resolve(next);};
@@ -604,13 +605,13 @@
   const d=drafts.get(key(ref));
   const review=d.status==='ENVIO_INCIERTO';
   if(!globalConfirmed&&!confirm(review?
-   'Este borrador tiene un envío anterior sin confirmar. ¿Consultar primero '+
-   'el servidor? No se reenviará nada sin tu permiso.':
-   '¿Enviar las cantidades del borrador de la partida '+ref.partida+
-   ' al servidor TEST? Se comprobará de nuevo que la inspección no tenga cantidades.'))return;
+   '¿Sincronizar el borrador local de '+ref.partida+'? Si el servidor tiene otra versión, '+
+   'la copia local se guardará como versión nueva y la anterior quedará en historial.':
+   '¿Enviar las cantidades del borrador de '+ref.partida+'? Si existe otra versión en servidor, '+
+   'se conservará en historial antes de aplicar la copia local.'))return;
   syncing=true;button.disabled=true;
   status.textContent='Consultando inspección y versión en servidor…';
-  let postAttempted=false,confirmed=false;
+  let postAttempted=false,confirmed=false,writeVersion=0;
   try{
    // Siempre GET fresco. Ni errores 409 ni estados ambiguos justifican
    // escribir sobre datos de terceros; version:0 + ETag protege en la API.
@@ -619,34 +620,36 @@
    if(drafts.get(key(ref))!==d)
     throw Error('El borrador cambió durante la comprobación. No se ha enviado.');
    if(before.state!=='EMPTY'){
-    if(!matches(before.record,d))
-     throw Error('Conflicto real: '+mismatchDetails(before.record,d)+
-      '. No se ha enviado ni sobrescrito nada; se conserva el borrador local.');
-    const remote=await readWritten(ref,before.token);
-    requireSession();
-    if(!remote||remote.version!==before.record.version||!matches(remote,d))
-     throw Error('La inspección ha cambiado durante la verificación. '+
-      'No sobrescribir; se conserva el borrador.');
-    const attributed=ownedRemote(before.record,d)&&ownedRemote(remote,d);
-    await finishVerified(ref,d,label,button,status,attributed?
-     '✓ Envío anterior verificado. Copia local retirada; no se hizo un nuevo envío.':
-     '✓ El servidor ya tenía exactamente estas cantidades. Copia local retirada sin reenviar.');
-    confirmed=true;return;
+    if(matches(before.record,d)){
+     const remote=await readWritten(ref,before.token);
+     requireSession();
+     if(!remote||remote.version!==before.record.version||!matches(remote,d))
+      throw Error('La inspección ha cambiado durante la verificación. '+
+       'No se ha escrito nada; se conserva el borrador local.');
+     const attributed=ownedRemote(before.record,d)&&ownedRemote(remote,d);
+     await finishVerified(ref,d,label,button,status,attributed?
+      '✓ Envío anterior verificado. Copia local retirada; no se hizo un nuevo envío.':
+      '✓ El servidor ya tenía estas cantidades. Copia local retirada sin reenviar.');
+     confirmed=true;return;
+    }
+    // El usuario confirma «Sincronizar todo»: la versión local prevalece.
+    // La API archiva la versión actual del servidor y escribe con control ETag.
+    writeVersion=before.record.version;
+    status.textContent='Aplicando la copia local como nueva versión; la anterior quedará en historial…';
    }
    validate(d);
-   if(review&&!confirm(
-    'No hay cantidades registradas en servidor, pero hubo un envío anterior '+
-    'sin confirmar. ¿Reintentar UNA vez el mismo borrador con versión 0? '+
-    'El servidor impedirá sobrescribir una medición existente.'))
-    throw Error('Reenvío cancelado. Borrador local conservado para revisión.');
+   if(review&&before.state==='EMPTY'&&!confirm(
+    'El servidor no contiene la inspección, pero hubo un envío anterior sin confirmar. '+
+    '¿Reintentar una sola vez la misma copia local?'))
+    throw Error('Reintento cancelado. Se conserva el borrador local.');
    if(!navigator.onLine)throw Error('No hay conexión. Borrador conservado.');
    const payload={id:ref.id,tipo:ref.tipo,dia:ref.dia,partida:ref.partida,
-    version:0,...(d.schemaVersion===6?{}:{bandejasInspeccionadas:d.bandejasInspeccionadas}),
+    version:writeVersion,...(d.schemaVersion===6?{}:{bandejasInspeccionadas:d.bandejasInspeccionadas}),
     ...([4,5,6].includes(d.schemaVersion)?{schemaVersion:d.schemaVersion}:{}),
     ...([5,6].includes(d.schemaVersion)?{porcentajeInvalidasGlobal:d.porcentajeInvalidasGlobal}:{}),
     ...(d.categorias?{categorias:d.categorias}:{mediciones:d.mediciones})};
    // Persistir el hecho del intento antes del POST; resiste recarga o cierre.
-   const attempted=await markAttempt(d);
+   const attempted=await markAttempt(d,writeVersion);
    postAttempted=true;
    requireSession();
    label.textContent='Envío anterior por revisar · borrador conservado';
@@ -663,7 +666,7 @@
    if(response.status===401||response.status===403)throw Error('No autorizado para guardar esta inspección.');
    if(!response.ok)throw Error('Guardado sin confirmar (HTTP '+response.status+').');
    const result=await response.json();
-   if(result.ok!==true||result.version!==1)throw Error('Guardado sin confirmación válida.');
+   if(result.ok!==true||result.version!==writeVersion+1)throw Error('Guardado sin confirmación válida.');
    status.textContent='Verificando cantidades guardadas en servidor…';
    const remote=await readWritten(ref,before.token);
    requireSession();
