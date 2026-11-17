@@ -294,8 +294,8 @@
       var original = renderSummary.apply(this, arguments);
       var action = '<div style="margin-bottom:12px">' +
         '<button type="button" onclick="window.AppRQCBarcode.open()" aria-label="Escanear código de barras de una tablilla" ' +
-          'style="display:flex;align-items:center;justify-content:center;gap:9px;width:100%;min-height:46px;border:0;border-radius:11px;padding:11px 14px;background:#e7f1e8;color:#205b2a;font-size:14px;font-weight:800;cursor:pointer">' +
-          '<span aria-hidden="true" style="font-size:19px">▥</span><span>Escanear tablilla</span></button></div>';
+          'style="display:flex;align-items:center;justify-content:center;gap:9px;width:100%;min-height:46px;border:2px solid #317eb7;border-bottom:3px solid #317eb7;border-radius:11px;padding:11px 14px;background:#eaf3e9;color:#315d49;box-shadow:inset 0 1px 0 rgba(255,255,255,.95),0 2px 4px rgba(35,95,135,.14);font-size:14px;font-weight:800;cursor:pointer">' +
+          '<span aria-hidden="true" style="font-size:19px;color:#3979a7">▥</span><span>Escanear tablilla</span></button></div>';
       return action + original;
     };
     wrapped.__qcBarcodeWrapped = true;
