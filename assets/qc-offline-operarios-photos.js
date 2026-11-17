@@ -19,10 +19,9 @@
  const text=(tag,v)=>{const e=document.createElement(tag);if(v!==undefined)e.textContent=String(v);return e;};
  const QC_TYPES=['tunel','carga','carga_injerto','preinjerto_patron','preinjerto_variedad'];
  function refShapeValid(r){
-  // La ficha QC ya valida id, tipo y día antes de llamar a fotos. No se exige
-  // un formato de partida ni límites del calendario para guardar la captura local.
-  return !!(r&&RE_ID.test(r.id)&&typeof r.partida==='string'&&
-   QC_TYPES.includes(r.tipo)&&Number.isInteger(r.dia));
+  // La ficha QC comprueba id, tipo y día. La validación de esos datos en el
+  // servidor se hace contra Firebase; no se bloquea la copia local por formato.
+  return !!(r&&RE_ID.test(r.id)&&QC_TYPES.includes(r.tipo)&&Number.isInteger(r.dia));
  }
   // La captura no depende del perfil; los permisos de visualización siguen
   // definidos por separado en refValid.
@@ -349,7 +348,7 @@
   }finally{sending=false;button.disabled=false;repaint();}
  }
  async function init(user,userRole){
-  if(typeof user!=='string'||!user||!['ADMIN','TECNICO','CARGADOR'].includes(userRole))
+  if(typeof user!=='string'||!user||typeof userRole!=='string'||!userRole)
    throw Error('Sesión de fotos no autorizada.');
   if(owner!==user||role!==userRole){galleryTokenValue='';galleryTokenExpires=0;}
   owner=user;role=userRole;
@@ -362,7 +361,8 @@
   return items.length;
  }
  function decorate(parent,ref,allowCapture=true){
-  if(!refValid(ref))return;
+  const canView=refValid(ref),canCapture=allowCapture&&uploadRefValid(ref);
+  if(!canView&&!canCapture)return;
   const row=text('div');row.style.cssText='display:flex;align-items:center;flex-wrap:wrap;gap:7px;margin-top:7px';
   const button=text('button','Foto');
   button.type='button';
@@ -373,7 +373,7 @@
   const picker=text('input');picker.type='file';picker.accept='image/*';
   picker.setAttribute('capture','environment');picker.hidden=true;
   function repaint(){
-   const photos=listFor(ref);
+   const photos=canView?listFor(ref):[];
    const revisar=photos.filter(photo=>photo.status==='ENVIO_INCIERTO').length;
    indicator.textContent=photos.length?photos.length+' pendiente(s) · local'+
     (revisar?' · '+revisar+' por revisar':''):'';
@@ -382,7 +382,7 @@
   button.addEventListener('click',()=>{try{requireSession();picker.value='';picker.click();}catch(e){indicator.textContent=e.message;}});
   picker.addEventListener('change',async()=>{
    const file=picker.files?.[0];if(!file)return;
-   if(!owner||!refValid(ref)){indicator.textContent='Sesión no válida.';return;}
+   if(!owner||!uploadRefValid(ref)){indicator.textContent='Sesión no válida.';return;}
    button.disabled=true;indicator.textContent='Guardando foto en dispositivo…';
    try{
     if(items.length>=LIMIT)throw Error('Límite de 30 fotografías pendientes en este usuario.');
@@ -407,9 +407,9 @@
    try{await preview(photos[photos.length-1]);}
    catch(e){indicator.textContent=e.message||'No se puede abrir la foto.';}
   });
-  if(allowCapture)row.append(button);
-  row.append(indicator,view);
-  if(allowCapture)row.append(picker);
+  if(canCapture)row.append(button,picker);
+  row.append(indicator);
+  if(canView)row.append(view);
   parent.append(row);repaint();
  }
  // Recuperación: fotos guardadas deben ser visibles incluso después de
