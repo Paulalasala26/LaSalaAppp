@@ -52,3 +52,16 @@ Propuesta para cerrar el bloque sin comprometer la regla de un único responsabl
 4. Separar “pendiente de confirmación del servidor” de la cola global offline, para no presentar una tarea como sincronizada antes de que el backend la acepte.
 
 La publicación de reglas Firebase TEST sigue aplazada.
+
+## Idempotencia del alta manual de Específicos (17/11/2026)
+
+Implementado en `test/v1.0`:
+
+- Antes de escribir, se guarda en el dispositivo un plan de operación con ID estable, celdas, vínculos de Partidas y tareas.
+- Se aplican las celdas y los vínculos mediante escrituras idempotentes con ETag; las filas de Partidas tienen IDs estables por operación y tramo.
+- Todas las tareas de la misma operación se escriben juntas por la API. Cada tramo conserva su clave de idempotencia; si se reintenta después de una respuesta perdida, no duplica la tarea ni vuelve a sumar calles.
+- El plan local solo se elimina cuando las tres etapas están confirmadas. Si una falla, el módulo Específicos muestra “Reintentar sincronización”; el alta queda bloqueada hasta completar o revisar la operación.
+- No se mezcla esta conciliación con la cola offline global. No se encola un cambio de estado ni una reasignación de tarea.
+- El validador de la API admite el marcador de idempotencia limitado y permite la fusión acotada de tareas de Específicos en estado pendiente o iniciado, manteniendo inmutable el responsable y el invernadero.
+
+**Verificación de este cambio:** comprobación sintáctica de los bloques modificados correcta. Falta validar el recorrido completo en TEST con una operación real y un corte/reintento controlado; todavía no se hizo ninguna operación de datos real.
