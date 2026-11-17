@@ -466,6 +466,35 @@ test('UAT-551: continuar al día siguiente conserva serieId y crea una jornadaId
   expect(unexpectedHosts).toEqual([]);
 });
 
+test('UAT-556: dos jornadas del mismo día mantienen la serie y sus objetivos separados',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts}=await openFito(page,database);
+  for(const [calle,primerDia] of [['6',true],['7',false]]){
+    await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+    const form=page.locator('#fito-manual-overlay');
+    await form.locator('#fm-dia').selectOption('30');
+    await form.locator('input[name="fm-bulk-modo-17"]').nth(2).check();
+    const tramo=form.locator('#fm-bulk-tramos-17 .fm-bulk-tramo-row').first();
+    await tramo.locator('.fm-bulk-tramo-desde').selectOption(calle);
+    await tramo.locator('.fm-bulk-tramo-hasta').selectOption(calle);
+    const firstDay=form.locator('#fm-bulk-panels').getByLabel('Primer día de tratamiento (marca la celda en morado)');
+    if(primerDia) await firstDay.check(); else await firstDay.uncheck();
+    await completarFitoValido(form,'E2E-SERIE-UAT-556');
+    await form.getByRole('button',{name:'Guardar'}).click();
+    await expect(form).toBeHidden();
+  }
+  const fito=fitoData(database);
+  const first=fito?.['17']?.['30']?.['6'];
+  const second=fito?.['17']?.['30']?.['7'];
+  expect(first?.texto).toBe('E2E-SERIE-UAT-556 1 cc/l');
+  expect(second?.texto).toBe(first?.texto);
+  expect(first?.primerDia).toBe(true);
+  expect(second?.primerDia).toBe(false);
+  expect(second?.serieId).toBe(first?.serieId);
+  expect(second?.jornadaId).not.toBe(first?.jornadaId);
+  expect(unexpectedHosts).toEqual([]);
+});
+
 test('UAT-552: una calle nueva en la segunda jornada queda marcada como primer día',async({page})=>{
   const database=fixtureDatabase();
   const data=JSON.parse(database['lasala-fito-v1']);
