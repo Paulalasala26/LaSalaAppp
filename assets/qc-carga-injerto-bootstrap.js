@@ -3,7 +3,7 @@
 // El array y las funciones principales son globales del script clásico de la app.
 (function(){
   const TYPE='carga_injerto';
-  const PARTIDA_INJERTO_RE=/^\d+X\d+$/i;
+  const PARTIDA_INJERTO_RE=/^\d+(?:X|YE)\d+$/i;
   const PARTIDA_CARGA_NORMAL_RE=/^\d+$/;
   function tipoCargaDePartida(value){
     const partida=String(value==null?'':value).trim();
