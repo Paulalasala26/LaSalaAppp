@@ -2,7 +2,7 @@
 // TEST únicamente. Mediciones QC cuantitativas en un nodo ADITIVO:
 // - Jamás actualiza lasala-control-items-v1 ni los segmentos v2.
 // - Escribe por registro con control de versión + ETag (sin sobrescritura silenciosa).
-// - Solo ADMIN activo y autenticado.
+// - ADMIN y TÉCNICO pueden todos los QC; CARGADOR solo Carga normal y Carga Injerto.
 const {
   verifyFirebaseIdToken,serviceAccount,serviceAccessToken,readKey,validHash,httpError
 }=require('./admin-users')._adminCatalogHelpers;
