@@ -607,6 +607,36 @@ test('UAT-533: desmarcar una sala no elimina los invernaderos de otra sala',asyn
   expect(writes).toEqual([]);
 });
 
+test('UAT-545: Cañón mantiene separados tratamientos de Sala 1 principal y ecológica',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts}=await openFito(page,database);
+  for(const [inv,calle,producto,dosis,caldo] of [
+    ['1A','2','E2E-SALA1-PRINCIPAL','1 cc/l','25'],
+    ['7A','2','E2E-SALA1-ECO','2 cc/l','50']
+  ]){
+    await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+    const form=page.locator('#fito-manual-overlay');
+    const checked=await form.locator('.fm-inv-chk:checked').evaluateAll(inputs=>inputs.map(input=>input.value));
+    for(const current of checked) if(current!==inv) await form.locator(`.fm-inv-chk[value="${current}"]`).uncheck();
+    const target=form.locator(`.fm-inv-chk[value="${inv}"]`);
+    if(!(await target.isChecked())) await target.check();
+    await form.locator(`input[name="fm-bulk-modo-${inv}"]`).nth(2).check();
+    await form.locator(`#fm-bulk-detalle-${inv} .fm-bulk-tramo-desde`).selectOption(calle);
+    await form.locator(`#fm-bulk-detalle-${inv} .fm-bulk-tramo-hasta`).selectOption(calle);
+    await form.locator('#fm-trat').fill(producto);
+    await form.locator('#fm-dosis').fill(dosis);
+    await form.locator('#fm-tipo-trat').selectOption('Cañón');
+    await form.locator('#fm-caldo').selectOption(caldo);
+    await form.getByRole('button',{name:'Guardar'}).click();
+    await expect(form).toBeHidden();
+  }
+  const fito=fitoData(database);
+  expect(fito?.['1A']?.['30']?.['2']).toMatchObject({texto:'E2E-SALA1-PRINCIPAL 1 cc/l',caldoLitros:25,tipoTrat:'Cañón'});
+  expect(fito?.['7A']?.['30']?.['2']).toMatchObject({texto:'E2E-SALA1-ECO 2 cc/l',caldoLitros:50,tipoTrat:'Cañón'});
+  expect(fito?.['1A']?.['30']?.['2']?.serieId).not.toBe(fito?.['7A']?.['30']?.['2']?.serieId);
+  expect(unexpectedHosts).toEqual([]);
+});
+
 test('UAT-534: Entero aplica el tratamiento solo a las calles reales del INV elegido',async({page})=>{
   const database=fixtureDatabase();
   const {overlay,unexpectedHosts}=await openFito(page,database);
