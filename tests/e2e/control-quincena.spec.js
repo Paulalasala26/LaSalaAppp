@@ -3954,7 +3954,6 @@ test('UAT-388: la doble pulsación de «Elegir fotos» no duplica el selector ni
 });
 
 test('UAT-361: la galería distingue fotos SharePoint, históricas y pendientes locales', async ({ page }) => {
-  test.fail(true, 'La etiqueta de origen SharePoint no está implementada en la galería actual; validar también histórico y pendiente local.');
   const database = fixtureDatabase();
   const id = 'e2e-control-current-fortnight';
   const photo = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/XxsAAAAASUVORK5CYII=';
