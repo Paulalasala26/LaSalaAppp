@@ -972,7 +972,7 @@ test('UAT-1232: ADMIN abre Tareas con Operativas seleccionada por defecto', asyn
   await expect(overlay).not.toContainText('Resumen de Tareas');
 });
 
-test('UAT-1233, UAT-1244, UAT-1235, UAT-1236, UAT-1242, UAT-1243, UAT-1246, UAT-1495, UAT-1499, UAT-1500, UAT-1738, UAT-1741, UAT-1745, UAT-1762, UAT-1763, UAT-1764, UAT-1765, UAT-1766, UAT-1780, UAT-1768, UAT-1772, UAT-1773, UAT-1776, UAT-1777, UAT-1779, UAT-1743, UAT-1785 y UAT-1786: Archivo conserva historial sin inventar motivos', async ({ page }) => {
+test('UAT-1233, UAT-1244, UAT-1235, UAT-1236, UAT-1242, UAT-1243, UAT-1246, UAT-1495, UAT-1499, UAT-1500, UAT-1738, UAT-1741, UAT-1745, UAT-1762, UAT-1763, UAT-1764, UAT-1765, UAT-1766, UAT-1780, UAT-1768, UAT-1772, UAT-1773, UAT-1776, UAT-1777, UAT-1779, UAT-1743, UAT-1785, UAT-1786, UAT-645 y UAT-646: Operativas omite anuladas y Archivo conserva su histórico', async ({ page }) => {
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(error.message));
   const todayISO = await fechaISOEnNavegador(page);
@@ -1069,6 +1069,20 @@ test('UAT-1233, UAT-1244, UAT-1235, UAT-1236, UAT-1242, UAT-1243, UAT-1246, UAT-
     fechaISO: olderISO,
     completadoISO: olderISO,
     estado: 'completada'
+  }, {
+    id: 'e2e-uat-646-pistola-archived',
+    titulo: 'E2E Pistola anulada UAT-646',
+    descripcion: 'Jornada Pistola anulada con vínculo conservado',
+    asignadoA: 'PEON1',
+    origen: 'pistola',
+    categoria: 'fumigacion',
+    fechaISO: todayISO,
+    anuladaISO: todayISO,
+    motivoAnulacion: 'Prueba UAT-646',
+    serieId: 'e2e-serie-646',
+    jornadaId: 'e2e-jornada-646',
+    objetivos: [{ inv:'1A', calles:'C/102' }],
+    estado: 'anulada'
   }, oldPendingTask, recentCompletedTask];
   const closedTicket = {
     id: 'e2e-uat-1500-closed-ticket',
@@ -1105,6 +1119,7 @@ test('UAT-1233, UAT-1244, UAT-1235, UAT-1236, UAT-1242, UAT-1243, UAT-1246, UAT-
   const pane = overlay.locator('#tareas-gestor-content-wrap');
   await expect(pane).toContainText(/no hay tareas|sin tareas/i);
   await expect(pane.locator('.tarea-card:visible')).toHaveCount(0);
+  await expect(pane.getByText('E2E Pistola anulada UAT-646', { exact:true })).toHaveCount(0);
   await expect(overlay.getByRole('button', { name: 'Nueva tarea' })).toBeVisible();
   await assertOperativas();
 
@@ -1148,6 +1163,12 @@ test('UAT-1233, UAT-1244, UAT-1235, UAT-1236, UAT-1242, UAT-1243, UAT-1246, UAT-
   await expect(archivedRiegoTask).toContainText('INV 1A');
   await expect(archivedRiegoTask).toContainText(todayISO);
   await expect(archivedRiegoTask).toHaveAttribute('data-tarea-id', 'e2e-uat-1766-cancelled-riego');
+  const archivedPistola = archivePane.locator('.tarea-archivo-card').filter({ hasText: 'E2E Pistola anulada UAT-646' });
+  await expect(archivedPistola).toContainText('Anulada');
+  await expect(archivedPistola).toContainText('Jornada Pistola anulada con vínculo conservado');
+  await expect(archivedPistola).toContainText('Prueba UAT-646');
+  await expect(archivedPistola).toContainText(todayISO);
+  await expect(archivedPistola).toHaveAttribute('data-tarea-id', 'e2e-uat-646-pistola-archived');
   await expect(archivePane).not.toContainText('E2E operativa UAT-1232');
   const oldTasksTab = overlay.getByRole('button', { name: 'Tareas antiguas' });
   await oldTasksTab.click();
