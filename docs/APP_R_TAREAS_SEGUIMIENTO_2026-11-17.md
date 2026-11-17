@@ -21,6 +21,16 @@ Revisar y validar estas interacciones, especialmente con dos usuarios/dispositiv
 
 El bloque Offline/sincronización global permanece para después de Integración y concurrencia.
 
-## Hallazgo inicial (17/11/2026)
+## Avance de Integración y concurrencia (17/11/2026)
 
-La primera versión del validador central de Tareas puede rechazar automatismos existentes de Plaguicidas/Pistola y Específicos, porque autoriza solo creación administrativa, ejecución asignada y específicos vinculados a Partidas. Validar y corregir esos circuitos antes de cerrar la protección.
+Se cerraron los cruces detectados en la rama `test/v1.0`:
+
+- Las escrituras de Tareas desde la app pasan por `/api/admin-qc-dashboard?modo=tareas-write`, reutilizando la función existente para respetar el límite Vercel de 12 funciones. El endpoint valida token, usuario activo, rol, ETag y cambio permitido.
+- El alta y la edición manual muestran un único responsable. Solo ADMIN/TÉCNICO pueden reasignar tareas pendientes.
+- Los automatismos de Pistola no vinculada y Específicos hacen upsert sobre la lista vigente con ETag; no fusionan una copia local completa sobre Firebase.
+- El validador permite la fusión acotada de objetivos/horario de Pistola no vinculada y los específicos asignados a REGANTE solo si el invernadero corresponde a su sala. Las tareas Pistola enlazadas conservan su protección.
+- Pruebas de política: 8/8 correctas. Despliegue Vercel del commit `e6caa55141dbf1cdd449a82f2abdaab1c6e6f14a`: READY, alias TEST estable asociado; la ruta API responde 405 a GET y declara POST.
+
+**Pendiente expresamente:** publicar las reglas Firebase TEST. Hasta entonces, el flujo de la app usa la API, pero la escritura directa a RTDB todavía no queda bloqueada. No publicar reglas hasta retomar el punto aplazado.
+
+Siguiente bloque de auditoría: Offline/sincronización global.
