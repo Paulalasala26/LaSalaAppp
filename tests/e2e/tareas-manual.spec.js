@@ -4109,3 +4109,59 @@ test('UAT-1474: consultar una tarea completada conserva fecha, horas, responsabl
   expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([task]);
   expect(writes).toEqual([]);
 });
+
+
+test('UAT-1481: completar una tarea manual no modifica una Pistola cercana', async ({ page }) => {
+  const todayISO = await fechaISOEnNavegador(page, 0);
+  const manual = {
+    id: 'e2e-uat-1481-manual',
+    titulo: 'E2E tarea manual UAT-1481',
+    asignadoA: 'PEON1',
+    asignadoPor: 'E2E_ADMIN',
+    origen: 'manual',
+    categoria: 'manual',
+    inv: '0A',
+    calles: '1-2',
+    fechaISO: todayISO,
+    estado: 'iniciada',
+    horaInicio: '08:10'
+  };
+  const pistola = {
+    id: 'e2e-uat-1481-pistola',
+    titulo: 'E2E tarea Pistola cercana UAT-1481',
+    asignadoA: 'PEON1',
+    origen: 'pistola',
+    categoria: 'fumigacion',
+    fechaISO: todayISO,
+    estado: 'pendiente',
+    producto: 'E2E producto 1481',
+    dosis: '1 cc/l',
+    caldoLitros: 25,
+    serieId: 'e2e-serie-1481',
+    jornadaId: 'e2e-jornada-1481',
+    objetivos: [{ inv: '1A', calles: 'C/102' }]
+  };
+  const { database, writes } = await installFixture(page, {
+    'lasala-tareas-v1': JSON.stringify([manual, pistola])
+  }, { loginUser: 'PEON1' });
+  await page.evaluate(() => showTareasModule());
+
+  const manualCard = page.locator('.tarea-card').filter({ hasText: manual.titulo });
+  await expect(manualCard).toBeVisible();
+  await manualCard.getByRole('button', { name: /Completar/ }).click();
+  const modal = page.locator('#completar-tarea-overlay');
+  await expect(modal).toBeVisible();
+  await expect(modal.locator('#ct-firma')).toHaveValue('Peon1');
+  await modal.getByRole('button', { name: 'Confirmar' }).click();
+  await expect.poll(() => JSON.parse(database['lasala-tareas-v1']).find(t => t.id === manual.id).estado).toBe('completada');
+
+  const saved = JSON.parse(database['lasala-tareas-v1']);
+  expect(saved.find(t => t.id === pistola.id)).toEqual(pistola);
+  expect(saved.find(t => t.id === manual.id)).toMatchObject({
+    id: manual.id,
+    estado: 'completada',
+    firmante: 'Peon1',
+    horaInicio: '08:10'
+  });
+  expect(writes.every(write => write.key === 'lasala-tareas-v1')).toBe(true);
+});
