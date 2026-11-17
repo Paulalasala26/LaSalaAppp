@@ -113,10 +113,11 @@
   }
   function changeDiseasePercent(picker){
     const previous=Number(picker.dataset.previous||10);
-    if(sumHealth(active)>100){
+    const wrap=picker.closest('.qco-cat');
+    if(wrap&&sumHealth(wrap)>100){
       picker.value=String(previous);
-      const category=picker.closest('.qco-cat')?.querySelector('legend')?.textContent||'Incidencias';
-      report(category+': la suma de porcentajes no puede superar el 100 %.','error');
+      const category=wrap.querySelector('legend')?.textContent||'Incidencias';
+      report(category+': la suma de porcentajes de esta categoría no puede superar el 100 %.','error');
     }else{
       picker.dataset.previous=picker.value;
       report('','');
