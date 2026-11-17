@@ -46,7 +46,7 @@
    const label=CATEGORY_LABELS[key]||key;
    if(Array.isArray(value?.opciones)){
     const options=value.opciones.map(option=>{
-     const name=OPTION_LABELS[option]||option;
+     const name=key==='flores'&&option==='ok'?'No':(OPTION_LABELS[option]||option);
      const pct=value.porcentajesEnfermedades?.[option];
      return Number.isFinite(pct)?name+' ('+pct+'%)':name;
     });
