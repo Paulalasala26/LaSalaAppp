@@ -1452,7 +1452,7 @@ test('UAT-640: editar Pistola pendiente ofrece anular jornada sin borrado físic
   await expect(form.getByRole('button',{name:/Anular jornada/i})).toBeVisible();
 });
 
-test('UAT-648: Plaguicidas no abre como editable una jornada anulada',async({page})=>{
+test('UAT-643–644 y UAT-648: Plaguicidas identifica la jornada anulada y no la edita',async({page})=>{
   const database=fixtureDatabase();
   const data=JSON.parse(database['lasala-fito-v1']);
   data['17']['30']['2']={texto:'E2E-ANULADA-648 1 cc/l 18:00',caldoLitros:25,caldoLabel:'25L CUBA DE RUEDAS',tipoTrat:'Pistola',estado:'anulada',anulada:true,serieId:'e2e-serie-648',jornadaId:'e2e-jornada-648'};
@@ -1460,10 +1460,11 @@ test('UAT-648: Plaguicidas no abre como editable una jornada anulada',async({pag
   database['lasala-tareas-v1']=JSON.stringify([{id:'e2e-task-648',titulo:'E2E-ANULADA-648 1 cc/l',asignadoA:'PEON2',origen:'pistola',categoria:'fumigacion',fechaISO:'2026-06-30',estado:'anulada',anuladaISO:'2026-06-30',serieId:'e2e-serie-648',jornadaId:'e2e-jornada-648',motivoAnulacion:'Fixture UAT-648',objetivos:[{inv:'17',calles:'INV 17 CALLES 2'}]}]);
   const {overlay}=await openFito(page,database);
   const cell=overlay.locator('#fito-grid-wrap textarea[data-finv="17"][data-fdia="30"][data-frc="2"]');
+  test.fail(true,'La vista no rotula la celda ni muestra el detalle de jornada anulada, y permite abrirla como edición ordinaria.');
+  await expect.soft(cell).toHaveValue(/ANULADA/);
+  await expect.soft(page.getByText('Jornada anulada · histórico conservado')).toBeVisible();
   await cell.dblclick();
-  test.fail(true,'La cuadrícula no identifica ni protege el registro anulado y abre el formulario ordinario de edición.');
   await expect(page.locator('#fito-manual-overlay')).toBeHidden();
-  await expect(cell).toContainText('ANULADA');
 });
 
 test('UAT-649: una nueva serie no sobrescribe el histórico de una jornada anulada',async({page})=>{
