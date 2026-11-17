@@ -3898,3 +3898,38 @@ test('UAT-414: consultar más de 30 fotos confirmadas sin límite de lectura', a
   await expect(card.locator('img[title="Ver foto"]')).toHaveCount(31, { timeout: 15000 });
   expect(unexpectedHosts).toEqual([]);
 });
+
+test('UAT-403: abrir una foto SharePoint mediante acceso autenticado', async ({ page }) => {
+  test.fail(true, 'La galería no resuelve la referencia SharePoint con un recurso autenticado; trata el identificador como src de imagen.');
+  const database = fixtureDatabase();
+  const id = 'e2e-control-current-fortnight';
+  database['lasala-control-fotos-indice-v1'] = JSON.stringify({ [id]: 'lasala-control-fotos-v1' });
+  database['lasala-control-fotos-shards-index'] = JSON.stringify(['lasala-control-fotos-v1']);
+  database['lasala-control-fotos-v1'] = JSON.stringify({ [id]: [{ f: 'fixture-photo-403', t: 'fixture-photo-403', origen: 'SharePoint', itemId: 'fixture-item-403' }] });
+  const { overlay, unexpectedHosts } = await startControlTest(page, database);
+  const image = overlay.locator(`#control-card-${id} img[title="Ver foto"]`);
+  await expect(image).toBeVisible();
+  await expect.poll(() => image.evaluate(element => element.complete && element.naturalWidth > 0), { timeout: 5000 }).toBe(true);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-405: cancelar la retirada de una foto SharePoint conserva la referencia', async ({ page }) => {
+  const database = fixtureDatabase();
+  const id = 'e2e-control-current-fortnight';
+  const photo = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/XxsAAAAASUVORK5CYII=';
+  const remotePhoto = { f: photo, t: photo, origen: 'SharePoint', itemId: 'fixture-item-405' };
+  database['lasala-control-fotos-indice-v1'] = JSON.stringify({ [id]: 'lasala-control-fotos-v1' });
+  database['lasala-control-fotos-shards-index'] = JSON.stringify(['lasala-control-fotos-v1']);
+  database['lasala-control-fotos-v1'] = JSON.stringify({ [id]: [remotePhoto] });
+  const shardBefore = database['lasala-control-fotos-v1'];
+  const indexBefore = database['lasala-control-fotos-indice-v1'];
+  const { overlay, unexpectedHosts } = await startControlTest(page, database);
+  const card = overlay.locator(`#control-card-${id}`);
+  await expect(card.locator('img[title="Ver foto"]')).toBeVisible();
+  page.once('dialog', dialog => dialog.dismiss());
+  await card.getByTestId(`control-photo-delete-${id}`).click();
+  await expect(card.locator('img[title="Ver foto"]')).toBeVisible();
+  expect(database['lasala-control-fotos-v1']).toBe(shardBefore);
+  expect(database['lasala-control-fotos-indice-v1']).toBe(indexBefore);
+  expect(unexpectedHosts).toEqual([]);
+});
