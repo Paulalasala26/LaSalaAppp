@@ -21510,7 +21510,12 @@ async function saveFitoManual(){
     }
   }
   if(tipoTrat==='Pistola' && objetivosFumigacion.length){
-    await autoAsignarTareaFumigacion(objetivosFumigacion, dia, tituloTarea, horario, {producto:trat, dosis, caldoLabel, caldoLitros});
+    try{
+      await autoAsignarTareaFumigacion(objetivosFumigacion,dia,tituloTarea,horario,{producto:trat,dosis,caldoLabel,caldoLitros});
+    }catch(e){
+      showToast('No se confirmó la tarea Pistola. El tratamiento no se ha guardado; revisa la conexión y vuelve a intentarlo.');
+      return;
+    }
   }
   document.getElementById('fito-manual-overlay').style.display = 'none';
   completarUndoFitoParaTodosGrupos();
@@ -23403,7 +23408,12 @@ async function saveEspecificoManual(){
       const callesTramo = [];
       for(let c=s;c<=e;c++){ if(allCalles.includes(c)){ setEspecifico(invId, dia, c, texto, {caldoLitros, caldoLabel, tecnico: currentUser}); callesTramo.push(c); count++; } }
       const tituloTarea = [tratDosis, tipo].filter(Boolean).join(' + ');
-      await autoAsignarTareaEspecifico(invId, dia, formatRangoConInv(invId, s, e), tituloTarea, horario, obs, {producto: trat, dosis, caldoLabel, gastoLabel});
+      try{
+        await autoAsignarTareaEspecifico(invId,dia,formatRangoConInv(invId,s,e),tituloTarea,horario,obs,{producto:trat,dosis,caldoLabel,gastoLabel});
+      }catch(e){
+        showToast('No se confirmó la tarea de específico. El tratamiento no se ha guardado; revisa la conexión y vuelve a intentarlo.');
+        return;
+      }
       // A petición de Paula (2026-08-18): "si no pone observaciones se
       // refiere a la calle entera, todas las partidas que aparezcan que
       // estén en ese día" — con observación se sigue asociando SOLO a la
