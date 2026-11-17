@@ -1,3 +1,4 @@
+Attempting to perform the InitializeDefaultDrives operation on the 'FileSystem' provider failed.
 const { createHash } = require('node:crypto');
 const { test, expect } = require('./harness');
 
@@ -761,3 +762,25 @@ test('UAT-1063: TÉCNICO puede abrir un Específico de dentro de cuatro días',a
   expect(writes).toEqual([]);
   expect(unexpectedHosts).toEqual([]);
 });
+
+test('UAT-1064: TÉCNICO puede abrir un Específico de dentro de treinta días',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openSpecifics(page,database);
+  await switchSpecificsUser(page,tecnico);
+  const day=await page.evaluate(()=>riegoDiaDeHoy()+30);
+  const period=overlay.locator('#especificos-quincena-bar');
+  await period.locator('button').last().click();
+  await period.locator('button').last().click();
+  await expect(overlay.locator('#especificos-grid-wrap')).toBeVisible();
+  await overlay.locator('[data-einv="17"]').click();
+  const empty=overlay.locator(`#especificos-grid-wrap input[data-einv="17"][data-edia="${day}"][data-erc="16"]`);
+  await empty.click();
+  const editor=page.locator('#especifico-manual-overlay');
+  await expect(editor).toBeVisible();
+  await expect(editor.locator('#esp-dia')).toHaveValue(String(day));
+  await expect(editor.locator('button[onclick="saveEspecificoManual()"]')).toBeVisible();
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+
