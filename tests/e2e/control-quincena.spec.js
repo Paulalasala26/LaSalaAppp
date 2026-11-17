@@ -4207,6 +4207,32 @@ test('UAT-416: la galería solo presenta fotos con índice activo de la inspecci
   expect(unexpectedHosts).toEqual([]);
 });
 
+test('UAT-417: al consultar fotos de Túnel y Carga cada galería conserva su inspección', async ({ page }) => {
+  test.fail(true, 'La foto fixture aparece en QC Túnel, pero no se muestra en la tarjeta de QC Carga.');
+  const database = fixtureDatabase();
+  const tunnelId = 'e2e-control-current-fortnight';
+  const cargaId = 'e2e-control-carga-current-fortnight';
+  const photo = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/XxsAAAAASUVORK5CYII=';
+  database['lasala-control-fotos-indice-v1'] = JSON.stringify({
+    [tunnelId]: 'lasala-control-fotos-v1',
+    [cargaId]: 'lasala-control-fotos-v1'
+  });
+  database['lasala-control-fotos-shards-index'] = JSON.stringify(['lasala-control-fotos-v1']);
+  database['lasala-control-fotos-v1'] = JSON.stringify({
+    [tunnelId]: [{ f: photo, t: photo, origen: 'SharePoint', itemId: 'fixture-tunnel-417' }],
+    [cargaId]: [{ f: photo, t: photo, origen: 'SharePoint', itemId: 'fixture-carga-417' }]
+  });
+
+  const { overlay, unexpectedHosts } = await startControlTest(page, database);
+  const tunnelCard = overlay.locator(`#control-card-${tunnelId}`);
+  const cargaCard = overlay.locator(`#control-card-${cargaId}`);
+  await expect(tunnelCard.locator('img[title="Ver foto"]')).toHaveCount(1);
+  await expect(cargaCard.locator('img[title="Ver foto"]')).toHaveCount(1);
+  await expect(tunnelCard.getByTestId(`control-photo-status-${tunnelId}-0`)).toHaveText('SharePoint');
+  await expect(cargaCard.getByTestId(`control-photo-status-${cargaId}-0`)).toHaveText('SharePoint');
+  expect(unexpectedHosts).toEqual([]);
+});
+
 test('UAT-439: un PDF de Carga en Túnel no mezcla líneas y muestra error controlado', async ({ page }) => {
   const database = fixtureDatabase();
   const { overlay, unexpectedHosts } = await startControlTest(page, database);
