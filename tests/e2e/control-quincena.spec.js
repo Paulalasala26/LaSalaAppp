@@ -4187,6 +4187,26 @@ test('UAT-430: reabrir sesión no duplica ni convierte fotos SharePoint e histó
   expect(unexpectedHosts).toEqual([]);
 });
 
+test('UAT-416: la galería solo presenta fotos con índice activo de la inspección', async ({ page }) => {
+  test.fail(true, 'El shard compartido hace visible una foto de una inspección que no está en el índice activo.');
+  const database = fixtureDatabase();
+  const activeId = 'e2e-control-current-fortnight';
+  const staleId = 'e2e-control-current-fortnight-second-line';
+  const photo = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/XxsAAAAASUVORK5CYII=';
+  database['lasala-control-fotos-indice-v1'] = JSON.stringify({ [activeId]: 'lasala-control-fotos-v1' });
+  database['lasala-control-fotos-shards-index'] = JSON.stringify(['lasala-control-fotos-v1']);
+  database['lasala-control-fotos-v1'] = JSON.stringify({
+    [activeId]: [{ f: photo, t: photo, origen: 'SharePoint', itemId: 'fixture-active-416' }],
+    [staleId]: [{ f: photo, t: photo, origen: 'SharePoint', itemId: 'fixture-orphan-416' }]
+  });
+  const { overlay, unexpectedHosts } = await startControlTest(page, database);
+  const activeCard = overlay.locator(`#control-card-${activeId}`);
+  const staleCard = overlay.locator(`#control-card-${staleId}`);
+  await expect(activeCard.locator('img[title="Ver foto"]')).toHaveCount(1);
+  await expect(staleCard.locator('img[title="Ver foto"]')).toHaveCount(0);
+  expect(unexpectedHosts).toEqual([]);
+});
+
 test('UAT-439: un PDF de Carga en Túnel no mezcla líneas y muestra error controlado', async ({ page }) => {
   const database = fixtureDatabase();
   const { overlay, unexpectedHosts } = await startControlTest(page, database);
