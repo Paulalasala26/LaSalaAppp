@@ -1274,3 +1274,31 @@ test('UAT-1426: consultar Hojas de riego como REGANTE no genera tareas PEÓN', a
   expect(writes.filter(write => write.path === 'lasala-tareas-v1')).toEqual([]);
   expect(unexpectedHosts).toEqual([]);
 });
+
+
+test('UAT-113: editar un Trabajo registrado actualiza su tarea sin duplicarla', async ({ page }) => {
+  test.fail(true, 'Al guardar el nuevo Trabajo, la tarea enlazada conserva el título anterior.');
+  const database = fixtureDatabase();
+  database['lasala-riego-v1'] = JSON.stringify({ '17': { '30': { '2': '10 + PP + 1º HORA' } } });
+  database['lasala-tareas-v1'] = JSON.stringify([{
+    id: 'e2e-uat-113-task', titulo: 'Puntas de pasillo', asignadoA: 'PEON2', origen: 'riego',
+    inv: '17', calles: 'C/1702', fechaISO: '2026-06-30', estado: 'pendiente'
+  }]);
+  const { overlay, unexpectedHosts } = await openRiego(page, database);
+  const grid = page.locator('#riego-grid-wrap');
+  const cell = grid.locator(`textarea[ondblclick*="'17',30"]`);
+  await cell.dblclick();
+  const form = page.locator('#riego-manual-overlay');
+  await expect(form).toBeVisible();
+  await expect(form.locator('.rm-trabajo-chk[value="PP"]').first()).toBeChecked();
+  await form.locator('.rm-trabajo-chk[value="PP"]').first().uncheck();
+  await form.locator('.rm-trabajo-chk[value="PA"]').first().check();
+  await form.locator('#rm-guardar-btn').click();
+  await expect(form).toBeHidden();
+  expect(riegoGuardado(database)?.['17']?.['30']?.['2']).toContain('PA');
+  const matchingTasks = () => JSON.parse(database['lasala-tareas-v1']).filter(t => t.inv === '17' && t.fechaISO === '2026-06-30');
+  await expect.poll(matchingTasks).toMatchObject([{ id: 'e2e-uat-113-task', titulo: 'Puntas de atrás' }]);
+  expect(matchingTasks()).toHaveLength(1);
+  expect(unexpectedHosts).toEqual([]);
+  await expect(overlay).toBeVisible();
+});
