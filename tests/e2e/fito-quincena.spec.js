@@ -1497,6 +1497,26 @@ test('UAT-660: el formulario nuevo no ofrece imprimir antes de guardar la aplica
   await expect(form.getByRole('button',{name:/Imprimir hoja/i})).toHaveCount(0);
 });
 
+test('UAT-662: la consulta identifica los datos incompletos de una jornada histórica',async({page})=>{
+  const database=fixtureDatabase();
+  const data=JSON.parse(database['lasala-fito-v1']);
+  data['17']['30']['2']={texto:'E2E-HISTORICO-INCOMPLETO-662',caldoLabel:''};
+  database['lasala-fito-v1']=JSON.stringify(data);
+  const {overlay}=await openFito(page,database);
+  await overlay.locator('#fito-grid-wrap textarea[data-finv="17"][data-fdia="30"][data-frc="2"]').dblclick();
+  const form=page.locator('#fito-manual-overlay');
+  await expect(form).toBeVisible();
+  test.fail(true,'La consulta muestra el formulario de edición sin advertencia diferenciada de falta de caldo, dosis o método.');
+  await expect(form.getByText(/Falta caldo|Falta dosis|Falta método/i)).toBeVisible();
+});
+
+test('UAT-661: Plaguicidas ofrece Consulta de jornadas con acción contextual de impresión',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay}=await openFito(page,database,{selectINV:false});
+  test.fail(true,'Plaguicidas abre directamente la cuadrícula; no presenta la vista Consulta donde desplegar la acción contextual Imprimir parte.');
+  await expect(overlay.getByRole('button',{name:/Consulta/i})).toBeVisible();
+});
+
 test('UAT-500 y UAT-501: Pistola y Cañón no guardan una jornada sin producto ni dosis',async({page})=>{
   const database=fixtureDatabase();
   const original=database['lasala-fito-v1'];
