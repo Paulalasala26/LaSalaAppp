@@ -154,7 +154,7 @@ async function completarFitoValido(form,producto='E2E-TRAMO'){
   await form.locator('#fm-caldo').selectOption('25');
 }
 
-test('UAT-033: abrir Plaguicidas muestra datos cargados del invernadero elegido',async({page})=>{
+test('UAT-033 y UAT-482: abrir Plaguicidas muestra datos cargados del invernadero elegido',async({page})=>{
   const database=fixtureDatabase();
   const {overlay,unexpectedHosts}=await openFito(page,database);
   await expect(page.locator('#fito-grid-wrap [data-finv="17"][data-fdia="30"][data-frc="2"]')).toHaveValue('E2E-FITO-INV17');
@@ -187,7 +187,7 @@ test('UAT-035: el dato guardado de Plaguicidas permanece después de recargar',a
   expect(reloaded.unexpectedHosts).toEqual([]);
 });
 
-test('UAT-036: cambiar de invernadero en Plaguicidas muestra solo sus propios datos',async({page})=>{
+test('UAT-036 y UAT-483: cambiar de invernadero en Plaguicidas muestra solo sus propios datos',async({page})=>{
   const database=fixtureDatabase();
   const {unexpectedHosts}=await openFito(page,database);
   await page.locator('#fito-overlay [data-finv="18"]').click();
