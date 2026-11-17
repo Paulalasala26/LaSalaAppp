@@ -23479,6 +23479,7 @@ async function guardarTareasEspecificoManualEnLote(op){
   return true;
 }
 async function procesarOperacionEspecificoManual(op){
+  if(op.actor&&op.actor!==currentUser)throw Error('Esta operación fue iniciada por '+op.actor+'. Entra con esa cuenta para reintentarla.');
   if(navigator.onLine===false)throw Error('Sin conexión. La operación se conserva en este dispositivo y no se confirma como sincronizada.');
   const invs=[...new Set(op.celdas.map(c=>String(c.invId)))];
   if(!op.etapas?.celdas){
