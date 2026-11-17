@@ -1769,6 +1769,47 @@ test('UAT-232: QC Carga descarga una sola vez su módulo diferido al entrar en u
   expect(unexpectedHosts).toEqual([]);
 });
 
+test('UAT-286: un fallo puntual al descargar el módulo QC permite reintentar y abrir Editar Carga', async ({ page }) => {
+  const database = fixtureDatabase();
+  const id = 'e2e-control-carga-current-fortnight';
+  const original = structuredClone(database['lasala-control-items-v1'][id]);
+  const unexpectedHosts = await interceptFirebase(page, database);
+  let moduleRequests = 0;
+  await page.route('**/qc-v6.js', async route => {
+    moduleRequests += 1;
+    if (moduleRequests === 1) {
+      await route.fulfill({ status: 503, contentType: 'text/plain', body: 'fallo temporal de fixture' });
+      return;
+    }
+    await route.fallback();
+  });
+  await page.clock.setFixedTime(new Date('2026-06-30T10:00:00+02:00'));
+  await page.goto('/');
+  await loginControlRole(page, login.user);
+
+  await page.getByTestId('home-control').click();
+  await expect(page.locator('#app-toast')).toContainText('No se pudo cargar Control de calidad');
+  await expect.poll(() => moduleRequests).toBe(1);
+  expect(database['lasala-control-items-v1'][id]).toEqual(original);
+
+  await page.getByTestId('home-control').click();
+  const overlay = page.locator('#control-overlay');
+  await expect(overlay).toBeVisible();
+  await expect.poll(() => moduleRequests).toBe(2);
+  await overlay.getByRole('button', { name: 'Check Carga Injerto' }).click();
+  const card = overlay.locator(`#control-card-${id}`);
+  await expect(card).toBeVisible();
+  await card.getByTestId(`control-edit-${id}`).click();
+  const editor = page.locator('#control-editar-carga-overlay');
+  await expect(editor).toBeVisible();
+  await expect(editor.locator('#ecc-partida')).toHaveValue(original.partida);
+  await expect(editor.locator('#ecc-inv')).toHaveValue('17');
+  await expect(editor.locator('#ecc-calle-desde')).toHaveValue('8');
+  await expect(editor.locator('#ecc-calle-hasta')).toHaveValue('8');
+  expect(database['lasala-control-items-v1'][id]).toEqual(original);
+  expect(unexpectedHosts).toEqual([]);
+});
+
 test('UAT-358, UAT-359, UAT-360, UAT-362, UAT-363 y UAT-389–390: tarjeta QC sin controles de foto duplicados', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const database = fixtureDatabase();
