@@ -3885,3 +3885,52 @@ test('UAT-402: un envío incierto de foto no permite borrarla antes de resolverl
   expect(JSON.parse(database['lasala-control-fotos-v1'])[id]).toHaveLength(1);
   expect(unexpectedHosts).toEqual([]);
 });
+
+test('UAT-412–413: limitar a 30 las fotos pendientes y rechazar la número 31', async ({ page }) => {
+  test.fail(true, 'La aplicación no aplica el límite de 30 fotos pendientes por dispositivo; añade la número 31 a la galería y a la cola.');
+  const database = fixtureDatabase();
+  const id = 'e2e-control-current-fortnight';
+  database['lasala-control-fotos-indice-v1'] = JSON.stringify({});
+  database['lasala-control-fotos-shards-index'] = JSON.stringify(['lasala-control-fotos-v1']);
+  database['lasala-control-fotos-v1'] = JSON.stringify({});
+  const { overlay, unexpectedHosts } = await startControlTest(page, database);
+  unexpectedHosts.setWriteFailure(true);
+  const base64 = await page.evaluate(() => {
+    const canvas = document.createElement('canvas'); canvas.width = 32; canvas.height = 32;
+    const context = canvas.getContext('2d'); context.fillStyle = '#1565c0'; context.fillRect(0, 0, 32, 32);
+    return canvas.toDataURL('image/png').split(',')[1];
+  });
+  const card = overlay.locator(`#control-card-${id}`);
+  await page.evaluate(({ id, base64 }) => {
+    const photo = `data:image/png;base64,${base64}`;
+    const queue = Array.from({ length: 30 }, (_, index) => ({
+      qid: `seed-${index}`, fn: 'aplicarFotoControl', args: [id, { f: photo, t: photo }], t: 'fixture'
+    }));
+    localStorage.setItem('lasala-offline-queue-v1', JSON.stringify(queue));
+    controlFotosData[id] = Array.from({ length: 30 }, () => ({ f: photo, t: photo }));
+    renderControlContent(document.getElementById('control-overlay'));
+  }, { id, base64 });
+  await expect(card.locator('img[title="Ver foto"]')).toHaveCount(30);
+  await card.locator('input[data-testid^="control-photo-gallery-"]').setInputFiles({
+    name: 'e2e-uat-413-numero-31.png', mimeType: 'image/png', buffer: Buffer.from(base64, 'base64')
+  });
+  await expect(card.locator('img[title="Ver foto"]')).toHaveCount(31, { timeout: 10000 });
+  await expect.soft(card.locator('img[title="Ver foto"]')).toHaveCount(30);
+  await expect.soft.poll(() => page.evaluate(() => leerColaOffline().filter(action =>
+    action.fn === 'aplicarFotoControl'
+  ).length)).toBe(30);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-414: consultar más de 30 fotos confirmadas sin límite de lectura', async ({ page }) => {
+  const database = fixtureDatabase();
+  const id = 'e2e-control-current-fortnight';
+  const photo = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/XxsAAAAASUVORK5CYII=';
+  database['lasala-control-fotos-indice-v1'] = JSON.stringify({ [id]: 'lasala-control-fotos-v1' });
+  database['lasala-control-fotos-shards-index'] = JSON.stringify(['lasala-control-fotos-v1']);
+  database['lasala-control-fotos-v1'] = JSON.stringify({ [id]: Array.from({ length: 31 }, () => ({ f: photo, t: photo, origen: 'SharePoint' })) });
+  const { overlay, unexpectedHosts } = await startControlTest(page, database);
+  const card = overlay.locator(`#control-card-${id}`);
+  await expect(card.locator('img[title="Ver foto"]')).toHaveCount(31, { timeout: 15000 });
+  expect(unexpectedHosts).toEqual([]);
+});
