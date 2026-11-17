@@ -485,6 +485,26 @@ test('UAT-558: dos altas del mismo producto en fechas distintas conservan series
   expect(unexpectedHosts).toEqual([]);
 });
 
+test('UAT-558: dos altas del mismo producto en fechas distintas conservan series independientes',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts}=await openFito(page,database);
+  for(const dia of ['30','31']){
+    await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+    const form=page.locator('#fito-manual-overlay');
+    await form.locator('#fm-dia').selectOption(dia);
+    await completarFitoValido(form,'E2E-SERIE-INDEPENDIENTE');
+    await form.getByRole('button',{name:'Guardar'}).click();
+    await expect(form).toBeHidden();
+  }
+  const first=fitoData(database)?.['17']?.['30']?.['2'];
+  const second=fitoData(database)?.['17']?.['31']?.['2'];
+  expect(first?.texto).toBe('E2E-SERIE-INDEPENDIENTE 1 cc/l');
+  expect(second?.texto).toBe(first?.texto);
+  expect(second?.serieId).not.toBe(first?.serieId);
+  expect(second?.jornadaId).not.toBe(first?.jornadaId);
+  expect(unexpectedHosts).toEqual([]);
+});
+
 test('UAT-559 y UAT-560: la marca de primer día por calle se conserva y la continuación mantiene color normal',async({page})=>{
   const database=fixtureDatabase();
   const data=JSON.parse(database['lasala-fito-v1']);
@@ -925,6 +945,25 @@ test('UAT-546: no solapar Plaguicidas con un Específico de tarde ni alterar reg
   expect(database['lasala-fito-v1']).toBe(original);
   expect(writes).toEqual([]);
   expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-547: el resumen previo identifica producto y tramos seleccionados antes de guardar',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await form.locator('input[name="fm-bulk-modo-17"]').nth(2).check();
+  const first=form.locator('#fm-bulk-tramos-17 .fm-bulk-tramo-row').nth(0);
+  await first.locator('.fm-bulk-tramo-desde').selectOption('2');
+  await first.locator('.fm-bulk-tramo-hasta').selectOption('3');
+  await form.getByRole('button',{name:'+ Añadir tramo'}).click();
+  const second=form.locator('#fm-bulk-tramos-17 .fm-bulk-tramo-row').nth(1);
+  await second.locator('.fm-bulk-tramo-desde').selectOption('5');
+  await second.locator('.fm-bulk-tramo-hasta').selectOption('6');
+  await completarFitoValido(form,'E2E-RESUMEN-PREVIO');
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+  await expect(form.getByText(/E2E-RESUMEN-PREVIO/)).toBeVisible();
 });
 
 test('UAT-549: una jornada de una calle no crea datos en otras fechas o invernaderos',async({page})=>{
