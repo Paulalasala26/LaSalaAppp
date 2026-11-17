@@ -33,6 +33,36 @@
      p.filter(x=>x.status==='ENVIO_INCIERTO').length};
  }
  function refsLabel(items,tipo){return items.filter(x=>x?.ref?.tipo===tipo).length;}
+ const CATEGORY_LABELS={color:'Color',tamano:'Tamaño',sanidad:'Sanidad',flores:'Flores',raices:'Raíces'};
+ const OPTION_LABELS={ok:'OK',noEvaluada:'No evaluada',verde:'Verde',amarillo:'Amarillo',
+  verdeClaro:'Verde claro',grande:'Grande',pequeno:'Pequeño',enfermedad1:'Enfermedad 1',
+  enfermedad2:'Enfermedad 2',enfermedad3:'Enfermedad 3',enfermedad4:'Enfermedad 4',
+  si:'Sí',no:'No',pocaRaiz:'Poca raíz',raizVariedad:'Raíz en variedad'};
+ function localDraftLines(item){
+  const source=item.categorias||item.mediciones||{},lines=[];
+  if(Number.isFinite(item.bandejasInspeccionadas))
+   lines.push('Bandejas inspeccionadas: '+item.bandejasInspeccionadas);
+  for(const [key,value] of Object.entries(source)){
+   const label=CATEGORY_LABELS[key]||key;
+   if(Array.isArray(value?.opciones)){
+    const options=value.opciones.map(option=>{
+     const name=OPTION_LABELS[option]||option;
+     const pct=value.porcentajesEnfermedades?.[option];
+     return Number.isFinite(pct)?name+' ('+pct+'%)':name;
+    });
+    if(Number.isFinite(value.porcentajeInvalidas))
+     options.push('Porcentaje afectado '+value.porcentajeInvalidas+'%');
+    lines.push(label+': '+(options.join(', ')||'—'));
+   }else if(value&&typeof value==='object'){
+    const active=Object.entries(value).filter(([,count])=>typeof count==='number'&&count>0)
+     .map(([option,count])=>(OPTION_LABELS[option]||option)+': '+count);
+    lines.push(label+': '+(active.join(', ')||'—'));
+   }else lines.push(label+': '+String(value));
+  }
+  if(Number.isFinite(item.porcentajeInvalidasGlobal))
+   lines.push('Porcentaje global: '+item.porcentajeInvalidasGlobal+'%');
+  return lines.length?lines:['El borrador no contiene datos de evaluación legibles.'];
+ }
  function show(){
   const anchor=$('avisos-sync-anchor'),host=$('avisos-sync-panel');
   if(!anchor||!host)return;
@@ -76,6 +106,23 @@
    row.append(text('span',name),text('strong',String(count)));desc.append(row);
   }
   panel.append(desc);
+  if(state.drafts.length){
+   const local=text('div',null,'qc-sync-local-drafts');
+   local.style.cssText='margin:12px 0;padding:10px;border:1px solid #c8d9e8;border-radius:10px;background:#fff';
+   local.append(text('strong','Borradores de inspección guardados en este dispositivo'));
+   for(const item of state.drafts){
+    const details=text('details',null,'qc-sync-local-draft');
+    details.style.cssText='margin-top:8px;padding:8px;border:1px solid #d5e2ee;border-radius:8px;background:#f7fbff';
+    const kind=item.ref.tipo==='tunel'?'QC Túnel':'QC Carga normal';
+    details.append(text('summary','Ver borrador local · '+kind+' · '+item.ref.partida+' ('+item.ref.id+')'));
+    details.append(text('p',item.status==='ENVIO_INCIERTO'?
+      'Estado: envío anterior por verificar. Vista de solo lectura; no se ha cambiado ningún dato.':
+      'Estado: pendiente de sincronizar. Vista de solo lectura.'));
+    for(const line of localDraftLines(item))details.append(text('p',line));
+    local.append(details);
+   }
+   panel.append(local);
+  }
   const uncertainDrafts=state.drafts.filter(x=>x.status==='ENVIO_INCIERTO').length;
   const uncertainPhotos=state.photos.filter(x=>x.status==='ENVIO_INCIERTO').length;
   if(uncertainDrafts){

@@ -730,7 +730,13 @@
  function pendingGlobal(){return [...drafts.values()].filter(d=>
    d&&d.key===key(d.ref)&&refValid(d.ref)&&
    (d.status==='PENDIENTE_LOCAL'||d.status==='ENVIO_INCIERTO'))
-  .map(d=>({ref:{...d.ref},status:d.status}));}
+  .map(d=>({
+   ref:{...d.ref},status:d.status,schemaVersion:d.schemaVersion,
+   bandejasInspeccionadas:d.bandejasInspeccionadas??null,
+   porcentajeInvalidasGlobal:d.porcentajeInvalidasGlobal??null,
+   categorias:d.categorias?JSON.parse(JSON.stringify(d.categorias)):null,
+   mediciones:d.mediciones?JSON.parse(JSON.stringify(d.mediciones)):null
+  }));}
  async function syncGlobal(onProgress){
   requireSession();
   if(syncing||editor)throw Error('Cierra la edición QC antes de sincronizar.');
