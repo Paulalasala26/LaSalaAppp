@@ -4812,3 +4812,28 @@ test('UAT-510: una mezcla no se guarda si falta la dosis de uno de sus productos
   expect(unexpectedHosts).toEqual([]);
 });
 
+test('UAT-561: la cuadrícula distingue inicio y continuación por INV y calle real',async({page})=>{
+  const database=fixtureDatabase();
+  const data=fitoData(database);
+  for(const inv of ['17','18']) for(const dia of ['29','30']) data[inv][dia] ||= {};
+  data['17']['29']['2']={texto:'E2E-UAT561 1 cc/l',primerDia:true,serieId:'e2e-serie-561-17',jornadaId:'e2e-jornada-561-17-a'};
+  data['17']['30']['2']={texto:'E2E-UAT561 1 cc/l',primerDia:false,serieId:'e2e-serie-561-17',jornadaId:'e2e-jornada-561-17-b'};
+  data['18']['29']['3']={texto:'E2E-UAT561 1 cc/l',primerDia:true,serieId:'e2e-serie-561-18',jornadaId:'e2e-jornada-561-18-a'};
+  data['18']['30']['3']={texto:'E2E-UAT561 1 cc/l',primerDia:false,serieId:'e2e-serie-561-18',jornadaId:'e2e-jornada-561-18-b'};
+  database['lasala-fito-v1']=JSON.stringify(data);
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+
+  for(const [inv,calle] of [['17','2'],['18','3']]){
+    if(inv!=='17')await overlay.locator(`[data-finv="${inv}"]`).click();
+    for(const [dia,primerDia,color] of [['29',true,'rgb(230, 217, 245)'],['30',false,'rgb(253, 240, 232)']]){
+      const cell=overlay.locator(`#fito-grid-wrap [data-finv="${inv}"][data-fdia="${dia}"][data-frc="${calle}"]`);
+      await expect(cell).toHaveValue('E2E-UAT561 1 cc/l');
+      await expect.poll(()=>cell.evaluate(el=>getComputedStyle(el.parentElement.parentElement).backgroundColor)).toBe(color);
+      const raw=fitoData(database)?.[inv]?.[dia]?.[calle];
+      expect(raw).toMatchObject({primerDia,serieId:`e2e-serie-561-${inv}`});
+      expect(raw.jornadaId).toBe(`e2e-jornada-561-${inv}-${primerDia?'a':'b'}`);
+    }
+  }
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
