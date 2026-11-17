@@ -1592,7 +1592,7 @@ test('UAT-349–353: imprimir QC Carga respeta módulo, día, INV, estado y vist
   expect(unexpectedHosts).toEqual([]);
 });
 
-test('PDF QC: subir y persistir una línea Túnel a partir de texto extraído (extracción simulada)', async ({ page }) => {
+test('UAT-220: PDF válido de QC Túnel conserva identidad, datos y ubicación (extracción simulada)', async ({ page }) => {
   const database = fixtureDatabase();
   database['lasala-control-pdfs-indice-v1'] = JSON.stringify([]);
   const { overlay, unexpectedHosts } = await startControlTest(page, database);
