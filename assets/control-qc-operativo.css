@@ -278,3 +278,7 @@
  .qco-inline button.qco-photo-action{min-width:0;padding:9px 8px}
  .qco-camera-controls button{flex:1}
 }
+
+/* Aviso claro y acción bloqueada para mediciones sin conexión. */
+.qco-offline-note{margin:12px 0;padding:11px 13px;border:1px solid #e7b64a;border-radius:8px;background:#fff8e8;color:#76500a;font-size:12px;line-height:1.5;font-weight:700}
+.qco-offline-note[hidden]{display:none}
