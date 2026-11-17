@@ -501,7 +501,9 @@
     const isSaved=!!savedMeasurement&&!changed();
     // No permitir guardar de nuevo sin modificar cantidades.
     const submit=active?.querySelector('.qco-save');
-    if(submit)submit.disabled=loading||writing||!changed();
+    if(submit)submit.disabled=loading||writing||!changed()||navigator.onLine===false;
+    const offlineNote=active?.querySelector('.qco-offline-note');
+    if(offlineNote)offlineNote.hidden=navigator.onLine!==false;
     // Un cambio posterior ya no está guardado: retirar la confirmación anterior.
     if(!isSaved&&active?.querySelector('.qco-feedback')?.textContent==='✓ Porcentajes guardados')
       report('','');
@@ -909,6 +911,8 @@
     }
 
     const feedback=node('div',null,'qco-feedback');feedback.hidden=true;feedback.setAttribute('role','status');feedback.setAttribute('aria-live','polite');form.append(feedback);
+    const offlineNote=node('div','Sin conexión: las mediciones QC necesitan conexión para cargarse y guardarse. No se guardan automáticamente en el dispositivo.','qco-offline-note');
+    offlineNote.hidden=true;offlineNote.setAttribute('role','status');offlineNote.setAttribute('aria-live','polite');form.append(offlineNote);
     const details=node('details',null,'qco-indicators');details.hidden=true;
     details.append(node('summary','Resumen QC'),node('div',null,'qco-indicator-list'));form.append(details);
     const foot=node('div',null,'qco-footer');
@@ -942,7 +946,7 @@
     legacyApi=context||null;
     savedMeasurement=null;currentRules=null;loading=true;savedForList=null;
     active=build(rec);
-    mount();observeControl();
+    mount();observeControl();updateIndicatorVisibility();
     original=JSON.stringify(snapshot());initialSnapshot=original;
     const modal=active;
     // No desplegar el teclado móvil antes de recibir los datos.
@@ -979,7 +983,9 @@
       loading=false;
       report(err.message==='FORBIDDEN'?'No tienes permiso para cuantificar este control.':
         err.message==='CONFLICT'?'La partida ha cambiado: vuelve a cargar el control.':
-        'No se han podido recuperar las cantidades. El guardado está desactivado para evitar sobrescribir información.','error');
+        navigator.onLine===false
+          ?'Sin conexión: no se han cargado las mediciones y no se guardarán localmente. Conéctate y vuelve a abrir la inspección.'
+          :'No se han podido recuperar las cantidades. El guardado está desactivado para evitar sobrescribir información.','error');
     }
   }
   function printCategories(type,day){
