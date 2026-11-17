@@ -64,7 +64,7 @@
   return lines.length?lines:['El borrador no contiene datos de evaluación legibles.'];
  }
  function show(){
-  const anchor=$('avisos-sync-anchor'),host=$('avisos-sync-panel');
+  const anchor=$('avisos-sync-anchor')||$('qc-global-sync-anchor'),host=$('avisos-sync-panel')||$('qc-global-sync-panel');
   if(!anchor||!host)return;
   const state=snapshot();
   anchor.replaceChildren();host.replaceChildren();
