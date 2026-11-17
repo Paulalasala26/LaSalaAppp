@@ -390,6 +390,13 @@ async function applySpecificToPartida(page, overlay, entryId, tratamiento) {
   return day;
 }
 
+test('UAT-760: el mapa no muestra la banda de acciones de sincronización y recuperación', async ({ page }) => {
+  const { overlay, unexpectedHosts } = await openPartidas(page);
+  const map = overlay.locator('#partidas-content-wrap');
+  await expect(map.getByRole('button', { name: /sincronizar|deshacer|rehacer|recuperar/i })).toHaveCount(0);
+  expect(unexpectedHosts).toEqual([]);
+});
+
 test('UAT-028, UAT-2133 y UAT-2206: Partidas muestra el mapa en la primera apertura de la sesión', async ({ page }) => {
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(error.message));
