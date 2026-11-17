@@ -489,6 +489,33 @@ test('UAT-552: una calle nueva en la segunda jornada queda marcada como primer d
   expect(unexpectedHosts).toEqual([]);
 });
 
+test('UAT-553: continuar una serie en un día no consecutivo no crea jornadas intermedias',async({page})=>{
+  const database=fixtureDatabase();
+  const legacy=fitoData(database)?.['17']?.['29']?.['2'];
+  const {overlay,unexpectedHosts}=await openFito(page,database,{beforeOpen:async app=>{
+    await app.clock.setFixedTime(new Date('2026-06-20T10:00:00+02:00'));
+  }});
+  for(const [dia,primerDia] of [['20',true],['22',false]]){
+    await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+    const form=page.locator('#fito-manual-overlay');
+    await form.locator('#fm-dia').selectOption(dia);
+    const firstDay=form.locator('#fm-bulk-panels').getByLabel('Primer día de tratamiento (marca la celda en morado)');
+    if(primerDia)await firstDay.check();else await firstDay.uncheck();
+    await completarFitoValido(form,'E2E-SERIE-NO-CONSECUTIVA');
+    await form.getByRole('button',{name:'Guardar'}).click();
+    await expect(form).toBeHidden();
+  }
+  const fito=fitoData(database);
+  const first=fito?.['17']?.['20']?.['2'],second=fito?.['17']?.['22']?.['2'];
+  expect(first?.primerDia).toBe(true);
+  expect(second?.primerDia).toBe(false);
+  expect(second?.serieId).toBe(first?.serieId);
+  expect(second?.jornadaId).not.toBe(first?.jornadaId);
+  expect(fito?.['17']?.['21']?.['2']).toBeUndefined();
+  expect(fito?.['17']?.['29']?.['2']).toEqual(legacy);
+  expect(unexpectedHosts).toEqual([]);
+});
+
 test('UAT-566: editar una jornada conserva el inicio global y la identidad de la serie',async({page})=>{
   const database=fixtureDatabase();
   const data=JSON.parse(database['lasala-fito-v1']);
