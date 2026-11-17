@@ -3382,6 +3382,19 @@ test('UAT-620 y UAT-1411: volver a consultar la misma jornada Pistola no duplica
   expect(writes).toEqual([]);
 });
 
+test('UAT-621–623: la tarjeta Pistola ofrece consulta reabrible del estado de tarea', async ({ page }) => {
+  test.fail(true, 'En la tarjeta actual solo existe «Ver jornada»; no aparece la acción «Estado de tarea» solicitada por QC.');
+  const todayISO = await fechaISOEnNavegador(page);
+  const task = { id:'e2e-uat-621-623', titulo:'E2E estado Pistola 621-623', asignadoA:'PEON1', origen:'pistola', categoria:'fumigacion', fechaISO:todayISO, estado:'pendiente', producto:'E2E-ESTADO', dosis:'1 cc/l', caldoLitros:25, caldoLabel:'25L', serieId:'e2e-serie-621', jornadaId:'e2e-jornada-621', objetivos:[{inv:'1A',calles:'C/102'}] };
+  await installFixture(page, { 'lasala-tareas-v1': JSON.stringify([task]) });
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  await overlay.getByRole('button', { name:/Tareas de hoy/ }).click();
+  const card = overlay.locator('.tarea-card').filter({ hasText:task.titulo });
+  await expect(card).toBeVisible();
+  await expect(card.getByRole('button', { name:/Estado de tarea/i })).toBeVisible({ timeout:1200 });
+});
+
 test('UAT-1412: Pistola imprime el parte fitosanitario individual', async ({ page }) => {
   await page.addInitScript(() => { window.print = () => {}; });
   const todayISO = await fechaISOEnNavegador(page);
