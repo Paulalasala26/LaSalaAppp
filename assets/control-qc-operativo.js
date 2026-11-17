@@ -20,6 +20,14 @@
     ['flores','Flores',[['ok','Ok'],['si','Con flores']]],
     ['raices','Raíces',[['pocaRaiz','Poca raíz'],['raizVieja','Raíz vieja'],['ok','OK']]]
   ];
+  const CATS_CARGA_NORMAL=[
+    ['color','Color',[['ok','OK'],['verde','Verde'],['amarillo','Amarillo'],['verdeClaro','Verde claro']]],
+    ['tamano','Tamaño',[['ok','OK'],['grande','Grande'],['pequeno','Pequeño']]],
+    ['plagas','Plagas',[['ok','OK'],['tuta','Tuta'],['minador','Minador'],['pulgon','Pulgón'],['oruga','Oruga'],['trips','Trips']]],
+    ['enfermedades','Enfermedades',[['ok','OK'],['alternaria','Alternaria'],['mildiu','Mildiu'],['oidio','Oídio'],['botrytis','Botrytis'],['didymella','Didymella']]],
+    ['flores','Flores',[['si','Sí'],['no','No']]],
+    ['raices','Raíces',[['ok','OK'],['pocaRaiz','Poca raíz'],['raizVieja','Raíz vieja']]]
+  ];
   const CATS_PREINJERTO_VARIEDAD=[
     ['color','Color',[['ok','OK'],['verde','Verde'],['amarillo','Amarillo'],['verdeClaro','Verde claro']]],
     ['tamano','Tamaño',[['ok','OK'],['grande','Grande'],['pequeno','Pequeño']]],
@@ -39,7 +47,7 @@
   const CAT_FIRMEZA=['firmeza','Firmeza',[['ok','OK'],['duro','Duro'],['tierno','Tierno']]];
   const CAT_RAICES_INJERTO=['raicesInjerto','Raíces en punto de injerto · opcional',[['si','Sí'],['no','No']]];
   let CATS=CATS_TUNEL;
-  [...CATS_TUNEL,...CATS_CARGA_BASE,CAT_FIRMEZA].forEach(cat=>cat[2].push(['noEvaluada','No evaluada']));
+  [...CATS_TUNEL,...CATS_CARGA_BASE,...CATS_CARGA_NORMAL,CAT_FIRMEZA].forEach(cat=>cat[2].push(['noEvaluada','No evaluada']));
   const HEALTH_KEYS=['enfermedad1','enfermedad2','enfermedad3','enfermedad4'];
   const isDisease=k=>HEALTH_KEYS.includes(k);
   const isMultiCategory=cat=>['sanidad','plagas','enfermedades'].includes(cat);
@@ -928,7 +936,7 @@
     record={id:rec.id,tipo:rec.tipo,dia:rec.dia,partida:rec.partida};
     CATS=rec.tipo==='preinjerto_variedad'?CATS_PREINJERTO_VARIEDAD:
       rec.tipo==='preinjerto_patron'?CATS_PREINJERTO_PATRON:
-      rec.tipo==='carga'?(rec.dia>=155?[...CATS_CARGA_BASE,CAT_FIRMEZA]:CATS_CARGA_BASE):
+      rec.tipo==='carga'?(rec.dia>=155?[...CATS_CARGA_NORMAL,CAT_FIRMEZA]:CATS_CARGA_NORMAL):
       rec.tipo==='carga_injerto'?(rec.dia>=155?[...CATS_CARGA_BASE,CAT_FIRMEZA,CAT_RAICES_INJERTO]:[...CATS_CARGA_BASE,CAT_RAICES_INJERTO]):CATS_TUNEL;
     legacyApi=context||null;
     savedMeasurement=null;currentRules=null;loading=true;savedForList=null;
@@ -976,7 +984,7 @@
   function printCategories(type,day){
     const cats=type==='preinjerto_variedad'?CATS_PREINJERTO_VARIEDAD:
       type==='preinjerto_patron'?CATS_PREINJERTO_PATRON:
-      type==='carga'?(Number(day)>=155?[...CATS_CARGA_BASE,CAT_FIRMEZA]:CATS_CARGA_BASE):
+      type==='carga'?(Number(day)>=155?[...CATS_CARGA_NORMAL,CAT_FIRMEZA]:CATS_CARGA_NORMAL):
       type==='carga_injerto'?(Number(day)>=155?[...CATS_CARGA_BASE,CAT_FIRMEZA,CAT_RAICES_INJERTO]:[...CATS_CARGA_BASE,CAT_RAICES_INJERTO]):CATS_TUNEL;
     const icons={color:'ti-palette',tamano:'ti-ruler-2',sanidad:'ti-stethoscope',flores:'ti-flower',
       raices:'ti-plant-2',grosor:'ti-arrows-horizontal',firmeza:'ti-hand-finger',plagas:'ti-bug',
