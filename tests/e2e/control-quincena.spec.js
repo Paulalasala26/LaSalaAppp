@@ -3819,3 +3819,24 @@ test('UAT-361: la galería distingue fotos SharePoint, históricas y pendientes 
   await expect.soft(card.getByTestId(`control-photo-status-${id}-2`)).toContainText('Pendiente local');
   expect(unexpectedHosts).toEqual([]);
 });
+
+test('UAT-371: Hacer foto solicita cámara trasera y vincula la captura (Chromium móvil simulado)', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const database = fixtureDatabase();
+  const id = 'e2e-control-current-fortnight';
+  database['lasala-control-fotos-indice-v1'] = JSON.stringify({});
+  database['lasala-control-fotos-shards-index'] = JSON.stringify(['lasala-control-fotos-v1']);
+  database['lasala-control-fotos-v1'] = JSON.stringify({});
+  const { overlay, unexpectedHosts } = await startControlTest(page, database);
+  const card = overlay.locator(`#control-card-${id}`);
+  const camera = card.getByTestId(`control-photo-camera-${id}`);
+  await expect(camera).toHaveAttribute('capture', 'environment');
+  await camera.setInputFiles({
+    name: 'e2e-uat-371-camera.png', mimeType: 'image/png',
+    buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/XxsAAAAASUVORK5CYII=', 'base64')
+  });
+  await expect(card.locator('img[title="Ver foto"]')).toHaveCount(1);
+  await expect.poll(() => JSON.parse(database['lasala-control-fotos-indice-v1'] || '{}')[id]).toBe('lasala-control-fotos-v1');
+  await expect.poll(() => JSON.parse(database['lasala-control-fotos-v1'] || '{}')[id]).toHaveLength(1);
+  expect(unexpectedHosts).toEqual([]);
+});
