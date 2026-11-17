@@ -1344,12 +1344,21 @@ test('UAT-628: una jornada Pistola vinculada no permite cambiar de fecha',async(
   data['17']['30']['2']={texto:'E2E-FECHA-VINCULADA 1 cc/l 18:00',caldoLitros:25,caldoLabel:'25L CUBA DE RUEDAS',tipoTrat:'Pistola',serieId:'e2e-serie-628',jornadaId:'e2e-jornada-628'};
   database['lasala-fito-v1']=JSON.stringify(data);
   database['lasala-tareas-v1']=JSON.stringify([{id:'e2e-task-628',titulo:'E2E-FECHA-VINCULADA 1 cc/l',asignadoA:'PEON2',origen:'pistola',categoria:'fumigacion',fechaISO:'2026-06-30',estado:'pendiente',serieId:'e2e-serie-628',jornadaId:'e2e-jornada-628',origenFito:{serieId:'e2e-serie-628',jornadaId:'e2e-jornada-628'},objetivos:[{inv:'17',calles:'INV 17 CALLES 2'}]}]);
-  const {overlay}=await openFito(page,database);
+  const {overlay,writes}=await openFito(page,database);
   await overlay.locator('#fito-grid-wrap textarea[data-finv="17"][data-fdia="30"][data-frc="2"]').dblclick();
   const form=page.locator('#fito-manual-overlay');
   await expect(form).toBeVisible();
-  test.fail(true,'El formulario de edición permite cambiar la fecha de una jornada Pistola que conserva una tarea pendiente vinculada.');
-  await expect(form.locator('#fm-dia')).toBeDisabled();
+  const originalFito=database['lasala-fito-v1'];
+  const originalTasks=database['lasala-tareas-v1'];
+  test.fail(true,'Guardar la fecha nueva crea el tratamiento en día 31 y mueve la tarea, en vez de impedir el cambio de una jornada vinculada.');
+  await form.locator('#fm-dia').selectOption('31');
+  await expect(form.locator('#fm-dia')).toHaveValue('31');
+  await form.getByRole('button',{name:'Guardar'}).click();
+  await expect(form).toBeHidden();
+  await expect(page.locator('#app-toast')).toContainText('aplicado');
+  await expect.poll(()=>database['lasala-fito-v1']).toBe(originalFito);
+  await expect.poll(()=>database['lasala-tareas-v1']).toBe(originalTasks);
+  expect(writes).toEqual([]);
 });
 
 test('UAT-629: una jornada Pistola vinculada no permite cambiar el método a Cañón',async({page})=>{
@@ -1358,12 +1367,21 @@ test('UAT-629: una jornada Pistola vinculada no permite cambiar el método a Ca�
   data['17']['30']['2']={texto:'E2E-METODO-VINCULADO 1 cc/l 18:00',caldoLitros:25,caldoLabel:'25L CUBA DE RUEDAS',tipoTrat:'Pistola',serieId:'e2e-serie-629',jornadaId:'e2e-jornada-629'};
   database['lasala-fito-v1']=JSON.stringify(data);
   database['lasala-tareas-v1']=JSON.stringify([{id:'e2e-task-629',titulo:'E2E-METODO-VINCULADO 1 cc/l',asignadoA:'PEON2',origen:'pistola',categoria:'fumigacion',fechaISO:'2026-06-30',estado:'pendiente',serieId:'e2e-serie-629',jornadaId:'e2e-jornada-629',origenFito:{serieId:'e2e-serie-629',jornadaId:'e2e-jornada-629'},objetivos:[{inv:'17',calles:'INV 17 CALLES 2'}]}]);
-  const {overlay}=await openFito(page,database);
+  const {overlay,writes}=await openFito(page,database);
   await overlay.locator('#fito-grid-wrap textarea[data-finv="17"][data-fdia="30"][data-frc="2"]').dblclick();
   const form=page.locator('#fito-manual-overlay');
   await expect(form).toBeVisible();
-  test.fail(true,'El formulario permite cambiar Pistola por Cañón en una jornada vinculada a una tarea pendiente.');
-  await expect(form.locator('#fm-tipo-trat')).toBeDisabled();
+  const originalFito=database['lasala-fito-v1'];
+  const originalTasks=database['lasala-tareas-v1'];
+  test.fail(true,'Guardar Cañón cambia el método de la jornada Pistola vinculada y reemplaza su ID/tarea pendiente.');
+  await form.locator('#fm-tipo-trat').selectOption('Cañón');
+  await expect(form.locator('#fm-tipo-trat')).toHaveValue('Cañón');
+  await form.getByRole('button',{name:'Guardar'}).click();
+  await expect(form).toBeHidden();
+  await expect(page.locator('#app-toast')).toContainText('aplicado');
+  await expect.poll(()=>database['lasala-fito-v1']).toBe(originalFito);
+  await expect.poll(()=>database['lasala-tareas-v1']).toBe(originalTasks);
+  expect(writes).toEqual([]);
 });
 
 test('UAT-630: una Pistola pendiente rechaza ampliar objetivos a otra sala',async({page})=>{
@@ -1389,6 +1407,35 @@ test('UAT-630: una Pistola pendiente rechaza ampliar objetivos a otra sala',asyn
   expect(database['lasala-fito-v1']).toBe(originalFito);
   expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([task]);
   expect(writes).toEqual([]);
+});
+
+test('UAT-632: una tarea legacy parecida no se fusiona con una nueva jornada Pistola',async({page})=>{
+  const database=fixtureDatabase();
+  const legacy={id:'e2e-legacy-632',titulo:'E2E-LEGACY-632 1 cc/l',asignadoA:'PEON2',origen:'pistola',categoria:'fumigacion',fechaISO:'2026-06-30',estado:'pendiente',producto:'E2E-LEGACY-632',dosis:'1 cc/l',objetivos:[{inv:'17',calles:'INV 17 CALLES 2'}]};
+  database['lasala-tareas-v1']=JSON.stringify([legacy]);
+  const {overlay,unexpectedHosts}=await openFito(page,database);
+  await overlay.locator('button[data-finv="17"]').click();
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await form.locator('input[name="fm-bulk-modo-17"]').nth(2).check();
+  const tramo=form.locator('#fm-bulk-tramos-17 .fm-bulk-tramo-row').first();
+  await tramo.locator('.fm-bulk-tramo-desde').selectOption('2');
+  await tramo.locator('.fm-bulk-tramo-hasta').selectOption('2');
+  await form.locator('#fm-trat').fill('E2E-LEGACY-632');
+  await form.locator('#fm-dosis').fill('1 cc/l');
+  await form.locator('#fm-tipo-trat').selectOption('Pistola');
+  await form.locator('#fm-caldo').selectOption('25');
+  await form.locator('#fm-horario').selectOption('18:00');
+  await form.getByRole('button',{name:'Guardar'}).click();
+  await expect(form).toBeHidden();
+  await expect.poll(()=>fitoData(database)?.['17']?.['30']?.['2']).toMatchObject({tipoTrat:'Pistola'});
+  const tasks=JSON.parse(database['lasala-tareas-v1']||'[]').filter(t=>t.categoria==='fumigacion');
+  expect(tasks).toHaveLength(2);
+  expect(tasks.find(t=>t.id===legacy.id)).toEqual(legacy);
+  const nueva=tasks.find(t=>t.id!==legacy.id);
+  expect(nueva).toMatchObject({estado:'pendiente',serieId:fitoData(database)?.['17']?.['30']?.['2']?.serieId,jornadaId:fitoData(database)?.['17']?.['30']?.['2']?.jornadaId});
+  expect(nueva.id).not.toBe(legacy.id);
+  expect(unexpectedHosts).toEqual([]);
 });
 
 test('UAT-500 y UAT-501: Pistola y Cañón no guardan una jornada sin producto ni dosis',async({page})=>{
