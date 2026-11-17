@@ -798,6 +798,22 @@ test('UAT-1253–1254, UAT-1416 y UAT-1425: tarjetas Pistola y Específicos iden
   expect(writes).toEqual([]);
 });
 
+test('UAT-624: Operativas encuentra la tarea Pistola por origen e invernadero/calles', async ({ page }) => {
+  const todayISO = await fechaISOEnNavegador(page);
+  const task = { id:'e2e-uat-624', titulo:'E2E Pistola UAT-624', descripcion:'Origen Plaguicidas', asignadoA:'PEON2', origen:'pistola', categoria:'fumigacion', inv:'17', calles:'2', objetivos:[{inv:'17',calles:'2'}], fechaISO:todayISO, estado:'pendiente' };
+  const { database, writes } = await installFixture(page, { 'lasala-tareas-v1': JSON.stringify([task]) });
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  await overlay.getByRole('button', { name:/Tareas de hoy/ }).click();
+  const card = overlay.locator('#tareas-gestor-content-wrap .tarea-card').filter({ hasText:task.titulo });
+  await expect(card).toBeVisible();
+  await expect(card).toContainText(/pistola/i);
+  await expect(card).toContainText('INV 17');
+  await expect(card).toContainText('2');
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([task]);
+  expect(writes).toEqual([]);
+});
+
 test('UAT-1261 y UAT-1265: ADMIN consulta la tarea y el título largo se ajusta en móvil', async ({ page }) => {
   const tomorrowISO = await fechaISOEnNavegador(page, 1);
   const task = {
