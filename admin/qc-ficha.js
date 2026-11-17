@@ -14,7 +14,7 @@
     {key:'color',name:'Color',options:[['verde','Verde'],['amarillo','Amarillo'],['verdeClaro','Verde claro'],['ok','OK']]},
     {key:'tamano',name:'Tamaño',options:[['grande','Grande'],['pequeno','Pequeño'],['ok','OK']]},
     {key:'sanidad',name:'Sanidad',options:[['ok','OK'],['enferma','Enferma']]},
-    {key:'flores',name:'Flores',options:[['si','Sí'],['no','No']]},
+    {key:'flores',name:'Flores',options:[['ok','OK'],['si','Sí']]},
     {key:'raices',name:'Raíces',options:[['pocaRaiz','Poca raíz'],['raizVariedad','Raíz en variedad'],['ok','OK']]}
   ];
   CATS.forEach(cat=>cat.options.push(['noEvaluada','No evaluada']));
@@ -244,7 +244,7 @@
     const root=el('qcu-legacy');root.replaceChildren();
     for(const cat of CATS){
       const names=new Map(cat.options);
-      const marked=checked(r[cat.key]).map(x=>names.get(x)||x);
+      const marked=checked(r[cat.key]).map(x=>names.get(cat.key==='flores'&&x==='no'?'ok':x)||x);
       root.append(legacyBlock(cat.name,marked.length?marked.join(' · '):'Sin responder'));
     }
     const extra=checked(r.sanidadEnfermedades).map(x=>ILLNESSES[x]||x);
@@ -257,7 +257,7 @@
     ];
     for(const k of otherRootKeys){
       const known=new Set(CATS.find(x=>x.key===k)?.options.map(x=>x[0])||[]);
-      const unknown=checked(r[k]).filter(x=>!known.has(x));
+      const unknown=checked(r[k]).filter(x=>!known.has(x)&&!(k==='flores'&&x==='no'));
       if(unknown.length)root.append(legacyBlock('Valores adicionales de '+k,unknown.join(' · ')));
     }
   }

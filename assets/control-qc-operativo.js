@@ -9,7 +9,7 @@
     ['tamano','Tamaño',[['ok','OK'],['grande','Grande'],['pequeno','Pequeño']]],
     ['plagas','Plagas',[['ok','OK'],['tuta','Tuta'],['minador','Minador'],['pulgon','Pulgón'],['oruga','Oruga'],['trips','Trips']]],
     ['enfermedades','Enfermedades',[['ok','OK'],['alternaria','Alternaria'],['mildiu','Mildiu'],['oidio','Oídio'],['botrytis','Botrytis'],['didymella','Didymella']]],
-    ['flores','Flores',[['si','Sí'],['no','No']]],
+    ['flores','Flores',[['ok','OK'],['si','Sí']]],
     ['raices','Raíces',[['ok','OK'],['pocaRaiz','Poca raíz'],['raizVieja','Raíz vieja']]],
     ['raicesInjerto','Raíces en punto de injerto',[['si','Sí'],['no','No']]]
   ];
@@ -18,7 +18,7 @@
     ['tamano','Tamaño',[['ok','OK'],['grande','Grande'],['pequeno','Pequeño']]],
     ['plagas','Plagas',[['ok','OK'],['tuta','Tuta'],['minador','Minador'],['pulgon','Pulgón'],['oruga','Oruga'],['trips','Trips']]],
     ['enfermedades','Enfermedades',[['ok','OK'],['alternaria','Alternaria'],['mildiu','Mildiu'],['oidio','Oídio'],['botrytis','Botrytis'],['didymella','Didymella']]],
-    ['flores','Flores',[['si','Sí'],['no','No']]],
+    ['flores','Flores',[['ok','OK'],['si','Sí']]],
     ['raices','Raíces',[['ok','OK'],['pocaRaiz','Poca raíz'],['raizVieja','Raíz vieja']]]
   ];
   const CATS_CARGA_NORMAL=[
@@ -26,7 +26,7 @@
     ['tamano','Tamaño',[['ok','OK'],['grande','Grande'],['pequeno','Pequeño']]],
     ['plagas','Plagas',[['ok','OK'],['tuta','Tuta'],['minador','Minador'],['pulgon','Pulgón'],['oruga','Oruga'],['trips','Trips']]],
     ['enfermedades','Enfermedades',[['ok','OK'],['alternaria','Alternaria'],['mildiu','Mildiu'],['oidio','Oídio'],['botrytis','Botrytis'],['didymella','Didymella']]],
-    ['flores','Flores',[['si','Sí'],['no','No']]],
+    ['flores','Flores',[['ok','OK'],['si','Sí']]],
     ['raices','Raíces',[['ok','OK'],['pocaRaiz','Poca raíz'],['raizVieja','Raíz vieja']]]
   ];
   const CATS_PREINJERTO_VARIEDAD=[

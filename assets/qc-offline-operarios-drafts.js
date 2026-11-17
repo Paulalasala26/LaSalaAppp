@@ -6,7 +6,7 @@
   ['color','Color',[['verde','Verde'],['amarillo','Amarillo'],['verdeClaro','Verde claro'],['ok','OK'],['noEvaluada','No evaluada']]],
   ['tamano','Tamaño',[['grande','Grande'],['pequeno','Pequeño'],['ok','OK'],['noEvaluada','No evaluada']]],
   ['sanidad','Sanidad',[['ok','OK'],['enfermedad1','Enfermedad 1'],['enfermedad2','Enfermedad 2'],['enfermedad3','Enfermedad 3'],['enfermedad4','Enfermedad 4'],['noEvaluada','No evaluada']]],
-  ['flores','Flores',[['ok','Ok'],['si','Con flores'],['noEvaluada','No evaluada']]],
+  ['flores','Flores',[['ok','OK'],['si','Sí'],['noEvaluada','No evaluada']]],
   ['raices','Raíces',[['pocaRaiz','Poca raíz'],['raizVariedad','Raíz en variedad'],['ok','OK'],['noEvaluada','No evaluada']]]
  ];
  const HEALTH=['enfermedad1','enfermedad2','enfermedad3','enfermedad4'];

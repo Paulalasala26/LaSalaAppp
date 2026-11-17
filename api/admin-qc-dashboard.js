@@ -9,7 +9,7 @@ const OPTIONS={
   color:{verde:'Verde',amarillo:'Amarillo',verdeClaro:'Verde claro',ok:'OK'},
   tamano:{grande:'Grande',pequeno:'Pequeño',ok:'OK'},
   sanidad:{ok:'OK',enferma:'Enferma'},
-  flores:{si:'Sí',no:'No'},
+  flores:{ok:'OK',si:'Sí',no:'OK'},
   raices:{pocaRaiz:'Poca raíz',raizVariedad:'Raíz en variedad',ok:'OK'}
 };
 const CATEGORIES={color:'Color',tamano:'Tamaño',sanidad:'Sanidad',flores:'Flores',raices:'Raíces'};

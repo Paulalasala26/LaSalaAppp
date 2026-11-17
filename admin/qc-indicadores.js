@@ -7,7 +7,7 @@
     ['color','Color',{verde:'Verde',amarillo:'Amarillo',verdeClaro:'Verde claro',ok:'OK'}],
     ['tamano','Tamaño',{grande:'Grande',pequeno:'Pequeño',ok:'OK'}],
     ['sanidad','Sanidad',{ok:'OK',enferma:'Enferma',enfermedad1:'Enfermedad 1',enfermedad2:'Enfermedad 2',enfermedad3:'Enfermedad 3',enfermedad4:'Enfermedad 4'}],
-    ['flores','Flores',{si:'Sí',no:'No',ok:'OK'}],
+    ['flores','Flores',{si:'Sí',no:'OK',ok:'OK'}],
     ['raices','Raíces',{pocaRaiz:'Poca raíz',raizVariedad:'Raíz en variedad',raizVieja:'Raíz vieja',ok:'OK'}],
     ['firmeza','Firmeza',{duro:'Duro',tierno:'Tierno',ok:'OK'}]
   ];
@@ -74,7 +74,7 @@
           continue;
         }
         rows.push({category:cat,categoryLabel:name,option:'invalidas',
-          optionLabel:item.opciones.map(k=>cat==='flores'&&k==='no'?'Ok':cat==='flores'&&k==='ok'?'Ok':cat==='flores'&&k==='si'?'Con flores':labels[k]||k).join(' + '),
+          optionLabel:item.opciones.map(k=>cat==='flores'&&k==='no'?'OK':cat==='flores'&&k==='ok'?'OK':labels[k]||k).join(' + '),
           count:null,pct:item.porcentajeInvalidas,percentDisplay:item.porcentajeInvalidas,
           treatment:'informativo',treatmentLabel:'Informativo',
           tolerance:null,level:'neutral',description:'Porcentaje global de inválidas'});
