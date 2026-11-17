@@ -704,3 +704,22 @@ test('UAT-1012 y UAT-1013: la cuadrícula muestra INV vacío y tratamiento exist
   expect(writes).toEqual([]);
   expect(unexpectedHosts).toEqual([]);
 });
+
+test('UAT-1061: TÉCNICO abre el formulario de Específicos para hoy',async({page})=>{
+  const database=fixtureDatabase();
+  const {unexpectedHosts,writes}=await openSpecifics(page,database);
+  await switchSpecificsUser(page,tecnico);
+  await page.evaluate(()=>showEspecificosModule());
+  const overlay=page.locator('#especificos-overlay');
+  await expect(overlay).toBeVisible();
+  await overlay.locator('[data-einv="17"]').click();
+  const today=await page.evaluate(()=>riegoDiaDeHoy());
+  const empty=overlay.locator(`#especificos-grid-wrap input[data-einv="17"][data-edia="${today}"][data-erc="16"]`);
+  await empty.click();
+  const editor=page.locator('#especifico-manual-overlay');
+  await expect(editor).toBeVisible();
+  await expect(editor.locator('#esp-dia')).toHaveValue(String(today));
+  await expect(editor.locator('button[onclick="saveEspecificoManual()"]')).toBeVisible();
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
