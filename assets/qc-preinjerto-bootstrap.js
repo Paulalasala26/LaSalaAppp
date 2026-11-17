@@ -7,9 +7,9 @@
       key:'preinjerto_variedad',label:'QC Preinjerto Variedad',icon:'ti-seeding',
       color:'linear-gradient(135deg,#2e7d32,#66bb6a)',
       categories:[
-        {key:'color',label:'Color',icon:'ti-palette',gradient:'linear-gradient(135deg,#7b5cf0,#5c8df0)',tint:'#efeafd',options:[['verde','Verde'],['amarillo','Amarillo'],['verdeClaro','Verde claro'],['ok','OK']]},
-        {key:'tamano',label:'Tamaño',icon:'ti-ruler-2',gradient:'linear-gradient(135deg,#5c8df0,#3fc6b0)',tint:'#e8f2fd',options:[['grande','Grande'],['pequeno','Pequeño'],['ok','OK']]},
-        {key:'grosor',label:'Grosor',icon:'ti-arrows-horizontal',gradient:'linear-gradient(135deg,#00838f,#4dd0e1)',tint:'#e0f7fa',options:[['fino','Fino'],['ok','OK'],['grueso','Grueso']]},
+        {key:'color',label:'Color',icon:'ti-palette',gradient:'linear-gradient(135deg,#7b5cf0,#5c8df0)',tint:'#efeafd',options:[['ok','OK'],['verde','Verde'],['amarillo','Amarillo'],['verdeClaro','Verde claro']]},
+        {key:'tamano',label:'Tamaño',icon:'ti-ruler-2',gradient:'linear-gradient(135deg,#5c8df0,#3fc6b0)',tint:'#e8f2fd',options:[['ok','OK'],['grande','Grande'],['pequeno','Pequeño']]},
+        {key:'grosor',label:'Grosor',icon:'ti-arrows-horizontal',gradient:'linear-gradient(135deg,#00838f,#4dd0e1)',tint:'#e0f7fa',options:[['ok','OK'],['fino','Fino'],['grueso','Grueso']]},
         {key:'firmeza',label:'Firmeza',icon:'ti-hand-finger',gradient:'linear-gradient(135deg,#6a1b9a,#ab47bc)',tint:'#f3e5f5',options:[['ok','OK'],['duro','Duro'],['tierno','Tierno']]},
         {key:'plagas',label:'Plagas',icon:'ti-bug',gradient:'linear-gradient(135deg,#f5a35c,#f0715c)',tint:'#fdece5',options:[['ok','OK'],['tuta','Tuta'],['minador','Minador'],['pulgon','Pulgón'],['oruga','Oruga'],['trips','Trips']]},
         {key:'enfermedades',label:'Enfermedades',icon:'ti-virus',gradient:'linear-gradient(135deg,#ad1457,#ec407a)',tint:'#fce4ec',options:[['ok','OK'],['alternaria','Alternaria'],['mildiu','Mildiu'],['oidio','Oídio'],['botrytis','Botrytis'],['didymella','Didymella']]}

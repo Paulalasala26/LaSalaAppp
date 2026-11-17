@@ -19,9 +19,9 @@
     ['raices','Raíces',[['pocaRaiz','Poca raíz'],['raizVieja','Raíz vieja'],['ok','OK']]]
   ];
   const CATS_PREINJERTO_VARIEDAD=[
-    ['color','Color',[['verde','Verde'],['amarillo','Amarillo'],['verdeClaro','Verde claro'],['ok','OK']]],
-    ['tamano','Tamaño',[['grande','Grande'],['pequeno','Pequeño'],['ok','OK']]],
-    ['grosor','Grosor',[['fino','Fino'],['ok','OK'],['grueso','Grueso']]],
+    ['color','Color',[['ok','OK'],['verde','Verde'],['amarillo','Amarillo'],['verdeClaro','Verde claro']]],
+    ['tamano','Tamaño',[['ok','OK'],['grande','Grande'],['pequeno','Pequeño']]],
+    ['grosor','Grosor',[['ok','OK'],['fino','Fino'],['grueso','Grueso']]],
     ['firmeza','Firmeza',[['ok','OK'],['duro','Duro'],['tierno','Tierno']]],
     ['plagas','Plagas',[['ok','OK'],['tuta','Tuta'],['minador','Minador'],['pulgon','Pulgón'],['oruga','Oruga'],['trips','Trips']]],
     ['enfermedades','Enfermedades',[['ok','OK'],['alternaria','Alternaria'],['mildiu','Mildiu'],['oidio','Oídio'],['botrytis','Botrytis'],['didymella','Didymella']]]
