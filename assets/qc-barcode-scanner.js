@@ -1,0 +1,308 @@
+/* APP R: escáner Code 39 de tablillas para localizar inspecciones QC existentes.
+ * Lee el ID impreso desde cámara cuando el navegador soporta BarcodeDetector.
+ * La búsqueda solo lee datos QC ya cargados en Firebase; no crea ni modifica registros.
+ */
+(function () {
+  'use strict';
+
+  if (window.__APP_R_QC_BARCODE_INSTALLED__) return;
+  window.__APP_R_QC_BARCODE_INSTALLED__ = true;
+
+  var TYPES = [
+    { key: 'preinjerto_patron', label: 'Preinjerto Patrón' },
+    { key: 'preinjerto_variedad', label: 'Preinjerto Variedad' },
+    { key: 'tunel', label: 'Túnel' },
+    { key: 'carga', label: 'Carga normal' },
+    { key: 'carga_injerto', label: 'Carga Injerto' }
+  ];
+  var overlay = null;
+  var video = null;
+  var statusNode = null;
+  var resultsNode = null;
+  var startButton = null;
+  var stream = null;
+  var detector = null;
+  var scanTimer = null;
+  var detecting = false;
+
+  function setStatus(message, isError) {
+    if (!statusNode) return;
+    statusNode.textContent = message;
+    statusNode.style.color = isError ? '#b42318' : '#405344';
+  }
+
+  function stopCamera() {
+    detecting = false;
+    if (scanTimer) {
+      clearTimeout(scanTimer);
+      scanTimer = null;
+    }
+    if (stream) {
+      stream.getTracks().forEach(function (track) { track.stop(); });
+      stream = null;
+    }
+    if (video) video.srcObject = null;
+    detector = null;
+    if (startButton) startButton.disabled = false;
+  }
+
+  function closeOverlay() {
+    stopCamera();
+    if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
+    overlay = null;
+    video = null;
+    statusNode = null;
+    resultsNode = null;
+    startButton = null;
+  }
+
+  function supportedTypes() {
+    var role = '';
+    try { role = String(currentUserRole || '').toUpperCase(); } catch (e) {}
+    if (role === 'CARGADOR') return ['carga', 'carga_injerto'];
+    return TYPES.map(function (item) { return item.key; });
+  }
+
+  function openOverlay() {
+    if (overlay) return;
+    overlay = document.createElement('div');
+    overlay.id = 'app-r-qc-barcode-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:100500;background:rgba(13,25,16,.72);display:flex;align-items:center;justify-content:center;padding:14px;box-sizing:border-box';
+    overlay.innerHTML =
+      '<section role="dialog" aria-modal="true" aria-labelledby="app-r-qc-barcode-title" style="width:min(100%,520px);max-height:94vh;overflow:auto;background:#fff;border-radius:16px;padding:18px;box-shadow:0 18px 60px rgba(0,0,0,.28);font-family:inherit;box-sizing:border-box">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px">' +
+          '<div><h2 id="app-r-qc-barcode-title" style="margin:0;font-size:19px;color:#20352a">Escanear tablilla</h2>' +
+          '<div style="font-size:12px;color:#65736a;margin-top:3px">Lee el código de barras Code 39 de la partida.</div></div>' +
+          '<button type="button" data-action="close" aria-label="Cerrar" style="border:0;background:#edf2ee;border-radius:9px;width:38px;height:38px;font-size:22px;cursor:pointer;color:#263b2c">×</button>' +
+        '</div>' +
+        '<div style="position:relative;background:#101510;border-radius:12px;overflow:hidden;min-height:180px;display:flex;align-items:center;justify-content:center">' +
+          '<video data-role="video" playsinline muted style="display:none;width:100%;max-height:42vh;object-fit:cover"></video>' +
+          '<div data-role="camera-placeholder" style="padding:24px;text-align:center;color:#e8f0e9;font-size:13px">Activa la cámara y enfoca el código de barras.</div>' +
+          '<div aria-hidden="true" style="position:absolute;left:8%;right:8%;top:50%;height:2px;background:#75d28a;box-shadow:0 0 8px #75d28a"></div>' +
+        '</div>' +
+        '<div style="display:flex;gap:8px;margin-top:11px">' +
+          '<button type="button" data-action="start" disabled style="flex:1;border:0;border-radius:9px;padding:11px 13px;background:#2e7d32;color:#fff;font-size:14px;font-weight:700;cursor:pointer">Comprobando lector…</button>' +
+        '</div>' +
+        '<p data-role="status" aria-live="polite" style="min-height:18px;margin:10px 0 12px;font-size:12px;color:#405344">Comprobando si este navegador puede leer Code 39…</p>' +
+        '<form data-role="manual-form" style="border-top:1px solid #e5e9e5;padding-top:13px">' +
+          '<label for="app-r-qc-barcode-manual" style="display:block;font-size:12px;font-weight:700;color:#33483a;margin-bottom:5px">Introducir código manualmente</label>' +
+          '<div style="display:flex;gap:8px">' +
+            '<input id="app-r-qc-barcode-manual" type="text" inputmode="text" autocomplete="off" placeholder="Ej.: 26010583" style="min-width:0;flex:1;border:1px solid #b7c3b8;border-radius:8px;padding:10px;font-size:16px">' +
+            '<button type="submit" style="border:0;border-radius:8px;padding:0 14px;background:#eaf2eb;color:#245b2c;font-size:13px;font-weight:700;cursor:pointer">Buscar</button>' +
+          '</div>' +
+        '</form>' +
+        '<div data-role="results" style="margin-top:10px"></div>' +
+      '</section>';
+    document.body.appendChild(overlay);
+
+    video = overlay.querySelector('[data-role="video"]');
+    statusNode = overlay.querySelector('[data-role="status"]');
+    resultsNode = overlay.querySelector('[data-role="results"]');
+    startButton = overlay.querySelector('[data-action="start"]');
+
+    overlay.querySelector('[data-action="close"]').addEventListener('click', closeOverlay);
+    startButton.addEventListener('click', startCamera);
+    overlay.addEventListener('click', function (event) {
+      if (event.target === overlay) closeOverlay();
+    });
+    overlay.querySelector('[data-role="manual-form"]').addEventListener('submit', function (event) {
+      event.preventDefault();
+      var input = overlay.querySelector('#app-r-qc-barcode-manual');
+      findPartida(input ? input.value : '');
+    });
+
+    if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function') {
+      startButton.textContent = 'Cámara no disponible';
+      startButton.disabled = true;
+      setStatus('Este navegador no ofrece acceso a la cámara desde la app. Puedes introducir el código completo manualmente.', true);
+      return;
+    }
+    if (!window.BarcodeDetector || typeof window.BarcodeDetector.getSupportedFormats !== 'function') {
+      startButton.textContent = 'Lector no compatible';
+      startButton.disabled = true;
+      setStatus('Este navegador no incorpora lectura Code 39. Puedes introducir el código completo manualmente.', true);
+      return;
+    }
+    window.BarcodeDetector.getSupportedFormats().then(function (formats) {
+      if (!overlay) return;
+      if (formats.indexOf('code_39') < 0) {
+        startButton.textContent = 'Code 39 no compatible';
+        startButton.disabled = true;
+        setStatus('Este navegador no reconoce Code 39 con la cámara. Puedes introducir el código completo manualmente.', true);
+        return;
+      }
+      startButton.textContent = 'Activar cámara';
+      startButton.disabled = false;
+      setStatus('Enfoca el código de barras completo. La búsqueda usará el ID GS tal como está codificado.');
+    }).catch(function () {
+      if (!overlay) return;
+      startButton.textContent = 'Lector no disponible';
+      startButton.disabled = true;
+      setStatus('No se pudo comprobar el lector Code 39. Puedes introducir el código completo manualmente.', true);
+    });
+  }
+
+  async function startCamera() {
+    if (!overlay || !startButton) return;
+    if (!window.BarcodeDetector || typeof window.BarcodeDetector.getSupportedFormats !== 'function') {
+      setStatus('Este navegador no ofrece un lector Code 39 integrado. Introduce el código completo manualmente.', true);
+      return;
+    }
+    startButton.disabled = true;
+    setStatus('Solicitando acceso a la cámara…');
+    try {
+      detector = new window.BarcodeDetector({ formats: ['code_39'] });
+      var cameraRequest = navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 } }
+      });
+      stream = await cameraRequest;
+      if (!overlay) {
+        stopCamera();
+        return;
+      }
+      video.srcObject = stream;
+      video.style.display = 'block';
+      var placeholder = overlay.querySelector('[data-role="camera-placeholder"]');
+      if (placeholder) placeholder.style.display = 'none';
+      await video.play();
+      detecting = true;
+      setStatus('Buscando código Code 39…');
+      scanFrame();
+    } catch (error) {
+      stopCamera();
+      var message = error && error.name === 'NotAllowedError'
+        ? 'No se concedió permiso de cámara. Permítelo en el navegador o introduce el código manualmente.'
+        : 'No se pudo iniciar la cámara. Comprueba los permisos o introduce el código manualmente.';
+      setStatus(message, true);
+    }
+  }
+
+  async function scanFrame() {
+    if (!detecting || !video || !detector) return;
+    if (video.readyState < 2) {
+      scanTimer = setTimeout(scanFrame, 180);
+      return;
+    }
+    try {
+      var codes = await detector.detect(video);
+      if (codes && codes.length && codes[0].rawValue) {
+        var value = String(codes[0].rawValue).trim().replace(/^\\*|\\*$/g, '');
+        stopCamera();
+        findPartida(value);
+        return;
+      }
+    } catch (error) {
+      setStatus('No se pudo leer ese fotograma; mantén el código enfocado y estable.');
+    }
+    if (detecting) scanTimer = setTimeout(scanFrame, 180);
+  }
+
+  function labelForType(type) {
+    var item = TYPES.find(function (entry) { return entry.key === type; });
+    return item ? item.label : type || 'QC';
+  }
+
+  function exactMatches(code) {
+    if (typeof controlChecksData === 'undefined' || !Array.isArray(controlChecksData)) return [];
+    var wanted = String(code).trim().toUpperCase();
+    return controlChecksData.filter(function (record) {
+      return record && record.partida != null &&
+        String(record.partida).trim().toUpperCase() === wanted &&
+        supportedTypes().indexOf(record.tipo) >= 0;
+    }).sort(function (a, b) {
+      return TYPES.findIndex(function (entry) { return entry.key === a.tipo; }) -
+        TYPES.findIndex(function (entry) { return entry.key === b.tipo; }) ||
+        (Number(b.dia) || 0) - (Number(a.dia) || 0);
+    });
+  }
+
+  async function findPartida(rawCode) {
+    var code = String(rawCode == null ? '' : rawCode).trim().replace(/^\\*|\\*$/g, '');
+    if (!code) {
+      setStatus('Lee el código completo o introdúcelo manualmente.', true);
+      return;
+    }
+    if (resultsNode) resultsNode.textContent = '';
+    var types = supportedTypes();
+    try {
+      if (typeof loadControlTipoCompleto !== 'function') throw new Error('QC_LOADER_UNAVAILABLE');
+      for (var i = 0; i < types.length; i++) {
+        setStatus('Cargando registros QC: ' + labelForType(types[i]) + '…');
+        var loaded = await loadControlTipoCompleto(types[i], false);
+        if (!loaded) throw new Error('QC_LOAD_FAILED');
+      }
+      var matches = exactMatches(code);
+      setStatus('Código leído: ' + code);
+      if (!matches.length) {
+        setStatus('Código ' + code + ': no hay un QC registrado para esta partida.');
+        if (resultsNode) resultsNode.textContent = '';
+        return;
+      }
+      if (matches.length === 1) {
+        var only = matches[0];
+        closeOverlay();
+        if (typeof abrirMedicionesControl === 'function') abrirMedicionesControl(only.id);
+        else showToast('El formulario QC no está disponible.');
+        return;
+      }
+      renderMatches(code, matches);
+    } catch (error) {
+      setStatus('No se pudieron consultar todos los registros QC. Comprueba la conexión e inténtalo de nuevo.', true);
+      if (window.console && console.error) console.error('[QC barcode lookup]', error);
+    }
+  }
+
+  function renderMatches(code, matches) {
+    if (!resultsNode) return;
+    resultsNode.textContent = '';
+    var heading = document.createElement('div');
+    heading.textContent = 'La partida ' + code + ' tiene ' + matches.length + ' controles. Elige cuál abrir:';
+    heading.style.cssText = 'font-size:13px;font-weight:700;color:#263b2c;margin:12px 0 7px';
+    resultsNode.appendChild(heading);
+
+    matches.forEach(function (record) {
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.style.cssText = 'display:flex;width:100%;align-items:center;justify-content:space-between;gap:12px;text-align:left;margin:6px 0;padding:11px 12px;border:1px solid #d5dfd5;border-radius:9px;background:#fff;color:#263b2c;cursor:pointer';
+      var title = document.createElement('span');
+      title.textContent = labelForType(record.tipo);
+      title.style.cssText = 'font-size:13px;font-weight:700';
+      var date = document.createElement('span');
+      var dateText = '';
+      try {
+        if (typeof riegoDiaLabelCorto === 'function' && Number.isFinite(Number(record.dia))) dateText = riegoDiaLabelCorto(record.dia);
+      } catch (error) {}
+      date.textContent = dateText || (record.dia != null ? 'Día ' + record.dia : '');
+      date.style.cssText = 'font-size:12px;color:#65736a;white-space:nowrap';
+      button.appendChild(title);
+      button.appendChild(date);
+      button.addEventListener('click', function () {
+        var selected = matches.find(function (item) { return item.id === record.id; });
+        closeOverlay();
+        if (selected && typeof abrirMedicionesControl === 'function') abrirMedicionesControl(selected.id);
+        else showToast('El formulario QC no está disponible.');
+      });
+      resultsNode.appendChild(button);
+    });
+  }
+
+  function installButton() {
+    var renderSummary = window.renderControlResumenHTML;
+    if (typeof renderSummary !== 'function' || renderSummary.__qcBarcodeWrapped) return;
+    var wrapped = function () {
+      var original = renderSummary.apply(this, arguments);
+      var action = '<div style="margin-bottom:12px">' +
+        '<button type="button" onclick="window.AppRQCBarcode.open()" aria-label="Escanear código de barras de una tablilla" ' +
+          'style="display:flex;align-items:center;justify-content:center;gap:9px;width:100%;min-height:46px;border:0;border-radius:11px;padding:11px 14px;background:#e7f1e8;color:#205b2a;font-size:14px;font-weight:800;cursor:pointer">' +
+          '<span aria-hidden="true" style="font-size:19px">▥</span><span>Escanear tablilla</span></button></div>';
+      return action + original;
+    };
+    wrapped.__qcBarcodeWrapped = true;
+    window.renderControlResumenHTML = wrapped;
+  }
+
+  window.AppRQCBarcode = { open: openOverlay };
+  installButton();
+  document.addEventListener('DOMContentLoaded', installButton, { once: true });
+})();
