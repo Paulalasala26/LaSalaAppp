@@ -661,6 +661,32 @@ async function actualizarStorageJsonConEtag(key, valorInicial, mutador){
       const tieneValue=cambio && typeof cambio==='object' && !Array.isArray(cambio) && Object.prototype.hasOwnProperty.call(cambio,'value');
       const siguiente=tieneValue ? cambio.value : cambio;
       const result=tieneValue ? cambio.result : undefined;
+      if(key===TAREAS_KEY){
+        await ensureFirebaseIdTokenFresh();
+        if(!firebaseIdToken) return {ok:false,error:new Error('Tareas: sesión Firebase no válida.')};
+        let apiRes;
+        try{
+          apiRes=await appFetch('/api/admin-qc-dashboard?modo=tareas-write',{
+            method:'POST',
+            headers:{'Content-Type':'application/json','Authorization':'Bearer '+firebaseIdToken},
+            body:JSON.stringify({expectedEtag:etag,value:siguiente})
+          });
+        }catch(e){ return {ok:false,error:e}; }
+        if(apiRes.status===409){
+          if(intento===5)return {ok:false,conflict:true};
+          continue;
+        }
+        if(!apiRes.ok){
+          let detail='Tareas: el servidor rechazó el cambio.';
+          try{const body=await apiRes.json();detail=body?.error||detail;}catch(_){}
+          return {ok:false,error:new Error(detail)};
+        }
+        try{
+          const body=await apiRes.json();
+          if(!body?.ok||!Array.isArray(body.value))return {ok:false,error:new Error('Tareas: respuesta de servidor inválida.')};
+          return {ok:true,value:body.value,result};
+        }catch(e){return {ok:false,error:e};}
+      }
       const putRes=await appFetch(url,{
         method:'PUT',
         headers:{'Content-Type':'application/json','if-match':etag},
@@ -1215,23 +1241,22 @@ async function loadTareasData(forzar){
   try{ const r=await window.storage.get(TAREAS_KEY); if(r){ tareasData=JSON.parse(r.value); tareasDataCargadaEn = Date.now(); } }catch(e){}
   // Ninguna tarea se elimina al abrir; Archivo conserva la trazabilidad.
 }
-async function persistTareasData(){
-  try{
-    const locales=tareasData.slice();
-    const tx=await actualizarStorageJsonConEtag(TAREAS_KEY,[],cloud=>{
-      if(!Array.isArray(cloud)) cloud=[];
-      const map={};
-      cloud.forEach(t=>map[t.id]=t);
-      locales.forEach(t=>{
-         // Las tareas Pistola vinculadas no admiten sobrescrituras de snapshots.
-         if(t.origenFito?.serieId||map[t.id]?.origenFito?.serieId)return;
-         map[t.id]=t;
-       });
-      return Object.values(map);
-    });
-    if(!tx.ok){ avisarFalloGuardado(); return; }
-    tareasData=tx.value;
-  }catch(e){ avisarFalloGuardado(); }
+async function guardarTareaAutomatica(buscar, crear, fusionar){
+  const tx=await actualizarStorageJsonConEtag(TAREAS_KEY,[],cloud=>{
+    if(!Array.isArray(cloud))throw new Error('Tareas: formato inesperado; no se puede asignar.');
+    const indices=[];
+    cloud.forEach((t,i)=>{if(buscar(t))indices.push(i);});
+    if(indices.length>1)throw new Error('Tareas duplicadas para la misma orden. Revisión manual necesaria.');
+    if(!indices.length)return [...cloud,crear()];
+    const index=indices[0], actual=cloud[index], siguiente=fusionar({...actual});
+    if(JSON.stringify(actual)===JSON.stringify(siguiente))return undefined;
+    const resultado=cloud.slice();resultado[index]=siguiente;return resultado;
+  });
+  if(!tx.ok)throw new Error('No se confirmó la tarea automática. Actualiza la pantalla y revisa antes de repetir.');
+  tareasData=tx.value;
+  tareasDataCargadaEn=Date.now();
+  refreshTareasViews();
+  return !tx.noChange;
 }
 function estadoTareaLabel(estado){
   if(estado==='completada') return '✓ Completada';
@@ -4153,83 +4178,66 @@ function imprimirHojaFitoConDatos(datos){
 // creará una tarea aparte (fusionarOCrear exige también mismo caldoLabel).
 async function autoAsignarTareaFumigacion(objetivos, dia, titulo, horario, extra){
   if(!titulo || !objetivos || !objetivos.length)throw Error('Pistola: faltan producto u objetivos.');
-  const fechaLabel = riegoDiaLabelCorto(dia);
-  const fechaISO = fechaLocalISO(riegoDiaToDate(dia));
-  const caldoLabel = extra?.caldoLabel || '';
+  const fechaLabel=riegoDiaLabelCorto(dia), fechaISO=fechaLocalISO(riegoDiaToDate(dia));
+  const caldoLabel=extra?.caldoLabel||'';
   const vinculo=extra?.serieId&&extra?.jornadaId
     ?{serieId:String(extra.serieId),jornadaId:String(extra.jornadaId)}:null;
-  const crearTareaAuto = (asignadoA) => ({
-    id: 'tarea_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
-    titulo, descripcion:'', asignadoA, asignadoPor: currentUser||'—',
-    inv:'', calles:'', objetivos: objetivos.map(o=>({inv:o.invId, calles:o.callesLabel})),
-    fecha: fechaLabel, fechaISO, turno:'',
-    horario: horario||'', categoria:'fumigacion',
-    producto: extra?.producto||'', dosis: extra?.dosis||'', caldoLabel, caldoLitros: extra?.caldoLitros||null,
-    prioridad:'normal', estado:'pendiente', horaInicio:null, horaInicioTs:null, horaFin:null, firmante:null,
-    caldoSobrante:null, firmaPreparador:null, firmaAplicador:null,
-    visto:false, creadoEn: new Date().toLocaleString('es-ES')
+  const crearTareaAuto=asignadoA=>({
+    id:'tarea_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
+    titulo,descripcion:'',asignadoA,asignadoPor:currentUser||'—',inv:'',calles:'',
+    objetivos:objetivos.map(o=>({inv:o.invId,calles:o.callesLabel})),
+    fecha:fechaLabel,fechaISO,turno:'',horario:horario||'',categoria:'fumigacion',
+    producto:extra?.producto||'',dosis:extra?.dosis||'',caldoLabel,caldoLitros:extra?.caldoLitros||null,
+    prioridad:'normal',estado:'pendiente',horaInicio:null,horaInicioTs:null,horaFin:null,firmante:null,
+    caldoSobrante:null,firmaPreparador:null,firmaAplicador:null,visto:false,
+    creadoEn:new Date().toLocaleString('es-ES')
   });
-  // APP R v3: cada jornada guardada es una orden identificable, incluso si
-  // otro tratamiento del mismo día tiene idénticos producto, hora y caldo.
-  // La transacción ETag verifica la relación EN LA NUBE (sin copiar un estado
-  // local obsoleto), impide fusiones erróneas y tolera reintentos/concurrencia.
   if(vinculo){
     if(!['ADMIN','TECNICO'].includes(currentUserRole))throw Error('Solo técnicos y administradores asignan jornadas Pistola.');
     const salas=[...new Set(objetivos.map(o=>salaDeInv(o.invId)))];
     if(salas.length!==1||!salas[0])throw Error('Pistola: tarea no asignada por salas incompatibles.');
-    const asignadoA=peonDelaSala(objetivos[0].invId);
-    const nueva={...crearTareaAuto(asignadoA),origenFito:vinculo};
+    const asignadoA=peonDelaSala(objetivos[0].invId), nueva={...crearTareaAuto(asignadoA),origenFito:vinculo};
     const tx=await actualizarStorageJsonConEtag(TAREAS_KEY,[],cloud=>{
       if(!Array.isArray(cloud))throw Error('Tareas: formato inesperado; no se puede asignar.');
-      const mismas=cloud.filter(t=>t.origenFito?.serieId===vinculo.serieId
-        &&t.origenFito?.jornadaId===vinculo.jornadaId);
+      const mismas=cloud.filter(t=>t.origenFito?.serieId===vinculo.serieId&&t.origenFito?.jornadaId===vinculo.jornadaId);
       if(mismas.length>1)throw Error('Tareas: varias asignaciones para una jornada. Revisar conciliación.');
       if(mismas.length===1){
         const t=mismas[0];
         const objetivosKey=a=>JSON.stringify((a||[]).map(o=>[String(o.inv),String(o.calles||'')])
           .sort((x,y)=>x[0].localeCompare(y[0],'es',{numeric:true})||x[1].localeCompare(y[1],'es')));
-        if(t.fechaISO!==fechaISO||t.asignadoA!==asignadoA||t.categoria!=='fumigacion'
-         ||t.titulo!==nueva.titulo||t.producto!==nueva.producto||t.dosis!==nueva.dosis
-         ||t.horario!==nueva.horario||t.caldoLabel!==nueva.caldoLabel
-         ||(t.caldoLitros??null)!==(nueva.caldoLitros??null)
-         ||objetivosKey(t.objetivos)!==objetivosKey(nueva.objetivos))
+        if(t.fechaISO!==fechaISO||t.asignadoA!==asignadoA||t.categoria!=='fumigacion'||t.titulo!==nueva.titulo
+         ||t.producto!==nueva.producto||t.dosis!==nueva.dosis||t.horario!==nueva.horario||t.caldoLabel!==nueva.caldoLabel
+         ||(t.caldoLitros??null)!==(nueva.caldoLitros??null)||objetivosKey(t.objetivos)!==objetivosKey(nueva.objetivos))
           throw Error('Tareas: vínculo con datos incompatibles. Revisión manual obligatoria.');
-        // Nunca reiniciar una tarea vista, iniciada o completada.
         return undefined;
       }
       return [...cloud,nueva];
     });
     if(!tx.ok)throw Error('Jornada guardada; tarea de Pistola no confirmada en servidor.');
-    tareasData=tx.value;
+    tareasData=tx.value;tareasDataCargadaEn=Date.now();
     if(!tx.noChange)logHistorial('Tarea Pistola vinculada a jornada '+fechaISO);
     refreshTareasViews();
     return {ok:true,yaExistia:!!tx.noChange};
   }
-  // Circuito histórico sin serieId/jornadaId: mantener compatibilidad.
-  await loadTareasData();
-  const fusionarOCrear = (asignadoA) => {
-    // Igual que en autoAsignarTareasRiego: fusiona con pendiente O iniciada,
-    // solo crea aparte si ya está completada (evita duplicados al re-guardar).
-    const existente = tareasData.find(t => t.fechaISO===fechaISO && t.asignadoA===asignadoA && t.titulo===titulo && t.categoria==='fumigacion' && !t.origenFito?.serieId && t.estado!=='completada' && (t.caldoLabel||'')===caldoLabel);
-    if(existente){
-      if(!existente.objetivos) existente.objetivos = [];
+  if(!['ADMIN','TECNICO'].includes(currentUserRole))throw Error('Solo ADMIN y TÉCNICO pueden asignar una tarea Pistola.');
+  const peonAsignar=peonDelaSala(objetivos[0].invId);
+  await guardarTareaAutomatica(
+    t=>!t.origenFito?.serieId&&t.fechaISO===fechaISO&&t.asignadoA===peonAsignar&&t.titulo===titulo
+      &&t.categoria==='fumigacion'&&(t.caldoLabel||'')===caldoLabel&&['pendiente','iniciada'].includes(t.estado)&&!t.archivadaEn,
+    ()=>crearTareaAuto(peonAsignar),
+    existente=>{
+      const propuesta=existente.objetivos?existente.objetivos.map(o=>({...o})):[];
       objetivos.forEach(o=>{
-        const ex = existente.objetivos.find(x=>x.inv===o.invId);
-        if(ex) ex.calles = fusionarCallesTarea(ex.calles, o.callesLabel);
-        else existente.objetivos.push({inv:o.invId, calles:o.callesLabel});
+        const ex=propuesta.find(x=>x.inv===o.invId);
+        if(ex)ex.calles=fusionarCallesTarea(ex.calles,o.callesLabel);
+        else propuesta.push({inv:o.invId,calles:o.callesLabel});
       });
-      if(!existente.horario && horario) existente.horario = horario;
-    } else tareasData.push(crearTareaAuto(asignadoA));
-  };
-  // Se asigna al peón de la sala correspondiente (PEON1 para Sala1, PEON2 para Sala2)
-  // — antes se asignaba a PEON1 siempre, ahora cada sala tiene su peón dedicado.
-  const peonAsignar = peonDelaSala(objetivos[0].invId);
-  fusionarOCrear(peonAsignar);
-  await persistTareasData();
-  logHistorial(`Auto-asignó tarea de fumigación (Pistola) para ${objetivos.length} invernadero(s)`);
-  refreshTareasViews();
+      existente.objetivos=propuesta;
+      if(!existente.horario&&horario)existente.horario=horario;
+      return existente;
+    });
+  logHistorial('Auto-asignó tarea de fumigación (Pistola) para '+objetivos.length+' invernadero(s)');
 }
-
 // ════════════════════════════════════════════════════════════════
 // PARTIDAS DB (persistent)
 // ════════════════════════════════════════════════════════════════
@@ -23212,42 +23220,34 @@ function construirTextoEspecifico(){
 // Regante (distinto de Orden Abonos/Orden Aguas). El horario NO se incrusta
 // en el título — se guarda aparte (campo "horario") para pintarlo destacado,
 // igual que en las tareas de riego.
-async function autoAsignarTareaEspecifico(invId, dia, callesLabel, titulo, horario, obs, extra){
-  if(!titulo) return;
-  const fechaLabel = riegoDiaLabelCorto(dia);
-  const fechaISO = fechaLocalISO(riegoDiaToDate(dia));
-  await loadTareasData();
-  const usuariosPorRol = rol => Object.keys(USER_ROLES).filter(u=>USER_ROLES[u]===rol);
-  const crearTareaAuto = (asignadoA) => ({
-    id: 'tarea_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
-    titulo, descripcion: obs||'', asignadoA, asignadoPor: currentUser||'—',
-    inv: invId, calles: callesLabel, fecha: fechaLabel, fechaISO, turno: '',
-    horario: horario||'', categoria: 'especifico',
-    producto: extra?.producto||'', dosis: extra?.dosis||'', caldoLabel: extra?.caldoLabel||'', gastoLabel: extra?.gastoLabel||'',
-    prioridad: 'normal', estado: 'pendiente', horaInicio: null, horaFin: null, firmante: null,
-    visto: false, creadoEn: new Date().toLocaleString('es-ES')
+async function autoAsignarTareaEspecifico(invId,dia,callesLabel,titulo,horario,obs,extra){
+  if(!titulo)return;
+  const fechaLabel=riegoDiaLabelCorto(dia),fechaISO=fechaLocalISO(riegoDiaToDate(dia));
+  const asignadoA=reganteDelaSala(invId);
+  const crearTareaAuto=()=>({
+    id:'tarea_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
+    titulo,descripcion:obs||'',asignadoA,asignadoPor:currentUser||'—',
+    inv:invId,calles:callesLabel,fecha:fechaLabel,fechaISO,turno:'',horario:horario||'',
+    categoria:'especifico',origenTarea:'especificos',
+    producto:extra?.producto||'',dosis:extra?.dosis||'',caldoLabel:extra?.caldoLabel||'',gastoLabel:extra?.gastoLabel||'',
+    prioridad:'normal',estado:'pendiente',horaInicio:null,horaFin:null,firmante:null,
+    visto:false,creadoEn:new Date().toLocaleString('es-ES')
   });
-  const fusionarOCrear = (asignadoA) => {
-    // Igual que en autoAsignarTareasRiego: fusiona con pendiente O iniciada,
-    // solo crea aparte si ya está completada (evita duplicados al re-guardar).
-    const existente = tareasData.find(t => t.inv===invId && t.fechaISO===fechaISO && t.asignadoA===asignadoA && t.titulo===titulo && t.categoria==='especifico' && t.estado!=='completada');
-    if(existente){
-      existente.calles = fusionarCallesTarea(existente.calles, callesLabel);
-      if(!existente.horario && horario) existente.horario = horario;
-      if(!existente.producto && extra?.producto) existente.producto = extra.producto;
-      if(!existente.dosis && extra?.dosis) existente.dosis = extra.dosis;
-      if(!existente.caldoLabel && extra?.caldoLabel) existente.caldoLabel = extra.caldoLabel;
-      if(!existente.gastoLabel && extra?.gastoLabel) existente.gastoLabel = extra.gastoLabel;
-    } else tareasData.push(crearTareaAuto(asignadoA));
-  };
-  // Asignar al regante de la sala correspondiente (REGANTE1 para Sala1, REGANTE2 para Sala2)
-  const reganteAsignar = reganteDelaSala(invId);
-  fusionarOCrear(reganteAsignar);
-  await persistTareasData();
-  logHistorial(`Auto-asignó tarea de específico desde INV ${invId}`);
-  refreshTareasViews();
-}
-// Imprimir hoja de específico directamente desde el formulario de alta manual
+  await guardarTareaAutomatica(
+    t=>!t.especificoPartidaRegistroId&&t.inv===invId&&t.fechaISO===fechaISO&&t.asignadoA===asignadoA
+      &&t.titulo===titulo&&t.categoria==='especifico'&&['pendiente','iniciada'].includes(t.estado)&&!t.archivadaEn,
+    crearTareaAuto,
+    existente=>{
+      existente.calles=fusionarCallesTarea(existente.calles,callesLabel);
+      if(!existente.horario&&horario)existente.horario=horario;
+      if(!existente.producto&&extra?.producto)existente.producto=extra.producto;
+      if(!existente.dosis&&extra?.dosis)existente.dosis=extra.dosis;
+      if(!existente.caldoLabel&&extra?.caldoLabel)existente.caldoLabel=extra.caldoLabel;
+      if(!existente.gastoLabel&&extra?.gastoLabel)existente.gastoLabel=extra.gastoLabel;
+      return existente;
+    });
+  logHistorial('Auto-asignó tarea de específico desde INV '+invId);
+}// Imprimir hoja de específico directamente desde el formulario de alta manual
 // (igual que el botón "Imprimir hoja" de Plaguicidas) — usa los mismos datos
 // que se van a aplicar, sin tener que volver a elegirlos en el selector aparte
 // (showImprimirEspecificoSelector, que sigue existiendo para reimprimir algo
