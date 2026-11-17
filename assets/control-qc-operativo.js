@@ -432,6 +432,17 @@
       const old=saved?.mediciones?.[cat];
       let chosen=saved?.categorias?.[cat]?.opciones;
       let issue='';
+      const legacySanidad=saved?.categorias?.sanidad?.opciones||
+        (saved?.mediciones?.sanidad&&typeof saved.mediciones.sanidad==='object'
+          ?Object.keys(saved.mediciones.sanidad).filter(k=>Number(saved.mediciones.sanidad[k])>0):[]);
+      if((cat==='plagas'||cat==='enfermedades')&&!Array.isArray(chosen)&&legacySanidad.length){
+        if(legacySanidad.length===1&&['ok','noEvaluada'].includes(legacySanidad[0]))
+          chosen=[legacySanidad[0]];
+        else{
+          chosen=[];
+          issue='La Sanidad anterior no distingue plagas de enfermedades. Revisa ambas categorías.';
+        }
+      }
       if(!Array.isArray(chosen)){
         if(cat==='firmeza'){chosen=[];issue='Firmeza no estaba registrada. Selecciona un estado para registrar Firmeza.';}
         else if(cat==='raicesInjerto')chosen=[];
