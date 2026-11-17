@@ -710,6 +710,28 @@ test('UAT-029, UAT-776 y UAT-820: clic/teclado abren la ficha sin iniciar movimi
   expect(unexpectedHosts).toEqual([]);
 });
 
+test('UAT-862 y UAT-863: la ficha muestra QC de Túnel y Carga por separado, sin escrituras', async ({ page }) => {
+  const database = fixtureDatabase();
+  database['lasala-control-items-v1']['e2e-carga-001'] = {
+    id: 'e2e-carga-001', tipo: 'carga', dia: 71, partida: 'E2E-PARTIDA-001',
+    cliente: 'Cliente QC fixture', variedad: 'Variedad QC fixture', numBandejas: 12,
+    observaciones: 'Observación de salida QC fixture'
+  };
+  const { overlay, unexpectedHosts, writes } = await openPartidas(page, { database });
+  const card = overlay.locator('#partidas-content-wrap [ondragstart="iniciarArrastrePartida(\\'e2e-partida-001\\')"]');
+  await card.getByText('E2E-PARTIDA-001', { exact: true }).click();
+  const history = page.locator('#partidas-historial-overlay');
+  await expect(history).toBeVisible();
+  await expect(history).toContainText('Check de entrada (Túnel)');
+  await expect(history).toContainText('Observación de fixture E2E');
+  await expect(history).toContainText('Check de salida (Carga)');
+  await expect(history).toContainText('Observación de salida QC fixture');
+  await history.getByRole('button', { name: 'Cerrar' }).click();
+  await expect(history).toBeHidden();
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
 test('UAT-031 y UAT-744: buscar el número completo abre el historial sin cambiar los datos', async ({ page }) => {
   const { overlay, unexpectedHosts, writes } = await openPartidas(page);
   const search = overlay.getByPlaceholder('Buscar Nº partida...');
