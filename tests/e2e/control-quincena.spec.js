@@ -2485,6 +2485,27 @@ test('UAT-178: abrir por primera vez Editar partida tras recargar permite guarda
   expect(unexpectedHosts).toEqual([]);
 });
 
+test('UAT-294: abrir por primera vez Editar partida de QC Carga tras recargar permite guardar la línea', async ({ page }) => {
+  const database = fixtureDatabase();
+  const { unexpectedHosts } = await startControlTest(page, database);
+  await page.reload();
+
+  const overlay = await openControlTunnel(page);
+  await overlay.getByRole('button', { name: 'Check Carga Injerto' }).click();
+  const id = 'e2e-control-carga-current-fortnight';
+  const card = overlay.locator(`#control-card-${id}`);
+  await card.getByTestId(`control-edit-${id}`).click();
+
+  const editor = page.locator('#control-editar-carga-overlay');
+  await expect(editor).toBeVisible();
+  await expect(editor.locator('#ecc-partida')).toHaveValue('E2E-CARGA-QUINCENA-ACTUAL');
+  await editor.locator('#ecc-partida').fill('E2E-QC-294-TRAS-RECARGA');
+  await editor.getByRole('button', { name: 'Guardar' }).click();
+
+  await expect.poll(() => database['lasala-control-items-v1'][id].partida).toBe('E2E-QC-294-TRAS-RECARGA');
+  expect(unexpectedHosts).toEqual([]);
+});
+
 test('UAT-023: editar una línea de Control solo cambia la línea seleccionada', async ({ page }) => {
   const database = fixtureDatabase();
   const { overlay, unexpectedHosts } = await startControlTest(page, database);
