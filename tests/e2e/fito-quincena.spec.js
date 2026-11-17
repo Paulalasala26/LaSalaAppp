@@ -1179,34 +1179,34 @@ test('UAT-523 y UAT-1415: cambiar de Pistola a Cañón antes de guardar no asign
   expect(unexpectedHosts).toEqual([]);
 });
 
-test('UAT-524 y UAT-614: Pistola en una zona libre crea una tarea vinculada al PEÓN de la sala',async({page})=>{
+test('UAT-524, UAT-614, UAT-615 y UAT-616: Pistola en zona libre crea tarea para el PEÓN de Sala 1 y Sala 2',async({page})=>{
   const database=fixtureDatabase();
   const {overlay,unexpectedHosts}=await openFito(page,database);
-  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
-  const form=page.locator('#fito-manual-overlay');
-  await form.locator('input[name="fm-bulk-modo-17"]').nth(2).check();
-  const tramo=form.locator('#fm-bulk-tramos-17 .fm-bulk-tramo-row').first();
-  await tramo.locator('.fm-bulk-tramo-desde').selectOption('7');
-  await tramo.locator('.fm-bulk-tramo-hasta').selectOption('7');
-  await form.locator('#fm-trat').fill('E2E-CAMBIO-METODO');
-  await form.locator('#fm-dosis').fill('1 cc/l');
-  await form.locator('#fm-tipo-trat').selectOption('Cañón');
-  await form.locator('#fm-tipo-trat').selectOption('Pistola');
-  await form.locator('#fm-caldo').selectOption('25');
-  await form.locator('#fm-horario').selectOption('18:00');
-  await form.getByRole('button',{name:'Guardar'}).click();
-  await expect(form).toBeHidden();
-  await expect.poll(()=>fitoData(database)?.['17']?.['30']?.['7']).toMatchObject({tipoTrat:'Pistola'});
-  await expect.poll(()=>JSON.parse(database['lasala-tareas-v1']||'[]').filter(t=>t.categoria==='fumigacion')).toHaveLength(1);
-  const tareas=JSON.parse(database['lasala-tareas-v1']||'[]').filter(t=>t.categoria==='fumigacion');
-  expect(tareas[0]).toMatchObject({horario:'18:00',estado:'pendiente'});
-  expect(tareas[0].asignadoA).toMatch(/PEON/i);
-  const tratamiento=fitoData(database)?.['17']?.['30']?.['7'];
-  expect(tareas[0].jornadaId).toBe(tratamiento.jornadaId);
-  expect(tareas[0].serieId).toBe(tratamiento.serieId);
-  expect(tareas[0].objetivos).toHaveLength(1);
-  expect(tareas[0].objetivos[0]).toMatchObject({inv:'17'});
-  expect(tareas[0].objetivos[0].calles).toContain('7');
+  for(const [inv,calle,peon] of [['5','13','PEON1'],['17','7','PEON2']]){
+    await overlay.locator(`[data-finv="${inv}"]`).click();
+    await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+    const form=page.locator('#fito-manual-overlay');
+    await form.locator(`input[name="fm-bulk-modo-${inv}"]`).nth(2).check();
+    const tramo=form.locator(`#fm-bulk-tramos-${inv} .fm-bulk-tramo-row`).first();
+    await tramo.locator('.fm-bulk-tramo-desde').selectOption(calle);
+    await tramo.locator('.fm-bulk-tramo-hasta').selectOption(calle);
+    await form.locator('#fm-trat').fill('E2E-CAMBIO-METODO');
+    await form.locator('#fm-dosis').fill('1 cc/l');
+    await form.locator('#fm-tipo-trat').selectOption('Cañón');
+    await form.locator('#fm-tipo-trat').selectOption('Pistola');
+    await form.locator('#fm-caldo').selectOption('25');
+    await form.locator('#fm-horario').selectOption('18:00');
+    await form.getByRole('button',{name:'Guardar'}).click();
+    await expect(form).toBeHidden();
+    await expect.poll(()=>fitoData(database)?.[inv]?.['30']?.[calle]).toMatchObject({tipoTrat:'Pistola'});
+    const tratamiento=fitoData(database)?.[inv]?.['30']?.[calle];
+    const tareas=JSON.parse(database['lasala-tareas-v1']||'[]').filter(t=>t.categoria==='fumigacion');
+    expect(tareas).toHaveLength(inv==='5'?1:2);
+    const tarea=tareas.find(t=>t.objetivos?.some(o=>o.inv===inv&&o.calles?.includes(calle)));
+    expect(tarea).toMatchObject({horario:'18:00',estado:'pendiente',asignadoA:peon});
+    expect(tarea.jornadaId).toBe(tratamiento.jornadaId);
+    expect(tarea.serieId).toBe(tratamiento.serieId);
+  }
   expect(unexpectedHosts).toEqual([]);
 });
 
