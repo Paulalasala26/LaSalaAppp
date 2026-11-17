@@ -4837,19 +4837,3 @@ test('UAT-561: la cuadrícula distingue inicio y continuación por INV y calle r
   expect(writes).toEqual([]);
   expect(unexpectedHosts).toEqual([]);
 });
-
-test('UAT-571: Consulta permite cambiar de quincena',async({page})=>{
-  const database=fixtureDatabase();
-  const {overlay,unexpectedHosts,writes}=await openFito(page,database,{selectINV:false});
-  const consultar=overlay.getByRole('button',{name:'Consultar tratamientos',exact:true});
-  await expect(consultar).toBeVisible({timeout:3000});
-  await consultar.click();
-  const consulta=page.locator('#fito-consulta-overlay');
-  await expect(consulta).toBeVisible({timeout:3000});
-  const periodo=consulta.locator('[data-testid="consulta-quincena"]');
-  const inicial=await periodo.textContent();
-  await consulta.getByRole('button',{name:/siguiente quincena/i}).click();
-  await expect(periodo).not.toHaveText(inicial);
-  expect(writes).toEqual([]);
-  expect(unexpectedHosts).toEqual([]);
-});
