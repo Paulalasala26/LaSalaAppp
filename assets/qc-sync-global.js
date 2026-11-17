@@ -61,7 +61,7 @@
   panel.append(text('h3','Sincronización pendiente'));
   panel.append(text('p',state.total?
     (navigator.onLine===false?'Sin conexión. Todo permanece en este dispositivo.':
-      'Conexión disponible. Los elementos aún no se han enviado.')+' Pendientes: '+state.total+'.':
+      'Conexión disponible. Hay elementos pendientes de enviar o verificar.')+' Pendientes: '+state.total+'.':
     'No hay elementos QC pendientes guardados en este dispositivo.'));
   const desc=text('div',null,'qc-sync-details');
   const rows=[
@@ -76,13 +76,25 @@
    row.append(text('span',name),text('strong',String(count)));desc.append(row);
   }
   panel.append(desc);
-  if(state.uncertain)panel.append(text('p',
-    state.uncertain+' envío(s) anterior(es) por verificar. Se comprobarán en SharePoint antes de reintentar el mismo archivo.','qc-sync-warning'));
+  const uncertainDrafts=state.drafts.filter(x=>x.status==='ENVIO_INCIERTO').length;
+  const uncertainPhotos=state.photos.filter(x=>x.status==='ENVIO_INCIERTO').length;
+  if(uncertainDrafts){
+    const n=uncertainDrafts;
+    panel.append(text('p',n+' inspección'+(n===1?'':'es')+' con envío'+(n===1?' anterior':'s anteriores')+
+      ' pendiente'+(n===1?'':'s')+' de verificar. Se comprobará'+(n===1?'':'n')+
+      ' en el servidor QC antes de retirar el borrador local.','qc-sync-warning'));
+  }
+  if(uncertainPhotos){
+    const n=uncertainPhotos;
+    panel.append(text('p',n+' foto'+(n===1?'':'s')+' con envío'+(n===1?' anterior':'s anteriores')+
+      ' pendiente'+(n===1?'':'s')+' de verificar. Se comprobará'+(n===1?'':'n')+
+      ' en SharePoint antes de reintentar el archivo.','qc-sync-warning'));
+  }
   const action=text('button',state.total?'Sincronizar todo':'Sin pendientes','qc-sync-action');
   action.type='button';action.disabled=busy||navigator.onLine===false||!state.total;
   action.addEventListener('click',()=>{void synchronize();});
   panel.append(action);
-  const status=text('p',state.total?'Orden: inspecciones → fotos a SharePoint. Cada elemento se verifica antes de retirarlo del dispositivo.':'Se mostrará aquí cuando haya fotos o inspecciones guardadas para sincronizar.','qc-sync-status');
+  const status=text('p',state.total?'Orden: inspecciones → servidor QC; fotos → SharePoint. Cada elemento se verifica antes de retirarlo del dispositivo.':'Se mostrará aquí cuando haya fotos o inspecciones guardadas para sincronizar.','qc-sync-status');
   status.id='qc-global-sync-status';status.setAttribute('role','status');panel.append(status);
   if(lastErrors.length){
     const errors=text('details',null,'qc-sync-errors');
