@@ -23359,7 +23359,13 @@ function resolverPartidaPorObsEspecifico(invId, calles, obs, dia){
   // banner no salía nunca con el formato que de verdad usan las partidas.
   const mNum = /^PARTIDA\s+([A-Z0-9]{2,})$/.exec(txt);
   if(mNum){
-    const encontrado = bloques.const ESPECIFICOS_MANUAL_OUTBOX_KEY='viguerapp-test-especificos-manual-op-v1';
+    const encontrado = bloques.find(b=>String(b.entry.partida||'').toUpperCase().includes(mNum[1]));
+    if(encontrado) return encontrado.entry;
+  }
+  return null;
+}
+
+const ESPECIFICOS_MANUAL_OUTBOX_KEY='viguerapp-test-especificos-manual-op-v1';
 let especificoManualProcesando=false;
 function leerOperacionEspecificoManual(){
   try{
