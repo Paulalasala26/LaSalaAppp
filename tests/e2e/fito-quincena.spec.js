@@ -696,7 +696,7 @@ test('UAT-559 y UAT-560: la marca de primer día por calle se conserva y la cont
   expect(reopened.unexpectedHosts).toEqual([]);
 });
 
-test('UAT-526: consultar una jornada histórica incompleta no la completa ni la reescribe',async({page})=>{
+test('UAT-526 y UAT-605: cancelar la edición de un registro histórico incompleto no lo convierte ni reescribe',async({page})=>{
   const database=fixtureDatabase();
   const original=database['lasala-fito-v1'];
   const {overlay,unexpectedHosts,writes}=await openFito(page,database);
