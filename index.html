@@ -7020,13 +7020,13 @@ function controlQCInfoVisual(c){
 function renderControlIdentidadQC(c,estadoWizard=false){
   const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
   const tunel=c.tipo==='tunel';
-  const preinjertoPatron=c.tipo==='preinjerto_patron'&&!estadoWizard;
+  const preinjertoConDetalles=['preinjerto_patron','preinjerto_variedad'].includes(c.tipo)&&!estadoWizard;
   const principal=tunel?c.clienteVariedad:c.cliente;
   const inspeccionada=qcEstadoCuantificado(c);
   const legacyCompletada=estadoWizard&&!inspeccionada&&controlLineaCompletada(c);
   const status=inspeccionada?'<span class="qc-card-medido">✓ Inspeccionado</span>':
     legacyCompletada?'<span class="qc-card-medido">✓ Completado</span>':'';
-  if(preinjertoPatron){
+  if(preinjertoConDetalles){
     const id=esc(c.id);
     return '<div class="qc-card-ident">'+
       '<div class="qc-card-ident-head"><strong class="qc-card-partida">'+(esc(c.partida)||'Sin partida')+'</strong>'+
@@ -8483,7 +8483,7 @@ function renderControlCardCompactHTML(c,seccion){
   cargarControlPdfDia(seccion.key,c.dia);
   const pdfHTML=pdf?`<div class="qc-card-pdf"><i class="ti ti-file-type-pdf"></i> ${esc(pdf.nombre)} · <a href="${pdf.pdfB64}" target="_blank" rel="noopener noreferrer">Ver PDF</a></div>`:'';
   const fotoHTML=imagen?`<img src="${fotoSrcMiniatura(imagen)}" onclick="mostrarFotoControlAmpliada('${c.id}')" title="Ver foto" alt="Foto de inspección" class="qc-card-photo" />`:'';
-  const preinjertoPatron=c.tipo==='preinjerto_patron';
+  const preinjertoConDetalles=['preinjerto_patron','preinjerto_variedad'].includes(c.tipo);
   const editAction=tunel?'mostrarEditarControlCheck':'mostrarEditarControlCargaCheck';
   const formatPlants=value=>{
     if(value==null||String(value).trim()==='')return '—';
@@ -8491,14 +8491,14 @@ function renderControlCardCompactHTML(c,seccion){
     return esc(formatted==null||formatted===''?value:formatted);
   };
   const gsExtraValues=[];
-  if(preinjertoPatron){
+  if(preinjertoConDetalles){
     if(c.fSiembra)gsExtraValues.push('<span><strong>F. siembra:</strong> '+esc(c.fSiembra)+'</span>');
     if(c.fEntrega)gsExtraValues.push('<span><strong>F. entrega:</strong> '+esc(c.fEntrega)+'</span>');
     if(c.plantasSol!=null||c.plantasSem!=null)
       gsExtraValues.push('<span><strong>Plantas sol./sem.:</strong> '+formatPlants(c.plantasSol)+' / '+formatPlants(c.plantasSem)+'</span>');
   }
   const gsExtraHTML=gsExtraValues.length?'<div class="qc-card-extra-gs">'+gsExtraValues.join('')+'</div>':'';
-  const actionsHTML=preinjertoPatron?'':'<div class="qc-card-actionbar">'+
+  const actionsHTML=preinjertoConDetalles?'':'<div class="qc-card-actionbar">'+
     '<button type="button" onclick="'+editAction+'(\''+c.id+'\')"><i class="ti ti-pencil" aria-hidden="true"></i> Editar partida</button>'+
     '<button type="button" class="qc-card-danger qc-card-trash" onclick="eliminarControlCheck(\''+c.id+'\')" title="Eliminar registro de partida" aria-label="Eliminar registro de partida"><i class="ti ti-trash" aria-hidden="true"></i></button>'+
     '</div>';
@@ -8511,7 +8511,7 @@ function renderControlCardCompactHTML(c,seccion){
         ${anclaCuantificacionControlHTML(c)}
       </div>
       <details class="qc-card-more">
-        <summary>${preinjertoPatron?'Detalles':'Detalles y acciones'}</summary>
+        <summary>${preinjertoConDetalles?'Detalles':'Detalles y acciones'}</summary>
         <div class="qc-card-details">
           ${actionsHTML}
           ${gsExtraHTML}
