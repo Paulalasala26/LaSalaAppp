@@ -935,9 +935,11 @@
     foot.append(cancel,submit);form.append(foot);body.append(form);dialog.append(body);overlay.append(dialog);return overlay;
   }
   async function open(rec,context){
+    const dia=Number.isInteger(rec?.dia)?rec.dia:
+      (typeof rec?.dia==='string'&&/^\\d+$/.test(rec.dia.trim())?Number(rec.dia.trim()):NaN);
     if(!rec||!['tunel','carga','carga_injerto','preinjerto_patron','preinjerto_variedad'].includes(rec.tipo)||typeof rec.id!=='string'||
       !/^[A-Za-z0-9_-]{1,180}$/.test(rec.id)||!
-      !Number.isInteger(rec.dia)||rec.dia<15||rec.dia>4000||
+      Number.isInteger(dia)||dia<15||dia>4000||
       typeof rec.partida!=='string'||!/^[A-Za-z0-9._-]{1,100}$/.test(rec.partida)){
       alert('Este control no tiene todos los identificadores necesarios para cuantificarlo.');
       return;
@@ -952,11 +954,11 @@
       }finally{switchingRecord=false;}
     }
     const thisSequence=++sequence;
-    record={id:rec.id,tipo:rec.tipo,dia:rec.dia,partida:rec.partida};
+    record={id:rec.id,tipo:rec.tipo,dia,partida:rec.partida};
     CATS=rec.tipo==='preinjerto_variedad'?CATS_PREINJERTO_VARIEDAD:
       rec.tipo==='preinjerto_patron'?CATS_PREINJERTO_PATRON:
-      rec.tipo==='carga'?(rec.dia>=155?[...CATS_CARGA_NORMAL,CAT_FIRMEZA]:CATS_CARGA_NORMAL):
-      rec.tipo==='carga_injerto'?(rec.dia>=155?[...CATS_CARGA_BASE,CAT_FIRMEZA,CAT_RAICES_INJERTO]:[...CATS_CARGA_BASE,CAT_RAICES_INJERTO]):CATS_TUNEL;
+      rec.tipo==='carga'?(dia>=155?[...CATS_CARGA_NORMAL,CAT_FIRMEZA]:CATS_CARGA_NORMAL):
+      rec.tipo==='carga_injerto'?(dia>=155?[...CATS_CARGA_BASE,CAT_FIRMEZA,CAT_RAICES_INJERTO]:[...CATS_CARGA_BASE,CAT_RAICES_INJERTO]):CATS_TUNEL;
     legacyApi=context||null;
     savedMeasurement=null;currentRules=null;loading=true;savedForList=null;
     active=build(rec);
@@ -966,7 +968,7 @@
     // No desplegar el teclado móvil antes de recibir los datos.
     try{
       const jwt=await token();
-      const q=new URLSearchParams({id:rec.id,tipo:rec.tipo,dia:String(rec.dia)});
+      const q=new URLSearchParams({id:rec.id,tipo:rec.tipo,dia:String(dia)});
       const response=await fetch(API+'?'+q.toString(),{
         method:'GET',headers:{Authorization:'Bearer '+jwt},cache:'no-store'
       });
