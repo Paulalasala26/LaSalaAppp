@@ -1529,7 +1529,7 @@ test('UAT-663, UAT-673 y UAT-675: Cañón imprime una sola hoja oficial con TRAC
   await expect(printed).not.toContainText('PEÓN');
   await expect(printed.locator('.hoja-fito')).toHaveCount(1);
   const background=page.frameLocator('#print-fito-iframe').locator('.hf-bg');
-  await expect(background).toHaveAttribute('src',/assets\\/hoja-plaguicidas\\.jpg$/);
+  await expect(background).toHaveAttribute('src',/assets\/hoja-plaguicidas\.jpg$/);
   await expect.poll(()=>background.evaluate(img=>img.complete&&img.naturalWidth>0)).toBe(true);
   expect(writes).toEqual([]);
   expect(unexpectedHosts).toEqual([]);
