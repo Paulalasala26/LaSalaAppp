@@ -187,7 +187,7 @@
     try {
       var codes = await detector.detect(video);
       if (codes && codes.length && codes[0].rawValue) {
-        var value = String(codes[0].rawValue).trim().replace(/^\\*|\\*$/g, '');
+        var value = String(codes[0].rawValue).trim().replace(/^\*|\*$/g, '');
         stopCamera();
         findPartida(value);
         return;
@@ -218,7 +218,7 @@
   }
 
   async function findPartida(rawCode) {
-    var code = String(rawCode == null ? '' : rawCode).trim().replace(/^\\*|\\*$/g, '');
+    var code = String(rawCode == null ? '' : rawCode).trim().replace(/^\*|\*$/g, '');
     if (!code) {
       setStatus('Lee el código completo o introdúcelo manualmente.', true);
       return;
