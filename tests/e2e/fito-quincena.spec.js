@@ -435,7 +435,7 @@ test('UAT-550: existe acceso para continuar una serie de Plaguicidas ya iniciada
   expect(unexpectedHosts).toEqual([]);
 });
 
-test('UAT-559: la marca de primer día por calle se conserva al reabrir la cuadrícula',async({page})=>{
+test('UAT-559 y UAT-560: la marca de primer día por calle se conserva y la continuación mantiene color normal',async({page})=>{
   const database=fixtureDatabase();
   const data=JSON.parse(database['lasala-fito-v1']);
   data['17']['29']['3']={texto:'E2E-SERIE-559 1 cc/l',primerDia:true,serieId:'e2e-serie-559',jornadaId:'e2e-jornada-559-a'};
