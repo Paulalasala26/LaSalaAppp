@@ -341,6 +341,41 @@ async function openPartidas(page, { loginFirst = true, user = login.user, writeD
   return { overlay, unexpectedHosts, database, writes };
 }
 
+test('UAT-715: si falla la carga de Control QC, Partidas permanece intacto', async ({ page }) => {
+  const { overlay, unexpectedHosts, writes } = await openPartidas(page);
+  const mapBefore = await overlay.innerText();
+  await page.route('**/qc-v6.js', route => route.abort());
+  await page.evaluate(() => handleQuickAction('control'));
+  await expect(page.locator('#app-toast')).toContainText('No se pudo cargar Control de calidad');
+  await expect(overlay).toBeVisible();
+  await expect(page.locator('#control-overlay')).toHaveCount(0);
+  expect(await overlay.innerText()).toBe(mapBefore);
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-716: reintentar tras recuperar el recurso abre Control sin recargar la app', async ({ page }) => {
+  const { overlay, unexpectedHosts, database } = await openPartidas(page);
+  const mapBefore = await overlay.innerText();
+  let requests = 0;
+  const partidasBefore = JSON.stringify(database['lasala-control-items-v1']);
+  await page.route('**/qc-v6.js', async route => {
+    requests++;
+    if (requests === 1) await route.abort();
+    else await route.fallback();
+  });
+  await page.evaluate(() => handleQuickAction('control'));
+  await expect(page.locator('#app-toast')).toContainText('No se pudo cargar Control de calidad');
+  expect(await overlay.innerText()).toBe(mapBefore);
+  await page.evaluate(() => handleQuickAction('control'));
+  await expect.poll(() => requests).toBe(2);
+  const control = page.locator('#control-overlay');
+  await expect(control).toBeVisible();
+  await expect(control).toContainText('Check Túnel');
+  expect(JSON.stringify(database['lasala-control-items-v1'])).toBe(partidasBefore);
+  expect(unexpectedHosts).toEqual([]);
+});
+
 async function applySpecificToPartida(page, overlay, entryId, tratamiento) {
   await overlay.locator('button').filter({ hasText: 'Añadir Específico aquí' }).click();
   await page.locator(`#partidas-content-wrap div[onclick="togglePartidaEnSeleccionEspecifico('${entryId}')"]`).click();
