@@ -1292,6 +1292,19 @@ async function aplicarNuevaLineaControl(entry,replay){
   if(!entry||entry.tipo!=='tunel')return false;
   const reentry=!!replay?.qcReplayCreatedAt;
   if(!controlChecksData.find(x=>x.id===entry.id)){
+    const partida=String(entry.partida||'').trim().toUpperCase();
+    const location=calleTramoDeTunel(entry);
+    const duplicate=!!partida&&!!location&&controlChecksData.some(x=>{
+      if(x.id===entry.id||x.tipo!=='tunel'||x.dia!==entry.dia||
+         String(x.partida||'').trim().toUpperCase()!==partida)return false;
+      const other=calleTramoDeTunel(x);
+      return !!other&&String(other.invId)===String(location.invId)&&
+        Number(other.desde)===Number(location.desde)&&Number(other.hasta)===Number(location.hasta);
+    });
+    if(duplicate){
+      showToast('Ya existe una línea QC Túnel para esta partida, fecha y ubicación.');
+      return false;
+    }
     if(!puedeCrearLineaControlQC(entry.dia)&&
        !altaQCOfflineOriginalValida(entry.dia,replay?.qcReplayCreatedAt)){
       if(reentry)throw Error('QC_TUNEL_COLA_FECHA_NO_VALIDADA');
