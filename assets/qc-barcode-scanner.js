@@ -266,22 +266,44 @@
     heading.style.cssText = 'font-size:13px;font-weight:700;color:#263b2c;margin:12px 0 7px';
     resultsNode.appendChild(heading);
 
-    matches.forEach(function (record) {
+    matches.forEach(function (record, index) {
       var button = document.createElement('button');
       button.type = 'button';
-      button.style.cssText = 'display:flex;width:100%;align-items:center;justify-content:space-between;gap:12px;text-align:left;margin:6px 0;padding:11px 12px;border:1px solid #d5dfd5;border-radius:9px;background:#fff;color:#263b2c;cursor:pointer';
+      button.style.cssText = 'display:block;width:100%;text-align:left;margin:6px 0;padding:11px 12px;border:1px solid #d5dfd5;border-radius:9px;background:#fff;color:#263b2c;cursor:pointer';
       var title = document.createElement('span');
-      title.textContent = labelForType(record.tipo);
-      title.style.cssText = 'font-size:13px;font-weight:700';
-      var date = document.createElement('span');
       var dateText = '';
       try {
         if (typeof riegoDiaLabelCorto === 'function' && Number.isFinite(Number(record.dia))) dateText = riegoDiaLabelCorto(record.dia);
       } catch (error) {}
-      date.textContent = dateText || (record.dia != null ? 'Día ' + record.dia : '');
-      date.style.cssText = 'font-size:12px;color:#65736a;white-space:nowrap';
+      dateText = dateText || (record.dia != null ? 'Día ' + record.dia : 'Fecha sin indicar');
+      title.textContent = labelForType(record.tipo) + ' · ' + dateText;
+      title.style.cssText = 'display:block;font-size:13px;font-weight:700';
       button.appendChild(title);
-      button.appendChild(date);
+
+      var details = [
+        String(record.clienteVariedad || record.variedad || '').trim(),
+        String(record.ubicacion || record.invernadero || '').trim()
+      ];
+      var inv = String(record.invId || '').trim();
+      if (!details[1] && inv) {
+        var from = String(record.calleDesde == null ? '' : record.calleDesde).trim();
+        var to = String(record.calleHasta == null ? '' : record.calleHasta).trim();
+        details[1] = 'INV ' + inv + (from ? (from === to ? ' · calle ' + from : ' · calles ' + from + '–' + (to || from)) : '');
+      }
+      var trays = record.numBandejas != null ? record.numBandejas : record.bandejas;
+      if (trays != null && trays !== '') details.push(trays + ' bandejas');
+      var detail = document.createElement('span');
+      detail.textContent = details.filter(Boolean).join(' · ') || ('Coincidencia ' + (index + 1));
+      detail.style.cssText = 'display:block;margin-top:4px;font-size:12px;color:#65736a;line-height:1.35;overflow-wrap:anywhere';
+      button.appendChild(detail);
+
+      if (record.id != null) {
+        var reference = document.createElement('span');
+        reference.textContent = 'Referencia: ' + String(record.id);
+        reference.style.cssText = 'display:block;margin-top:3px;font-size:10px;color:#78857c;overflow-wrap:anywhere';
+        button.appendChild(reference);
+      }
+
       button.addEventListener('click', function () {
         var selected = matches.find(function (item) { return item.id === record.id; });
         closeOverlay();
@@ -291,7 +313,6 @@
       resultsNode.appendChild(button);
     });
   }
-
   function installButton() {
     var renderSummary = window.renderControlResumenHTML;
     if (typeof renderSummary !== 'function' || renderSummary.__qcBarcodeWrapped) return;
