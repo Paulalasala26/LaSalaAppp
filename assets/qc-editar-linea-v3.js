@@ -374,22 +374,27 @@
   }
   function qcpLocationSection(line){
     const original=qcpAppLocation(line);
-    const correction=line?.edicionQC?.campos||{};
     const gsDetails=line?.gsDetalles&&typeof line.gsDetalles==='object'?line.gsDetalles:{};
-    const rawCode=String(gsDetails.PAR_CAS??(
-      Object.prototype.hasOwnProperty.call(correction,'PAR_CAS')?'':line?.PAR_CAS
-    )??'').trim();
-    const greenhouseValue=String(original.inv||rawCode||'').trim();
-    const greenhouseDigits=greenhouseValue.match(/\d+/)?.[0]||'';
-    const greenhouseLabel=greenhouseDigits
-      ?'INV '+String(Number(greenhouseDigits)).padStart(2,'0')
-      :(greenhouseValue?'INV '+greenhouseValue:'—');
-    const actualGreenhouse=greenhouseLabel;
+    const gsGreenhouse=String(gsDetails.PAR_CAS??line?.PAR_CAS??'').trim();
+    const gsLocation=String(gsDetails.PAR_UBIC??line?.PAR_UBIC??'').trim();
+    const hasGSLocation=!!(gsGreenhouse||gsLocation);
+    const actualGreenhouse=original.inv
+      ?(INV_LAYOUT[original.inv]?'INV '+String(Number(original.inv)).padStart(2,'0'):'INV '+original.inv)
+      :'Sin invernadero configurado';
     const actualStreet=original.from
       ?(original.from===original.to?'Calle '+original.from:'Calles '+original.from+'–'+original.to)
-      :'Calle —';
-    return '<section class="qc107-section"><h3>Ubicación</h3>'+
-      '<div class="qc107-location-current">Actual: '+esc(actualGreenhouse)+' · '+esc(actualStreet)+'</div>'+
+      :'Sin calles configuradas';
+    const gsSection='<section class="qc107-section"><h3>Ubicación recibida de GS</h3>'+
+      (hasGSLocation
+        ?'<div class="qc107-grid">'+
+          field('PAR_CAS · GS','<input type="text" disabled value="'+esc(gsGreenhouse||'—')+'">')+
+          field('PAR_UBIC · GS','<input type="text" disabled value="'+esc(gsLocation||'—')+'">')+
+          '</div>'
+        :'<p class="qc107-note">GS no aporta PAR_CAS ni PAR_UBIC para esta partida.</p>')+
+      '</section>';
+    return gsSection+'<section class="qc107-section"><h3>Ubicación en ViguerAPP</h3>'+
+      '<div class="qc107-location-current">Guardada en la app: '+esc(actualGreenhouse)+' · '+esc(actualStreet)+'</div>'+
+      '<p class="qc107-note">Los selectores editan la ubicación de ViguerAPP. Los valores de GS se muestran por separado y no se convierten automáticamente.</p>'+
       '<div class="qc107-grid">'+
       field('Invernadero','<select id="qcp-inv" onchange="qcpCambiarInv()">'+qciInvOptions(original)+'</select>')+
       field('Calle desde','<select id="qcp-from">'+qciStreetOptions(original.inv,original.from)+'</select>')+
