@@ -4165,3 +4165,42 @@ test('UAT-1481: completar una tarea manual no modifica una Pistola cercana', asy
   });
   expect(writes.every(write => write.key === 'lasala-tareas-v1')).toBe(true);
 });
+
+
+test('UAT-1490: cancelar la firma de cierre no cambia la tarea ni escribe historial', async ({ page }) => {
+  const todayISO = await fechaISOEnNavegador(page, 0);
+  const task = {
+    id: 'e2e-uat-1490-cancel-completion',
+    titulo: 'E2E tarea iniciada UAT-1490',
+    asignadoA: 'PEON1',
+    origen: 'manual',
+    categoria: 'manual',
+    inv: '0A',
+    calles: '1-2',
+    fechaISO: todayISO,
+    estado: 'iniciada',
+    horaInicio: '08:40',
+    horaInicioTs: Date.now() - 60_000,
+    firmante: null,
+    horaFin: null
+  };
+  const { database, writes } = await installFixture(page, {
+    'lasala-tareas-v1': JSON.stringify([task])
+  }, { loginUser: 'PEON1' });
+  await page.evaluate(() => showTareasModule());
+
+  const card = page.locator('.tarea-card').filter({ hasText: task.titulo });
+  await expect(card).toBeVisible();
+  await card.getByRole('button', { name: /Completar/ }).click();
+  const modal = page.locator('#completar-tarea-overlay');
+  await expect(modal).toBeVisible();
+  await modal.locator('#ct-firma').fill('Firma temporal UAT-1490');
+  const dataBeforeCancel = JSON.stringify(database);
+  const writeCountBeforeCancel = writes.length;
+  await modal.getByRole('button', { name: 'Cancelar' }).click();
+  await expect(modal).toBeHidden();
+
+  expect(JSON.stringify(database)).toBe(dataBeforeCancel);
+  expect(writes).toHaveLength(writeCountBeforeCancel);
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([task]);
+});
