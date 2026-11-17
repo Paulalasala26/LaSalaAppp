@@ -468,8 +468,14 @@
    if(key==='opciones')items.sort((a,b)=>String(a).localeCompare(String(b),'es'));
    return items;
   }
-  if(value&&typeof value==='object')
-   return Object.fromEntries(Object.keys(value).sort().map(k=>[k,normalizeMeasurement(value[k],k)]));
+  if(value&&typeof value==='object'){
+   const keys=Object.keys(value).filter(k=>{
+    const item=value[k];
+    return !(k==='porcentajesEnfermedades'&&item&&typeof item==='object'&&
+      !Array.isArray(item)&&Object.keys(item).length===0);
+   }).sort();
+   return Object.fromEntries(keys.map(k=>[k,normalizeMeasurement(value[k],k)]));
+  }
   return value;
  };
  const sameMeasurement=(a,b)=>JSON.stringify(normalizeMeasurement(a))===JSON.stringify(normalizeMeasurement(b));
