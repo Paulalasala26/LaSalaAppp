@@ -473,7 +473,8 @@
   return value;
  };
  const sameMeasurement=(a,b)=>JSON.stringify(normalizeMeasurement(a))===JSON.stringify(normalizeMeasurement(b));
- // En QC, la clave local «ok» en Flores representa «No»; en servidor se usa «no».
+ // «ok» en Flores representa «No» en el formulario. Se normaliza solo al comparar;
+ // el esquema QC v6 mantiene la clave «ok» en el payload del servidor.
  function normalizeFlower(value){
   if(!value||typeof value!=='object'||Array.isArray(value))return value;
   const copy=JSON.parse(JSON.stringify(value));
@@ -486,11 +487,26 @@
   return copy;
  }
  const semanticCategory=(cat,value)=>cat==='flores'?normalizeFlower(value):value;
- const normalizeDraftData=data=>{
-  const copy=JSON.parse(JSON.stringify(data||{}));
-  if(copy.flores)copy.flores=normalizeFlower(copy.flores);
-  return copy;
- };
+ function categorySummary(cat,value){
+  const v=semanticCategory(cat,value);
+  return JSON.stringify(v??null);
+ }
+ function mismatchDetails(stored,draft){
+  const parts=[];
+  if(stored.schemaVersion!==draft.schemaVersion)
+   parts.push('esquema local v'+draft.schemaVersion+' / servidor v'+stored.schemaVersion);
+  if(draft.schemaVersion!==6&&stored.bandejasInspeccionadas!==draft.bandejasInspeccionadas)
+   parts.push('bandejas local '+draft.bandejasInspeccionadas+' / servidor '+stored.bandejasInspeccionadas);
+  if([5,6].includes(draft.schemaVersion)&&stored.porcentajeInvalidasGlobal!==draft.porcentajeInvalidasGlobal)
+   parts.push('porcentaje global local '+draft.porcentajeInvalidasGlobal+'% / servidor '+stored.porcentajeInvalidasGlobal+'%');
+  for(const [cat,name] of CATS){
+   const a=draft.categorias?draft.categorias[cat]:draft.mediciones?.[cat];
+   const b=stored.categorias?stored.categorias?.[cat]:stored.mediciones?.[cat];
+   if(!sameMeasurement(semanticCategory(cat,a),semanticCategory(cat,b)))
+    parts.push(name+' local '+categorySummary(cat,a)+' / servidor '+categorySummary(cat,b));
+  }
+  return parts.length?parts.join('; '):'estructura o versión interna del registro';
+ }
  const matches=(stored,draft)=>{
   if(!stored||draft.schemaVersion!==6&&stored.bandejasInspeccionadas!==draft.bandejasInspeccionadas)return false;
   if(draft.categorias)return
@@ -604,8 +620,8 @@
     throw Error('El borrador cambió durante la comprobación. No se ha enviado.');
    if(before.state!=='EMPTY'){
     if(!matches(before.record,d))
-     throw Error('Conflicto real: el servidor contiene mediciones distintas. '+
-      'No se ha enviado ni sobrescrito nada; se conserva el borrador local.');
+     throw Error('Conflicto real: '+mismatchDetails(before.record,d)+
+      '. No se ha enviado ni sobrescrito nada; se conserva el borrador local.');
     const remote=await readWritten(ref,before.token);
     requireSession();
     if(!remote||remote.version!==before.record.version||!matches(remote,d))
@@ -628,7 +644,7 @@
     version:0,...(d.schemaVersion===6?{}:{bandejasInspeccionadas:d.bandejasInspeccionadas}),
     ...([4,5,6].includes(d.schemaVersion)?{schemaVersion:d.schemaVersion}:{}),
     ...([5,6].includes(d.schemaVersion)?{porcentajeInvalidasGlobal:d.porcentajeInvalidasGlobal}:{}),
-    ...(d.categorias?{categorias:normalizeDraftData(d.categorias)}:{mediciones:normalizeDraftData(d.mediciones)})};
+    ...(d.categorias?{categorias:d.categorias}:{mediciones:d.mediciones})};
    // Persistir el hecho del intento antes del POST; resiste recarga o cierre.
    const attempted=await markAttempt(d);
    postAttempted=true;
