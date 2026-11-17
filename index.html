@@ -7328,34 +7328,7 @@ function renderControlFiltroInvHTML(tipo){
    +'</select></div>';
 }
 /* 0.104. CTA común junto al filtro INV, una única línea compacta. */
-async function crearPruebaQCBarcode26010583(dia){
-  if(location.hostname!=='la-sala-app-test.vercel.app'||controlSeccion!=='carga')return false;
-  if(!puedeCrearLineaControlQC(dia)){showToast('La fecha no admite nuevas líneas QC.');return false;}
-  if(controlChecksData.some(c=>c.tipo==='carga'&&String(c.partida||'').trim()==='26010583')){
-    showToast('La partida 26010583 ya tiene una línea QC.');return false;
-  }
-  const entry={
-    id:'qc_barcode_test_26010583_'+dia,tipo:'carga',dia,partida:'26010583',
-    cliente:'LA SALA',variedad:'TOMATE PRUEBA',numBandejas:'1',
-    color:{},tamano:{},sanidad:{},flores:{},raices:{},observaciones:'',
-    creadoPor:currentUser||'—',creadoEn:new Date().toLocaleString('es-ES'),
-    origenAltaQC:{fuente:'manual',catalogoControlado:false,provisional:true,
-      detalle:'Línea provisional para validar el escaneo; sin inspección ni ubicación.'},
-    datosPartidaGS:{codigoCliente:'00857',fechaSiembra:'2026-09-21',
-      fechaEntrega:'2026-10-18',codigoVariedad:'T294',tipo:'B',numeroBandejas:1,lote:'18047225 - KM5512'}
-  };
-  const ok=await aplicarNuevaLineaControlCarga(entry);
-  if(ok)showToast('✓ Línea provisional creada para el escaneo.');
-  return ok;
-}
 function renderControlFiltroYAltaHTML(tipo,dia,wizard=false){
-  // Alta normal temporal para el único registro de prueba de lectura en TEST.
-  if(tipo==='carga'&&location.hostname==='la-sala-app-test.vercel.app'){
-    const btn='<button type="button" onclick="crearPruebaQCBarcode26010583('+Number(dia)+')" '+
-      'style="min-height:38px;padding:8px 11px;background:#1558a0;color:#fff;border:0;border-radius:7px;font-weight:700;cursor:pointer">'+
-      'Crear línea de prueba 26010583</button>';
-    return '<div style="margin-bottom:10px">'+btn+'</div><div id="nuevo-control-form-wrap"></div>';
-  }
   // Alta de líneas y selector asociado quedan ocultos temporalmente en Túnel y Carga normal.
   if(tipo==='tunel'||tipo==='carga')return '<div id="nuevo-control-form-wrap"></div>';
   const accion=tipo==='tunel' ? "mostrarFormNuevoControlCheck('tunel',"+(wizard?'true':'false')+")" :
