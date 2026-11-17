@@ -4250,3 +4250,24 @@ test('UAT-1489: Operativas informa del fallo de lectura y recupera los datos al 
   expect(database['lasala-tareas-v1']).toBe(JSON.stringify([task]));
   expect(writes).toEqual([]);
 });
+
+test('UAT-1770: Mantenimiento permite archivar administrativamente un ticket pendiente', async ({ page }) => {
+  const ticket = {
+    id: 'e2e-uat-1770-pending',
+    titulo: 'E2E ticket pendiente para archivar UAT-1770',
+    estado: 'sin_asignar',
+    asignados: [],
+    creadoEn: '2026-11-17'
+  };
+  const { database, writes } = await installFixture(page, {
+    'lasala-mantenimiento-v1': JSON.stringify([ticket])
+  });
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  await overlay.getByRole('button', { name: 'Mantenimiento de Parcelas' }).click();
+  const card = overlay.locator(`.tarea-card[data-id="${ticket.id}"]`);
+  await expect(card).toBeVisible();
+  await expect(card.getByRole('button', { name: /Archivar/i })).toBeVisible({ timeout: 3000 });
+  expect(JSON.parse(database['lasala-mantenimiento-v1'])).toEqual([ticket]);
+  expect(writes).toEqual([]);
+});
