@@ -4028,4 +4028,45 @@ test('UAT-1566–1569, 1570–1573: asignar a un PEÓN válido conserva datos y 
   saved = JSON.parse(database['lasala-mantenimiento-v1'])[0];
   expect(saved.estado).toBe('asignado');
   expect(saved.asignados).toEqual(['PEON1']);
+});test('UAT-1332: cancelar la edición de una tarea pendiente conserva sus datos', async ({ page }) => {
+  const todayISO = await fechaISOEnNavegador(page, 0);
+  const task = {
+    id: 'e2e-cancel-edit-1332',
+    titulo: 'E2E tarea UAT-1332 original',
+    descripcion: 'Descripción que debe conservarse',
+    asignadoA: 'PEON1',
+    origen: 'manual',
+    categoria: 'manual',
+    inv: '0A',
+    calles: '1-2',
+    fechaISO: todayISO,
+    fecha: 'hoy',
+    turno: 'Mañana',
+    prioridad: 'normal',
+    estado: 'pendiente'
+  };
+  const original = JSON.stringify([task]);
+  const { database, writes } = await installFixture(page, { 'lasala-tareas-v1': original });
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  await overlay.getByRole('button', { name: 'Tareas de hoy' }).click();
+  const card = overlay.locator('.tarea-card').filter({ hasText: task.titulo });
+  await expect(card).toHaveCount(1);
+  await card.getByRole('button', { name: 'Editar' }).click();
+  const form = overlay.locator('#nueva-tarea-form-wrap');
+  await expect(form.locator('#et-titulo')).toHaveValue(task.titulo);
+  await expect(form.locator('#et-desc')).toHaveValue(task.descripcion);
+  await form.locator('#et-titulo').fill('E2E cambio cancelado');
+  await form.locator('#et-desc').fill('Texto temporal sin guardar');
+  await form.getByRole('button', { name: 'Cancelar' }).click();
+  await expect(form).toBeHidden();
+
+  expect(database['lasala-tareas-v1']).toBe(original);
+  expect(writes.filter(write => write.key === 'lasala-tareas-v1')).toEqual([]);
+
+  await card.getByRole('button', { name: 'Editar' }).click();
+  await expect(form.locator('#et-titulo')).toHaveValue(task.titulo);
+  await expect(form.locator('#et-desc')).toHaveValue(task.descripcion);
+  await form.getByRole('button', { name: 'Cancelar' }).click();
+  expect(writes.filter(write => write.key === 'lasala-tareas-v1')).toEqual([]);
 });
