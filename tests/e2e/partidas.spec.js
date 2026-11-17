@@ -718,7 +718,7 @@ test('UAT-862 y UAT-863: la ficha muestra QC de Túnel y Carga por separado, sin
     observaciones: 'Observación de salida QC fixture'
   };
   const { overlay, unexpectedHosts, writes } = await openPartidas(page, { database });
-  const card = overlay.locator('#partidas-content-wrap [ondragstart="iniciarArrastrePartida(\\'e2e-partida-001\\')"]');
+  const card = overlay.locator('#partidas-content-wrap [ondragstart="iniciarArrastrePartida(\'e2e-partida-001\')"]');
   await card.getByText('E2E-PARTIDA-001', { exact: true }).click();
   const history = page.locator('#partidas-historial-overlay');
   await expect(history).toBeVisible();
