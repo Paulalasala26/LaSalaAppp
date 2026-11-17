@@ -1643,6 +1643,22 @@ test('UAT-664: imprimir una jornada guardada de Pistola identifica PEÓN',async(
   expect(unexpectedHosts).toEqual([]);
 });
 
+test('UAT-682: 1 cc/L con caldo 100L imprime un gasto de 100 cc',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await form.locator('#fm-trat').fill('E2E-UAT682');
+  await form.locator('#fm-dosis').fill('1 cc/l');
+  await form.locator('#fm-tipo-trat').selectOption('Cañón');
+  await form.locator('#fm-caldo').selectOption({label:'100L'});
+  await form.getByRole('button',{name:'Imprimir hoja'}).click();
+  const printed=page.frameLocator('#print-fito-iframe').locator('body');
+  await expect(printed).toContainText('E2E-UAT682 — 100cc');
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
 test('UAT-677: la hoja oficial usa formato A4 en la previsualización',async({page})=>{
   const database=fixtureDatabase();
   await openFito(page,database);
