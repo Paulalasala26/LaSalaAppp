@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { validateTaskWrite } = require('../lib/tasks-write-policy');
 
-const roles = { ADMIN: 'ADMIN', TECH: 'TECNICO', PEON1: 'PEON', REGANTE1: 'REGANTE', PEON2: 'PEON' };
+const roles = { ADMIN: 'ADMIN', TECH: 'TECNICO', PEON1: 'PEON', REGANTE1: 'REGANTE', REGANTE2: 'REGANTE', REGANTE3: 'REGANTE', PEON2: 'PEON' };
 const task = (overrides = {}) => ({
   id: 't-1', titulo: 'Revisar', categoria: 'manual', origenTarea: 'manual',
   asignadoA: 'PEON1', estado: 'pendiente', visto: false, ...overrides
@@ -41,12 +41,33 @@ test('PEÓN solo puede iniciar y completar su propia tarea', () => {
   deny([pending], [task({ ...started, asignadoA: 'PEON2' })], 'PEON1', 'PEON');
 });
 
-test('REGANTE puede sincronizar sus específicos pendientes, pero no reasignarlos', () => {
+test('REGANTE sincroniza un específico vinculado a Partidas sin reasignarlo', () => {
   const before = task({ categoria: 'especifico', origenTarea: 'especificos', asignadoA: 'REGANTE1',
-    especificoPartidaRegistroId: 'r-1' });
+    inv: '28', especificoPartidaRegistroId: 'r-1' });
   const after = { ...before, titulo: 'Tratamiento actualizado' };
-  assert.equal(allow([before], [after], 'REGANTE1', 'REGANTE'), true);
+  // Cambios de contenido de la ficha vinculada proceden de la sincronización administrativa.
+  assert.equal(allow([before], [{ ...before, calles: 'C/1' }], 'REGANTE1', 'REGANTE'), true);
   deny([before], [{ ...after, asignadoA: 'REGANTE2' }], 'REGANTE1', 'REGANTE');
+});
+
+test('Específicos automáticos se crean y fusionan solo dentro de la sala del REGANTE', () => {
+  const created = task({ categoria: 'especifico', origenTarea: 'especificos', asignadoA: 'REGANTE1', inv: '28' });
+  assert.equal(allow([], [created], 'REGANTE1', 'REGANTE'), true);
+  assert.equal(allow([], [{ ...created, id: 't-2', asignadoA: 'REGANTE2', inv: '10A' }], 'REGANTE2', 'REGANTE'), true);
+  assert.throws(() => allow([], [{ ...created, id: 't-3', inv: '10A' }], 'REGANTE1', 'REGANTE'));
+  assert.equal(allow([created], [{ ...created, calles: 'C/1-C/2' }], 'REGANTE1', 'REGANTE'), true);
+  assert.throws(() => validateTaskWrite({ before: [created], after: [{ ...created, titulo: 'Cambio ajeno' }],
+    actor: 'REGANTE1', role: 'REGANTE', roles }));
+});
+
+test('Pistola histórica fusiona objetivos solo si no está enlazada y conserva estado y responsable', () => {
+  const base = task({ categoria: 'fumigacion', asignadoA: 'PEON1', fechaISO: '2026-11-17', objetivos: [{ inv: '28', calles: '1' }] });
+  const merged = { ...base, objetivos: [{ inv: '28', calles: '1-2' }, { inv: '29', calles: '3' }], horario: '10:00' };
+  assert.equal(allow([base], [merged]), true);
+  assert.throws(() => allow([base], [{ ...merged, asignadoA: 'PEON2' }]));
+  assert.throws(() => allow([base], [{ ...merged, estado: 'iniciada' }]));
+  assert.throws(() => allow([{ ...base, origenFito: { serieId: 's1', jornadaId: 'j1' } }],
+    [{ ...base, origenFito: { serieId: 's1', jornadaId: 'j1' }, objetivos: merged.objetivos }]));
 });
 
 test('la regeneración solo puede retirar tareas pendientes de Riego', () => {
