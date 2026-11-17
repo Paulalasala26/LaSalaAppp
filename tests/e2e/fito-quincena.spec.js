@@ -663,6 +663,28 @@ test('UAT-537: dos tramos discontinuos dejan intactas las calles intermedias',as
   expect(unexpectedHosts).toEqual([]);
 });
 
+test('UAT-538: un tramo que apunta a calles inexistentes se rechaza sin escribir',async({page})=>{
+  const database=fixtureDatabase();
+  const original=database['lasala-fito-v1'];
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await form.locator('input[name="fm-bulk-modo-17"]').nth(2).check();
+  const desde=form.locator('#fm-bulk-detalle-17 .fm-bulk-tramo-desde');
+  const hasta=form.locator('#fm-bulk-detalle-17 .fm-bulk-tramo-hasta');
+  await desde.evaluate(select=>select.add(new Option('999','999')));
+  await hasta.evaluate(select=>select.add(new Option('999','999')));
+  await desde.selectOption('999');
+  await hasta.selectOption('999');
+  await completarFitoValido(form,'E2E-CALLE-INEXISTENTE');
+  await form.getByRole('button',{name:'Guardar'}).click();
+  await expect(form).toBeVisible();
+  await expect(page.locator('#app-toast')).toContainText('Selecciona calles efectivas para el INV 17');
+  expect(database['lasala-fito-v1']).toBe(original);
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
 test('UAT-539: un tramo invertido se rechaza sin escribir',async({page})=>{
   const database=fixtureDatabase();
   const original=database['lasala-fito-v1'];
