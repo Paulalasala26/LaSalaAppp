@@ -508,6 +508,27 @@ test('UAT-566: editar una jornada conserva el inicio global y la identidad de la
   expect(unexpectedHosts).toEqual([]);
 });
 
+test('UAT-567: recargar conserva las jornadas y la identidad de una serie multijornada',async({page})=>{
+  const database=fixtureDatabase();
+  const data=JSON.parse(database['lasala-fito-v1']);
+  data['17']['29']['6']={texto:'E2E-SERIE-567 1 cc/l',primerDia:true,serieId:'e2e-serie-567',jornadaId:'e2e-jornada-567-a'};
+  data['17']['30']['6']={texto:'E2E-SERIE-567 1 cc/l',primerDia:false,serieId:'e2e-serie-567',jornadaId:'e2e-jornada-567-b'};
+  database['lasala-fito-v1']=JSON.stringify(data);
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  const cell=(root,dia)=>root.locator(`#fito-grid-wrap [data-finv="17"][data-fdia="${dia}"][data-frc="6"]`);
+  await expect(cell(overlay,29)).toHaveValue('E2E-SERIE-567 1 cc/l');
+  await expect(cell(overlay,30)).toHaveValue('E2E-SERIE-567 1 cc/l');
+  await page.reload();
+  const reopened=await openFito(page,database,{loginFirst:false});
+  await expect(cell(reopened.overlay,29)).toHaveValue('E2E-SERIE-567 1 cc/l');
+  await expect(cell(reopened.overlay,30)).toHaveValue('E2E-SERIE-567 1 cc/l');
+  expect(fitoData(database)?.['17']?.['29']?.['6']).toMatchObject({serieId:'e2e-serie-567',jornadaId:'e2e-jornada-567-a',primerDia:true});
+  expect(fitoData(database)?.['17']?.['30']?.['6']).toMatchObject({serieId:'e2e-serie-567',jornadaId:'e2e-jornada-567-b',primerDia:false});
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+  expect(reopened.unexpectedHosts).toEqual([]);
+});
+
 test('UAT-565: el alta bloquea sobrescribir una calle ocupada por otra serie',async({page})=>{
   const database=fixtureDatabase();
   const data=JSON.parse(database['lasala-fito-v1']);
