@@ -4062,6 +4062,30 @@ test('UAT-403: abrir una foto SharePoint mediante acceso autenticado', async ({ 
   expect(unexpectedHosts).toEqual([]);
 });
 
+test('UAT-420: una foto remota inexistente informa que no está disponible', async ({ page }) => {
+  test.fail(true, 'La galería conserva el enlace roto sin un estado visible de foto no disponible.');
+  const database = fixtureDatabase();
+  const id = 'e2e-control-current-fortnight';
+  const missingSrc = '/__fixture__/missing-photo-420.png';
+  const otherPhoto = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/XxsAAAAASUVORK5CYII=';
+  database['lasala-control-fotos-indice-v1'] = JSON.stringify({ [id]: 'lasala-control-fotos-v1' });
+  database['lasala-control-fotos-shards-index'] = JSON.stringify(['lasala-control-fotos-v1']);
+  database['lasala-control-fotos-v1'] = JSON.stringify({
+    [id]: [{ f: missingSrc, t: missingSrc, origen: 'SharePoint', itemId: 'fixture-missing-420' }],
+    'fixture-other-inspection-420': [{ f: otherPhoto, t: otherPhoto, origen: 'SharePoint', itemId: 'fixture-other-420' }]
+  });
+  await page.route(`**${missingSrc}`, route => route.fulfill({ status: 404, contentType: 'image/png', body: '' }));
+  const { overlay, unexpectedHosts } = await startControlTest(page, database);
+  const card = overlay.locator(`#control-card-${id}`);
+  const image = card.locator('img[title="Ver foto"]');
+  await expect(image).toBeVisible();
+  await expect(image).toHaveAttribute('src', missingSrc);
+  await expect.poll(() => image.evaluate(element => element.complete && element.naturalWidth === 0)).toBe(true);
+  await expect.soft(card.getByTestId(`control-photo-status-${id}-0`)).toHaveText('No disponible');
+  expect(JSON.parse(database['lasala-control-fotos-v1'])['fixture-other-inspection-420'][0].itemId).toBe('fixture-other-420');
+  expect(unexpectedHosts).toEqual([]);
+});
+
 test('UAT-404: retirar de la galería una foto confirmada en SharePoint sin borrado remoto', async ({ page }) => {
   const database = fixtureDatabase();
   const id = 'e2e-control-current-fortnight';
