@@ -37,7 +37,7 @@ function textoFito(database,inv,dia,calle){
   return value&&typeof value==='object'?value.texto:value;
 }
 
-async function openFito(page,database,{user=login.user,loginFirst=true,writeDelayMs=0,selectINV=true,beforeOpen}={}){
+async function openFito(page,database,{user=login.user,loginFirst=true,writeDelayMs=0,writeFailureStatus=0,selectINV=true,beforeOpen}={}){
   const unexpectedHosts=[],writes=[];
   const corsHeaders={
     'access-control-allow-origin':'*',
@@ -59,6 +59,7 @@ async function openFito(page,database,{user=login.user,loginFirst=true,writeDela
     const body=request.postData()?JSON.parse(request.postData()):null;
     writes.push({method:request.method(),path:path.join('/'),body});
     if(writeDelayMs)await new Promise(resolve=>setTimeout(resolve,writeDelayMs));
+    if(writeFailureStatus){ await route.fulfill({status:writeFailureStatus,contentType:'application/json',headers:corsHeaders,body:JSON.stringify({error:'fixture rejected write'})}); return; }
     const ifMatch=request.headers()['if-match'];
     if(ifMatch&&ifMatch!==firebaseEtag(readAt(database,path))){
       await route.fulfill({status:412,contentType:'application/json',headers:corsHeaders,body:JSON.stringify({error:'etag mismatch'})});
@@ -549,6 +550,25 @@ test('UAT-565: el alta bloquea sobrescribir una calle ocupada por otra serie',as
   const cell=overlay.locator('#fito-grid-wrap [data-finv="17"][data-fdia="30"][data-frc="6"]');
   await expect(cell).toHaveValue('E2E-SERIE-565-EXISTENTE 1 cc/l');
   expect(JSON.stringify(fitoData(database)?.['17']?.['30']?.['6'])).toBe(original);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-604: un rechazo remoto no se presenta como guardado correcto',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database,{writeFailureStatus:422});
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await form.locator('input[name="fm-bulk-modo-17"]').nth(2).check();
+  const tramo=form.locator('#fm-bulk-tramos-17 .fm-bulk-tramo-row').first();
+  await tramo.locator('.fm-bulk-tramo-desde').selectOption('7');
+  await tramo.locator('.fm-bulk-tramo-hasta').selectOption('7');
+  await completarFitoValido(form,'E2E-GUARDADO-RECHAZADO');
+  await form.getByRole('button',{name:'Guardar'}).click();
+  await expect(page.locator('#aviso-fallo-guardado')).toBeVisible({timeout:10000});
+  expect(writes.length).toBeGreaterThan(0);
+  expect.soft(form).toBeVisible();
+  expect.soft(page.locator('#app-toast')).not.toContainText(/guardado|aplicado/i);
+  expect(fitoData(database)?.['17']?.['30']?.['7']).toBeUndefined();
   expect(unexpectedHosts).toEqual([]);
 });
 
