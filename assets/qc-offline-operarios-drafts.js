@@ -509,10 +509,10 @@
  }
  const matches=(stored,draft)=>{
   if(!stored||draft.schemaVersion!==6&&stored.bandejasInspeccionadas!==draft.bandejasInspeccionadas)return false;
-  if(draft.categorias)return
+  if(draft.categorias)return (
     (![5,6].includes(draft.schemaVersion)||
       stored.schemaVersion===draft.schemaVersion&&stored.porcentajeInvalidasGlobal===draft.porcentajeInvalidasGlobal)&&
-    CATS.every(([cat])=>sameMeasurement(semanticCategory(cat,stored.categorias?.[cat]),semanticCategory(cat,draft.categorias[cat])));
+    CATS.every(([cat])=>sameMeasurement(semanticCategory(cat,stored.categorias?.[cat]),semanticCategory(cat,draft.categorias[cat]))));
   return CATS.every(([cat])=>{
    const actual=semanticCategory(cat,stored.mediciones?.[cat]);
    const expected=semanticCategory(cat,draft.mediciones?.[cat]);
