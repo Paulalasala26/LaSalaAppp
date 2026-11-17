@@ -19,12 +19,12 @@
       key:'preinjerto_patron',label:'QC Preinjerto Patrón',icon:'ti-plant-2',
       color:'linear-gradient(135deg,#558b2f,#aed581)',
       categories:[
-        {key:'grosor',label:'Grosor',icon:'ti-arrows-horizontal',gradient:'linear-gradient(135deg,#00838f,#4dd0e1)',tint:'#e0f7fa',options:[['fino','Fino'],['ok','OK'],['grueso','Grueso']]},
+        {key:'grosor',label:'Grosor',icon:'ti-arrows-horizontal',gradient:'linear-gradient(135deg,#00838f,#4dd0e1)',tint:'#e0f7fa',options:[['ok','OK'],['fino','Fino'],['grueso','Grueso']]},
         {key:'firmeza',label:'Firmeza',icon:'ti-hand-finger',gradient:'linear-gradient(135deg,#6a1b9a,#ab47bc)',tint:'#f3e5f5',options:[['ok','OK'],['duro','Duro'],['tierno','Tierno']]},
         {key:'segado',label:'Segado',icon:'ti-scissors',gradient:'linear-gradient(135deg,#d84315,#ff8a65)',tint:'#fbe9e7',options:[['segado','Segado'],['noSegado','No segado']]},
         {key:'plagas',label:'Plagas',icon:'ti-bug',gradient:'linear-gradient(135deg,#f5a35c,#f0715c)',tint:'#fdece5',options:[['ok','OK'],['tuta','Tuta'],['minador','Minador'],['pulgon','Pulgón'],['oruga','Oruga'],['trips','Trips']]},
         {key:'enfermedades',label:'Enfermedades',icon:'ti-virus',gradient:'linear-gradient(135deg,#ad1457,#ec407a)',tint:'#fce4ec',options:[['ok','OK'],['alternaria','Alternaria'],['mildiu','Mildiu'],['oidio','Oídio'],['botrytis','Botrytis'],['didymella','Didymella']]},
-        {key:'raices',label:'Raíces',icon:'ti-plant-2',gradient:'linear-gradient(135deg,#c47f00,#e0a530)',tint:'#fbf1e0',options:[['pocaRaiz','Poca raíz'],['ok','OK'],['raizVieja','Raíz vieja']]}
+        {key:'raices',label:'Raíces',icon:'ti-plant-2',gradient:'linear-gradient(135deg,#c47f00,#e0a530)',tint:'#fbf1e0',options:[['ok','OK'],['pocaRaiz','Poca raíz'],['raizVieja','Raíz vieja']]}
       ]
     }
   };
