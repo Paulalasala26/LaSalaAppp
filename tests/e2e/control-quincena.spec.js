@@ -4259,6 +4259,27 @@ test('UAT-424: una foto QC guardada conserva UUID y huella SHA-256', async ({ pa
   expect(unexpectedHosts).toEqual([]);
 });
 
+test('UAT-425: el índice Firebase de QC guarda referencias y no bytes de fotos', async ({ page }) => {
+  const database = fixtureDatabase();
+  const id = 'e2e-control-current-fortnight';
+  database['lasala-control-fotos-indice-v1'] = JSON.stringify({});
+  database['lasala-control-fotos-shards-index'] = JSON.stringify(['lasala-control-fotos-v1']);
+  database['lasala-control-fotos-v1'] = JSON.stringify({});
+  const { overlay, unexpectedHosts } = await startControlTest(page, database);
+  const card = overlay.locator(`#control-card-${id}`);
+  const photo = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/XxsAAAAASUVORK5CYII=', 'base64');
+
+  await card.locator('input[data-testid^="control-photo-gallery-"]').setInputFiles({
+    name: 'uat-425-foto.png', mimeType: 'image/png', buffer: photo
+  });
+  await expect.poll(() => JSON.parse(database['lasala-control-fotos-indice-v1'] || '{}')[id]).toBe('lasala-control-fotos-v1');
+  const indexJson = database['lasala-control-fotos-indice-v1'];
+  const savedRecord = JSON.parse(database['lasala-control-fotos-v1'])[id][0];
+  const photoBytes = typeof savedRecord === 'string' ? savedRecord : savedRecord.f || savedRecord.t;
+  expect(indexJson).not.toContain(photoBytes);
+  expect(unexpectedHosts).toEqual([]);
+});
+
 test('UAT-439: un PDF de Carga en Túnel no mezcla líneas y muestra error controlado', async ({ page }) => {
   const database = fixtureDatabase();
   const { overlay, unexpectedHosts } = await startControlTest(page, database);
