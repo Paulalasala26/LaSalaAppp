@@ -27,12 +27,12 @@
     ['enfermedades','Enfermedades',[['ok','OK'],['alternaria','Alternaria'],['mildiu','Mildiu'],['oidio','Oídio'],['botrytis','Botrytis'],['didymella','Didymella']]]
   ];
   const CATS_PREINJERTO_PATRON=[
-    ['grosor','Grosor',[['fino','Fino'],['ok','OK'],['grueso','Grueso']]],
+    ['grosor','Grosor',[['ok','OK'],['fino','Fino'],['grueso','Grueso']]],
     ['firmeza','Firmeza',[['ok','OK'],['duro','Duro'],['tierno','Tierno']]],
     ['segado','Segado',[['segado','Segado'],['noSegado','No segado']]],
     ['plagas','Plagas',[['ok','OK'],['tuta','Tuta'],['minador','Minador'],['pulgon','Pulgón'],['oruga','Oruga'],['trips','Trips']]],
     ['enfermedades','Enfermedades',[['ok','OK'],['alternaria','Alternaria'],['mildiu','Mildiu'],['oidio','Oídio'],['botrytis','Botrytis'],['didymella','Didymella']]],
-    ['raices','Raíces',[['pocaRaiz','Poca raíz'],['ok','OK'],['raizVieja','Raíz vieja']]]
+    ['raices','Raíces',[['ok','OK'],['pocaRaiz','Poca raíz'],['raizVieja','Raíz vieja']]]
   ];
   const CAT_FIRMEZA=['firmeza','Firmeza',[['ok','OK'],['duro','Duro'],['tierno','Tierno']]];
   const CAT_RAICES_INJERTO=['raicesInjerto','Raíces en punto de injerto · opcional',[['si','Sí'],['no','No']]];
