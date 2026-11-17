@@ -3411,6 +3411,19 @@ test('UAT-621–623 y UAT-631: la tarjeta Pistola ofrece revisión del estado de
   await expect(card.getByRole('button', { name:/Estado de tarea/i })).toBeVisible({ timeout:1200 });
 });
 
+test('UAT-635: iniciar Pistola como PEÓN conserva ID y datos de origen', async ({ page }) => {
+  const todayISO = await fechaISOEnNavegador(page);
+  const task = { id:'e2e-uat-635', titulo:'E2E Pistola 635', asignadoA:'PEON1', origen:'pistola', categoria:'fumigacion', fechaISO:todayISO, estado:'pendiente', producto:'E2E-635', dosis:'1 cc/l', caldoLitros:25, serieId:'e2e-serie-635', jornadaId:'e2e-jornada-635', objetivos:[{inv:'1A',calles:'C/102'}] };
+  const { database, writes } = await installFixture(page, { 'lasala-tareas-v1': JSON.stringify([task]) }, { loginUser:'PEON1' });
+  await expect(page.getByText(task.titulo, { exact:true })).toBeVisible();
+  await page.getByRole('button', { name:'Iniciar' }).click();
+  await expect.poll(() => JSON.parse(database['lasala-tareas-v1'])[0]).toMatchObject({ id:task.id, estado:'iniciada', serieId:task.serieId, jornadaId:task.jornadaId, producto:task.producto, objetivos:task.objetivos });
+  const saved = JSON.parse(database['lasala-tareas-v1'])[0];
+  expect(saved.horaInicio).toBeTruthy();
+  expect(saved.horaInicioTs).toBeTruthy();
+  expect(writes.filter(write => write.key === 'lasala-tareas-v1')).toHaveLength(1);
+});
+
 test('UAT-1412: Pistola imprime el parte fitosanitario individual', async ({ page }) => {
   await page.addInitScript(() => { window.print = () => {}; });
   const todayISO = await fechaISOEnNavegador(page);
