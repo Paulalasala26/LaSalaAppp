@@ -1487,6 +1487,16 @@ test('UAT-649: una nueva serie no sobrescribe el histórico de una jornada anula
   expect.soft(JSON.parse(database['lasala-tareas-v1'])[0]).toEqual(oldTask);
 });
 
+test('UAT-660: el formulario nuevo no ofrece imprimir antes de guardar la aplicación',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay}=await openFito(page,database);
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await expect(form).toBeVisible();
+  test.fail(true,'El formulario Registrar presenta «Imprimir hoja» antes de que exista una aplicación guardada.');
+  await expect(form.getByRole('button',{name:/Imprimir hoja/i})).toHaveCount(0);
+});
+
 test('UAT-500 y UAT-501: Pistola y Cañón no guardan una jornada sin producto ni dosis',async({page})=>{
   const database=fixtureDatabase();
   const original=database['lasala-fito-v1'];
