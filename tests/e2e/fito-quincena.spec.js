@@ -2056,7 +2056,7 @@ test('UAT-511: cambiar Pistola/Cañón conserva el horario elegido',async({page}
   expect(unexpectedHosts).toEqual([]);
 });
 
-test('UAT-515: guardar y reabrir una jornada fixture conserva los datos sin marcarla ejecutada',async({page})=>{
+test('UAT-515 y UAT-563: guardar y reabrir una jornada fixture no la marca como ejecutada o completada',async({page})=>{
   const database=fixtureDatabase();
   const {overlay,unexpectedHosts,writes}=await openFito(page,database);
   await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
@@ -2075,7 +2075,8 @@ test('UAT-515: guardar y reabrir una jornada fixture conserva los datos sin marc
   await expect(editor.locator('#fm-dosis')).toHaveValue('1 cc/l');
   await expect(editor.locator('#fm-caldo')).toHaveValue('25');
   const raw=fitoData(database)?.['17']?.['30']?.['2'];
-  expect(Object.keys(raw||{}).some(key=>/ejecutado|realizado/i.test(key))).toBe(false);
+  expect(raw?.estado).not.toBe('completado');
+  expect(Object.keys(raw||{}).some(key=>/completad|ejecutad|realizad/i.test(key))).toBe(false);
   expect(unexpectedHosts).toEqual([]);
   expect(writes.filter(write=>write.path==='lasala-fito-v1')).toHaveLength(1);
 });
