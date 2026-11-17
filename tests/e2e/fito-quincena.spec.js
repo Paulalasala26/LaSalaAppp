@@ -1438,6 +1438,20 @@ test('UAT-632: una tarea legacy parecida no se fusiona con una nueva jornada Pis
   expect(unexpectedHosts).toEqual([]);
 });
 
+test('UAT-640: editar Pistola pendiente ofrece anular jornada sin borrado físico',async({page})=>{
+  const database=fixtureDatabase();
+  const data=JSON.parse(database['lasala-fito-v1']);
+  data['17']['30']['2']={texto:'E2E-ANULACION-640 1 cc/l 18:00',caldoLitros:25,caldoLabel:'25L CUBA DE RUEDAS',tipoTrat:'Pistola',serieId:'e2e-serie-640',jornadaId:'e2e-jornada-640'};
+  database['lasala-fito-v1']=JSON.stringify(data);
+  database['lasala-tareas-v1']=JSON.stringify([{id:'e2e-task-640',titulo:'E2E-ANULACION-640 1 cc/l',asignadoA:'PEON2',origen:'pistola',categoria:'fumigacion',fechaISO:'2026-06-30',estado:'pendiente',serieId:'e2e-serie-640',jornadaId:'e2e-jornada-640',origenFito:{serieId:'e2e-serie-640',jornadaId:'e2e-jornada-640'},objetivos:[{inv:'17',calles:'INV 17 CALLES 2'}]}]);
+  const {overlay}=await openFito(page,database);
+  await overlay.locator('#fito-grid-wrap textarea[data-finv="17"][data-fdia="30"][data-frc="2"]').dblclick();
+  const form=page.locator('#fito-manual-overlay');
+  await expect(form).toBeVisible();
+  test.fail(true,'La edición no ofrece la acción «Anular jornada» para conservar el tratamiento y su tarea como histórico.');
+  await expect(form.getByRole('button',{name:/Anular jornada/i})).toBeVisible();
+});
+
 test('UAT-500 y UAT-501: Pistola y Cañón no guardan una jornada sin producto ni dosis',async({page})=>{
   const database=fixtureDatabase();
   const original=database['lasala-fito-v1'];
