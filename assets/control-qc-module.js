@@ -844,19 +844,11 @@ function buscarPartidaGlobal(){
   if(!encontrada){ showToast('No se ha encontrado ninguna partida con ese número'); return; }
   mostrarHistorialPartida(encontrada.id);
 }
-function buscarControlPartida(tipo){
-  const valor = document.getElementById('control-buscar-partida')?.value?.trim();
-  if(!valor){ showToast('Escribe un número de partida'); return; }
-  const encontrada = controlChecksData.filter(c=>c.tipo===tipo && c.partida).find(c=>c.partida.toLowerCase().includes(valor.toLowerCase()));
-  if(!encontrada){ showToast('No se ha encontrado ninguna línea con esa partida'); return; }
+function seleccionarControlEncontrado(tipo,encontrada){
   controlQuincenaOffset = Math.max(0, Math.floor((encontrada.dia-15)/14));
   controlDiaSel = encontrada.dia;
-  // Si la partida encontrada pertenece a un grupo con guiones (misma partida
-  // repetida en varios días), hay que forzar que se muestre EXACTAMENTE ese
-  // guión — si no, el grupo seguía mostrando el guión que estuviera activo
-  // de antes (otro día distinto), la tarjeta buscada nunca llegaba a
-  // pintarse y el resaltado/scroll no encontraba nada, aunque el aviso
-  // dijera "encontrada" — a petición de Paula, 2026-08-10.
+  // Si la partida pertenece a un grupo con guiones, abrir exactamente el
+  // registro seleccionado, no el guion que estuviera activo antes.
   controlGuionActivo[tipo+'|'+encontrada.partida] = encontrada.id;
   renderControlContent(document.getElementById('control-overlay'));
   showToast(`✓ Encontrada — ${riegoDiaLabelCorto(encontrada.dia)}`);
@@ -868,6 +860,75 @@ function buscarControlPartida(tipo){
       setTimeout(()=>{ if(el) el.style.outline = ''; }, 2500);
     }
   }, 150);
+}
+function etiquetaUbicacionControl(c){
+  const lugar=String(c.ubicacion||c.invernadero||'').trim();
+  if(lugar)return lugar;
+  const inv=String(c.invId||'').trim();
+  const desde=String(c.calleDesde??'').trim(),hasta=String(c.calleHasta??'').trim();
+  if(!inv)return 'Ubicación sin asignar';
+  const calles=desde?(desde===hasta?' · calle '+desde:' · calles '+desde+'–'+(hasta||desde)):'';
+  return 'INV '+inv+calles;
+}
+function mostrarCoincidenciasControl(tipo,valor,coincidencias){
+  const mo=getOrCreateOverlay('control-buscar-resultados-overlay');
+  mo.style.zIndex=2300;
+  mo.style.padding='12px';
+  mo.replaceChildren();
+  const panel=document.createElement('section');
+  panel.style.cssText='box-sizing:border-box;width:min(520px,100%);max-height:88vh;overflow:auto;background:#fff;border-radius:14px;padding:18px;box-shadow:0 8px 40px rgba(0,0,0,.3)';
+  const title=document.createElement('h2');
+  title.textContent='Hay '+coincidencias.length+' controles para «'+valor+'»';
+  title.style.cssText='margin:0 0 6px;font-size:17px;color:#173d6b';
+  panel.append(title);
+  const help=document.createElement('p');
+  help.textContent='Elige el control que quieres abrir. Se muestran primero las fechas más recientes.';
+  help.style.cssText='margin:0 0 12px;font-size:13px;color:#526b82;line-height:1.4';
+  panel.append(help);
+  coincidencias.forEach((c,index)=>{
+    const button=document.createElement('button');
+    button.type='button';
+    button.style.cssText='display:block;width:100%;min-height:54px;margin:7px 0;padding:10px 12px;text-align:left;border:1px solid #c7d9ec;border-radius:9px;background:#f8fbff;color:#173d6b;cursor:pointer';
+    const heading=document.createElement('span');
+    const section=CONTROL_SECCIONES.find(s=>s.key===tipo);
+    heading.textContent='Coincidencia '+(index+1)+' · '+(section?.label||tipo);
+    heading.style.cssText='display:block;font-size:13px;font-weight:800';
+    button.append(heading);
+    const details=[riegoDiaLabelCorto(c.dia),String(c.clienteVariedad||c.variedad||'').trim(),etiquetaUbicacionControl(c)];
+    if(c.numBandejas!=null&&c.numBandejas!=='')details.push(c.numBandejas+' bandejas');
+    const detail=document.createElement('span');
+    detail.textContent=details.filter(Boolean).join(' · ');
+    detail.style.cssText='display:block;margin-top:4px;font-size:12px;color:#526b82;line-height:1.35;overflow-wrap:anywhere';
+    button.append(detail);
+    button.addEventListener('click',()=>{
+      mo.style.display='none';
+      seleccionarControlEncontrado(tipo,c);
+    });
+    panel.append(button);
+  });
+  const cancel=document.createElement('button');
+  cancel.type='button';
+  cancel.textContent='Cancelar';
+  cancel.style.cssText='display:block;min-height:44px;margin:12px 0 0 auto;padding:9px 15px;border:1px solid #b7cce2;border-radius:8px;background:#fff;color:#1558a0;font-weight:700;cursor:pointer';
+  cancel.addEventListener('click',()=>{mo.style.display='none';});
+  panel.append(cancel);
+  mo.append(panel);
+  mo.style.display='flex';
+}
+function buscarControlPartida(tipo){
+  const valor = document.getElementById('control-buscar-partida')?.value?.trim();
+  if(!valor){ showToast('Escribe un número de partida'); return; }
+  const coincidencias = controlChecksData
+    .filter(c=>c.tipo===tipo && c.partida &&
+      c.partida.toLowerCase().includes(valor.toLowerCase()))
+    .sort((a,b)=>(Number(b.dia)||0)-(Number(a.dia)||0)||
+      String(a.id).localeCompare(String(b.id),'es'));
+  if(!coincidencias.length){ showToast('No se ha encontrado ninguna línea con esa partida'); return; }
+  if(coincidencias.length>1){
+    mostrarCoincidenciasControl(tipo,valor,coincidencias);
+    return;
+  }
+  seleccionarControlEncontrado(tipo,coincidencias[0]);
 }
 // A petición de Paula (2026-08-04): "cuando colocas las calles pueden haber
 // varios tramos" — una partida puede repartirse en varias calles no
