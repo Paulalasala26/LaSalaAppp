@@ -139,7 +139,33 @@
       }else{
        serverValues.append(text('strong','Valores encontrados en el servidor · versión '+result.record.version));
        for(const line of localDraftLines(result.record))serverValues.append(text('p',line));
+       serverValues.append(text('p',result.sameValues?
+        'Coincidencia exacta de mediciones: sí.':
+        'Coincidencia exacta de mediciones: no; no se retirará el borrador.'));
+       if(result.sameValues&&!result.attributed){
+        serverValues.append(text('p','El sistema no puede atribuir esta escritura al intento anterior por usuario o fecha.'));
+       }
        serverValues.append(text('p','Consulta de solo lectura; no se ha enviado ni modificado ningún dato.'));
+       if(result.sameValues&&result.record.version===1&&item.status==='ENVIO_INCIERTO'){
+        const resolve=text('button','Retirar copia local tras verificar coincidencia');
+        resolve.type='button';
+        resolve.style.cssText='margin-top:6px;padding:8px 10px;border:1px solid #c47f00;border-radius:7px;background:#fff8e8;color:#805000;font-weight:700';
+        resolve.addEventListener('click',async()=>{
+         if(!window.confirm('Una nueva consulta confirma que el servidor ya tiene exactamente estas mediciones. ¿Retirar solo la copia local pendiente? No se enviará ni modificará el registro del servidor.'))return;
+         resolve.disabled=true;
+         resolve.textContent='Verificando coincidencia…';
+         try{
+          await window.QCOfflineDraftEditor.resolveMatchingRemote(item.ref);
+          serverValues.replaceChildren(text('p','Copia local retirada. La inspección del servidor permanece intacta; no se envió nada.'));
+          await refresh(true);
+         }catch(e){
+          resolve.disabled=false;
+          resolve.textContent='Retirar copia local tras verificar coincidencia';
+          serverValues.append(text('p','No se retiró el borrador: '+(e?.message||'la verificación ya no coincide.')));
+         }
+        });
+        serverValues.append(resolve);
+       }
       }
      }catch(e){
       serverValues.replaceChildren(text('p','No se pudo consultar: '+(e?.message||'error desconocido')+'. El borrador local se conserva.'));

@@ -449,7 +449,14 @@
    if(result.record!==null){
     if(!Number.isInteger(result.record.version)||result.record.version<1)
      throw Error('La medición remota no tiene una versión válida.');
-    return {state:'CONFLICT',token,record:result.record};
+    const d=drafts.get(key(ref));
+    const started=Date.parse(d?.attemptedAt||'');
+    const written=Date.parse(result.record.updatedAt||'');
+    const attributed=!!d&&d.status==='ENVIO_INCIERTO'&&result.record.version===1&&
+     result.record.updatedBy===owner&&Number.isFinite(started)&&Number.isFinite(written)&&
+     written>=started-2000;
+    return {state:'CONFLICT',token,record:result.record,
+     sameValues:!!d&&matches(result.record,d),attributed};
    }
    return {state:'EMPTY',token,record:null};
   }catch(e){
@@ -551,6 +558,17 @@
   status.textContent=message;
   const top=document.getElementById('status');
   if(top)top.textContent='✓ Sincronización QC confirmada; cantidades verificadas en servidor.';
+ }
+ async function resolveMatchingRemote(ref){
+  requireSession();
+  if(syncing||editor)throw Error('Cierra la edición QC antes de resolver.');
+  const d=drafts.get(key(ref));
+  if(!d||d.status!=='ENVIO_INCIERTO')throw Error('El borrador incierto ya no está disponible.');
+  const result=await checkServer(ref);
+  if(result.state!=='CONFLICT'||result.record?.version!==1||!matches(result.record,d))
+   throw Error('La inspección ya no coincide exactamente. El borrador local se conserva.');
+  await removeVerified(d);
+  return {ok:true,version:result.record.version};
  }
  async function syncDraft(ref,label,button,status,globalConfirmed=false){
   requireSession();
@@ -764,5 +782,5 @@
   return {total:queue.length,verified,blocked,errors,remaining:pendingGlobal().length};
  }
 
- window.QCOfflineDraftEditor=Object.freeze({init,decorate,renderSaved,lock,pendingGlobal,checkServer,syncGlobal});
+ window.QCOfflineDraftEditor=Object.freeze({init,decorate,renderSaved,lock,pendingGlobal,checkServer,resolveMatchingRemote,syncGlobal});
 })();
