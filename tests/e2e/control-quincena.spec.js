@@ -3933,3 +3933,80 @@ test('UAT-405: cancelar la retirada de una foto SharePoint conserva la referenci
   expect(database['lasala-control-fotos-indice-v1']).toBe(indexBefore);
   expect(unexpectedHosts).toEqual([]);
 });
+
+test('UAT-439: un PDF de Carga en Túnel no mezcla líneas y muestra error controlado', async ({ page }) => {
+  const database = fixtureDatabase();
+  const { overlay, unexpectedHosts } = await startControlTest(page, database);
+  const before = structuredClone(database['lasala-control-items-v1']);
+  await page.evaluate(() => {
+    window.loadScriptOnce = async () => {};
+    const row = [['07:30', 10], ['CLIENTE DEMO', 120], ['26X09999', 300], ['TOMATE INJERTADO', 430], ['12', 660], ['17-1-2', 730]];
+    window.pdfjsLib = { GlobalWorkerOptions: {}, getDocument: () => ({ promise: Promise.resolve({
+      numPages: 1,
+      getPage: async () => ({ getTextContent: async () => ({ items: row.map(([str, x]) => ({ str, transform: [1, 0, 0, 1, x, 700] })) }) })
+    }) }) };
+  });
+  const input = overlay.locator('[data-testid="control-day-operations"] input[type="file"][accept="application/pdf"]');
+  await input.setInputFiles({ name: 'carga-desde-tunel.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4\n%%EOF') });
+  await expect(page.locator('#app-toast')).toContainText('PDF adjuntado, pero no se ha podido leer automáticamente', { timeout: 15000 });
+  expect(database['lasala-control-items-v1']).toEqual(before);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-440: un PDF de Túnel en Carga informa el formato ajeno y no crea líneas', async ({ page }) => {
+  const database = fixtureDatabase();
+  const { overlay, unexpectedHosts } = await startControlTest(page, database);
+  await overlay.getByRole('button', { name: 'Check Carga Injerto' }).click();
+  const before = structuredClone(database['lasala-control-items-v1']);
+  await page.evaluate(() => {
+    window.loadScriptOnce = async () => {};
+    const row = [['11/11/2026', 10], ['26X00044', 80], ['100', 200], ['CLIENTE TUNEL', 300], ['25', 500], ['12.0', 600], ['17-1-2', 700]];
+    window.pdfjsLib = { GlobalWorkerOptions: {}, getDocument: () => ({ promise: Promise.resolve({
+      numPages: 1,
+      getPage: async () => ({ getTextContent: async () => ({ items: row.map(([str, x]) => ({ str, transform: [1, 0, 0, 1, x, 700] })) }) })
+    }) }) };
+  });
+  const input = overlay.locator('[data-testid="control-day-operations"] input[type="file"][accept="application/pdf"]');
+  await input.setInputFiles({ name: 'tunel-desde-carga.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4\n%%EOF') });
+  await expect(page.locator('#app-toast')).toContainText('formato distinto al esperado', { timeout: 15000 });
+  expect(database['lasala-control-items-v1']).toEqual(before);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-441–442: un PDF dañado o un archivo no PDF renombrado se advierte sin crear líneas', async ({ page }) => {
+  const database = fixtureDatabase();
+  const { overlay, unexpectedHosts } = await startControlTest(page, database);
+  await overlay.getByRole('button', { name: 'Check Carga Injerto' }).click();
+  const before = structuredClone(database['lasala-control-items-v1']);
+  await page.evaluate(() => {
+    window.loadScriptOnce = async () => {};
+    window.pdfjsLib = { GlobalWorkerOptions: {}, getDocument: () => ({ promise: Promise.reject(new Error('Invalid PDF fixture')) }) };
+  });
+  const input = overlay.locator('[data-testid="control-day-operations"] input[type="file"][accept="application/pdf"]');
+  for (const file of [
+    { name: 'truncado.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4\ntruncado') },
+    { name: 'texto-renombrado.pdf', mimeType: 'application/pdf', buffer: Buffer.from('<script>no ejecutar</script>') }
+  ]) {
+    await input.setInputFiles(file);
+    await expect(page.locator('#app-toast')).toContainText('PDF adjuntado, pero no se ha podido leer automáticamente', { timeout: 15000 });
+    await input.evaluate(element => { element.value = ''; });
+  }
+  expect(database['lasala-control-items-v1']).toEqual(before);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-443: cancelar el selector PDF conserva adjuntos y líneas', async ({ page }) => {
+  const database = fixtureDatabase();
+  database['lasala-control-pdfs-indice-v1'] = JSON.stringify([]);
+  const { overlay, unexpectedHosts } = await startControlTest(page, database);
+  await overlay.getByRole('button', { name: 'Check Carga Injerto' }).click();
+  const itemsBefore = structuredClone(database['lasala-control-items-v1']);
+  const pdfIndexBefore = database['lasala-control-pdfs-indice-v1'];
+  const chooserEvent = page.waitForEvent('filechooser');
+  await overlay.getByText('Insertar PDF', { exact: true }).click();
+  const chooser = await chooserEvent;
+  await chooser.setFiles([]);
+  expect(database['lasala-control-items-v1']).toEqual(itemsBefore);
+  expect(database['lasala-control-pdfs-indice-v1']).toBe(pdfIndexBefore);
+  expect(unexpectedHosts).toEqual([]);
+});
