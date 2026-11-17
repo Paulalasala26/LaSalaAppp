@@ -424,6 +424,851 @@ test('UAT-525: editar un tratamiento restaura y conserva orden, espera y primer 
   expect(unexpectedHosts).toEqual([]);
 });
 
+test('UAT-550: existe acceso para continuar una serie de Plaguicidas ya iniciada',async({page})=>{
+  const database=fixtureDatabase();
+  const data=JSON.parse(database['lasala-fito-v1']);
+  data['17']['30']['3']={texto:'E2E-SERIE-UAT-550 1 cc/l',caldoLitros:25,caldoLabel:'25L CUBA DE RUEDAS',tipoTrat:'Cañón',primerDia:true,serieId:'e2e-serie-550',jornadaId:'e2e-jornada-550'};
+  database['lasala-fito-v1']=JSON.stringify(data);
+  const {overlay,unexpectedHosts}=await openFito(page,database);
+  await expect(overlay.locator('#fito-grid-wrap [data-finv="17"][data-fdia="30"][data-frc="3"]')).toHaveValue('E2E-SERIE-UAT-550 1 cc/l');
+  await expect(overlay.getByRole('button',{name:'Continuar tratamiento',exact:true})).toBeVisible({timeout:2000});
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-526: consultar una jornada histórica incompleta no la completa ni la reescribe',async({page})=>{
+  const database=fixtureDatabase();
+  const original=database['lasala-fito-v1'];
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  const cell=overlay.locator('#fito-grid-wrap [data-finv="17"][data-fdia="30"][data-frc="4"]');
+  await cell.dblclick();
+  const form=page.locator('#fito-manual-overlay');
+  await expect(form.locator('#fm-trat')).toHaveValue('E2E-HISTORICO-LECTURA');
+  await expect(form.locator('#fm-dosis')).toHaveValue('1 cc/l');
+  await expect(form.locator('#fm-tipo-trat')).toHaveValue('');
+  await expect(form.locator('#fm-caldo')).toHaveValue('25');
+  await form.getByRole('button',{name:'Cancelar'}).click();
+  await expect(form).toBeHidden();
+  expect(database['lasala-fito-v1']).toBe(original);
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-527: no imprime jornadas históricas incompletas ni abre un parte engañoso',async({page,context})=>{
+  const database=fixtureDatabase();
+  const original=database['lasala-fito-v1'];
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  const form=page.locator('#fito-manual-overlay');
+  await overlay.locator('#fito-grid-wrap [data-finv="17"][data-fdia="30"][data-frc="5"]').dblclick();
+  await form.getByRole('button',{name:'Imprimir hoja'}).click();
+  await expect(page.getByText('Introduce la dosis antes de imprimir')).toBeVisible();
+  expect(context.pages()).toHaveLength(1);
+  await form.getByRole('button',{name:'Cancelar'}).click();
+
+  await overlay.locator('#fito-grid-wrap [data-finv="17"][data-fdia="30"][data-frc="4"]').dblclick();
+  await form.getByRole('button',{name:'Imprimir hoja'}).click();
+  await expect(page.getByText('Indica si el tratamiento es con Pistola o con Cañón')).toBeVisible();
+  expect(context.pages()).toHaveLength(1);
+  expect(database['lasala-fito-v1']).toBe(original);
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-528: abrir el alta desde el día mantiene solo el INV de origen seleccionado',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  const dia=overlay.locator('#fito-grid-wrap td[onclick^="abrirFitoManualDia"]').first();
+  await dia.click();
+  const form=page.locator('#fito-manual-overlay');
+  await expect(form).toBeVisible();
+  await expect(form.locator('.fm-inv-chk:checked')).toHaveCount(1);
+  await expect(form.locator('.fm-inv-chk[value="17"]')).toBeChecked();
+  expect(unexpectedHosts).toEqual([]);
+  expect(writes).toEqual([]);
+});
+
+test('UAT-529: seleccionar otro INV de la misma sala mantiene los dos objetivos visibles',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await form.locator('.fm-inv-chk[value="18"]').check();
+  await expect(form.locator('.fm-inv-chk:checked')).toHaveCount(2);
+  await expect(form.locator('.fm-inv-chk[value="17"]')).toBeChecked();
+  await expect(form.locator('#fm-bulk-panels')).toContainText('INV 17');
+  await expect(form.locator('#fm-bulk-panels')).toContainText('INV 18');
+  expect(unexpectedHosts).toEqual([]);
+  expect(writes).toEqual([]);
+});
+
+test('UAT-530: Cañón conserva los invernaderos elegidos al alternar entre salas',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await form.locator('.fm-inv-chk[value="31"]').check();
+  await form.locator('#fm-tipo-trat').selectOption('Cañón');
+  await expect(form.locator('.fm-inv-chk[value="17"]')).toBeChecked();
+  await expect(form.locator('.fm-inv-chk[value="31"]')).toBeChecked();
+  await expect(form.locator('#fm-bulk-panels')).toContainText('INV 17');
+  await expect(form.locator('#fm-bulk-panels')).toContainText('INV 31');
+  expect(unexpectedHosts).toEqual([]);
+  expect(writes).toEqual([]);
+});
+
+test('UAT-531: Pistola impide una selección que cruza salas y no crea tratamientos ni tareas',async({page})=>{
+  const database=fixtureDatabase();
+  const original=database['lasala-fito-v1'];
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await form.locator('.fm-inv-chk[value="31"]').check();
+  await form.locator('#fm-trat').fill('E2E-PISTOLA-SALAS');
+  await form.locator('#fm-dosis').fill('1 cc/l');
+  await form.locator('#fm-tipo-trat').selectOption('Pistola');
+  await form.locator('#fm-caldo').selectOption('25');
+  await form.getByRole('button',{name:'Guardar'}).click();
+  await expect(form).toBeVisible();
+  await expect(page.getByText('Con Pistola, selecciona invernaderos de una sola sala para asignar el PEÓN correcto')).toBeVisible();
+  expect(database['lasala-fito-v1']).toBe(original);
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([]);
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-532: Toda la sala selecciona sus INV reales y deja fuera las demás salas',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await form.locator('.fm-inv-chk[value="17"]').uncheck();
+  const sala1=form.locator('.fm-sala-chk[data-sala="sala1"]');
+  await sala1.check();
+  const seleccionados=await form.locator('.fm-inv-chk:checked').evaluateAll(inputs=>inputs.map(input=>input.value).sort());
+  const sala1Ids=await form.locator('.fm-inv-chk[data-sala="sala1"]').evaluateAll(inputs=>inputs.map(input=>input.value).sort());
+  expect(seleccionados).toEqual(sala1Ids);
+  expect(unexpectedHosts).toEqual([]);
+  expect(writes).toEqual([]);
+});
+
+test('UAT-533: desmarcar una sala no elimina los invernaderos de otra sala',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  const sala1=form.locator('.fm-sala-chk[data-sala="sala1"]');
+  const sala2=form.locator('.fm-sala-chk[data-sala="sala2"]');
+  await sala1.check();
+  await sala2.check();
+  await sala1.uncheck();
+  const seleccionados=await form.locator('.fm-inv-chk:checked').evaluateAll(inputs=>inputs.map(input=>input.value).sort());
+  const sala2Ids=await form.locator('.fm-inv-chk[data-sala="sala2"]').evaluateAll(inputs=>inputs.map(input=>input.value).sort());
+  expect(seleccionados).toEqual(sala2Ids);
+  expect(unexpectedHosts).toEqual([]);
+  expect(writes).toEqual([]);
+});
+
+test('UAT-534: Entero aplica el tratamiento solo a las calles reales del INV elegido',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts}=await openFito(page,database);
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await completarFitoValido(form,'E2E-ENTERO');
+  await form.getByRole('button',{name:'Guardar'}).click();
+  await expect(form).toBeHidden();
+  await expect.poll(()=>Object.entries(fitoData(database)?.['17']?.['30']||{}).filter(([,raw])=>raw?.texto==='E2E-ENTERO 1 cc/l').map(([calle])=>Number(calle)).sort((a,b)=>a-b)).toEqual(Array.from({length:36},(_,i)=>i+1));
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-535: Entero menos excluye solo las calles indicadas',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts}=await openFito(page,database);
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await form.locator('input[name="fm-bulk-modo-17"]').nth(1).check();
+  const excluidas=form.locator('#fm-bulk-detalle-17 select');
+  await excluidas.nth(0).selectOption('2');
+  await excluidas.nth(1).selectOption('4');
+  await completarFitoValido(form,'E2E-ENTERO-MENOS');
+  await form.getByRole('button',{name:'Guardar'}).click();
+  await expect(form).toBeHidden();
+  await expect.poll(()=>Object.entries(fitoData(database)?.['17']?.['30']||{}).filter(([,raw])=>raw?.texto==='E2E-ENTERO-MENOS 1 cc/l').map(([calle])=>Number(calle)).sort((a,b)=>a-b)).toEqual(Array.from({length:36},(_,i)=>i+1).filter(c=>c<2||c>4));
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-536: un tramo válido guarda exactamente desde y hasta inclusive',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts}=await openFito(page,database);
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await form.locator('input[name="fm-bulk-modo-17"]').nth(2).check();
+  await form.locator('#fm-bulk-detalle-17 .fm-bulk-tramo-desde').selectOption('2');
+  await form.locator('#fm-bulk-detalle-17 .fm-bulk-tramo-hasta').selectOption('4');
+  await completarFitoValido(form,'E2E-TRAMO-VALIDO');
+  await form.getByRole('button',{name:'Guardar'}).click();
+  await expect(form).toBeHidden();
+  const expected=[2,3,4];
+  await expect.poll(()=>Object.entries(fitoData(database)?.['17']?.['30']||{}).filter(([,raw])=>raw?.texto==='E2E-TRAMO-VALIDO 1 cc/l').map(([calle])=>Number(calle)).sort((a,b)=>a-b)).toEqual(expected);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-537: dos tramos discontinuos dejan intactas las calles intermedias',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts}=await openFito(page,database);
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await form.locator('input[name="fm-bulk-modo-17"]').nth(2).check();
+  const rows=form.locator('#fm-bulk-tramos-17 .fm-bulk-tramo-row');
+  await rows.nth(0).locator('.fm-bulk-tramo-desde').selectOption('2');
+  await rows.nth(0).locator('.fm-bulk-tramo-hasta').selectOption('3');
+  await form.getByRole('button',{name:'+ Añadir tramo'}).click();
+  const second=form.locator('#fm-bulk-tramos-17 .fm-bulk-tramo-row').nth(1);
+  await second.locator('.fm-bulk-tramo-desde').selectOption('7');
+  await second.locator('.fm-bulk-tramo-hasta').selectOption('8');
+  await completarFitoValido(form,'E2E-DOS-TRAMOS');
+  await form.getByRole('button',{name:'Guardar'}).click();
+  await expect(form).toBeHidden();
+  await expect.poll(()=>Object.entries(fitoData(database)?.['17']?.['30']||{}).filter(([,raw])=>raw?.texto==='E2E-DOS-TRAMOS 1 cc/l').map(([calle])=>Number(calle)).sort((a,b)=>a-b)).toEqual([2,3,7,8]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-539: un tramo invertido se rechaza sin escribir',async({page})=>{
+  const database=fixtureDatabase();
+  const original=database['lasala-fito-v1'];
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await form.locator('input[name="fm-bulk-modo-17"]').nth(2).check();
+  await form.locator('#fm-bulk-detalle-17 .fm-bulk-tramo-desde').selectOption('4');
+  await form.locator('#fm-bulk-detalle-17 .fm-bulk-tramo-hasta').selectOption('2');
+  await completarFitoValido(form,'E2E-TRAMO-INVERTIDO');
+  await form.getByRole('button',{name:'Guardar'}).click();
+  await expect(form).toBeVisible();
+  await expect(page.getByText('El tramo del INV 17 termina antes de empezar')).toBeVisible();
+  expect(database['lasala-fito-v1']).toBe(original);
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-540: tramos solapados compatibles guardan cada calle una sola vez',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts}=await openFito(page,database);
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await form.locator('input[name="fm-bulk-modo-17"]').nth(2).check();
+  const rows=form.locator('#fm-bulk-tramos-17 .fm-bulk-tramo-row');
+  await rows.nth(0).locator('.fm-bulk-tramo-desde').selectOption('2');
+  await rows.nth(0).locator('.fm-bulk-tramo-hasta').selectOption('4');
+  await rows.nth(0).locator('.fm-bulk-tramo-obs').fill('sin daño');
+  await form.getByRole('button',{name:'+ Añadir tramo'}).click();
+  const second=form.locator('#fm-bulk-tramos-17 .fm-bulk-tramo-row').nth(1);
+  await second.locator('.fm-bulk-tramo-desde').selectOption('3');
+  await second.locator('.fm-bulk-tramo-hasta').selectOption('5');
+  await second.locator('.fm-bulk-tramo-obs').fill('sin daño');
+  await completarFitoValido(form,'E2E-SOLAPE-COMPATIBLE');
+  await form.getByRole('button',{name:'Guardar'}).click();
+  await expect(form).toBeHidden();
+  await expect.poll(()=>Object.entries(fitoData(database)?.['17']?.['30']||{}).filter(([,raw])=>raw?.texto?.startsWith('E2E-SOLAPE-COMPATIBLE')).map(([calle])=>Number(calle)).sort((a,b)=>a-b)).toEqual([2,3,4,5]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-541: tramos solapados con observaciones distintas se bloquean antes de guardar',async({page})=>{
+  const database=fixtureDatabase();
+  const original=database['lasala-fito-v1'];
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await form.locator('input[name="fm-bulk-modo-17"]').nth(2).check();
+  const rows=form.locator('#fm-bulk-tramos-17 .fm-bulk-tramo-row');
+  await rows.nth(0).locator('.fm-bulk-tramo-desde').selectOption('2');
+  await rows.nth(0).locator('.fm-bulk-tramo-hasta').selectOption('4');
+  await rows.nth(0).locator('.fm-bulk-tramo-obs').fill('observacion A');
+  await form.getByRole('button',{name:'+ Añadir tramo'}).click();
+  const second=form.locator('#fm-bulk-tramos-17 .fm-bulk-tramo-row').nth(1);
+  await second.locator('.fm-bulk-tramo-desde').selectOption('3');
+  await second.locator('.fm-bulk-tramo-hasta').selectOption('5');
+  await second.locator('.fm-bulk-tramo-obs').fill('observacion B');
+  await completarFitoValido(form,'E2E-SOLAPE-CONFLICTIVO');
+  await form.getByRole('button',{name:'Guardar'}).click();
+  await expect(form).toBeVisible();
+  await expect(page.getByText('Los tramos solapados del INV 17 tienen observaciones distintas')).toBeVisible();
+  expect(database['lasala-fito-v1']).toBe(original);
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-548: guardar sin calles efectivas no escribe una jornada vacía',async({page})=>{
+  const database=fixtureDatabase();
+  const original=database['lasala-fito-v1'];
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await form.locator('input[name="fm-bulk-modo-17"]').nth(1).check();
+  const excluidas=form.locator('#fm-bulk-detalle-17 select');
+  await excluidas.nth(0).selectOption('1');
+  await excluidas.nth(1).selectOption('36');
+  await completarFitoValido(form,'E2E-SIN-CALLES');
+  await form.getByRole('button',{name:'Guardar'}).click();
+  await expect(form).toBeVisible();
+  await expect(page.getByText('Selecciona calles efectivas para el INV 17')).toBeVisible();
+  expect(database['lasala-fito-v1']).toBe(original);
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-542: cambiar la selección de salas conserva los tramos preparados',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await form.locator('input[name="fm-bulk-modo-17"]').nth(2).check();
+  await form.locator('#fm-bulk-tramos-17 .fm-bulk-tramo-desde').selectOption('2');
+  await form.locator('#fm-bulk-tramos-17 .fm-bulk-tramo-hasta').selectOption('4');
+  await form.locator('.fm-inv-chk[value="31"]').check();
+  await expect(form.locator('#fm-bulk-tramos-17 .fm-bulk-tramo-desde')).toHaveValue('2');
+  await expect(form.locator('#fm-bulk-tramos-17 .fm-bulk-tramo-hasta')).toHaveValue('4');
+  await expect(form.locator('.fm-inv-chk[value="17"]')).toBeChecked();
+  await expect(form.locator('.fm-inv-chk[value="31"]')).toBeChecked();
+  expect(unexpectedHosts).toEqual([]);
+  expect(writes).toEqual([]);
+});
+
+test('UAT-543: quitar un INV conserva los tramos del resto de la selección',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await form.locator('.fm-inv-chk[value="31"]').check();
+  await form.locator('input[name="fm-bulk-modo-31"]').nth(2).check();
+  await form.locator('#fm-bulk-tramos-31 .fm-bulk-tramo-desde').selectOption('4');
+  await form.locator('#fm-bulk-tramos-31 .fm-bulk-tramo-hasta').selectOption('6');
+  await form.locator('.fm-inv-chk[value="17"]').uncheck();
+  await expect(form.locator('.fm-inv-chk:checked')).toHaveCount(1);
+  await expect(form.locator('.fm-inv-chk[value="31"]')).toBeChecked();
+  await expect(form.locator('#fm-bulk-tramos-31 .fm-bulk-tramo-desde')).toHaveValue('4');
+  await expect(form.locator('#fm-bulk-tramos-31 .fm-bulk-tramo-hasta')).toHaveValue('6');
+  expect(unexpectedHosts).toEqual([]);
+  expect(writes).toEqual([]);
+});
+
+test('UAT-512 y UAT-544: guardar y reabrir observaciones las asocia a su INV y tramo',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts}=await openFito(page,database);
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await form.locator('.fm-inv-chk[value="31"]').check();
+  await form.locator('input[name="fm-bulk-modo-17"]').nth(2).check();
+  await form.locator('#fm-bulk-tramos-17 .fm-bulk-tramo-desde').selectOption('2');
+  await form.locator('#fm-bulk-tramos-17 .fm-bulk-tramo-hasta').selectOption('3');
+  await form.locator('#fm-bulk-tramos-17 .fm-bulk-tramo-obs').fill('observación de INV17');
+  await form.locator('input[name="fm-bulk-modo-31"]').nth(2).check();
+  await form.locator('#fm-bulk-tramos-31 .fm-bulk-tramo-desde').selectOption('4');
+  await form.locator('#fm-bulk-tramos-31 .fm-bulk-tramo-hasta').selectOption('5');
+  await form.locator('#fm-bulk-tramos-31 .fm-bulk-tramo-obs').fill('observación de INV31');
+  await completarFitoValido(form,'E2E-OBS-POR-INV');
+  await form.getByRole('button',{name:'Guardar'}).click();
+  await expect(form).toBeHidden();
+  await expect.poll(()=>fitoData(database)?.['17']?.['30']?.['2']?.texto).toBe('E2E-OBS-POR-INV 1 cc/l — observación de INV17');
+  await expect.poll(()=>fitoData(database)?.['31']?.['30']?.['4']?.texto).toBe('E2E-OBS-POR-INV 1 cc/l — observación de INV31');
+  const cell=overlay.locator('#fito-grid-wrap input[data-finv="17"][data-fdia="30"]').first();
+  await expect(cell).toBeVisible();
+  await cell.dblclick();
+  const editor=page.locator('#fito-manual-overlay');
+  await expect(editor.locator('#fm-bulk-tramos-17 .fm-bulk-tramo-obs')).toHaveValue('observación de INV17');
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-546: no solapar Plaguicidas con un Específico de tarde ni alterar registros',async({page})=>{
+  const database=fixtureDatabase();
+  const original=database['lasala-fito-v1'];
+  database['lasala-especificos-v1']=JSON.stringify({'17':{'30':{'2':'E2E-ESPECIFICO POR LA TARDE'}}});
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await completarFitoValido(form,'E2E-TRATAMIENTO-CONFLICTIVO');
+  await form.getByRole('button',{name:'Guardar'}).click();
+  await expect(form).toBeVisible();
+  await expect(page.getByText(/No se puede aplicar Plaguicidas por la tarde si ya hay otro tratamiento por la tarde/)).toBeVisible();
+  expect(database['lasala-fito-v1']).toBe(original);
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-549: una jornada de una calle no crea datos en otras fechas o invernaderos',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts}=await openFito(page,database);
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await form.locator('input[name="fm-bulk-modo-17"]').nth(2).check();
+  await form.locator('#fm-bulk-tramos-17 .fm-bulk-tramo-desde').selectOption('6');
+  await form.locator('#fm-bulk-tramos-17 .fm-bulk-tramo-hasta').selectOption('6');
+  await completarFitoValido(form,'E2E-UNA-CALLE');
+  await form.getByRole('button',{name:'Guardar'}).click();
+  await expect(form).toBeHidden();
+  await expect.poll(()=>fitoData(database)?.['17']?.['30']?.['6']?.texto).toBe('E2E-UNA-CALLE 1 cc/l');
+  expect(fitoData(database)?.['17']?.['31']?.['6']).toBeUndefined();
+  expect(fitoData(database)?.['31']?.['30']).toBeUndefined();
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-522: dos jornadas con el mismo producto conservan litros de caldo independientes',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts}=await openFito(page,database);
+  for(const [day,caldo] of [['30','25'],['31','50']]){
+    await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+    const form=page.locator('#fito-manual-overlay');
+    await form.locator('#fm-dia').selectOption(day);
+    await form.locator('#fm-trat').fill('E2E-MISMO-PRODUCTO');
+    await form.locator('#fm-dosis').fill('1 cc/l');
+    await form.locator('#fm-tipo-trat').selectOption('Cañón');
+    await form.locator('#fm-caldo').selectOption(caldo);
+    await form.getByRole('button',{name:'Guardar'}).click();
+    await expect(form).toBeHidden();
+  }
+  const fito=fitoData(database);
+  expect(fito?.['17']?.['30']?.['2']).toMatchObject({texto:'E2E-MISMO-PRODUCTO 1 cc/l',caldoLitros:25});
+  expect(fito?.['17']?.['31']?.['2']).toMatchObject({texto:'E2E-MISMO-PRODUCTO 1 cc/l',caldoLitros:50});
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-523 y UAT-1415: cambiar de Pistola a Cañón antes de guardar no asigna una tarea de PEÓN',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts}=await openFito(page,database);
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await form.locator('#fm-trat').fill('E2E-CAMBIO-METODO');
+  await form.locator('#fm-dosis').fill('1 cc/l');
+  await form.locator('#fm-tipo-trat').selectOption('Pistola');
+  await form.locator('#fm-tipo-trat').selectOption('Cañón');
+  await form.locator('#fm-caldo').selectOption('25');
+  await form.getByRole('button',{name:'Guardar'}).click();
+  await expect(form).toBeHidden();
+  await expect.poll(()=>fitoData(database)?.['17']?.['30']?.['2']).toMatchObject({tipoTrat:'Cañón'});
+  await expect.poll(()=>JSON.parse(database['lasala-tareas-v1']||'[]').filter(t=>t.categoria==='fumigacion')).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-524: cambiar de Cañón a Pistola antes de guardar asigna el PEÓN de la sala',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts}=await openFito(page,database);
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await form.locator('#fm-trat').fill('E2E-CAMBIO-METODO');
+  await form.locator('#fm-dosis').fill('1 cc/l');
+  await form.locator('#fm-tipo-trat').selectOption('Cañón');
+  await form.locator('#fm-tipo-trat').selectOption('Pistola');
+  await form.locator('#fm-caldo').selectOption('25');
+  await form.locator('#fm-horario').selectOption('18:00');
+  await form.getByRole('button',{name:'Guardar'}).click();
+  await expect(form).toBeHidden();
+  await expect.poll(()=>fitoData(database)?.['17']?.['30']?.['2']).toMatchObject({tipoTrat:'Pistola'});
+  await expect.poll(()=>JSON.parse(database['lasala-tareas-v1']||'[]').filter(t=>t.categoria==='fumigacion')).toHaveLength(1);
+  const tareas=JSON.parse(database['lasala-tareas-v1']||'[]').filter(t=>t.categoria==='fumigacion');
+  expect(tareas[0]).toMatchObject({horario:'18:00',estado:'pendiente'});
+  expect(tareas[0].asignadoA).toMatch(/PEON/i);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-500 y UAT-501: Pistola y Cañón no guardan una jornada sin producto ni dosis',async({page})=>{
+  const database=fixtureDatabase();
+  const original=database['lasala-fito-v1'];
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  for(const method of ['Pistola','Cañón']){
+    await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+    const form=page.locator('#fito-manual-overlay');
+    await form.locator('#fm-tipo-trat').selectOption(method);
+    await form.getByRole('button',{name:'Guardar'}).click();
+    await expect(page.getByText('Introduce el producto')).toBeVisible();
+    await expect(form).toBeVisible();
+    await form.getByRole('button',{name:'Cancelar'}).click();
+  }
+  expect(database['lasala-fito-v1']).toBe(original);
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-502: una jornada nueva sin método no se guarda aunque el resto esté completo',async({page})=>{
+  const database=fixtureDatabase();
+  const original=database['lasala-fito-v1'];
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await form.locator('#fm-trat').fill('E2E-VALIDACION');
+  await form.locator('#fm-dosis').fill('1 cc/l');
+  await form.locator('#fm-caldo').selectOption('25');
+  await form.getByRole('button',{name:'Guardar'}).click();
+  await expect(page.getByText('Selecciona cómo se aplica: Pistola o Cañón')).toBeVisible();
+  await expect(form).toBeVisible();
+  expect(database['lasala-fito-v1']).toBe(original);
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-503: una jornada nueva sin volumen de caldo conserva la ficha y no escribe',async({page})=>{
+  const database=fixtureDatabase();
+  const original=database['lasala-fito-v1'];
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await form.locator('#fm-trat').fill('E2E-VALIDACION');
+  await form.locator('#fm-dosis').fill('1 cc/l');
+  await form.locator('#fm-tipo-trat').selectOption('Cañón');
+  await form.getByRole('button',{name:'Guardar'}).click();
+  await expect(page.getByText('Selecciona el volumen de caldo')).toBeVisible();
+  await expect(form).toBeVisible();
+  expect(database['lasala-fito-v1']).toBe(original);
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-504 y UAT-507: caldo válido y dosis positiva guardan el tratamiento con su unidad',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts}=await openFito(page,database);
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await form.locator('#fm-trat').fill('E2E-VALIDO');
+  await form.locator('#fm-dosis').fill('1.5 cc/l');
+  await form.locator('#fm-tipo-trat').selectOption('Cañón');
+  await form.locator('#fm-caldo').selectOption('25');
+  await form.getByRole('button',{name:'Guardar'}).click();
+  await expect(form).toBeHidden();
+  await expect.poll(()=>{
+    const raw=fitoData(database)?.['17']?.['30']?.['2'];
+    return raw&&typeof raw==='object'?raw:null;
+  }).toMatchObject({texto:'E2E-VALIDO 1.5 cc/l',caldoLitros:25,caldoLabel:'25L CUBA DE RUEDAS',tipoTrat:'Cañón'});
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-505 y UAT-506: dosis cero, negativa o no numérica bloquean la escritura',async({page})=>{
+  const database=fixtureDatabase();
+  const original=database['lasala-fito-v1'];
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await form.locator('#fm-trat').fill('E2E-INVALIDO');
+  await form.locator('#fm-tipo-trat').selectOption('Cañón');
+  await form.locator('#fm-caldo').selectOption('25');
+  for(const dosis of ['0 cc/l','-1 cc/l','sin dosis']){
+    await form.locator('#fm-dosis').fill(dosis);
+    await form.getByRole('button',{name:'Guardar'}).click();
+    await expect(page.getByText('La dosis debe ser un número mayor que cero')).toBeVisible();
+    await expect(form).toBeVisible();
+  }
+  expect(database['lasala-fito-v1']).toBe(original);
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-037: dos sesiones conservan cambios de Plaguicidas en celdas distintas',async({page,context})=>{
+  const database=fixtureDatabase(),hash=createHash('sha256').update(login.password).digest('hex');
+  database['lasala-users-v1']=JSON.stringify({[login.user]:hash,E2E_FITO_ADMIN_2:hash});
+  database['lasala-roles-v1']=JSON.stringify({[login.user]:'ADMIN',E2E_FITO_ADMIN_2:'ADMIN'});
+  const first=await openFito(page,database,{writeDelayMs:120});
+  await page.evaluate(()=>localStorage.setItem('lasala-sesion-v1',JSON.stringify({user:'E2E_FITO_ADMIN_2',ts:Date.now()})));
+  const secondPage=await context.newPage();
+  try{
+    const second=await openFito(secondPage,database,{user:'E2E_FITO_ADMIN_2',loginFirst:false,writeDelayMs:120});
+    for(const [target,street,value] of [[page,'3','E2E-FITO-USUARIO1'],[secondPage,'4','E2E-FITO-USUARIO2']]){
+      const cell=target.locator(`#fito-grid-wrap input[data-finv="17"][data-fdia="32"][data-frc="${street}"]`);
+      await cell.fill(value); await cell.press('Tab');
+    }
+    await Promise.all([first.overlay.getByRole('button',{name:'Guardar'}).click(),second.overlay.getByRole('button',{name:'Guardar'}).click()]);
+    await expect.poll(()=>first.writes.length+second.writes.length).toBeGreaterThanOrEqual(3);
+    expect(textoFito(database,'17','32','3')).toBe('E2E-FITO-USUARIO1');
+    expect(textoFito(database,'17','32','4')).toBe('E2E-FITO-USUARIO2');
+    expect(first.unexpectedHosts).toEqual([]); expect(second.unexpectedHosts).toEqual([]);
+  }finally{ await secondPage.close(); }
+});
+
+test('UAT-038: borrar un tratamiento de prueba y guardar lo elimina también tras recargar',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts}=await openFito(page,database);
+  const cell=page.locator('#fito-grid-wrap [data-finv="17"][data-fdia="32"][data-frc="2"]');
+  await expect(cell).toHaveValue('E2E-FITO-DELETE');
+  await cell.fill(''); await cell.press('Tab');
+  await overlay.getByRole('button',{name:'Guardar'}).click();
+  await expect.poll(()=>textoFito(database,'17','32','2')).toBeUndefined();
+  await page.reload();
+  const reloaded=await openFito(page,database,{loginFirst:false});
+  await expect(page.locator('#fito-grid-wrap input[data-finv="17"][data-fdia="32"][data-frc="2"]')).toHaveValue('');
+  expect(reloaded.unexpectedHosts).toEqual([]);
+});
+
+
+test('UAT-2430: si no carga la plantilla fitosanitaria no imprime ni modifica datos',async({page})=>{
+  const database=fixtureDatabase();
+  await page.addInitScript(()=>{
+    window.__e2ePrintCalls=0;
+    window.print=()=>{ window.parent.__e2ePrintCalls=(window.parent.__e2ePrintCalls||0)+1; };
+  });
+  const {unexpectedHosts,writes}=await openFito(page,database);
+  const original=JSON.stringify(database);
+  await page.route('**/assets/hoja-plaguicidas.jpg',route=>route.fulfill({status:404,body:'plantilla ausente'}));
+  await page.evaluate(()=>imprimirHojaFitoConDatos({
+    fechaISO:'2026-06-30',horario:'10:00',producto:'E2E-PLANTILLA',dosis:'1 cc/l',
+    caldoLitros:25,caldoLabel:'25L CUBA DE RUEDAS',objetivos:[]
+  }));
+  await expect(page.locator('#app-toast')).toHaveText('No se pudo cargar la plantilla de impresión. No se abrió el documento.');
+  await expect(page.locator('#print-fito-iframe')).toHaveCount(0);
+  expect(await page.evaluate(()=>window.__e2ePrintCalls||0)).toBe(0);
+  expect(JSON.stringify(database)).toBe(original);
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-2431: sin tratamiento Específico registrado válido no se genera documento ni alta',async({page})=>{
+  const database=fixtureDatabase();
+  await page.addInitScript(()=>{
+    window.__e2ePrintCalls=0;
+    window.print=()=>{ window.parent.__e2ePrintCalls=(window.parent.__e2ePrintCalls||0)+1; };
+  });
+  const {unexpectedHosts,writes}=await openFito(page,database);
+  const original=JSON.stringify(database);
+  const result=await page.evaluate(()=>imprimirHojaEspecificoConDatos({
+    fechaISO:'2026-06-30',trat:'E2E-NO-REGISTRADO',dosis:'1',caldoLitros:25,
+    filas:[{invId:'17',calles:'INV 17 CALLES 1-2'}]
+  }));
+  await expect(page.locator('#app-toast')).toHaveText('No hay un tratamiento Específico registrado válido. No se imprimió el documento.');
+  expect(result).toBe(false);
+  await expect(page.locator('#print-especifico-iframe')).toHaveCount(0);
+  expect(await page.evaluate(()=>window.__e2ePrintCalls||0)).toBe(0);
+  expect(JSON.stringify(database)).toBe(original);
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-475, UAT-476 y UAT-478: Registrar, Consulta y Home navegan sin arrastrar vistas',async({page})=>{
+  test.fail(true,'Plaguicidas abre directamente la cuadrícula y no presenta el menú Registrar/Consulta indicado por QC.');
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts}=await openFito(page,database,{selectINV:false});
+  await expect(page.getByRole('button',{name:/Registrar tratamientos/})).toBeVisible();
+  await expect(page.getByRole('button',{name:/Consultar tratamientos/})).toBeVisible();
+  await page.getByRole('button',{name:/Registrar tratamientos/}).click();
+  await expect(overlay.locator('#fito-grid-wrap')).toBeVisible();
+  await overlay.locator('#fito-btn-retroceder').click();
+  await expect(page.getByRole('button',{name:/Registrar tratamientos/})).toBeVisible();
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-479: Plaguicidas en móvil ofrece dos accesos azules compactos sin desbordamiento',async({page})=>{
+  test.fail(true,'El módulo actual no presenta los dos accesos Registrar/Consulta que pide el caso móvil.');
+  const database=fixtureDatabase();
+  await page.setViewportSize({width:390,height:844});
+  const {overlay,unexpectedHosts}=await openFito(page,database,{selectINV:false});
+  await expect(page.getByRole('button',{name:/Registrar tratamientos/})).toBeVisible();
+  await expect(page.getByRole('button',{name:/Consultar tratamientos/})).toBeVisible();
+  const overflow=await overlay.evaluate(el=>el.scrollWidth>el.clientWidth);
+  expect(overflow).toBe(false);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-480: la cabecera de Plaguicidas mantiene el azul y la tipografía de Control',async({page})=>{
+  test.fail(true,'La cabecera del módulo usa rojo #a32020; QC requiere el azul de Control.');
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts}=await openFito(page,database,{selectINV:false});
+  const header=overlay.locator(':scope > div > div').first();
+  await expect(header).toHaveCSS('background-color','rgb(21, 88, 160)');
+  await expect(overlay.getByText('Plaguicidas',{exact:false})).toHaveCount(1);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-487: tocar una celda vacía de hoy abre el alta con fecha e invernadero correctos',async({page})=>{
+  test.fail(true,'Las celdas de la cuadrícula se editan directamente; el alta se abre desde la etiqueta del día.');
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  const day=overlay.locator('#fito-grid-wrap td[onclick^="abrirFitoManualDia"][onclick*=",30)"]').first();
+  const row=day.locator('xpath=..');
+  await row.locator('td').nth(1).click();
+  const form=page.locator('#fito-manual-overlay');
+  await expect(form).toBeVisible();
+  await expect(form.locator('#fm-dia')).toHaveValue('30');
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-488: tocar una celda ocupada abre edición sin crear otra jornada',async({page})=>{
+  test.fail(true,'Una pulsación no abre el editor de Plaguicidas; la edición manual se enlaza con doble clic.');
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  const original=database['lasala-fito-v1'];
+  await overlay.locator('#fito-grid-wrap [data-finv="17"][data-fdia="30"][data-frc="2"]').click();
+  await expect(page.locator('#fito-manual-overlay')).toBeVisible();
+  expect(database['lasala-fito-v1']).toBe(original);
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-489: una fecha anterior a hoy no abre alta ni edición desde la cuadrícula',async({page})=>{
+  test.fail(true,'La etiqueta de una fecha anterior abre el formulario manual aunque el día ya pasó.');
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  const pastDay=overlay.locator('#fito-grid-wrap td[onclick^="abrirFitoManualDia"][onclick*=",29)"]').first();
+  await pastDay.click();
+  await expect(page.locator('#fito-manual-overlay')).toBeHidden();
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-490: arrastrar desde una fecha pasada no inicia alta ni edición por tramo',async({page})=>{
+  test.fail(true,'La cuadrícula permite iniciar el selector de tramo en fechas pasadas.');
+  const database=fixtureDatabase();
+  const values=JSON.parse(database['lasala-fito-v1']);
+  values['17']['29']['4']='E2E-PAST-DRAG';
+  database['lasala-fito-v1']=JSON.stringify(values);
+  const original=database['lasala-fito-v1'];
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  const start=overlay.locator('#fito-grid-wrap [data-finv="17"][data-fdia="29"][data-frc="2"]');
+  const end=overlay.locator('#fito-grid-wrap [data-finv="17"][data-fdia="29"][data-frc="4"]');
+  await start.scrollIntoViewIfNeeded();
+  const a=await start.boundingBox(),b=await end.boundingBox();
+  await page.mouse.move(a.x+a.width/2,a.y+a.height/2);
+  await page.mouse.down();
+  await page.mouse.move(b.x+b.width/2,b.y+b.height/2,{steps:5});
+  await page.mouse.up();
+  await expect(page.locator('#fito-manual-overlay')).toBeHidden();
+  expect(database['lasala-fito-v1']).toBe(original);
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-491: el formulario de alta no permite seleccionar una fecha pasada',async({page})=>{
+  test.fail(true,'El selector actual presenta las fechas de la quincena pasada sin deshabilitarlas.');
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await expect(form.locator('#fm-dia option[value="29"]')).toBeDisabled();
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-492: elegir una fecha futura conserva la selección y no crea registros',async({page})=>{
+  const database=fixtureDatabase();
+  const original=database['lasala-fito-v1'];
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  const label=overlay.locator('#fito-quincena-bar span');
+  const current=await label.textContent();
+  await overlay.locator('#fito-quincena-bar button').last().click();
+  await expect(label).not.toHaveText(current);
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  const futureValue=await form.locator('#fm-dia option').last().getAttribute('value');
+  await form.locator('#fm-dia').selectOption(futureValue);
+  await expect(form.locator('#fm-dia')).toHaveValue(futureValue);
+  expect(database['lasala-fito-v1']).toBe(original);
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-499: abrir y cerrar apartados del formulario conserva entradas y acciones',async({page})=>{
+  test.fail(true,'Los apartados del formulario actual son encabezados fijos y no se despliegan ni pliegan.');
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await form.locator('#fm-trat').fill('E2E-ACORDEON');
+  const heading=form.getByText('Método y tratamiento',{exact:true});
+  await heading.click();
+  await expect(form.locator('#fm-tipo-trat')).toBeHidden();
+  await expect(form.locator('#fm-trat')).toHaveValue('E2E-ACORDEON');
+  await expect(form.getByRole('button',{name:'Cancelar'})).toBeVisible();
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-511: cambiar Pistola/Cañón conserva el horario elegido',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await form.locator('#fm-tipo-trat').selectOption('Cañón');
+  await form.locator('#fm-horario').selectOption('17:00');
+  await form.locator('#fm-tipo-trat').selectOption('Pistola');
+  await expect(form.locator('#fm-tipo-trat')).toHaveValue('Pistola');
+  await expect(form.locator('#fm-horario')).toHaveValue('17:00');
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-515: guardar y reabrir una jornada fixture conserva los datos sin marcarla ejecutada',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await completarFitoValido(form,'E2E-UAT515');
+  await form.getByRole('button',{name:'Guardar'}).click();
+  await expect(form).toBeHidden();
+  await expect.poll(()=>fitoData(database)?.['17']?.['30']?.['2']).toMatchObject({
+    texto:'E2E-UAT515 1 cc/l',caldoLitros:25,tipoTrat:'Cañón'
+  });
+  const cell=overlay.locator('#fito-grid-wrap input[data-finv="17"][data-fdia="30"]').first();
+  await expect(cell).toBeVisible();
+  await cell.dblclick();
+  const editor=page.locator('#fito-manual-overlay');
+  await expect(editor.locator('#fm-trat')).toHaveValue('E2E-UAT515');
+  await expect(editor.locator('#fm-dosis')).toHaveValue('1 cc/l');
+  await expect(editor.locator('#fm-caldo')).toHaveValue('25');
+  const raw=fitoData(database)?.['17']?.['30']?.['2'];
+  expect(Object.keys(raw||{}).some(key=>/ejecutado|realizado/i.test(key))).toBe(false);
+  expect(unexpectedHosts).toEqual([]);
+  expect(writes.filter(write=>write.path==='lasala-fito-v1')).toHaveLength(1);
+});
+
+test('UAT-508: guardar una mezcla de productos conserva cada texto y dosis introducidos',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await form.locator('#fm-trat').fill('E2E-PRODUCTO-A + E2E-PRODUCTO-B');
+  await form.locator('#fm-dosis').fill('1 cc/l + 2 cc/l');
+  await form.locator('#fm-tipo-trat').selectOption('Cañón');
+  await form.locator('#fm-caldo').selectOption('25');
+  await form.getByRole('button',{name:'Guardar'}).click();
+  await expect(form).toBeHidden();
+  const expectedText='E2E-PRODUCTO-A + E2E-PRODUCTO-B 1 cc/l + 2 cc/l';
+  await expect.poll(()=>{
+    const raw=fitoData(database)?.['17']?.['30']?.['2'];
+    return typeof raw==='string'?raw:raw?.texto;
+  }).toBe(expectedText);
+  const raw=fitoData(database)?.['17']?.['30']?.['2'];
+  const savedText=typeof raw==='string'?raw:raw?.texto;
+  expect(savedText).toContain('E2E-PRODUCTO-A');
+  expect(savedText).toContain('E2E-PRODUCTO-B');
+  expect(savedText).toContain('1 cc/l');
+  expect(savedText).toContain('2 cc/l');
+  expect(unexpectedHosts).toEqual([]);
+  expect(writes.filter(write=>write.path==='lasala-fito-v1')).toHaveLength(1);
+});
+
+test('UAT-509: el formulario informa del límite de cinco productos antes de imprimir',async({page})=>{
+  test.fail(true,'El formulario acepta texto libre y no muestra control visible del máximo físico de cinco productos.');
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await form.locator('#fm-trat').fill('E2E-A + E2E-B + E2E-C + E2E-D + E2E-E + E2E-F');
+  await expect(form.getByText(/máximo.{0,20}cinco|cinco.{0,20}productos/i)).toBeVisible();
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-510: una mezcla no se guarda si falta la dosis de uno de sus productos',async({page})=>{
+  test.fail(true,'La validación trata la mezcla como texto libre y no comprueba una dosis individual por producto.');
+  const database=fixtureDatabase();
+  const original=database['lasala-fito-v1'];
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await form.locator('#fm-trat').fill('E2E-PRODUCTO-A + E2E-PRODUCTO-B');
+  await form.locator('#fm-dosis').fill('1 cc/l');
+  await form.locator('#fm-tipo-trat').selectOption('Cañón');
+  await form.locator('#fm-caldo').selectOption('25');
+  await form.getByRole('button',{name:'Guardar'}).click();
+  await expect.poll(()=>writes.some(write=>write.path==='lasala-fito-v1'),{timeout:10000}).toBe(true);
+  expect(writes).toEqual([]);
+  expect(database['lasala-fito-v1']).toBe(original);
+  expect(unexpectedHosts).toEqual([]);
+});
+
 test('UAT-526: consultar una jornada histórica incompleta no la completa ni la reescribe',async({page})=>{
   const database=fixtureDatabase();
   const original=database['lasala-fito-v1'];
