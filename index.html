@@ -22579,9 +22579,11 @@ function showEspecificosModule(){
             <i class="ti ti-list-details" aria-hidden="true"></i> Resumen
           </button>
         </nav>
+        <div id="especificos-op-pendiente" style="display:none;padding:7px 10px"></div>
         <div id="especificos-grid-wrap" style="flex:1;min-height:0;overflow:auto;background:#f8fafc"></div>
       </div>`;
     renderEspecificosQuincenaBar();
+    renderAvisoOperacionEspecificoPendiente();
     actualizarVistaEspecificos();
   }).catch(e=>{showToast('❌ Error al cargar Específicos: '+e.message);});
 }
@@ -23357,91 +23359,261 @@ function resolverPartidaPorObsEspecifico(invId, calles, obs, dia){
   // banner no salía nunca con el formato que de verdad usan las partidas.
   const mNum = /^PARTIDA\s+([A-Z0-9]{2,})$/.exec(txt);
   if(mNum){
-    const encontrado = bloques.find(b=>String(b.entry.partida||'').toUpperCase().includes(mNum[1]));
-    if(encontrado) return encontrado.entry;
+    const encontrado = bloques.const ESPECIFICOS_MANUAL_OUTBOX_KEY='viguerapp-test-especificos-manual-op-v1';
+let especificoManualProcesando=false;
+function leerOperacionEspecificoManual(){
+  try{
+    const op=JSON.parse(localStorage.getItem(ESPECIFICOS_MANUAL_OUTBOX_KEY)||'null');
+    return op&&typeof op.id==='string'&&Array.isArray(op.celdas)&&Array.isArray(op.tareas)&&Array.isArray(op.partidas)?op:null;
+  }catch(_){return null;}
+}
+function guardarOperacionEspecificoManual(op){
+  try{localStorage.setItem(ESPECIFICOS_MANUAL_OUTBOX_KEY,JSON.stringify(op));return true;}
+  catch(_){return false;}
+}
+function etapaOperacionEspecificoManual(op,etapa){
+  op.etapas=op.etapas||{};
+  op.etapas[etapa]=true;
+  if(!guardarOperacionEspecificoManual(op))throw Error('No se pudo actualizar el estado local de la operación.');
+}
+function renderAvisoOperacionEspecificoPendiente(){
+  const box=document.getElementById('especificos-op-pendiente');
+  if(!box)return;
+  const op=leerOperacionEspecificoManual();
+  if(!op){box.innerHTML='';box.style.display='none';return;}
+  const etapa=!op.etapas?.celdas?'la cuadrícula'
+    :!op.etapas?.partidas?'los vínculos de Partidas'
+      :!op.etapas?.tareas?'las tareas':'la confirmación final';
+  box.style.display='block';
+  box.innerHTML='<div style="padding:10px 12px;background:#fff4dc;border:1px solid #e7a83e;border-radius:8px;color:#744b00;font-size:12px;font-weight:700">'+
+    'Hay una operación de Específicos pendiente en '+etapa+'. Reintenta la misma operación para completar la sincronización.'+
+    '<button type="button" onclick="reintentarOperacionEspecificoManual()" style="display:block;margin-top:8px;padding:8px 12px;border:0;border-radius:6px;background:#a86600;color:#fff;font-weight:800;cursor:pointer">Reintentar sincronización</button></div>';
+}
+function valoresIgualesRegistroEspecifico(a,b){
+  return a&&b&&a.registroId===b.registroId&&a.operacionEspecificoId===b.operacionEspecificoId
+    &&a.partidaId===b.partidaId&&a.invId===b.invId&&Number(a.dia)===Number(b.dia)
+    &&JSON.stringify(a.calles||[])===JSON.stringify(b.calles||[])
+    &&a.trat===b.trat&&a.dosis===b.dosis&&a.horario===b.horario;
+}
+async function guardarVinculosEspecificoManualIdempotentes(op){
+  if(!op.partidas.length)return true;
+  const tx=await actualizarStorageJsonConEtag(ESPECIFICOS_PARTIDA_KEY,{},cloud=>{
+    if(!cloud||typeof cloud!=='object'||Array.isArray(cloud))throw Error('Formato de vínculos de Partidas inesperado.');
+    const next={...cloud};
+    for(const entrada of op.partidas){
+      const lista=Array.isArray(next[entrada.partidaId])?next[entrada.partidaId].slice():[];
+      const existentes=lista.filter(x=>x.registroId===entrada.registro.registroId);
+      if(existentes.length>1)throw Error('Vínculo duplicado; requiere revisión antes de continuar.');
+      if(existentes.length===1){
+        if(!valoresIgualesRegistroEspecifico(existentes[0],entrada.registro))
+          throw Error('El identificador de operación ya existe con datos distintos.');
+        continue;
+      }
+      lista.push({...entrada.registro});
+      next[entrada.partidaId]=lista;
+    }
+    return next;
+  });
+  if(!tx.ok)throw Error('No se confirmaron los vínculos de Partidas.');
+  const ids=[...new Set(op.partidas.map(x=>x.partidaId))];
+  if(!(await syncEspecificosPartidaV2DesdeV1(tx.value,ids)))
+    throw Error('Los vínculos se guardaron, pero falta sincronizar su índice. La operación queda pendiente.');
+  ids.forEach(id=>{
+    especificosPartidaData[id]=clonarEspecificosPartida(tx.value[id]||[]);
+    especificosPartidaDirty.delete(id);
+  });
+  return true;
+}
+function fusionarCallesTareaIdempotente(existentes,nuevas){
+  if(!nuevas)return existentes||'';
+  if(!existentes)return nuevas;
+  const partes=String(existentes).split(', ').map(x=>x.trim()).filter(Boolean);
+  if(partes.includes(String(nuevas).trim()))return existentes;
+  return fusionarCallesTarea(existentes,nuevas);
+}
+function agregarOperacionTareaEspecifico(lista,key){
+  const actuales=Array.isArray(lista)?lista.filter(x=>typeof x==='string'&&x.length<=100):[];
+  if(actuales.includes(key))return actuales;
+  return [...actuales.slice(-19),key];
+}
+async function guardarTareasEspecificoManualEnLote(op){
+  if(!op.tareas.length)return true;
+  const tx=await actualizarStorageJsonConEtag(TAREAS_KEY,[],cloud=>{
+    if(!Array.isArray(cloud))throw Error('Formato de tareas inesperado.');
+    const next=cloud.map(t=>({...t}));
+    for(const plan of op.tareas){
+      const key=plan.idempotencia;
+      const marcadas=next.filter(t=>Array.isArray(t.operacionesEspecificosManual)&&t.operacionesEspecificosManual.includes(key));
+      if(marcadas.length>1)throw Error('La clave de idempotencia aparece en varias tareas.');
+      if(marcadas.length===1)continue;
+      const porId=next.find(t=>t.id===plan.tarea.id);
+      if(porId){
+        if(porId.inv!==plan.tarea.inv||porId.fechaISO!==plan.tarea.fechaISO||porId.titulo!==plan.tarea.titulo||porId.asignadoA!==plan.tarea.asignadoA)
+          throw Error('El identificador estable de tarea está ocupado por otra tarea.');
+        porId.operacionesEspecificosManual=agregarOperacionTareaEspecifico(porId.operacionesEspecificosManual,key);
+        continue;
+      }
+      const candidatas=next.filter(t=>!t.especificoPartidaRegistroId&&t.inv===plan.tarea.inv&&t.fechaISO===plan.tarea.fechaISO
+        &&t.asignadoA===plan.tarea.asignadoA&&t.titulo===plan.tarea.titulo&&t.categoria==='especifico'
+        &&['pendiente','iniciada'].includes(t.estado)&&!t.archivadaEn);
+      if(candidatas.length>1)throw Error('Hay tareas compatibles duplicadas; no se fusionó ninguna.');
+      if(candidatas.length===1){
+        const existente=candidatas[0];
+        existente.calles=fusionarCallesTareaIdempotente(existente.calles,plan.tarea.calles);
+        if(!existente.horario&&plan.tarea.horario)existente.horario=plan.tarea.horario;
+        if(!existente.producto&&plan.tarea.producto)existente.producto=plan.tarea.producto;
+        if(!existente.dosis&&plan.tarea.dosis)existente.dosis=plan.tarea.dosis;
+        if(!existente.caldoLabel&&plan.tarea.caldoLabel)existente.caldoLabel=plan.tarea.caldoLabel;
+        if(!existente.gastoLabel&&plan.tarea.gastoLabel)existente.gastoLabel=plan.tarea.gastoLabel;
+        existente.operacionesEspecificosManual=agregarOperacionTareaEspecifico(existente.operacionesEspecificosManual,key);
+      }else{
+        next.push({...plan.tarea,operacionesEspecificosManual:[key]});
+      }
+    }
+    return next;
+  });
+  if(!tx.ok)throw Error('No se confirmaron las tareas de Específicos en el servidor.');
+  tareasData=tx.value;
+  tareasDataCargadaEn=Date.now();
+  refreshTareasViews();
+  return true;
+}
+async function procesarOperacionEspecificoManual(op){
+  if(navigator.onLine===false)throw Error('Sin conexión. La operación se conserva en este dispositivo y no se confirma como sincronizada.');
+  const invs=[...new Set(op.celdas.map(c=>String(c.invId)))];
+  if(!op.etapas?.celdas){
+    if(invs.length&&!(await loadEspecificosInvsData(invs,true)))throw Error('No se pudo leer la cuadrícula remota.');
+    for(const c of op.celdas){
+      if(!setEspecifico(c.invId,c.dia,c.calle,c.valor.texto,c.valor))
+        throw Error('Una celda se vinculó a Partidas desde que preparaste la operación.');
+    }
+    if(!(await saveEspecificosData()))throw Error('No se confirmó el guardado de la cuadrícula.');
+    etapaOperacionEspecificoManual(op,'celdas');
   }
-  return null;
+  renderAvisoOperacionEspecificoPendiente();
+  if(op.partidas.length&&!op.etapas?.partidas){
+    await guardarVinculosEspecificoManualIdempotentes(op);
+    etapaOperacionEspecificoManual(op,'partidas');
+  }
+  renderAvisoOperacionEspecificoPendiente();
+  if(op.tareas.length&&!op.etapas?.tareas){
+    await guardarTareasEspecificoManualEnLote(op);
+    etapaOperacionEspecificoManual(op,'tareas');
+  }
+  localStorage.removeItem(ESPECIFICOS_MANUAL_OUTBOX_KEY);
+  renderAvisoOperacionEspecificoPendiente();
+  return true;
+}
+async function reintentarOperacionEspecificoManual(){
+  if(especificoManualProcesando)return false;
+  const op=leerOperacionEspecificoManual();
+  if(!op){renderAvisoOperacionEspecificoPendiente();return true;}
+  especificoManualProcesando=true;
+  try{
+    await procesarOperacionEspecificoManual(op);
+    showToast('✓ Operación de Específicos completada sin duplicar tareas ni vínculos.');
+    if(document.getElementById('especifico-manual-overlay'))document.getElementById('especifico-manual-overlay').style.display='none';
+    if(espResumenFichaContext)refrescarVistaResumenEspecifico();
+    else if(especificosInvSel)renderEspecificosGrid(especificosInvSel);
+    return true;
+  }catch(e){
+    showToast('Operación pendiente: '+e.message+' Usa “Reintentar sincronización”; no vuelvas a crearla.');
+    renderAvisoOperacionEspecificoPendiente();
+    return false;
+  }finally{especificoManualProcesando=false;}
 }
 async function saveEspecificoManual(){
-  const dia = parseInt(document.getElementById('esp-dia').value,10);
-  if(espResumenFichaContext && dia!==espResumenFichaContext.dia){
-    showToast('La fecha de este específico no se cambia desde esta ficha.');
-    return;
-  }
-  if(!esDiaEspecificoEditable(dia)){
-    showToast('Fecha fuera de rango: no se pueden registrar específicos en ese día.');
-    return;
-  }
-  const trat = document.getElementById('esp-trat')?.value || '';
-  const dosis = document.getElementById('esp-dosis')?.value || '';
-  const horario = document.getElementById('esp-horario')?.value || '';
-  const caldoLitros = parseFloat(document.getElementById('esp-caldo')?.value) || null;
-  const caldoLabel = caldoLitros ? ((FITO_CALDO_OPCIONES.find(o=>o.litros===caldoLitros)||{}).label || `${caldoLitros}L`) : '';
-  const gastoLabel = (dosis && caldoLitros) ? `${Math.round(parseFloat(dosis)*caldoLitros*100)/100}cc` : '';
-  const tratDosis = [trat, dosis].filter(Boolean).join(' ');
-  const base = construirTextoEspecifico();
-  if(!base){ showToast('Elige al menos tratamiento, dosis u horario'); return; }
-  const bulkInvIds = leerInvernaderosBulkSeleccionados('esp');
-  if(!bulkInvIds.length){ showToast('Elige al menos un invernadero'); return; }
-  // La asociación del específico con partidas usa Túnel y, mediante
-  // partidaVisibleEnSemana(), también la fecha real de salida de Carga.
-  // controlChecksData puede contener solo una quincena, así que se garantiza
-  // aquí el conjunto v2 completo antes de resolver qué partidas ocupan el tramo.
-  const controlOk = await loadControlCompletoV2(false);
-  if(!controlOk){ avisarFalloCarga(); return; }
-  const porInv = bulkInvIds.map(invId=>({ invId, ...calcularCallesEspBulk(invId) }));
+  if(especificoManualProcesando)return;
+  const previa=leerOperacionEspecificoManual();
+  if(previa){await reintentarOperacionEspecificoManual();return;}
+  const dia=parseInt(document.getElementById('esp-dia').value,10);
+  if(espResumenFichaContext&&dia!==espResumenFichaContext.dia){showToast('La fecha de este específico no se cambia desde esta ficha.');return;}
+  if(!esDiaEspecificoEditable(dia)){showToast('Fecha fuera de rango: no se pueden registrar específicos en ese día.');return;}
+  const trat=document.getElementById('esp-trat')?.value||'';
+  const dosis=document.getElementById('esp-dosis')?.value||'';
+  const horario=document.getElementById('esp-horario')?.value||'';
+  const caldoLitros=parseFloat(document.getElementById('esp-caldo')?.value)||null;
+  const caldoLabel=caldoLitros?((FITO_CALDO_OPCIONES.find(o=>o.litros===caldoLitros)||{}).label||caldoLitros+'L'):'';
+  const gastoLabel=(dosis&&caldoLitros)?Math.round(parseFloat(dosis)*caldoLitros*100)/100+'cc':'';
+  const tratDosis=[trat,dosis].filter(Boolean).join(' ');
+  const base=construirTextoEspecifico();
+  if(!base){showToast('Elige al menos tratamiento, dosis u horario');return;}
+  const bulkInvIds=leerInvernaderosBulkSeleccionados('esp');
+  if(!bulkInvIds.length){showToast('Elige al menos un invernadero');return;}
+  if(!(await loadControlCompletoV2(false))){avisarFalloCarga();return;}
+  const porInv=bulkInvIds.map(invId=>({invId,...calcularCallesEspBulk(invId)}));
   if(porInv.some(({invId,calles})=>calles.some(c=>especificosData[invId]?.[dia]?.[c]?.partidaRegistros))){
     showToast('Hay específicos vinculados a partidas en esas calles. Edítalos desde sus fichas.');return;
   }
-  registrarUndoEspecificoMultiInv(porInv.map(({invId,calles})=>({ invId, dia, calles })));
-  const fechaLabel = riegoDiaLabelCorto(dia);
-  const fechaISO = fechaLocalISO(riegoDiaToDate(dia));
-  let count = 0;
-  for(const {invId, tramos} of porInv){
-    const layout = INV_LAYOUT[invId];
-    const allCalles = [...layout.row1, ...layout.row2];
+  const operationId='espman_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,9);
+  const op={id:operationId,createdAt:new Date().toISOString(),actor:currentUser||'',etapas:{celdas:false,partidas:false,tareas:false},celdas:[],partidas:[],tareas:[]};
+  const celdas=new Map();
+  const semanaDelDia=partidasSemanaDeFecha(riegoDiaToDate(dia));
+  let count=0,tramoN=0;
+  for(const {invId,tramos} of porInv){
+    const layout=INV_LAYOUT[invId];
+    if(!layout)continue;
+    const allCalles=[...layout.row1,...layout.row2];
     for(const {desde,hasta,tipo,obs} of tramos){
-      const partes = [base, tipo].filter(Boolean);
-      let texto = partes.join(' + ');
-      if(obs) texto = texto ? `${texto} — ${obs}` : obs;
-      const s=Math.min(desde,hasta), e=Math.max(desde,hasta);
-      const callesTramo = [];
-      for(let c=s;c<=e;c++){ if(allCalles.includes(c)){ setEspecifico(invId, dia, c, texto, {caldoLitros, caldoLabel, tecnico: currentUser}); callesTramo.push(c); count++; } }
-      const tituloTarea = [tratDosis, tipo].filter(Boolean).join(' + ');
-      try{
-        await autoAsignarTareaEspecifico(invId,dia,formatRangoConInv(invId,s,e),tituloTarea,horario,obs,{producto:trat,dosis,caldoLabel,gastoLabel});
-      }catch(e){
-        showToast('No se confirmó la tarea de específico. El tratamiento no se ha guardado; revisa la conexión y vuelve a intentarlo.');
-        return;
+      if(desde==null||hasta==null)continue;
+      const s=Math.min(desde,hasta),e=Math.max(desde,hasta),callesTramo=[];
+      const partes=[base,tipo].filter(Boolean);
+      let texto=partes.join(' + ');
+      if(obs)texto=texto?texto+' — '+obs:obs;
+      for(let calle=s;calle<=e;calle++){
+        if(!allCalles.includes(calle))continue;
+        const prev=especificosData[invId]?.[dia]?.[calle];
+        const prevObj=prev&&typeof prev==='object'?prev:{};
+        const valor={...prevObj,texto,caldoLitros,caldoLabel,tecnico:currentUser};
+        celdas.set(String(invId)+'|'+String(dia)+'|'+String(calle),{invId:String(invId),dia:String(dia),calle:String(calle),valor});
+        callesTramo.push(calle);count++;
       }
-      // A petición de Paula (2026-08-18): "si no pone observaciones se
-      // refiere a la calle entera, todas las partidas que aparezcan que
-      // estén en ese día" — con observación se sigue asociando SOLO a la
-      // partida que dice esa nota (resolverPartidaPorObsEspecifico); sin
-      // observación (caso normal, la mayoría) se asocia a TODAS las
-      // partidas cuyas calles reales caigan dentro del tramo tratado.
-      const semanaDelDia = partidasSemanaDeFecha(riegoDiaToDate(dia));
-      const partidasAsociadas = obs
-        ? [resolverPartidaPorObsEspecifico(invId, callesTramo, obs, dia)].filter(Boolean)
-        : calcularBloquesPartidasInvBase(invId, semanaDelDia).filter(b=>b.calles.some(c=>callesTramo.includes(c))).map(b=>b.entry);
-      for(const partidaAsociada of partidasAsociadas){
-        if(!(await loadEspecificosPartidaIdsData([partidaAsociada.id],false))) return;
-        if(!especificosPartidaData[partidaAsociada.id]) especificosPartidaData[partidaAsociada.id] = [];
-        // Solo las calles de ESTA partida dentro del tramo tratado (a
-        // petición de Paula, 2026-08-18: poder borrar el específico tanto
-        // desde el banner como desde la cuadrícula — hace falta saber
-        // exactamente qué celdas vaciar).
-        const callesPartida = callesDePartidaEntry(partidaAsociada).filter(c=>callesTramo.includes(c));
-        especificosPartidaData[partidaAsociada.id].push({trat, dosis, horario, fechaLabel, fechaISO, invId, dia, calles: callesPartida});
-        marcarEspecificosPartidaDirty(partidaAsociada.id);
+      if(!callesTramo.length)continue;
+      const tramoId='t'+tramoN++;
+      const tituloTarea=[tratDosis,tipo].filter(Boolean).join(' + ');
+      op.tareas.push({id:tramoId,idempotencia:operationId+'_'+tramoId,tarea:{
+        id:'tarea_'+operationId+'_'+tramoId,titulo:tituloTarea,descripcion:obs||'',asignadoA:reganteDelaSala(invId),
+        asignadoPor:currentUser||'—',inv:String(invId),calles:formatRangoConInv(invId,s,e),
+        fecha:riegoDiaLabelCorto(dia),fechaISO:fechaLocalISO(riegoDiaToDate(dia)),turno:'',horario:horario||'',
+        categoria:'especifico',origenTarea:'especificos',producto:trat,dosis,caldoLabel,gastoLabel,
+        prioridad:'normal',estado:'pendiente',horaInicio:null,horaFin:null,firmante:null,visto:false,
+        creadoEn:new Date().toLocaleString('es-ES')
+      }});
+      const partidasAsociadas=obs
+        ?[resolverPartidaPorObsEspecifico(invId,callesTramo,obs,dia)].filter(Boolean)
+        :calcularBloquesPartidasInvBase(invId,semanaDelDia).filter(b=>b.calles.some(c=>callesTramo.includes(c))).map(b=>b.entry);
+      for(const partida of partidasAsociadas){
+        if(!(await loadEspecificosPartidaIdsData([partida.id],false))){showToast('No se pudieron cargar las fichas de Partidas; no se guardó la operación.');return;}
+        const callesPartida=callesDePartidaEntry(partida).filter(c=>callesTramo.includes(c));
+        const tramoPartidaId=operationId+'_'+tramoId+'_'+String(partida.id).replace(/[^A-Za-z0-9_-]/g,'_');
+        op.partidas.push({partidaId:partida.id,registro:{
+          registroId:'espman_'+tramoPartidaId,operacionEspecificoId:operationId,operacionTramoId:tramoId,
+          trat,dosis,horario,fechaLabel:riegoDiaLabelCorto(dia),fechaISO:fechaLocalISO(riegoDiaToDate(dia)),
+          invId:String(invId),dia,calles:callesPartida
+        }});
       }
     }
   }
-  if(!(await saveEspecificosData())) return;
-  if(!(await saveEspecificosPartidaData())) return;
-  document.getElementById('especifico-manual-overlay').style.display = 'none';
-  if(espResumenFichaContext) refrescarVistaResumenEspecifico();
-  else if(especificosInvSel) renderEspecificosGrid(especificosInvSel);
+  op.celdas=[...celdas.values()];
+  if(!op.celdas.length){showToast('No hay calles que guardar.');return;}
+  if(!guardarOperacionEspecificoManual(op)){
+    showToast('No se pudo guardar el plan de reintento en este dispositivo; no se ha iniciado la operación.');
+    return;
+  }
+  registrarUndoEspecificoMultiInv(porInv.map(({invId,calles})=>({invId,dia,calles})));
+  especificoManualProcesando=true;
+  try{
+    await procesarOperacionEspecificoManual(op);
+    showToast('✓ Día '+dia+' → aplicado a '+bulkInvIds.length+' invernadero(s) ('+count+' calles)');
+    document.getElementById('especifico-manual-overlay').style.display='none';
+    if(espResumenFichaContext)refrescarVistaResumenEspecifico();
+    else if(especificosInvSel)renderEspecificosGrid(especificosInvSel);
+  }catch(e){
+    showToast('Operación pendiente: '+e.message+' La operación quedó guardada para reintentar; no vuelvas a crearla.');
+    renderAvisoOperacionEspecificoPendiente();
+  }finally{especificoManualProcesando=false;}
+}
+rEspecificosGrid(especificosInvSel);
   showToast(`✓ Día ${dia} → aplicado a ${bulkInvIds.length} invernadero(s) (${count} calles)`);
 }
 
