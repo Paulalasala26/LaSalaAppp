@@ -1210,6 +1210,84 @@ test('UAT-524, UAT-614, UAT-615 y UAT-616: Pistola en zona libre crea tarea para
   expect(unexpectedHosts).toEqual([]);
 });
 
+test('UAT-617: Pistola en las salas 3, 4 y 5 asigna PEON3 sin cruzar invernaderos',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts}=await openFito(page,database);
+  const tareas=()=>JSON.parse(database['lasala-tareas-v1']||'[]').filter(t=>t.categoria==='fumigacion');
+  for(const [inv,calle] of [['31','1'],['41','1'],['51','1']]){
+    await overlay.locator(`[data-finv="${inv}"]`).click();
+    await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+    const form=page.locator('#fito-manual-overlay');
+    await form.locator(`input[name="fm-bulk-modo-${inv}"]`).nth(2).check();
+    const tramo=form.locator(`#fm-bulk-tramos-${inv} .fm-bulk-tramo-row`).first();
+    await tramo.locator('.fm-bulk-tramo-desde').selectOption(calle);
+    await tramo.locator('.fm-bulk-tramo-hasta').selectOption(calle);
+    await form.locator('#fm-trat').fill('E2E-PEON3-SALA');
+    await form.locator('#fm-dosis').fill('1 cc/l');
+    await form.locator('#fm-tipo-trat').selectOption('Pistola');
+    await form.locator('#fm-caldo').selectOption('25');
+    await form.locator('#fm-horario').selectOption('18:00');
+    await form.getByRole('button',{name:'Guardar'}).click();
+    await expect(form).toBeHidden();
+    await expect.poll(()=>fitoData(database)?.[inv]?.['30']?.[calle]).toMatchObject({tipoTrat:'Pistola'});
+    const tarea=tareas().find(t=>t.objetivos?.some(o=>o.inv===inv&&o.calles?.includes(calle)));
+    expect(tarea?.asignadoA).toBe('PEON3');
+  }
+  expect(tareas()).toHaveLength(3);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-618: Cañón registra el tratamiento sin crear tarea PEÓN',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts}=await openFito(page,database);
+  await overlay.locator('[data-finv="5"]').click();
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await form.locator('input[name="fm-bulk-modo-5"]').nth(2).check();
+  const tramo=form.locator('#fm-bulk-tramos-5 .fm-bulk-tramo-row').first();
+  await tramo.locator('.fm-bulk-tramo-desde').selectOption('14');
+  await tramo.locator('.fm-bulk-tramo-hasta').selectOption('14');
+  await form.locator('#fm-trat').fill('E2E-CANON-SIN-PEON');
+  await form.locator('#fm-dosis').fill('1 cc/l');
+  await form.locator('#fm-tipo-trat').selectOption('Cañón');
+  await form.locator('#fm-caldo').selectOption('25');
+  await form.locator('#fm-horario').selectOption('18:00');
+  await form.getByRole('button',{name:'Guardar'}).click();
+  await expect(form).toBeHidden();
+  await expect.poll(()=>fitoData(database)?.['5']?.['30']?.['14']).toMatchObject({tipoTrat:'Cañón'});
+  expect(JSON.parse(database['lasala-tareas-v1']||'[]').filter(t=>t.categoria==='fumigacion')).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-619: dos registros Pistola del mismo producto y día generan jornadas distintas',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts}=await openFito(page,database);
+  for(const calle of ['13','14']){
+    await overlay.locator('button[data-finv="5"]').click();
+    await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+    const form=page.locator('#fito-manual-overlay');
+    await form.locator('input[name="fm-bulk-modo-5"]').nth(2).check();
+    const tramo=form.locator('#fm-bulk-tramos-5 .fm-bulk-tramo-row').first();
+    await tramo.locator('.fm-bulk-tramo-desde').selectOption(calle);
+    await tramo.locator('.fm-bulk-tramo-hasta').selectOption(calle);
+    await form.locator('#fm-trat').fill('E2E-DOS-JORNADAS');
+    await form.locator('#fm-dosis').fill('1 cc/l');
+    await form.locator('#fm-tipo-trat').selectOption('Pistola');
+    await form.locator('#fm-caldo').selectOption('25');
+    await form.locator('#fm-horario').selectOption('18:00');
+    await form.getByRole('button',{name:'Guardar'}).click();
+    await expect(form).toBeHidden();
+    await expect.poll(()=>fitoData(database)?.['5']?.['30']?.[calle]).toMatchObject({tipoTrat:'Pistola'});
+  }
+  const jornadas=JSON.parse(database['lasala-tareas-v1']||'[]').filter(t=>t.categoria==='fumigacion');
+  expect(jornadas).toHaveLength(2);
+  expect(jornadas[0].jornadaId).toBeTruthy();
+  expect(jornadas[1].jornadaId).toBeTruthy();
+  expect(jornadas[0].jornadaId).not.toBe(jornadas[1].jornadaId);
+  expect(jornadas.every(t=>t.asignadoA==='PEON1')).toBe(true);
+  expect(unexpectedHosts).toEqual([]);
+});
+
 test('UAT-500 y UAT-501: Pistola y Cañón no guardan una jornada sin producto ni dosis',async({page})=>{
   const database=fixtureDatabase();
   const original=database['lasala-fito-v1'];
