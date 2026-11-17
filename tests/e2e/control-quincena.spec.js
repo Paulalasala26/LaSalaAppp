@@ -3792,3 +3792,30 @@ test('UAT-388: la doble pulsación de «Elegir fotos» no duplica el selector ni
   expect(JSON.parse(database['lasala-control-fotos-v1'])).toEqual({});
   expect(unexpectedHosts).toEqual([]);
 });
+
+
+test('UAT-361: la galería distingue fotos SharePoint, históricas y pendientes locales', async ({ page }) => {
+  test.fail(true, 'La etiqueta de origen SharePoint no está implementada en la galería actual; validar también histórico y pendiente local.');
+  const database = fixtureDatabase();
+  const id = 'e2e-control-current-fortnight';
+  const photo = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/XxsAAAAASUVORK5CYII=';
+  database['lasala-control-fotos-indice-v1'] = JSON.stringify({ [id]: 'lasala-control-fotos-v1' });
+  database['lasala-control-fotos-shards-index'] = JSON.stringify(['lasala-control-fotos-v1']);
+  database['lasala-control-fotos-v1'] = JSON.stringify({ [id]: [
+    { f: photo, t: photo, origen: 'SharePoint' },
+    { f: photo, t: photo, historica: true }
+  ] });
+  const { overlay, unexpectedHosts } = await startControlTest(page, database);
+  const card = overlay.locator(`#control-card-${id}`);
+  await expect(card.locator('img[title="Ver foto"]')).toHaveCount(2);
+  await expect.soft(card.getByTestId(`control-photo-status-${id}-0`)).toContainText('SharePoint');
+  await expect(card.getByTestId(`control-photo-status-${id}-1`)).toContainText('Histórica');
+
+  unexpectedHosts.setWriteFailure(true);
+  await card.locator('input[data-testid^="control-photo-gallery-"]').setInputFiles({
+    name: 'e2e-uat-361-local.png', mimeType: 'image/png', buffer: Buffer.from(photo.split(',')[1], 'base64')
+  });
+  await expect(card.locator('img[title="Ver foto"]')).toHaveCount(3);
+  await expect.soft(card.getByTestId(`control-photo-status-${id}-2`)).toContainText('Pendiente local');
+  expect(unexpectedHosts).toEqual([]);
+});
