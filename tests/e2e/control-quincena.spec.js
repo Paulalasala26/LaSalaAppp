@@ -4157,6 +4157,36 @@ test('UAT-406: una foto SharePoint retirada no reaparece al reabrir la inspecci�
   expect(unexpectedHosts).toEqual([]);
 });
 
+test('UAT-430: reabrir sesión no duplica ni convierte fotos SharePoint e históricas', async ({ page }) => {
+  const database = fixtureDatabase();
+  const id = 'e2e-control-current-fortnight';
+  const photo = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/XxsAAAAASUVORK5CYII=';
+  const sharePointPhoto = { f: photo, t: photo, origen: 'SharePoint', itemId: 'fixture-item-430' };
+  const historicalPhoto = { f: photo, t: photo, historica: true };
+  const originalShard = JSON.stringify({ [id]: [sharePointPhoto, historicalPhoto] });
+  database['lasala-control-fotos-indice-v1'] = JSON.stringify({ [id]: 'lasala-control-fotos-v1' });
+  database['lasala-control-fotos-shards-index'] = JSON.stringify(['lasala-control-fotos-v1']);
+  database['lasala-control-fotos-v1'] = originalShard;
+  const { overlay, unexpectedHosts } = await startControlTest(page, database);
+  const card = overlay.locator(`#control-card-${id}`);
+  await expect(card.locator('img[title="Ver foto"]')).toHaveCount(2);
+  await expect(card.getByTestId(`control-photo-status-${id}-0`)).toHaveText('SharePoint');
+  await expect(card.getByTestId(`control-photo-status-${id}-1`)).toHaveText('Histórica · Solo lectura');
+
+  await overlay.getByRole('button', { name: '✕ Cerrar' }).click();
+  await page.getByRole('button', { name: 'Salir' }).click();
+  await expect(page.locator('#login-screen')).toBeVisible();
+  await page.reload();
+  await loginControlRole(page, login.user);
+  const reopened = await openControlTunnel(page);
+  const reopenedCard = reopened.locator(`#control-card-${id}`);
+  await expect(reopenedCard.locator('img[title="Ver foto"]')).toHaveCount(2);
+  await expect(reopenedCard.getByTestId(`control-photo-status-${id}-0`)).toHaveText('SharePoint');
+  await expect(reopenedCard.getByTestId(`control-photo-status-${id}-1`)).toHaveText('Histórica · Solo lectura');
+  expect(database['lasala-control-fotos-v1']).toBe(originalShard);
+  expect(unexpectedHosts).toEqual([]);
+});
+
 test('UAT-439: un PDF de Carga en Túnel no mezcla líneas y muestra error controlado', async ({ page }) => {
   const database = fixtureDatabase();
   const { overlay, unexpectedHosts } = await startControlTest(page, database);
