@@ -4108,6 +4108,31 @@ test('UAT-405: cancelar la retirada de una foto SharePoint conserva la referenci
   expect(unexpectedHosts).toEqual([]);
 });
 
+test('UAT-406: una foto SharePoint retirada no reaparece al reabrir la inspección', async ({ page }) => {
+  const database = fixtureDatabase();
+  const id = 'e2e-control-current-fortnight';
+  const photo = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/XxsAAAAASUVORK5CYII=';
+  const visiblePhoto = { f: photo, t: photo, origen: 'SharePoint', itemId: 'fixture-item-406-visible' };
+  const hiddenPhoto = { f: photo, t: photo, origen: 'SharePoint', itemId: 'fixture-item-406-hidden' };
+  database['lasala-control-fotos-indice-v1'] = JSON.stringify({ [id]: 'lasala-control-fotos-v1' });
+  database['lasala-control-fotos-shards-index'] = JSON.stringify(['lasala-control-fotos-v1']);
+  database['lasala-control-fotos-v1'] = JSON.stringify({ [id]: [visiblePhoto, hiddenPhoto] });
+  const { overlay, unexpectedHosts } = await startControlTest(page, database);
+  const card = overlay.locator(`#control-card-${id}`);
+  await expect(card.locator('img[title="Ver foto"]')).toHaveCount(2);
+  page.once('dialog', dialog => dialog.accept());
+  await card.getByTestId(`control-photo-delete-${id}`).click();
+  await expect(card.locator('img[title="Ver foto"]')).toHaveCount(1);
+  expect(JSON.parse(database['lasala-control-fotos-v1'])[id]).toEqual([visiblePhoto]);
+  await overlay.getByRole('button', { name: '✕ Cerrar' }).click();
+  const reopened = await openControlTunnel(page);
+  const reopenedCard = reopened.locator(`#control-card-${id}`);
+  await expect(reopenedCard.locator('img[title="Ver foto"]')).toHaveCount(1);
+  await expect(reopenedCard.getByTestId(`control-photo-status-${id}-0`)).toHaveText('SharePoint');
+  expect(JSON.parse(database['lasala-control-fotos-v1'])[id]).toEqual([visiblePhoto]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
 test('UAT-439: un PDF de Carga en Túnel no mezcla líneas y muestra error controlado', async ({ page }) => {
   const database = fixtureDatabase();
   const { overlay, unexpectedHosts } = await startControlTest(page, database);
