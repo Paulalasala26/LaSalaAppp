@@ -1279,7 +1279,7 @@ test('UAT-336: REGANTE y PEÓN no pueden crear QC Carga mediante una llamada dir
   expect(unexpectedHosts).toEqual([]);
 });
 
-test('UAT-341, UAT-342, UAT-438, UAT-453 y UAT-457: importar PDF Carga interpreta la plantilla, conserva origen y no duplica al repetir', async ({ page }) => {
+test('UAT-341, UAT-342, UAT-438, UAT-446, UAT-448, UAT-453 y UAT-457: PDF Carga importa, confirma el resultado y no duplica', async ({ page }) => {
   const database = fixtureDatabase();
   database['lasala-control-pdfs-indice-v1'] = JSON.stringify([]);
   const { overlay, unexpectedHosts } = await startControlTest(page, database);
@@ -1305,6 +1305,7 @@ test('UAT-341, UAT-342, UAT-438, UAT-453 y UAT-457: importar PDF Carga interpret
   const file = { name: 'qc-carga-fixture.pdf', mimeType: 'application/pdf', buffer: pdfBytes };
 
   await pdfInput().setInputFiles(file);
+  await expect(page.locator('#app-toast')).toContainText(/línea creada desde el PDF/, { timeout: 15000 });
   await expect.poll(() => Object.values(database['lasala-control-items-v1']).filter(item => item.partida === '26X09999')).toHaveLength(1);
   expect(Object.values(database['lasala-control-items-v1']).find(item => item.partida === '26X09999')).toMatchObject({
     tipo: 'carga', dia: 30, cliente: 'CLIENTE DEMO', partida: '26X09999',
