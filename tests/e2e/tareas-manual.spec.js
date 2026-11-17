@@ -3356,6 +3356,23 @@ test('UAT-1410: la tarea Pistola ofrece abrir su jornada de origen', async ({ pa
   await expect(page.locator('#fito-overlay button[data-finv="1A"]')).toHaveCSS('background-color', 'rgb(0, 0, 0)');
 });
 
+test('UAT-1411: abrir Ver jornada y cerrar sin cambiar datos', async ({ page }) => {
+  const todayISO = await fechaISOEnNavegador(page);
+  const task = { id:'e2e-uat-1411', titulo:'E2E Pistola 1411', asignadoA:'PEON1', origen:'pistola', categoria:'fumigacion', fechaISO:todayISO, estado:'pendiente', producto:'E2E', dosis:'1 cc/l', caldoLitros:25, caldoLabel:'25L', objetivos:[{inv:'1A',calles:'C/102'}] };
+  const { database, writes } = await installFixture(page, { 'lasala-tareas-v1': JSON.stringify([task]) });
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  await overlay.getByRole('button', { name:/Tareas de hoy/ }).click();
+  const card = overlay.locator('.tarea-card').filter({ hasText:task.titulo });
+  await card.getByRole('button', { name:/Ver jornada/i }).click();
+  const fito = page.locator('#fito-overlay');
+  await expect(fito).toBeVisible();
+  await fito.locator('button[onclick*="fito-overlay"]').click();
+  await expect(fito).toBeHidden();
+  expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([task]);
+  expect(writes).toEqual([]);
+});
+
 test('UAT-1412: Pistola imprime el parte fitosanitario individual', async ({ page }) => {
   await page.addInitScript(() => { window.print = () => {}; });
   const todayISO = await fechaISOEnNavegador(page);
