@@ -1517,7 +1517,7 @@ test('UAT-661: Plaguicidas ofrece Consulta de jornadas con acción contextual de
   await expect(overlay.getByRole('button',{name:/Consulta/i})).toBeVisible();
 });
 
-test('UAT-663, UAT-673 y UAT-675: Cañón imprime una sola hoja oficial con TRACTORISTA',async({page})=>{
+test('UAT-663, UAT-673, UAT-675 y UAT-678: Cañón imprime una hoja oficial proporcionada y sin recortes',async({page})=>{
   const database=fixtureDatabase();
   const {overlay,unexpectedHosts,writes}=await openFito(page,database);
   await overlay.locator('#fito-grid-wrap textarea[data-finv="17"][data-fdia="30"][data-frc="3"]').dblclick();
@@ -1531,6 +1531,14 @@ test('UAT-663, UAT-673 y UAT-675: Cañón imprime una sola hoja oficial con TRAC
   const background=page.frameLocator('#print-fito-iframe').locator('.hf-bg');
   await expect(background).toHaveAttribute('src',/assets\/hoja-plaguicidas\.jpg$/);
   await expect.poll(()=>background.evaluate(img=>img.complete&&img.naturalWidth>0)).toBe(true);
+  const layout=await printed.locator('.hoja-fito').evaluate(sheet=>{
+    const page=sheet.getBoundingClientRect(),image=sheet.querySelector('.hf-bg'),img=image.getBoundingClientRect();
+    const header=[...sheet.querySelectorAll('.ov')].map(el=>el.getBoundingClientRect()).filter(box=>box.top<page.top+page.height*.2);
+    return {pageRatio:page.width/page.height,imageRatio:image.naturalWidth/image.naturalHeight,imageBox:{left:img.left-page.left,top:img.top-page.top,right:page.right-img.right,bottom:page.bottom-img.bottom},headerInside:header.every(box=>box.left>=page.left&&box.right<=page.right&&box.top>=page.top&&box.bottom<=page.bottom)};
+  });
+  expect(Math.abs(layout.pageRatio-layout.imageRatio)).toBeLessThan(0.002);
+  expect(layout.imageBox).toEqual({left:0,top:0,right:0,bottom:0});
+  expect(layout.headerInside).toBe(true);
   expect(writes).toEqual([]);
   expect(unexpectedHosts).toEqual([]);
 });
