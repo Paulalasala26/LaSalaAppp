@@ -390,7 +390,7 @@ async function applySpecificToPartida(page, overlay, entryId, tratamiento) {
   return day;
 }
 
-test('UAT-757 y UAT-758: INV 1A muestra cinco filas y permite recorrer ambas bandas', async ({ page }) => {
+test('UAT-757, UAT-758 y UAT-774: INV 1A muestra cinco filas y deja accesible el destino vertical', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   const database = fixtureDatabase();
   database['lasala-control-items-v1'] = {};
@@ -415,6 +415,18 @@ test('UAT-757 y UAT-758: INV 1A muestra cinco filas y permite recorrer ambas ban
   await expect.poll(() => insideMap(upperRows.nth(5))).toBe(false);
   await upperRows.nth(5).evaluate(element => element.scrollIntoView({ block: 'end' }));
   await expect.poll(() => insideMap(upperRows.nth(5))).toBe(true);
+  const upperDestinations = upper.locator('[data-testid="partidas-empty-slot"][data-calle="9"]');
+  await expect(upperDestinations).toHaveCount(7);
+  const lastUpperDestination = upperDestinations.nth(6);
+  await lastUpperDestination.evaluate(element => element.scrollIntoView({ block: 'end' }));
+  await expect.poll(() => insideMap(lastUpperDestination)).toBe(true);
+  const [destinationBox, lastRowCardBox] = await Promise.all([
+    lastUpperDestination.boundingBox(),
+    upperRows.nth(6).locator('[ondragstart^="iniciarArrastrePartida"]').boundingBox()
+  ]);
+  expect(destinationBox).not.toBeNull();
+  expect(lastRowCardBox).not.toBeNull();
+  expect(destinationBox.x < lastRowCardBox.x + lastRowCardBox.width && destinationBox.x + destinationBox.width > lastRowCardBox.x).toBe(false);
   await lowerRows.last().evaluate(element => element.scrollIntoView({ block: 'end' }));
   await expect.poll(() => insideMap(lowerRows.last())).toBe(true);
   expect(writes).toEqual([]);
