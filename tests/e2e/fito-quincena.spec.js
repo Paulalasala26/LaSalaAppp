@@ -1517,7 +1517,7 @@ test('UAT-661: Plaguicidas ofrece Consulta de jornadas con acción contextual de
   await expect(overlay.getByRole('button',{name:/Consulta/i})).toBeVisible();
 });
 
-test('UAT-663: imprimir una jornada guardada de Cañón identifica TRACTORISTA',async({page})=>{
+test('UAT-663, UAT-673 y UAT-675: Cañón imprime una sola hoja oficial con TRACTORISTA',async({page})=>{
   const database=fixtureDatabase();
   const {overlay,unexpectedHosts,writes}=await openFito(page,database);
   await overlay.locator('#fito-grid-wrap textarea[data-finv="17"][data-fdia="30"][data-frc="3"]').dblclick();
@@ -1527,6 +1527,10 @@ test('UAT-663: imprimir una jornada guardada de Cañón identifica TRACTORISTA',
   const printed=page.frameLocator('#print-fito-iframe').locator('body');
   await expect(printed).toContainText('TRACTORISTA');
   await expect(printed).not.toContainText('PEÓN');
+  await expect(printed.locator('.hoja-fito')).toHaveCount(1);
+  const background=page.frameLocator('#print-fito-iframe').locator('.hf-bg');
+  await expect(background).toHaveAttribute('src',/assets\\/hoja-plaguicidas\\.jpg$/);
+  await expect.poll(()=>background.evaluate(img=>img.complete&&img.naturalWidth>0)).toBe(true);
   expect(writes).toEqual([]);
   expect(unexpectedHosts).toEqual([]);
 });
