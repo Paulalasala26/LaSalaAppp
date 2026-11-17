@@ -244,6 +244,7 @@ async function interceptFirebase(page, database, writeDelayMs = 0) {
   const unexpectedHosts = [];
   let networkAvailable = true;
   let failWrites = false;
+  let dropPhotoWriteResponsesAfterCommit = false;
   const corsHeaders = {
     'access-control-allow-origin': '*',
     'access-control-allow-methods': 'GET, PUT, PATCH, DELETE, OPTIONS',
@@ -297,6 +298,11 @@ async function interceptFirebase(page, database, writeDelayMs = 0) {
     else if (method === 'PATCH') writeAt(database, path, { ...(readAt(database, path) || {}), ...body });
     else if (method === 'DELETE') writeAt(database, path, null);
 
+    // Reproduce una respuesta incierta: el fixture confirma la escritura, pero el cliente pierde la respuesta.
+    if (dropPhotoWriteResponsesAfterCommit && path[0] === 'lasala-control-fotos-v1' && ['PUT', 'PATCH'].includes(method)) {
+      await route.abort('failed');
+      return;
+    }
     await route.fulfill({ status: 200, contentType: 'application/json', headers: { ...corsHeaders, etag: firebaseEtag(readAt(database, path)) }, body: JSON.stringify(body) });
   });
   Object.defineProperty(unexpectedHosts, 'setNetworkAvailable', {
@@ -305,6 +311,10 @@ async function interceptFirebase(page, database, writeDelayMs = 0) {
   });
   Object.defineProperty(unexpectedHosts, 'setWriteFailure', {
     value: value => { failWrites = !!value; },
+    enumerable: false
+  });
+  Object.defineProperty(unexpectedHosts, 'setDropPhotoWriteResponsesAfterCommit', {
+    value: value => { dropPhotoWriteResponsesAfterCommit = !!value; },
     enumerable: false
   });
   return unexpectedHosts;
@@ -3848,5 +3858,30 @@ test('UAT-371 y UAT-373: cámara trasera y galería vinculan fotos en Chromium m
   await expect(card.locator('img[title="Ver foto"]')).toHaveCount(1);
   await expect.poll(() => JSON.parse(database['lasala-control-fotos-indice-v1'] || '{}')[id]).toBe('lasala-control-fotos-v1');
   await expect.poll(() => JSON.parse(database['lasala-control-fotos-v1'] || '{}')[id]).toHaveLength(1);
+  expect(unexpectedHosts).toEqual([]);
+});
+test('UAT-402: un envío incierto de foto no permite borrarla antes de resolverlo', async ({ page }) => {
+  test.fail(true, 'Si Firebase confirma la foto pero se pierde su respuesta, QC no muestra Envío incierto ni protege el borrado local.');
+  const database = fixtureDatabase();
+  const id = 'e2e-control-current-fortnight';
+  database['lasala-control-fotos-indice-v1'] = JSON.stringify({ [id]: 'lasala-control-fotos-v1' });
+  database['lasala-control-fotos-shards-index'] = JSON.stringify(['lasala-control-fotos-v1']);
+  database['lasala-control-fotos-v1'] = JSON.stringify({});
+  const { overlay, unexpectedHosts } = await startControlTest(page, database);
+  unexpectedHosts.setDropPhotoWriteResponsesAfterCommit(true);
+  const base64 = await page.evaluate(() => {
+    const canvas = document.createElement('canvas'); canvas.width = 32; canvas.height = 32;
+    const context = canvas.getContext('2d'); context.fillStyle = '#c62828'; context.fillRect(0, 0, 32, 32);
+    return canvas.toDataURL('image/png').split(',')[1];
+  });
+  const card = overlay.locator(`#control-card-${id}`);
+  await card.locator('input[data-testid^="control-photo-gallery-"]').setInputFiles({
+    name: 'foto-envio-incierto.png', mimeType: 'image/png', buffer: Buffer.from(base64, 'base64')
+  });
+  await expect.poll(() => JSON.parse(database['lasala-control-fotos-v1'] || '{}')[id]).toHaveLength(1);
+  const status = card.getByTestId(`control-photo-status-${id}-0`);
+  await expect.soft(status).toHaveText('Envío incierto');
+  await expect.soft(card.getByTestId(`control-photo-delete-${id}-0`)).toBeDisabled();
+  expect(JSON.parse(database['lasala-control-fotos-v1'])[id]).toHaveLength(1);
   expect(unexpectedHosts).toEqual([]);
 });
