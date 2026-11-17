@@ -1452,6 +1452,40 @@ test('UAT-640: editar Pistola pendiente ofrece anular jornada sin borrado físic
   await expect(form.getByRole('button',{name:/Anular jornada/i})).toBeVisible();
 });
 
+test('UAT-648: Plaguicidas no abre como editable una jornada anulada',async({page})=>{
+  const database=fixtureDatabase();
+  const data=JSON.parse(database['lasala-fito-v1']);
+  data['17']['30']['2']={texto:'E2E-ANULADA-648 1 cc/l 18:00',caldoLitros:25,caldoLabel:'25L CUBA DE RUEDAS',tipoTrat:'Pistola',estado:'anulada',anulada:true,serieId:'e2e-serie-648',jornadaId:'e2e-jornada-648'};
+  database['lasala-fito-v1']=JSON.stringify(data);
+  database['lasala-tareas-v1']=JSON.stringify([{id:'e2e-task-648',titulo:'E2E-ANULADA-648 1 cc/l',asignadoA:'PEON2',origen:'pistola',categoria:'fumigacion',fechaISO:'2026-06-30',estado:'anulada',anuladaISO:'2026-06-30',serieId:'e2e-serie-648',jornadaId:'e2e-jornada-648',motivoAnulacion:'Fixture UAT-648',objetivos:[{inv:'17',calles:'INV 17 CALLES 2'}]}]);
+  const {overlay}=await openFito(page,database);
+  const cell=overlay.locator('#fito-grid-wrap textarea[data-finv="17"][data-fdia="30"][data-frc="2"]');
+  await cell.dblclick();
+  test.fail(true,'La cuadrícula no identifica ni protege el registro anulado y abre el formulario ordinario de edición.');
+  await expect(page.locator('#fito-manual-overlay')).toBeHidden();
+  await expect(cell).toContainText('ANULADA');
+});
+
+test('UAT-649: una nueva serie no sobrescribe el histórico de una jornada anulada',async({page})=>{
+  const database=fixtureDatabase();
+  const data=JSON.parse(database['lasala-fito-v1']);
+  data['17']['30']['2']={texto:'E2E-ANULADA-649 1 cc/l 18:00',caldoLitros:25,caldoLabel:'25L CUBA DE RUEDAS',tipoTrat:'Pistola',estado:'anulada',anulada:true,serieId:'e2e-serie-649-antigua',jornadaId:'e2e-jornada-649-antigua'};
+  database['lasala-fito-v1']=JSON.stringify(data);
+  const oldTask={id:'e2e-task-649-old',titulo:'E2E-ANULADA-649 1 cc/l',asignadoA:'PEON2',origen:'pistola',categoria:'fumigacion',fechaISO:'2026-06-30',estado:'anulada',anuladaISO:'2026-06-30',serieId:'e2e-serie-649-antigua',jornadaId:'e2e-jornada-649-antigua',motivoAnulacion:'Fixture UAT-649',objetivos:[{inv:'17',calles:'INV 17 CALLES 2'}]};
+  database['lasala-tareas-v1']=JSON.stringify([oldTask]);
+  const originalFito=database['lasala-fito-v1'];
+  const {overlay}=await openFito(page,database);
+  await overlay.locator('#fito-grid-wrap textarea[data-finv="17"][data-fdia="30"][data-frc="2"]').dblclick();
+  const form=page.locator('#fito-manual-overlay');
+  await expect(form).toBeVisible();
+  test.fail(true,'El registro anulado se abre en edición ordinaria y al guardar la nueva serie reemplaza el tratamiento histórico de la celda.');
+  await form.locator('#fm-trat').fill('E2E-NUEVA-SERIE-649');
+  await form.getByRole('button',{name:'Guardar'}).click();
+  await expect(form).toBeHidden();
+  expect.soft(database['lasala-fito-v1']).toBe(originalFito);
+  expect.soft(JSON.parse(database['lasala-tareas-v1'])[0]).toEqual(oldTask);
+});
+
 test('UAT-500 y UAT-501: Pistola y Cañón no guardan una jornada sin producto ni dosis',async({page})=>{
   const database=fixtureDatabase();
   const original=database['lasala-fito-v1'];
