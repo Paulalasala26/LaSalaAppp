@@ -5,11 +5,13 @@
   const AUTH='lasala-firebase-auth-v1';
   const API_KEY='AIzaSyDdDdMg6M1jVIssvGYKsdRA-mRug31Yt_g';
   const CATS_TUNEL=[
-    ['color','Color',[['verde','Verde'],['amarillo','Amarillo'],['verdeClaro','Verde claro'],['ok','OK']]],
-    ['tamano','Tamaño',[['grande','Grande'],['pequeno','Pequeño'],['ok','OK']]],
-    ['sanidad','Sanidad',[['ok','OK'],['enfermedad1','Enfermedad 1'],['enfermedad2','Enfermedad 2'],['enfermedad3','Enfermedad 3'],['enfermedad4','Enfermedad 4']]],
-    ['flores','Flores',[['ok','Ok'],['si','Con flores']]],
-    ['raices','Raíces',[['pocaRaiz','Poca raíz'],['raizVariedad','Raíz en variedad'],['ok','OK']]]
+    ['color','Color',[['ok','OK'],['verde','Verde'],['amarillo','Amarillo'],['verdeClaro','Verde claro']]],
+    ['tamano','Tamaño',[['ok','OK'],['grande','Grande'],['pequeno','Pequeño']]],
+    ['plagas','Plagas',[['ok','OK'],['tuta','Tuta'],['minador','Minador'],['pulgon','Pulgón'],['oruga','Oruga'],['trips','Trips']]],
+    ['enfermedades','Enfermedades',[['ok','OK'],['alternaria','Alternaria'],['mildiu','Mildiu'],['oidio','Oídio'],['botrytis','Botrytis'],['didymella','Didymella']]],
+    ['flores','Flores',[['si','Sí'],['no','No']]],
+    ['raices','Raíces',[['ok','OK'],['pocaRaiz','Poca raíz'],['raizVieja','Raíz vieja']]],
+    ['raicesInjerto','Raíces en punto de injerto',[['si','Sí'],['no','No']]]
   ];
   const CATS_CARGA_BASE=[
     ['color','Color',[['verde','Verde'],['amarillo','Amarillo'],['verdeClaro','Verde claro'],['ok','OK']]],
@@ -73,8 +75,7 @@
       const picked=selectedOf(wrap);
       if(cat==='raicesInjerto'&&!picked.length)continue;
       activeCount++;
-      // Sanidad pesa igual que cada uno de los bloques activos: cualquier enfermedad
-      // cuenta una vez. El desglose por enfermedad se conserva aparte y no duplica peso.
+      // Plagas y enfermedades pesan como un bloque cada una, aunque se marquen varias opciones.
       if(isMultiCategory(cat)&&picked.some(k=>isPercentOption(cat,k)))invalidBlocks++;
       else if(cat==='raicesInjerto'&&picked.includes('si'))invalidBlocks++;
       else if(cat==='flores'&&picked.includes('si'))invalidBlocks++;
