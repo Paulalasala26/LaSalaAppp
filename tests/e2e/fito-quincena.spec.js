@@ -552,6 +552,23 @@ test('UAT-565: el alta bloquea sobrescribir una calle ocupada por otra serie',as
   expect(unexpectedHosts).toEqual([]);
 });
 
+test('UAT-554: la serie conserva su identidad al cambiar de quincena',async({page})=>{
+  const database=fixtureDatabase();
+  const data=JSON.parse(database['lasala-fito-v1']);
+  data['17']['30']['6']={texto:'E2E-SERIE-554 1 cc/l',primerDia:true,serieId:'e2e-serie-554',jornadaId:'e2e-jornada-554-a'};
+  data['17']['45']['6']={texto:'E2E-SERIE-554 1 cc/l',primerDia:false,serieId:'e2e-serie-554',jornadaId:'e2e-jornada-554-b'};
+  database['lasala-fito-v1']=JSON.stringify(data);
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  const cell=dia=>overlay.locator(`#fito-grid-wrap [data-finv="17"][data-fdia="${dia}"][data-frc="6"]`);
+  await expect(cell(30)).toHaveValue('E2E-SERIE-554 1 cc/l');
+  await overlay.locator('#fito-quincena-bar button').last().click();
+  await expect(cell(45)).toHaveValue('E2E-SERIE-554 1 cc/l');
+  expect(fitoData(database)?.['17']?.['30']?.['6']).toMatchObject({serieId:'e2e-serie-554',jornadaId:'e2e-jornada-554-a',primerDia:true});
+  expect(fitoData(database)?.['17']?.['45']?.['6']).toMatchObject({serieId:'e2e-serie-554',jornadaId:'e2e-jornada-554-b',primerDia:false});
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
 test('UAT-557: el mismo producto en zonas distintas conserva series independientes',async({page})=>{
   const database=fixtureDatabase();
   const {overlay,unexpectedHosts}=await openFito(page,database);
