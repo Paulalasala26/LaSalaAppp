@@ -1517,6 +1517,37 @@ test('UAT-661: Plaguicidas ofrece Consulta de jornadas con acción contextual de
   await expect(overlay.getByRole('button',{name:/Consulta/i})).toBeVisible();
 });
 
+test('UAT-663: imprimir una jornada guardada de Cañón identifica TRACTORISTA',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  await overlay.locator('#fito-grid-wrap textarea[data-finv="17"][data-fdia="30"][data-frc="3"]').dblclick();
+  const form=page.locator('#fito-manual-overlay');
+  await expect(form).toBeVisible();
+  await form.getByRole('button',{name:'Imprimir hoja'}).click();
+  const printed=page.frameLocator('#print-fito-iframe').locator('body');
+  await expect(printed).toContainText('TRACTORISTA');
+  await expect(printed).not.toContainText('PEÓN');
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
+test('UAT-664: imprimir una jornada guardada de Pistola identifica PEÓN',async({page})=>{
+  const database=fixtureDatabase();
+  const data=JSON.parse(database['lasala-fito-v1']);
+  data['17']['30']['3']={texto:'E2E-FITO-PISTOLA 1 cc/l',caldoLitros:25,caldoLabel:'25L CUBA DE RUEDAS',tipoTrat:'Pistola'};
+  database['lasala-fito-v1']=JSON.stringify(data);
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  await overlay.locator('#fito-grid-wrap textarea[data-finv="17"][data-fdia="30"][data-frc="3"]').dblclick();
+  const form=page.locator('#fito-manual-overlay');
+  await expect(form).toBeVisible();
+  await form.getByRole('button',{name:'Imprimir hoja'}).click();
+  const printed=page.frameLocator('#print-fito-iframe').locator('body');
+  await expect(printed).toContainText('PEÓN');
+  await expect(printed).not.toContainText('TRACTORISTA');
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
 test('UAT-500 y UAT-501: Pistola y Cañón no guardan una jornada sin producto ni dosis',async({page})=>{
   const database=fixtureDatabase();
   const original=database['lasala-fito-v1'];
