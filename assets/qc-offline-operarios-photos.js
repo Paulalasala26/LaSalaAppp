@@ -21,7 +21,7 @@
  function refShapeValid(r){
   // Los QC importados pueden traer dia como entero o como texto numérico.
   // Normalizar el valor para no confundir su representación con autorización.
-  const dia=typeof r?.dia==='string'&&/^\\d+$/.test(r.dia)?Number(r.dia):r?.dia;
+  const dia=typeof r?.dia==='string'&&r.dia.trim()!==''&&Number.isInteger(Number(r.dia))?Number(r.dia):r?.dia;
   return !!(r&&RE_ID.test(r.id)&&QC_TYPES.includes(r.tipo)&&Number.isInteger(dia));
  }
   // La captura no depende del perfil; los permisos de visualización siguen
