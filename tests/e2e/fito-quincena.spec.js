@@ -552,6 +552,16 @@ test('UAT-565: el alta bloquea sobrescribir una calle ocupada por otra serie',as
   expect(unexpectedHosts).toEqual([]);
 });
 
+test('UAT-603: la cuadrícula no permite editar texto directamente',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  const cell=overlay.locator('#fito-grid-wrap [data-finv="17"][data-fdia="30"][data-frc="2"]');
+  await expect(cell).toHaveValue('E2E-FITO-INV17');
+  await expect(cell).toHaveAttribute('readonly');
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
 test('UAT-554: la serie conserva su identidad al cambiar de quincena',async({page})=>{
   const database=fixtureDatabase();
   const data=JSON.parse(database['lasala-fito-v1']);
