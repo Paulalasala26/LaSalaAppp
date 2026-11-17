@@ -488,6 +488,29 @@ test('UAT-552: una calle nueva en la segunda jornada queda marcada como primer d
   expect(unexpectedHosts).toEqual([]);
 });
 
+test('UAT-565: el alta bloquea sobrescribir una calle ocupada por otra serie',async({page})=>{
+  const database=fixtureDatabase();
+  const data=JSON.parse(database['lasala-fito-v1']);
+  data['17']['30']['6']={texto:'E2E-SERIE-565-EXISTENTE 1 cc/l',primerDia:true,serieId:'e2e-serie-565-existente',jornadaId:'e2e-jornada-565-existente'};
+  database['lasala-fito-v1']=JSON.stringify(data);
+  const original=JSON.stringify(fitoData(database)?.['17']?.['30']?.['6']);
+  const {overlay,unexpectedHosts,writes}=await openFito(page,database);
+  await overlay.getByRole('button',{name:/Añadir manualmente/}).click();
+  const form=page.locator('#fito-manual-overlay');
+  await form.locator('#fm-dia').selectOption('30');
+  await form.locator('input[name="fm-bulk-modo-17"]').nth(2).check();
+  const tramo=form.locator('#fm-bulk-tramos-17 .fm-bulk-tramo-row').first();
+  await tramo.locator('.fm-bulk-tramo-desde').selectOption('6');
+  await tramo.locator('.fm-bulk-tramo-hasta').selectOption('6');
+  await completarFitoValido(form,'E2E-SERIE-565-NUEVA');
+  await form.getByRole('button',{name:'Guardar'}).click();
+  expect(writes).toEqual([]);
+  const cell=overlay.locator('#fito-grid-wrap [data-finv="17"][data-fdia="30"][data-frc="6"]');
+  await expect(cell).toHaveValue('E2E-SERIE-565-EXISTENTE 1 cc/l');
+  expect(JSON.stringify(fitoData(database)?.['17']?.['30']?.['6'])).toBe(original);
+  expect(unexpectedHosts).toEqual([]);
+});
+
 test('UAT-558: dos altas del mismo producto en fechas distintas conservan series independientes',async({page})=>{
   const database=fixtureDatabase();
   const {overlay,unexpectedHosts}=await openFito(page,database);
