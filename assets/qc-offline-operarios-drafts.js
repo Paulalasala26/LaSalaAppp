@@ -670,8 +670,11 @@
    status.textContent='Verificando cantidades guardadas en servidor…';
    const remote=await readWritten(ref,before.token);
    requireSession();
-   if(!ownedRemote(remote,attempted))throw Error(
-    'La verificación del servidor no coincide con esta inspección. Mantener borrador local.');
+   if(!remote||remote.version!==result.version||!matches(remote,attempted))
+    throw Error('El servidor respondió con la versión '+result.version+
+     ', pero la lectura posterior '+(!remote?'no encontró el registro.':
+      'devolvió la versión '+remote.version+' ('+mismatchDetails(remote,attempted)+').')+
+     ' Se conserva el borrador local.');
    await finishVerified(ref,attempted,label,button,status,
     '✓ Guardado confirmado por lectura posterior. Borrador local retirado.');
    confirmed=true;
