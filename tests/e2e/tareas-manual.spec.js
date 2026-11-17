@@ -3357,9 +3357,9 @@ test('UAT-1410: la tarea Pistola ofrece abrir su jornada de origen', async ({ pa
   await expect(page.locator('#fito-overlay button[data-finv="1A"]')).toHaveCSS('background-color', 'rgb(0, 0, 0)');
 });
 
-test('UAT-1411: abrir Ver jornada y cerrar sin cambiar datos', async ({ page }) => {
+test('UAT-620 y UAT-1411: volver a consultar la misma jornada Pistola no duplica ni modifica su tarea', async ({ page }) => {
   const todayISO = await fechaISOEnNavegador(page);
-  const task = { id:'e2e-uat-1411', titulo:'E2E Pistola 1411', asignadoA:'PEON1', origen:'pistola', categoria:'fumigacion', fechaISO:todayISO, estado:'pendiente', producto:'E2E', dosis:'1 cc/l', caldoLitros:25, caldoLabel:'25L', objetivos:[{inv:'1A',calles:'C/102'}] };
+  const task = { id:'e2e-uat-1411', titulo:'E2E Pistola 1411', asignadoA:'PEON1', origen:'pistola', categoria:'fumigacion', fechaISO:todayISO, estado:'pendiente', producto:'E2E', dosis:'1 cc/l', caldoLitros:25, caldoLabel:'25L', serieId:'e2e-serie-620', jornadaId:'e2e-jornada-620', objetivos:[{inv:'1A',calles:'C/102'}] };
   const { database, writes } = await installFixture(page, { 'lasala-tareas-v1': JSON.stringify([task]) });
   await openTasks(page);
   const overlay = page.locator('#tareas-overlay');
@@ -3367,6 +3367,14 @@ test('UAT-1411: abrir Ver jornada y cerrar sin cambiar datos', async ({ page }) 
   const card = overlay.locator('.tarea-card').filter({ hasText:task.titulo });
   await card.getByRole('button', { name:/Ver jornada/i }).click();
   const fito = page.locator('#fito-overlay');
+  await expect(fito).toBeVisible();
+  await fito.locator('button[onclick*="fito-overlay"]').click();
+  await expect(fito).toBeHidden();
+  await openTasks(page);
+  const reloadedTasks = page.locator('#tareas-overlay');
+  await reloadedTasks.getByRole('button', { name:/Tareas de hoy/ }).click();
+  const reloadedCard = reloadedTasks.locator('.tarea-card').filter({ hasText:task.titulo });
+  await reloadedCard.getByRole('button', { name:/Ver jornada/i }).click();
   await expect(fito).toBeVisible();
   await fito.locator('button[onclick*="fito-overlay"]').click();
   await expect(fito).toBeHidden();
