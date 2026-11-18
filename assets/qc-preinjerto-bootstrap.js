@@ -131,8 +131,8 @@
         '<div style="display:flex;flex-wrap:wrap;gap:6px">'+options+'</div></section>';
     }).join('');
     const plants=value=>{if(value==null||String(value).trim()==='')return '—';const formatted=typeof plantasVista==='function'?plantasVista(value):value;return esc(formatted==null||formatted===''?value:formatted)||'—';};
-    const location=typeof controlQCInfoVisual==='function'
-      ?controlQCInfoVisual(record):{inv:'—',calles:'—'};
+    const location=typeof qcpAppLocationForCard==='function'
+      ?qcpAppLocationForCard(record):{inv:'—',calles:'—'};
     const status=window.controlLineaCompletada(record)?'<span class="qc-card-medido">✓ Completado</span>':'';
     const id='control-card-'+esc(record.id);
     return '<article id="'+id+'" class="qc-card-compact qc-preinjerto-card"><div class="qc-card-main">'+
