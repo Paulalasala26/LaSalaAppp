@@ -1301,7 +1301,7 @@ async function avisarNuevasTareas(usuario){
   }
   const ids=new Set(nuevas.map(t=>t.id));
   const tx=await actualizarStorageJsonConEtag(TAREAS_KEY,[],cloud=>{
-    if(!Array.isArray(cloud)) cloud=[];
+    if(!Array.isArray(cloud)) throw Error('Tareas: formato inválido; no se marcaron avisos como vistos.');
     return cloud.map(t=>ids.has(t.id)?{...t,visto:true}:t);
   });
   if(tx.ok) tareasData=tx.value;
@@ -2670,7 +2670,8 @@ const TAREAS_GESTOR_VISTAS = [
 // sección del menú lateral (Antiguas/Hoy/Mañana/Mantenimiento) se pinta en
 // el panel de la derecha, sin perder nada de lo que ya había (nueva tarea,
 // asignar en lote, editar/eliminar, imprimir, kanban de mantenimiento...).
-let tareasGestorFiltros={estado:'todas',origen:'todos',sala:'todas',asignado:'todos',fecha:'',busqueda:''};
+// Al abrir Tareas, mostrar primero la jornada actual. El botón «Todos» mantiene el acceso al histórico completo.
+let tareasGestorFiltros={estado:'todas',origen:'todos',sala:'todas',asignado:'todos',fecha:fechaLocalISO(new Date()),busqueda:''};
 let tareasGestorFiltrosAbiertos=false;
 function resetFiltrosTareasGestorSinRender(){
  tareasGestorFiltros={estado:'todas',origen:'todos',sala:'todas',asignado:'todos',fecha:'',busqueda:''};
@@ -3389,6 +3390,7 @@ function showNuevaTareaForm(){
   if(!['ADMIN','TECNICO'].includes(currentUserRole)){showToast('Solo ADMIN y TÉCNICO pueden gestionar Tareas.');return;}
   const wrap=document.getElementById('nueva-tarea-form-wrap');
   if(!wrap)return;
+  delete wrap.dataset.taskCreateId;
   const asignables=usuariosAsignablesOperativas('manual');
   const hoyISO=fechaLocalISO(new Date());
   const invOptions='<option value="">Invernadero (opcional)</option>'+
@@ -3421,6 +3423,9 @@ function showNuevaTareaForm(){
 }
 async function crearTarea(){
   if(!['ADMIN','TECNICO'].includes(currentUserRole)){showToast('Solo ADMIN y TÉCNICO pueden gestionar Tareas.');return;}
+  const wrap=document.getElementById('nueva-tarea-form-wrap');
+  if(!wrap)return;
+  const tareaCreateId=wrap.dataset.taskCreateId||(wrap.dataset.taskCreateId='tarea_'+Date.now()+'_'+Math.random().toString(36).slice(2,8));
   const titulo=document.getElementById('nt-titulo')?.value?.trim();
   const asignadoA=document.getElementById('nt-asignado')?.value||'';
   const descripcion=document.getElementById('nt-desc')?.value?.trim()||'';
@@ -3431,14 +3436,21 @@ async function crearTarea(){
   const fechaRaw=document.getElementById('nt-fecha')?.value;
   const fecha=fechaRaw?new Date(fechaRaw+'T00:00:00').toLocaleDateString('es-ES',{day:'2-digit',month:'short'}).replace('.',''):'';
   if(!titulo||!usuariosAsignablesOperativas('manual').includes(asignadoA)){showToast('Indica un responsable válido y un título');return;}
-  const nueva={id:'tarea_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),titulo,descripcion,asignadoA,
+  const nueva={id:tareaCreateId,titulo,descripcion,asignadoA,
     asignadoPor:currentUser||'—',inv,calles,fecha,fechaISO:fechaRaw||null,turno,categoria:'manual',origenTarea:'manual',
     prioridad,estado:'pendiente',horaInicio:null,horaFin:null,firmante:null,visto:false,creadoEn:new Date().toLocaleString('es-ES')};
   const tx=await actualizarStorageJsonConEtag(TAREAS_KEY,[],cloud=>{
     if(!Array.isArray(cloud))throw Error('Tareas: formato inválido');
+    const existente=cloud.find(t=>t.id===nueva.id);
+    if(existente){
+      const camposIdentidad=['titulo','descripcion','asignadoA','asignadoPor','inv','calles','fecha','fechaISO','turno','categoria','origenTarea','prioridad'];
+      if(!camposIdentidad.every(k=>existente[k]===nueva[k]))throw Error('El identificador de creación ya pertenece a otra tarea. Revisa el listado antes de repetir.');
+      return undefined;
+    }
     return cloud.concat([nueva]);
   });
-  if(!tx.ok){avisarFalloGuardado();showToast('No se ha confirmado la creación de la tarea');return;}
+  if(!tx.ok){avisarFalloGuardado();showToast('No se ha confirmado la creación de la tarea; puedes reintentar sin duplicarla');return;}
+  delete wrap.dataset.taskCreateId;
   tareasData=tx.value;tareasDataCargadaEn=Date.now();
   logHistorial('Creó la tarea "'+titulo+'" y la asignó a '+asignadoA);
   showToast('✓ Tarea creada y asignada a '+asignadoA);
@@ -3512,7 +3524,7 @@ async function guardarEdicionTarea(id){
     estado:nuevoEstado
   };
   const tx=await actualizarStorageJsonConEtag(TAREAS_KEY,[],cloud=>{
-    if(!Array.isArray(cloud)) cloud=[];
+    if(!Array.isArray(cloud)) throw Error('Tareas: formato inválido; no se guardó la edición.');
     const idx=cloud.findIndex(x=>x.id===id);
     if(idx<0) return {value:cloud,result:{missing:true}};
     if(tareaOrigenGestion(cloud[idx])!=='manual'||cloud[idx].estado!=='pendiente')return {value:cloud,result:{protected:true}};
@@ -10673,7 +10685,7 @@ async function verificarTareasPartidasEditables(cambios){
 // En vez de fusionar tareas ajenas por título, usar identidad inequívoca.
 async function sincronizarTareasDesdePartidas(cambios){
   const tx=await actualizarStorageJsonConEtag(TAREAS_KEY,[],cloud=>{
-    if(!Array.isArray(cloud))cloud=[];
+    if(!Array.isArray(cloud))throw Error('Formato de Tareas inválido; no se generaron ni modificaron tareas.');
     for(const c of cambios){
       const r=c.despues||c.antes;
       const index=cloud.findIndex(t=>t.especificoPartidaRegistroId===r.registroId);
@@ -19068,7 +19080,8 @@ async function generarTareasDesdeRiego(){
   // arreglaría nada. Por eso aquí se lee la nube fresca y se escribe
   // DIRECTAMENTE (mismo patrón que eliminarTarea), igual que se hace en
   // Riego cuando hay que borrar una calle de verdad.
-  await loadRiegoData();
+  const riegoCargado=await loadRiegoData(true);
+  if(!riegoCargado){showToast('No se actualizaron las tareas porque no se pudo leer Riego.','warning');return;}
   const rCloud = await window.storage.get(TAREAS_KEY);
   // Si la lectura falla, rCloud es null — igual que si no hubiera tareas.
   // A diferencia de persistTareasData (que fusiona), esta función escribe
@@ -19077,8 +19090,12 @@ async function generarTareasDesdeRiego(){
   // (REGANTE, fumigación, específico...), no solo las de peón sin
   // categoría que este botón reconstruye. Se aborta en vez de asumirlo.
   // Detectado en la auditoría completa del 2026-09-09.
-  if(!rCloud){ avisarFalloGuardado(); return; }
-  tareasData = JSON.parse(rCloud.value);
+  if(!rCloud||!Object.prototype.hasOwnProperty.call(rCloud,'value')){ avisarFalloCarga(); return; }
+  let tareasCloud;
+  try{tareasCloud=typeof rCloud.value==='string'?JSON.parse(rCloud.value):rCloud.value;}
+  catch(_){showToast('Formato de Tareas inválido; no se modificaron las tareas.','warning');return;}
+  if(!Array.isArray(tareasCloud)){showToast('Formato de Tareas inválido; no se modificaron las tareas.','warning');return;}
+  tareasData = tareasCloud;
   // Trabajar con propuesta temporal: la nube conserva los originales.
   // No se puede asumir que una tarea antigua sin categoría proceda de Riego.
   tareasData=tareasData.filter(t=>!((t.categoria==='riego'||t.origenTarea==='riego')&&t.estado==='pendiente'&&!esTareaArchivada(t)));
