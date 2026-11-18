@@ -69,13 +69,21 @@
   window.renderControlResumenHTML=function(){
     const html=oldSummary?oldSummary():'<div></div>';
     if(!['ADMIN','TECNICO'].includes(currentUserRole))return html;
-    return html+'<button type="button" onclick="abrirPendientesPreinjerto()" aria-haspopup="dialog" '+
-      'style="display:flex;width:100%;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;padding:12px 14px;border:1px solid #b8d1ee;border-radius:12px;background:#f2f7fd;color:#1558a0;text-align:left;cursor:pointer">'+
+    const action='<button type="button" onclick="abrirPendientesPreinjerto()" aria-haspopup="dialog" '+
+      'style="display:flex;grid-column:1 / -1;width:100%;align-items:center;justify-content:space-between;gap:12px;margin-top:0;padding:12px 14px;border:1px solid #b8d1ee;border-radius:12px;background:#f2f7fd;color:#1558a0;text-align:left;cursor:pointer">'+
       '<span style="display:flex;align-items:center;gap:10px;min-width:0">'+
       '<i class="ti ti-clock-hour-4" aria-hidden="true" style="font-size:20px;flex-shrink:0"></i>'+
       '<span><strong style="display:block;font-size:13px">Pendientes de Preinjerto</strong>'+
       '<span style="display:block;margin-top:2px;font-size:11px;color:#526b85">Patrón y Variedad · últimos 30 días</span></span></span>'+
       '<i class="ti ti-chevron-right" aria-hidden="true" style="font-size:18px;flex-shrink:0"></i></button>';
+    const tunnelMarker='onclick="seleccionarSeccionControl(\'tunel\')"';
+    const tunnelPosition=html.indexOf(tunnelMarker);
+    if(tunnelPosition<0){
+      const gridEnd=html.lastIndexOf('</div>');
+      return gridEnd<0?html+action:html.slice(0,gridEnd)+action+html.slice(gridEnd);
+    }
+    const tunnelCardStart=html.lastIndexOf('<div ',tunnelPosition);
+    return tunnelCardStart<0?html+action:html.slice(0,tunnelCardStart)+action+html.slice(tunnelCardStart);
   };
 
   function escPending(value){
