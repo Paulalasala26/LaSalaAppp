@@ -785,4 +785,27 @@ test('UAT-1064: TÉCNICO puede abrir un Específico de dentro de treinta días',
   expect(unexpectedHosts).toEqual([]);
 });
 
+test('UAT-1065: TÉCNICO abre un específico en una quincena futura',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openSpecifics(page,database);
+  await switchSpecificsUser(page,tecnico);
+  await page.evaluate(()=>showEspecificosModule());
+  await expect(overlay).toBeVisible();
+  const day=await page.evaluate(()=>riegoDiaDeHoy()+15);
+  const period=overlay.locator('#especificos-quincena-bar');
+  const initial=(await period.innerText()).replace(/\s+/g,' ').trim();
+  await period.locator('button').last().click();
+  const future=(await period.innerText()).replace(/\s+/g,' ').trim();
+  expect(future).not.toBe(initial);
+  await overlay.locator('button[data-einv="17"]').click();
+  const empty=overlay.locator(`#especificos-grid-wrap input[data-einv="17"][data-edia="${day}"][data-erc="16"]`);
+  await empty.click();
+  const editor=page.locator('#especifico-manual-overlay');
+  await expect(editor).toBeVisible();
+  await expect(editor.locator('#esp-dia')).toHaveValue(String(day));
+  await expect(editor.locator('button[onclick="saveEspecificoManual()"]')).toBeVisible();
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
+
 
