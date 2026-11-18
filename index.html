@@ -17744,7 +17744,8 @@ function renderRmBulkDetalle(invId){
   } else {
     if(!cfg.tramos.length) cfg.tramos = [{desde:allCalles[0], hasta:allCalles[0]}];
     cont.innerHTML = `<div id="rmb-tramos-${invId}"></div>
-      <button type="button" onclick="agregarRmBulkTramoRow('${invId}')" style="width:100%;padding:5px;font-size:10px;font-weight:700;background:#fff;border:1.5px dashed #a8c4e8;border-radius:6px;cursor:pointer;color:#1558a0;margin-top:4px">+ Añadir tramo</button>`;
+      <button type="button" onclick="agregarRmBulkTramoRow('${invId}')" style="width:100%;padding:5px;font-size:10px;font-weight:700;background:#fff;border:1.5px dashed #a8c4e8;border-radius:6px;cursor:pointer;color:#1558a0;margin-top:4px">+ Añadir tramo</button>
+      <div id="rmb-resumen-${invId}" role="status" aria-live="polite" style="font-size:10px;color:#55718f;margin-top:5px"></div>`;
     renderRmBulkTramoRows(invId);
   }
 }
@@ -17763,12 +17764,40 @@ function renderRmBulkTramoRows(invId){
       </select>
       ${cfg.tramos.length>1 ? `<button type="button" onclick="quitarRmBulkTramoRow('${invId}',${i})" style="width:26px;background:#fdecea;color:#c62828;border:1px solid #f3c2bd;border-radius:6px;cursor:pointer;font-size:11px">✕</button>` : '<span></span>'}
     </div>`).join('');
+  actualizarRmBulkTramoEstado(invId);
 }
 function leerRmBulkTramosDesdeDOM(invId){
   return Array.from(document.querySelectorAll(`.rmb-tramo-row[data-inv="${invId}"]`)).map(row=>({
     desde: parseInt(row.querySelector('.rmb-tramo-desde').value, 10),
     hasta: parseInt(row.querySelector('.rmb-tramo-hasta').value, 10)
   }));
+}
+function actualizarRmBulkTramoEstado(invId){
+  const allCalles=callesOrdenadasInv(invId);
+  const seleccionadas=new Set();
+  let haySolapamiento=false;
+  leerRmBulkTramosDesdeDOM(invId).forEach(({desde,hasta})=>{
+    if(!allCalles.includes(desde)||!allCalles.includes(hasta))return;
+    const s=Math.min(desde,hasta),e=Math.max(desde,hasta);
+    allCalles.forEach(c=>{
+      if(c<s||c>e)return;
+      if(seleccionadas.has(c))haySolapamiento=true;
+      seleccionadas.add(c);
+    });
+  });
+  const tramos=agruparCallesEnTramos([...seleccionadas].sort((a,b)=>a-b));
+  const cobertura=tramos.map(t=>t.desde===t.hasta?String(t.desde):t.desde+'–'+t.hasta).join(', ');
+  const resumen=document.getElementById('rmb-resumen-'+invId);
+  if(resumen)resumen.textContent=(haySolapamiento?'Hay calles repetidas; se aplicarán una sola vez. ':'Cobertura: ')+(cobertura?'C/'+cobertura:'ninguna');
+  const cont=document.getElementById('rmb-tramos-'+invId);
+  const boton=cont?.parentElement?.querySelector('button[onclick^="agregarRmBulkTramoRow"]');
+  if(boton){
+    const quedanLibres=allCalles.some(c=>!seleccionadas.has(c));
+    boton.disabled=!quedanLibres;
+    boton.title=quedanLibres?'Añade el siguiente tramo empezando por una calle libre.':'Todas las calles ya están incluidas.';
+    boton.style.opacity=quedanLibres?'1':'.55';
+    boton.style.cursor=quedanLibres?'pointer':'not-allowed';
+  }
 }
 function normalizarRmBulkTramoFila(invId,i){
   const rows=Array.from(document.querySelectorAll('.rmb-tramo-row[data-inv="'+String(invId)+'"]'));
@@ -17781,11 +17810,19 @@ function normalizarRmBulkTramoFila(invId,i){
     desdeEl.value=String(hasta);
     hastaEl.value=String(desde);
   }
+  actualizarRmBulkTramoEstado(invId);
 }
 function agregarRmBulkTramoRow(invId){
   rmBulkConfig[invId].tramos = leerRmBulkTramosDesdeDOM(invId);
   const allCalles = callesOrdenadasInv(invId);
-  rmBulkConfig[invId].tramos.push({desde:allCalles[0], hasta:allCalles[0]});
+  const ocupadas=new Set();
+  rmBulkConfig[invId].tramos.forEach(({desde,hasta})=>{
+    const s=Math.min(desde,hasta),e=Math.max(desde,hasta);
+    allCalles.forEach(c=>{if(c>=s&&c<=e)ocupadas.add(c);});
+  });
+  const primeraLibre=allCalles.find(c=>!ocupadas.has(c));
+  if(primeraLibre==null){actualizarRmBulkTramoEstado(invId);return;}
+  rmBulkConfig[invId].tramos.push({desde:primeraLibre,hasta:primeraLibre});
   renderRmBulkTramoRows(invId);
 }
 function quitarRmBulkTramoRow(invId, i){
