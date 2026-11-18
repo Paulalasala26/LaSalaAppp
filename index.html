@@ -6470,8 +6470,7 @@ function renderControlQCDateNav(offset,selected,mode){
 function qcFechaHTML(modo){
  const d=(modo==='wizard'?controlWizardDiaSel:controlDiaSel)??riegoDiaDeHoy();
  const iso=fechaLocalISO(riegoDiaToDate(d));
- return `<section class="qc-work-panel qc-work-date" aria-label="Fecha de trabajo">
- <h3 class="qc-work-title"><i class="ti ti-calendar-event"></i> Fecha de trabajo</h3>
+ return `<section class="qc-work-panel qc-work-date" aria-label="Selector de fecha">
  <div class="qc-work-date-controls">
  <button type="button" class="qc-work-date-arrow" ${d<=15?'disabled':''} aria-label="Día anterior" onclick="qcMoverDia(-1,'${modo}')"><i class="ti ti-chevron-left"></i></button>
  <input type="date" class="qc-work-date-input" min="${fechaLocalISO(riegoDiaToDate(15))}" value="${iso}" aria-label="Seleccionar día" onchange="qcSeleccionarFecha(this.value,'${modo}')">
