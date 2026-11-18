@@ -17829,6 +17829,7 @@ function normalizarRmBulkTramoFila(invId,i,cambiado){
     if(resumen)resumen.textContent='Ese tramo se solapa con otro. Ajusta o elimina uno.';
     return;
   }
+  if(cambiado)cambiado.dataset.prevValue=cambiado.value;
   actualizarRmBulkTramoEstado(invId);
 }
 function agregarRmBulkTramoRow(invId){
