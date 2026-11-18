@@ -387,6 +387,15 @@
     if(ficha.length===1)return {inv:String(ficha[0].inv||''),from:String(ficha[0].desde||''),to:String(ficha[0].hasta||ficha[0].desde||'')};
     return {inv:'',from:'',to:''};
   }
+  root.qcpAppLocationForCard=function(line){
+    const location=qcpAppLocation(line);
+    const from=String(location.from||'').trim();
+    const to=String(location.to||from).trim();
+    return {
+      inv:String(location.inv||'').trim()||'—',
+      calles:from?(from===to?from:from+'–'+to):'—'
+    };
+  };
   function qcpLocationSection(line){
     const original=qcpAppLocation(line);
     const gsDetails=line?.gsDetalles&&typeof line.gsDetalles==='object'?line.gsDetalles:{};
