@@ -49,6 +49,7 @@
   let pendingTab='preinjerto_patron';
   let pendingRows={preinjerto_patron:[],preinjerto_variedad:[]};
   let pendingLoadError=false;
+  const pendingStatusFailures=new Map();
 
   let afterSection=CONTROL_SECCIONES.findIndex(section=>section.key==='carga_injerto');
   keys.forEach(key=>{
@@ -191,15 +192,23 @@
       if(!groups.has(key))groups.set(key,{type:record.tipo,day:record.dia,records:[]});
       groups.get(key).records.push(record);
     });
-    await Promise.all([...groups.values()].map(group=>
-      window.cargarEstadosQCDia(group.type,group.day,group.records)
-    ));
+    const groupList=[...groups.values()];
+    let nextGroup=0;
+    const workers=Array.from({length:Math.min(3,groupList.length)},async()=>{
+      while(nextGroup<groupList.length){
+        const group=groupList[nextGroup++];
+        const status=pendingOverlay?.querySelector('[data-role="pending-status"]');
+        if(status)status.textContent=`Comprobando inspecciones ${nextGroup} de ${groupList.length}…`;
+        await window.cargarEstadosQCDia(group.type,group.day,group.records);
+      }
+    });
+    await Promise.all(workers);
     for(const group of groups.values()){
       const state=controlQCEstados.get(claveEstadosQC(group.type,group.day));
       const signature=group.records.map(record=>record.id+':'+record.partida).sort().join('|');
       if(!state||state.signature!==signature||group.records.some(record=>
         !Object.prototype.hasOwnProperty.call(state.estados,record.id)))
-        throw Error('QC_STATUS_UNAVAILABLE');
+        throw Error(`QC_STATUS_UNAVAILABLE:${pendingStatusFailures.get(claveEstadosQC(group.type,group.day))||group.type+':'+group.day}`);
     }
     pendingRows.preinjerto_patron=relevant.filter(record=>record.tipo==='preinjerto_patron'&&!window.controlLineaCompletada(record));
     pendingRows.preinjerto_variedad=relevant.filter(record=>record.tipo==='preinjerto_variedad'&&!window.controlLineaCompletada(record));
@@ -218,8 +227,8 @@
       '<div style="margin-top:3px;color:#60758b;font-size:12px">Inspecciones anteriores sin completar · 30 días</div></div>'+
       '<button type="button" data-action="close" aria-label="Cerrar pendientes" style="width:38px;height:38px;border:0;border-radius:9px;background:#edf3fa;color:#1558a0;font-size:23px;cursor:pointer">×</button></header>'+
       '<div role="tablist" aria-label="Tipo de Preinjerto" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:12px 14px 8px;padding:4px;border-radius:10px;background:#f1f5fa">'+
-      '<button type="button" role="tab" data-pending-tab="preinjerto_patron" aria-selected="true" style="display:flex;justify-content:center;align-items:center;gap:7px;min-height:40px;border:0;border-radius:8px;background:#1558a0;color:#fff;font-weight:700;cursor:pointer">Patrón <span data-role="tab-count">0</span></button>'+
-      '<button type="button" role="tab" data-pending-tab="preinjerto_variedad" aria-selected="false" style="display:flex;justify-content:center;align-items:center;gap:7px;min-height:40px;border:0;border-radius:8px;background:#f1f5fa;color:#34577f;font-weight:700;cursor:pointer">Variedad <span data-role="tab-count">0</span></button></div>'+
+      '<button type="button" role="tab" data-pending-tab="preinjerto_patron" aria-selected="true" style="display:flex;justify-content:center;align-items:center;gap:7px;min-height:40px;border:0;border-radius:8px;background:#1558a0;color:#fff;font-weight:700;cursor:pointer">Patrón <span data-role="tab-count">…</span></button>'+
+      '<button type="button" role="tab" data-pending-tab="preinjerto_variedad" aria-selected="false" style="display:flex;justify-content:center;align-items:center;gap:7px;min-height:40px;border:0;border-radius:8px;background:#f1f5fa;color:#34577f;font-weight:700;cursor:pointer">Variedad <span data-role="tab-count">…</span></button></div>'+
       '<div data-role="pending-status" aria-live="polite" style="padding:0 16px 7px;color:#60758b;font-size:11px">Actualizando ubicación y pendientes…</div>'+
       '<div data-role="pending-list" style="flex:1;min-height:100px;overflow:auto;padding:0 14px 14px"><div style="padding:24px;text-align:center;color:#60758b;font-size:13px">Cargando partidas…</div></div></section>';
     document.body.appendChild(pendingOverlay);
@@ -236,7 +245,19 @@
     }).catch(error=>{
       if(!pendingOverlay)return;
       pendingLoadError=true;
-      pendingOverlay.querySelector('[data-role="pending-status"]').textContent='No se pudo actualizar la lista.';
+      const message=String(error?.message||'');
+      const status=pendingOverlay.querySelector('[data-role="pending-status"]');
+      status.textContent=message.includes('QC_STATUS_UNAVAILABLE:QC_STATUS_HTTP_401')||message.includes('QC_STATUS_UNAVAILABLE:QC_STATUS_HTTP_403')||message.includes('QC_STATUS_UNAVAILABLE:LOGIN_REQUIRED')
+        ?'La sesión no tiene permiso para consultar los estados QC. Vuelve a iniciar sesión.'
+        :message.includes('QC_STATUS_UNAVAILABLE:QC_STATUS_HTTP_')
+          ?'Firebase/Vercel rechazó la consulta de estados QC. Vuelve a intentarlo en unos segundos.'
+          :message.startsWith('QC_STATUS_UNAVAILABLE')
+            ?'No se pudo verificar una inspección en el servidor. Vuelve a intentarlo en unos segundos.'
+        :message==='QC_INDEX_UNAVAILABLE'
+          ?'No se pudo leer el índice de partidas QC.'
+          :message==='QC_SHARD_UNAVAILABLE'
+            ?'No se pudieron leer las partidas QC desde Firebase.'
+            :'No se pudo actualizar la lista. Revisa la conexión e inténtalo de nuevo.';
       renderPendingRows();
       if(window.console&&console.error)console.error('[QC Preinjerto pendientes]',error);
     });
@@ -392,7 +413,6 @@
     const signature=refs.map(record=>record.id+':'+record.partida).sort().join('|');
     const previous=controlQCEstados.get(key);
     if(previous?.signature===signature&&Date.now()-previous.at<120000)return;
-    if(Date.now()-(controlQCEstadosUltimoError.get(key)||0)<30000)return;
     controlQCEstadosCargando.add(key);
     const user=currentUser;
     try{
@@ -405,7 +425,7 @@
           body:JSON.stringify({modo:'estados',tipo, dia,registros:refs.slice(i,i+60).map(({id,partida})=>({id,partida}))}),
           cache:'no-store'
         });
-        if(!response.ok)throw Error('QC_STATUS_UNAVAILABLE');
+        if(!response.ok)throw Error('QC_STATUS_HTTP_'+response.status);
         const data=await response.json();
         if(!data.ok||data.tipo!==type||data.dia!==day||!data.estados)throw Error('QC_STATUS_INVALID');
         Object.entries(data.estados).forEach(([id,value])=>{states[id]=value===true;});
@@ -415,10 +435,12 @@
       refs.forEach(record=>{partidas[record.id]=record.partida;});
       controlQCEstados.set(key,{signature,estados:states,partidas,at:Date.now()});
       controlQCEstadosUltimoError.delete(key);
+      pendingStatusFailures.delete(key);
       const overlay=document.getElementById('control-overlay');
       if(overlay&&overlay.style.display==='flex'&&controlSeccion===type&&controlDiaSel===day&&
          !document.querySelector('#qco-inline'))window.renderControlContent(overlay);
-    }catch(_){
+    }catch(error){
+      pendingStatusFailures.set(key,String(error?.message||'QC_STATUS_UNAVAILABLE'));
       controlQCEstadosUltimoError.set(key,Date.now());
     }finally{
       controlQCEstadosCargando.delete(key);
