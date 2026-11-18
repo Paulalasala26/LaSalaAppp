@@ -84,13 +84,6 @@
           '<button type="button" data-action="start" disabled style="flex:1;border:0;border-radius:9px;padding:11px 13px;background:#1769aa;color:#fff;font-size:14px;font-weight:700;cursor:pointer">Comprobando lector…</button>' +
         '</div>' +
         '<p data-role="status" aria-live="polite" style="min-height:18px;margin:10px 0 12px;font-size:12px;color:#405344">Comprobando si este navegador puede leer Code 39…</p>' +
-        '<form data-role="manual-form" style="border-top:1px solid #e5e9e5;padding-top:13px">' +
-          '<label for="app-r-qc-barcode-manual" style="display:block;font-size:12px;font-weight:700;color:#33483a;margin-bottom:5px">Introducir código manualmente</label>' +
-          '<div style="display:flex;gap:8px">' +
-            '<input id="app-r-qc-barcode-manual" type="text" inputmode="text" autocomplete="off" placeholder="Ej.: 26010583" style="min-width:0;flex:1;border:1px solid #b7c3b8;border-radius:8px;padding:10px;font-size:16px">' +
-            '<button type="submit" style="border:0;border-radius:8px;padding:0 14px;background:#eaf2eb;color:#245b2c;font-size:13px;font-weight:700;cursor:pointer">Buscar</button>' +
-          '</div>' +
-        '</form>' +
         '<div data-role="results" style="margin-top:10px"></div>' +
       '</section>';
     document.body.appendChild(overlay);
@@ -105,22 +98,16 @@
     overlay.addEventListener('click', function (event) {
       if (event.target === overlay) closeOverlay();
     });
-    overlay.querySelector('[data-role="manual-form"]').addEventListener('submit', function (event) {
-      event.preventDefault();
-      var input = overlay.querySelector('#app-r-qc-barcode-manual');
-      findPartida(input ? input.value : '');
-    });
-
     if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function') {
       startButton.textContent = 'Cámara no disponible';
       startButton.disabled = true;
-      setStatus('Este navegador no ofrece acceso a la cámara desde la app. Puedes introducir el código completo manualmente.', true);
+      setStatus('La cámara no está disponible aquí. Cierra el lector y usa el buscador de partidas de la pantalla anterior.', true);
       return;
     }
     if (!window.BarcodeDetector || typeof window.BarcodeDetector.getSupportedFormats !== 'function') {
       startButton.textContent = 'Lector no compatible';
       startButton.disabled = true;
-      setStatus('Este navegador no incorpora lectura Code 39. Puedes introducir el código completo manualmente.', true);
+      setStatus('Este navegador no admite lectura Code 39. Cierra el lector y usa el buscador de partidas de la pantalla anterior.', true);
       return;
     }
     window.BarcodeDetector.getSupportedFormats().then(function (formats) {
@@ -138,14 +125,14 @@
       if (!overlay) return;
       startButton.textContent = 'Lector no disponible';
       startButton.disabled = true;
-      setStatus('No se pudo comprobar el lector Code 39. Puedes introducir el código completo manualmente.', true);
+      setStatus('No se pudo comprobar el lector Code 39. Cierra el lector y usa el buscador de partidas de la pantalla anterior.', true);
     });
   }
 
   async function startCamera() {
     if (!overlay || !startButton) return;
     if (!window.BarcodeDetector || typeof window.BarcodeDetector.getSupportedFormats !== 'function') {
-      setStatus('Este navegador no ofrece un lector Code 39 integrado. Introduce el código completo manualmente.', true);
+      setStatus('Este navegador no ofrece lectura Code 39. Cierra el lector y usa el buscador de partidas de la pantalla anterior.', true);
       return;
     }
     startButton.disabled = true;
@@ -172,8 +159,8 @@
     } catch (error) {
       stopCamera();
       var message = error && error.name === 'NotAllowedError'
-        ? 'No se concedió permiso de cámara. Permítelo en el navegador o introduce el código manualmente.'
-        : 'No se pudo iniciar la cámara. Comprueba los permisos o introduce el código manualmente.';
+        ? 'No se concedió permiso de cámara. Permite el acceso en el navegador o cierra el lector y usa el buscador de partidas.'
+        : 'No se pudo iniciar la cámara. Comprueba los permisos o cierra el lector y usa el buscador de partidas.';
       setStatus(message, true);
     }
   }
