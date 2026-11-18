@@ -82,7 +82,7 @@ jobs:
 
       - name: Ejecutar checks de Específicos en PR
         if: github.event_name == 'pull_request' && steps.scope.outputs.specifics == 'true'
-        run: pnpm exec playwright test tests/e2e/especificos-quincena.spec.js --grep "UAT-996"
+        run: pnpm exec playwright test tests/e2e/especificos-quincena.spec.js --grep "UAT-1043"
 
       - name: Ejecutar checks de cámara PC y fotos históricas QC en PR
         if: github.event_name == 'pull_request' && steps.scope.outputs.photoHistory == 'true'

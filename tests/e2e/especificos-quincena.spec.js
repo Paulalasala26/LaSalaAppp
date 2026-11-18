@@ -834,3 +834,24 @@ test('UAT-996: el selector de Específicos agrupa cada invernadero bajo su Sala'
   expect(writes).toEqual([]);
   expect(unexpectedHosts).toEqual([]);
 });
+
+test('UAT-1043: rechaza guardar un Específico sin tratamiento aunque haya dosis',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openSpecifics(page,database);
+  await overlay.locator('#especificos-grid-wrap td[title="Pulsa para añadir un específico este día"]').first().click();
+  const editor=page.locator('#especifico-manual-overlay');
+  await expect(editor).toBeVisible();
+  await editor.locator('#esp-dosis').selectOption('1');
+  expect(writes).toEqual([]);
+  await editor.locator('button[onclick="saveEspecificoManual()" ]').click().catch(async()=>{
+    await editor.locator('button[onclick="saveEspecificoManual()"]' ).click();
+  });
+  const feedback=page.locator('#app-toast');
+  await expect.poll(async()=>{
+    const message=await feedback.textContent().catch(()=> '');
+    return writes.length>0 || /tratamiento/i.test(message||'');
+  }).toBe(true);
+  expect(writes).toEqual([]);
+  await expect(feedback).toContainText(/tratamiento/i);
+  expect(unexpectedHosts).toEqual([]);
+});
