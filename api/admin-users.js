@@ -169,7 +169,26 @@ async function updateKey(key, token, updater) {
       body:JSON.stringify(value),signal:AbortSignal.timeout(10000)
     });
     if (put.ok) return {changed:true};
-    if (put.status !== 412) throw new Error('No se pudo guardar '+key);
+    if (put.status !== 412) {
+      // Log only Firebase's status and a short sanitized reason; never expose
+      // request payloads, credentials, hashes, or response content to the client.
+      let reason='sin detalle';
+      try {
+        const body=await put.text();
+        let detail=body;
+        try {
+          const parsed=JSON.parse(body);
+          if (typeof parsed?.error==='string') detail=parsed.error;
+        } catch (_) {}
+        const safe=String(detail)
+          .replace(/[^A-Za-z0-9 ._-]/g,' ')
+          .replace(/\\s+/g,' ')
+          .trim()
+          .slice(0,100);
+        if (safe) reason=safe;
+      } catch (_) {}
+      throw new Error('Firebase RTDB PUT failed status='+put.status+' reason='+reason);
+    }
   }
   throw httpError(409,'CONCURRENT_MODIFICATION');
 }
