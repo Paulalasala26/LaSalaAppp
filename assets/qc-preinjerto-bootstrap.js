@@ -43,6 +43,12 @@
   const oldLoadStatuses=window.cargarEstadosQCDia;
   const oldMarkMeasured=window.marcarControlQCMedido;
   const oldApply=window.aplicarControlCheckOpcion;
+  const oldSummary=window.renderControlResumenHTML;
+
+  let pendingOverlay=null;
+  let pendingTab='preinjerto_patron';
+  let pendingRows={preinjerto_patron:[],preinjerto_variedad:[]};
+  let pendingLoadError=false;
 
   let afterSection=CONTROL_SECCIONES.findIndex(section=>section.key==='carga_injerto');
   keys.forEach(key=>{
@@ -57,6 +63,183 @@
   CONTROL_SECCIONES.sort((a,b)=>(orderIndex.get(a.key)??99)-(orderIndex.get(b.key)??99));
   const cargaInjerto=CONTROL_SECCIONES.find(section=>section.key==='carga_injerto');
   if(cargaInjerto)cargaInjerto.icon='ti-truck';
+
+  // Entrada única y discreta desde el resumen. El contenido se carga bajo
+  // demanda para no ralentizar la apertura normal de Control de Calidad.
+  window.renderControlResumenHTML=function(){
+    const html=oldSummary?oldSummary():'<div></div>';
+    if(!['ADMIN','TECNICO'].includes(currentUserRole))return html;
+    return html+'<button type="button" onclick="abrirPendientesPreinjerto()" aria-haspopup="dialog" '+
+      'style="display:flex;width:100%;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;padding:12px 14px;border:1px solid #b8d1ee;border-radius:12px;background:#f2f7fd;color:#1558a0;text-align:left;cursor:pointer">'+
+      '<span style="display:flex;align-items:center;gap:10px;min-width:0">'+
+      '<i class="ti ti-clock-hour-4" aria-hidden="true" style="font-size:20px;flex-shrink:0"></i>'+
+      '<span><strong style="display:block;font-size:13px">Pendientes de Preinjerto</strong>'+
+      '<span style="display:block;margin-top:2px;font-size:11px;color:#526b85">Patrón y Variedad · últimos 30 días</span></span></span>'+
+      '<i class="ti ti-chevron-right" aria-hidden="true" style="font-size:18px;flex-shrink:0"></i></button>';
+  };
+
+  function escPending(value){
+    return String(value==null?'':value).replace(/[&<>"']/g,char=>({
+      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+    }[char]));
+  }
+
+  function pendingLocation(record){
+    const value=typeof controlQCInfoVisual==='function'
+      ?controlQCInfoVisual(record)||{}:{inv:'—',calles:'—'};
+    return {inv:String(value.inv||'—'),calles:String(value.calles||'—')};
+  }
+
+  function renderPendingRows(){
+    if(!pendingOverlay)return;
+    const content=pendingOverlay.querySelector('[data-role="pending-list"]');
+    if(!content)return;
+    const rows=pendingRows[pendingTab]||[];
+    if(pendingLoadError){
+      content.innerHTML='<div style="padding:18px 12px;text-align:center;color:#9b2c2c;font-size:13px">'+
+        'No se pudieron cargar los pendientes. Cierra y vuelve a abrir esta lista.</div>';
+      return;
+    }
+    if(!rows.length){
+      content.innerHTML='<div style="padding:22px 12px;text-align:center;color:#60758b;font-size:13px">'+
+        'No hay partidas pendientes en los últimos 30 días.</div>';
+      return;
+    }
+    const ordered=[...rows].sort((a,b)=>{
+      const la=pendingLocation(a),lb=pendingLocation(b);
+      const readyA=la.inv!=='—'&&la.calles!=='—',readyB=lb.inv!=='—'&&lb.calles!=='—';
+      if(readyA!==readyB)return readyA?-1:1;
+      return la.inv.localeCompare(lb.inv,'es',{numeric:true})||
+        la.calles.localeCompare(lb.calles,'es',{numeric:true})||a.dia-b.dia||
+        String(a.partida).localeCompare(String(b.partida),'es',{numeric:true});
+    });
+    content.innerHTML=ordered.map(record=>{
+      const location=pendingLocation(record);
+      const hasLocation=location.inv!=='—'&&location.calles!=='—';
+      const date=riegoDiaToDate(record.dia).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit'});
+      const customer=[record.cliente,record.variedad].filter(Boolean).join(' · ');
+      const place=[location.inv,location.calles!=='—'?'Calle '+location.calles:'Calle pendiente']
+        .filter(value=>value&&value!=='—').join(' · ');
+      return '<button type="button" data-record-id="'+escPending(record.id)+'" '+
+        'style="display:block;width:100%;margin:0 0 8px;padding:11px 12px;border:1px solid #d5e1ef;border-radius:10px;background:#fff;color:#24405e;text-align:left;cursor:pointer">'+
+        '<span style="display:flex;align-items:center;justify-content:space-between;gap:8px">'+
+        '<strong style="font-size:14px;color:#1558a0">'+escPending(record.partida||'Sin partida')+'</strong>'+
+        '<span style="font-size:11px;color:#60758b;white-space:nowrap">Siembra '+date+'</span></span>'+
+        (customer?'<span style="display:block;margin-top:3px;font-size:12px;color:#526b85">'+escPending(customer)+'</span>':'')+
+        '<span style="display:flex;align-items:center;gap:6px;margin-top:7px;font-size:12px;color:'+(hasLocation?'#355a42':'#8a5a16')+'">'+
+        '<i class="ti '+(hasLocation?'ti-map-pin':'ti-map-pin-off')+'" aria-hidden="true"></i>'+escPending(place)+'</span>'+
+        '</button>';
+    }).join('');
+    content.querySelectorAll('[data-record-id]').forEach(button=>button.addEventListener('click',()=>{
+      const record=controlChecksData.find(item=>item.id===button.dataset.recordId);
+      if(!record)return;
+      closePendingOverlay();
+      abrirMedicionesControl(record.id);
+    }));
+  }
+
+  function closePendingOverlay(){
+    document.removeEventListener('keydown',pendingEscapeHandler);
+    if(pendingOverlay&&pendingOverlay.parentNode)pendingOverlay.parentNode.removeChild(pendingOverlay);
+    pendingOverlay=null;
+  }
+
+  function setPendingTab(type){
+    if(!['preinjerto_patron','preinjerto_variedad'].includes(type))return;
+    pendingTab=type;
+    if(!pendingOverlay)return;
+    pendingOverlay.querySelectorAll('[data-pending-tab]').forEach(button=>{
+      const active=button.dataset.pendingTab===type;
+      button.setAttribute('aria-selected',active?'true':'false');
+      button.style.background=active?'#1558a0':'#f1f5fa';
+      button.style.color=active?'#fff':'#34577f';
+      const count=button.querySelector('[data-role="tab-count"]');
+      if(count)count.textContent=String(pendingRows[type]?.length||0);
+    });
+    renderPendingRows();
+  }
+
+  async function loadPendingPreinjerto(){
+    pendingRows={preinjerto_patron:[],preinjerto_variedad:[]};
+    pendingLoadError=false;
+    const today=riegoDiaDeHoy(),start=today-30;
+    if(!await loadControlV2Index(true))throw Error('QC_INDEX_UNAVAILABLE');
+    const firstQ=Math.max(0,controlV2QDeDia(start));
+    const lastQ=controlV2QDeDia(today-1);
+    const jobs=[];
+    ['preinjerto_patron','preinjerto_variedad'].forEach(type=>{
+      for(let q=firstQ;q<=lastQ;q++)jobs.push(loadControlChecksSlice(type,q,true));
+    });
+    const loaded=await Promise.all(jobs);
+    if(loaded.some(ok=>!ok))throw Error('QC_SHARD_UNAVAILABLE');
+    if(!partidasDBCargada&&typeof loadPartidasFromStorage==='function')await loadPartidasFromStorage();
+    const relevant=controlChecksData.filter(record=>
+      ['preinjerto_patron','preinjerto_variedad'].includes(record.tipo)&&
+      Number.isInteger(record.dia)&&record.dia>=start&&record.dia<today
+    );
+    const groups=new Map();
+    relevant.forEach(record=>{
+      const key=claveEstadosQC(record.tipo,record.dia);
+      if(!groups.has(key))groups.set(key,{type:record.tipo,day:record.dia,records:[]});
+      groups.get(key).records.push(record);
+    });
+    await Promise.all([...groups.values()].map(group=>
+      window.cargarEstadosQCDia(group.type,group.day,group.records)
+    ));
+    for(const group of groups.values()){
+      const state=controlQCEstados.get(claveEstadosQC(group.type,group.day));
+      const signature=group.records.map(record=>record.id+':'+record.partida).sort().join('|');
+      if(!state||state.signature!==signature||group.records.some(record=>
+        !Object.prototype.hasOwnProperty.call(state.estados,record.id)))
+        throw Error('QC_STATUS_UNAVAILABLE');
+    }
+    pendingRows.preinjerto_patron=relevant.filter(record=>record.tipo==='preinjerto_patron'&&!window.controlLineaCompletada(record));
+    pendingRows.preinjerto_variedad=relevant.filter(record=>record.tipo==='preinjerto_variedad'&&!window.controlLineaCompletada(record));
+  }
+
+  window.abrirPendientesPreinjerto=function(){
+    if(pendingOverlay)return;
+    pendingOverlay=document.createElement('div');
+    pendingOverlay.id='qc-preinjerto-pendientes-overlay';
+    pendingOverlay.setAttribute('role','presentation');
+    pendingOverlay.style.cssText='position:fixed;inset:0;z-index:100500;display:flex;align-items:center;justify-content:center;padding:14px;background:rgba(13,31,51,.56);box-sizing:border-box';
+    pendingOverlay.innerHTML='<section role="dialog" aria-modal="true" aria-labelledby="qc-preinjerto-pendientes-title" '+
+      'style="display:flex;flex-direction:column;width:min(100%,560px);max-height:92vh;overflow:hidden;background:#fff;border-radius:16px;box-shadow:0 18px 55px rgba(0,0,0,.25);font-family:inherit">'+
+      '<header style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 16px;border-bottom:1px solid #d9e4f1">'+
+      '<div><h2 id="qc-preinjerto-pendientes-title" style="margin:0;color:#1558a0;font-size:18px">Pendientes de Preinjerto</h2>'+
+      '<div style="margin-top:3px;color:#60758b;font-size:12px">Inspecciones anteriores sin completar · 30 días</div></div>'+
+      '<button type="button" data-action="close" aria-label="Cerrar pendientes" style="width:38px;height:38px;border:0;border-radius:9px;background:#edf3fa;color:#1558a0;font-size:23px;cursor:pointer">×</button></header>'+
+      '<div role="tablist" aria-label="Tipo de Preinjerto" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:12px 14px 8px;padding:4px;border-radius:10px;background:#f1f5fa">'+
+      '<button type="button" role="tab" data-pending-tab="preinjerto_patron" aria-selected="true" style="display:flex;justify-content:center;align-items:center;gap:7px;min-height:40px;border:0;border-radius:8px;background:#1558a0;color:#fff;font-weight:700;cursor:pointer">Patrón <span data-role="tab-count">0</span></button>'+
+      '<button type="button" role="tab" data-pending-tab="preinjerto_variedad" aria-selected="false" style="display:flex;justify-content:center;align-items:center;gap:7px;min-height:40px;border:0;border-radius:8px;background:#f1f5fa;color:#34577f;font-weight:700;cursor:pointer">Variedad <span data-role="tab-count">0</span></button></div>'+
+      '<div data-role="pending-status" aria-live="polite" style="padding:0 16px 7px;color:#60758b;font-size:11px">Actualizando ubicación y pendientes…</div>'+
+      '<div data-role="pending-list" style="flex:1;min-height:100px;overflow:auto;padding:0 14px 14px"><div style="padding:24px;text-align:center;color:#60758b;font-size:13px">Cargando partidas…</div></div></section>';
+    document.body.appendChild(pendingOverlay);
+    pendingOverlay.querySelector('[data-action="close"]').addEventListener('click',closePendingOverlay);
+    pendingOverlay.addEventListener('click',event=>{if(event.target===pendingOverlay)closePendingOverlay();});
+    pendingOverlay.querySelectorAll('[data-pending-tab]').forEach(button=>
+      button.addEventListener('click',()=>setPendingTab(button.dataset.pendingTab))
+    );
+    document.addEventListener('keydown',pendingEscapeHandler);
+    loadPendingPreinjerto().then(()=>{
+      if(!pendingOverlay)return;
+      pendingOverlay.querySelector('[data-role="pending-status"]').textContent='Ordenadas por invernadero y calle; la fecha de siembra se conserva.';
+      setPendingTab(pendingTab);
+    }).catch(error=>{
+      if(!pendingOverlay)return;
+      pendingLoadError=true;
+      pendingOverlay.querySelector('[data-role="pending-status"]').textContent='No se pudo actualizar la lista.';
+      renderPendingRows();
+      if(window.console&&console.error)console.error('[QC Preinjerto pendientes]',error);
+    });
+  };
+
+  function pendingEscapeHandler(event){
+    if(event.key==='Escape'&&pendingOverlay){
+      document.removeEventListener('keydown',pendingEscapeHandler);
+      closePendingOverlay();
+    }
+  }
 
   window.controlV2ShardDeItem=function(item){
     if(item&&keySet.has(item.tipo)){
