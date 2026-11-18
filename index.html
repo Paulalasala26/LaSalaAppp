@@ -18154,15 +18154,15 @@ function renderAguaRows(){
   const cont = document.getElementById('rm-agua-rows');
   if(!cont) return;
   cont.innerHTML = rmAguaRows.map((r,i)=>`
-    <div class="rm-agua-row" style="display:grid;grid-template-columns:1fr auto 1fr auto;gap:6px;margin-bottom:6px;align-items:center">
+    <div class="rm-agua-row" style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto auto;gap:6px;margin-bottom:6px;align-items:center">
       <select class="rm-agua-min" style="width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;background:#fff;outline:none">
         <option value="">Agua (min)</option>
         ${opcionesRiegoSelectHTML('agua_minutos',RIEGO_AGUA_MINUTOS,r.minutos)}
       </select>
+      ${renderHorarioSelectorHTML('rm-agua-hor', r.horario, 'Horario')}
       <label style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:4px;white-space:nowrap">
         <input type="checkbox" class="rm-agua-sal" ${r.sal?'checked':''}> Sal
       </label>
-      ${renderHorarioSelectorHTML('rm-agua-hor', r.horario, 'Horario')}
       ${rmAguaRows.length>1 ? `<button type="button" onclick="quitarAguaRow(${i})" style="width:26px;height:26px;background:#fdecea;color:#c62828;border:1px solid #f3c2bd;border-radius:6px;cursor:pointer;font-size:12px">✕</button>` : '<span></span>'}
     </div>`).join('');
 }
