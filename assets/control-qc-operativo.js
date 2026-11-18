@@ -432,10 +432,12 @@
       let chosen=saved?.categorias?.[cat]?.opciones;
       let issue='';
       if(!Array.isArray(chosen)){
-        if(cat==='firmeza'){chosen=[];issue='Firmeza no estaba registrada. Selecciona un estado para registrar Firmeza.';}
-        else if(cat==='raicesInjerto')chosen=[];
-        else chosen=old?Object.keys(old).filter(k=>Number(old[k])>0):
-          (record?.tipo==='preinjerto_patron'&&cat==='segado'?['segado']:['ok']);
+        if(cat==='raicesInjerto')chosen=[];
+        else{
+          const legacy=old?Object.keys(old).filter(k=>Number(old[k])>0):[];
+          chosen=legacy.length?legacy:
+            (record?.tipo==='preinjerto_patron'&&cat==='segado'?['segado']:['ok']);
+        }
       }
       chosen=normalizeOptions(cat,chosen);
       if(cat==='raices'&&record?.tipo==='carga'&&chosen.includes('raizVariedad')){
