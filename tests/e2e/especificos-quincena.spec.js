@@ -767,12 +767,14 @@ test('UAT-1064: TÉCNICO puede abrir un Específico de dentro de treinta días',
   const database=fixtureDatabase();
   const {overlay,unexpectedHosts,writes}=await openSpecifics(page,database);
   await switchSpecificsUser(page,tecnico);
+  await page.evaluate(()=>showEspecificosModule());
+  await expect(overlay).toBeVisible();
   const day=await page.evaluate(()=>riegoDiaDeHoy()+30);
   const period=overlay.locator('#especificos-quincena-bar');
   await period.locator('button').last().click();
   await period.locator('button').last().click();
   await expect(overlay.locator('#especificos-grid-wrap')).toBeVisible();
-  await overlay.locator('[data-einv="17"]').click();
+  await overlay.locator('button[data-einv="17"]').click();
   const empty=overlay.locator(`#especificos-grid-wrap input[data-einv="17"][data-edia="${day}"][data-erc="16"]`);
   await empty.click();
   const editor=page.locator('#especifico-manual-overlay');
