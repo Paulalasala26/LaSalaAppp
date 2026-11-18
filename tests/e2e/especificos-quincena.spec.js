@@ -843,9 +843,7 @@ test('UAT-1043: rechaza guardar un Específico sin tratamiento aunque haya dosis
   await expect(editor).toBeVisible();
   await editor.locator('#esp-dosis').selectOption('1');
   expect(writes).toEqual([]);
-  await editor.locator('button[onclick="saveEspecificoManual()" ]').click().catch(async()=>{
-    await editor.locator('button[onclick="saveEspecificoManual()"]' ).click();
-  });
+  await editor.locator('button[onclick="saveEspecificoManual()"]').click();
   const feedback=page.locator('#app-toast');
   await expect.poll(async()=>{
     const message=await feedback.textContent().catch(()=> '');
