@@ -808,4 +808,30 @@ test('UAT-1065: TÉCNICO abre un específico en una quincena futura',async({page
   expect(unexpectedHosts).toEqual([]);
 });
 
-
+test('UAT-996: el selector de Específicos agrupa cada invernadero bajo su Sala',async({page})=>{
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openSpecifics(page,database);
+  const observed=await overlay.evaluate(root=>{
+    const groups={};
+    for(const button of root.querySelectorAll('button[data-einv]')){
+      const container=button.parentElement;
+      const label=container.querySelector(':scope > span')?.textContent.trim();
+      if(!label)continue;
+      (groups[label]??=[]).push(button.dataset.einv);
+    }
+    const expected=[
+      ['SALA 1:',Object.keys(INV_LAYOUT_SALA1)],
+      ['SALA 2:',Object.keys(INV_LAYOUT_SALA2)],
+      ['SALA 3:',Object.keys(INV_LAYOUT_SALA3)],
+      ['SALA 4:',Object.keys(INV_LAYOUT_SALA4)],
+      ['SALA 5:',Object.keys(INV_LAYOUT_SALA5)]
+    ];
+    return {groups,expected};
+  });
+  expect(Object.keys(observed.groups)).toEqual(observed.expected.map(([name])=>name));
+  for(const [name,ids] of observed.expected)expect(observed.groups[name]).toEqual(ids);
+  const all=Object.values(observed.groups).flat();
+  expect(new Set(all).size).toBe(all.length);
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});

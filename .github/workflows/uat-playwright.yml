@@ -55,7 +55,6 @@ jobs:
               per_page: 100
             });
             const paths = new Set(files.map(file => file.filename));
-            const workflowChanged = paths.has('.github/workflows/uat-playwright.yml');
             core.setOutput('control', String(paths.has('tests/e2e/control-quincena.spec.js')));
             core.setOutput('auth', String(paths.has('tests/e2e/auth-roles.spec.js')));
             core.setOutput('tasks', String(paths.has('tests/e2e/tareas-manual.spec.js') || paths.has('index.html')));
@@ -63,7 +62,7 @@ jobs:
             core.setOutput('photoHistory', String(paths.has('tests/e2e/control-fotos-historicas.spec.js') || paths.has('index.html')));
             core.setOutput('riego', String(paths.has('tests/e2e/riego-quincena.spec.js')));
             core.setOutput('partidas', String(paths.has('tests/e2e/partidas.spec.js')));
-            core.setOutput('fito', String(workflowChanged || paths.has('index.html') || paths.has('tests/e2e/fito-quincena.spec.js')));
+            core.setOutput('fito', String(paths.has('index.html') || paths.has('tests/e2e/fito-quincena.spec.js')));
 
       - name: Ejecutar Control QC en PR
         if: github.event_name == 'pull_request' && steps.scope.outputs.control == 'true'
@@ -83,7 +82,7 @@ jobs:
 
       - name: Ejecutar checks de Específicos en PR
         if: github.event_name == 'pull_request' && steps.scope.outputs.specifics == 'true'
-        run: pnpm exec playwright test tests/e2e/especificos-quincena.spec.js --grep "UAT-1421|UAT-1422|UAT-1423|UAT-1424"
+        run: pnpm exec playwright test tests/e2e/especificos-quincena.spec.js --grep "UAT-996"
 
       - name: Ejecutar checks de cámara PC y fotos históricas QC en PR
         if: github.event_name == 'pull_request' && steps.scope.outputs.photoHistory == 'true'
