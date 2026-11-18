@@ -81,7 +81,7 @@
           '<div aria-hidden="true" style="position:absolute;left:8%;right:8%;top:50%;height:2px;background:#75d28a;box-shadow:0 0 8px #75d28a"></div>' +
         '</div>' +
         '<div style="display:flex;gap:8px;margin-top:11px">' +
-          '<button type="button" data-action="start" disabled style="flex:1;border:0;border-radius:9px;padding:11px 13px;background:#2e7d32;color:#fff;font-size:14px;font-weight:700;cursor:pointer">Comprobando lector…</button>' +
+          '<button type="button" data-action="start" disabled style="flex:1;border:0;border-radius:9px;padding:11px 13px;background:#1769aa;color:#fff;font-size:14px;font-weight:700;cursor:pointer">Comprobando lector…</button>' +
         '</div>' +
         '<p data-role="status" aria-live="polite" style="min-height:18px;margin:10px 0 12px;font-size:12px;color:#405344">Comprobando si este navegador puede leer Code 39…</p>' +
         '<form data-role="manual-form" style="border-top:1px solid #e5e9e5;padding-top:13px">' +
