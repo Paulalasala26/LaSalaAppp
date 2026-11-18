@@ -49,6 +49,8 @@
   let pendingTab='preinjerto_patron';
   let pendingRows={preinjerto_patron:[],preinjerto_variedad:[]};
   let pendingLoadError=false;
+  let pendingUnverifiedGroups=0;
+  const pendingUnverifiedRecordIds=new Set();
   const pendingStatusFailures=new Map();
 
   let afterSection=CONTROL_SECCIONES.findIndex(section=>section.key==='carga_injerto');
@@ -171,6 +173,7 @@
   async function loadPendingPreinjerto(){
     pendingRows={preinjerto_patron:[],preinjerto_variedad:[]};
     pendingLoadError=false;
+    pendingUnverifiedRecordIds.clear();
     const today=riegoDiaDeHoy(),start=today-30;
     if(!await loadControlV2Index(true))throw Error('QC_INDEX_UNAVAILABLE');
     const firstQ=Math.max(0,controlV2QDeDia(start));
@@ -201,22 +204,29 @@
           !/^[A-Za-z0-9_-]{1,180}$/.test(String(record.id))||
           !/^[A-Za-z0-9._-]{1,100}$/.test(String(record.partida||''))
         );
+        const key=claveEstadosQC(group.type,group.day);
         if(invalid.length){
-          throw Error(`QC_STATUS_INVALID_REFERENCE:${group.type}:${group.day}:${invalid.slice(0,3).map(record=>record.partida||record.id).join(',')}`);
+          pendingStatusFailures.set(key,`QC_STATUS_INVALID_REFERENCE:${invalid.slice(0,3).map(record=>record.partida||record.id).join(',')}`);
+          continue;
         }
         const status=pendingOverlay?.querySelector('[data-role="pending-status"]');
         if(status)status.textContent=`Comprobando inspecciones ${nextGroup} de ${groupList.length}…`;
         const ok=await window.cargarEstadosQCDia(group.type,group.day,group.records);
-        if(ok!==true)throw Error(`QC_STATUS_UNAVAILABLE:${pendingStatusFailures.get(claveEstadosQC(group.type,group.day))||group.type+':'+group.day}`);
+        if(ok!==true&&!pendingStatusFailures.has(key))pendingStatusFailures.set(key,'QC_STATUS_UNAVAILABLE');
       }
     });
     await Promise.all(workers);
+    pendingUnverifiedGroups=0;
     for(const group of groups.values()){
-      const state=controlQCEstados.get(claveEstadosQC(group.type,group.day));
+      const key=claveEstadosQC(group.type,group.day);
+      const state=controlQCEstados.get(key);
       const signature=group.records.map(record=>record.id+':'+record.partida).sort().join('|');
       if(!state||state.signature!==signature||group.records.some(record=>
-        !Object.prototype.hasOwnProperty.call(state.estados,record.id)))
-        throw Error(`QC_STATUS_UNAVAILABLE:${pendingStatusFailures.get(claveEstadosQC(group.type,group.day))||group.type+':'+group.day}`);
+        !Object.prototype.hasOwnProperty.call(state.estados,record.id))){
+        pendingUnverifiedGroups++;
+        group.records.forEach(record=>pendingUnverifiedRecordIds.add(record.id));
+        if(!pendingStatusFailures.has(key))pendingStatusFailures.set(key,'QC_STATUS_INCOMPLETE');
+      }
     }
     pendingRows.preinjerto_patron=relevant.filter(record=>record.tipo==='preinjerto_patron'&&!window.controlLineaCompletada(record));
     pendingRows.preinjerto_variedad=relevant.filter(record=>record.tipo==='preinjerto_variedad'&&!window.controlLineaCompletada(record));
@@ -248,18 +258,16 @@
     document.addEventListener('keydown',pendingEscapeHandler);
     loadPendingPreinjerto().then(()=>{
       if(!pendingOverlay)return;
-      pendingOverlay.querySelector('[data-role="pending-status"]').textContent='Ordenadas por invernadero y calle; la fecha de siembra se conserva.';
+      pendingOverlay.querySelector('[data-role="pending-status"]').textContent=pendingUnverifiedGroups
+        ?`${pendingUnverifiedGroups} grupo(s) no se pudieron verificar; se muestran para no ocultar pendientes.`
+        :'Ordenadas por invernadero y calle; la fecha de siembra se conserva.';
       setPendingTab(pendingTab);
     }).catch(error=>{
       if(!pendingOverlay)return;
       pendingLoadError=true;
       const message=String(error?.message||'');
       const status=pendingOverlay.querySelector('[data-role="pending-status"]');
-      const invalidReference=message.startsWith('QC_STATUS_INVALID_REFERENCE:')
-        ?message.split(':').slice(3).join(':'):'';
-      status.textContent=message.startsWith('QC_STATUS_INVALID_REFERENCE:')
-        ?`La referencia ${invalidReference?`«${invalidReference}» `:''}no permite consultar su inspección.`
-        :message.includes('QC_STATUS_UNAVAILABLE:QC_STATUS_HTTP_401')||message.includes('QC_STATUS_UNAVAILABLE:QC_STATUS_HTTP_403')||message.includes('QC_STATUS_UNAVAILABLE:LOGIN_REQUIRED')
+      status.textContent=message.includes('QC_STATUS_UNAVAILABLE:QC_STATUS_HTTP_401')||message.includes('QC_STATUS_UNAVAILABLE:QC_STATUS_HTTP_403')||message.includes('QC_STATUS_UNAVAILABLE:LOGIN_REQUIRED')
         ?'La sesión no tiene permiso para consultar los estados QC. Vuelve a iniciar sesión.'
         :message.includes('QC_STATUS_UNAVAILABLE:QC_STATUS_HTTP_')
           ?'Firebase/Vercel rechazó la consulta de estados QC. Vuelve a intentarlo en unos segundos.'
@@ -382,6 +390,7 @@
 
   window.controlLineaCompletada=function(record){
     if(record&&['preinjerto_patron','preinjerto_variedad'].includes(record.tipo)){
+      if(pendingUnverifiedRecordIds.has(record.id))return false;
       const entry=controlQCEstados.get(claveEstadosQC(record.tipo,record.dia));
       return entry?.estados?.[record.id]===true;
     }
