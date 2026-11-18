@@ -338,7 +338,7 @@
       var original = renderSummary.apply(this, arguments);
       var action =
         '<div data-app-r-qc-search style="margin-bottom:12px">' +
-          '<form onsubmit="event.preventDefault();window.AppRQCBarcode.search(this.querySelector(\'input\').value)" style="margin-bottom:4px">' +
+          '<form onsubmit="event.preventDefault();window.AppRQCBarcode.search(this.querySelector(\'input\').value)" style="margin-bottom:12px">' +
             '<div style="display:flex;gap:7px">' +
               '<input id="app-r-qc-search-input" type="search" inputmode="text" autocomplete="off" placeholder="Escribe el código de partida" aria-label="Código de partida" style="min-width:0;flex:1;border:1px solid #b7c3b8;border-radius:9px;padding:10px 12px;font-size:16px;box-sizing:border-box">' +
               '<button type="submit" aria-label="Buscar partida" title="Buscar partida" style="display:flex;align-items:center;justify-content:center;width:46px;min-width:46px;border:0;border-radius:9px;background:#1769aa;color:#fff;cursor:pointer">' +
