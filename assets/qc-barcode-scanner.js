@@ -335,22 +335,43 @@
     });
   }
 
+  function searchFromSummary(rawCode) {
+    var root = document.querySelector('[data-app-r-qc-search]');
+    if (!root) return;
+    statusNode = root.querySelector('[data-role="status"]');
+    resultsNode = root.querySelector('[data-role="results"]');
+    findPartida(rawCode);
+  }
+
   function installButton() {
     var renderSummary = window.renderControlResumenHTML;
     if (typeof renderSummary !== 'function' || renderSummary.__qcBarcodeWrapped) return;
     var wrapped = function () {
       var original = renderSummary.apply(this, arguments);
-      var action = '<div style="margin-bottom:12px">' +
-        '<button type="button" onclick="window.AppRQCBarcode.open()" aria-label="Escanear código de barras de una tablilla" ' +
-          'style="display:flex;align-items:center;justify-content:center;gap:9px;width:100%;min-height:74px;border:2px solid #317eb7;border-bottom:3px solid #317eb7;border-radius:11px;padding:11px 14px;background:#eaf3e9;color:#315d49;box-shadow:inset 0 1px 0 rgba(255,255,255,.95),0 2px 4px rgba(35,95,135,.14);font-size:14px;font-weight:800;cursor:pointer">' +
-          '<span aria-hidden="true" style="font-size:19px;color:#3979a7">▥</span><span>Escanear tablilla</span></button></div>';
+      var action =
+        '<div data-app-r-qc-search style="margin-bottom:12px">' +
+          '<form onsubmit="event.preventDefault();window.AppRQCBarcode.search(this.querySelector(\'input\').value)" style="margin-bottom:8px">' +
+            '<label for="app-r-qc-search-input" style="display:block;margin:0 0 5px;font-size:12px;font-weight:700;color:#33483a">Buscar partida</label>' +
+            '<div style="display:flex;gap:7px">' +
+              '<input id="app-r-qc-search-input" type="search" inputmode="text" autocomplete="off" placeholder="Escribe el código de partida" aria-label="Código de partida" style="min-width:0;flex:1;border:1px solid #b7c3b8;border-radius:9px;padding:10px 12px;font-size:16px;box-sizing:border-box">' +
+              '<button type="submit" aria-label="Buscar partida" title="Buscar partida" style="display:flex;align-items:center;justify-content:center;width:46px;min-width:46px;border:0;border-radius:9px;background:#1769aa;color:#fff;cursor:pointer">' +
+                '<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="10.8" cy="10.8" r="6.7"></circle><path d="m16 16 4.3 4.3"></path></svg>' +
+              '</button>' +
+            '</div>' +
+          '</form>' +
+          '<div data-role="status" aria-live="polite" style="min-height:16px;margin:0 0 7px;font-size:12px;color:#405344"></div>' +
+          '<div data-role="results" style="margin:0 0 9px"></div>' +
+          '<button type="button" onclick="window.AppRQCBarcode.open()" aria-label="Escanear código de barras de una tablilla" ' +
+            'style="display:flex;align-items:center;justify-content:center;gap:9px;width:100%;min-height:74px;border:2px solid #317eb7;border-bottom:3px solid #317eb7;border-radius:11px;padding:11px 14px;background:#eaf3e9;color:#315d49;box-shadow:inset 0 1px 0 rgba(255,255,255,.95),0 2px 4px rgba(35,95,135,.14);font-size:14px;font-weight:800;cursor:pointer">' +
+            '<span aria-hidden="true" style="font-size:19px;color:#3979a7">▥</span><span>Escanear tablilla</span></button>' +
+        '</div>';
       return action + original;
     };
     wrapped.__qcBarcodeWrapped = true;
     window.renderControlResumenHTML = wrapped;
   }
 
-  window.AppRQCBarcode = { open: openOverlay };
+  window.AppRQCBarcode = { open: openOverlay, search: searchFromSummary };
   installButton();
   document.addEventListener('DOMContentLoaded', installButton, { once: true });
 })();
