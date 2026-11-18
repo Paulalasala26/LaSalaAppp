@@ -270,6 +270,8 @@ def _preinjerto_rows(payload: Any, module: str) -> list[dict[str, Any]]:
         variety = _text(source.get("VARIEDAD"))
         greenhouse_code = _text(source.get("PAR_CAS"))
         raw_street = _number(source.get("PAR_UBIC"))
+        mapped_greenhouse_id = _number(source.get("PAR_CAS invernaderoId"))
+        mapped_greenhouse_name = _text(source.get("PAR_CAS invernadero"))
         locations = []
         for location in source.get("Ubicaciones GS", []):
             if not isinstance(location, dict):
@@ -287,6 +289,15 @@ def _preinjerto_rows(payload: Any, module: str) -> list[dict[str, Any]]:
         # Los campos simples se rellenan solo cuando GS devuelve una ubicación
         # única. Las ubicaciones múltiples permanecen completas en el array.
         single_location = locations[0] if len(locations) == 1 else None
+        # Si la tabla de ubicaciones físicas no tiene asignación, PAR_CAS se
+        # resuelve contra el maestro sala12.invernaderos del snapshot GS.
+        # Así se muestra solo el invernadero; las calles siguen sin inventarse.
+        greenhouse_fallback = (
+            not locations
+            and mapped_greenhouse_id is not None
+            and mapped_greenhouse_id > 0
+            and mapped_greenhouse_name
+        )
         item_id = _safe_id(module, part)
         item = {
             "id": item_id,
@@ -298,8 +309,14 @@ def _preinjerto_rows(payload: Any, module: str) -> list[dict[str, Any]]:
             "variedad": variety,
             "clienteVariedad": f"{customer} — {variety}" if variety else customer,
             "ubicacionesGS": locations,
-            "invId": (single_location.get("invId") or None) if single_location else None,
-            "invernadero": single_location.get("invernadero", "") if single_location else "",
+            "invId": (
+                (single_location.get("invId") or None) if single_location
+                else mapped_greenhouse_id if greenhouse_fallback else None
+            ),
+            "invernadero": (
+                single_location.get("invernadero", "") if single_location
+                else mapped_greenhouse_name if greenhouse_fallback else ""
+            ),
             "calleDesde": (single_location.get("desde") or None) if single_location else None,
             "calleHasta": (single_location.get("hasta") or None) if single_location else None,
             "fSiembra": _date_display(day_iso),
@@ -324,6 +341,8 @@ def _preinjerto_rows(payload: Any, module: str) -> list[dict[str, Any]]:
                 "lote": _nullable_text(source.get("Nº Lote")),
                 "clienteFinal": _nullable_text(source.get("Cliente Final")),
                 "PAR_CAS": greenhouse_code,
+                "PAR_CAS invernaderoId": mapped_greenhouse_id,
+                "PAR_CAS invernadero": mapped_greenhouse_name,
                 "PAR_UBIC": raw_street,
                 "ubicacionesGS": locations,
                 "fechaRealSiembra": _nullable_text(source.get("Fecha Real Siembra")),
