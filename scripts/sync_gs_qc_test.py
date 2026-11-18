@@ -28,6 +28,7 @@ def main() -> int:
     if not credential_path.is_file():
         parser.error(f"No existe el JSON de credenciales Firebase: {credential_path}")
 
+    preinjerto_start = args.hoy - timedelta(days=30)
     end = args.hoy + timedelta(days=5)
     log_path = LOG_DIR / f"gs_qc_test_{args.hoy:%Y%m%d}.log"
     LOG_DIR.mkdir(parents=True, exist_ok=True)
@@ -35,7 +36,7 @@ def main() -> int:
     jobs = [
         ("QC Preinjerto", [
             sys.executable, str(ROOT / "pilot_gs_qc_preinjerto.py"),
-            "--desde", args.hoy.isoformat(), "--hasta", end.isoformat(),
+            "--desde", preinjerto_start.isoformat(), "--hasta", end.isoformat(),
             "--sync-test", "--sync-qc-items",
             "--firebase-credentials", str(credential_path),
         ]),
@@ -47,7 +48,8 @@ def main() -> int:
     ]
 
     started = datetime.now().astimezone().isoformat(timespec="seconds")
-    header = f"\n=== Inicio {started}; rango GS {args.hoy} a {end} ===\n"
+    header = (f"\n=== Inicio {started}; QC Preinjerto {preinjerto_start} a {end}; "
+              f"QC Carga Injerto {args.hoy} a {end} ===\n")
     print(header, end="")
     with log_path.open("a", encoding="utf-8") as log:
         log.write(header)
