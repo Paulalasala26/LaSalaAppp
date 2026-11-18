@@ -52,6 +52,37 @@
   let pendingUnverifiedGroups=0;
   const pendingUnverifiedRecordIds=new Set();
   const pendingStatusFailures=new Map();
+  let pendingBadgeKnown=false;
+  let pendingBadgeCheckedAt=0;
+  let pendingBadgeLoading=false;
+  let pendingDataPromise=null;
+
+  function pendingTotal(){
+    return pendingRows.preinjerto_patron.length+pendingRows.preinjerto_variedad.length;
+  }
+
+  function updatePendingBadge(){
+    const visible=pendingBadgeKnown&&pendingTotal()>0;
+    document.querySelectorAll('.qc-preinjerto-pending-dot').forEach(dot=>{
+      dot.style.display=visible?'inline-block':'none';
+    });
+  }
+
+  async function refreshPendingBadge(){
+    if(pendingBadgeLoading||pendingOverlay)return;
+    if(pendingBadgeKnown&&Date.now()-pendingBadgeCheckedAt<120000){updatePendingBadge();return;}
+    pendingBadgeLoading=true;
+    try{
+      await loadPendingPreinjerto();
+      pendingBadgeKnown=true;
+      pendingBadgeCheckedAt=Date.now();
+      updatePendingBadge();
+    }catch(error){
+      if(window.console&&console.error)console.error('[QC Preinjerto badge]',error);
+    }finally{
+      pendingBadgeLoading=false;
+    }
+  }
 
   let afterSection=CONTROL_SECCIONES.findIndex(section=>section.key==='carga_injerto');
   keys.forEach(key=>{
@@ -72,13 +103,17 @@
   window.renderControlResumenHTML=function(){
     const html=oldSummary?oldSummary():'<div></div>';
     if(!['ADMIN','TECNICO'].includes(currentUserRole))return html;
-    const action='<button type="button" onclick="abrirPendientesPreinjerto()" aria-haspopup="dialog" '+
+    setTimeout(refreshPendingBadge,100);
+    const action='<button type="button" data-pending-preinjerto-button onclick="abrirPendientesPreinjerto()" aria-haspopup="dialog" '+
       'style="display:flex;grid-column:1 / -1;width:100%;align-items:center;justify-content:space-between;gap:12px;margin-top:0;padding:12px 14px;border:1px solid #b8d1ee;border-radius:12px;background:#f2f7fd;color:#1558a0;text-align:left;cursor:pointer">'+
       '<span style="display:flex;align-items:center;gap:10px;min-width:0">'+
       '<i class="ti ti-clock-hour-4" aria-hidden="true" style="font-size:20px;flex-shrink:0"></i>'+
       '<span><strong style="display:block;font-size:13px">Pendientes de Preinjerto</strong>'+
       '<span style="display:block;margin-top:2px;font-size:11px;color:#526b85">Patrón y Variedad · últimos 30 días</span></span></span>'+
-      '<i class="ti ti-chevron-right" aria-hidden="true" style="font-size:18px;flex-shrink:0"></i></button>';
+      '<span style="display:flex;align-items:center;gap:9px;flex-shrink:0">'+
+      '<span class="qc-preinjerto-pending-dot" role="img" aria-label="Hay pendientes de Preinjerto" title="Hay pendientes de Preinjerto" '+
+      'style="display:'+(pendingBadgeKnown&&pendingTotal()>0?'inline-block':'none')+';width:10px;height:10px;border-radius:50%;background:#dc2626;box-shadow:0 0 0 2px #fff"></span>'+
+      '<i class="ti ti-chevron-right" aria-hidden="true" style="font-size:18px"></i></span></button>';
     const tunnelMarker='onclick="seleccionarSeccionControl(\'tunel\')"';
     const tunnelPosition=html.indexOf(tunnelMarker);
     if(tunnelPosition<0){
@@ -144,6 +179,8 @@
     content.querySelectorAll('[data-record-id]').forEach(button=>button.addEventListener('click',()=>{
       const record=controlChecksData.find(item=>item.id===button.dataset.recordId);
       if(!record)return;
+      pendingBadgeKnown=false;
+      pendingBadgeCheckedAt=0;
       closePendingOverlay();
       abrirMedicionesControl(record.id);
     }));
@@ -170,7 +207,7 @@
     renderPendingRows();
   }
 
-  async function loadPendingPreinjerto(){
+  async function loadPendingPreinjertoData(){
     pendingRows={preinjerto_patron:[],preinjerto_variedad:[]};
     pendingLoadError=false;
     pendingUnverifiedRecordIds.clear();
@@ -230,6 +267,15 @@
     }
     pendingRows.preinjerto_patron=relevant.filter(record=>record.tipo==='preinjerto_patron'&&!window.controlLineaCompletada(record));
     pendingRows.preinjerto_variedad=relevant.filter(record=>record.tipo==='preinjerto_variedad'&&!window.controlLineaCompletada(record));
+    pendingBadgeKnown=true;
+    pendingBadgeCheckedAt=Date.now();
+    updatePendingBadge();
+  }
+
+  function loadPendingPreinjerto(){
+    if(pendingDataPromise)return pendingDataPromise;
+    pendingDataPromise=loadPendingPreinjertoData().finally(()=>{pendingDataPromise=null;});
+    return pendingDataPromise;
   }
 
   window.abrirPendientesPreinjerto=function(){
