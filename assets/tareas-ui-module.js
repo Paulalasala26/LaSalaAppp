@@ -407,7 +407,9 @@ const TAREAS_GESTOR_VISTAS = [
 // sección del menú lateral (Antiguas/Hoy/Mañana/Mantenimiento) se pinta en
 // el panel de la derecha, sin perder nada de lo que ya había (nueva tarea,
 // asignar en lote, editar/eliminar, imprimir, kanban de mantenimiento...).
-let tareasGestorFiltros={estado:'todas',origen:'todos',sala:'todas',asignado:'todos',fecha:'',busqueda:''};
+// Al abrir Tareas, mostrar primero la jornada actual. El botón «Todos» sigue
+// permitiendo consultar el histórico completo cuando haga falta.
+let tareasGestorFiltros={estado:'todas',origen:'todos',sala:'todas',asignado:'todos',fecha:fechaLocalISO(new Date()),busqueda:''};
 let tareasGestorFiltrosAbiertos=false;
 function resetFiltrosTareasGestorSinRender(){
  tareasGestorFiltros={estado:'todas',origen:'todos',sala:'todas',asignado:'todos',fecha:'',busqueda:''};
