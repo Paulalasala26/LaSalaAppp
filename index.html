@@ -17756,10 +17756,10 @@ function renderRmBulkTramoRows(invId){
   const allCalles = callesOrdenadasInv(invId);
   cont.innerHTML = cfg.tramos.map((t,i)=>`
     <div class="rmb-tramo-row" data-inv="${invId}" style="display:grid;grid-template-columns:1fr 1fr auto;gap:6px;margin-bottom:6px">
-      <select class="rmb-tramo-desde" onchange="normalizarRmBulkTramoFila('${invId}',${i})" style="width:100%;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;background:#f2f4f0;outline:none;cursor:pointer">
+      <select class="rmb-tramo-desde" onpointerdown="this.dataset.prevValue=this.value" onfocus="this.dataset.prevValue=this.value" onchange="normalizarRmBulkTramoFila('${invId}',${i},this)" style="width:100%;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;background:#f2f4f0;outline:none;cursor:pointer">
         ${allCalles.map(c=>`<option value="${c}"${c===t.desde?' selected':''}>${c}</option>`).join('')}
       </select>
-      <select class="rmb-tramo-hasta" onchange="normalizarRmBulkTramoFila('${invId}',${i})" style="width:100%;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;background:#f2f4f0;outline:none;cursor:pointer">
+      <select class="rmb-tramo-hasta" onpointerdown="this.dataset.prevValue=this.value" onfocus="this.dataset.prevValue=this.value" onchange="normalizarRmBulkTramoFila('${invId}',${i},this)" style="width:100%;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;background:#f2f4f0;outline:none;cursor:pointer">
         ${allCalles.map(c=>`<option value="${c}"${c===t.hasta?' selected':''}>${c}</option>`).join('')}
       </select>
       ${cfg.tramos.length>1 ? `<button type="button" onclick="quitarRmBulkTramoRow('${invId}',${i})" style="width:26px;background:#fdecea;color:#c62828;border:1px solid #f3c2bd;border-radius:6px;cursor:pointer;font-size:11px">✕</button>` : '<span></span>'}
@@ -17799,16 +17799,35 @@ function actualizarRmBulkTramoEstado(invId){
     boton.style.cursor=quedanLibres?'pointer':'not-allowed';
   }
 }
-function normalizarRmBulkTramoFila(invId,i){
+function normalizarRmBulkTramoFila(invId,i,cambiado){
   const rows=Array.from(document.querySelectorAll('.rmb-tramo-row[data-inv="'+String(invId)+'"]'));
   const row=rows[i];
   if(!row)return;
   const desdeEl=row.querySelector('.rmb-tramo-desde');
   const hastaEl=row.querySelector('.rmb-tramo-hasta');
+  const ordenar=()=>{
+    const desde=parseInt(desdeEl.value,10),hasta=parseInt(hastaEl.value,10);
+    if(Number.isFinite(desde)&&Number.isFinite(hasta)&&desde>hasta){
+      desdeEl.value=String(hasta);
+      hastaEl.value=String(desde);
+    }
+  };
+  ordenar();
   const desde=parseInt(desdeEl.value,10),hasta=parseInt(hastaEl.value,10);
-  if(Number.isFinite(desde)&&Number.isFinite(hasta)&&desde>hasta){
-    desdeEl.value=String(hasta);
-    hastaEl.value=String(desde);
+  const solapa=rows.some((otra,j)=>{
+    if(j===i)return false;
+    const a=parseInt(otra.querySelector('.rmb-tramo-desde').value,10);
+    const b=parseInt(otra.querySelector('.rmb-tramo-hasta').value,10);
+    return Number.isFinite(a)&&Number.isFinite(b)&&Math.max(desde,a)<=Math.min(hasta,b);
+  });
+  if(solapa&&cambiado){
+    const previo=cambiado.dataset.prevValue;
+    if(previo!==undefined)cambiado.value=previo;
+    ordenar();
+    actualizarRmBulkTramoEstado(invId);
+    const resumen=document.getElementById('rmb-resumen-'+invId);
+    if(resumen)resumen.textContent='Ese tramo se solapa con otro. Ajusta o elimina uno.';
+    return;
   }
   actualizarRmBulkTramoEstado(invId);
 }
