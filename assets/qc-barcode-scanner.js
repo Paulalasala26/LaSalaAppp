@@ -217,7 +217,7 @@
     });
   }
 
-  async function findPartida(rawCode) {
+  async function findPartida(rawCode, manualSearch) {
     var code = String(rawCode == null ? '' : rawCode).trim().replace(/^\*|\*$/g, '');
     if (!code) {
       setStatus('Lee el código completo o introdúcelo manualmente.', true);
@@ -233,9 +233,9 @@
         if (!loaded) throw new Error('QC_LOAD_FAILED');
       }
       var matches = exactMatches(code);
-      setStatus('Código leído: ' + code);
+      setStatus((manualSearch ? 'Partida buscada: ' : 'Código leído: ') + code);
       if (!matches.length) {
-        setStatus('Código ' + code + ': no hay un QC registrado para esta partida.');
+        setStatus('La partida ' + code + ' no tiene un QC registrado.');
         if (resultsNode) resultsNode.textContent = '';
         return;
       }
@@ -340,7 +340,7 @@
     if (!root) return;
     statusNode = root.querySelector('[data-role="status"]');
     resultsNode = root.querySelector('[data-role="results"]');
-    findPartida(rawCode);
+    findPartida(rawCode, true);
   }
 
   function installButton() {
