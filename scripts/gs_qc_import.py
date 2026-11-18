@@ -270,7 +270,11 @@ def _preinjerto_rows(payload: Any, module: str) -> list[dict[str, Any]]:
         variety = _text(source.get("VARIEDAD"))
         greenhouse_code = _text(source.get("PAR_CAS"))
         raw_street = _number(source.get("PAR_UBIC"))
-        mapped_greenhouse_id = _number(source.get("PAR_CAS invernaderoId"))
+        mapped_greenhouse_id_text = _number(source.get("PAR_CAS invernaderoId"))
+        try:
+            mapped_greenhouse_id = int(mapped_greenhouse_id_text) if mapped_greenhouse_id_text else None
+        except (TypeError, ValueError):
+            mapped_greenhouse_id = None
         mapped_greenhouse_name = _text(source.get("PAR_CAS invernadero"))
         locations = []
         for location in source.get("Ubicaciones GS", []):
