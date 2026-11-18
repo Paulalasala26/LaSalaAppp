@@ -7185,13 +7185,13 @@ function renderControlTunelWizardHTML(){
   // Ginés: con cero partidas, ocultar Dashboard y CSV, que no aportan datos.
   // Se conserva su cinta de fechas y el wizard existente.
   if(!listaDia.length){
-    return cabeceraHTML+qcPanel('Operativa del día',filtroInvHTML,'qc-work-operations')+
+    return cabeceraHTML+
       qcPanel('Inspecciones','<div class="qc-list-none">Sin partidas para este invernadero y día.</div>','qc-work-inspections');
   }
 
   const counters='<div class="qc-work-counter">'+listaDia.length+' partida'+(listaDia.length===1?'':'s')+
     ' · '+numCompletados+' inspeccionada'+(numCompletados===1?'':'s')+'</div>';
-  return cabeceraHTML+qcPanel('Operativa del día',filtroInvHTML,'qc-work-operations')+
+  return cabeceraHTML+
     qcPanel('Inspecciones',counters+'<div class="qc-list-cards">'+filasHTML+'</div>','qc-work-inspections');
 }
 async function cambiarControlQuincena(delta){
