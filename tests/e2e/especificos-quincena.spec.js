@@ -1,4 +1,3 @@
-Attempting to perform the InitializeDefaultDrives operation on the 'FileSystem' provider failed.
 const { createHash } = require('node:crypto');
 const { test, expect } = require('./harness');
 
