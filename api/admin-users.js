@@ -161,7 +161,7 @@ async function updateKey(key, token, updater) {
     if (result === false) return {changed:false};
     const legacyString=typeof raw === 'string' || raw == null;
     const value=legacyString ? JSON.stringify(map) : map;
-    const put=await fetch(keyUrl(key)+'?print=silent',{
+    const put=await fetch(keyUrl(key),{
       method:'PUT',headers:{
         Authorization:'Bearer '+token,
         'Content-Type':'application/json','if-match':etag
