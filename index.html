@@ -7673,8 +7673,7 @@ function renderControlChecklistHTML(seccion){
       ' · '+numCompletados+' inspeccionada'+(numCompletados===1?'':'s')+'</div>';
     const filtrosInspecciones='<div class="qc-work-list-tools">'+total+filtrosHTML+'</div>';
     return '<div class="qc-work-tunel">'+qcFechaHTML('list')+
-      qcPanel('Operativa del día',operativa,'qc-work-operations')+
-      qcPanel('Inspecciones',filtrosInspecciones+cardsHTML,'qc-work-inspections')+'</div>';
+      qcPanel('Inspecciones',operativa+filtrosInspecciones+cardsHTML,'qc-work-inspections')+'</div>';
   }
 
 }
