@@ -29,6 +29,7 @@
     if (!statusNode) return;
     statusNode.textContent = message;
     statusNode.style.color = isError ? '#b42318' : '#405344';
+    statusNode.style.margin = message ? '4px 0 6px' : '0';
   }
 
   function stopCamera() {
@@ -337,7 +338,7 @@
       var original = renderSummary.apply(this, arguments);
       var action =
         '<div data-app-r-qc-search style="margin-bottom:12px">' +
-          '<form onsubmit="event.preventDefault();window.AppRQCBarcode.search(this.querySelector(\'input\').value)" style="margin-bottom:8px">' +
+          '<form onsubmit="event.preventDefault();window.AppRQCBarcode.search(this.querySelector(\'input\').value)" style="margin-bottom:4px">' +
             '<div style="display:flex;gap:7px">' +
               '<input id="app-r-qc-search-input" type="search" inputmode="text" autocomplete="off" placeholder="Escribe el código de partida" aria-label="Código de partida" style="min-width:0;flex:1;border:1px solid #b7c3b8;border-radius:9px;padding:10px 12px;font-size:16px;box-sizing:border-box">' +
               '<button type="submit" aria-label="Buscar partida" title="Buscar partida" style="display:flex;align-items:center;justify-content:center;width:46px;min-width:46px;border:0;border-radius:9px;background:#1769aa;color:#fff;cursor:pointer">' +
@@ -345,8 +346,8 @@
               '</button>' +
             '</div>' +
           '</form>' +
-          '<div data-role="status" aria-live="polite" style="min-height:16px;margin:0 0 7px;font-size:12px;color:#405344"></div>' +
-          '<div data-role="results" style="margin:0 0 9px"></div>' +
+          '<div data-role="status" aria-live="polite" style="margin:0;font-size:12px;color:#405344"></div>' +
+          '<div data-role="results" style="margin:0"></div>' +
           '<button type="button" onclick="window.AppRQCBarcode.open()" aria-label="Escanear código de barras de una tablilla" ' +
             'style="display:flex;align-items:center;justify-content:center;gap:9px;width:100%;min-height:74px;border:2px solid #317eb7;border-bottom:3px solid #317eb7;border-radius:11px;padding:11px 14px;background:#eaf3e9;color:#315d49;box-shadow:inset 0 1px 0 rgba(255,255,255,.95),0 2px 4px rgba(35,95,135,.14);font-size:14px;font-weight:800;cursor:pointer">' +
             '<span aria-hidden="true" style="font-size:19px;color:#3979a7">▥</span><span>Escanear tablilla</span></button>' +
