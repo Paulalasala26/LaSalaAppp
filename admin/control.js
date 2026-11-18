@@ -365,10 +365,6 @@
       const open=node('button','Abrir QC','action-button');open.type='button';
       open.title='Ficha QC: evaluación porcentual e histórico';
       open.addEventListener('click',()=>openQuantitativePrototype(rec));actions.append(open);
-      const camera=node('button','📷','action-button');camera.type='button';
-      camera.title='Piloto TEST: hacer foto QC y guardarla en SharePoint (solo ADMIN)';
-      camera.setAttribute('aria-label','Foto QC · '+(rec.partida||'partida'));
-      camera.addEventListener('click',()=>openPhotoPilot(rec));actions.append(camera);
       row.append(actions);
       el('qc-body').append(row);
     }
@@ -618,7 +614,6 @@
     el('qc-form').addEventListener('submit',e=>{e.preventDefault();query();});
     el('qc-reload').addEventListener('click',query);
     el('qc-photo-test-file').addEventListener('change',capturePhotoPilot);
-    el('qc-photo-connection').addEventListener('click',checkQCPhotoConnection);
     el('qc-photo-queue-retry').addEventListener('click',()=>void sendPhotoPilot());
     window.addEventListener('online',()=>void sendPhotoPilot());
     document.addEventListener('visibilitychange',()=>{

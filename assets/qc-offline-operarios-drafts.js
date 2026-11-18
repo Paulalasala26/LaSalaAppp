@@ -698,7 +698,7 @@
  }
  function makeSyncButton(ref,label){
   const draft=drafts.get(key(ref));
-  const button=el('button',draft?.status==='ENVIO_INCIERTO'?'Revisar envío':'Enviar a TEST');
+  const button=el('button',draft?.status==='ENVIO_INCIERTO'?'Revisar envío':'Enviar QC');
   button.type='button';
   button.style.cssText='background:#1558a0;border:0;border-radius:7px;color:#fff;padding:8px 10px;font-weight:700';
   const status=el('span');status.setAttribute('role','status');

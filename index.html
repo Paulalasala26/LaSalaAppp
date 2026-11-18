@@ -6612,6 +6612,7 @@ async function showControlModule(){
 }
 async function seleccionarSeccionControl(sec){
   if(currentUserRole==='CARGADOR' && sec!==null && sec!=='carga')return;
+  if(controlSeccionEsProximamente(CONTROL_SECCIONES.find(s=>s.key===sec)))return;
   if(sec===controlSeccion)return;
   return navegarControlQC(async()=>{
     // Preinjerto puede tener una ubicación ya registrada en la ficha de
@@ -6697,7 +6698,8 @@ function renderControlContent(overlay){
   const navScrollAnterior=navAnterior ? navAnterior.scrollLeft : 0;
   const cambioSeccion=controlUltimaSeccionRenderizada!==controlSeccion;
   controlUltimaSeccionRenderizada=controlSeccion;
-  const opcionesControl=CONTROL_SECCIONES.filter(s=>currentUserRole!=='CARGADOR'||s.key==='carga'||s.key==='carga_injerto');
+  const opcionesControl=CONTROL_SECCIONES.filter(s=>!controlSeccionEsProximamente(s)&&
+    (currentUserRole!=='CARGADOR'||s.key==='carga'||s.key==='carga_injerto'));
   const seccionActiva=CONTROL_SECCIONES.find(s=>s.key===controlSeccion);
   const navHTML=controlSeccion===null ? '' : `<nav class="control-ui-nav" aria-label="Apartados de Control de Calidad">
         <label class="control-ui-select-wrap">
@@ -6716,9 +6718,6 @@ function renderControlContent(overlay){
           <span>Control de Calidad</span>
         </button>
         <div class="control-ui-header-right">
-          ${!controlDesdeBackoffice && ['ADMIN','TECNICO','CARGADOR'].includes(currentUserRole) ? `<button type="button" onclick="abrirQCOfflineDesdeControl()"
-            style="background:#1558a0;border:1px solid #a8c4e8;color:#fff;border-radius:7px;font-size:12px;font-weight:800;padding:7px 9px;cursor:pointer;white-space:nowrap"
-            title="Consulta local de partidas y borradores QC">Sin conexión</button>` : ''}
           ${controlDesdeBackoffice ? `<button type="button" onclick="volverAlListadoControlBackoffice()"
             style="background:#1558a0;border:1px solid #a8c4e8;color:#fff;border-radius:7px;font-size:12px;font-weight:800;padding:7px 11px;cursor:pointer;white-space:nowrap"
             title="Volver al listado de Control del Backoffice">← Backoffice</button>` : ''}
@@ -6761,7 +6760,8 @@ function renderControlContent(overlay){
 function renderControlResumenHTML(){
   return `
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
-      ${CONTROL_SECCIONES.filter(s=>currentUserRole!=='CARGADOR'||s.key==='carga').map(s=>{
+      ${CONTROL_SECCIONES.filter(s=>!controlSeccionEsProximamente(s)&&
+        (currentUserRole!=='CARGADOR'||s.key==='carga')).map(s=>{
         const totalV2 = s.conCheck ? controlV2TotalTipo(s.key) : null;
         const n = s.conCheck ? (totalV2==null ? controlChecksData.filter(c=>c.tipo===s.key).length : totalV2) : null;
         const pendiente=controlSeccionEsProximamente(s);
@@ -6800,7 +6800,7 @@ function renderControlSeccionHTML(seccion){
       <div style="margin-bottom:1.25rem">
         <h2 style="font-size:22px;font-weight:800;color:var(--text);margin-bottom:4px">${seccion.label}</h2>
       </div>
-      <div style="text-align:center;padding:3rem;color:var(--muted);font-style:italic;font-size:13px">Próximamente. Dime qué campos debe llevar esta comprobación y lo construyo.</div>`;
+      <div style="text-align:center;padding:3rem;color:var(--muted);font-style:italic;font-size:13px">Este apartado aún no está disponible.</div>`;
   }
   return renderControlChecklistHTML(seccion);
 }

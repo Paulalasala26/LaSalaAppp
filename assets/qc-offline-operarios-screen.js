@@ -143,7 +143,7 @@
     }catch(e){
       if(sessionLocked)return;
       $('status').textContent=e.message==='LOGIN_REQUIRED'?
-        'Abre ViguerAPP TEST desde este mismo navegador o desde la aplicación instalada, inicia sesión y utiliza Control → Sin conexión. Los enlaces abiertos desde otra aplicación o navegador no comparten la sesión.':
+        'Abre ViguerAPP desde este mismo navegador o desde la aplicación instalada e inicia sesión. Los enlaces abiertos desde otra aplicación o navegador no comparten la sesión.':
         'No se puede leer la consulta local. Conéctate y abre Control.';
     }
   }
