@@ -7328,8 +7328,8 @@ function renderControlFiltroInvHTML(tipo){
    +'</select></div>';
 }
 function renderControlFiltroYAltaHTML(tipo,dia,wizard=false){
-  // Alta de líneas y selector asociado quedan ocultos temporalmente en Túnel y Carga normal.
-  if(tipo==='tunel'||tipo==='carga')return '<div id="nuevo-control-form-wrap"></div>';
+  // Alta manual temporal en QC Túnel para crear el duplicado de prueba.
+  if(tipo==='carga')return '<div id="nuevo-control-form-wrap"></div>';
   const accion=tipo==='tunel' ? "mostrarFormNuevoControlCheck('tunel',"+(wizard?'true':'false')+")" :
     'mostrarFormNuevoControlCargaCheck()';
   const alta=puedeCrearLineaControlQC(dia)
