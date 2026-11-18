@@ -763,6 +763,33 @@
     if(!closed)cancel.focus({preventScroll:true});
   }
 
+  function buildRecordHeader(rec){
+    const labels={
+      preinjerto_patron:'Preinjerto Patrón',
+      preinjerto_variedad:'Preinjerto Variedad',
+      tunel:'Túnel',
+      carga:'Carga normal',
+      carga_injerto:'Carga Injerto'
+    };
+    const summary=node('section',null,'qco-record-summary');
+    summary.style.cssText='margin:0 0 12px;padding:10px 11px;border:1px solid #d7e4f1;border-radius:10px;background:#f7faff;color:#294968';
+    const top=node('div',null);
+    top.style.cssText='display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;font-size:12px;color:#526b85';
+    top.append(node('strong',labels[rec.tipo]||'Control de Calidad'));
+    let date='';
+    try{date=typeof riegoDiaLabelCorto==='function'?riegoDiaLabelCorto(rec.dia):'';}catch(_){}
+    top.append(node('span',date||('Día '+rec.dia)));
+    summary.append(top);
+    const identity=typeof renderControlIdentidadQC==='function'?renderControlIdentidadQC(rec,true):
+      '<strong>'+(String(rec.partida||'').replace(/[&<>"]/g,'')||'Sin partida')+'</strong>';
+    const facts=typeof renderControlDatosQC==='function'?renderControlDatosQC(rec):'';
+    const card=node('div',null,'qco-record-identity');
+    card.innerHTML=identity+facts;
+    card.style.cssText='background:#fff;border-radius:8px;padding:7px 9px';
+    summary.append(card);
+    return summary;
+  }
+
   function build(rec){
     const overlay=node('section',null,'qco-inline');overlay.id='qco-inline';
     const dialog=node('div',null,'qco-dialog');dialog.setAttribute('role','region');
@@ -771,6 +798,7 @@
     const exit=node('button','×','qco-close');exit.type='button';exit.title='Cerrar';exit.addEventListener('click',()=>close());
     head.append(heading,exit);dialog.append(head);
     const body=node('div',null,'qco-body'),form=node('form');form.noValidate=true;form.addEventListener('submit',save);
+    body.append(buildRecordHeader(rec));
     const total=node('div',null,'qco-total');
     total.hidden=true; // Campo técnico de compatibilidad v5; no es una medición de QC.
     total.append(node('span','Bandejas de la partida: '),node('strong','—','qco-total-value'));
