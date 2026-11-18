@@ -210,6 +210,7 @@
   async function loadPendingPreinjertoData(){
     pendingRows={preinjerto_patron:[],preinjerto_variedad:[]};
     pendingLoadError=false;
+    pendingStatusFailures.clear();
     pendingUnverifiedRecordIds.clear();
     const today=riegoDiaDeHoy(),start=today-30;
     if(!await loadControlV2Index(true))throw Error('QC_INDEX_UNAVAILABLE');
@@ -305,7 +306,7 @@
     loadPendingPreinjerto().then(()=>{
       if(!pendingOverlay)return;
       pendingOverlay.querySelector('[data-role="pending-status"]').textContent=pendingUnverifiedGroups
-        ?`${pendingUnverifiedGroups} grupo(s) no se pudieron verificar; se muestran para no ocultar pendientes.`
+        ?`${pendingUnverifiedGroups} grupos sin verificar; el recuento puede incluir inspecciones ya completadas. Cierra y vuelve a abrir para reintentar.`
         :'Ordenadas por invernadero y calle; la fecha de siembra se conserva.';
       setPendingTab(pendingTab);
     }).catch(error=>{
