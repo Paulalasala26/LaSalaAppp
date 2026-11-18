@@ -111,8 +111,22 @@
       '<div id="nuevo-control-form-wrap"></div>';
   };
 
+  function renderPreinjertoCardWithAppLocation(record,section){
+    const html=window.renderControlCardCompactHTML(record,section);
+    if(typeof html!=='string')return html;
+    const location=window.qcpAppLocationForCard?.(record)||{inv:'—',calles:'—'};
+    const esc=value=>String(value==null?'':value).replace(/[&<>"']/g,char=>({
+      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+    }[char]));
+    const replaceFact=(source,label,value)=>{
+      const pattern=new RegExp('(<span\\b[^>]*>[\\s\\S]*?'+label+':\\s*<strong>)[\\s\\S]*?(<\\/strong>\\s*<\\/span>)','i');
+      return source.replace(pattern,(_,before,after)=>before+esc(value)+after);
+    };
+    return replaceFact(replaceFact(html,'Invernadero',location.inv),'Calle',location.calles);
+  }
+
   window.renderControlCardHTML=function(record,section){
-    if(record&&['preinjerto_patron','preinjerto_variedad'].includes(record.tipo))return window.renderControlCardCompactHTML(record,section);
+    if(record&&['preinjerto_patron','preinjerto_variedad'].includes(record.tipo))return renderPreinjertoCardWithAppLocation(record,section);
     if(!record||!keySet.has(record.tipo))return oldCard(record,section);
     const esc=value=>String(value==null?'':value).replace(/[&<>"']/g,char=>({
       '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
