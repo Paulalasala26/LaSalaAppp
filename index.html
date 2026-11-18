@@ -17755,10 +17755,10 @@ function renderRmBulkTramoRows(invId){
   const allCalles = callesOrdenadasInv(invId);
   cont.innerHTML = cfg.tramos.map((t,i)=>`
     <div class="rmb-tramo-row" data-inv="${invId}" style="display:grid;grid-template-columns:1fr 1fr auto;gap:6px;margin-bottom:6px">
-      <select class="rmb-tramo-desde" style="width:100%;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;background:#f2f4f0;outline:none;cursor:pointer">
+      <select class="rmb-tramo-desde" onchange="normalizarRmBulkTramoFila('${invId}',${i})" style="width:100%;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;background:#f2f4f0;outline:none;cursor:pointer">
         ${allCalles.map(c=>`<option value="${c}"${c===t.desde?' selected':''}>${c}</option>`).join('')}
       </select>
-      <select class="rmb-tramo-hasta" style="width:100%;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;background:#f2f4f0;outline:none;cursor:pointer">
+      <select class="rmb-tramo-hasta" onchange="normalizarRmBulkTramoFila('${invId}',${i})" style="width:100%;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;background:#f2f4f0;outline:none;cursor:pointer">
         ${allCalles.map(c=>`<option value="${c}"${c===t.hasta?' selected':''}>${c}</option>`).join('')}
       </select>
       ${cfg.tramos.length>1 ? `<button type="button" onclick="quitarRmBulkTramoRow('${invId}',${i})" style="width:26px;background:#fdecea;color:#c62828;border:1px solid #f3c2bd;border-radius:6px;cursor:pointer;font-size:11px">✕</button>` : '<span></span>'}
@@ -17769,6 +17769,18 @@ function leerRmBulkTramosDesdeDOM(invId){
     desde: parseInt(row.querySelector('.rmb-tramo-desde').value, 10),
     hasta: parseInt(row.querySelector('.rmb-tramo-hasta').value, 10)
   }));
+}
+function normalizarRmBulkTramoFila(invId,i){
+  const rows=Array.from(document.querySelectorAll('.rmb-tramo-row[data-inv="'+String(invId)+'"]'));
+  const row=rows[i];
+  if(!row)return;
+  const desdeEl=row.querySelector('.rmb-tramo-desde');
+  const hastaEl=row.querySelector('.rmb-tramo-hasta');
+  const desde=parseInt(desdeEl.value,10),hasta=parseInt(hastaEl.value,10);
+  if(Number.isFinite(desde)&&Number.isFinite(hasta)&&desde>hasta){
+    desdeEl.value=String(hasta);
+    hastaEl.value=String(desde);
+  }
 }
 function agregarRmBulkTramoRow(invId){
   rmBulkConfig[invId].tramos = leerRmBulkTramosDesdeDOM(invId);
@@ -17797,13 +17809,16 @@ function calcularCallesRmBulk(invId){
     return { calles, tramos: agruparCallesEnTramos(calles) };
   }
   if(cfg.modo==='tramo'){
-    const tramos = leerRmBulkTramosDesdeDOM(invId);
-    const calles = [];
-    tramos.forEach(({desde,hasta})=>{
+    const seleccionadas = new Set();
+    leerRmBulkTramosDesdeDOM(invId).forEach(({desde,hasta})=>{
+      if(!allCalles.includes(desde)||!allCalles.includes(hasta))return;
       const s=Math.min(desde,hasta), e=Math.max(desde,hasta);
-      for(let c=s;c<=e;c++){ if(allCalles.includes(c) && !calles.includes(c)) calles.push(c); }
+      allCalles.forEach(c=>{if(c>=s&&c<=e)seleccionadas.add(c);});
     });
-    return { calles, tramos };
+    const calles=[...seleccionadas].sort((a,b)=>a-b);
+    // La selección representa calles cubiertas: consolidar repetidos,
+    // solapamientos y rangos contiguos antes de aplicarlos y resumirlos.
+    return { calles, tramos: agruparCallesEnTramos(calles) };
   }
   return { calles: allCalles, tramos: agruparCallesEnTramos(allCalles) };
 }
