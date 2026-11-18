@@ -4048,6 +4048,48 @@ test('UAT-414: consultar más de 30 fotos confirmadas sin límite de lectura', a
   expect(unexpectedHosts).toEqual([]);
 });
 
+test('UAT-413: la foto pendiente número 31 no desplaza las 30 anteriores', async ({ page }) => {
+  const database = fixtureDatabase();
+  const id = 'e2e-control-current-fortnight';
+  database['lasala-control-fotos-indice-v1'] = JSON.stringify({});
+  database['lasala-control-fotos-shards-index'] = JSON.stringify(['lasala-control-fotos-v1']);
+  database['lasala-control-fotos-v1'] = JSON.stringify({});
+  const { overlay, unexpectedHosts } = await startControlTest(page, database);
+  await page.setViewportSize({ width: 390, height: 844 });
+  const pendingPhotos = await page.evaluate(() => Array.from({ length: 30 }, (_, index) => {
+    const canvas = document.createElement('canvas'); canvas.width = 8; canvas.height = 8;
+    const context = canvas.getContext('2d'); context.fillStyle = `hsl(${index * 12} 70% 50%)`; context.fillRect(0, 0, 8, 8);
+    return canvas.toDataURL('image/png');
+  }));
+  await page.evaluate(({ id, pendingPhotos }) => {
+    controlFotosData[id] = pendingPhotos;
+    pendingPhotos.forEach(photo => encolarAccionOffline('aplicarFotoControl', [id, photo]));
+    renderControlContent(document.getElementById('control-overlay'));
+  }, { id, pendingPhotos });
+  unexpectedHosts.setWriteFailure(true);
+  const png = await page.evaluate(() => {
+    const canvas = document.createElement('canvas'); canvas.width = 8; canvas.height = 8;
+    const context = canvas.getContext('2d'); context.fillStyle = '#1565c0'; context.fillRect(0, 0, 8, 8);
+    return canvas.toDataURL('image/png').split(',')[1];
+  });
+  const card = overlay.locator(`#control-card-${id}`);
+  const input = card.locator('input[data-testid^="control-photo-gallery-"]');
+  const photos = card.locator('img[title="Ver foto"]');
+  const file = index => ({ name: `e2e-uat-413-${index}.png`, mimeType: 'image/png', buffer: Buffer.from(png, 'base64') });
+
+  await expect(photos).toHaveCount(30);
+  await expect.poll(() => page.evaluate(id => leerColaOffline().filter(accion =>
+    accion.fn === 'aplicarFotoControl' && String(accion.args?.[0]) === String(id)
+  ).length, id)).toBe(30);
+
+  await input.setInputFiles(file(31));
+  await expect(photos).toHaveCount(30, { timeout: 10000 });
+  await expect.poll(() => page.evaluate(id => leerColaOffline().filter(accion =>
+    accion.fn === 'aplicarFotoControl' && String(accion.args?.[0]) === String(id)
+  ).length, id)).toBe(30);
+  expect(unexpectedHosts).toEqual([]);
+});
+
 test('UAT-403: abrir una foto SharePoint mediante acceso autenticado', async ({ page }) => {
   test.fail(true, 'La galería no resuelve la referencia SharePoint con un recurso autenticado; trata el identificador como src de imagen.');
   const database = fixtureDatabase();
