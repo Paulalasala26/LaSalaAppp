@@ -197,9 +197,17 @@
     const workers=Array.from({length:Math.min(3,groupList.length)},async()=>{
       while(nextGroup<groupList.length){
         const group=groupList[nextGroup++];
+        const invalid=group.records.filter(record=>
+          !/^[A-Za-z0-9_-]{1,180}$/.test(String(record.id))||
+          !/^[A-Za-z0-9._-]{1,100}$/.test(String(record.partida||''))
+        );
+        if(invalid.length){
+          throw Error(`QC_STATUS_INVALID_REFERENCE:${group.type}:${group.day}:${invalid.slice(0,3).map(record=>record.partida||record.id).join(',')}`);
+        }
         const status=pendingOverlay?.querySelector('[data-role="pending-status"]');
         if(status)status.textContent=`Comprobando inspecciones ${nextGroup} de ${groupList.length}…`;
-        await window.cargarEstadosQCDia(group.type,group.day,group.records);
+        const ok=await window.cargarEstadosQCDia(group.type,group.day,group.records);
+        if(ok!==true)throw Error(`QC_STATUS_UNAVAILABLE:${pendingStatusFailures.get(claveEstadosQC(group.type,group.day))||group.type+':'+group.day}`);
       }
     });
     await Promise.all(workers);
@@ -247,7 +255,11 @@
       pendingLoadError=true;
       const message=String(error?.message||'');
       const status=pendingOverlay.querySelector('[data-role="pending-status"]');
-      status.textContent=message.includes('QC_STATUS_UNAVAILABLE:QC_STATUS_HTTP_401')||message.includes('QC_STATUS_UNAVAILABLE:QC_STATUS_HTTP_403')||message.includes('QC_STATUS_UNAVAILABLE:LOGIN_REQUIRED')
+      const invalidReference=message.startsWith('QC_STATUS_INVALID_REFERENCE:')
+        ?message.split(':').slice(3).join(':'):'';
+      status.textContent=message.startsWith('QC_STATUS_INVALID_REFERENCE:')
+        ?`La referencia ${invalidReference?`«${invalidReference}» `:''}no permite consultar su inspección.`
+        :message.includes('QC_STATUS_UNAVAILABLE:QC_STATUS_HTTP_401')||message.includes('QC_STATUS_UNAVAILABLE:QC_STATUS_HTTP_403')||message.includes('QC_STATUS_UNAVAILABLE:LOGIN_REQUIRED')
         ?'La sesión no tiene permiso para consultar los estados QC. Vuelve a iniciar sesión.'
         :message.includes('QC_STATUS_UNAVAILABLE:QC_STATUS_HTTP_')
           ?'Firebase/Vercel rechazó la consulta de estados QC. Vuelve a intentarlo en unos segundos.'
@@ -400,19 +412,25 @@
       if(keySet.has(type))return;
       return oldLoadStatuses(type,day,records);
     }
-    if(!records?.length||!['ADMIN','TECNICO'].includes(currentUserRole))return;
+    if(!records?.length||!['ADMIN','TECNICO'].includes(currentUserRole))return false;
     const key=claveEstadosQC(type,day);
-    if(controlQCEstadosCargando.has(key))return;
     const unique=new Map();
     records.forEach(record=>{
       if(/^[A-Za-z0-9_-]{1,180}$/.test(String(record.id))&&
          /^[A-Za-z0-9._-]{1,100}$/.test(String(record.partida||'')))unique.set(record.id,record);
     });
     const refs=Array.from(unique.values());
-    if(!refs.length)return;
+    if(!refs.length||refs.length!==records.length)return false;
     const signature=refs.map(record=>record.id+':'+record.partida).sort().join('|');
     const previous=controlQCEstados.get(key);
-    if(previous?.signature===signature&&Date.now()-previous.at<120000)return;
+    if(previous?.signature===signature&&Date.now()-previous.at<120000)return true;
+    if(controlQCEstadosCargando.has(key)){
+      for(let attempt=0;attempt<300&&controlQCEstadosCargando.has(key);attempt++)
+        await new Promise(resolve=>setTimeout(resolve,100));
+      const finished=controlQCEstados.get(key);
+      if(finished?.signature===signature)return true;
+      if(controlQCEstadosCargando.has(key))return false;
+    }
     controlQCEstadosCargando.add(key);
     const user=currentUser;
     try{
@@ -430,7 +448,7 @@
         if(!data.ok||data.tipo!==type||data.dia!==day||!data.estados)throw Error('QC_STATUS_INVALID');
         Object.entries(data.estados).forEach(([id,value])=>{states[id]=value===true;});
       }
-      if(user!==currentUser)return;
+      if(user!==currentUser)return false;
       const partidas=Object.create(null);
       refs.forEach(record=>{partidas[record.id]=record.partida;});
       controlQCEstados.set(key,{signature,estados:states,partidas,at:Date.now()});
@@ -439,9 +457,11 @@
       const overlay=document.getElementById('control-overlay');
       if(overlay&&overlay.style.display==='flex'&&controlSeccion===type&&controlDiaSel===day&&
          !document.querySelector('#qco-inline'))window.renderControlContent(overlay);
+      return true;
     }catch(error){
       pendingStatusFailures.set(key,String(error?.message||'QC_STATUS_UNAVAILABLE'));
       controlQCEstadosUltimoError.set(key,Date.now());
+      return false;
     }finally{
       controlQCEstadosCargando.delete(key);
     }
