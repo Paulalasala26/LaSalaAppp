@@ -105,14 +105,14 @@
     if(!['ADMIN','TECNICO'].includes(currentUserRole))return html;
     setTimeout(refreshPendingBadge,100);
     const action='<button type="button" data-pending-preinjerto-button onclick="abrirPendientesPreinjerto()" aria-haspopup="dialog" '+
-      'style="display:flex;grid-column:1 / -1;width:100%;align-items:center;justify-content:space-between;gap:12px;margin-top:0;padding:12px 14px;border:1px solid #b8d1ee;border-radius:12px;background:#f2f7fd;color:#1558a0;text-align:left;cursor:pointer">'+
+      'style="position:relative;display:flex;grid-column:1 / -1;width:100%;align-items:center;justify-content:space-between;gap:12px;margin-top:0;padding:12px 14px;border:1px solid #b8d1ee;border-radius:12px;background:#f2f7fd;color:#1558a0;text-align:left;cursor:pointer">'+
       '<span style="display:flex;align-items:center;gap:10px;min-width:0">'+
       '<i class="ti ti-clock-hour-4" aria-hidden="true" style="font-size:20px;flex-shrink:0"></i>'+
       '<span><strong style="display:block;font-size:13px">Pendientes de Preinjerto</strong>'+
       '<span style="display:block;margin-top:2px;font-size:11px;color:#526b85">Patrón y Variedad · últimos 30 días</span></span></span>'+
       '<span style="display:flex;align-items:center;gap:9px;flex-shrink:0">'+
       '<span class="qc-preinjerto-pending-dot" role="img" aria-label="Hay pendientes de Preinjerto" title="Hay pendientes de Preinjerto" '+
-      'style="display:'+(pendingBadgeKnown&&pendingTotal()>0?'inline-block':'none')+';width:10px;height:10px;border-radius:50%;background:#dc2626;box-shadow:0 0 0 2px #fff"></span>'+
+      'style="position:absolute;top:6px;right:6px;z-index:1;display:'+(pendingBadgeKnown&&pendingTotal()>0?'inline-block':'none')+';width:10px;height:10px;border-radius:50%;background:#dc2626;box-shadow:0 0 0 2px #f2f7fd"></span>'+
       '<i class="ti ti-chevron-right" aria-hidden="true" style="font-size:18px"></i></span></button>';
     const tunnelMarker='onclick="seleccionarSeccionControl(\'tunel\')"';
     const tunnelPosition=html.indexOf(tunnelMarker);
