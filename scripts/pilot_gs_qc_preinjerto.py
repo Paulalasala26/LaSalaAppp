@@ -72,6 +72,8 @@ SELECT
     e.ENG_FEC AS `Fecha encargo`,
     NULL AS `Fecha Real Siembra`,
     p.PAR_CAS AS `PAR_CAS`,
+    inv_cas.id AS `PAR_CAS invernaderoId`,
+    inv_cas.INV_DENO AS `PAR_CAS invernadero`,
     p.PAR_UBIC AS `PAR_UBIC`,
     pu.id2 AS `GS Ubicacion id2`,
     pu.C0 AS `GS Ubicacion invernaderoId`,
@@ -90,6 +92,9 @@ LEFT JOIN sala12.encargos AS e ON e.id = p.PAR_ENC
 LEFT JOIN sala12.clientes AS c ON c.id = p.PAR_CCL
 LEFT JOIN sala12.partidas_par_ubic AS pu ON pu.id = p.id
 LEFT JOIN sala12.invernaderos AS inv ON inv.id = pu.C0
+LEFT JOIN sala12.invernaderos AS inv_cas
+    ON NULLIF(TRIM(p.PAR_CAS), '') IS NOT NULL
+   AND LPAD(TRIM(CAST(inv_cas.id AS CHAR)), 3, '0') = LPAD(TRIM(p.PAR_CAS), 3, '0')
 WHERE (p.id LIKE '__P%' OR p.id LIKE '__WE%'
        OR p.id LIKE '__C%' OR p.id LIKE '__VE%')
   AND p.PAR_FECS >= %s
