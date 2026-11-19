@@ -7648,7 +7648,7 @@ function renderControlChecklistHTML(seccion){
   const extraTunelHTML = seccion.key==='tunel' ? `
     <label class="qc-list-option" title="Importa la fecha de salida, el invernadero y los tramos de calle desde el PDF de extensiones"><i class="ti ti-file-upload"></i> Asignar calles desde PDF<input type="file" accept="application/pdf" onchange="handleExtensionesPdfInput(this)"></label>` : '';
   const extraPreinjertoHTML = (esSeccionPreinjerto(seccion.key) && ['ADMIN','TECNICO'].includes(currentUserRole)) ? `
-    <label class="qc-list-option" title="Un solo PDF o Excel crea las líneas de los dos checks (Variedad: C o VE; Patrón: P o WE), cada una en su día de F Entrega"><i class="ti ti-file-upload"></i> Importar PDF o Excel<input type="file" accept="application/pdf,.xlsx,.xls" onchange="handlePreinjertoImportInput(this)"></label>` : '';
+    <label class="qc-list-option" title="Un solo PDF o Excel crea las líneas de los dos checks (Variedad: C o VE; Patrón: P o WE), cada una el día antes de su F Entrega"><i class="ti ti-file-upload"></i> Importar PDF o Excel<input type="file" accept="application/pdf,.xlsx,.xls" onchange="handlePreinjertoImportInput(this)"></label>` : '';
   const cardsHTML = listaMostrada.length===0
     ? `<div class="qc-list-none">${listaDia.length===0?'Sin partidas para este día.':((seccion.key==='carga'?controlCargaInvFiltro:controlTunelInvFiltro)?'No hay partidas para ese invernadero y día.':'No hay líneas con el estado seleccionado.')}</div>`
     : `<div class="qc-list-cards">${filas}</div>`;
@@ -8072,15 +8072,21 @@ async function autoCrearLineasDesdePdfControl(tipo, dia, pdfB64){
 }
 // ════════════════════════════════════════════════════════════════
 // IMPORTACIÓN DE PREINJERTO (PDF o Excel «Salida de tomate con fecha prev»).
-// Traída de main y adaptada a DEV (19/11/2026). REGLA DE FECHA: cada línea se crea en
-// el día de su F ENTREGA, NO en el de su F Siembra (decisión de Vigueras, 2026-10-30,
-// confirmada para DEV el 19/11/2026). El check lo decide la letra de la partida:
+// Traída de main y adaptada a DEV (19/11/2026). REGLA DE FECHA (acordada el 19/11/2026): cada
+// línea se crea UN DÍA ANTES de su F ENTREGA; la F Siembra no se usa para los QC. (En main la
+// regla era la propia F Entrega, decisión de Vigueras 2026-10-30.) El check lo decide la letra de la partida:
 // C o VE -> QC Preinjerto Variedad; P o WE -> QC Preinjerto Patrón; el resto se ignora.
 // Adaptaciones a DEV: (1) las líneas se guardan en los trozos v2 por quincena, así que
 // antes de crear se leen los trozos afectados para no duplicar; (2) DEV no admite altas
 // en días anteriores a hoy (puedeCrearLineaControlQC): esas partidas se omiten y se avisa.
 // ════════════════════════════════════════════════════════════════
 function esSeccionPreinjerto(k){ return k==='preinjerto_variedad' || k==='preinjerto_patron'; }
+// Días que el QC Preinjerto aparece ANTES de la fecha de entrega (regla acordada el 19/11/2026).
+const QC_PREINJERTO_DIAS_ANTES_ENTREGA = 1;
+function diaQCPreinjerto(fEntrega){
+  const d = fechaExtensionADiaRiego(fEntrega);
+  return d==null ? null : d - QC_PREINJERTO_DIAS_ANTES_ENTREGA;
+}
 // "26C01234"/"26VE0123" -> 'preinjerto_variedad'; "26P01234"/"26WE0123" -> 'preinjerto_patron'; resto -> null
 function tipoPreinjertoDePartida(partida){
   const m = /^\d{2}([A-Za-z]{0,2})\d+$/.exec(String(partida||'').trim());
@@ -8130,12 +8136,12 @@ async function crearLineasPreinjerto(records, noReconocidas, porPartida){
   const porTipo = {preinjerto_variedad:0, preinjerto_patron:0}; const porDia = {}; const dias = new Set();
   const ignoradas = [], sinFecha = [], pasadas = [];
   let creadas = 0, yaExistian = 0;
-  // 1) Qué check y qué día (F ENTREGA) le toca a cada partida
+  // 1) Qué check y qué día (un día antes de la F ENTREGA) le toca a cada partida
   const previstas = [];
   records.forEach(p=>{
     const tipoP = tipoPreinjertoDePartida(p.partida);
     if(!tipoP){ ignoradas.push(p.partida); return; }
-    const dia = fechaExtensionADiaRiego(p.fEntrega);
+    const dia = diaQCPreinjerto(p.fEntrega);
     if(dia==null){ sinFecha.push(p.partida); return; }
     if(!puedeCrearLineaControlQC(dia)){ pasadas.push(p.partida); return; }
     previstas.push({p, tipoP, dia});
@@ -8226,7 +8232,7 @@ async function autoCrearLineasDesdeExcelControlPreinjerto(buf){
   }
 }
 // Botón «Importar PDF o Excel» de los QC Preinjerto (Más opciones): un solo archivo crea las líneas
-// de los dos checks, cada una en su día de F Entrega.
+// de los dos checks, cada una el día antes de su F Entrega.
 async function handlePreinjertoImportInput(input){
   const file = input && input.files && input.files[0];
   if(input) input.value = '';
@@ -8248,9 +8254,9 @@ async function handlePreinjertoImportInput(input){
   else if(r.error === -1) showToast(`❌ No se ha podido leer el archivo${r.noReconocidas && r.noReconocidas.length ? ' ('+r.noReconocidas.length+' línea'+(r.noReconocidas.length===1?'':'s')+' con partida de formato distinto)' : ''} — no se ha creado ninguna línea`);
   else {
     const detalle = Object.keys(r.porDia).map(Number).sort((a,b)=>a-b).map(d=>riegoDiaLabelCorto(d)+' ('+r.porDia[d]+')').join(', ');
-    if(r.creadas > 0) showToast(`✓ ${r.creadas} línea${r.creadas===1?'':'s'} nueva${r.creadas===1?'':'s'} (${r.porTipo.preinjerto_variedad} en Variedad, ${r.porTipo.preinjerto_patron} en Patrón) por fecha de entrega: ${detalle}. Ya existían ${r.yaExistian}.`);
+    if(r.creadas > 0) showToast(`✓ ${r.creadas} línea${r.creadas===1?'':'s'} nueva${r.creadas===1?'':'s'} (${r.porTipo.preinjerto_variedad} en Variedad, ${r.porTipo.preinjerto_patron} en Patrón) un día antes de su fecha de entrega: ${detalle}. Ya existían ${r.yaExistian}.`);
     else showToast(`✓ Archivo leído: no hay partidas nuevas (ya existían ${r.yaExistian})`);
-    if(r.pasadas && r.pasadas.length) showToast(`ℹ️ ${r.pasadas.length} partida${r.pasadas.length===1?'':'s'} con fecha de entrega anterior a hoy no se ha creado (no se añaden líneas a días pasados): ${r.pasadas.slice(0,5).join(', ')}`);
+    if(r.pasadas && r.pasadas.length) showToast(`ℹ️ ${r.pasadas.length} partida${r.pasadas.length===1?'':'s'} cuyo día de QC (un día antes de la fecha de entrega) ya pasó no se ha creado (no se añaden líneas a días pasados): ${r.pasadas.slice(0,5).join(', ')}`);
     if(r.ignoradas && r.ignoradas.length) showToast(`ℹ️ ${r.ignoradas.length} partida${r.ignoradas.length===1?'':'s'} sin C/VE/P/WE ignorada${r.ignoradas.length===1?'':'s'}`);
     if(r.sinFecha && r.sinFecha.length) showToast(`⚠️ ${r.sinFecha.length} partida${r.sinFecha.length===1?'':'s'} sin fecha de entrega válida: ${r.sinFecha.slice(0,5).join(', ')}`);
     if(r.noReconocidas && r.noReconocidas.length) showToast(`⚠️ ${r.noReconocidas.length} línea${r.noReconocidas.length===1?'':'s'} con partida no se ha podido leer (formato distinto)`);
