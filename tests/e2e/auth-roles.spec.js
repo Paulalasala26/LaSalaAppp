@@ -1846,3 +1846,46 @@ test('UAT-2159: el botón azul Avisos muestra foco visible y abre el panel con t
   await expect(page.locator('#avisos-tecnico-overlay')).toBeVisible();
   expect(writes).toEqual([]);
 });
+
+test('UAT-2092: REGANTE no puede iniciar una tarea operativa asignada a otro usuario', async ({ page }) => {
+  const todayISO = await page.evaluate(() => {
+    const date = new Date();
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  });
+  const task = {
+    id: 'e2e-uat-2092-other-user',
+    titulo: 'E2E tarea operativa UAT-2092',
+    asignadoA: 'E2E_PEON',
+    origen: 'manual',
+    categoria: 'manual',
+    inv: '0A',
+    calles: '1-2',
+    fechaISO: todayISO,
+    fecha: 'hoy',
+    turno: 'Mañana',
+    prioridad: 'normal',
+    estado: 'pendiente'
+  };
+  const firebaseWrites = [];
+  const pageErrors = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
+  page.on('request', request => {
+    if (firebaseUrl.test(request.url()) && !['GET', 'OPTIONS'].includes(request.method())) firebaseWrites.push(request.method());
+  });
+
+  await installAuthFixture(page, { 'lasala-tareas-v1': JSON.stringify([task]) });
+  await logInAs(page, 'E2E_REGANTE');
+  await expect(page.locator('#page-home')).toBeVisible();
+  await expect(page.getByText(task.titulo, { exact: true })).toHaveCount(0);
+
+  await page.evaluate(id => iniciarTarea(id), task.id);
+  await expect(page.getByText('Esta tarea no está asignada a tu usuario')).toBeVisible();
+  expect(firebaseWrites).toEqual([]);
+  const savedTasks = await page.evaluate(async () => {
+    const response = await fetch(`https://${firebaseHost}/lasala-tareas-v1.json`);
+    if (!response.ok) throw new Error(`Firebase fixture devolvió ${response.status}`);
+    return response.json();
+  });
+  expect(savedTasks).toEqual([task]);
+  expect(pageErrors).toEqual([]);
+});
