@@ -1881,11 +1881,12 @@ test('UAT-2092: REGANTE no puede iniciar una tarea operativa asignada a otro usu
   await page.evaluate(id => iniciarTarea(id), task.id);
   await expect(page.getByText('Esta tarea no está asignada a tu usuario')).toBeVisible();
   expect(firebaseWrites).toEqual([]);
-  const savedTasks = await page.evaluate(async () => {
-    const response = await fetch(`https://${firebaseHost}/lasala-tareas-v1.json`);
+  const savedTasks = await page.evaluate(async host => {
+    const response = await fetch(`https://${host}/lasala-tareas-v1.json`);
     if (!response.ok) throw new Error(`Firebase fixture devolvió ${response.status}`);
-    return response.json();
-  });
+    const value = await response.json();
+    return typeof value === 'string' ? JSON.parse(value) : value;
+  }, firebaseHost);
   expect(savedTasks).toEqual([task]);
   expect(pageErrors).toEqual([]);
 });
