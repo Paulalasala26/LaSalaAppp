@@ -1890,3 +1890,23 @@ test('UAT-2092: REGANTE no puede iniciar una tarea operativa asignada a otro usu
   expect(savedTasks).toEqual([task]);
   expect(pageErrors).toEqual([]);
 });
+
+test('UAT-2110: REGANTE no abre Plaguicidas al invocar directamente el módulo', async ({ page }) => {
+  test.fail(true, 'UAT-2110 detectó que la ruta directa abre Plaguicidas para REGANTE.');
+  const protectedReads = [];
+  const writes = [];
+  page.on('request', request => {
+    const url = request.url();
+    if (!url.includes('lasala-fito-v1')) return;
+    if (request.method() === 'GET') protectedReads.push(url);
+    else writes.push({ method: request.method(), url });
+  });
+  await installAuthFixture(page);
+  await logInAs(page, 'E2E_REGANTE');
+  await expect(page.locator('#page-home')).toBeVisible();
+
+  await page.evaluate(() => handleQuickAction('plaguicidas'));
+  await expect(page.locator('#fito-overlay')).toBeHidden();
+  expect(protectedReads).toEqual([]);
+  expect(writes).toEqual([]);
+});
