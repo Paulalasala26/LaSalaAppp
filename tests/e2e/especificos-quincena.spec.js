@@ -892,3 +892,26 @@ test('UAT-1231: cerrar la vista de impresión permite seguir usando Específicos
   expect(writes).toEqual([]);
   expect(unexpectedHosts).toEqual([]);
 });
+
+test('UAT-1230: una sesión móvil nueva recalcula perfil y quincena en Específicos',async({page})=>{
+  await page.setViewportSize({width:390,height:844});
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openSpecifics(page,database);
+  const period=overlay.locator('#especificos-quincena-bar');
+  const currentLabel=(await period.innerText()).replace(/\s+/g,' ').trim();
+  await period.locator('button').last().click();
+  const priorSessionLabel=(await period.innerText()).replace(/\s+/g,' ').trim();
+  expect(priorSessionLabel).not.toBe(currentLabel);
+  await overlay.locator('button[onclick*="especificos-overlay"]').click();
+
+  await switchSpecificsUser(page,tecnico);
+  const session=await page.evaluate(()=>JSON.parse(localStorage.getItem('lasala-sesion-v1')||'{}'));
+  expect(session.user).toBe(tecnico.user);
+  await page.evaluate(()=>showEspecificosModule());
+  const reopened=page.locator('#especificos-overlay');
+  await expect(reopened).toBeVisible();
+  await expect.poll(async()=>(await reopened.locator('#especificos-quincena-bar').innerText()).replace(/\s+/g,' ').trim()).toBe(currentLabel);
+  await expect(reopened.locator('#especificos-grid-wrap [data-einv="17"][data-edia="30"][data-erc="18"]')).toHaveValue('E2E-ESPECIFICO-INV17');
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
