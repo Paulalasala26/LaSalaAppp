@@ -853,3 +853,42 @@ test('UAT-1043: rechaza guardar un Específico sin tratamiento aunque haya dosis
   await expect(feedback).toContainText(/tratamiento/i);
   expect(unexpectedHosts).toEqual([]);
 });
+
+test('UAT-1231: cerrar la vista de impresión permite seguir usando Específicos',async({page})=>{
+  await page.addInitScript(()=>{
+    window.__e2ePrintCalls=0;
+    window.addEventListener('message',event=>{
+      if(event.data==='e2e-print-preview')window.__e2ePrintCalls++;
+    });
+    window.print=()=>window.parent.postMessage('e2e-print-preview','*');
+  });
+  const database=fixtureDatabase();
+  const original=database['lasala-especificos-v1'];
+  const {overlay,unexpectedHosts,writes}=await openSpecifics(page,database);
+  await overlay.locator('button[onclick="showImprimirEspecificoSelector()"]' ).click();
+  const selector=page.locator('#imprimir-especifico-selector-overlay');
+  await expect(selector).toBeVisible();
+  await selector.locator('#ie-dia').selectOption('30');
+  await selector.locator('#ie-producto').selectOption('TC');
+  await selector.locator('#ie-dosis').selectOption('1');
+  await selector.locator('#ie-caldo').selectOption('25');
+  await selector.locator('#ie-inv').selectOption('17');
+  await selector.locator('#ie-desde').selectOption('18');
+  await selector.locator('#ie-hasta').selectOption('18');
+  await selector.getByRole('button',{name:'Imprimir'}).click();
+
+  await expect.poll(()=>page.evaluate(()=>window.__e2ePrintCalls)).toBe(1);
+  await expect(selector).toBeHidden();
+  await expect(overlay).toBeVisible();
+  const cell=overlay.locator('#especificos-grid-wrap [data-einv="17"][data-edia="30"][data-erc="18"]').first();
+  await expect(cell).toHaveValue('E2E-ESPECIFICO-INV17');
+  await cell.click();
+  const editor=page.locator('#especifico-manual-overlay');
+  await expect(editor).toBeVisible();
+  await expect(editor).toContainText('Editar específico');
+  await editor.locator('button[onclick*="especifico-manual-overlay"]').first().click();
+  await expect(editor).toBeHidden();
+  expect(database['lasala-especificos-v1']).toBe(original);
+  expect(writes).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+});
