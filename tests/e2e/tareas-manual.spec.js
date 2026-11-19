@@ -4299,3 +4299,32 @@ test('UAT-1836: Archivo conserva el día de una tarea anulada cerca de medianoch
   expect(JSON.parse(database['lasala-tareas-v1'])).toEqual([task]);
   expect(writes).toEqual([]);
 });
+
+test('UAT-1656: consultar un ticket recién archivado muestra estado y metadatos principales', async ({ page }) => {
+  const ticket = {
+    id: 'e2e-uat1656-recently-archived',
+    titulo: 'E2E ticket recién archivado UAT-1656',
+    descripcion: 'Revisión de válvula del sector norte',
+    estado: 'archivado',
+    archivadoEn: '2026-11-19',
+    prioridad: 'alta',
+    inv: '14A',
+    asignados: ['PEON2'],
+    creadoEn: '2026-11-18'
+  };
+  const { database, writes } = await installFixture(page, {
+    'lasala-mantenimiento-v1': JSON.stringify([ticket])
+  });
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  await overlay.getByRole('button', { name: 'Archivo' }).click();
+  const card = overlay.locator(`#mantenimiento-archivo [data-ticket-id="${ticket.id}"]`);
+  await expect(card).toBeVisible();
+  const visible = await card.innerText();
+  expect(visible).toContain(ticket.titulo);
+  expect(visible).toContain('Archivado');
+  expect(visible).toContain(ticket.inv);
+  expect(visible).toContain(ticket.creadoEn);
+  expect(JSON.parse(database['lasala-mantenimiento-v1'])).toEqual([ticket]);
+  expect(writes.filter(write => write.key === 'lasala-mantenimiento-v1')).toHaveLength(0);
+});
