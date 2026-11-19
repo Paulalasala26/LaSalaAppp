@@ -163,12 +163,12 @@
     setPasswordVisibility(false);
     byId('password-description').textContent=isNew ?
       'Obligatoria para crear la cuenta: mínimo 12 caracteres, letras y números.' :
-      'Opcional. Solo se modifica la contraseña si pulsas «Restablecer contraseña».';
+      'Opcional. Puedes cambiarla con «Restablecer contraseña» o, si no cambias el rol, con «Guardar cambios».';
     byId('reset-password').hidden=isNew;
     byId('status-user').hidden=isNew || !u.accessConfigured;
     byId('status-user').textContent=u && u.active ? 'Desactivar usuario' : 'Reactivar usuario';
     byId('status-user').className=u && u.active ? 'button danger' : 'button ghost';
-    byId('save-user').textContent=isNew ? 'Crear usuario' : 'Guardar rol';
+    byId('save-user').textContent=isNew ? 'Crear usuario' : 'Guardar cambios';
     byId('modal-feedback').textContent='';
     byId('modal').hidden=false;
     byId('form-user').focus();
@@ -238,7 +238,11 @@
     } else {
       const user=currentEditUser.user;
       if (role===currentEditUser.role) {
-        setText('modal-feedback','No has modificado el rol.');
+        if (byId('form-password').value || byId('form-confirm').value) {
+          await resetPassword();
+          return;
+        }
+        setText('modal-feedback','No hay cambios que guardar.');
         return;
       }
       await mutation({action:'changeRole',user,role},'PATCH','Rol actualizado para '+user+'.');
