@@ -939,3 +939,30 @@ test('UAT-1223: una lista extensa permite cambiar de INV sin duplicar la cuadrí
   expect(unexpectedHosts).toEqual([]);
   expect(writes).toEqual([]);
 });
+test('UAT-1195: editar un específico mantiene ficha y tarea coherentes',async({page})=>{
+  test.fail(true,'UAT-1195: al pulsar Aplicar el formulario de edición no se cerró; persistencia no verificada.');
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openSpecifics(page,database);
+  const cell=overlay.locator('#especificos-grid-wrap [data-einv="17"][data-edia="30"][data-erc="18"]');
+  await cell.dblclick();
+  const editor=page.locator('#especifico-manual-overlay');
+  await expect(editor).toBeVisible();
+  await expect(editor.locator('#esp-dia')).toHaveValue('30');
+  await editor.locator('#esp-trat').selectOption('PP');
+  await editor.locator('#esp-dosis').selectOption('2');
+  await editor.locator('#esp-horario').selectOption('18:00');
+  await editor.locator('button[onclick="saveEspecificoManual()"]').click();
+  await expect(editor).toBeHidden();
+
+  const saved=JSON.parse(database['lasala-especificos-v1']);
+  expect(saved['17']['30']['18']).toContain('PP 2');
+  expect(saved['17']['30']['18']).toContain('18:00');
+  await expect(cell).toHaveValue(saved['17']['30']['18']);
+
+  const tasks=JSON.parse(database['lasala-tareas-v1']);
+  expect(tasks).toHaveLength(1);
+  expect(tasks[0]).toMatchObject({categoria:'especifico',origen:'especificos',inv:'17',fechaISO:'2026-06-30',horario:'18:00',producto:'PP',dosis:'2'});
+  expect(tasks[0].calles).toContain('18');
+  expect(writes.some(write=>write.path==='lasala-tareas-v1')).toBe(true);
+  expect(unexpectedHosts).toEqual([]);
+});
