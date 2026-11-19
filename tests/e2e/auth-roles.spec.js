@@ -1819,3 +1819,30 @@ test('UAT-2167: Avisos no presenta una bandeja vacía mientras carga lento', asy
   await expect(notices).not.toContainText('Aviso de otro perfil');
   expect(Date.now() - start).toBeGreaterThanOrEqual(700);
 });
+
+test('UAT-2159: el botón azul Avisos muestra foco visible y abre el panel con teclado', async ({ page }) => {
+  const writes = [];
+  page.on('request', request => {
+    if (firebaseUrl.test(request.url()) && !['GET', 'OPTIONS'].includes(request.method())) writes.push(request.method());
+  });
+  await installAuthFixture(page);
+  await logInAs(page, 'E2E_TECNICO');
+  await expect(page.locator('#page-home')).toBeVisible();
+
+  const avisos = page.locator('#topbar-avisos');
+  await expect(avisos).toBeVisible();
+  await page.evaluate(() => { if (document.activeElement instanceof HTMLElement) document.activeElement.blur(); });
+  let focused = false;
+  for (let i = 0; i < 32; i++) {
+    await page.keyboard.press('Tab');
+    if (await avisos.evaluate(el => el === document.activeElement)) {
+      focused = true;
+      break;
+    }
+  }
+  expect(focused).toBe(true);
+  expect(await avisos.evaluate(el => el.matches(':focus-visible') && getComputedStyle(el).outlineStyle !== 'none')).toBe(true);
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#avisos-tecnico-overlay')).toBeVisible();
+  expect(writes).toEqual([]);
+});
