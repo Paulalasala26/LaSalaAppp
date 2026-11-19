@@ -1954,3 +1954,25 @@ test('UAT-2110: REGANTE no abre Plaguicidas al invocar directamente el módulo',
   expect(protectedReads).toEqual([]);
   expect(writes).toEqual([]);
 });
+
+
+test('UAT-2128: una sesión vencida por inactividad vuelve a pedir autenticación', async ({ page }) => {
+  test.fail(true, 'UAT-2128: la sesión de más de 8 horas sigue restaurándose como activa.');
+  await installAuthFixture(page);
+  await logInAs(page, 'E2E_ADMIN');
+  await expect(page.locator('#page-home')).toBeVisible();
+
+  const agedSession = await page.evaluate(() => {
+    const key = 'lasala-sesion-v1';
+    const session = JSON.parse(localStorage.getItem(key) || 'null');
+    if (!session) return false;
+    session.ts = Date.now() - 9 * 60 * 60 * 1000;
+    localStorage.setItem(key, JSON.stringify(session));
+    return true;
+  });
+  expect(agedSession).toBe(true);
+
+  await page.reload({ waitUntil: 'networkidle' });
+  await expect(page.locator('#login-screen')).toBeVisible();
+  await expect(page.locator('#app')).toBeHidden();
+});
