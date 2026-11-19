@@ -915,3 +915,27 @@ test('UAT-1230: una sesión móvil nueva recalcula perfil y quincena en Específ
   expect(writes).toEqual([]);
   expect(unexpectedHosts).toEqual([]);
 });
+
+test('UAT-1223: una lista extensa permite cambiar de INV sin duplicar la cuadrícula ni perder acciones',async({page})=>{
+  const pageErrors=[];
+  page.on('pageerror',error=>pageErrors.push(error.message));
+  const database=fixtureDatabase();
+  const {overlay,unexpectedHosts,writes}=await openSpecifics(page,database);
+  const invButtons=overlay.locator('button[data-einv]');
+  const initialCount=await invButtons.count();
+  expect(initialCount).toBeGreaterThan(20);
+  const invs=await invButtons.evaluateAll(nodes=>nodes.map(node=>node.dataset.einv));
+  const targets=[invs[0],invs[Math.floor(invs.length/2)],invs.at(-1),'17'];
+  for(const inv of targets){
+    await overlay.locator(`button[data-einv="${inv}"]`).last().click();
+    await expect(overlay.locator('#especificos-grid-wrap')).toBeVisible();
+    await expect(overlay.locator('#especificos-grid-wrap [data-einv]')).not.toHaveCount(0);
+    await expect(overlay.getByRole('button',{name:'Imprimir'})).toBeVisible();
+    await expect(invButtons).toHaveCount(initialCount);
+  }
+  const visibleInvs=await overlay.locator('#especificos-grid-wrap [data-einv]').evaluateAll(nodes=>[...new Set(nodes.map(node=>node.dataset.einv))]);
+  expect(visibleInvs).toEqual(['17']);
+  expect(pageErrors).toEqual([]);
+  expect(unexpectedHosts).toEqual([]);
+  expect(writes).toEqual([]);
+});
