@@ -966,3 +966,40 @@ test('UAT-1195: editar un específico mantiene ficha y tarea coherentes',async({
   expect(writes.some(write=>write.path==='lasala-tareas-v1')).toBe(true);
   expect(unexpectedHosts).toEqual([]);
 });
+
+
+test('UAT-1190: un fallo al guardar el banner no anuncia éxito total y conserva la celda',async({page})=>{
+  test.fail(true,'UAT-1190: al fallar el guardado del banner, la aplicación debe evitar el mensaje de éxito total.');
+  const database=fixtureDatabase();
+  const original=database['lasala-especificos-v1'];
+  const {unexpectedHosts}=await openSpecifics(page,database);
+  let failedBannerWrites=0;
+  await page.route(firebaseUrl,async route=>{
+    const request=route.request();
+    const path=decodeURIComponent(new URL(request.url()).pathname.split('/').filter(Boolean).join('/'));
+    const normalized=path.endsWith('.json')?path.slice(0,-5):path;
+    if(request.method()==='PUT'&&normalized==='lasala-especificos-partida-v1'){
+      failedBannerWrites++;
+      await route.fulfill({status:503,contentType:'application/json',body:'{"error":"fixture banner write failure"}'});
+      return;
+    }
+    await route.fallback();
+  });
+
+  await page.evaluate(()=>showEspecificoManualForm());
+  const editor=page.locator('#especifico-manual-overlay');
+  await expect(editor).toBeVisible();
+  await editor.locator('.esp-inv-chk[value="17"]').check();
+  await editor.locator('#esp-trat').selectOption('TC');
+  await editor.locator('#esp-dosis').selectOption('1');
+  await editor.locator('button[onclick="saveEspecificoManual()"]').click();
+  await expect.poll(()=>failedBannerWrites).toBeGreaterThan(0);
+  await expect(editor).toBeHidden();
+
+  const saved=JSON.parse(database['lasala-especificos-v1']);
+  expect(database['lasala-especificos-v1']).not.toBe(original);
+  expect(saved['17']['30']['1']?.texto).toBe('TC 1');
+  await expect(page.locator('body')).not.toContainText('✓ Día 30 → aplicado');
+  expect(failedBannerWrites).toBeGreaterThan(0);
+  expect(unexpectedHosts).toEqual([]);
+});
