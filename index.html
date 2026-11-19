@@ -7647,12 +7647,14 @@ function renderControlChecklistHTML(seccion){
   const syncHTML = pendientesGlobal>0 ? `<button type="button" class="qc-list-sync" onclick="sincronizarControlManual()"><i class="ti ti-refresh"></i> ${pendientesGlobal} pendiente${pendientesGlobal===1?'':'s'} · Sincronizar</button>` : '';
   const extraTunelHTML = seccion.key==='tunel' ? `
     <label class="qc-list-option" title="Importa la fecha de salida, el invernadero y los tramos de calle desde el PDF de extensiones"><i class="ti ti-file-upload"></i> Asignar calles desde PDF<input type="file" accept="application/pdf" onchange="handleExtensionesPdfInput(this)"></label>` : '';
+  const extraPreinjertoHTML = (esSeccionPreinjerto(seccion.key) && ['ADMIN','TECNICO'].includes(currentUserRole)) ? `
+    <label class="qc-list-option" title="Un solo PDF o Excel crea las líneas de los dos checks (Variedad: C o VE; Patrón: P o WE), cada una en su día de F Entrega"><i class="ti ti-file-upload"></i> Importar PDF o Excel<input type="file" accept="application/pdf,.xlsx,.xls" onchange="handlePreinjertoImportInput(this)"></label>` : '';
   const cardsHTML = listaMostrada.length===0
     ? `<div class="qc-list-none">${listaDia.length===0?'Sin partidas para este día.':((seccion.key==='carga'?controlCargaInvFiltro:controlTunelInvFiltro)?'No hay partidas para ese invernadero y día.':'No hay líneas con el estado seleccionado.')}</div>`
     : `<div class="qc-list-cards">${filas}</div>`;
   if(['tunel','carga','carga_injerto','preinjerto_patron','preinjerto_variedad'].includes(seccion.key)){
-    const moreOptions=(extraTunelHTML||pdfInfoHTML)
-      ? '<details class="qc-list-more"><summary>Más opciones</summary><div class="qc-list-more-actions">'+extraTunelHTML+'</div>'+pdfInfoHTML+'</details>'
+    const moreOptions=(extraTunelHTML||extraPreinjertoHTML||pdfInfoHTML)
+      ? '<details class="qc-list-more"><summary>Más opciones</summary><div class="qc-list-more-actions">'+extraTunelHTML+extraPreinjertoHTML+'</div>'+pdfInfoHTML+'</details>'
       : '';
     const operativa=filtroInvHTML+
       '<div class="qc-list-tools"><div class="qc-list-search">'+
@@ -8068,6 +8070,194 @@ async function autoCrearLineasDesdePdfControl(tipo, dia, pdfB64){
     return -1;
   }
 }
+// ════════════════════════════════════════════════════════════════
+// IMPORTACIÓN DE PREINJERTO (PDF o Excel «Salida de tomate con fecha prev»).
+// Traída de main y adaptada a DEV (19/11/2026). REGLA DE FECHA: cada línea se crea en
+// el día de su F ENTREGA, NO en el de su F Siembra (decisión de Vigueras, 2026-10-30,
+// confirmada para DEV el 19/11/2026). El check lo decide la letra de la partida:
+// C o VE -> QC Preinjerto Variedad; P o WE -> QC Preinjerto Patrón; el resto se ignora.
+// Adaptaciones a DEV: (1) las líneas se guardan en los trozos v2 por quincena, así que
+// antes de crear se leen los trozos afectados para no duplicar; (2) DEV no admite altas
+// en días anteriores a hoy (puedeCrearLineaControlQC): esas partidas se omiten y se avisa.
+// ════════════════════════════════════════════════════════════════
+function esSeccionPreinjerto(k){ return k==='preinjerto_variedad' || k==='preinjerto_patron'; }
+// "26C01234"/"26VE0123" -> 'preinjerto_variedad'; "26P01234"/"26WE0123" -> 'preinjerto_patron'; resto -> null
+function tipoPreinjertoDePartida(partida){
+  const m = /^\d{2}([A-Za-z]{0,2})\d+$/.exec(String(partida||'').trim());
+  if(!m) return null;
+  const letras = m[1].toUpperCase();
+  if(letras==='C' || letras==='VE') return 'preinjerto_variedad';
+  if(letras==='P' || letras==='WE') return 'preinjerto_patron';
+  return null;
+}
+function plantasEntero(s){ const d = String(s==null?'':s).replace(/[.,]/g,'').trim(); return /^\d+$/.test(d) ? d : ''; }
+function plantasVista(s){ const d = plantasEntero(s); return d ? d.replace(/\B(?=(\d{3})+(?!\d))/g,'.') : ''; }
+function parseControlPreinjertoPdfPartidas(lineas){
+  const clienteRe = /^\d{3,6}\s*-\s*(.+)$/;
+  const filaRe = /^(?<partida>\d{2}[A-Za-z]{0,2}\d{4,6})\s+(?<variedad>.+?)\s+(?<fsiembra>\d{2}\/\d{2}\/\d{4})\s+(?<fentrega>\d{2}\/\d{2}\/\d{4})\s+(?<t>\S+)(?:\s+(?<plsol>[\d.,]+)\s+(?<sem>[\d.,]+)\s+(?<band>\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:[.,]\d+)?))?\s+(?<s>[SNsn])(?:\s+(?<resto>.*))?$/;
+  const records = [];
+  const noReconocidas = [];
+  let cliente = '';
+  lineas.forEach(l=>{
+    const t = (l.texto||'').trim();
+    if(!t) return;
+    const mc = clienteRe.exec(t);
+    if(mc && !/\d{2}\/\d{2}\/\d{4}/.test(t)){ cliente = mc[1].trim(); return; }
+    const m = filaRe.exec(t);
+    if(!m){
+      if(/^\d{2}[A-Za-z]{0,2}\d{4,6}\s/.test(t) && /\d{2}\/\d{2}\/\d{4}/.test(t)) noReconocidas.push(t);
+      return;
+    }
+    // Tras "S?" pueden venir Band Act y Sem act (dos números) y luego OBSERVA.
+    let resto = (m.groups.resto||'').trim();
+    const ma = /^(\d+(?:[.,]\d+)?)\s+(\d+(?:[.,]\d+)?)(?:\s+(.*))?$/.exec(resto);
+    if(ma) resto = (ma[3]||'').trim();
+    records.push({
+      cliente, partida: m.groups.partida.toUpperCase(), variedad: m.groups.variedad.trim(),
+      fSiembra: m.groups.fsiembra, fEntrega: m.groups.fentrega,
+      plantasSol: m.groups.plsol||'', plantasSem: m.groups.sem||'',
+      nband: m.groups.band ? normalizarBandejasPdf(m.groups.band) : '', obs: resto
+    });
+  });
+  return { records, noReconocidas };
+}
+// Crea las líneas de Preinjerto de records [{cliente,partida,variedad,fSiembra,fEntrega,plantasSol,plantasSem,nband,obs}].
+// Devuelve {creadas, porDia, porTipo, ignoradas, pasadas, sinFecha, yaExistian, dias, noReconocidas}
+// o {error:-2} (no se pudo guardar) / {error:-5} (no se pudo comprobar lo ya existente).
+// porPartida=true (Excel): una partida que ya existe en ese check NO se vuelve a crear, aunque
+// el nombre de variedad o cliente difiera; false (PDF): clave partida|bandejas|cliente|variedad por tipo y día.
+async function crearLineasPreinjerto(records, noReconocidas, porPartida){
+  const porTipo = {preinjerto_variedad:0, preinjerto_patron:0}; const porDia = {}; const dias = new Set();
+  const ignoradas = [], sinFecha = [], pasadas = [];
+  let creadas = 0, yaExistian = 0;
+  // 1) Qué check y qué día (F ENTREGA) le toca a cada partida
+  const previstas = [];
+  records.forEach(p=>{
+    const tipoP = tipoPreinjertoDePartida(p.partida);
+    if(!tipoP){ ignoradas.push(p.partida); return; }
+    const dia = fechaExtensionADiaRiego(p.fEntrega);
+    if(dia==null){ sinFecha.push(p.partida); return; }
+    if(!puedeCrearLineaControlQC(dia)){ pasadas.push(p.partida); return; }
+    previstas.push({p, tipoP, dia});
+  });
+  // 2) Leer lo que ya existe en los trozos afectados (y el check completo si se compara por partida)
+  const lecturas = [];
+  new Set(previstas.map(x=>x.tipoP+'|'+controlV2QDeDia(x.dia))).forEach(k=>{
+    const [t,q] = k.split('|'); lecturas.push(loadControlChecksSlice(t, Number(q), false));
+  });
+  if(porPartida) new Set(previstas.map(x=>x.tipoP)).forEach(t=>lecturas.push(loadControlTipoCompleto(t, false)));
+  if(lecturas.length && !(await Promise.all(lecturas)).every(Boolean)) return {error:-5, noReconocidas};
+  // 3) Crear
+  const existentesPartida = porPartida ? new Set(controlChecksData.filter(x=>esSeccionPreinjerto(x.tipo)).map(x=>x.tipo+'|'+x.partida)) : null;
+  const existentesPorDia = {};
+  const claveDe = x => x.partida+'|'+x.numBandejas+'|'+x.cliente+'|'+x.variedad;
+  previstas.forEach(({p, tipoP, dia}, idx)=>{
+    dias.add(dia);
+    if(porPartida){
+      if(existentesPartida.has(tipoP+'|'+p.partida)){ yaExistian++; return; }
+      existentesPartida.add(tipoP+'|'+p.partida);
+    } else {
+      const clDia = tipoP+'|'+dia;
+      if(!existentesPorDia[clDia]) existentesPorDia[clDia] = new Set(controlChecksData.filter(x=>x.tipo===tipoP && x.dia===dia).map(claveDe));
+      const clave = p.partida+'|'+p.nband+'|'+p.cliente+'|'+p.variedad;
+      if(existentesPorDia[clDia].has(clave)){ yaExistian++; return; }
+      existentesPorDia[clDia].add(clave);
+    }
+    const nuevoId = 'control_'+Date.now()+'_'+idx+'_'+Math.random().toString(36).slice(2,8);
+    controlChecksData.push({
+      id: nuevoId, tipo: tipoP, dia,
+      cliente: p.cliente, partida: p.partida, variedad: p.variedad, numBandejas: p.nband,
+      clienteVariedad: p.variedad ? `${p.cliente} — ${p.variedad}` : p.cliente,
+      fSiembra: p.fSiembra, fEntrega: p.fEntrega, plantasSol: p.plantasSol, plantasSem: p.plantasSem,
+      color:{}, tamano:{}, grosor:{}, firmeza:{}, segado:{}, plagas:{}, enfermedades:{}, flores:{}, raices:{}, observaciones: p.obs||'',
+      creadoPor: currentUser||'—', creadoEn: new Date().toLocaleString('es-ES'), origenPdf: true
+    });
+    marcarControlCheckSucio(nuevoId);
+    porDia[dia] = (porDia[dia]||0)+1;
+    porTipo[tipoP]++;
+    creadas++;
+  });
+  if(creadas){
+    const ok = await persistControlChecksData();
+    if(!ok) return {error:-2, noReconocidas};
+  }
+  return {creadas, porDia, porTipo, ignoradas, pasadas, sinFecha, yaExistian, dias:[...dias], noReconocidas};
+}
+async function autoCrearLineasDesdePdfControlPreinjerto(pdfB64){
+  try{
+    const base64 = pdfB64.split(',')[1];
+    const binStr = atob(base64);
+    const bytes = new Uint8Array(binStr.length);
+    for(let i=0;i<binStr.length;i++) bytes[i] = binStr.charCodeAt(i);
+    const lineas = await extraerLineasControlPdf(bytes);
+    const { records, noReconocidas } = parseControlPreinjertoPdfPartidas(lineas);
+    if(!records.length) return {error:-1, noReconocidas};
+    return await crearLineasPreinjerto(records, noReconocidas, false);
+  }catch(e){
+    console.error('Error leyendo PDF de Preinjerto:', e);
+    return {error:-1, noReconocidas:[]};
+  }
+}
+// Excel del mismo informe ("SALIDA DE TOMATE CON FECHA PREV"): una fila por partida con
+// cabeceras Nombre Cliente, PARTIDA, VARIEDAD, F Siembra, F Entrega, Pl sol, Sem, Band,
+// OBSERVA. Las fechas llegan como número de serie de Excel.
+function fechaExcelADMA(v){
+  if(typeof v==='number'){ const d = new Date(Math.round((v-25569)*86400000)); return String(d.getUTCDate()).padStart(2,'0')+'/'+String(d.getUTCMonth()+1).padStart(2,'0')+'/'+d.getUTCFullYear(); }
+  const s = String(v==null?'':v).trim();
+  return /^\d{2}\/\d{2}\/\d{4}$/.test(s) ? s : '';
+}
+async function autoCrearLineasDesdeExcelControlPreinjerto(buf){
+  try{
+    await loadScriptOnce('https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js');
+    const wb = XLSX.read(buf, {type:'array'});
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {defval:''});
+    if(!rows.length || !('PARTIDA' in rows[0]) || !('F Entrega' in rows[0])) return {error:-3};
+    const entero = v => (v===''||v==null||isNaN(Number(v))) ? '' : String(Math.round(Number(v)));
+    const records = rows.filter(r=>String(r.PARTIDA).trim()).map(r=>({
+      cliente: String(r['Nombre Cliente']||'').trim(), partida: String(r.PARTIDA).trim().toUpperCase(), variedad: String(r.VARIEDAD||'').trim(),
+      fSiembra: fechaExcelADMA(r['F Siembra']), fEntrega: fechaExcelADMA(r['F Entrega']),
+      plantasSol: entero(r['Pl sol']), plantasSem: entero(r.Sem),
+      nband: (r.Band===''||r.Band==null) ? '' : normalizarBandejasPdf(String(r.Band)), obs: String(r.OBSERVA==null?'':r.OBSERVA).trim()
+    }));
+    return await crearLineasPreinjerto(records, [], true);
+  }catch(e){
+    console.error('Error leyendo Excel de Preinjerto:', e);
+    return {error:-1, noReconocidas:[]};
+  }
+}
+// Botón «Importar PDF o Excel» de los QC Preinjerto (Más opciones): un solo archivo crea las líneas
+// de los dos checks, cada una en su día de F Entrega.
+async function handlePreinjertoImportInput(input){
+  const file = input && input.files && input.files[0];
+  if(input) input.value = '';
+  if(!file) return;
+  if(!['ADMIN','TECNICO'].includes(currentUserRole)){ showToast('No tienes permiso para importar Preinjerto.'); return; }
+  showToast('Leyendo el archivo y creando líneas...');
+  let r;
+  try{
+    if(/\.xlsx?$/i.test(file.name)){
+      r = await autoCrearLineasDesdeExcelControlPreinjerto(await file.arrayBuffer());
+    } else {
+      const b64 = await new Promise((ok,ko)=>{ const fr = new FileReader(); fr.onload = ()=>ok(fr.result); fr.onerror = ()=>ko(fr.error); fr.readAsDataURL(file); });
+      r = await autoCrearLineasDesdePdfControlPreinjerto(b64);
+    }
+  }catch(e){ console.error('Importación de Preinjerto:', e); r = {error:-1, noReconocidas:[]}; }
+  if(r.error === -2) showToast('❌ Error al GUARDAR las líneas leídas — no se ha llegado a subir a la nube, inténtalo de nuevo (si se repite, avisa)');
+  else if(r.error === -5) showToast('❌ No se han podido comprobar las líneas que ya existen — no se ha creado nada, inténtalo de nuevo');
+  else if(r.error === -3) showToast('❌ Este Excel no tiene las columnas esperadas (PARTIDA, F Entrega...) — no se ha creado ninguna línea');
+  else if(r.error === -1) showToast(`❌ No se ha podido leer el archivo${r.noReconocidas && r.noReconocidas.length ? ' ('+r.noReconocidas.length+' línea'+(r.noReconocidas.length===1?'':'s')+' con partida de formato distinto)' : ''} — no se ha creado ninguna línea`);
+  else {
+    const detalle = Object.keys(r.porDia).map(Number).sort((a,b)=>a-b).map(d=>riegoDiaLabelCorto(d)+' ('+r.porDia[d]+')').join(', ');
+    if(r.creadas > 0) showToast(`✓ ${r.creadas} línea${r.creadas===1?'':'s'} nueva${r.creadas===1?'':'s'} (${r.porTipo.preinjerto_variedad} en Variedad, ${r.porTipo.preinjerto_patron} en Patrón) por fecha de entrega: ${detalle}. Ya existían ${r.yaExistian}.`);
+    else showToast(`✓ Archivo leído: no hay partidas nuevas (ya existían ${r.yaExistian})`);
+    if(r.pasadas && r.pasadas.length) showToast(`ℹ️ ${r.pasadas.length} partida${r.pasadas.length===1?'':'s'} con fecha de entrega anterior a hoy no se ha creado (no se añaden líneas a días pasados): ${r.pasadas.slice(0,5).join(', ')}`);
+    if(r.ignoradas && r.ignoradas.length) showToast(`ℹ️ ${r.ignoradas.length} partida${r.ignoradas.length===1?'':'s'} sin C/VE/P/WE ignorada${r.ignoradas.length===1?'':'s'}`);
+    if(r.sinFecha && r.sinFecha.length) showToast(`⚠️ ${r.sinFecha.length} partida${r.sinFecha.length===1?'':'s'} sin fecha de entrega válida: ${r.sinFecha.slice(0,5).join(', ')}`);
+    if(r.noReconocidas && r.noReconocidas.length) showToast(`⚠️ ${r.noReconocidas.length} línea${r.noReconocidas.length===1?'':'s'} con partida no se ha podido leer (formato distinto)`);
+  }
+  renderControlContent(document.getElementById('control-overlay'));
+}
+
 // Lectura automática del PDF de Carga ("PARTE DE CARGA", formato de Grupo
 // Semilleros La Sala, a petición de Paula 2026-07-31 tras subir dos PDFs
 // reales) — MUCHO más simple que el de Túnel: cada partida cabe en UNA sola
