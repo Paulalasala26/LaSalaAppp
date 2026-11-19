@@ -1847,6 +1847,50 @@ test('UAT-2159: el botón azul Avisos muestra foco visible y abre el panel con t
   expect(writes).toEqual([]);
 });
 
+test('UAT-2130: un aviso sigue sin leer tras denegación y se puede reintentar', async ({ page }) => {
+  test.fail(true, 'UAT-2130 detectó un mensaje de guardado incorrecto tras denegación de lectura.');
+  const notice = { id: 'uat-2130-aviso', mensaje: 'Aviso tras denegación', fecha: '18/11/2026', visto: true, leido: false, evaluacion: null };
+  await installAuthFixture(page, {
+    'lasala-avisos-usuario-v1': JSON.stringify({ E2E_TECNICO: [notice] })
+  });
+  await logInAs(page, 'E2E_TECNICO');
+  await page.getByRole('button', { name: /Avisos/ }).click();
+  const action = page.locator('[onclick="abrirEvaluarAviso(\'uat-2130-aviso\')"]');
+  await expect(action).toBeVisible();
+
+  let deniedReads = 0;
+  await page.route(firebaseUrl, async route => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (request.method() === 'GET'
+      && decodeURIComponent(url.pathname.replace(/^\//, '').replace(/\.json$/, '')) === 'lasala-avisos-usuario-v1'
+      && request.headers()['x-firebase-etag'] === 'true'
+      && deniedReads < 3) {
+      deniedReads += 1;
+      await route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ error: 'Permission denied' }) });
+      return;
+    }
+    await route.fallback();
+  });
+
+  await action.click();
+  await expect.poll(() => deniedReads).toBe(3);
+  await expect(page.locator('#aviso-fallo-guardado')).toContainText('No se han podido cargar los datos');
+  await expect(page.locator('#evaluar-aviso-overlay')).toBeHidden();
+  await expect.poll(async () => page.evaluate(async () => {
+    const value = await window.storage.get('lasala-avisos-usuario-v1');
+    return JSON.parse(value.value).E2E_TECNICO[0].leido;
+  })).toBe(false);
+
+  await action.click();
+  await expect(page.locator('#evaluar-aviso-overlay')).toBeVisible();
+  await expect(page.locator('#evaluar-aviso-overlay')).toContainText('Aviso tras denegación');
+  await expect.poll(async () => page.evaluate(async () => {
+    const value = await window.storage.get('lasala-avisos-usuario-v1');
+    return JSON.parse(value.value).E2E_TECNICO[0].leido;
+  })).toBe(true);
+});
+
 test('UAT-2092: REGANTE no puede iniciar una tarea operativa asignada a otro usuario', async ({ page }) => {
   const todayISO = await page.evaluate(() => {
     const date = new Date();
