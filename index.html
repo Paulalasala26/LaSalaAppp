@@ -18719,6 +18719,9 @@ function leerInvernaderosBulkSeleccionados(prefix){
      document.getElementById('especifico-manual-overlay')?.style.display==='flex'){
     return especificosInvSel?[especificosInvSel]:[];
   }
+  // Plaguicidas y Específicos (selector de Riego): la selección está en su configuración, no en casillas
+  if(prefix==='fm') return bulkOrdenInvs(Object.keys(fmBulkConfig));
+  if(prefix==='esp') return bulkOrdenInvs(Object.keys(espBulkConfig));
   return Array.from(document.querySelectorAll(`.${prefix}-inv-chk:checked`)).map(el=>el.value);
 }
 // Aplica un texto ya construido a varios tramos de calles de un día (pueden
@@ -21345,7 +21348,7 @@ function showFitoManualForm(){
       </footer>
     </div>`;
   mo.style.display='flex';
-  renderFmBulkPanels();
+  bulkRender('fm');
   actualizarResumenFito();
   actualizarAccionesFitoManual();
 }
@@ -21379,15 +21382,6 @@ function actualizarResumenSeleccionFitoManual(){
     }else if(metodo==='Cañón')asignacion=' · Cañón: sin tarea de peón';
     resumen.textContent=total?texto+' · '+calles+' calles'+asignacion:'Selecciona un invernadero';
   }
-  [1,2,3,4,5].forEach(n=>{
-    const sala='sala'+n;
-    const chks=Array.from(document.querySelectorAll('.fm-inv-chk[data-sala="'+sala+'"]'));
-    const elegidos=chks.filter(e=>e.checked).length;
-    const estado=document.getElementById('fm-sala-resumen-'+sala);
-    if(estado) estado.textContent=elegidos?'· '+elegidos+' seleccionados':'';
-    const chkSala=document.querySelector('.fm-sala-chk[data-sala="'+sala+'"]');
-    if(chkSala) chkSala.checked=chks.length>0&&elegidos===chks.length;
-  });
 }
 function buildResumenUltimos5DiasPlaguicidas(invId){
   if(!invId) return '';
@@ -21454,41 +21448,135 @@ let fmPendingBulkConfig = null;
 // en cada apertura del formulario (showFitoManualForm) — el alta nueva no
 // mueve/limpia nada.
 let fmEditContextoOriginal = null;
-function fitoBulkInvSelectorHTML(){
-  const salas=[
-    {id:'sala1',nombre:'Sala 1',invs:Object.keys(INV_LAYOUT_SALA1)},
-    {id:'sala2',nombre:'Sala 2',invs:Object.keys(INV_LAYOUT_SALA2)},
-    {id:'sala3',nombre:'Sala 3',invs:Object.keys(INV_LAYOUT_SALA3)},
-    {id:'sala4',nombre:'Sala 4',invs:Object.keys(INV_LAYOUT_SALA4)},
-    {id:'sala5',nombre:'Sala 5',invs:Object.keys(INV_LAYOUT_SALA5)}
-  ];
-  return `
-    <div style="display:flex;flex-direction:column;gap:7px">
-      ${salas.map(s=>`
-        <details ${s.invs.some(id=>fmBulkConfig[id])?'open':''} style="border:1px solid #c6d9ee;border-radius:7px;background:#fff">
-          <summary style="padding:10px 12px;cursor:pointer;font-size:13px;font-weight:800;color:#1558a0;background:#f4f8ff">
-            ${s.nombre} <span id="fm-sala-resumen-${s.id}" style="font-size:11px;font-weight:600"></span>
-          </summary>
-          <div style="padding:8px 10px;display:flex;flex-direction:column;gap:8px">
-            <label style="font-size:12px;font-weight:700;color:#1558a0;display:flex;align-items:center;gap:7px;min-height:36px;cursor:pointer">
-              <input type="checkbox" class="fm-sala-chk" data-sala="${s.id}" onchange="toggleFmBulkSala(this)">
-              Toda la sala
-            </label>
-            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(73px,1fr));gap:6px">
-              ${s.invs.sort((a,b)=>a.localeCompare(b,'es',{numeric:true})).map(id=>`
-                <label style="display:flex;align-items:center;gap:6px;min-height:38px;padding:5px 8px;border:1px solid #d2deef;background:#fff;border-radius:6px;font-size:12px;cursor:pointer">
-                  <input type="checkbox" class="fm-inv-chk" data-sala="${s.id}" value="${id}" ${fmBulkConfig[id]?'checked':''} onchange="toggleFmBulkInv();actualizarResumenFito()"> ${id}
-                </label>`).join('')}
-            </div>
-          </div>
-        </details>`).join('')}
-    </div>`;
+// ── SELECTOR DE INVERNADEROS «DE RIEGO» (salas + cuadrícula + un desplegable por invernadero) ──
+// 20/11/2026 (a petición del usuario): Plaguicidas ('fm') y Específicos ('esp') usan el MISMO selector que
+// Riego (riegoBulkInvSelectorHTML): pestañas de sala, cuadrícula de invernaderos y, por cada uno marcado,
+// «Entero / Entero menos… / Tramo de calles…». La selección vive en fmBulkConfig / espBulkConfig (igual
+// que rmBulkConfig en Riego) y no en casillas del DOM. La lógica de calles de cada módulo no cambia.
+const bulkSalaActiva = {fm:'sala1', esp:'sala1'};
+function bulkSalas(){
+  return {sala1:INV_LAYOUT_SALA1, sala2:INV_LAYOUT_SALA2, sala3:INV_LAYOUT_SALA3, sala4:INV_LAYOUT_SALA4, sala5:INV_LAYOUT_SALA5};
 }
-function toggleFmBulkSala(salaChk){
-  const sala = salaChk.dataset.sala;
-  document.querySelectorAll(`.fm-inv-chk[data-sala="${sala}"]`).forEach(chk=>{ chk.checked = salaChk.checked; });
-  toggleFmBulkInv();
-  actualizarResumenFito();
+function bulkConfigDe(prefix){ return prefix==='fm' ? fmBulkConfig : espBulkConfig; }
+function bulkConfigNueva(prefix){
+  return prefix==='fm'
+    ? {modo:'entero', excluir:{desde:null,hasta:null}, tramos:[], primerDia:false}
+    : {modo:'entero', tipoEntero:'', obsEntero:'', excluir:{desde:null,hasta:null,tipo:'',obs:''}, tramos:[]};
+}
+// Orden estable: por sala y luego numérico (INV 1A, 1B, 2A... 10A...).
+function bulkOrdenInvs(ids){
+  const orden = Object.keys(bulkSalas());
+  return ids.slice().sort((a,b)=>(orden.indexOf(salaDeInv(a))-orden.indexOf(salaDeInv(b))) || a.localeCompare(b,'es',{numeric:true}));
+}
+// Antes de repintar, guarda los tramos escritos en pantalla para no perderlos.
+function bulkConservarTramos(prefix){
+  if(prefix==='fm'){ guardarFmTramosVisibles(); return; }
+  Object.keys(espBulkConfig).forEach(id=>{
+    if(espBulkConfig[id].modo==='tramo' && document.getElementById('esp-bulk-tramos-'+id)) espBulkConfig[id].tramos = leerEspBulkTramosDesdeDOM(id);
+  });
+}
+function bulkSelectorHTML(prefix){
+  const marcados = Object.keys(bulkConfigDe(prefix));
+  if(marcados.length) bulkSalaActiva[prefix] = salaDeInv(bulkOrdenInvs(marcados)[0]) || 'sala1';
+  return `
+    <section style="border:1px solid #b0c8e4;border-radius:8px;padding:10px;background:#f5f9ff">
+      <div style="font-size:12px;font-weight:800;color:#1558a0;margin-bottom:8px">Invernaderos y calles</div>
+      <div id="${prefix}b-salas" aria-label="Seleccionar sala" style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px;margin-bottom:8px"></div>
+      <div id="${prefix}b-sala-acciones" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px"></div>
+      <div id="${prefix}b-matriz" aria-label="Seleccionar invernaderos" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(72px,1fr));gap:6px"></div>
+      <details open style="border-top:1px solid #c8d9ec;margin-top:10px;padding-top:7px">
+        <summary style="cursor:pointer;font-size:12px;font-weight:800;color:#1558a0;padding:3px 0 6px">Seleccionados: <span id="${prefix}b-total">0</span></summary>
+        <div id="${prefix}b-panels"></div>
+      </details>
+    </section>`;
+}
+function fitoBulkInvSelectorHTML(){ return bulkSelectorHTML('fm'); }
+function bulkElegirSala(prefix, sala){
+  if(!bulkSalas()[sala]) return;
+  bulkConservarTramos(prefix);
+  bulkSalaActiva[prefix] = sala;
+  bulkRender(prefix);
+}
+function bulkToggleInv(prefix, invId){
+  if(!INV_LAYOUT[invId]) return;
+  bulkConservarTramos(prefix);
+  const cfg = bulkConfigDe(prefix);
+  if(cfg[invId]) delete cfg[invId]; else cfg[invId] = bulkConfigNueva(prefix);
+  bulkRender(prefix);
+  if(prefix==='fm') actualizarResumenFito();
+}
+function bulkTodaSala(prefix, marcar){
+  const invs = bulkSalas()[bulkSalaActiva[prefix]];
+  if(!invs) return;
+  bulkConservarTramos(prefix);
+  const cfg = bulkConfigDe(prefix);
+  Object.keys(invs).forEach(id=>{
+    if(marcar && !cfg[id]) cfg[id] = bulkConfigNueva(prefix);
+    if(!marcar) delete cfg[id];
+  });
+  bulkRender(prefix);
+  if(prefix==='fm') actualizarResumenFito();
+}
+function bulkRender(prefix){
+  const salas = bulkSalas();
+  if(!salas[bulkSalaActiva[prefix]]) bulkSalaActiva[prefix] = 'sala1';
+  const activa = bulkSalaActiva[prefix];
+  const cfg = bulkConfigDe(prefix);
+  const tabs = document.getElementById(prefix+'b-salas');
+  const acciones = document.getElementById(prefix+'b-sala-acciones');
+  const matriz = document.getElementById(prefix+'b-matriz');
+  if(!tabs || !acciones || !matriz) return; // formulario sin selector (p. ej. abierto desde una celda)
+  tabs.innerHTML = Object.keys(salas).map(sala=>{
+    const actual = sala===activa;
+    const cuantos = Object.keys(salas[sala]).filter(id=>!!cfg[id]).length;
+    return `<button type="button" aria-pressed="${actual}" onclick="bulkElegirSala('${prefix}','${sala}')"
+      style="min-width:0;min-height:39px;padding:4px 2px;border:1px solid ${actual?'#1558a0':'#aac2dc'};border-radius:6px;background:${actual?'#1558a0':'#fff'};color:${actual?'#fff':'#1558a0'};font-size:12px;font-weight:800;cursor:pointer">Sala ${sala.slice(-1)}${cuantos?` · ${cuantos}`:''}</button>`;
+  }).join('');
+  const totalSala = Object.keys(salas[activa]).length;
+  const seleccionSala = Object.keys(salas[activa]).filter(id=>!!cfg[id]).length;
+  acciones.innerHTML = `<span style="font-size:12px;font-weight:700;color:#1558a0;flex:1 1 90px">Sala ${activa.slice(-1)} · ${seleccionSala}/${totalSala}</span>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <button type="button" onclick="bulkTodaSala('${prefix}',true)" ${seleccionSala===totalSala?'disabled':''}
+        style="min-height:34px;padding:7px 10px;border:1px solid ${seleccionSala===totalSala?'#b8c0ca':'#1558a0'};border-radius:6px;background:${seleccionSala===totalSala?'#d6dbe1':'#1558a0'};color:${seleccionSala===totalSala?'#68727d':'#fff'};font-size:11px;font-weight:800;cursor:${seleccionSala===totalSala?'default':'pointer'};white-space:nowrap">Seleccionar toda</button>
+      <button type="button" onclick="bulkTodaSala('${prefix}',false)" ${seleccionSala===0?'disabled':''}
+        style="min-height:34px;padding:7px 10px;border:1px solid ${seleccionSala===0?'#b8c0ca':'#1558a0'};border-radius:6px;background:${seleccionSala===0?'#d6dbe1':'#1558a0'};color:${seleccionSala===0?'#68727d':'#fff'};font-size:11px;font-weight:800;cursor:${seleccionSala===0?'default':'pointer'};white-space:nowrap">Limpiar selección</button>
+    </div>`;
+  matriz.innerHTML = Object.keys(salas[activa]).sort((a,b)=>a.localeCompare(b,'es',{numeric:true})).map(id=>{
+    const marcado = !!cfg[id];
+    return `<button type="button" aria-pressed="${marcado}" onclick="bulkToggleInv('${prefix}','${id}')"
+      style="min-height:41px;padding:6px 4px;border:1.5px solid ${marcado?'#1558a0':'#b8cadf'};border-radius:7px;background:${marcado?'#dbeafb':'#fff'};color:#1558a0;font-size:12px;font-weight:${marcado?'800':'600'};cursor:pointer;white-space:nowrap">${marcado?'✓ ':''}INV ${id}</button>`;
+  }).join('');
+  const total = document.getElementById(prefix+'b-total');
+  if(total) total.textContent = String(Object.keys(cfg).length);
+  if(prefix==='fm') renderFmBulkPanels(); else renderEspBulkPanels();
+}
+// Panel de cada invernadero marcado, agrupado por sala: desplegable de modo + quitar + detalle de calles.
+function bulkPanelesSeleccionHTML(prefix, ids){
+  if(!ids.length) return '<div style="font-size:12px;color:#667b90;padding:4px 0">Marca uno o varios invernaderos de la cuadrícula.</div>';
+  const salas = bulkSalas();
+  const cfg = bulkConfigDe(prefix);
+  const cambiar = prefix==='fm' ? 'cambiarFmBulkModo' : 'cambiarEspBulkModo';
+  return Object.keys(salas).map(sala=>{
+    const grupo = ids.filter(id=>!!salas[sala][id]);
+    if(!grupo.length) return '';
+    return `<div style="margin-top:5px">
+      <div style="font-size:11px;font-weight:800;color:#55718f;margin-bottom:4px">Sala ${sala.slice(-1)}</div>
+      ${grupo.map(invId=>`<div style="border:1px solid #cedded;border-radius:7px;background:#fff;padding:6px 8px;margin-bottom:5px">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          <strong style="font-size:12px;color:#1558a0;flex:0 0 65px">INV ${invId}</strong>
+          <select aria-label="Calles del INV ${invId}" onchange="${cambiar}('${invId}',this.value)"
+            style="flex:1 1 150px;min-width:135px;min-height:34px;padding:5px;border:1px solid #a8c4e8;border-radius:6px;background:#fff;color:#1558a0;font-size:12px">
+            <option value="entero"${cfg[invId].modo==='entero'?' selected':''}>Entero</option>
+            <option value="entero_menos"${cfg[invId].modo==='entero_menos'?' selected':''}>Entero menos…</option>
+            <option value="tramo"${cfg[invId].modo==='tramo'?' selected':''}>Tramo de calles…</option>
+          </select>
+          <button type="button" onclick="bulkToggleInv('${prefix}','${invId}')" aria-label="Quitar INV ${invId}" title="Quitar INV ${invId}"
+            style="width:32px;height:32px;border:1px solid #e3c2c2;border-radius:6px;background:#fff;color:#bc3535;font-size:17px;cursor:pointer">×</button>
+        </div>
+        <div id="${prefix}-bulk-detalle-${invId}" style="margin-top:6px"></div>
+      </div>`).join('')}
+    </div>`;
+  }).join('');
 }
 function guardarFmTramosVisibles(){
   Object.keys(fmBulkConfig).forEach(id=>{
@@ -21497,32 +21585,16 @@ function guardarFmTramosVisibles(){
     }
   });
 }
-function toggleFmBulkInv(){
-  guardarFmTramosVisibles();
-  const seleccionados = leerInvernaderosBulkSeleccionados('fm');
-  Object.keys(fmBulkConfig).forEach(id=>{ if(!seleccionados.includes(id)) delete fmBulkConfig[id]; });
-  seleccionados.forEach(id=>{ if(!fmBulkConfig[id]) fmBulkConfig[id] = {modo:'entero', excluir:{desde:null,hasta:null}, tramos:[], primerDia:false}; });
-  renderFmBulkPanels();
-  actualizarResumenSeleccionFitoManual();
-}
 function renderFmBulkPanels(){
-  const cont = document.getElementById('fm-bulk-panels');
-  if(!cont) return;
   const ids = leerInvernaderosBulkSeleccionados('fm');
-  cont.innerHTML = ids.map(invId=>`
+  // Modo y calles de cada invernadero, junto al selector (como en Riego)
+  const sel = document.getElementById('fmb-panels');
+  if(sel) sel.innerHTML = bulkPanelesSeleccionHTML('fm', ids);
+  // Extras propios de Plaguicidas, en «4. Opciones por invernadero»
+  const cont = document.getElementById('fm-bulk-panels');
+  if(cont) cont.innerHTML = ids.length ? ids.map(invId=>`
     <div style="border:1px solid #c6d9ee;border-radius:7px;padding:8px;margin-top:8px;background:#f6f9fe">
       <div style="font-size:11px;font-weight:800;color:#1558a0;margin-bottom:6px">INV ${invId}</div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:6px">
-        <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:var(--text);cursor:pointer">
-          <input type="radio" name="fm-bulk-modo-${invId}" ${fmBulkConfig[invId].modo==='entero'?'checked':''} onchange="cambiarFmBulkModo('${invId}','entero')"> Entero
-        </label>
-        <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:var(--text);cursor:pointer">
-          <input type="radio" name="fm-bulk-modo-${invId}" ${fmBulkConfig[invId].modo==='entero_menos'?'checked':''} onchange="cambiarFmBulkModo('${invId}','entero_menos')"> Entero menos
-        </label>
-        <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:var(--text);cursor:pointer">
-          <input type="radio" name="fm-bulk-modo-${invId}" ${fmBulkConfig[invId].modo==='tramo'?'checked':''} onchange="cambiarFmBulkModo('${invId}','tramo')"> Tramo de calles
-        </label>
-      </div>
       <label style="display:flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:#6a1b9a;cursor:pointer;margin-bottom:6px">
         <input type="checkbox" ${fmBulkConfig[invId].primerDia?'checked':''} onchange="fmBulkConfig['${invId}'].primerDia=this.checked" title="Marca en morado las celdas del primer día de tratamiento"> Primer día (morado)
       </label>
@@ -21534,12 +21606,13 @@ function renderFmBulkPanels(){
           Orden: <input type="number" min="1" value="${fmBulkConfig[invId].orden ?? ''}" onchange="fmBulkConfig['${invId}'].orden=this.value?parseInt(this.value,10):null" style="width:50px;padding:4px 6px;border:1.5px solid var(--border);border-radius:6px;font-size:11px">
         </label>
       </div>
-      <div id="fm-bulk-detalle-${invId}"></div>
-    </div>`).join('');
+    </div>`).join('') : '<div style="font-size:12px;color:#667b90">Elige invernaderos en «1. Dónde y cuándo».</div>';
   ids.forEach(invId=>renderFmBulkDetalle(invId));
   actualizarResumenSeleccionFitoManual();
 }
 function cambiarFmBulkModo(invId, modo){
+  if(!fmBulkConfig[invId] || !['entero','entero_menos','tramo'].includes(modo)) return;
+  guardarFmTramosVisibles();
   fmBulkConfig[invId].modo = modo;
   renderFmBulkDetalle(invId);
   actualizarResumenSeleccionFitoManual();
@@ -23275,7 +23348,7 @@ function showEspecificoManualForm(opciones={}){
       </footer>
     </div>`;
   mo.style.display='flex';
-  if(!desdeCelda&&!desdeResumenFicha)renderEspBulkPanels();
+  if(!desdeCelda&&!desdeResumenFicha)bulkRender('esp');
 }
 
 function actualizarGastoEspecificoManual(){
@@ -23296,72 +23369,17 @@ let espPendingConfig = null;
 // espBulkConfig en showEspecificoManualForm en vez de limitarse al
 // invernadero seleccionado. Ver editarResumenTratamiento.
 let espPendingBulkConfig = null;
-function especificoBulkInvSelectorHTML(){
-  return `
-    <div style="border:1.5px solid #a5d6a7;border-radius:9px;padding:.75rem;background:#f5f9ff">
-      <div style="font-size:11px;font-weight:800;color:#1558a0;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Invernaderos</div>
-      <div style="font-size:10px;color:var(--muted);margin-bottom:8px">Marca uno o varios — cada uno tiene su propia opción de Entero / Entero menos / Tramo de calles.</div>
-      <div style="display:flex;gap:14px;margin-bottom:8px">
-        <label style="font-size:11px;font-weight:700;display:flex;align-items:center;gap:5px;cursor:pointer">
-          <input type="checkbox" class="esp-sala-chk" data-sala="sala1" onchange="toggleEspBulkSala(this)"> Sala 1 completa
-        </label>
-        <label style="font-size:11px;font-weight:700;display:flex;align-items:center;gap:5px;cursor:pointer">
-          <input type="checkbox" class="esp-sala-chk" data-sala="sala2" onchange="toggleEspBulkSala(this)"> Sala 2 completa
-        </label>
-        <label style="font-size:11px;font-weight:700;display:flex;align-items:center;gap:5px;cursor:pointer">
-          <input type="checkbox" class="esp-sala-chk" data-sala="sala3" onchange="toggleEspBulkSala(this)"> Sala 3 completa
-        </label>
-        <label style="font-size:11px;font-weight:700;display:flex;align-items:center;gap:5px;cursor:pointer">
-          <input type="checkbox" class="esp-sala-chk" data-sala="sala4" onchange="toggleEspBulkSala(this)"> Sala 4 completa
-        </label>
-        <label style="font-size:11px;font-weight:700;display:flex;align-items:center;gap:5px;cursor:pointer">
-          <input type="checkbox" class="esp-sala-chk" data-sala="sala5" onchange="toggleEspBulkSala(this)"> Sala 5 completa
-        </label>
-      </div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px;max-height:140px;overflow-y:auto;align-content:flex-start;padding:4px;border:1px solid #d5e3f2;border-radius:6px">
-        ${Object.keys(INV_LAYOUT_SALA1).map(id=>`<label style="font-size:10px;display:flex;align-items:center;gap:3px;background:#fff;border:1px solid #ddd;border-radius:5px;padding:3px 7px;cursor:pointer"><input type="checkbox" class="esp-inv-chk" data-sala="sala1" value="${id}"${espBulkConfig[id]?' checked':''} onchange="toggleEspBulkInv()"> ${id}</label>`).join('')}
-        ${Object.keys(INV_LAYOUT_SALA2).map(id=>`<label style="font-size:10px;display:flex;align-items:center;gap:3px;background:#fff;border:1px solid #ddd;border-radius:5px;padding:3px 7px;cursor:pointer"><input type="checkbox" class="esp-inv-chk" data-sala="sala2" value="${id}"${espBulkConfig[id]?' checked':''} onchange="toggleEspBulkInv()"> ${id}</label>`).join('')}
-        ${Object.keys(INV_LAYOUT_SALA3).map(id=>`<label style="font-size:10px;display:flex;align-items:center;gap:3px;background:#fff;border:1px solid #ddd;border-radius:5px;padding:3px 7px;cursor:pointer"><input type="checkbox" class="esp-inv-chk" data-sala="sala3" value="${id}"${espBulkConfig[id]?' checked':''} onchange="toggleEspBulkInv()"> ${id}</label>`).join('')}
-        ${Object.keys(INV_LAYOUT_SALA4).map(id=>`<label style="font-size:10px;display:flex;align-items:center;gap:3px;background:#fff;border:1px solid #ddd;border-radius:5px;padding:3px 7px;cursor:pointer"><input type="checkbox" class="esp-inv-chk" data-sala="sala4" value="${id}"${espBulkConfig[id]?' checked':''} onchange="toggleEspBulkInv()"> ${id}</label>`).join('')}
-        ${Object.keys(INV_LAYOUT_SALA5).map(id=>`<label style="font-size:10px;display:flex;align-items:center;gap:3px;background:#fff;border:1px solid #ddd;border-radius:5px;padding:3px 7px;cursor:pointer"><input type="checkbox" class="esp-inv-chk" data-sala="sala5" value="${id}"${espBulkConfig[id]?' checked':''} onchange="toggleEspBulkInv()"> ${id}</label>`).join('')}
-      </div>
-      <div id="esp-bulk-panels"></div>
-    </div>`;
-}
-function toggleEspBulkSala(salaChk){
-  const sala = salaChk.dataset.sala;
-  document.querySelectorAll(`.esp-inv-chk[data-sala="${sala}"]`).forEach(chk=>{ chk.checked = salaChk.checked; });
-  toggleEspBulkInv();
-}
-function toggleEspBulkInv(){
-  const seleccionados = leerInvernaderosBulkSeleccionados('esp');
-  Object.keys(espBulkConfig).forEach(id=>{ if(!seleccionados.includes(id)) delete espBulkConfig[id]; });
-  seleccionados.forEach(id=>{ if(!espBulkConfig[id]) espBulkConfig[id] = {modo:'entero', tipoEntero:'', obsEntero:'', excluir:{desde:null,hasta:null,tipo:'',obs:''}, tramos:[]}; });
-  renderEspBulkPanels();
-}
+function especificoBulkInvSelectorHTML(){ return bulkSelectorHTML('esp'); }
 function renderEspBulkPanels(){
-  const cont = document.getElementById('esp-bulk-panels');
+  const cont = document.getElementById('espb-panels');
   if(!cont) return;
   const ids = leerInvernaderosBulkSeleccionados('esp');
-  cont.innerHTML = ids.map(invId=>`
-    <div style="border:1px solid #cfe8cf;border-radius:7px;padding:8px;margin-top:8px;background:#fafffa">
-      <div style="font-size:11px;font-weight:800;color:#2e7d32;margin-bottom:6px">INV ${invId}</div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:6px">
-        <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:var(--text);cursor:pointer">
-          <input type="radio" name="esp-bulk-modo-${invId}" ${espBulkConfig[invId].modo==='entero'?'checked':''} onchange="cambiarEspBulkModo('${invId}','entero')"> Entero
-        </label>
-        <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:var(--text);cursor:pointer">
-          <input type="radio" name="esp-bulk-modo-${invId}" ${espBulkConfig[invId].modo==='entero_menos'?'checked':''} onchange="cambiarEspBulkModo('${invId}','entero_menos')"> Entero menos
-        </label>
-        <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:var(--text);cursor:pointer">
-          <input type="radio" name="esp-bulk-modo-${invId}" ${espBulkConfig[invId].modo==='tramo'?'checked':''} onchange="cambiarEspBulkModo('${invId}','tramo')"> Tramo de calles
-        </label>
-      </div>
-      <div id="esp-bulk-detalle-${invId}"></div>
-    </div>`).join('');
+  cont.innerHTML = bulkPanelesSeleccionHTML('esp', ids);
   ids.forEach(invId=>renderEspBulkDetalle(invId));
 }
 function cambiarEspBulkModo(invId, modo){
+  if(!espBulkConfig[invId] || !['entero','entero_menos','tramo'].includes(modo)) return;
+  bulkConservarTramos('esp');
   espBulkConfig[invId].modo = modo;
   renderEspBulkDetalle(invId);
 }
@@ -23381,7 +23399,7 @@ function renderEspBulkDetalle(invId){
   // para cualquier otro invernadero que tenga el modo 'tramo' abierto.
   // De lo contrario, al cambiar de invernadero se pierden los tramos del anterior.
   Object.keys(espBulkConfig).forEach(oId=>{
-    if(oId!==invId && espBulkConfig[oId].modo==='tramo'){
+    if(oId!==invId && espBulkConfig[oId].modo==='tramo' && document.getElementById('esp-bulk-tramos-'+oId)){
       espBulkConfig[oId].tramos = leerEspBulkTramosDesdeDOM(oId);
     }
   });
