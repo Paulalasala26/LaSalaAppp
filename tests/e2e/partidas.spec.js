@@ -1283,3 +1283,27 @@ test('UAT-1427: cambiar entre Partidas y Operativas conserva el Específico y la
   expect(writes.filter(write => ['lasala-tareas-v1', 'lasala-especificos-partida-v1'].includes(write.path))).toEqual([]);
   expect(unexpectedHosts).toEqual([]);
 });
+
+test('UAT-1192: reabrir Partidas retoma una conciliación pendiente sin duplicar la identidad', async ({ page }) => {
+  test.fail(true, 'UAT-1192: al reabrir Partidas se debe completar la tarea de un específico ya guardado sin crear otra asociación.');
+  const database = fixtureDatabase();
+  const partidaId = 'e2e-partida-001';
+  database['lasala-especificos-v1'] = JSON.stringify({ '17': { '57': { '18': { texto: 'TC 1 + 17:00' } } } });
+  database['lasala-especificos-partida-v1'] = JSON.stringify({
+    [partidaId]: [{ trat: 'TC', dosis: '1', horario: '17:00', fechaISO: '2026-07-27', fechaLabel: '27 jul', invId: '17', dia: 57, calles: [18] }]
+  });
+  database['lasala-tareas-v1'] = JSON.stringify([]);
+
+  const { overlay, unexpectedHosts } = await openPartidas(page, { database });
+  await expect(overlay.locator('#partidas-content-wrap')).toContainText('E2E-PARTIDA-001');
+  await page.reload();
+  const reopened = await openPartidas(page, { database, loginFirst: false });
+  await expect(reopened.overlay.locator('#partidas-content-wrap')).toContainText('TC 1');
+
+  const association = JSON.parse(database['lasala-especificos-partida-v1'])[partidaId];
+  const tasks = JSON.parse(database['lasala-tareas-v1']);
+  expect(tasks.filter(task => task.categoria === 'especifico' && task.inv === '17' && task.titulo === 'TC 1')).toHaveLength(1);
+  expect(association).toHaveLength(1);
+  expect(association[0].tareaId).toBe(tasks[0].id);
+  expect(unexpectedHosts).toEqual([]);
+});
