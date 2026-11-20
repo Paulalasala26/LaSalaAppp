@@ -4459,3 +4459,47 @@ test('UAT-1587: reabrir asignaciones aplica los roles PEÓN efectivos actuales',
   expect(JSON.parse(database['lasala-mantenimiento-v1'])).toEqual([ticket]);
   expect(writes).toEqual([]);
 });
+
+test('UAT-1637: el historial recurrente muestra cada ciclo en orden con su firma y hora originales', async ({ page }) => {
+  test.fail(true, 'UAT-1637 diagnóstico: el Archivo no muestra el historial de ciclos.');
+  const histories = [{
+    ciclo: 1,
+    completadoISO: '2026-10-01',
+    firmadoPor: 'FIRMA-UAT1637-CICLO-1',
+    horaInicioTs: 1790845200000,
+    horaFinTs: 1790848800000
+  }, {
+    ciclo: 2,
+    completadoISO: '2026-10-15',
+    firmadoPor: 'FIRMA-UAT1637-CICLO-2',
+    horaInicioTs: 1792054800000,
+    horaFinTs: 1792058400000
+  }];
+  const ticket = {
+    id: 'e2e-uat1637-recurring-order',
+    titulo: 'E2E historial temporal UAT-1637',
+    estado: 'cerrado',
+    asignados: ['PEON1'],
+    creadoEn: '2026-09-20',
+    cerradoEn: '2026-10-15',
+    firmante: histories[1].firmadoPor,
+    completadoISO: histories[1].completadoISO,
+    horaInicioTs: histories[1].horaInicioTs,
+    horaFinTs: histories[1].horaFinTs,
+    historialEjecuciones: structuredClone(histories)
+  };
+  const { database, writes } = await installFixture(page, {
+    'lasala-mantenimiento-v1': JSON.stringify([ticket])
+  });
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  await overlay.getByRole('button', { name: 'Archivo' }).click();
+  const card = overlay.locator(`#mantenimiento-archivo [data-ticket-id="${ticket.id}"]`);
+  await expect(card).toBeVisible();
+  const visible = await card.innerText();
+  expect(visible).toContain(histories[0].completadoISO);
+  expect(visible).toContain(histories[0].firmadoPor);
+  expect(visible.indexOf(histories[0].firmadoPor)).toBeLessThan(visible.indexOf(histories[1].firmadoPor));
+  expect(JSON.parse(database['lasala-mantenimiento-v1'])).toEqual([ticket]);
+  expect(writes).toEqual([]);
+});
