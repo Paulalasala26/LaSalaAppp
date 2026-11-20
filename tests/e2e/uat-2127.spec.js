@@ -109,3 +109,30 @@ test('UAT-2127: dos contextos privados mantienen separadas la sesión y los mód
     await privateContext.close();
   }
 });
+
+
+test('UAT-2131: cambiar de perfil no reutiliza Control de Calidad ni permisos de ADMIN', async ({ page }) => {
+  const fixture = await installIsolatedFixture(page.context());
+  await page.goto('/');
+  await logInAs(page, 'E2E_ADMIN');
+  const controlShortcut = page.locator('#quick-access-block .home-shortcut-card[data-testid="home-control"]');
+  await expect(controlShortcut).toBeVisible();
+  await controlShortcut.click();
+  const control = page.locator('#control-overlay');
+  await expect(control).toBeVisible();
+  await control.getByRole('button', { name: /✕/ }).last().click();
+  await expect(control).toBeHidden();
+
+  await page.getByRole('button', { name: 'Salir' }).click();
+  await expect(page.locator('#login-screen')).toBeVisible();
+  await logInAs(page, 'E2E_PEON');
+  await expect(page.locator('#topbar-username')).toHaveText('E2e_peon');
+  await expect(page.locator('#quick-access-block')).toBeHidden();
+  await expect(page.locator('#peon-tareas-inline')).toBeVisible();
+
+  const writesBeforePeonAccess = fixture.writes.length;
+  const opened = await page.evaluate(async () => await showControlModule());
+  expect(opened).toBe(false);
+  await expect(control).toBeHidden();
+  expect(fixture.writes.slice(writesBeforePeonAccess)).toEqual([]);
+});
