@@ -4328,3 +4328,44 @@ test('UAT-1656: consultar un ticket recién archivado muestra estado y metadatos
   expect(JSON.parse(database['lasala-mantenimiento-v1'])).toEqual([ticket]);
   expect(writes.filter(write => write.key === 'lasala-mantenimiento-v1')).toHaveLength(0);
 });
+
+Attempting to perform the InitializeDefaultDrives operation on the 'FileSystem' provider failed.
+test('UAT-1651: el historial recurrente y las firmas sobreviven a reiniciar sesión', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-12-04T10:00:00+01:00'));
+  const histories = [{
+    ciclo: 1, completadoISO: '2026-11-19', firmadoPor: 'PEON2',
+    horaInicioTs: 1795077000000, horaFinTs: 1795080600000
+  }, {
+    ciclo: 2, completadoISO: '2026-12-03', firmadoPor: 'PEON1',
+    horaInicioTs: 1796380200000, horaFinTs: 1796383800000
+  }];
+  const ticket = {
+    id: 'e2e-uat1651-history-restart', titulo: 'E2E historial tras reinicio UAT-1651',
+    estado: 'cerrado', asignados: ['PEON1'], recurrencia: { cada: 2, unidad: 'semanas' },
+    proximaFecha: '2026-12-18', creadoEn: '2026-11-01',
+    historialEjecuciones: structuredClone(histories), horaInicioTs: 1796380200000,
+    horaFinTs: 1796383800000, completadoISO: '2026-12-03', firmante: 'PEON1'
+  };
+  const { database, writes } = await installFixture(page, {
+    'lasala-mantenimiento-v1': JSON.stringify([ticket])
+  });
+  await openTasks(page);
+  await page.locator('#tareas-overlay').getByRole('button', { name: 'Mantenimiento de Parcelas' }).click();
+  const beforeRestart = await page.evaluate(async () => {
+    await loadMantenimientoData();
+    return structuredClone(mantenimientoData[0].historialEjecuciones);
+  });
+  expect(beforeRestart).toEqual(histories);
+
+  await page.reload();
+  await expect(page.locator('#page-home')).toBeVisible();
+  await openTasks(page);
+  await page.locator('#tareas-overlay').getByRole('button', { name: 'Mantenimiento de Parcelas' }).click();
+  const reopenedHistory = await page.evaluate(async () => {
+    await loadMantenimientoData();
+    return structuredClone(mantenimientoData[0].historialEjecuciones);
+  });
+  expect(reopenedHistory).toEqual(histories);
+  expect(JSON.parse(database['lasala-mantenimiento-v1'])[0].historialEjecuciones).toEqual(reopenedHistory);
+  expect(writes).toEqual([]);
+});
