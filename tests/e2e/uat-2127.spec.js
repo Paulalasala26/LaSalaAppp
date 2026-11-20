@@ -136,3 +136,26 @@ test('UAT-2131: cambiar de perfil no reutiliza Control de Calidad ni permisos de
   await expect(control).toBeHidden();
   expect(fixture.writes.slice(writesBeforePeonAccess)).toEqual([]);
 });
+
+
+test('UAT-2119: una cuenta retirada no restaura su sesión ni acepta la contraseña anterior', async ({ page }) => {
+  const fixture = await installIsolatedFixture(page.context());
+  await page.goto('/');
+  await logInAs(page, 'E2E_ADMIN');
+  await expect(page.locator('#app')).toBeVisible();
+
+  fixture.database['lasala-users-v1'] = JSON.stringify({ E2E_PEON: passwordHash });
+  await page.reload();
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('lasala-sesion-v1'))).toBeNull();
+  await expect(page.locator('#login-screen')).toBeVisible();
+  await expect(page.locator('#app')).toBeHidden();
+
+  await page.locator('#login-user').evaluate((select, value) => {
+    if (![...select.options].some(option => option.value === value)) select.add(new Option(value, value));
+  }, 'E2E_ADMIN');
+  await page.locator('#login-user').selectOption('E2E_ADMIN');
+  await page.locator('#login-pass').fill(password);
+  await page.locator('#login-btn').click();
+  await expect(page.locator('#login-alert')).toContainText('Contraseña incorrecta');
+  await expect(page.locator('#app')).toBeHidden();
+});
