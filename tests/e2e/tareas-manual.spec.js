@@ -4371,8 +4371,8 @@ test('UAT-1651: el historial recurrente y las firmas sobreviven a reiniciar sesi
 });
 
 Attempting to perform the InitializeDefaultDrives operation on the 'FileSystem' provider failed.
-test.fail(true, 'UAT-1662 se ejecuta como prueba de diagnóstico; registrar el fallo sin corregir la aplicación.');
 test('UAT-1662: archivar un ticket cerrado conserva la firma y el cierre', async ({ page }) => {
+  test.fail(true, 'UAT-1662 diagnóstico: registrar la ausencia de acción de archivo.');
   const signature = 'FIRMA-HISTORICA-UAT1662';
   const execution = {
     ciclo: 1,
@@ -4412,3 +4412,49 @@ test('UAT-1662: archivar un ticket cerrado conserva la firma y el cierre', async
   expect(archived.archivadoEn).toBeTruthy();
   expect(archived.archivadoEn).not.toBe(archived.cerradoEn);
   expect(writes.filter(write => write.key === 'lasala-mantenimiento-v1')).toHaveLength(1);
+
+test('UAT-1587: reabrir asignaciones aplica los roles PEÓN efectivos actuales', async ({ page }) => {
+  test.fail(true, 'UAT-1587 diagnóstico: registrar rol obsoleto tras reabrir.');
+  const ticket = {
+    id: 'e2e-uat1587-effective-roles',
+    titulo: 'E2E actualizar roles efectivos UAT-1587',
+    estado: 'sin_asignar',
+    asignados: [],
+    creadoEn: '2026-11-20'
+  };
+  const users = { E2E_ADMIN: passwordHash, PEON1: passwordHash, PEON2: passwordHash, REGANTE1: passwordHash };
+  const roles = { E2E_ADMIN: 'ADMIN', PEON1: 'PEON', PEON2: 'PEON', REGANTE1: 'REGANTE' };
+  const { database, writes } = await installFixture(page, {
+    'lasala-users-v1': JSON.stringify(users),
+    'lasala-roles-v1': JSON.stringify(roles),
+    'lasala-mantenimiento-v1': JSON.stringify([ticket])
+  });
+  await openTasks(page);
+  let overlay = page.locator('#tareas-overlay');
+  await overlay.getByRole('button', { name: 'Mantenimiento de Parcelas' }).click();
+  const card = overlay.locator(`.tarea-card[data-id="${ticket.id}"]`);
+  await expect(card.locator('.mant-persona-chk')).toHaveCount(2);
+  await expect(card.locator('.mant-persona-chk[value="PEON1"]')).toBeVisible();
+  await expect(card.locator('.mant-persona-chk[value="PEON2"]')).toBeVisible();
+
+  database['lasala-roles-v1'] = JSON.stringify({ E2E_ADMIN: 'ADMIN', PEON1: 'PEON', PEON2: 'REGANTE', REGANTE1: 'REGANTE' });
+  await overlay.getByRole('button', { name: 'Cerrar Operativas' }).click();
+  await page.getByRole('button', { name: 'Salir' }).click();
+  await expect(page.locator('#login-screen')).toBeVisible();
+  await page.locator('#login-user').evaluate((select, value) => {
+    if (![...select.options].some(option => option.value === value)) select.add(new Option(value, value));
+  }, 'E2E_ADMIN');
+  await page.locator('#login-user').selectOption('E2E_ADMIN');
+  await page.locator('#login-pass').fill(password);
+  await page.locator('#login-btn').click();
+  await expect(page.locator('#page-home')).toBeVisible();
+  await openTasks(page);
+  overlay = page.locator('#tareas-overlay');
+  await overlay.getByRole('button', { name: 'Mantenimiento de Parcelas' }).click();
+  const reopenedCard = overlay.locator(`.tarea-card[data-id="${ticket.id}"]`);
+  await expect(reopenedCard.locator('.mant-persona-chk[value="PEON1"]')).toBeVisible();
+  await expect(reopenedCard.locator('.mant-persona-chk[value="PEON2"]')).toHaveCount(0);
+  await expect(reopenedCard.locator('.mant-persona-chk')).toHaveCount(1);
+  expect(JSON.parse(database['lasala-mantenimiento-v1'])).toEqual([ticket]);
+  expect(writes).toEqual([]);
+});
