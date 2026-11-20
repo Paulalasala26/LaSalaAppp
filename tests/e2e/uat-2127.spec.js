@@ -82,7 +82,8 @@ test('UAT-2127: dos contextos privados mantienen separadas la sesión y los mód
   await page.goto('/');
   await logInAs(page, 'E2E_ADMIN');
   await expect(page.getByRole('heading', { name: 'Bienvenido, E2e_admin' })).toBeVisible();
-  await expect(page.locator('#quick-access-block').getByRole('button', { name: 'Control de Calidad' })).toBeVisible();
+  await expect(page.locator('#quick-access-block .home-shortcut-card[data-testid="home-control"]')).toBeVisible();
+  await expect(await page.evaluate(() => JSON.parse(localStorage.getItem('lasala-sesion-v1')).user)).toBe('E2E_ADMIN');
 
   const privateContext = await browser.newContext();
   try {
@@ -90,15 +91,18 @@ test('UAT-2127: dos contextos privados mantienen separadas la sesión y los mód
     const privatePage = await privateContext.newPage();
     await privatePage.goto(appOrigin + '/');
     await logInAs(privatePage, 'E2E_PEON');
-    await expect(privatePage.getByRole('heading', { name: 'Bienvenido, E2e_peon' })).toBeVisible();
-    await expect(privatePage.locator('#quick-access-block').getByRole('button', { name: 'Control de Calidad' })).toHaveCount(0);
-    await expect(privatePage.locator('#quick-access-block').getByRole('button', { name: 'Tareas' })).toBeVisible();
+    await expect(privatePage.locator('#page-home')).toBeVisible();
+    await expect(privatePage.locator('#topbar-username')).toHaveText('E2e_peon');
+    await expect(privatePage.locator('#quick-access-block')).toBeHidden();
+    await expect(privatePage.locator('#peon-tareas-inline')).toBeVisible();
+    await expect(await privatePage.evaluate(() => JSON.parse(localStorage.getItem('lasala-sesion-v1')).user)).toBe('E2E_PEON');
 
     await expect(page.getByRole('heading', { name: 'Bienvenido, E2e_admin' })).toBeVisible();
     await page.reload();
     await privatePage.reload();
     await expect(page.getByRole('heading', { name: 'Bienvenido, E2e_admin' })).toBeVisible();
-    await expect(privatePage.getByRole('heading', { name: 'Bienvenido, E2e_peon' })).toBeVisible();
+    await expect(privatePage.locator('#page-home')).toBeVisible();
+    await expect(privatePage.locator('#topbar-username')).toHaveText('E2e_peon');
     expect(admin.writes).toEqual([]);
     expect(peon.writes).toEqual([]);
   } finally {
