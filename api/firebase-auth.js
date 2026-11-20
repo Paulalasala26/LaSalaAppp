@@ -114,8 +114,34 @@ module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   res.setHeader('X-Content-Type-Options', 'nosniff');
 
+  // Listado minimo para el desplegable de acceso, sin hashes ni roles.
+  // Usa el mismo servicio Firebase que el login POST; no crea otra funcion Vercel.
+  if (req.method === 'GET') {
+    try {
+      const token = await getGoogleAccessToken(getServiceAccount());
+      const [accounts, roles] = await Promise.all([
+        readRtdbKey(USERS_KEY, token),
+        readRtdbKey(ROLES_KEY, token)
+      ]);
+      if (!accounts || typeof accounts !== 'object' || Array.isArray(accounts) ||
+          !roles || typeof roles !== 'object' || Array.isArray(roles)) {
+        throw new Error('Invalid Firebase account data');
+      }
+      const users = Object.keys(accounts).filter(user =>
+        /^[A-Z0-9][A-Z0-9._ -]{0,79}$/.test(user) &&
+        typeof accounts[user] === 'string' &&
+        /^[0-9a-f]{64}$/i.test(accounts[user]) &&
+        VALID_ROLES.has(roles[user])
+      ).sort((a,b) => a.localeCompare(b,'es'));
+      return res.status(200).json({users});
+    } catch (_) {
+      console.error('firebase-auth: active-user list unavailable');
+      return res.status(503).json({error:'SERVICE_UNAVAILABLE'});
+    }
+  }
+
   if (req.method !== 'POST') {
-    res.setHeader('Allow', 'POST');
+    res.setHeader('Allow', 'GET, POST');
     return res.status(405).json({ error: 'METHOD_NOT_ALLOWED' });
   }
 
