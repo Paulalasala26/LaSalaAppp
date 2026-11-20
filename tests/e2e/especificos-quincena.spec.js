@@ -1059,3 +1059,45 @@ test('UAT-1193: reintentar un alta ya confirmada no duplica celda, banner ni tar
   expect(lostReplies).toBeGreaterThan(0);
   expect(unexpectedHosts).toEqual([]);
 });
+
+test('UAT-1191: un fallo al guardar la tarea conserva el tratamiento y avisa la incidencia',async({page})=>{
+  const database=fixtureDatabase();
+  const partida={id:'e2e-uat1191-partida',tipo:'tunel',dia:30,partida:'E2E-1191',invId:'17',calleDesde:1,calleHasta:1,tramos:[{desde:1,hasta:1}],creadoEn:'2026-06-30T08:00:00+02:00'};
+  database['lasala-control-items-v1']={[partida.id]:partida};
+  const {unexpectedHosts}=await openSpecifics(page,database);
+  await page.evaluate(()=>loadControlChecksData(true));
+  const blocks=await page.evaluate(()=>calcularBloquesPartidasInvBase('17',partidasSemanaDeFecha(riegoDiaToDate(30))).map(b=>b.entry.id));
+  expect(blocks).toEqual([partida.id]);
+
+  let failedTaskWrites=0;
+  await page.route(firebaseUrl,async route=>{
+    const request=route.request();
+    const path=decodeURIComponent(new URL(request.url()).pathname.replace(/^\//,'').replace(/\.json$/,''));
+    if(request.method()==='PUT'&&path==='lasala-tareas-v1'){
+      failedTaskWrites++;
+      await route.fulfill({status:503,contentType:'application/json',body:'{"error":"fixture task write failure"}'});
+      return;
+    }
+    await route.fallback();
+  });
+
+  await page.evaluate(()=>showEspecificoManualForm());
+  const editor=page.locator('#especifico-manual-overlay');
+  await expect(editor).toBeVisible();
+  await editor.locator('.esp-inv-chk[value="17"]').check();
+  await editor.locator('#esp-trat').selectOption('TC');
+  await editor.locator('#esp-dosis').selectOption('1');
+  await editor.locator('#esp-horario').selectOption('18:00');
+  await editor.locator('button[onclick="saveEspecificoManual()"]' ).click();
+  await expect(editor).toBeHidden();
+  await expect.poll(()=>failedTaskWrites).toBeGreaterThan(0);
+  await expect(page.locator('#aviso-fallo-guardado')).toContainText('No se ha podido guardar el último cambio');
+
+  const saved=JSON.parse(database['lasala-especificos-v1']);
+  const tasks=JSON.parse(database['lasala-tareas-v1']);
+  const banners=JSON.parse(database['lasala-especificos-partida-v1'])[partida.id]||[];
+  expect(saved['17']['30']['1']?.texto).toContain('TC 1');
+  expect(tasks).toEqual([]);
+  expect(banners).toHaveLength(1);
+  expect(unexpectedHosts).toEqual([]);
+});
