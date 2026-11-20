@@ -1976,3 +1976,65 @@ test('UAT-2128: una sesión vencida por inactividad vuelve a pedir autenticació
   await expect(page.locator('#login-screen')).toBeVisible();
   await expect(page.locator('#app')).toBeHidden();
 });
+
+Attempting to perform the InitializeDefaultDrives operation on the 'FileSystem' provider failed.
+test('UAT-2125: cerrar sesión mientras está pendiente la configuración push impide confirmarla', async ({ page }) => {
+  test.fail(true, 'UAT-2125 diagnóstico: la activación push podría continuar después de cerrar sesión.');
+  const writes = [];
+  page.on('request', request => {
+    if (firebaseUrl.test(request.url()) && !['GET', 'OPTIONS'].includes(request.method())) writes.push(request.method());
+  });
+  await installAuthFixture(page, { 'lasala-push-subs-v1': JSON.stringify({}) });
+  await logInAs(page, 'E2E_TECNICO');
+  await expect(page.locator('#page-home')).toBeVisible();
+  const activate = page.locator('#btn-avisos-push');
+  await expect(activate).toBeVisible();
+
+  await page.evaluate(() => {
+    let resolvePermission;
+    window.__pushPermissionRequested = false;
+    window.__pushPermissionPending = new Promise(resolve => { resolvePermission = resolve; });
+    window.__resolvePushPermission = resolvePermission;
+    Object.defineProperty(Notification, 'requestPermission', {
+      configurable: true,
+      value: () => {
+        window.__pushPermissionRequested = true;
+        return window.__pushPermissionPending;
+      }
+    });
+
+    const serviceWorker = navigator.serviceWorker;
+    const subscription = {
+      endpoint: 'https://push.example.test/uat-2125',
+      toJSON: () => ({ endpoint: 'https://push.example.test/uat-2125', keys: { p256dh: 'fixture', auth: 'fixture' } })
+    };
+    const registration = {
+      pushManager: {
+        getSubscription: async () => null,
+        subscribe: async () => subscription
+      }
+    };
+    Object.defineProperty(serviceWorker, 'register', { configurable: true, value: async () => registration });
+    Object.defineProperty(serviceWorker, 'ready', { configurable: true, get: () => Promise.resolve(registration) });
+    Object.defineProperty(serviceWorker, 'getRegistration', { configurable: true, value: async () => null });
+
+    const activatePush = window.toggleAvisosPush;
+    window.__pushOperation = null;
+    window.toggleAvisosPush = function () {
+      window.__pushOperation = activatePush();
+      return window.__pushOperation;
+    };
+  });
+
+  await activate.click();
+  await expect.poll(() => page.evaluate(() => window.__pushPermissionRequested)).toBe(true);
+  const writesBeforeLogout = writes.length;
+  await page.locator('.logout-btn').click();
+  await expect(page.locator('#login-screen')).toBeVisible();
+  await page.evaluate(() => window.__resolvePushPermission('granted'));
+  await page.evaluate(() => window.__pushOperation);
+
+  expect(await page.evaluate(() => currentUser)).toBeNull();
+  expect(writes.slice(writesBeforeLogout)).toEqual([]);
+  expect(JSON.parse(await page.evaluate(host => fetch(`https://${host}/lasala-push-subs-v1.json`).then(response => response.text()), firebaseHost))).toEqual({});
+});
