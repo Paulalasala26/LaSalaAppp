@@ -12,8 +12,8 @@ const appRoot = path.resolve(__dirname, '..', '..');
 const users = { E2E_ADMIN: passwordHash, E2E_PEON: passwordHash };
 const roles = { E2E_ADMIN: 'ADMIN', E2E_PEON: 'PEON' };
 
-async function installIsolatedFixture(context) {
-  const database = {
+async function installIsolatedFixture(context, sharedDatabase = null) {
+  const database = sharedDatabase || {
     'lasala-users-v1': JSON.stringify(users),
     'lasala-roles-v1': JSON.stringify(roles),
     'lasala-tareas-v1': JSON.stringify([]),
@@ -158,4 +158,39 @@ test('UAT-2119: una cuenta retirada no restaura su sesión ni acepta la contrase
   await page.locator('#login-btn').click();
   await expect(page.locator('#login-alert')).toContainText('Contraseña incorrecta');
   await expect(page.locator('#app')).toBeHidden();
+});
+
+
+test('UAT-2118: la lectura de un aviso se refleja en otro dispositivo al actualizar', async ({ page, browser }) => {
+  const first = await installIsolatedFixture(page.context());
+  const notice = { id: 'uat-2118-notice', titulo: 'Aviso UAT-2118', mensaje: 'Aviso compartido entre dispositivos', fecha: '20/11/2026', visto: true, leido: false, evaluacion: null };
+  first.database['lasala-users-v1'] = JSON.stringify({ E2E_ADMIN: passwordHash, E2E_PEON: passwordHash, VIGUERAS: passwordHash });
+  first.database['lasala-roles-v1'] = JSON.stringify({ E2E_ADMIN: 'ADMIN', E2E_PEON: 'PEON', VIGUERAS: 'ADMIN' });
+  first.database['lasala-avisos-usuario-v1'] = JSON.stringify({ VIGUERAS: [notice] });
+  await page.goto('/');
+  await logInAs(page, 'VIGUERAS');
+
+  const secondContext = await browser.newContext();
+  try {
+    await installIsolatedFixture(secondContext, first.database);
+    const secondPage = await secondContext.newPage();
+    await secondPage.goto(appOrigin + '/');
+    await logInAs(secondPage, 'VIGUERAS');
+    await expect(page.locator('#notificaciones-vigueras-badge span')).toHaveText('1');
+    await expect(secondPage.locator('#notificaciones-vigueras-badge span')).toHaveText('1');
+
+    await page.getByRole('button', { name: 'Notificaciones' }).click();
+    const firstPanel = page.locator('#notificaciones-vigueras-overlay');
+    await expect(firstPanel).toContainText(notice.mensaje);
+    await expect.poll(() => JSON.parse(first.database['lasala-avisos-usuario-v1']).VIGUERAS.length).toBe(0);
+
+    await secondPage.reload();
+    await expect(secondPage.locator('#page-home')).toBeVisible();
+    await expect(secondPage.locator('#notificaciones-vigueras-badge span')).toHaveCount(0);
+    await secondPage.getByRole('button', { name: 'Notificaciones' }).click();
+    await expect(secondPage.locator('#notificaciones-vigueras-overlay')).toContainText('No tienes notificaciones.');
+    expect(JSON.parse(first.database['lasala-avisos-usuario-v1']).VIGUERAS).toEqual([]);
+  } finally {
+    await secondContext.close();
+  }
 });
