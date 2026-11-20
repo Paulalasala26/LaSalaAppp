@@ -4369,3 +4369,46 @@ test('UAT-1651: el historial recurrente y las firmas sobreviven a reiniciar sesi
   expect(JSON.parse(database['lasala-mantenimiento-v1'])[0].historialEjecuciones).toEqual(reopenedHistory);
   expect(writes).toEqual([]);
 });
+
+Attempting to perform the InitializeDefaultDrives operation on the 'FileSystem' provider failed.
+test.fail(true, 'UAT-1662 se ejecuta como prueba de diagnóstico; registrar el fallo sin corregir la aplicación.');
+test('UAT-1662: archivar un ticket cerrado conserva la firma y el cierre', async ({ page }) => {
+  const signature = 'FIRMA-HISTORICA-UAT1662';
+  const execution = {
+    ciclo: 1,
+    completadoISO: '2026-11-18',
+    firmadoPor: signature,
+    horaInicioTs: 1794992400000,
+    horaFinTs: 1794996000000
+  };
+  const ticket = {
+    id: 'e2e-uat1662-archive-signed',
+    titulo: 'E2E ticket cerrado con firma UAT-1662',
+    estado: 'cerrado',
+    asignados: ['PEON1'],
+    creadoEn: '2026-11-17',
+    cerradoEn: '2026-11-18',
+    completadoISO: '2026-11-18',
+    firmante: signature,
+    historialEjecuciones: [structuredClone(execution)]
+  };
+  const { database, writes } = await installFixture(page, {
+    'lasala-mantenimiento-v1': JSON.stringify([ticket])
+  });
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  await overlay.getByRole('button', { name: 'Archivo' }).click();
+  const card = overlay.locator(`#mantenimiento-archivo [data-ticket-id="${ticket.id}"]`);
+  await expect(card).toBeVisible();
+  const archiveAction = card.getByRole('button', { name: /Archivar/i });
+  await expect(archiveAction, 'El ticket cerrado debe permitir registrar su archivado').toBeVisible();
+  page.once('dialog', dialog => dialog.accept());
+  await archiveAction.click();
+  await expect.poll(() => JSON.parse(database['lasala-mantenimiento-v1'])[0]?.estado).toBe('archivado');
+  const archived = JSON.parse(database['lasala-mantenimiento-v1'])[0];
+  expect(archived.firmante).toBe(signature);
+  expect(archived.cerradoEn).toBe('2026-11-18');
+  expect(archived.historialEjecuciones).toEqual([execution]);
+  expect(archived.archivadoEn).toBeTruthy();
+  expect(archived.archivadoEn).not.toBe(archived.cerradoEn);
+  expect(writes.filter(write => write.key === 'lasala-mantenimiento-v1')).toHaveLength(1);
