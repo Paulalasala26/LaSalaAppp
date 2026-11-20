@@ -92,7 +92,7 @@ jobs:
 
       - name: Ejecutar UAT-2127/2131 (aislamiento de sesión y permisos por rol)
         if: github.event_name == 'pull_request' && steps.scope.outputs.uat2127 == 'true'
-        run: pnpm exec playwright test tests/e2e/uat-2127.spec.js --grep "UAT-2127|UAT-2131"
+        run: pnpm exec playwright test tests/e2e/uat-2127.spec.js --grep "UAT-2119|UAT-2127|UAT-2131"
 
       - name: Ejecutar Control QC en PR
         if: github.event_name == 'pull_request' && steps.scope.outputs.control == 'true'
