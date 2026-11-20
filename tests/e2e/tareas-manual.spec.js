@@ -4503,3 +4503,52 @@ test('UAT-1637: el historial recurrente muestra cada ciclo en orden con su firma
   expect(JSON.parse(database['lasala-mantenimiento-v1'])).toEqual([ticket]);
   expect(writes).toEqual([]);
 });
+
+
+test('UAT-1663: archivar un ticket recurrente conserva dos ejecuciones y la baja', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-12-04T10:00:00+01:00'));
+  const histories = [{
+    ciclo: 1, completadoISO: '2026-11-19', firmante: 'FIRMA-UAT1663-CICLO-1',
+    horaInicioTs: 1795077000000, horaFinTs: 1795080600000
+  }, {
+    ciclo: 2, completadoISO: '2026-12-03', firmante: 'FIRMA-UAT1663-CICLO-2',
+    horaInicioTs: 1796380200000, horaFinTs: 1796383800000
+  }];
+  const ticket = {
+    id: 'e2e-uat1663-recurring-archive',
+    titulo: 'E2E ticket recurrente archivado UAT-1663',
+    estado: 'sin_asignar',
+    asignados: [],
+    recurrencia: { cada: 2, unidad: 'semanas' },
+    proximaFecha: '2026-12-18',
+    creadoEn: '2026-11-01',
+    historialEjecuciones: structuredClone(histories)
+  };
+  const { database, writes } = await installFixture(page, {
+    'lasala-mantenimiento-v1': JSON.stringify([ticket])
+  });
+  await openTasks(page);
+  const overlay = page.locator('#tareas-overlay');
+  await overlay.getByRole('button', { name: 'Mantenimiento de Parcelas' }).click();
+  const card = overlay.locator(`.tarea-card[data-id="${ticket.id}"]`);
+  await expect(card).toBeVisible();
+  const archiveAction = card.getByRole('button', { name: /Archivar/i });
+  await expect(archiveAction).toBeVisible();
+  page.once('dialog', dialog => dialog.accept());
+  await archiveAction.click();
+
+  await expect.poll(() => JSON.parse(database['lasala-mantenimiento-v1'])[0]?.archivadaEn).toBeTruthy();
+  const archived = JSON.parse(database['lasala-mantenimiento-v1'])[0];
+  expect(archived.estadoAntesArchivo).toBe('sin_asignar');
+  expect(archived.historialEjecuciones).toEqual(histories);
+  expect(archived.archivadaEn).toBeTruthy();
+  expect(writes.filter(write => write.key === 'lasala-mantenimiento-v1')).toHaveLength(1);
+
+  await overlay.getByRole('button', { name: 'Archivo' }).click();
+  const archivePane = overlay.locator('#mantenimiento-archivo');
+  await expect(archivePane).toContainText(ticket.titulo);
+  await expect(archivePane).toContainText('Archivada');
+  await expect(archivePane).toContainText('FIRMA-UAT1663-CICLO-1');
+  await expect(archivePane).toContainText('FIRMA-UAT1663-CICLO-2');
+  expect(JSON.parse(database['lasala-mantenimiento-v1'])[0].historialEjecuciones).toHaveLength(2);
+});
