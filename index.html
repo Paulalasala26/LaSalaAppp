@@ -765,7 +765,7 @@ async function cargarUsuariosLogin(){
   cargaUsuariosLoginPromise=(async()=>{
     const anterior=selector.value;
     try{
-      const response=await window.fetch('/api/login-users',{cache:'no-store'});
+      const response=await window.fetch('/api/firebase-auth',{cache:'no-store'});
       if(!response.ok) throw new Error('Lista de usuarios no disponible');
       const data=await response.json();
       if(!Array.isArray(data.users)) throw new Error('Respuesta no válida');
