@@ -4412,6 +4412,7 @@ test('UAT-1662: archivar un ticket cerrado conserva la firma y el cierre', async
   expect(archived.archivadoEn).toBeTruthy();
   expect(archived.archivadoEn).not.toBe(archived.cerradoEn);
   expect(writes.filter(write => write.key === 'lasala-mantenimiento-v1')).toHaveLength(1);
+});
 
 test('UAT-1587: reabrir asignaciones aplica los roles PEÓN efectivos actuales', async ({ page }) => {
   test.fail(true, 'UAT-1587 diagnóstico: registrar rol obsoleto tras reabrir.');
