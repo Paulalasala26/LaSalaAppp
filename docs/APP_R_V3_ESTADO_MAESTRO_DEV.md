@@ -1,6 +1,6 @@
 # APP R v3 — Anexo maestro DEV
-**Última actualización:** 10/11/2026 (España)
-**Rama exclusiva:** `dev/v1.0` · **Estado:** cambios visuales, Riego > Abono, Hojas de riego REGANTE (2 días), Tareas desde Riego (ENTERO), botones Hojas marcadas Salas 3-5, cierre de fumigación del peón y mezclas de Plaguicidas (Normal y Preinjerto) validados por el usuario
+**Última actualización:** 20/11/2026 (España)
+**Rama exclusiva:** `dev/v1.0` · **Estado:** cambios visuales, Riego > Abono, Hojas de riego REGANTE (2 días), Tareas desde Riego (ENTERO), botones Hojas marcadas Salas 3-5, cierre de fumigación del peón y mezclas de Plaguicidas (Normal y Preinjerto) y selector de invernaderos de Riego en Plaguicidas y Específicos (validado en la vista local el 20/11/2026; pendiente de despliegue en Vercel) validados por el usuario
 
 > Anexo de continuidad de `docs/APP_R_V3_ESTADO_MAESTRO.md` para los cambios realizados exclusivamente en DEV. Leer ambos: la memoria maestra general conserva todo el histórico, y este anexo añade los hitos exclusivos de DEV sin reescribir ni recortar ese histórico.
 
@@ -91,6 +91,20 @@
 - **Aceptación del usuario:** «Validado» (10/11/2026), tras la prueba manual en DEV.
 - Las mezclas son valores por defecto del código, no del Backoffice. TEST no las tiene; no promovido.
 - `test/v1.0` y `main` **no modificados**.
+
+## DEV — Plaguicidas y Específicos: selector de invernaderos y calles de Riego — VALIDADO 20/11/2026 (vista local)
+
+**Objetivo:** que «Añadir tratamiento» (Plaguicidas) y «Añadir específico» (Específicos) marquen invernaderos y calles con el mismo selector que Riego: Entero, Entero menos y Tramo de calles. Ambos formularios ya tenían los tres modos; lo que cambia es el selector (antes acordeones o casillas con botones de radio).
+
+- Solo `index.html`. Pestañas de sala (con el número de invernaderos marcados), cuadrícula de invernaderos, «Seleccionar toda» y «Limpiar selección», y por cada invernadero marcado un desplegable Entero / Entero menos… / Tramo de calles… con ✕ para quitarlo. La selección vive en `fmBulkConfig` / `espBulkConfig` (como `rmBulkConfig` en Riego), no en casillas del DOM.
+- Plaguicidas conserva en «4. Opciones por invernadero» sus extras (Primer día, Esperar a la carga, Orden). Específicos conserva el tipo y las observaciones por tramo. La lógica de cálculo de calles y de guardado no se ha modificado.
+- Corrige un fallo previo de Específicos: al repintar el formulario se perdían los tramos de los demás invernaderos (faltaba la comprobación de existencia del DOM que ya tenía Plaguicidas).
+- **Específicos, celda de la cuadrícula:** al pulsar una celda **vacía** en un día editable, el formulario se abre con el selector y el tramo pulsado marcado. Las celdas con un específico ya guardado (edición) y los días fuera de rango (consulta) mantienen la ubicación fija: Específicos no limpia las calles antiguas si se cambia el tramo de uno guardado (Plaguicidas y Riego sí), así que dar selector a la edición requiere añadir esa limpieza antes.
+- Código: `3df5c50` (selector) y `53212b3` (celda vacía). Backups previos recuperables: `backup/dev-v1.0-before-selector-riego-fito-esp-2026-11-20` (`f7df3e4`) y `backup/dev-v1.0-before-especificos-celda-selector-2026-11-20` (`3df5c50`).
+- Comprobaciones técnicas previas: sintaxis de los 5 scripts inline correcta; pruebas en la vista local sin guardar (marcar y quitar invernaderos de varias salas, los tres modos con 30, 29 y 27 de 30 calles, conservar tramos al cambiar de sala, abrir con configuración previa, celda vacía / con texto / día pasado, «Edición múltiple» y arrastrar un tramo).
+- **Aceptación del usuario:** «ahora está bien» y «sí, regístralo» (20/11/2026), tras la prueba manual **en la vista local** (servidor local con proxy al backend de DEV).
+- **Límite:** **DEV en Vercel todavía no sirve estos commits** (sigue sirviendo `f7f1c03`; Vercel cancela los commits posteriores con «Ignored Build Step»). La aceptación no cubre una comprobación en la URL de DEV, ni qué datos se guardaron, ni uso en móvil, sincronización offline o impresión.
+- `test/v1.0` y `main` **no modificados**; no promovido a TEST.
 
 ## Guardarraíles
 
