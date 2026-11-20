@@ -61,6 +61,7 @@ jobs:
             core.setOutput('uat1668', String(paths.has('tests/e2e/uat-1668.spec.js')));
             core.setOutput('uat1592', String(paths.has('tests/e2e/uat-1592.spec.js')));
             core.setOutput('uat2116', String(paths.has('tests/e2e/uat-2116.spec.js')));
+            core.setOutput('uat1218', String(paths.has('tests/e2e/uat-1218.spec.js')));
             core.setOutput('specifics', String(paths.has('tests/e2e/especificos-quincena.spec.js') || paths.has('index.html')));
             core.setOutput('photoHistory', String(paths.has('tests/e2e/control-fotos-historicas.spec.js') || paths.has('index.html')));
             core.setOutput('riego', String(paths.has('tests/e2e/riego-quincena.spec.js')));
@@ -78,6 +79,10 @@ jobs:
       - name: Ejecutar UAT-2116 (sesión cerrada en pestaña paralela)
         if: github.event_name == 'pull_request' && steps.scope.outputs.uat2116 == 'true'
         run: pnpm exec playwright test tests/e2e/uat-2116.spec.js --grep "UAT-2116"
+
+      - name: Ejecutar UAT-1218 (toque móvil en Específicos)
+        if: github.event_name == 'pull_request' && steps.scope.outputs.uat1218 == 'true'
+        run: pnpm exec playwright test tests/e2e/uat-1218.spec.js --grep "UAT-1218"
 
       - name: Ejecutar Control QC en PR
         if: github.event_name == 'pull_request' && steps.scope.outputs.control == 'true'
