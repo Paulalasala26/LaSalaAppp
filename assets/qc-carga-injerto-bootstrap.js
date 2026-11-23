@@ -187,7 +187,7 @@
       controlQCEstados.set(key,{signature,estados:states,partidas,at:Date.now()});
       controlQCEstadosUltimoError.delete(key);
       const overlay=document.getElementById('control-overlay');
-      if(overlay&&overlay.style.display==='flex'&&controlSeccion===TYPE&&controlDiaSel===day&&
+      if(overlay&&overlay.style.display==='flex'&&controlSeccion===TYPE&&controlQCDiaVisible(day)&&
          !document.querySelector('#qco-inline'))window.renderControlContent(overlay);
     }catch(_){
       controlQCEstadosUltimoError.set(key,Date.now());
