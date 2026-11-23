@@ -511,7 +511,7 @@
       controlQCEstadosUltimoError.delete(key);
       pendingStatusFailures.delete(key);
       const overlay=document.getElementById('control-overlay');
-      if(overlay&&overlay.style.display==='flex'&&controlSeccion===type&&controlDiaSel===day&&
+      if(overlay&&overlay.style.display==='flex'&&controlSeccion===type&&controlQCDiaVisible(day)&&
          !document.querySelector('#qco-inline'))window.renderControlContent(overlay);
       return true;
     }catch(error){
