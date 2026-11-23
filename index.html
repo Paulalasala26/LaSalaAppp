@@ -7272,37 +7272,46 @@ function marcarControlQCMedido(ref){
   entry.confirmados=entry.confirmados||Object.create(null);
   entry.estados[ref.id]=true;
   entry.partidas[ref.id]=ref.partida;
-  // Protege la confirmación local si una lectura iniciada antes del guardado
-  // termina después y todavía devuelve el estado anterior.
   entry.confirmados[ref.id]=ref.partida;
   entry.at=Date.now();
-  // Actualizar el estado visible sin cerrar la ficha de cantidades.
+
+  // Reflejar el guardado en la tarjeta aunque la ficha de cantidades siga abierta.
   const overlay=document.getElementById('control-overlay');
-  if(overlay && controlSeccion===ref.tipo && controlDiaSel===ref.dia){
-    if(document.querySelector('#qco-inline')){
-      const card=document.getElementById('control-card-'+ref.id);
-      const ident=card?.querySelector('.qc-card-ident');
-      if(ident){
-        let badge=ident.querySelector('.qc-card-medido');
-        if(!badge){
-          badge=document.createElement('span');
-          badge.className='qc-card-medido';
-          const anchor=ident.querySelector('.qc-card-ident-head')||ident.querySelector('.qc-card-partida');
-          if(anchor)anchor.insertAdjacentElement('afterend',badge);
-          else ident.prepend(badge);
-        }
-        badge.textContent='✓ QC realizado';
-      }
-      let rows=controlChecksData.filter(c=>c.tipo===ref.tipo&&c.dia===ref.dia);
-      if(ref.tipo==='tunel'||ref.tipo==='carga')rows=controlLineasFiltradasInv(rows,ref.tipo);
-      const completadas=rows.filter(controlLineaFinalizadaQC).length;
-      overlay.querySelectorAll('.qc-work-counter').forEach(counter=>{
-        counter.textContent=rows.length+' partida'+(rows.length===1?'':'s')+
-          ' · '+completadas+' inspeccionada'+(completadas===1?'':'s');
-      });
-    }else renderControlContent(overlay);
+  const card=document.getElementById('control-card-'+ref.id);
+  if(card){
+    const ident=card.querySelector('.qc-card-ident')||card.querySelector('.qc-card-main')||card;
+    let badge=ident.querySelector('.qc-card-medido');
+    if(!badge){
+      badge=document.createElement('span');
+      badge.className='qc-card-medido';
+      const anchor=ident.querySelector('.qc-card-ident-head')||ident.querySelector('.qc-card-partida');
+      if(anchor)anchor.insertAdjacentElement('afterend',badge);
+      else ident.prepend(badge);
+    }
+    badge.textContent='✓ QC realizado';
+    badge.setAttribute('aria-label','Control de calidad guardado');
   }
+  if(!overlay||controlSeccion!==ref.tipo||controlDiaSel!==ref.dia)return;
+  let rows=controlChecksData.filter(c=>c.tipo===ref.tipo&&c.dia===ref.dia);
+  if(ref.tipo==='tunel'||ref.tipo==='carga')rows=controlLineasFiltradasInv(rows,ref.tipo);
+  const completadas=rows.filter(controlLineaFinalizadaQC).length;
+  const pendientes=rows.length-completadas;
+  overlay.querySelectorAll('.qc-work-counter').forEach(counter=>{
+    counter.textContent=rows.length+' partida'+(rows.length===1?'':'s')+
+      ' · '+completadas+' inspeccionada'+(completadas===1?'':'s');
+  });
+  const filtro=overlay.querySelector('.qc-list-state select');
+  if(filtro){
+    Array.from(filtro.options).forEach(option=>{
+      if(option.value==='todos')option.textContent='Todos ('+rows.length+')';
+      else if(option.value==='pendientes')option.textContent='Pendientes ('+pendientes+')';
+      else if(option.value==='completados')option.textContent='Completados ('+completadas+')';
+    });
+  }
+  // Sin ficha abierta, el repintado vuelve a calcular también las tarjetas.
+  if(!document.querySelector('#qco-inline'))renderControlContent(overlay);
 }
+window.marcarControlQCMedido=marcarControlQCMedido;
 async function cargarEstadosQCDia(tipo,dia,registros){
   if(!registros.length||!(currentUserRole==='ADMIN'||currentUserRole==='TECNICO'||
       (currentUserRole==='CARGADOR'&&['carga','carga_injerto'].includes(tipo))))return;
@@ -7412,6 +7421,7 @@ function renderControlFiltroYAltaHTML(tipo,dia,wizard=false){
     '<div id="nuevo-control-form-wrap"></div>';
 }
 function controlLineasFiltradasInv(lista,tipo){
+  if(tipo!=='tunel'&&tipo!=='carga')return lista;
   const selected=tipo==='carga'?controlCargaInvFiltro:controlTunelInvFiltro;
   if(!selected)return lista;
   return lista.map(c=>({c,part:tipo==='carga'?calleTramoDeCarga(c):calleTramoDeTunel(c)}))
