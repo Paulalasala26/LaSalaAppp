@@ -15562,10 +15562,14 @@ function renderRiegoGrid(invId){
   }
 
   let diasQ = riegoQuincenaDias(riegoQuincenaOffset);
-  // REGANTE solo ve el día actual
+  // REGANTE ve hoy y mañana. Se construye fuera de la quincena para no
+  // ocultar hoy cuando mañana cae en la siguiente quincena.
   if(esReganteSoloLectura && diaRegante){
-    diasQ = diasQ.filter(d => d === diaRegante);
+    diasQ = [diaRegante - 1, diaRegante];
   }
+  const etiquetaPeriodo = esReganteSoloLectura
+    ? `${riegoDiaLabelCorto(diaRegante - 1)} — ${riegoDiaLabelCorto(diaRegante)}`
+    : riegoQuincenaLabel(riegoQuincenaOffset);
 
   function buildSection(calles, secLabel){
     const nCols = calles.length;
@@ -15816,7 +15820,7 @@ function renderRiegoGrid(invId){
       <div style="font-size:14px;font-weight:800;color:#1a1e18;margin-bottom:4px;display:flex;align-items:center;gap:8px">
         <i class="ti ti-droplet" style="color:#1558a0"></i>
         ${layout.label}
-        <span style="font-size:11px;font-weight:400;color:#888">— ${riegoQuincenaLabel(riegoQuincenaOffset)}</span>
+        <span style="font-size:11px;font-weight:400;color:#888">— ${etiquetaPeriodo}</span>
       </div>
       ${histHTML}
       ${buildSection(layout.row1, 'Fila 1 — Calles ' + layout.row1[0] + ' → ' + layout.row1[layout.row1.length-1])}
