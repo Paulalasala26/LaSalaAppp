@@ -679,8 +679,14 @@
           renderIndicators(false);
           updateIndicatorVisibility();
           report('✓ Porcentajes guardados','');
-          if(typeof window.marcarControlQCMedido==='function')
-            window.marcarControlQCMedido(refAtSave);
+          // Notificar explícitamente a la lista propietaria del formulario.
+          // La llamada no afecta a la confirmación del guardado si la UI falla.
+          try{
+            if(typeof legacyApi?.onMeasurementSaved==='function')
+              legacyApi.onMeasurementSaved(refAtSave);
+            else if(typeof window.marcarControlQCMedido==='function')
+              window.marcarControlQCMedido(refAtSave);
+          }catch(notificationError){console.error('No se pudo actualizar el estado visible del QC',notificationError);}
           mostrarConfirmacionQC();
         }else{
           btn.disabled=false;
