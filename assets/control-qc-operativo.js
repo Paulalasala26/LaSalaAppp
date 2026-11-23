@@ -424,7 +424,7 @@
     const total=saved?strCount(saved.bandejasInspeccionadas):strCount(rec?.numBandejas);
     active.querySelector('.qco-total input').value=total===null?'':String(total);
     active.querySelector('.qco-total-value').textContent=total===null?'No disponible':total.toLocaleString('es-ES');
-    const savedV5=[5,6,7,8,9].includes(saved?.schemaVersion);
+    const savedV5=[5,6,7,8,9,10].includes(saved?.schemaVersion);
     const aggregate=active.querySelector('.qco-global-percent');
      for(const [cat] of CATS){
       const wrap=active.querySelector('[data-qco-cat="'+cat+'"]');
@@ -572,7 +572,7 @@
       if(!saved)return {state:'absent'};
       if(!Number.isInteger(saved.version)||saved.version<=previousVersion)
         return {state:'different'};
-      const expectedSchema=['preinjerto_patron','preinjerto_variedad'].includes(ref.tipo)?9:ref.tipo==='carga_injerto'?8:ref.tipo==='carga'?7:6;
+      const expectedSchema=['preinjerto_patron','preinjerto_variedad'].includes(ref.tipo)?9:10;
       const same=saved.schemaVersion===expectedSchema&&
         saved.porcentajeInvalidasGlobal===expected.porcentajeInvalidasGlobal&&
         Object.keys(expected.categorias).every(cat=>JSON.stringify(saved.categorias?.[cat])===JSON.stringify(expected.categorias[cat]));
@@ -621,7 +621,7 @@
         method:'POST',headers:{Authorization:'Bearer '+jwt,'Content-Type':'application/json'},
         body:JSON.stringify({
           id:record.id,tipo:record.tipo,dia:record.dia,partida:record.partida,
-          schemaVersion:['preinjerto_patron','preinjerto_variedad'].includes(record.tipo)?9:record.tipo==='carga_injerto'?8:record.tipo==='carga'?7:6,version,
+          schemaVersion:['preinjerto_patron','preinjerto_variedad'].includes(record.tipo)?9:10,version,
           categorias:checked.categorias,porcentajeInvalidasGlobal:checked.porcentajeInvalidasGlobal
         }),cache:'no-store'
       });
@@ -638,7 +638,7 @@
       const data=await r.json();
       if(!data.ok||!Number.isInteger(data.version))throw Error('INVALID_RESPONSE');
       version=data.version;original=JSON.stringify(snapshot());initialSnapshot=original;
-      savedMeasurement={schemaVersion:['preinjerto_patron','preinjerto_variedad'].includes(record.tipo)?9:record.tipo==='carga_injerto'?8:record.tipo==='carga'?7:6,version,
+      savedMeasurement={schemaVersion:['preinjerto_patron','preinjerto_variedad'].includes(record.tipo)?9:10,version,
         categorias:checked.categorias,porcentajeInvalidasGlobal:checked.porcentajeInvalidasGlobal};
       confirmed=true;
     }catch(err){
