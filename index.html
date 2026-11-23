@@ -7276,11 +7276,32 @@ function marcarControlQCMedido(ref){
   // termina después y todavía devuelve el estado anterior.
   entry.confirmados[ref.id]=ref.partida;
   entry.at=Date.now();
-  // Actualizar estado sin regenerar ni cerrar el formulario todavía activo.
+  // Actualizar el estado visible sin cerrar la ficha de cantidades.
   const overlay=document.getElementById('control-overlay');
-  if(overlay && controlSeccion===ref.tipo && controlDiaSel===ref.dia &&
-     !document.querySelector('#qco-inline'))
-    renderControlContent(overlay);
+  if(overlay && controlSeccion===ref.tipo && controlDiaSel===ref.dia){
+    if(document.querySelector('#qco-inline')){
+      const card=document.getElementById('control-card-'+ref.id);
+      const ident=card?.querySelector('.qc-card-ident');
+      if(ident){
+        let badge=ident.querySelector('.qc-card-medido');
+        if(!badge){
+          badge=document.createElement('span');
+          badge.className='qc-card-medido';
+          const anchor=ident.querySelector('.qc-card-ident-head')||ident.querySelector('.qc-card-partida');
+          if(anchor)anchor.insertAdjacentElement('afterend',badge);
+          else ident.prepend(badge);
+        }
+        badge.textContent='✓ QC realizado';
+      }
+      let rows=controlChecksData.filter(c=>c.tipo===ref.tipo&&c.dia===ref.dia);
+      if(ref.tipo==='tunel'||ref.tipo==='carga')rows=controlLineasFiltradasInv(rows,ref.tipo);
+      const completadas=rows.filter(controlLineaFinalizadaQC).length;
+      overlay.querySelectorAll('.qc-work-counter').forEach(counter=>{
+        counter.textContent=rows.length+' partida'+(rows.length===1?'':'s')+
+          ' · '+completadas+' inspeccionada'+(completadas===1?'':'s');
+      });
+    }else renderControlContent(overlay);
+  }
 }
 async function cargarEstadosQCDia(tipo,dia,registros){
   if(!registros.length||!(currentUserRole==='ADMIN'||currentUserRole==='TECNICO'||
