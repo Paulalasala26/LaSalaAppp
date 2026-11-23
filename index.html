@@ -10588,16 +10588,15 @@ function abrirAplicarEspecificoAPartidas(){
             </select>
           </label>
           <label style="font-size:11px;font-weight:700;color:#34577f">Tratamiento
-            <select id="eap-trat" required style="display:block;width:100%;min-width:0;margin-top:3px;padding:8px 5px;border:1px solid #b4cae1;border-radius:6px;font-size:12px;background:#fff">
+            <select id="eap-trat" required onchange="actualizarDosisEspecificoUI('eap-trat','eap-dosis-sugeridas','eap-dosis-ayuda')" style="display:block;width:100%;min-width:0;margin-top:3px;padding:8px 5px;border:1px solid #b4cae1;border-radius:6px;font-size:12px;background:#fff">
               <option value="">—</option>
               ${ESPECIFICO_TRATAMIENTOS.map(t=>`<option value="${t}">${t}</option>`).join('')}
             </select>
           </label>
           <label style="font-size:11px;font-weight:700;color:#34577f">Dosis
-            <select id="eap-dosis" required style="display:block;width:100%;min-width:0;margin-top:3px;padding:8px 5px;border:1px solid #b4cae1;border-radius:6px;font-size:12px;background:#fff">
-              <option value="">—</option>
-              ${ESPECIFICO_DOSIS.map(d=>`<option value="${d}">${d}</option>`).join('')}
-            </select>
+            <input id="eap-dosis" required list="eap-dosis-sugeridas" type="text" inputmode="decimal" placeholder="Ej.: 1,5" oninput="actualizarDosisEspecificoUI('eap-trat','eap-dosis-sugeridas','eap-dosis-ayuda')" style="display:block;width:100%;min-width:0;margin-top:3px;padding:8px 5px;border:1px solid #b4cae1;border-radius:6px;font-size:12px;background:#fff">
+              <datalist id="eap-dosis-sugeridas">${ESPECIFICO_DOSIS.filter(x=>x!=='4').map(d=>`<option value="${d}"></option>`).join('')}</datalist>
+              <div id="eap-dosis-ayuda" style="font-size:10px;color:#516779;margin-top:4px;line-height:1.3">Introduce una dosis numérica; admite decimales.</div>
           </label>
         </div>
         <label style="display:block;font-size:11px;font-weight:700;color:#34577f;margin-top:9px">Caldo inicial
@@ -10613,6 +10612,7 @@ function abrirAplicarEspecificoAPartidas(){
       </div>
     </div>`;
   overlay.style.display = 'flex';
+  actualizarDosisEspecificoUI('eap-trat','eap-dosis-sugeridas','eap-dosis-ayuda');
 }
 // §0.150: cada alta desde Partidas tiene identidad propia, incluso si
 // dos partidas comparten una calle. La cuadrícula sigue leyendo "texto".
@@ -10805,11 +10805,12 @@ async function aplicarEspecificoAPartidasSeleccionadas(){
   if(boton?.disabled)return;
   const dia=Number(document.getElementById('eap-dia')?.value);
   const trat=document.getElementById('eap-trat')?.value||'';
-  const dosis=document.getElementById('eap-dosis')?.value||'';
+  const dosis=normalizarDosisEspecifico(document.getElementById('eap-dosis')?.value||'');
   const horario=document.getElementById('eap-horario')?.value||'';
   const caldoLitros=parseFloat(document.getElementById('eap-caldo')?.value)||null;
+  const dosisValidada=normalizarDosisEspecifico(dosis);
   if(!Number.isInteger(dia)||!ESPECIFICO_TRATAMIENTOS.includes(trat)||
-     !ESPECIFICO_DOSIS.includes(dosis)){showToast('Selecciona tratamiento, dosis y día.');return;}
+     !dosisValidada){showToast('Selecciona tratamiento y una dosis numérica válida.');return;}
   const caldoLabel=caldoLitros?
     (FITO_CALDO_OPCIONES.find(x=>x.litros===caldoLitros)?.label||caldoLitros+'L'):'';
   const ids=[...partidasEspecificoSeleccion];
@@ -10881,13 +10882,13 @@ function editarEspecificoPartidaBanner(partidaId, idx){
         ${diasRango.map(d=>`<option value="${d}"${fechaLocalISO(riegoDiaToDate(d))===e.fechaISO?' selected':''}>${escapar(riegoDiaLabelCorto(d))} — ${escapar(riegoDiaSemana(d))}</option>`).join('')}
       </select>
       <label style="font-size:11px;font-weight:700;color:var(--muted)">Tratamiento</label>
-      <select id="eeb-trat" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;margin:4px 0 10px">
+      <select id="eeb-trat" onchange="actualizarDosisEspecificoUI('eeb-trat','eeb-dosis-sugeridas','eeb-dosis-ayuda')" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;margin:4px 0 10px">
         ${ESPECIFICO_TRATAMIENTOS.map(t=>`<option value="${t}"${t===e.trat?' selected':''}>${t}</option>`).join('')}
       </select>
       <label style="font-size:11px;font-weight:700;color:var(--muted)">Dosis</label>
-      <select id="eeb-dosis" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;margin:4px 0 10px">
-        ${ESPECIFICO_DOSIS.map(d=>`<option value="${d}"${d===e.dosis?' selected':''}>${d}</option>`).join('')}
-      </select>
+      <input id="eeb-dosis" list="eeb-dosis-sugeridas" type="text" inputmode="decimal" value="${escapar(e.dosis||'')}" placeholder="Ej.: 1,5" oninput="actualizarDosisEspecificoUI('eeb-trat','eeb-dosis-sugeridas','eeb-dosis-ayuda')" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;margin:4px 0 4px">
+      <datalist id="eeb-dosis-sugeridas">${ESPECIFICO_DOSIS.filter(x=>x!=='4').map(d=>`<option value="${d}"></option>`).join('')}</datalist>
+      <div id="eeb-dosis-ayuda" style="font-size:10px;color:var(--muted);margin:0 0 10px;line-height:1.3"></div>
       <label style="font-size:11px;font-weight:700;color:var(--muted)">Horario</label>
       <select id="eeb-horario" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;margin:4px 0 14px">
         <option value=""${!e.horario?' selected':''}>—</option>
@@ -10902,6 +10903,7 @@ function editarEspecificoPartidaBanner(partidaId, idx){
       </div>
     </div>`;
   overlay.style.display = 'flex';
+  actualizarDosisEspecificoUI('eeb-trat','eeb-dosis-sugeridas','eeb-dosis-ayuda');
 }
 async function guardarEspecificoPartidaBanner(partidaId,idx){
   const original=especificosPartidaData[partidaId]?.[idx];
@@ -10912,10 +10914,11 @@ async function guardarEspecificoPartidaBanner(partidaId,idx){
   }
   const dia=Number(document.getElementById('eeb-dia')?.value);
   const trat=document.getElementById('eeb-trat')?.value||'';
-  const dosis=document.getElementById('eeb-dosis')?.value||'';
+  const dosis=normalizarDosisEspecifico(document.getElementById('eeb-dosis')?.value||'');
   const horario=document.getElementById('eeb-horario')?.value||'';
+  const dosisValidada=normalizarDosisEspecifico(dosis);
   if(!Number.isInteger(dia)||!ESPECIFICO_TRATAMIENTOS.includes(trat)||
-    !ESPECIFICO_DOSIS.includes(dosis)){showToast('Selecciona día, tratamiento y dosis.');return;}
+    !dosisValidada){showToast('Selecciona día, tratamiento y una dosis numérica válida.');return;}
   const nuevo={...original,partidaId,trat,dosis,horario,dia,
     fechaLabel:riegoDiaLabelCorto(dia),fechaISO:fechaLocalISO(riegoDiaToDate(dia))};
   try{
@@ -22224,8 +22227,29 @@ async function saveEspecificosPartidaData(){
 }
 let especificosInvSel = null;
 let especificosQuincenaOffset = 0;
-const ESPECIFICO_TRATAMIENTOS = ['TC','MB','PP'];
-const ESPECIFICO_DOSIS = ['0.5','1','2','3'];
+const ESPECIFICO_TRATAMIENTOS = ['TC','MB','PP','PX','Folicur'];
+const ESPECIFICO_DOSIS = ['0.5','1','1.5','2','2.5','3','4'];
+function normalizarDosisEspecifico(valor){
+  const texto=String(valor??'').trim().replace(',','.');
+  if(!texto)return '';
+  if(!/^\\d+(?:\\.\\d{1,3})?$/.test(texto))return null;
+  const numero=Number(texto);
+  if(!Number.isFinite(numero)||numero<=0||numero>100)return null;
+  return String(numero);
+}
+function actualizarDosisEspecificoUI(tratId,listaId,ayudaId){
+  const trat=document.getElementById(tratId)?.value||'';
+  const lista=document.getElementById(listaId);
+  const ayuda=document.getElementById(ayudaId);
+  const opciones=trat==='Folicur'?['0.025','0.2','0.5','0.75']:
+    trat==='PX'?['4']:ESPECIFICO_DOSIS.filter(x=>x!=='4');
+  if(lista)lista.innerHTML=opciones.map(x=>'<option value="'+x+'"></option>').join('');
+  if(ayuda)ayuda.textContent=trat==='Folicur'
+    ?'Folicur: sandía 0,025–0,2; calabazas 0,5–0,75.'
+    :trat==='PX'?'Dosis indicada para PX: 4.':
+    ['TC','MB','PP'].includes(trat)?'Valores indicados: 0,5; 1; 1,5; 2; 2,5; 3.':
+    'Introduce una dosis numérica; admite decimales.';
+}
 const ESPECIFICO_HORARIOS = ['POR LA MAÑANA','17:00','18:00','19:00','19:30','20:00'];
 const ESPECIFICO_TIPOS = ['PASE RÁPIDO + MONTONES','PASE NORMAL','PASE NORMAL + MONTONES','MONTONES'];
 
@@ -23065,18 +23089,16 @@ function showEspecificoManualForm(opciones={}){
             </select>
           </label>
           <label style="font-size:11px;font-weight:700;color:#1558a0">Tratamiento
-            <select id="esp-trat" style="display:block;width:100%;margin-top:3px;min-height:40px;padding:7px;
+            <select id="esp-trat" onchange="actualizarDosisEspecificoUI('esp-trat','esp-dosis-sugeridas','esp-dosis-ayuda')" style="display:block;width:100%;margin-top:3px;min-height:40px;padding:7px;
               border:1.5px solid #a8c4e8;border-radius:7px;background:#fff;font-size:13px">
               <option value="">—</option>
               ${ESPECIFICO_TRATAMIENTOS.map(t=>`<option value="${t}">${t}</option>`).join('')}
             </select>
           </label>
           <label style="font-size:11px;font-weight:700;color:#1558a0">Dosis
-            <select id="esp-dosis" onchange="actualizarGastoEspecificoManual()" style="display:block;width:100%;margin-top:3px;
-              min-height:40px;padding:7px;border:1.5px solid #a8c4e8;border-radius:7px;background:#fff;font-size:13px">
-              <option value="">—</option>
-              ${ESPECIFICO_DOSIS.map(d=>`<option value="${d}">${d}</option>`).join('')}
-            </select>
+            <input id="esp-dosis" list="esp-dosis-sugeridas" type="text" inputmode="decimal" placeholder="Ej.: 1,5" oninput="actualizarGastoEspecificoManual();actualizarDosisEspecificoUI('esp-trat','esp-dosis-sugeridas','esp-dosis-ayuda')" style="display:block;width:100%;margin-top:3px;min-height:40px;padding:7px;border:1.5px solid #a8c4e8;border-radius:7px;background:#fff;font-size:13px">
+              <datalist id="esp-dosis-sugeridas">${ESPECIFICO_DOSIS.filter(x=>x!=='4').map(d=>`<option value="${d}"></option>`).join('')}</datalist>
+              <div id="esp-dosis-ayuda" style="font-size:10px;color:#516779;margin-top:4px;line-height:1.3"></div>
           </label>
         </div>
         <label style="font-size:11px;font-weight:700;color:#1558a0">Caldo inicial
@@ -23103,11 +23125,12 @@ function showEspecificoManualForm(opciones={}){
       </footer>
     </div>`;
   mo.style.display='flex';
+  actualizarDosisEspecificoUI('esp-trat','esp-dosis-sugeridas','esp-dosis-ayuda');
   if(!desdeCelda&&!desdeResumenFicha)renderEspBulkPanels();
 }
 
 function actualizarGastoEspecificoManual(){
-  const dosis = parseFloat(document.getElementById('esp-dosis')?.value);
+  const dosis = parseFloat(normalizarDosisEspecifico(document.getElementById('esp-dosis')?.value));
   const caldo = parseFloat(document.getElementById('esp-caldo')?.value);
   const el = document.getElementById('esp-gasto-preview');
   if(!el) return;
@@ -23687,7 +23710,8 @@ async function saveEspecificoManual(){
   if(espResumenFichaContext&&dia!==espResumenFichaContext.dia){showToast('La fecha de este específico no se cambia desde esta ficha.');return;}
   if(!esDiaEspecificoEditable(dia)){showToast('Fecha fuera de rango: no se pueden registrar específicos en ese día.');return;}
   const trat=document.getElementById('esp-trat')?.value||'';
-  const dosis=document.getElementById('esp-dosis')?.value||'';
+  const dosis=normalizarDosisEspecifico(document.getElementById('esp-dosis')?.value||'');
+  if(dosis===null){showToast('Introduce una dosis numérica válida, con coma o punto decimal.');return;}
   const horario=document.getElementById('esp-horario')?.value||'';
   const caldoLitros=parseFloat(document.getElementById('esp-caldo')?.value)||null;
   const caldoLabel=caldoLitros?((FITO_CALDO_OPCIONES.find(o=>o.litros===caldoLitros)||{}).label||caldoLitros+'L'):'';
@@ -23866,7 +23890,7 @@ function parsearTextoEspecifico(texto){
   let resto = firstIdx===-1 ? '' : base.slice(firstIdx+3);
 
   const m = ESPECIFICO_TRATAMIENTOS.find(t=>primerTrozo===t || primerTrozo.startsWith(t+' '));
-  if(m){ trat = m; const r = primerTrozo.slice(m.length).trim(); if(ESPECIFICO_DOSIS.includes(r)) dosis = r; }
+  if(m){ trat = m; const r = primerTrozo.slice(m.length).trim(); if(/^\\d+(?:[.,]\\d{1,3})?$/.test(r)) dosis = normalizarDosisEspecifico(r)||''; }
 
   if(resto){
     const h = ESPECIFICO_HORARIOS.find(hh=>resto===hh || resto.startsWith(hh+' + '));
