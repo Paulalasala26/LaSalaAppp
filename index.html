@@ -328,7 +328,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 <link rel="stylesheet" href="assets/qc-edit-linea-v3.css?v=108">
 <link rel="stylesheet" href="assets/control-ui-cards.css?v=109">
 <style>
-.qc-card-medido{display:inline-block;font-size:11px;font-weight:800;color:#1558a0;margin-top:4px}
+.qc-card-medido{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:800;color:#1b5e20;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:999px;padding:3px 8px;margin-top:4px}
 .qc-card-ident-head{display:flex;align-items:flex-start;gap:8px}
 .qc-card-ident-head .qc-card-partida{flex:1;min-width:0}
 .qc-card-header-actions{display:flex;gap:5px;flex:none}
@@ -7065,7 +7065,7 @@ function renderControlIdentidadQC(c,estadoWizard=false){
   const principal=tunel?c.clienteVariedad:c.cliente;
   const inspeccionada=qcEstadoCuantificado(c);
   const legacyCompletada=estadoWizard&&!inspeccionada&&controlLineaCompletada(c);
-  const status=inspeccionada?'<span class="qc-card-medido">✓ Inspeccionado</span>':
+  const status=inspeccionada?'<span class="qc-card-medido">✓ QC realizado</span>':
     legacyCompletada?'<span class="qc-card-medido">✓ Completado</span>':'';
   if(mostrarAccionesCabecera){
     const id=esc(c.id);
@@ -7258,14 +7258,24 @@ function qcEstadoCuantificado(c){
 }
 function controlLineaFinalizadaQC(c){return controlLineaCompletada(c)||qcEstadoCuantificado(c);}
 function marcarControlQCMedido(ref){
-  if(!ref||!['tunel','carga'].includes(ref.tipo))return;
+  const tiposQC=['tunel','carga','carga_injerto','preinjerto_patron','preinjerto_variedad'];
+  if(!ref||!tiposQC.includes(ref.tipo)||!Number.isInteger(ref.dia)||
+     typeof ref.id!=='string'||!ref.id||typeof ref.partida!=='string'||!ref.partida)return;
   const key=claveEstadosQC(ref.tipo,ref.dia);
-  const entry=controlQCEstados.get(key);
-  if(entry){
-    entry.estados[ref.id]=true;
-    entry.partidas[ref.id]=ref.partida;
-    entry.at=Date.now();
+  let entry=controlQCEstados.get(key);
+  if(!entry||typeof entry!=='object'){
+    entry={estados:Object.create(null),partidas:Object.create(null),confirmados:Object.create(null),at:0};
+    controlQCEstados.set(key,entry);
   }
+  entry.estados=entry.estados||Object.create(null);
+  entry.partidas=entry.partidas||Object.create(null);
+  entry.confirmados=entry.confirmados||Object.create(null);
+  entry.estados[ref.id]=true;
+  entry.partidas[ref.id]=ref.partida;
+  // Protege la confirmación local si una lectura iniciada antes del guardado
+  // termina después y todavía devuelve el estado anterior.
+  entry.confirmados[ref.id]=ref.partida;
+  entry.at=Date.now();
   // Actualizar estado sin regenerar ni cerrar el formulario todavía activo.
   const overlay=document.getElementById('control-overlay');
   if(overlay && controlSeccion===ref.tipo && controlDiaSel===ref.dia &&
@@ -7274,7 +7284,7 @@ function marcarControlQCMedido(ref){
 }
 async function cargarEstadosQCDia(tipo,dia,registros){
   if(!registros.length||!(currentUserRole==='ADMIN'||currentUserRole==='TECNICO'||
-      (currentUserRole==='CARGADOR'&&tipo==='carga')))return;
+      (currentUserRole==='CARGADOR'&&['carga','carga_injerto'].includes(tipo))))return;
   const key=claveEstadosQC(tipo,dia);
   if(controlQCEstadosCargando.has(key))return;
   const vistos=new Set();
@@ -7305,9 +7315,16 @@ async function cargarEstadosQCDia(tipo,dia,registros){
       Object.entries(data.estados).forEach(([id,value])=>{resultados[id]=value===true;});
     }
     if(user!==currentUser)return;
-    const partidas=Object.create(null);
-    firmados.forEach(c=>{partidas[c.id]=c.partida});
-    controlQCEstados.set(key,{signature,estados:resultados,partidas,at:Date.now()});
+    const partidas=Object.create(null),confirmados=Object.create(null);
+    const estadoAnterior=controlQCEstados.get(key);
+    firmados.forEach(c=>{
+      partidas[c.id]=c.partida;
+      if(estadoAnterior?.confirmados?.[c.id]===c.partida){
+        confirmados[c.id]=c.partida;
+        resultados[c.id]=true;
+      }
+    });
+    controlQCEstados.set(key,{signature,estados:resultados,partidas,confirmados,at:Date.now()});
     controlQCEstadosUltimoError.delete(key);
     const overlay=document.getElementById('control-overlay');
     if(overlay && overlay.style.display==='flex' && controlSeccion===tipo && controlDiaSel===dia &&
