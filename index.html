@@ -10588,7 +10588,7 @@ function abrirAplicarEspecificoAPartidas(){
             </select>
           </label>
           <label style="font-size:11px;font-weight:700;color:#34577f">Tratamiento
-            <select id="eap-trat" required onchange="actualizarDosisEspecificoUI('eap-trat','eap-dosis-sugeridas','eap-dosis-ayuda')" style="display:block;width:100%;min-width:0;margin-top:3px;padding:8px 5px;border:1px solid #b4cae1;border-radius:6px;font-size:12px;background:#fff">
+            <select id="eap-trat" required onchange="actualizarDosisEspecificoUI('eap-trat','eap-dosis','eap-dosis-ayuda')" style="display:block;width:100%;min-width:0;margin-top:3px;padding:8px 5px;border:1px solid #b4cae1;border-radius:6px;font-size:12px;background:#fff">
               <option value="">—</option>
               ${ESPECIFICO_TRATAMIENTOS.map(t=>`<option value="${t}">${t}</option>`).join('')}
             </select>
@@ -10613,7 +10613,7 @@ function abrirAplicarEspecificoAPartidas(){
       </div>
     </div>`;
   overlay.style.display = 'flex';
-  actualizarDosisEspecificoUI('eap-trat','eap-dosis-sugeridas','eap-dosis-ayuda');
+  actualizarDosisEspecificoUI('eap-trat','eap-dosis','eap-dosis-ayuda');
 }
 // §0.150: cada alta desde Partidas tiene identidad propia, incluso si
 // dos partidas comparten una calle. La cuadrícula sigue leyendo "texto".
@@ -10883,7 +10883,7 @@ function editarEspecificoPartidaBanner(partidaId, idx){
         ${diasRango.map(d=>`<option value="${d}"${fechaLocalISO(riegoDiaToDate(d))===e.fechaISO?' selected':''}>${escapar(riegoDiaLabelCorto(d))} — ${escapar(riegoDiaSemana(d))}</option>`).join('')}
       </select>
       <label style="font-size:11px;font-weight:700;color:var(--muted)">Tratamiento</label>
-      <select id="eeb-trat" onchange="actualizarDosisEspecificoUI('eeb-trat','eeb-dosis-sugeridas','eeb-dosis-ayuda')" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;margin:4px 0 10px">
+      <select id="eeb-trat" onchange="actualizarDosisEspecificoUI('eeb-trat','eeb-dosis','eeb-dosis-ayuda')" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;margin:4px 0 10px">
         ${ESPECIFICO_TRATAMIENTOS.map(t=>`<option value="${t}"${t===e.trat?' selected':''}>${t}</option>`).join('')}
       </select>
       <label style="font-size:11px;font-weight:700;color:var(--muted)">Dosis</label>
@@ -10906,7 +10906,7 @@ function editarEspecificoPartidaBanner(partidaId, idx){
       </div>
     </div>`;
   overlay.style.display = 'flex';
-  actualizarDosisEspecificoUI('eeb-trat','eeb-dosis-sugeridas','eeb-dosis-ayuda');
+  actualizarDosisEspecificoUI('eeb-trat','eeb-dosis','eeb-dosis-ayuda');
 }
 async function guardarEspecificoPartidaBanner(partidaId,idx){
   const original=especificosPartidaData[partidaId]?.[idx];
@@ -15124,7 +15124,7 @@ function abrirEditarFichaResumenEspecifico(f){
   espPendingBulkConfig=bulk;
   showEspecificoManualForm({desdeResumenFicha:true,resumenFichaContext:{dia:f.dia,porInv},diaSeleccionado:f.dia});
   document.getElementById('esp-trat').value=parsed.trat;
-  actualizarDosisEspecificoUI('esp-trat','esp-dosis-sugeridas','esp-dosis-ayuda');
+  actualizarDosisEspecificoUI('esp-trat','esp-dosis','esp-dosis-ayuda');
   document.getElementById('esp-dosis').value=parsed.dosis;
   document.getElementById('esp-horario').value=parsed.horario;
   if(f.raw && typeof f.raw==='object' && f.raw.caldoLitros)
@@ -22679,7 +22679,7 @@ async function aplicarSugerenciaEspecifico(invId, calle, sugerencia){
   showEspecificoManualForm({diaSeleccionado:dia});
   document.getElementById('esp-dia').value = dia;
   document.getElementById('esp-trat').value = sugerencia;
-  actualizarDosisEspecificoUI('esp-trat','esp-dosis-sugeridas','esp-dosis-ayuda');
+  actualizarDosisEspecificoUI('esp-trat','esp-dosis','esp-dosis-ayuda');
   renderEspecificosGrid(invId);
 }
 
@@ -22901,7 +22901,7 @@ function abrirEspecificoDesdeCelda(invId,dia,calles){
   }
   if(parsed){
     document.getElementById('esp-trat').value=parsed.trat;
-    actualizarDosisEspecificoUI('esp-trat','esp-dosis-sugeridas','esp-dosis-ayuda');
+    actualizarDosisEspecificoUI('esp-trat','esp-dosis','esp-dosis-ayuda');
     document.getElementById('esp-dosis').value=parsed.dosis;
     document.getElementById('esp-horario').value=parsed.horario;
   }
@@ -23104,7 +23104,7 @@ function showEspecificoManualForm(opciones={}){
             </select>
           </label>
           <label style="font-size:11px;font-weight:700;color:#1558a0">Tratamiento
-            <select id="esp-trat" onchange="actualizarDosisEspecificoUI('esp-trat','esp-dosis-sugeridas','esp-dosis-ayuda')" style="display:block;width:100%;margin-top:3px;min-height:40px;padding:7px;
+            <select id="esp-trat" onchange="actualizarDosisEspecificoUI('esp-trat','esp-dosis','esp-dosis-ayuda')" style="display:block;width:100%;margin-top:3px;min-height:40px;padding:7px;
               border:1.5px solid #a8c4e8;border-radius:7px;background:#fff;font-size:13px">
               <option value="">—</option>
               ${ESPECIFICO_TRATAMIENTOS.map(t=>`<option value="${t}">${t}</option>`).join('')}
@@ -23141,7 +23141,7 @@ function showEspecificoManualForm(opciones={}){
       </footer>
     </div>`;
   mo.style.display='flex';
-  actualizarDosisEspecificoUI('esp-trat','esp-dosis-sugeridas','esp-dosis-ayuda');
+  actualizarDosisEspecificoUI('esp-trat','esp-dosis','esp-dosis-ayuda');
   if(!desdeCelda&&!desdeResumenFicha)renderEspBulkPanels();
 }
 
