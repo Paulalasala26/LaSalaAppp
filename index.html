@@ -6470,6 +6470,51 @@ async function guardarControlPdf(tipo, dia, nombre, pdfB64){
 let controlSeccion = null;
 let controlQuincenaOffset = 0;
 let controlDiaSel = null;
+let controlSemanaBaseDia=null,controlSemanaOffset=0;
+const controlDiasSemanaSeleccionados=new Set();
+const controlQCSemanasCargadas=new Set(),controlQCSemanasCargando=new Map();
+function controlQCInicioSemana(){if(!Number.isInteger(controlSemanaBaseDia))controlSemanaBaseDia=riegoDiaDeHoy();return controlSemanaBaseDia+controlSemanaOffset*7;}
+function controlQCDiasDeSemana(inicio=controlQCInicioSemana()){return Array.from({length:7},(_,i)=>inicio+i);}
+function controlQCDiasIncluidos(inicio=controlQCInicioSemana()){const dias=controlQCDiasDeSemana(inicio),sel=dias.filter(d=>controlDiasSemanaSeleccionados.has(d));return sel.length?sel:dias;}
+function controlQCDiaVisible(dia){const dias=controlQCDiasDeSemana();return dias.includes(dia)&&(!controlDiasSemanaSeleccionados.size||controlDiasSemanaSeleccionados.has(dia));}
+function controlQCLabelSemana(inicio=controlQCInicioSemana()){
+  const a=riegoDiaToDate(inicio),b=riegoDiaToDate(inicio+6),fmt=new Intl.DateTimeFormat('es-ES',{month:'short',year:'numeric'});
+  return a.getMonth()===b.getMonth()&&a.getFullYear()===b.getFullYear()
+    ?a.getDate()+'–'+b.getDate()+' '+fmt.format(b)
+    :new Intl.DateTimeFormat('es-ES',{day:'numeric',month:'short'}).format(a)+' – '+new Intl.DateTimeFormat('es-ES',{day:'numeric',month:'short',year:'numeric'}).format(b);
+}
+async function cargarSemanaQC(tipo,inicio){
+  if(!['tunel','carga','carga_injerto','preinjerto_patron','preinjerto_variedad'].includes(tipo))return true;
+  const key=tipo+'|'+inicio;if(controlQCSemanasCargadas.has(key))return true;
+  if(controlQCSemanasCargando.has(key))return controlQCSemanasCargando.get(key);
+  const qs=[...new Set(controlQCDiasDeSemana(inicio).map(d=>Math.max(0,Math.floor((d-15)/14))))].sort((a,b)=>a-b);
+  const task=(async()=>{for(const q of qs)if(!(await loadControlSeccionSlice(tipo,q,false))return false;return true;})();
+  controlQCSemanasCargando.set(key,task);const ok=await task;controlQCSemanasCargando.delete(key);if(ok)controlQCSemanasCargadas.add(key);return ok;
+}
+async function cambiarSemanaControlQC(delta){
+  if(!Number.isInteger(controlSemanaBaseDia))controlSemanaBaseDia=riegoDiaDeHoy();
+  const offset=controlSemanaOffset+delta,inicio=controlSemanaBaseDia+offset*7;if(inicio<15)return;
+  return navegarControlQC(async()=>{
+    if(controlSeccion&&!(await cargarSemanaQC(controlSeccion,inicio))){avisarFalloCarga();return;}
+    controlSemanaOffset=offset;controlDiasSemanaSeleccionados.clear();controlDiaSel=inicio;
+    controlQuincenaOffset=Math.max(0,Math.floor((inicio-15)/14));
+    renderControlContent(document.getElementById('control-overlay'));
+  });
+}
+async function alternarDiaSemanaControlQC(dia){
+  const inicio=controlQCInicioSemana();if(!controlQCDiasDeSemana(inicio).includes(dia))return;
+  return navegarControlQC(()=>{
+    if(controlDiasSemanaSeleccionados.has(dia))controlDiasSemanaSeleccionados.delete(dia);else controlDiasSemanaSeleccionados.add(dia);
+    const sel=controlQCDiasDeSemana(inicio).filter(d=>controlDiasSemanaSeleccionados.has(d));
+    controlDiaSel=sel.length?(controlDiasSemanaSeleccionados.has(dia)?dia:sel[0]):inicio;
+    controlQuincenaOffset=Math.max(0,Math.floor((controlDiaSel-15)/14));
+    renderControlContent(document.getElementById('control-overlay'));
+  });
+}
+async function limpiarDiasSemanaControlQC(){
+  if(!controlDiasSemanaSeleccionados.size)return;
+  return navegarControlQC(()=>{controlDiasSemanaSeleccionados.clear();controlDiaSel=controlQCInicioSemana();renderControlContent(document.getElementById('control-overlay'));});
+}
 // Navegador compartido de fechas QC: Túnel, Carga, Ginés y jornadas vacías.
 function renderControlQCDateNav(offset,selected,mode){
   const wizard=mode==='wizard';
@@ -6500,7 +6545,23 @@ function renderControlQCDateNav(offset,selected,mode){
     '</section>';
 }
 /* 0.106 QC Túnel: fecha elegible, paneles e impresión; Carga usa navegador anterior. */
-function qcFechaHTML(modo){
+function renderControlQCWeekNav(){
+ const inicio=controlQCInicioSemana(),dias=controlQCDiasDeSemana(inicio),label=controlQCLabelSemana(inicio);
+ const buttons=dias.map(d=>{
+   const f=riegoDiaToDate(d),weekday=new Intl.DateTimeFormat('es-ES',{weekday:'short'}).format(f).replace(/\\./g,'').toUpperCase();
+   const active=controlDiasSemanaSeleccionados.has(d);
+   const aria=new Intl.DateTimeFormat('es-ES',{weekday:'long',day:'numeric',month:'long'}).format(f).replace(/"/g,'&quot;');
+   return '<button type="button" class="qc-date-day'+(active?' is-active':'')+'" data-qc-day="'+d+'" aria-pressed="'+(active?'true':'false')+'" aria-label="Seleccionar '+aria+'" onclick="alternarDiaSemanaControlQC('+d+')"><span class="qc-date-day-date">'+f.getDate()+'</span><span class="qc-date-day-weekday">'+weekday+'</span></button>';
+ }).join('');
+ const clear=controlDiasSemanaSeleccionados.size?'<button type="button" class="qc-date-arrow" title="Limpiar días seleccionados" aria-label="Mostrar semana completa" onclick="limpiarDiasSemanaControlQC()" style="min-width:34px;width:34px;height:34px;font-size:18px;border:0;background:transparent">×</button>':'';
+ return '<section class="qc-date-nav" data-qc-period="'+inicio+'" aria-label="Selector semanal de Control de Calidad"><div class="qc-date-period">'+
+ '<button type="button" class="qc-date-arrow" onclick="cambiarSemanaControlQC(-1)"'+(inicio-7<15?' disabled':'')+' aria-label="Semana anterior">&#8249;</button>'+
+ '<span class="qc-date-period-label">'+label+'</span>'+clear+
+ '<button type="button" class="qc-date-arrow" onclick="cambiarSemanaControlQC(1)" aria-label="Semana siguiente">&#8250;</button>'+
+ '</div><div class="qc-date-days" role="group" aria-label="Seleccionar varios días">'+buttons+'</div></section>';
+}
+function qcFechaHTML(modo){return modo==='wizard'?qcFechaLegacyHTML(modo):renderControlQCWeekNav();}
+function qcFechaLegacyHTML(modo){
  const d=(modo==='wizard'?controlWizardDiaSel:controlDiaSel)??riegoDiaDeHoy();
  const iso=fechaLocalISO(riegoDiaToDate(d));
  return `<section class="qc-work-panel qc-work-date" aria-label="Selector de fecha">
@@ -6541,15 +6602,12 @@ function qcMoverDia(delta,modo){
  return qcSeleccionarFecha(fechaLocalISO(riegoDiaToDate(d+delta)),modo);
 }
 function qcImprimirDia(){
- const tipo=controlSeccion;
- if(!['tunel','carga','carga_injerto','preinjerto_patron','preinjerto_variedad'].includes(tipo))return;
- const dia=controlDiaSel;
- if(!Number.isInteger(dia))return;
- const filtradas=controlLineasFiltradasInv(controlChecksData.filter(c=>c.tipo===tipo&&c.dia===dia),tipo);
- const lista=controlFiltroEstado==='completados'?filtradas.filter(controlLineaFinalizadaQC):controlFiltroEstado==='pendientes'?filtradas.filter(c=>!controlLineaFinalizadaQC(c)):filtradas;
+ const tipo=controlSeccion;if(!['tunel','carga','carga_injerto','preinjerto_patron','preinjerto_variedad'].includes(tipo))return;
+ const dias=new Set(controlQCDiasIncluidos()),rows=controlLineasFiltradasInv(controlChecksData.filter(c=>c.tipo===tipo&&dias.has(c.dia)),tipo);
+ const lista=controlFiltroEstado==='completados'?rows.filter(controlLineaFinalizadaQC):controlFiltroEstado==='pendientes'?rows.filter(c=>!controlLineaFinalizadaQC(c)):rows;
  if(!lista.length){showToast('No hay inspecciones para imprimir.');return;}
- window.__controlListadoActual={titulo:(CONTROL_SECCIONES.find(s=>s.key===tipo)?.label||'QC')+' · '+riegoDiaLabelCorto(dia),lineas:lista};
- imprimirListadoPartidasControl();
+ const title=controlDiasSemanaSeleccionados.size?controlQCDiasIncluidos().map(d=>riegoDiaLabelCorto(d)).join(', '):'Semana '+controlQCLabelSemana();
+ window.__controlListadoActual={titulo:(CONTROL_SECCIONES.find(s=>s.key===tipo)?.label||'QC')+' · '+title,lineas:lista};imprimirListadoPartidasControl();
 }
 function qcPanel(title,content,cls){
  return `<section class="qc-work-panel ${cls||''}"><h3 class="qc-work-title">${title}</h3>${content}</section>`;
@@ -7258,58 +7316,26 @@ function qcEstadoCuantificado(c){
 }
 function controlLineaFinalizadaQC(c){return controlLineaCompletada(c)||qcEstadoCuantificado(c);}
 function marcarControlQCMedido(ref){
-  const tiposQC=['tunel','carga','carga_injerto','preinjerto_patron','preinjerto_variedad'];
-  if(!ref||!tiposQC.includes(ref.tipo)||!Number.isInteger(ref.dia)||
-     typeof ref.id!=='string'||!ref.id||typeof ref.partida!=='string'||!ref.partida)return;
-  const key=claveEstadosQC(ref.tipo,ref.dia);
-  let entry=controlQCEstados.get(key);
-  if(!entry||typeof entry!=='object'){
-    entry={estados:Object.create(null),partidas:Object.create(null),confirmados:Object.create(null),at:0};
-    controlQCEstados.set(key,entry);
-  }
-  entry.estados=entry.estados||Object.create(null);
-  entry.partidas=entry.partidas||Object.create(null);
-  entry.confirmados=entry.confirmados||Object.create(null);
-  entry.estados[ref.id]=true;
-  entry.partidas[ref.id]=ref.partida;
-  entry.confirmados[ref.id]=ref.partida;
-  entry.at=Date.now();
-
-  // Reflejar el guardado en la tarjeta aunque la ficha de cantidades siga abierta.
-  const overlay=document.getElementById('control-overlay');
-  const card=document.getElementById('control-card-'+ref.id);
-  if(card){
-    const ident=card.querySelector('.qc-card-ident')||card.querySelector('.qc-card-main')||card;
-    let badge=ident.querySelector('.qc-card-medido');
-    if(!badge){
-      badge=document.createElement('span');
-      badge.className='qc-card-medido';
-      const anchor=ident.querySelector('.qc-card-ident-head')||ident.querySelector('.qc-card-partida');
-      if(anchor)anchor.insertAdjacentElement('afterend',badge);
-      else ident.prepend(badge);
-    }
-    badge.textContent='✓ QC realizado';
-    badge.setAttribute('aria-label','Control de calidad guardado');
-  }
-  if(!overlay||controlSeccion!==ref.tipo||controlDiaSel!==ref.dia)return;
-  let rows=controlChecksData.filter(c=>c.tipo===ref.tipo&&c.dia===ref.dia);
-  if(ref.tipo==='tunel'||ref.tipo==='carga')rows=controlLineasFiltradasInv(rows,ref.tipo);
-  const completadas=rows.filter(controlLineaFinalizadaQC).length;
-  const pendientes=rows.length-completadas;
-  overlay.querySelectorAll('.qc-work-counter').forEach(counter=>{
-    counter.textContent=rows.length+' partida'+(rows.length===1?'':'s')+
-      ' · '+completadas+' inspeccionada'+(completadas===1?'':'s');
-  });
-  const filtro=overlay.querySelector('.qc-list-state select');
-  if(filtro){
-    Array.from(filtro.options).forEach(option=>{
-      if(option.value==='todos')option.textContent='Todos ('+rows.length+')';
-      else if(option.value==='pendientes')option.textContent='Pendientes ('+pendientes+')';
-      else if(option.value==='completados')option.textContent='Completados ('+completadas+')';
-    });
-  }
-  // Sin ficha abierta, el repintado vuelve a calcular también las tarjetas.
-  if(!document.querySelector('#qco-inline'))renderControlContent(overlay);
+ const tipos=['tunel','carga','carga_injerto','preinjerto_patron','preinjerto_variedad'];
+ if(!ref||!tipos.includes(ref.tipo)||!Number.isInteger(ref.dia)||typeof ref.id!=='string'||!ref.id||typeof ref.partida!=='string'||!ref.partida)return;
+ const key=claveEstadosQC(ref.tipo,ref.dia);let entry=controlQCEstados.get(key);
+ if(!entry||typeof entry!=='object'){entry={estados:Object.create(null),partidas:Object.create(null),confirmados:Object.create(null),at:0};controlQCEstados.set(key,entry);}
+ entry.estados=entry.estados||Object.create(null);entry.partidas=entry.partidas||Object.create(null);entry.confirmados=entry.confirmados||Object.create(null);
+ entry.estados[ref.id]=true;entry.partidas[ref.id]=ref.partida;entry.confirmados[ref.id]=ref.partida;entry.at=Date.now();
+ const overlay=document.getElementById('control-overlay'),card=document.getElementById('control-card-'+ref.id);
+ if(card){
+  const ident=card.querySelector('.qc-card-ident')||card.querySelector('.qc-card-main')||card;
+  let badge=ident.querySelector('.qc-card-medido');
+  if(!badge){badge=document.createElement('span');badge.className='qc-card-medido';const anchor=ident.querySelector('.qc-card-ident-head')||ident.querySelector('.qc-card-partida');if(anchor)anchor.insertAdjacentElement('afterend',badge);else ident.prepend(badge);}
+  badge.textContent='✓ QC realizado';badge.setAttribute('aria-label','Control de calidad guardado');
+ }
+ if(!overlay||controlSeccion!==ref.tipo||!controlQCDiaVisible(ref.dia))return;
+ const dias=new Set(controlQCDiasIncluidos());let rows=controlChecksData.filter(c=>c.tipo===ref.tipo&&dias.has(c.dia));
+ rows=controlLineasFiltradasInv(rows,ref.tipo);
+ const done=rows.filter(controlLineaFinalizadaQC).length,pending=rows.length-done;
+ overlay.querySelectorAll('.qc-work-counter').forEach(x=>x.textContent=rows.length+' partida'+(rows.length===1?'':'s')+' · '+done+' inspeccionada'+(done===1?'':'s'));
+ const filter=overlay.querySelector('.qc-list-state select');if(filter)Array.from(filter.options).forEach(o=>{if(o.value==='todos')o.textContent='Todos ('+rows.length+')';else if(o.value==='pendientes')o.textContent='Pendientes ('+pending+')';else if(o.value==='completados')o.textContent='Completados ('+done+')';});
+ if(!document.querySelector('#qco-inline'))renderControlContent(overlay);
 }
 window.marcarControlQCMedido=marcarControlQCMedido;
 async function cargarEstadosQCDia(tipo,dia,registros){
@@ -7357,7 +7383,7 @@ async function cargarEstadosQCDia(tipo,dia,registros){
     controlQCEstados.set(key,{signature,estados:resultados,partidas,confirmados,at:Date.now()});
     controlQCEstadosUltimoError.delete(key);
     const overlay=document.getElementById('control-overlay');
-    if(overlay && overlay.style.display==='flex' && controlSeccion===tipo && controlDiaSel===dia &&
+    if(overlay && overlay.style.display==='flex' && controlSeccion===tipo && controlQCDiaVisible(dia) &&
         !document.querySelector('#qco-inline'))
       renderControlContent(overlay);
   }catch(_){
@@ -7669,96 +7695,52 @@ function renderControlDashboardDiaHTML(seccion, listaDia){
   return statsHTML + `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px">${categoriasHTML}${enfermedadesHTML}</div>`;
 }
 function renderControlChecklistHTML(seccion){
-  const diasQ = riegoQuincenaDias(controlQuincenaOffset);
-  if(controlDiaSel==null || !diasQ.includes(controlDiaSel)) controlDiaSel = diasQ[0];
-  const escapar = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const listaDia = controlChecksData.filter(c=>c.tipo===seccion.key && c.dia===controlDiaSel);
-  // Los filtros modifican solo la consulta, nunca los registros persistidos.
-  void cargarEstadosQCDia(seccion.key,controlDiaSel,listaDia);
-  const listaInv=controlLineasFiltradasInv(listaDia,seccion.key);
-  const numCompletados = listaInv.filter(controlLineaFinalizadaQC).length;
-  const numPendientes = listaInv.length - numCompletados;
-  const lista = controlFiltroEstado==='completados' ? listaInv.filter(controlLineaFinalizadaQC)
-    : controlFiltroEstado==='pendientes' ? listaInv.filter(c=>!controlLineaFinalizadaQC(c))
-    : listaInv;
-  const pdf = controlPdfsData[seccion.key+'|'+controlDiaSel];
-  // Carga bajo demanda (no bloquea este pintado): si el índice dice que hay
-  // un PDF para este día pero todavía no está en memoria, se pide en segundo
-  // plano y se repinta cuando llegue (ver cargarControlPdfDia).
-  cargarControlPdfDia(seccion.key, controlDiaSel);
-  // La misma estructura operativa se mantiene incluso si el día no tiene partidas.
-
-  const filtrosHTML = '<label class="qc-list-state"><span>Estado</span><select class="qc-list-select" onchange="cambiarControlFiltroEstado(this.value)" aria-label="Filtrar por estado">'+[
-    {value:'todos',label:'Todos ('+listaInv.length+')'},
-    {value:'pendientes',label:'Pendientes ('+numPendientes+')'},
-    {value:'completados',label:'Completados ('+numCompletados+')'}
-  ].map(o=>'<option value="'+o.value+'"'+(controlFiltroEstado===o.value?' selected':'')+'>'+o.label+'</option>').join('')+'</select></label>';
-  const filtroInvHTML = renderControlFiltroYAltaHTML(seccion.key,controlDiaSel,false);
-  // Líneas cuya calle real todavía no se puede resolver (Túnel: no se le ha
-  // asignado calle todavía; Carga: su línea "hermana" de Túnel no existe o
-  // tampoco tiene calle) muestran "Calle: —" en la tarjeta. A petición de
-  // Paula (2026-08-26): mostrarlas bajo CUALQUIER filtro de invernadero (a
-  // petición de un cambio anterior) rompía el filtro — al elegir un
-  // invernadero concreto aparecían también líneas de otros invernaderos sin
-  // asignar, mezcladas, así que "filtrar no funcionaba bien". Ahora el
-  // filtro por invernadero vuelve a ser estricto (solo esa calle real); las
-  // líneas sin calle asignada siguen siendo visibles, pero solo en la vista
-  // "Todos los invernaderos" (sin filtro) — ahí es donde hay que fijarse
-  // para acabar de asignarles la calle, no mezcladas con otro invernadero.
-  // Misma lista para tarjetas, estados y panel de métricas, sin doble filtrado.
-  const listaMostrada = lista;
-
-  // Partidas con más de un guión (mismo Nº de partida repetido en días
-  // distintos) se agrupan en una sola tarjeta con flechas — ver
-  // renderControlCardConGuionesHTML. Solo se pinta una vez por grupo aunque
-  // dos guiones del mismo grupo caigan el mismo día.
-  // En Check Carga esto queda DESACTIVADO a petición de Paula, 2026-08-10:
-  // cada línea sale siempre suelta, nunca agrupada en guiones — el agrupado
-  // por partida escondía líneas que en realidad pertenecían a otro
-  // invernadero (ver bug corregido en calleTramoDeCarga) y hacía imposible
-  // verlas todas al filtrar por invernadero.
-  const gruposYaPintados = new Set();
-  const filas = listaMostrada.map(c=>{
-    if(seccion.key==='carga' || seccion.key==='carga_injerto' || !c.partida) return renderControlCardHTML(c, seccion);
-    const groupKey = seccion.key+'|'+c.partida;
-    if(gruposYaPintados.has(groupKey)) return '';
-    const grupo = controlLineasFiltradasInv(controlChecksData.filter(x=>x.tipo===seccion.key && x.partida===c.partida),seccion.key).sort((a,b)=>a.dia-b.dia);
-    if(grupo.length<=1) return renderControlCardHTML(c, seccion);
-    gruposYaPintados.add(groupKey);
-    return renderControlCardConGuionesHTML(grupo, seccion);
+ const inicio=controlQCInicioSemana(),diasVisibles=controlQCDiasIncluidos(inicio),diasSet=new Set(diasVisibles);
+ if(!diasSet.has(controlDiaSel))controlDiaSel=diasVisibles[0]||inicio;
+ controlQuincenaOffset=Math.max(0,Math.floor((controlDiaSel-15)/14));
+ const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+ void cargarSemanaQC(seccion.key,inicio).then(ok=>{
+   if(!ok)return;const overlay=document.getElementById('control-overlay');
+   if(overlay&&overlay.style.display==='flex'&&controlSeccion===seccion.key&&controlQCInicioSemana()===inicio&&!document.querySelector('#qco-inline'))renderControlContent(overlay);
+ }).catch(()=>{});
+ const listaDia=controlChecksData.filter(c=>c.tipo===seccion.key&&diasSet.has(c.dia));
+ diasVisibles.forEach(dia=>{const rows=listaDia.filter(c=>c.dia===dia);if(rows.length)void cargarEstadosQCDia(seccion.key,dia,rows);cargarControlPdfDia(seccion.key,dia);});
+ const listaInv=controlLineasFiltradasInv(listaDia,seccion.key);
+ const completadas=listaInv.filter(controlLineaFinalizadaQC).length,pendientes=listaInv.length-completadas;
+ const lista=controlFiltroEstado==='completados'?listaInv.filter(controlLineaFinalizadaQC):controlFiltroEstado==='pendientes'?listaInv.filter(c=>!controlLineaFinalizadaQC(c)):listaInv;
+ const pdf=controlPdfsData[seccion.key+'|'+controlDiaSel];
+ const filtrosHTML='<label class="qc-list-state"><span>Estado</span><select class="qc-list-select" onchange="cambiarControlFiltroEstado(this.value)" aria-label="Filtrar por estado">'+[
+  {value:'todos',label:'Todos ('+listaInv.length+')'},{value:'pendientes',label:'Pendientes ('+pendientes+')'},{value:'completados',label:'Completados ('+completadas+')'}
+ ].map(o=>'<option value="'+o.value+'"'+(controlFiltroEstado===o.value?' selected':'')+'>'+o.label+'</option>').join('')+'</select></label>';
+ const filtroInv=renderControlFiltroYAltaHTML(seccion.key,controlDiaSel,false);
+ const grupos=diasVisibles.map(dia=>{
+  const rows=lista.filter(c=>c.dia===dia);if(!rows.length)return '';
+  const date=riegoDiaToDate(dia),weekday=new Intl.DateTimeFormat('es-ES',{weekday:'long'}).format(date);
+  const title=weekday.charAt(0).toUpperCase()+weekday.slice(1)+' '+riegoDiaLabelCorto(dia),seen=new Set();
+  const cards=rows.map(c=>{
+   if(seccion.key==='carga'||seccion.key==='carga_injerto'||!c.partida)return renderControlCardHTML(c,seccion);
+   const groupKey=seccion.key+'|'+dia+'|'+c.partida;if(seen.has(groupKey))return '';
+   const group=controlLineasFiltradasInv(rows.filter(x=>x.partida===c.partida),seccion.key).sort((a,b)=>a.dia-b.dia);
+   if(group.length<=1)return renderControlCardHTML(c,seccion);
+   seen.add(groupKey);return renderControlCardConGuionesHTML(group,seccion);
   }).join('');
-
-  // Botón "Sincronizar" manual (a petición de Paula, 2026-08-05: "que aparezca
-  // algún botón de sincronizar para estar seguros porque falla mucho") — el
-  // recuento es global (la cola offline no distingue tipo/día), y sirve tanto
-  // para forzar un reintento como para comprobar de un vistazo que no queda
-  // nada pendiente sin tener que fiarse solo del aviso naranja automático.
-  const pendientesGlobal = leerColaOffline().length;
-  const addAllowed=puedeCrearLineaControlQC(controlDiaSel);
-  const pdfInfoHTML = pdf ? `<div class="qc-list-pdf-existing"><i class="ti ti-file-check" aria-hidden="true"></i> PDF de referencia: ${escapar(pdf.nombre)} · <a href="${pdf.pdfB64}" target="_blank" rel="noopener noreferrer">Ver PDF</a></div>` : '';
-  const syncHTML = pendientesGlobal>0 ? `<button type="button" class="qc-list-sync" onclick="sincronizarControlManual()"><i class="ti ti-refresh"></i> ${pendientesGlobal} pendiente${pendientesGlobal===1?'':'s'} · Sincronizar</button>` : '';
-  const extraTunelHTML = seccion.key==='tunel' ? `
-    <label class="qc-list-option" title="Importa la fecha de salida, el invernadero y los tramos de calle desde el PDF de extensiones"><i class="ti ti-file-upload"></i> Asignar calles desde PDF<input type="file" accept="application/pdf" onchange="handleExtensionesPdfInput(this)"></label>` : '';
-  const cardsHTML = listaMostrada.length===0
-    ? `<div class="qc-list-none">${listaDia.length===0?'Sin partidas para este día.':((seccion.key==='carga'?controlCargaInvFiltro:controlTunelInvFiltro)?'No hay partidas para ese invernadero y día.':'No hay líneas con el estado seleccionado.')}</div>`
-    : `<div class="qc-list-cards">${filas}</div>`;
-  if(['tunel','carga','carga_injerto','preinjerto_patron','preinjerto_variedad'].includes(seccion.key)){
-    const moreOptions=seccion.key!=='tunel'&&(extraTunelHTML||pdfInfoHTML)
-      ? '<details class="qc-list-more"><summary>Más opciones</summary><div class="qc-list-more-actions">'+extraTunelHTML+'</div>'+pdfInfoHTML+'</details>'
-      : '';
-    const operativa=filtroInvHTML+
-      syncHTML+
-      moreOptions;
-    const buscador='<div class="qc-list-search">'+
-      '<input id="control-buscar-partida" type="search" placeholder="Buscar Nº partida" aria-label="Buscar número de partida" onkeydown="if(event.key===\'Enter\'){event.preventDefault();buscarControlPartida(\''+seccion.key+'\')}" />'+
-      '<button type="button" onclick="buscarControlPartida(\''+seccion.key+'\')" aria-label="Buscar"><i class="ti ti-search"></i></button></div>';
-    const total='<div class="qc-work-counter">'+listaInv.length+' partida'+(listaInv.length===1?'':'s')+
-      ' · '+numCompletados+' inspeccionada'+(numCompletados===1?'':'s')+'</div>';
-    const filtrosInspecciones='<div class="qc-work-list-tools">'+total+filtrosHTML+'</div>';
-    return '<div class="qc-work-tunel">'+qcFechaHTML('list')+buscador+
-      qcPanel('Inspecciones',operativa+filtrosInspecciones+cardsHTML,'qc-work-inspections')+'</div>';
-  }
-
+  return '<section class="qc-week-day-group"><div style="margin:12px 0 7px;padding:8px 12px;border-radius:10px;background:#edf4fb;color:#173d6b;font-size:14px;font-weight:800">'+esc(title)+'</div><div class="qc-list-cards">'+cards+'</div></section>';
+ }).join('');
+ const pending=leerColaOffline().length;
+ const pdfInfo=pdf?'<div class="qc-list-pdf-existing"><i class="ti ti-file-check" aria-hidden="true"></i> PDF de referencia: '+esc(pdf.nombre)+' · <a href="'+pdf.pdfB64+'" target="_blank" rel="noopener noreferrer">Ver PDF</a></div>':'';
+ const sync=pending>0?'<button type="button" class="qc-list-sync" onclick="sincronizarControlManual()"><i class="ti ti-refresh"></i> '+pending+' pendiente'+(pending===1?'':'s')+' · Sincronizar</button>':'';
+ const extra=seccion.key==='tunel'?'<label class="qc-list-option" title="Importa la fecha de salida, el invernadero y los tramos de calle desde el PDF de extensiones"><i class="ti ti-file-upload"></i> Asignar calles desde PDF<input type="file" accept="application/pdf" onchange="handleExtensionesPdfInput(this)"></label>':'';
+ const noRows=listaInv.length===0?(listaDia.length===0?(controlDiasSemanaSeleccionados.size?'Sin partidas en los días seleccionados.':'Sin partidas en esta semana.'):((seccion.key==='carga'?controlCargaInvFiltro:controlTunelInvFiltro)?'No hay partidas para el filtro de invernadero.':'No hay líneas con el estado seleccionado.')):'';
+ const cards=lista.length===0?'<div class="qc-list-none">'+esc(noRows||'No hay líneas para mostrar.')+'</div>':'<div class="qc-list-days">'+grupos+'</div>';
+ if(['tunel','carga','carga_injerto','preinjerto_patron','preinjerto_variedad'].includes(seccion.key)){
+  const more=seccion.key!=='tunel'&&(extra||pdfInfo)?'<details class="qc-list-more"><summary>Más opciones</summary><div class="qc-list-more-actions">'+extra+'</div>'+pdfInfo+'</details>':'';
+  const operativa=filtroInv+sync+more;
+  const search='<div class="qc-list-search"><input id="control-buscar-partida" type="search" placeholder="Buscar Nº partida" aria-label="Buscar número de partida" onkeydown="if(event.key===\'Enter\'){event.preventDefault();buscarControlPartida(\''+seccion.key+'\')}" /><button type="button" onclick="buscarControlPartida(\''+seccion.key+'\')" aria-label="Buscar"><i class="ti ti-search"></i></button></div>';
+  const total='<div class="qc-work-counter">'+listaInv.length+' partida'+(listaInv.length===1?'':'s')+' · '+completadas+' inspeccionada'+(completadas===1?'':'s')+'</div>';
+  const filters='<div class="qc-work-list-tools">'+total+filtrosHTML+'</div>';
+  return '<div class="qc-work-tunel">'+qcFechaHTML('list')+search+qcPanel('Inspecciones',operativa+filters+cards,'qc-work-inspections')+'</div>';
+ }
+ return '';
 }
 function handleControlPdfInput(input, tipo, dia){
   // La importación manual de un PDF también puede crear líneas QC.
@@ -9295,8 +9277,11 @@ function buscarControlPartida(tipo){
   if(!valor){ showToast('Escribe un número de partida'); return; }
   const encontrada = controlChecksData.filter(c=>c.tipo===tipo && c.partida).find(c=>c.partida.toLowerCase().includes(valor.toLowerCase()));
   if(!encontrada){ showToast('No se ha encontrado ninguna línea con esa partida'); return; }
-  controlQuincenaOffset = Math.max(0, Math.floor((encontrada.dia-15)/14));
-  controlDiaSel = encontrada.dia;
+  if(!Number.isInteger(controlSemanaBaseDia))controlSemanaBaseDia=riegoDiaDeHoy();
+  controlSemanaOffset=Math.floor((encontrada.dia-controlSemanaBaseDia)/7);
+  controlDiasSemanaSeleccionados.clear();controlDiasSemanaSeleccionados.add(encontrada.dia);
+  controlQuincenaOffset=Math.max(0,Math.floor((encontrada.dia-15)/14));
+  controlDiaSel=encontrada.dia;
   // Si la partida encontrada pertenece a un grupo con guiones (misma partida
   // repetida en varios días), hay que forzar que se muestre EXACTAMENTE ese
   // guión — si no, el grupo seguía mostrando el guión que estuviera activo
