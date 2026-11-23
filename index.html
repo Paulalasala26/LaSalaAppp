@@ -7954,19 +7954,10 @@ function parseControlPdfPartidasConSalida(lineas){
         if(m2 && m2.groups.partida && lineas[j].x0 < 100) break;
         const esSubtotal = /^[\d.,]+(\s+[\d.,]+)*$/.test(t2);
         const esGuion = /^_+$/.test(t2);
-        const esCabecera = /^(Empresa|G\.Semilleros|N[ºo°]?\s*Parte|Cliente)\b/i.test(t
-... 521634 bytes omitted ...
-toFitoSeguro(mov,campo){
-  if(fitoDirtyCells.size){
-    showToast('Hay cambios pendientes: no se puede deshacer antes de sincronizar.');
-    return false;
-  }
-  const cambios=new Map();
-  for(const grupo of mov.grupos||[]){
-    for(const [calle,raw] of Object.entries(grupo[campo]||{})){
-      const k=fitoDirtyCellKey(grupo.invId,grupo.dia,calle);
-      const current=clonarFitoSnapshot(getFitoCellRaw(grupo.invId,grupo.dia,calle)??null);
-      if([current,raw].some(x=>x&&typeof x==='object'&&x.tipoTrat==='Pistola')){
+        const esCabecera = /^(Empresa|G\.Semilleros|N[ºo°]?\s*Parte|Cliente)\b/i.test(t2);
+        const esPartidaSuelta = loneR
+... 522088 bytes omitted ...
+x.tipoTrat==='Pistola')){
         showToast('Las jornadas de Pistola requieren conciliar las tareas antes de deshacer.');
         return false;
       }
@@ -14027,7 +14018,14 @@ function abrirEspecificoDesdeCelda(invId,dia,calles){
   const parsed=texto&&!vinculado?parsearTextoEspecifico(texto):null;
   espPendingConfig={modo:'tramo',tramos:[{desde:Math.min(...tramo),hasta:Math.max(...tramo),tipo:parsed?.tipo||'',obs:parsed?.obs||''}]};
   const editable=esDiaEspecificoEditable(dia)&&!vinculado;
-  showEspecificoManualForm({desdeCelda:true,editar:!!texto,diaSeleccionado:dia});
+  // Al dar de alta desde una celda vacía y editable, abrir el selector de
+  // invernaderos y calles con la ubicación pulsada preseleccionada. La
+  // edición de un específico existente y la consulta de fechas no editables
+  // mantienen la ficha de ubicación fija para no desplazar registros.
+  const altaConSelector=!texto&&editable;
+  showEspecificoManualForm(altaConSelector
+    ? {altaDesdeCelda:true,diaSeleccionado:dia}
+    : {desdeCelda:true,editar:!!texto,diaSeleccionado:dia});
   const sel=document.getElementById('esp-dia');
   if(sel){
     if(!Array.from(sel.options).some(o=>Number(o.value)===Number(dia))){
@@ -14179,7 +14177,8 @@ function showEspecificoManualForm(opciones={}){
   espManualDesdeCelda=desdeCelda;
   espResumenFichaContext=desdeResumenFicha?opciones.resumenFichaContext:null;
   const titulo=desdeResumenFicha?'Editar específico'
-    :desdeCelda?(opciones.editar?'Editar específico':'Añadir específico'):'Específicos · Edición múltiple';
+    :desdeCelda?(opciones.editar?'Editar específico':'Añadir específico')
+    :opciones.altaDesdeCelda?'Añadir específico':'Específicos · Edición múltiple';
   const inv = especificosInvSel;
   if(espPendingBulkConfig){
     // Editando desde el resumen de la quincena: TODOS los invernaderos del
@@ -14223,7 +14222,7 @@ function showEspecificoManualForm(opciones={}){
         ${desdeCelda?especificoCeldaFichaHTML(inv)
           :desdeResumenFicha?especificoResumenFichaHTML(espResumenFichaContext):`
           <details id="esp-ambito-detalle" open style="border:1px solid #b0c8e0;border-radius:8px;background:#f8fbff">
-            <summary style="padding:9px 10px;color:#1558a0;font-size:12px;font-weight:800;cursor:pointer">Invernaderos y calles · Edición múltiple</summary>
+            <summary style="padding:9px 10px;color:#1558a0;font-size:12px;font-weight:800;cursor:pointer">Invernaderos y calles${opciones.altaDesdeCelda?'':' · Edición múltiple'}</summary>
             <div style="padding:0 7px 7px">${especificoBulkInvSelectorHTML()}</div>
           </details>`}
         <div style="display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:9px">
