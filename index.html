@@ -6488,7 +6488,7 @@ async function cargarSemanaQC(tipo,inicio){
   const key=tipo+'|'+inicio;if(controlQCSemanasCargadas.has(key))return true;
   if(controlQCSemanasCargando.has(key))return controlQCSemanasCargando.get(key);
   const qs=[...new Set(controlQCDiasDeSemana(inicio).map(d=>Math.max(0,Math.floor((d-15)/14))))].sort((a,b)=>a-b);
-  const task=(async()=>{for(const q of qs)if(!(await loadControlSeccionSlice(tipo,q,false))return false;return true;})();
+  const task=(async()=>{for(const q of qs)if(!(await loadControlSeccionSlice(tipo,q,false)))return false;return true;})();
   controlQCSemanasCargando.set(key,task);const ok=await task;controlQCSemanasCargando.delete(key);if(ok)controlQCSemanasCargadas.add(key);return ok;
 }
 async function cambiarSemanaControlQC(delta){
@@ -25636,8 +25636,8 @@ function conGuardiaReentrada(fn){
 <script src="assets/fito-series-v3.js"></script>
 <script src="assets/qc-editar-linea-v3.js?v=117"></script>
 <script src="assets/gs-carga-feed.js?v=5"></script>
-<script src="assets/qc-carga-injerto-bootstrap.js?v=6" defer></script>
-<script src="assets/qc-preinjerto-bootstrap.js?v=11" defer></script>
+<script src="assets/qc-carga-injerto-bootstrap.js?v=7" defer></script>
+<script src="assets/qc-preinjerto-bootstrap.js?v=12" defer></script>
 <script src="assets/qc-barcode-scanner.js?v=4" defer></script>
 </body>
 </html>
