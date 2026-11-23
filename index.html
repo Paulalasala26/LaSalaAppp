@@ -23007,18 +23007,13 @@ function especificoCeldaFichaHTML(inv){
   return `<section id="esp-ubicacion-fija" style="border:1px solid #b0c8e0;border-radius:8px;background:#e8f0fb;padding:9px">
     <div style="font-size:10px;font-weight:700;color:#537597">UBICACIÓN DEL TRATAMIENTO</div>
     <div style="font-size:14px;font-weight:800;color:#1558a0;margin-top:2px">INV ${escapeHtml(inv)} · Calle${tramo.desde===tramo.hasta?'':'s'} ${escapeHtml(rango)}</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+    <div style="display:grid;grid-template-columns:1fr;gap:8px;margin-top:8px">
       <label style="font-size:11px;font-weight:700;color:#1558a0">Tipo
         <select id="esp-tipo-celda" onchange="espBulkConfig['${inv}'].tramos[0].tipo=this.value"
           style="display:block;width:100%;margin-top:3px;min-height:38px;padding:6px;border:1px solid #a8c4e8;border-radius:6px;background:#fff;font-size:12px">
           <option value="">—</option>
           ${ESPECIFICO_TIPOS.map(t=>`<option value="${escapeHtml(t)}"${t===tramo.tipo?' selected':''}>${escapeHtml(t)}</option>`).join('')}
         </select>
-      </label>
-      <label style="font-size:11px;font-weight:700;color:#1558a0">Observaciones
-        <input id="esp-obs-celda" type="text" value="${escapeHtml(tramo.obs||'')}"
-          oninput="espBulkConfig['${inv}'].tramos[0].obs=this.value"
-          placeholder="Opcional" style="display:block;width:100%;margin-top:3px;min-height:38px;padding:6px 8px;border:1px solid #a8c4e8;border-radius:6px;background:#fff;font-size:12px">
       </label>
     </div>
   </section>`;
