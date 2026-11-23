@@ -8557,6 +8557,7 @@ function abrirMedicionesControl(id){
   window.QCOperativo.open(c,{
     getObservations:()=>c.observaciones||'',
     saveObservations:value=>guardarControlObservaciones(c.id,value),
+    onMeasurementSaved:ref=>marcarControlQCMedido(ref),
     listPhotos:()=>listarFotosInspeccionQC(c.id),
     openPhoto:photo=>ampliarFotoInspeccionQC(photo),
     uploadPhoto:input=>agregarFotosInspeccionQC(input,c.id),
