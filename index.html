@@ -19492,6 +19492,9 @@ async function abrirControlDesdeBackoffice(){
     }
     controlDesdeBackoffice={id:record.id,action:request.action};
     controlSeccion=record.tipo;
+    controlSemanaBaseDia=riegoDiaDeHoy();
+    controlSemanaOffset=Math.floor((record.dia-controlSemanaBaseDia)/7);
+    controlDiasSemanaSeleccionados.clear();controlDiasSemanaSeleccionados.add(record.dia);
     controlQuincenaOffset=q;
     controlDiaSel=record.dia;
     controlFiltroEstado='todos';
