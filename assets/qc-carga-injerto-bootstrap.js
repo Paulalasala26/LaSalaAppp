@@ -142,13 +142,10 @@
   };
 
   window.marcarControlQCMedido=function(ref){
-    if(ref?.tipo!==TYPE)return originalMarkMeasured(ref);
-    if(!ref)return;
-    const key=claveEstadosQC(ref.tipo,ref.dia),entry=controlQCEstados.get(key);
-    if(entry){entry.estados[ref.id]=true;entry.partidas[ref.id]=ref.partida;entry.at=Date.now();}
-    const overlay=document.getElementById('control-overlay');
-    if(overlay&&controlSeccion===TYPE&&controlDiaSel===ref.dia&&!document.querySelector('#qco-inline'))
-      window.renderControlContent(overlay);
+    // El helper común crea la caché si aún no existe, actualiza la tarjeta y
+    // recalcula contadores incluso mientras el formulario permanece abierto.
+    // No duplicar aquí la lógica: Carga Injerto usa el mismo flujo que el resto.
+    return originalMarkMeasured(ref);
   };
 
   window.cargarEstadosQCDia=async function(type,day,records){
