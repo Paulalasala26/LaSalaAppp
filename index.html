@@ -22350,7 +22350,7 @@ const ESPECIFICO_DOSIS_POR_TRATAMIENTO = {
   MB:['0.5','1','1.5','2','2.5','3'],
   PP:['0.5','1','1.5','2','2.5','3'],
   PX:['4'],
-  Folicur:['0.025','0.2','0.5','0.75']
+  Folicur:['0.025','0.05','0.1','0.15','0.2','0.5','0.75']
 };
 function opcionesDosisEspecifico(trat){
   return ESPECIFICO_DOSIS_POR_TRATAMIENTO[trat]||[];
@@ -22358,7 +22358,7 @@ function opcionesDosisEspecifico(trat){
 function etiquetaDosisEspecifico(trat,dosis){
   const valor=String(dosis).replace('.',',');
   if(trat!=='Folicur')return valor;
-  return valor+(['0.025','0.2'].includes(String(dosis))?' — sandía':' — calabazas');
+  return valor+(['0.025','0.05','0.1','0.15','0.2'].includes(String(dosis))?' — sandía':' — calabazas');
 }
 function normalizarDosisEspecifico(valor,trat){
   const texto=String(valor??'').trim().replace(',','.');
@@ -22376,7 +22376,7 @@ function actualizarDosisEspecificoUI(tratId,listaId,ayudaId){
     lista.value=opciones.includes(anterior)?anterior:'';
   }
   if(ayuda)ayuda.textContent=trat==='Folicur'
-    ?'Opciones explícitas del rango: 0,025 y 0,2 para sandía; 0,5 y 0,75 para calabazas.'
+    ?'Opciones explícitas del rango: 0,025; 0,05; 0,1; 0,15 y 0,2 para sandía; 0,5 y 0,75 para calabazas.'
     :trat==='PX'?'Dosis indicada: 4.':
     ['TC','MB','PP'].includes(trat)?'Dosis disponibles: 0,5; 1; 1,5; 2; 2,5; 3.':
     trat?'Selecciona una dosis de la lista.':'Selecciona primero el tratamiento.';
