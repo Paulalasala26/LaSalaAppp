@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - test/v1.0
+      - security/firebase-rtdb-isolation-candidate
     paths:
       - '.github/workflows/firebase-security-phase1.yml'
       - 'docs/firebase/**'
@@ -18,7 +19,7 @@ concurrency:
 
 jobs:
   test:
-    if: github.ref == 'refs/heads/test/v1.0'
+    if: github.ref == 'refs/heads/test/v1.0' || github.ref == 'refs/heads/security/firebase-rtdb-isolation-candidate'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -128,6 +129,12 @@ jobs:
         env:
           CI: 'true'
         run: npm run test:emulator
+
+      - name: Test TEST/PRD environment separation in demo-only RTDB emulator
+        working-directory: docs/firebase
+        env:
+          CI: 'true'
+        run: npx firebase emulators:exec --only database --project demo-lasala-env-isolation --config firebase.emulator.phase1.json "node --test firebase-emulator-environment-isolation.test.cjs"
 
       - name: Protect v2 Alerts and Push roots in demo-only RTDB emulator
         working-directory: docs/firebase
