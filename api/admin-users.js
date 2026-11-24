@@ -99,8 +99,11 @@ function parseMap(value) {
   return value;
 }
 function keyUrl(key) { return DB+'/'+encodeURIComponent(key)+'.json'; }
-async function readKey(key, accessToken) {
-  const r=await fetch(keyUrl(key),{
+function operationalDatabaseUrl() {
+  return String(process.env.VIGUERAPP_ENV||'').trim().toLowerCase()==='prd' ? DB+'/prd' : DB;
+}
+async function readKey(key, accessToken, databaseUrl=DB) {
+  const r=await fetch(databaseUrl+'/'+encodeURIComponent(key)+'.json',{
     headers:{Authorization:'Bearer '+accessToken},
     cache:'no-store',signal:AbortSignal.timeout(10000)
   });
@@ -310,4 +313,4 @@ module.exports=async function handler(req,res) {
 };
 
 // Reutilizar la misma verificación ADMIN para catálogos del Backoffice TEST.
-module.exports._adminCatalogHelpers = {verifyFirebaseIdToken,serviceAccount,serviceAccessToken,readKey,updateKey,validHash,httpError};
+module.exports._adminCatalogHelpers = {verifyFirebaseIdToken,serviceAccount,serviceAccessToken,readKey,updateKey,validHash,httpError,operationalDatabaseUrl};
