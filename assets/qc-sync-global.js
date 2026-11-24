@@ -25,6 +25,12 @@
     }catch(_){return null;}
   })();
  const validSession=()=>{const x=session();return !!x&&user===x.user&&role===x.role;};
+ function pendingSpecificOperation(){
+  try{
+   const op=JSON.parse(localStorage.getItem('viguerapp-test-especificos-manual-op-v1')||'null');
+   return op&&typeof op.id==='string'&&Array.isArray(op.celdas)&&Array.isArray(op.tareas)&&Array.isArray(op.partidas)?op:null;
+  }catch(_){return null;}
+ }
  function snapshot(){
   const d=window.QCOfflineDraftEditor?.pendingGlobal?.()||[];
   const p=window.QCOfflinePhotos?.pendingGlobal?.()||[];
@@ -36,20 +42,23 @@
  function show(){
   const anchor=$('avisos-sync-anchor')||$('qc-global-sync-anchor'),host=$('avisos-sync-panel')||$('qc-global-sync-panel');
   if(!anchor||!host)return;
-  const state=snapshot();
+  const state=snapshot(),specificPending=!!pendingSpecificOperation();
   anchor.replaceChildren();host.replaceChildren();
   if(!user||!validSession()||!ALLOWED.has(role))return;
   const toggle=text('button',null,'avisos-modulo-boton qc-sync-trigger');
   toggle.type='button';
+  const triggerLabel=state.total
+   ?state.total+' QC por sincronizar'+(specificPending?' · específicos pendientes':'')
+   :specificPending?'Pendientes (1 operación)':'Sin pendientes';
   toggle.setAttribute('aria-label',state.total?
     state.total+' elementos QC por sincronizar'+(state.photos.length?' · '+state.photos.length+' fotos pendientes':''):
-    'Sin pendientes de sincronización QC');
+    specificPending?'1 operación de Específicos pendiente':'Sin pendientes de sincronización QC');
   toggle.setAttribute('aria-expanded',String(opened));
   const glyph=document.createElement('i');
-  glyph.className='ti '+(lastErrors.length?'ti-alert-triangle':'ti-upload');
+  glyph.className='ti '+(lastErrors.length||specificPending?'ti-alert-triangle':'ti-upload');
   glyph.setAttribute('aria-hidden','true');
-  toggle.append(glyph,text('span',state.total?String(state.total)+' por sincronizar':'Sin pendientes'));
-  if(state.total){
+  toggle.append(glyph,text('span',triggerLabel));
+  if(state.total||specificPending){
     const dot=text('span');dot.className='qc-sync-dot';dot.setAttribute('aria-hidden','true');
     toggle.append(dot);
   }
@@ -58,7 +67,7 @@
   if(!opened)return;
   const panel=text('section',null,'qc-sync-panel');
   panel.setAttribute('aria-label','Sincronización de Control de Calidad');
-  panel.append(text('h3','Sincronización pendiente'));
+  panel.append(text('h3','Pendientes de sincronización'));
   panel.append(text('p',state.total?
     (navigator.onLine===false?'Sin conexión. Todo permanece en este dispositivo.':
       'Conexión disponible. Hay elementos pendientes de enviar o verificar.')+' Pendientes: '+state.total+'.':
@@ -77,6 +86,13 @@
    row.append(text('span',name),text('strong',String(count)));desc.append(row);
   }
   panel.append(desc);
+  if(specificPending){
+   const specificSection=text('section',null,'avisos-modulo-seccion');
+   specificSection.setAttribute('aria-label','Pendientes');
+   specificSection.append(text('div','Específicos','avisos-modulo-titulo'));
+   const specificBox=text('div');specificBox.id='avisos-especificos-pendiente';
+   specificSection.append(specificBox);panel.append(specificSection);
+  }
   const uncertainDrafts=state.drafts.filter(x=>x.status==='ENVIO_INCIERTO').length;
   const uncertainPhotos=state.photos.filter(x=>x.status==='ENVIO_INCIERTO').length;
   if(uncertainDrafts){
@@ -104,6 +120,7 @@
     panel.append(errors);
   }
   host.append(panel);
+  if(specificPending)window.renderAvisoOperacionEspecificoPendiente?.();
  }
  function progress(message){
   const status=$('qc-global-sync-status');
