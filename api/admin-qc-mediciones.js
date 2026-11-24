@@ -4,9 +4,9 @@
 // - Escribe por registro con control de versión + ETag (sin sobrescritura silenciosa).
 // - Solo ADMIN activo y autenticado.
 const {
-  verifyFirebaseIdToken,serviceAccount,serviceAccessToken,readKey,validHash,httpError
+  verifyFirebaseIdToken,serviceAccount,serviceAccessToken,readKey,validHash,httpError,operationalDatabaseUrl
 }=require('./admin-users')._adminCatalogHelpers;
-const DB='https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app';
+const DB=operationalDatabaseUrl();
 const PREFIX='lasala-qc-mediciones-v1';
 const HISTORY_PREFIX='lasala-qc-mediciones-history-v1';
 const OPTIONS=Object.freeze({
