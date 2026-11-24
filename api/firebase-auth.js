@@ -94,7 +94,16 @@ function uidForUser(user) {
   return 'lasala-' + crypto.createHash('sha256').update(user, 'utf8').digest('hex').slice(0, 40);
 }
 
-function createFirebaseCustomToken(sa, user, role) {
+function getViguerappEnvironment() {
+  // TEST es el valor seguro por defecto; el cliente no puede elegir el entorno.
+  const environment = String(process.env.VIGUERAPP_ENV || 'test').trim().toLowerCase();
+  if (environment !== 'test' && environment !== 'prd') {
+    throw new Error('VIGUERAPP_ENV debe ser test o prd');
+  }
+  return environment;
+}
+
+function createFirebaseCustomToken(sa, user, role, environment) {
   const now = Math.floor(Date.now() / 1000);
   return signJwt(sa, {
     iss: sa.client_email,
@@ -105,7 +114,8 @@ function createFirebaseCustomToken(sa, user, role) {
     uid: uidForUser(user),
     claims: {
       appUser: user,
-      role
+      role,
+      viguerappEnv: environment
     }
   });
 }
@@ -176,7 +186,7 @@ module.exports = async function handler(req, res) {
     }
 
     return res.status(200).json({
-      customToken: createFirebaseCustomToken(sa, user, role),
+      customToken: createFirebaseCustomToken(sa, user, role, getViguerappEnvironment()),
       user,
       role
     });
