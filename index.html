@@ -15984,7 +15984,7 @@ function renderRiegoGrid(invId){
             const fontSize = esReganteSoloLectura ? fontSizeUnaLinea : fontSizeMultilinea;
             cells += `<td colspan="${br.span}" style="height:${DH}px;border:1px solid #9ab8d8;padding:2px 4px;position:relative;background:${bgBase};vertical-align:middle;${riegoSoloLectura?'':'cursor:pointer'}" ${clickAttr}
               onmousedown="riegoClickTrasArrastre=false" title="${riegoSoloLectura?'Riego':'Pulsa para consultar riego'}">
-              <div style="font-size:${fontSize}px;font-weight:700;color:${colorCelda};white-space:normal;overflow-wrap:anywhere;text-align:center;line-height:1.2">[${textoResaltado}]</div>
+              <div style="display:flex;align-items:center;width:calc(100% + 8px);margin:0 -4px;font-size:${fontSize}px;font-weight:700;color:${colorCelda};line-height:1.2"><span style="flex:none;white-space:nowrap">[</span><span style="flex:1;min-width:0;white-space:normal;overflow-wrap:anywhere;text-align:center">${textoResaltado}</span><span style="flex:none;white-space:nowrap">]</span></div>
             </td>`;
           } else {
             // Clic único en cualquier celda marcada: mismo formulario de riego
@@ -15996,7 +15996,7 @@ function renderRiegoGrid(invId){
               onmousedown="dragCalleStart('riego','${invId}',${dia},${br.calles[0]})"
               onmouseenter="dragCalleOver('riego','${invId}',${dia},${br.calles[0]})"
               title="Pulsa para editar riego">
-              <div style="font-size:${fontSize}px;font-weight:700;color:${colorTexto};white-space:normal;overflow-wrap:anywhere;text-align:center;line-height:1.2">[${textoResaltado}]</div>
+              <div style="display:flex;align-items:center;width:calc(100% + 8px);margin:0 -4px;font-size:${fontSize}px;font-weight:700;color:${colorTexto};line-height:1.2"><span style="flex:none;white-space:nowrap">[</span><span style="flex:1;min-width:0;white-space:normal;overflow-wrap:anywhere;text-align:center">${textoResaltado}</span><span style="flex:none;white-space:nowrap">]</span></div>
               ${siNoHTML}${botonPropuestaHTML}
             </td>`;
           }
