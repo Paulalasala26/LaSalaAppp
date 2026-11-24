@@ -7699,10 +7699,15 @@ function renderControlChecklistHTML(seccion){
  if(!diasSet.has(controlDiaSel))controlDiaSel=diasVisibles[0]||inicio;
  controlQuincenaOffset=Math.max(0,Math.floor((controlDiaSel-15)/14));
  const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
- void cargarSemanaQC(seccion.key,inicio).then(ok=>{
-   if(!ok)return;const overlay=document.getElementById('control-overlay');
-   if(overlay&&overlay.style.display==='flex'&&controlSeccion===seccion.key&&controlQCInicioSemana()===inicio&&!document.querySelector('#qco-inline'))renderControlContent(overlay);
- }).catch(()=>{});
+ const semanaCargaKey=seccion.key+'|'+inicio;
+ if(!controlQCSemanasCargadas.has(semanaCargaKey)){
+  void cargarSemanaQC(seccion.key,inicio).then(ok=>{
+   if(!ok||!controlQCSemanasCargadas.has(semanaCargaKey))return;
+   const overlay=document.getElementById('control-overlay');
+   if(overlay&&overlay.style.display==='flex'&&controlSeccion===seccion.key&&controlQCInicioSemana()===inicio&&!document.querySelector('#qco-inline'))
+     renderControlContent(overlay);
+  }).catch(()=>{});
+ }
  const listaDia=controlChecksData.filter(c=>c.tipo===seccion.key&&diasSet.has(c.dia));
  diasVisibles.forEach(dia=>{const rows=listaDia.filter(c=>c.dia===dia);if(rows.length)void cargarEstadosQCDia(seccion.key,dia,rows);cargarControlPdfDia(seccion.key,dia);});
  const listaInv=controlLineasFiltradasInv(listaDia,seccion.key);
