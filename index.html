@@ -1677,12 +1677,11 @@ function mostrarModuloAvisos(){
   const esCargador=currentUserRole==='CARGADOR';
   const esAdmin=currentUserRole==='ADMIN';
   const esVigueras=esAdmin&&currentUser==='VIGUERAS';
-  const hayOperacionEspecifico=!!leerOperacionEspecificoManual();
-  const pendientesEspecificosHTML=hayOperacionEspecifico?`
+  const pendientesEspecificosHTML=`
           <section class="avisos-modulo-seccion" aria-label="Pendientes">
             <div class="avisos-modulo-titulo">Pendientes</div>
             <div id="avisos-especificos-pendiente"></div>
-          </section>`:'';
+          </section>`;
   const accionesHTML=esCargador ? '' : esAdmin ? (esVigueras ? `
           <section class="avisos-modulo-seccion" aria-label="Gestión de riego">
             <div class="avisos-modulo-titulo">Gestión de riego</div>
@@ -1721,12 +1720,13 @@ function mostrarModuloAvisos(){
       </header>
       <main class="control-ui-content">
         <div class="avisos-modulo-grupo">
+          ${pendientesEspecificosHTML}
           ${esCargador ? `
           <section class="avisos-modulo-seccion" aria-label="Sincronización QC">
             <div class="avisos-modulo-titulo">Sincronización QC</div>
             <div id="avisos-sync-anchor"></div>
             <div id="avisos-sync-panel"></div>
-          </section>${pendientesEspecificosHTML}` : `
+          </section>` : `
           <section class="avisos-modulo-seccion" aria-label="Notificaciones">
             <div class="avisos-modulo-titulo">Notificaciones</div>
             <button type="button" class="avisos-modulo-boton" onclick="alternarPushDesdeModuloAvisos()">
@@ -1740,7 +1740,7 @@ function mostrarModuloAvisos(){
             <div id="avisos-sync-anchor"></div>
             <div id="avisos-sync-panel"></div>
           </section>
-          ${accionesHTML}${pendientesEspecificosHTML}`}
+          ${accionesHTML}`}
         </div>
       </main>
     </div>`;
