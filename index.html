@@ -599,9 +599,11 @@ function routeFirebaseEnvironmentPath(input){
   const url=new URL(input);
   const rootPath=new URL(CLOUD_DB_ROOT_URL).pathname;
   const relative=url.pathname.slice(rootPath.length).split('/').filter(Boolean);
-  if(relative[0]==='prd'&&FIREBASE_SHARED_ROOT_KEYS.has(decodeURIComponent(relative[1]||''))){
+  const sharedSegment=relative[1]||'';
+  const sharedKey=sharedSegment.endsWith('.json')?sharedSegment.slice(0,-5):sharedSegment;
+  if(relative[0]==='prd'&&FIREBASE_SHARED_ROOT_KEYS.has(decodeURIComponent(sharedKey))){
     relative.shift();
-    url.pathname=(rootPath||'')+'/'+relative.join('/');
+    url.pathname=(rootPath==='/'?'':rootPath)+'/'+relative.join('/');
   }
   return url.toString();
 }
