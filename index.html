@@ -395,7 +395,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 <script src="assets/qc-offline-operarios-store.js" defer></script>
 <script src="assets/qc-offline-operarios-photos.js?v=117" defer></script>
 <script src="assets/qc-offline-operarios-drafts.js?v=120" defer></script>
-<script src="assets/qc-sync-global.js?v=123" defer></script>
+<script src="assets/qc-sync-global.js?v=124" defer></script>
 <style id="riego-landscape-style">
 /* El botón se muestra desde actualizarVistaRiegoSeleccion solo tras elegir invernadero. */
 #riego-overlay.riego-landscape-mode {
@@ -1677,11 +1677,6 @@ function mostrarModuloAvisos(){
   const esCargador=currentUserRole==='CARGADOR';
   const esAdmin=currentUserRole==='ADMIN';
   const esVigueras=esAdmin&&currentUser==='VIGUERAS';
-  const pendientesEspecificosHTML=`
-          <section class="avisos-modulo-seccion" aria-label="Pendientes">
-            <div class="avisos-modulo-titulo">Pendientes</div>
-            <div id="avisos-especificos-pendiente"></div>
-          </section>`;
   const accionesHTML=esCargador ? '' : esAdmin ? (esVigueras ? `
           <section class="avisos-modulo-seccion" aria-label="Gestión de riego">
             <div class="avisos-modulo-titulo">Gestión de riego</div>
@@ -1720,7 +1715,6 @@ function mostrarModuloAvisos(){
       </header>
       <main class="control-ui-content">
         <div class="avisos-modulo-grupo">
-          ${pendientesEspecificosHTML}
           ${esCargador ? `
           <section class="avisos-modulo-seccion" aria-label="Sincronización QC">
             <div class="avisos-modulo-titulo">Sincronización QC</div>
@@ -24006,7 +24000,7 @@ function leerOperacionEspecificoManual(){
   }catch(_){return null;}
 }
 function guardarOperacionEspecificoManual(op){
-  try{localStorage.setItem(ESPECIFICOS_MANUAL_OUTBOX_KEY,JSON.stringify(op));void actualizarCampanaAvisos();return true;}
+  try{localStorage.setItem(ESPECIFICOS_MANUAL_OUTBOX_KEY,JSON.stringify(op));void actualizarCampanaAvisos();void window.QCGlobalSync?.refresh?.();return true;}
   catch(_){return false;}
 }
 function etapaOperacionEspecificoManual(op,etapa){
@@ -24056,6 +24050,7 @@ async function descartarOperacionEspecificoManual(){
   localStorage.removeItem(ESPECIFICOS_MANUAL_OUTBOX_KEY);
   renderAvisoOperacionEspecificoPendiente();
   void actualizarCampanaAvisos();
+  void window.QCGlobalSync?.refresh?.();
   showToast('Alta pendiente cancelada. Revisa las calles vinculadas antes de crear otra.');
   return true;
 }
@@ -24180,6 +24175,7 @@ async function procesarOperacionEspecificoManual(op){
   localStorage.removeItem(ESPECIFICOS_MANUAL_OUTBOX_KEY);
   renderAvisoOperacionEspecificoPendiente();
   void actualizarCampanaAvisos();
+  void window.QCGlobalSync?.refresh?.();
   return true;
 }
 async function reintentarOperacionEspecificoManual(){
