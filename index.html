@@ -15354,7 +15354,9 @@ function imprimirHojaResumenEspecifico(f){
 // edición (ni inputs, ni guardar, ni dictado, ni alta manual).
 let riegoSoloLectura = false;
 let riegoVistaApaisadaActiva = false;
+let riegoVistaApaisadaCerrando = false;
 let riegoSoloLecturaAntesVista = false;
+let riegoVistaApaisadaEstadoAntes = null;
 function showRiegoModule(soloLectura){
   riegoSoloLectura = !!soloLectura;
   if(navigator.onLine!==false) procesarRiegoOffline();
@@ -15564,32 +15566,27 @@ function toggleRiegoInvSelector(forzarAbierto){
 // — sin inputs, sin botón de guardar, sin dictado por voz ni alta manual.
 async function abrirRiegoVistaApaisada(){
   const overlay = document.getElementById('riego-overlay');
-  if(!overlay || riegoVistaApaisadaActiva) return;
+  if(!overlay || riegoVistaApaisadaActiva || riegoVistaApaisadaCerrando) return;
+  const grid = document.getElementById('riego-grid-wrap');
+  riegoVistaApaisadaEstadoAntes = {
+    apaisada: window.innerWidth > window.innerHeight,
+    scrollTop: grid ? grid.scrollTop : 0,
+    scrollLeft: grid ? grid.scrollLeft : 0
+  };
 
   // Entrar a pantalla completa directamente desde la pulsación del usuario.
   let promesaPantallaCompleta = null;
   try {
-    if(overlay.requestFullscreen){
-      promesaPantallaCompleta = overlay.requestFullscreen({navigationUI:'hide'});
-    }
+    if(overlay.requestFullscreen) promesaPantallaCompleta = overlay.requestFullscreen({navigationUI:'hide'});
   } catch(e) {}
 
-  const grid = document.getElementById('riego-grid-wrap');
-  const scrollAntes = grid ? {top:grid.scrollTop,left:grid.scrollLeft} : null;
   riegoSoloLecturaAntesVista = riegoSoloLectura;
   riegoSoloLectura = true;
   riegoVistaApaisadaActiva = true;
   overlay.classList.add('riego-landscape-mode');
-
-  // Redibujar sin acciones para que la vista ampliada sea solo de consulta.
   if(riegoInvSel) renderRiegoGrid(riegoInvSel);
 
-  try {
-    if(promesaPantallaCompleta) await promesaPantallaCompleta;
-  } catch(e) {
-    // El overlay conserva el máximo espacio disponible si fullscreen falla.
-  }
-
+  try { if(promesaPantallaCompleta) await promesaPantallaCompleta; } catch(e) {}
   try {
     if(document.fullscreenElement === overlay && screen.orientation && screen.orientation.lock){
       await screen.orientation.lock('landscape');
@@ -15598,37 +15595,69 @@ async function abrirRiegoVistaApaisada(){
 
   requestAnimationFrame(()=>{
     const actual = document.getElementById('riego-grid-wrap');
-    if(actual && scrollAntes){
-      actual.scrollTop = scrollAntes.top;
-      actual.scrollLeft = scrollAntes.left;
+    if(actual && riegoVistaApaisadaEstadoAntes){
+      actual.scrollTop = riegoVistaApaisadaEstadoAntes.scrollTop;
+      actual.scrollLeft = riegoVistaApaisadaEstadoAntes.scrollLeft;
     }
   });
 }
 
-async function cerrarRiegoVistaApaisada(salirPantallaCompleta=true){
-  if(!riegoVistaApaisadaActiva) return;
-  const overlay = document.getElementById('riego-overlay');
-  const grid = document.getElementById('riego-grid-wrap');
-  const scrollAntes = grid ? {top:grid.scrollTop,left:grid.scrollLeft} : null;
-  riegoVistaApaisadaActiva = false;
-  if(overlay) overlay.classList.remove('riego-landscape-mode');
-  riegoSoloLectura = riegoSoloLecturaAntesVista;
-
-  if(riegoInvSel) renderRiegoGrid(riegoInvSel);
-  requestAnimationFrame(()=>{
-    const actual = document.getElementById('riego-grid-wrap');
-    if(actual && scrollAntes){
-      actual.scrollTop = scrollAntes.top;
-      actual.scrollLeft = scrollAntes.left;
-    }
+function esperarOrientacionOriginalRiego(estado){
+  if(!estado) return Promise.resolve();
+  const coincide = ()=>((window.innerWidth > window.innerHeight) === estado.apaisada);
+  if(coincide()) return new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+  return new Promise(resolve=>{
+    let terminado = false, timeoutId = null;
+    const finalizar = ()=>{
+      if(terminado) return;
+      terminado = true;
+      if(timeoutId) clearTimeout(timeoutId);
+      window.removeEventListener('resize', comprobar);
+      window.removeEventListener('orientationchange', comprobar);
+      resolve();
+    };
+    const comprobar = ()=>{
+      if(coincide() && !terminado){
+        window.removeEventListener('resize', comprobar);
+        window.removeEventListener('orientationchange', comprobar);
+        requestAnimationFrame(()=>requestAnimationFrame(finalizar));
+      }
+    };
+    window.addEventListener('resize', comprobar, {passive:true});
+    window.addEventListener('orientationchange', comprobar, {passive:true});
+    timeoutId = setTimeout(finalizar, 1800);
+    comprobar();
   });
+}
 
-  try {
-    if(screen.orientation && screen.orientation.unlock) screen.orientation.unlock();
-  } catch(e) {}
+async function cerrarRiegoVistaApaisada(salirPantallaCompleta=true){
+  if(!riegoVistaApaisadaActiva || riegoVistaApaisadaCerrando) return;
+  riegoVistaApaisadaCerrando = true;
+  riegoVistaApaisadaActiva = false;
+  const overlay = document.getElementById('riego-overlay');
+  const estadoAntes = riegoVistaApaisadaEstadoAntes;
+
+  // Mantener el diseño apaisado mientras Android completa el giro de vuelta.
+  try { if(screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); } catch(e) {}
   if(salirPantallaCompleta && overlay && document.fullscreenElement === overlay){
     try { await document.exitFullscreen(); } catch(e) {}
   }
+
+  await esperarOrientacionOriginalRiego(estadoAntes);
+  if(overlay) overlay.classList.remove('riego-landscape-mode');
+  riegoSoloLectura = riegoSoloLecturaAntesVista;
+
+  // Recalcular anchos y alturas con el viewport vertical ya restaurado.
+  if(riegoInvSel) renderRiegoGrid(riegoInvSel);
+  requestAnimationFrame(()=>{
+    const actual = document.getElementById('riego-grid-wrap');
+    if(actual && estadoAntes){
+      actual.scrollTop = estadoAntes.scrollTop;
+      actual.scrollLeft = estadoAntes.scrollLeft;
+    }
+  });
+  riegoVistaApaisadaEstadoAntes = null;
+  riegoVistaApaisadaCerrando = false;
 }
 
 document.addEventListener('fullscreenchange',()=>{
