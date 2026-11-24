@@ -24445,7 +24445,7 @@ function parsearTextoEspecifico(texto){
   let resto = firstIdx===-1 ? '' : base.slice(firstIdx+3);
 
   const m = ESPECIFICO_TRATAMIENTOS.find(t=>primerTrozo===t || primerTrozo.startsWith(t+' '));
-  if(m){ trat = m; const r = primerTrozo.slice(m.length).trim(); if(/^\\d+(?:[.,]\\d{1,3})?$/.test(r)) dosis = normalizarDosisEspecifico(r,m)||''; }
+  if(m){ trat = m; const r = primerTrozo.slice(m.length).trim(); dosis = normalizarDosisEspecifico(r,m)||''; }
 
   if(resto){
     const h = ESPECIFICO_HORARIOS.find(hh=>resto===hh || resto.startsWith(hh+' + '));
