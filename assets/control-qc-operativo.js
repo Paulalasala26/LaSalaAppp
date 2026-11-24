@@ -590,7 +590,7 @@
       aviso.style.cssText='position:fixed;top:calc(12px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);z-index:100002;max-width:calc(100vw - 24px);min-width:min(300px,calc(100vw - 24px));background:#1558a0;color:#fff;border:1px solid #9ec1e5;border-radius:9px;padding:13px 16px;box-shadow:0 6px 24px rgba(0,0,0,.22);font-size:14px;font-weight:800;text-align:center;pointer-events:none';
       document.body.appendChild(aviso);
     }
-    aviso.textContent='✓ Porcentajes QC guardados';
+    aviso.textContent='✓ QC realizado · guardado confirmado';
     clearTimeout(aviso._qcoTimeout);
     aviso._qcoTimeout=setTimeout(()=>aviso.remove(),4500);
   }
@@ -778,6 +778,7 @@
       carga_injerto:'Carga Injerto'
     };
     const summary=node('section',null,'qco-record-summary');
+    summary.id='qco-record-summary-'+rec.id;
     summary.style.cssText='margin:0 0 12px;padding:10px 11px;border:1px solid #d7e4f1;border-radius:10px;background:#f7faff;color:#294968';
     const top=node('div',null);
     top.style.cssText='display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;font-size:12px;color:#526b85';
