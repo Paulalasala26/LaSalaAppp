@@ -1,0 +1,48 @@
+{
+  "rules": {
+    "lasala-users-v1": {
+      ".read": false,
+      ".write": false
+    },
+    "lasala-roles-v1": {
+      ".read": "auth != null && auth.token.appUser != null && (auth.token.viguerappEnv === 'test' || auth.token.viguerappEnv === 'prd')",
+      ".write": false
+    },
+    "lasala-config-riego-opciones-v1": {
+      ".read": "auth != null && auth.token.appUser != null && (auth.token.viguerappEnv === 'test' || auth.token.viguerappEnv === 'prd')",
+      ".write": "auth != null && auth.token.appUser != null && (auth.token.viguerappEnv === 'test' || auth.token.viguerappEnv === 'prd')"
+    },
+    "lasala-config-infra-v1": {
+      ".read": "auth != null && auth.token.appUser != null && (auth.token.viguerappEnv === 'test' || auth.token.viguerappEnv === 'prd')",
+      ".write": "auth != null && auth.token.appUser != null && (auth.token.viguerappEnv === 'test' || auth.token.viguerappEnv === 'prd')"
+    },
+    "lasala-gs-partes-v1": {
+      ".read": "auth != null && auth.token.appUser != null && (auth.token.viguerappEnv === 'test' || auth.token.viguerappEnv === 'prd')",
+      ".write": "auth != null && auth.token.appUser != null && (auth.token.viguerappEnv === 'test' || auth.token.viguerappEnv === 'prd')"
+    },
+    "lasala-gs-carga-v1": {
+      ".read": "auth != null && auth.token.appUser != null && (auth.token.viguerappEnv === 'test' || auth.token.viguerappEnv === 'prd')",
+      ".write": "auth != null && auth.token.appUser != null && (auth.token.viguerappEnv === 'test' || auth.token.viguerappEnv === 'prd')"
+    },
+    "lasala-gs-carga-injerto-v1": {
+      ".read": "auth != null && auth.token.appUser != null && (auth.token.viguerappEnv === 'test' || auth.token.viguerappEnv === 'prd')",
+      ".write": "auth != null && auth.token.appUser != null && (auth.token.viguerappEnv === 'test' || auth.token.viguerappEnv === 'prd')"
+    },
+    "lasala-gs-preinjerto-v1": {
+      ".read": "auth != null && auth.token.appUser != null && (auth.token.viguerappEnv === 'test' || auth.token.viguerappEnv === 'prd')",
+      ".write": "auth != null && auth.token.appUser != null && (auth.token.viguerappEnv === 'test' || auth.token.viguerappEnv === 'prd')"
+    },
+    "lasala-tareas-v1": {
+      ".read": "auth != null && auth.token.appUser != null && auth.token.viguerappEnv === 'test'",
+      ".write": false
+    },
+    "prd": {
+      ".read": "auth != null && auth.token.appUser != null && auth.token.viguerappEnv === 'prd'",
+      ".write": "auth != null && auth.token.appUser != null && auth.token.viguerappEnv === 'prd'"
+    },
+    "$other": {
+      ".read": "auth != null && auth.token.appUser != null && auth.token.viguerappEnv === 'test' && $other !== 'prd' && $other !== 'lasala-users-v1' && $other !== 'lasala-roles-v1' && $other !== 'lasala-tareas-v1' && $other !== 'lasala-config-riego-opciones-v1' && $other !== 'lasala-config-infra-v1' && $other !== 'lasala-gs-partes-v1' && $other !== 'lasala-gs-carga-v1' && $other !== 'lasala-gs-carga-injerto-v1' && $other !== 'lasala-gs-preinjerto-v1'",
+      ".write": "auth != null && auth.token.appUser != null && auth.token.viguerappEnv === 'test' && $other !== 'prd' && $other !== 'lasala-users-v1' && $other !== 'lasala-roles-v1' && $other !== 'lasala-tareas-v1' && $other !== 'lasala-config-riego-opciones-v1' && $other !== 'lasala-config-infra-v1' && $other !== 'lasala-gs-partes-v1' && $other !== 'lasala-gs-carga-v1' && $other !== 'lasala-gs-carga-injerto-v1' && $other !== 'lasala-gs-preinjerto-v1'"
+    }
+  }
+}
