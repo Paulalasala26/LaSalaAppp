@@ -11,8 +11,7 @@ const EMULATOR_PORT=9000;
 const CANDIDATE='database.rules.environment-isolation.candidate.json';
 
 before(async()=>{
-  assert.match(process.env.FIREBASE_DATABASE_EMULATOR_HOST||'',
-    /^(127\\.0\\.0\\.1|localhost):9000$/,
+  assert.ok(['127.0.0.1:9000','localhost:9000'].includes(process.env.FIREBASE_DATABASE_EMULATOR_HOST||''),
     'Run ONLY against the local RTDB emulator at 127.0.0.1:9000');
   if(process.env.GCLOUD_PROJECT)assert.equal(process.env.GCLOUD_PROJECT,PROJECT_ID);
   env=await initializeTestEnvironment({projectId:PROJECT_ID,
