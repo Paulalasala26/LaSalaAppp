@@ -588,11 +588,27 @@ const fotoEntrada = {};
 // ════════════════════════════════════════════════════════════════
 const CLOUD_DB_ROOT_URL = 'https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app';
 const CLOUD_DB_URL = CLOUD_DB_ROOT_URL + '/prd';
+const FIREBASE_SHARED_ROOT_KEYS = new Set([
+  'lasala-users-v1','lasala-roles-v1',
+  'lasala-config-riego-opciones-v1','lasala-config-infra-v1',
+  'lasala-gs-partes-v1','lasala-gs-carga-v1',
+  'lasala-gs-carga-injerto-v1','lasala-gs-preinjerto-v1'
+]);
+function routeFirebaseEnvironmentPath(input){
+  if(typeof input!=='string'||!input.startsWith(CLOUD_DB_ROOT_URL)) return input;
+  const url=new URL(input);
+  const rootPath=new URL(CLOUD_DB_ROOT_URL).pathname.replace(/\\/$/,'');
+  const relative=url.pathname.slice(rootPath.length).split('/').filter(Boolean);
+  if(relative[0]==='prd'&&FIREBASE_SHARED_ROOT_KEYS.has(decodeURIComponent(relative[1]||''))){
+    relative.shift();
+    url.pathname=(rootPath||'')+'/'+relative.join('/');
+  }
+  return url.toString();
+}
 
-// Preparación Firebase Auth: mientras no haya ID token, el comportamiento es
-// exactamente el actual. Cuando Firebase Auth esté activado, basta con llamar
-// a setFirebaseIdToken(token): todas las peticiones RTDB pasarán a enviar
-// auth=<ID token> sin reescribir cada módulo.
+// Preparación Firebase Auth: todas las peticiones RTDB del cliente se enrutan
+// por la URL de este entorno. PRD usa /prd y las claves compartidas permanecen
+// en la raíz. TEST conserva su URL raíz sin cambios.
 let firebaseIdToken = null;
 let firebaseRefreshToken = null;
 let firebaseTokenExpiresAt = 0;
@@ -602,17 +618,19 @@ function setFirebaseIdToken(token, expiresInSec){
   firebaseTokenExpiresAt = token ? Date.now() + (Number(expiresInSec)||3600)*1000 : 0;
 }
 async function appFetch(input, init){
+  let routedInput=input;
   try{
-    if(typeof input==='string' && input.startsWith(CLOUD_DB_ROOT_URL)){
+    routedInput=routeFirebaseEnvironmentPath(input);
+    if(typeof routedInput==='string' && routedInput.startsWith(CLOUD_DB_ROOT_URL)){
       await ensureFirebaseIdTokenFresh();
       if(firebaseIdToken){
-        const u=new URL(input);
+        const u=new URL(routedInput);
         if(!u.searchParams.has('auth')) u.searchParams.set('auth', firebaseIdToken);
-        return window.fetch(u.toString(), init);
+        routedInput=u.toString();
       }
     }
   }catch(e){}
-  return window.fetch(input, init);
+  return window.fetch(routedInput, init);
 }
 // A petición de Paula (2026-08-03), tras perder trabajo real de un técnico
 // que estuvo marcando checks justo cuando Netlify se cayó: get/set nunca
