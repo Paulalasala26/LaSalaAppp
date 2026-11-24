@@ -3461,6 +3461,7 @@ function buildTareaCard(t){
       <span style="font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px;background:${estadoBg};color:${estadoColor};white-space:nowrap">${estadoTareaLabel(t.estado)}</span>
     </div>
     ${subtitulo?`<div style="font-size:13px;font-weight:600;color:var(--muted);margin-top:3px">${subtitulo}</div>`:''}
+    ${t.categoria==='especifico'&&t.descripcion?`<div style="font-size:13px;color:#1558a0;margin-top:5px;overflow-wrap:anywhere"><b>Observaciones:</b> ${escaparObservacionEspecifico(t.descripcion)}</div>`:''}
     ${(t.categoria==='especifico' && (t.caldoLabel||t.gastoLabel)) ? `<div style="font-size:12px;color:var(--muted);margin-top:4px;display:flex;gap:14px;flex-wrap:wrap">
       ${t.caldoLabel?`<span><b>Caldo inicial:</b> ${t.caldoLabel}</span>`:''}
       ${t.gastoLabel?`<span><b>Gasto de producto:</b> ${t.gastoLabel}</span>`:''}
@@ -23352,6 +23353,9 @@ function especificoResumenFichaHTML(ctx){
     </div>
   </section>`;
 }
+function escaparObservacionEspecifico(v){
+  return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
 function especificoCeldaFichaHTML(inv){
   const cfg=espBulkConfig[inv];
   const tramo=cfg?.tramos?.[0]||{desde:null,hasta:null,tipo:'',obs:''};
@@ -23368,6 +23372,10 @@ function especificoCeldaFichaHTML(inv){
           <option value="">—</option>
           ${ESPECIFICO_TIPOS.map(t=>`<option value="${escapeHtml(t)}"${t===tramo.tipo?' selected':''}>${escapeHtml(t)}</option>`).join('')}
         </select>
+      </label>
+      <label style="font-size:11px;font-weight:700;color:#1558a0">Observaciones (opcional)
+        <input type="text" id="esp-obs-celda" value="${escapeHtml(tramo.obs)}" oninput="espBulkConfig['${inv}'].tramos[0].obs=this.value"
+          style="display:block;width:100%;margin-top:3px;min-height:38px;padding:6px;border:1px solid #a8c4e8;border-radius:6px;background:#fff;font-size:12px">
       </label>
     </div>
   </section>`;
@@ -23629,7 +23637,7 @@ function renderEspBulkDetalle(invId){
   // para cualquier otro invernadero que tenga el modo 'tramo' abierto.
   // De lo contrario, al cambiar de invernadero se pierden los tramos del anterior.
   Object.keys(espBulkConfig).forEach(oId=>{
-    if(oId!==invId && espBulkConfig[oId].modo==='tramo'){
+    if(oId!==invId && espBulkConfig[oId].modo==='tramo' && document.getElementById('esp-bulk-tramos-'+oId)){
       espBulkConfig[oId].tramos = leerEspBulkTramosDesdeDOM(oId);
     }
   });
@@ -23638,7 +23646,7 @@ function renderEspBulkDetalle(invId){
     cont.innerHTML = `
       <div class="esp-form-helper">Se aplicará a las ${allCalles.length} calles.</div>
       ${especificoTipoSelectHTML(`esp-bulk-tipo-${invId}`, cfg.tipoEntero, `espBulkConfig['${invId}'].tipoEntero=this.value`)}
-      <input type="text" value="${(cfg.obsEntero||'').replace(/"/g,'&quot;')}" onchange="espBulkConfig['${invId}'].obsEntero=this.value" placeholder="Observaciones (opcional)"
+      <input type="text" value="${escaparObservacionEspecifico(cfg.obsEntero)}" oninput="espBulkConfig['${invId}'].obsEntero=this.value" placeholder="Observaciones (opcional)"
         style="width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;background:#fff;outline:none;margin-top:6px">`;
   } else if(cfg.modo==='entero_menos'){
     if(cfg.excluir.desde==null || !allCalles.includes(cfg.excluir.desde)) cfg.excluir = {...cfg.excluir, desde:allCalles[0], hasta:allCalles[0]};
@@ -23652,7 +23660,7 @@ function renderEspBulkDetalle(invId){
         </select>
       </div>
       ${especificoTipoSelectHTML(`esp-bulk-excl-tipo-${invId}`, cfg.excluir.tipo, `espBulkConfig['${invId}'].excluir.tipo=this.value`)}
-      <input type="text" value="${(cfg.excluir.obs||'').replace(/"/g,'&quot;')}" onchange="espBulkConfig['${invId}'].excluir.obs=this.value" placeholder="Observaciones (opcional)"
+      <input type="text" value="${escaparObservacionEspecifico(cfg.excluir.obs)}" oninput="espBulkConfig['${invId}'].excluir.obs=this.value" placeholder="Observaciones (opcional)"
         style="width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;background:#fff;outline:none;margin-top:6px">`;
   } else {
     if(!cfg.tramos.length) cfg.tramos = [{desde:allCalles[0], hasta:allCalles[0], tipo:'', obs:''}];
@@ -23682,6 +23690,8 @@ function renderEspBulkTramoRows(invId){
         <option value="">Tipo — —</option>
         ${ESPECIFICO_TIPOS.map(tp=>`<option value="${tp}"${tp===t.tipo?' selected':''}>${tp}</option>`).join('')}
       </select>
+      <input type="text" class="esp-bulk-tramo-obs" aria-label="Observaciones del tramo" placeholder="Observaciones (opcional)" value="${escaparObservacionEspecifico(t.obs)}"
+        style="width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;background:#fff;outline:none">
     </div>`).join('');
   actualizarEspBulkTramoEstado(invId);
 }
@@ -23690,7 +23700,7 @@ function leerEspBulkTramosDesdeDOM(invId){
     desde: parseInt(row.querySelector('.esp-bulk-tramo-desde').value, 10),
     hasta: parseInt(row.querySelector('.esp-bulk-tramo-hasta').value, 10),
     tipo: row.querySelector('.esp-bulk-tramo-tipo').value,
-    obs: ''
+    obs: (row.querySelector('.esp-bulk-tramo-obs')?.value||'').trim()
   }));
 }
 function actualizarEspBulkTramoEstado(invId){
@@ -23783,7 +23793,7 @@ function construirTramosContiguosEsp(calles, tipo, obs){
   while(i < ordenadas.length){
     let j = i;
     while(j+1 < ordenadas.length && ordenadas[j+1] === ordenadas[j]+1) j++;
-    tramos.push({desde: ordenadas[i], hasta: ordenadas[j], tipo, obs});
+    tramos.push({desde: ordenadas[i], hasta: ordenadas[j], tipo, obs:String(obs||'').trim()});
     i = j+1;
   }
   return tramos;
@@ -23850,7 +23860,7 @@ async function autoAsignarTareaEspecifico(invId,dia,callesLabel,titulo,horario,o
   });
   await guardarTareaAutomatica(
     t=>!t.especificoPartidaRegistroId&&t.inv===invId&&t.fechaISO===fechaISO&&t.asignadoA===asignadoA
-      &&t.titulo===titulo&&t.categoria==='especifico'&&['pendiente','iniciada'].includes(t.estado)&&!t.archivadaEn,
+      &&t.titulo===titulo&&String(t.descripcion||'').trim()===String(obs||'').trim()&&t.categoria==='especifico'&&['pendiente','iniciada'].includes(t.estado)&&!t.archivadaEn,
     crearTareaAuto,
     existente=>{
       existente.calles=fusionarCallesTarea(existente.calles,callesLabel);
@@ -24108,6 +24118,19 @@ function agregarOperacionTareaEspecifico(lista,key){
   if(actuales.includes(key))return actuales;
   return [...actuales.slice(-19),key];
 }
+// Decodificar únicamente los rangos que genera el alta manual de Específicos.
+function callesTareaEspecificoManual(invId,label){
+  const todas=callesOrdenadasInv(invId);
+  const porCodigo=new Map(todas.map(c=>[formatCalleConInv(invId,c),c]));
+  const resultado=new Set();
+  for(const parte of String(label||'').split(',').map(x=>x.trim())){
+    const m=/^C\/([0-9]+)(?:-([0-9]+))?$/.exec(parte);
+    if(!m||!porCodigo.has(m[1])||!porCodigo.has(m[2]||m[1]))return null;
+    const a=porCodigo.get(m[1]),b=porCodigo.get(m[2]||m[1]);
+    todas.filter(c=>c>=Math.min(a,b)&&c<=Math.max(a,b)).forEach(c=>resultado.add(c));
+  }
+  return [...resultado].sort((a,b)=>a-b);
+}
 async function guardarTareasEspecificoManualEnLote(op){
   if(!op.tareas.length)return true;
   const tx=await actualizarStorageJsonConEtag(TAREAS_KEY,[],cloud=>{
@@ -24125,8 +24148,25 @@ async function guardarTareasEspecificoManualEnLote(op){
         porId.operacionesEspecificosManual=agregarOperacionTareaEspecifico(porId.operacionesEspecificosManual,key);
         continue;
       }
+      // Al modificar una nota, retirar solo las calles afectadas de la
+      // tarea manual pendiente anterior. No modificar tareas iniciadas/firmadas.
+      for(const anterior of (plan.reemplazosObs||[])){
+        for(let i=next.length-1;i>=0;i--){
+          const t=next[i];
+          if(t.especificoPartidaRegistroId||String(t.inv)!==String(plan.tarea.inv)||t.fechaISO!==plan.tarea.fechaISO
+            ||t.asignadoA!==plan.tarea.asignadoA||t.titulo!==plan.tarea.titulo||t.categoria!=='especifico'
+            ||t.estado!=='pendiente'||t.archivadaEn||String(t.descripcion||'').trim()!==anterior.obs)continue;
+          const calles=callesTareaEspecificoManual(t.inv,t.calles);
+          if(!calles)continue;
+          const quitar=new Set(anterior.calles);
+          const quedan=calles.filter(c=>!quitar.has(c));
+          if(quedan.length===calles.length)continue;
+          if(quedan.length)t.calles=formatCallesParaImprimir(t.inv,quedan);
+          else next.splice(i,1);
+        }
+      }
       const candidatas=next.filter(t=>!t.especificoPartidaRegistroId&&t.inv===plan.tarea.inv&&t.fechaISO===plan.tarea.fechaISO
-        &&t.asignadoA===plan.tarea.asignadoA&&t.titulo===plan.tarea.titulo&&t.categoria==='especifico'
+        &&t.asignadoA===plan.tarea.asignadoA&&t.titulo===plan.tarea.titulo&&String(t.descripcion||'').trim()===String(plan.tarea.descripcion||'').trim()&&t.categoria==='especifico'
         &&['pendiente','iniciada'].includes(t.estado)&&!t.archivadaEn);
       if(candidatas.length>1)throw Error('Hay tareas compatibles duplicadas; no se fusionó ninguna.');
       if(candidatas.length===1){
@@ -24242,6 +24282,8 @@ async function saveEspecificoManual(){
     for(const {desde,hasta,tipo,obs} of tramos){
       if(desde==null||hasta==null)continue;
       const s=Math.min(desde,hasta),e=Math.max(desde,hasta),callesTramo=[];
+      const reemplazosObs=new Map();
+      const tituloTarea=[tratDosis,tipo].filter(Boolean).join(' + ');
       const partes=[base,tipo].filter(Boolean);
       let texto=partes.join(' + ');
       if(obs)texto=texto?texto+' — '+obs:obs;
@@ -24249,14 +24291,23 @@ async function saveEspecificoManual(){
         if(!allCalles.includes(calle))continue;
         const prev=especificosData[invId]?.[dia]?.[calle];
         const prevObj=prev&&typeof prev==='object'?prev:{};
+        const previoTexto=typeof prev==='string'?prev:prevObj.texto;
+        if(previoTexto){
+          const p=parsearTextoEspecifico(previoTexto);
+          const obsAnterior=String(p.obs||'').trim();
+          const tituloAnterior=[[p.trat,p.dosis].filter(Boolean).join(' '),p.tipo].filter(Boolean).join(' + ');
+          if(tituloAnterior===tituloTarea&&obsAnterior!==String(obs||'').trim()){
+            if(!reemplazosObs.has(obsAnterior))reemplazosObs.set(obsAnterior,[]);
+            reemplazosObs.get(obsAnterior).push(calle);
+          }
+        }
         const valor={...prevObj,texto,caldoLitros,caldoLabel,tecnico:currentUser};
         celdas.set(String(invId)+'|'+String(dia)+'|'+String(calle),{invId:String(invId),dia:String(dia),calle:String(calle),valor});
         callesTramo.push(calle);count++;
       }
       if(!callesTramo.length)continue;
       const tramoId='t'+tramoN++;
-      const tituloTarea=[tratDosis,tipo].filter(Boolean).join(' + ');
-      op.tareas.push({id:tramoId,idempotencia:operationId+'_'+tramoId,tarea:{
+      op.tareas.push({id:tramoId,idempotencia:operationId+'_'+tramoId,reemplazosObs:[...reemplazosObs].map(([obs,calles])=>({obs,calles})),tarea:{
         id:'tarea_'+operationId+'_'+tramoId,titulo:tituloTarea,descripcion:obs||'',asignadoA:reganteDelaSala(invId),
         asignadoPor:currentUser||'—',inv:String(invId),calles:formatRangoConInv(invId,s,e),
         fecha:riegoDiaLabelCorto(dia),fechaISO:fechaLocalISO(riegoDiaToDate(dia)),turno:'',horario:horario||'',
