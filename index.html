@@ -597,7 +597,7 @@ const FIREBASE_SHARED_ROOT_KEYS = new Set([
 function routeFirebaseEnvironmentPath(input){
   if(typeof input!=='string'||!input.startsWith(CLOUD_DB_ROOT_URL)) return input;
   const url=new URL(input);
-  const rootPath=new URL(CLOUD_DB_ROOT_URL).pathname.replace(/\\/$/,'');
+  const rootPath=new URL(CLOUD_DB_ROOT_URL).pathname;
   const relative=url.pathname.slice(rootPath.length).split('/').filter(Boolean);
   if(relative[0]==='prd'&&FIREBASE_SHARED_ROOT_KEYS.has(decodeURIComponent(relative[1]||''))){
     relative.shift();
