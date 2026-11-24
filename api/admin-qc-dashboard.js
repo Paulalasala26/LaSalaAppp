@@ -404,7 +404,7 @@ module.exports=async function handler(req,res){
       return res.status(200).json({ok:true,...buildPartidas(legacy,filter)});
     }
     const [measurements,legacy]=await Promise.all([
-      readKey('lasala-qc-mediciones-v1',token),
+      readKey('lasala-qc-mediciones-v1',token,DATA_DB),
       fetchLegacyControls(token,filter)
     ]);
     const report=buildDashboard(measurements,null,filter,legacy);
