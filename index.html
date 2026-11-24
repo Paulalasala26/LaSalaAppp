@@ -14255,7 +14255,9 @@ const RIEGO_DATA_CACHE_TTL_MS = 30000;
 async function loadRiegoV2Index(modoGuardado){
   try{
     const r = await window.storage.get(RIEGO_V2_INDEX_KEY);
-    if(!r){ if(modoGuardado) avisarFalloGuardado(); else avisarFalloCarga(); return null; }
+    // PRD puede arrancar sin ningún dato operativo: un índice ausente equivale a una lista vacía.
+    // Los fallos de lectura del shard siguen detectándose en leerRiegoV2Nodo/fetchConReintentos.
+    if(!r) return [];
     const ids = JSON.parse(r.value);
     if(!Array.isArray(ids)) throw new Error('Índice Riego v2 inválido');
     return ids.map(String);
@@ -14285,8 +14287,8 @@ async function actualizarRiegoV2IndexConInv(invId){
       const etag = getRes.headers.get('ETag');
       if(!etag) throw new Error('Firebase no devolvió ETag');
       const val = await getRes.json();
-      if(val==null){ avisarFalloGuardado(); return false; }
-      const ids = JSON.parse(val);
+      // Primer guardado de Riego en PRD: crear el índice con ETag de la ubicación vacía.
+      const ids = val==null ? [] : JSON.parse(val);
       if(!Array.isArray(ids)){ avisarFalloGuardado(); return false; }
       if(ids.map(String).includes(id)) return true;
       ids.push(id);
