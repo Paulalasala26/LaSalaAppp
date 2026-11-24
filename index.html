@@ -21225,13 +21225,46 @@ function litrosRealesFitoParaGasto(caldoLitros){
 }
 // Mezclas ya preparadas que se pueden elegir directamente en el desplegable
 // "Mezclas predeterminadas", en vez de escribir cada producto y dosis a mano.
-// Agrupadas por tipo de planta (a petición de Vigueras, 2026-09-15): las que
-// había hasta ahora son todas de Postinjerto — Normal y Preinjerto quedan
-// preparadas vacías a la espera de que Vigueras mande esas listas.
+// Catálogo original de Vigueras: Normal, Preinjerto y Postinjerto.
+// Mantener las tres listas sin reinterpretar sus productos ni dosis.
 const FITO_MEZCLAS_PREDETERMINADAS = {
   normal: [
+    'SUPREM 0.7cc/L + SPINTOR 0.5cc/L + CUPRIK 3gr/L + GLUCOSA 5cc/L',
+    'SUPREM 0.7cc/L + BB5 0.5cc/L + ATOMINAL 0.5cc/L + ALIGN 1cc/L',
+    'BENEVIA 1.25cc/L + GLUCOSA 5cc/L',
+    'SUPREM 0.7cc/L + SITAN 0.75cc/L',
+    'SUPREM 0.7cc/L + EPIK 0.35cc/L + NOIDIUM 2.5cc/L + GLUCOSA 5cc/L',
+    'SUPREM 0.7cc/L + NATURALIS 2cc/L + WHITE 2cc/L + TRIPLO 2cc/L',
+    'ALTACOR 0.12gr/L + CUPRIK 3gr/L',
+    'CLOSER 0.4cc/L',
+    'DOMARK 0.4cc/L',
+    'EPIK 0.35cc/L',
+    'COLLIS 0.5cc/L + SIVANTO 0.5cc/L + GLUCOSA 5cc/L',
+    'BB5 0.5cc/L + BACTUR 1.5cc/L + SERENADE ASO 8cc/L',
+    'REVUS 0.6cc/L + CURZATE 0.2cc/L'
   ],
   preinjerto: [
+    'ENERVIN SC 2.4cc/L + SPINTOR 0.8cc/L + CUPRIK 3gr/L',
+    'BB5 0.5cc/L + ATOMINAL 0.5cc/L + RANMAN TOP 0.5cc/L',
+    'CABRIO 0.4cc/L',
+    'SIGNUM 1.5gr/L',
+    'BB5 0.5cc/L + SERENADE ASO 8cc/L + BACTUR 1.5cc/L + VERTIMEC 0.5cc/L',
+    'ALTACOR 0.12gr/L + ENTECTA 0.35cc/L + CUPRIK 3gr/L',
+    'REVUS 0.6cc/L + CURZATE 0.2cc/L',
+    'ORTIVA 0.5cc/L',
+    'SWITCH 1gr/L',
+    'BENEVIA 1.25cc/L',
+    'COLLIS 0.5cc/L',
+    'CLOSER 0.4cc/L + BIOSULFUR 2.5gr/L',
+    'EPIK 0.35cc/L + TEPPEKI 0.15cc/L',
+    'RANMAN TOP 0.5cc/L',
+    'COLLIS 0.5cc/L + SIVANTO 0.5cc/L',
+    'DOMARK 0.4cc/L + CLOSER 0.4cc/L',
+    'ARAW 3cc/L',
+    'TOPAS 0.2cc/L',
+    'BIOSULFUR 2.5gr/L',
+    'THIOVIT 3gr/L',
+    'VIVANDO 0.2cc/L'
   ],
   postinjerto: [
     'ORTIVA TOP 1cc/L',
@@ -21279,7 +21312,6 @@ function desmarcarMezclaFitoAlEditar(){
 function showFitoManualForm(){
   const inv = fitoInvSel;
   const expandirOpcionesAlAbrir=!!(fmPendingConfig||fmPendingBulkConfig);
-  const tiposFitoConMezclas=Object.keys(FITO_MEZCLAS_PREDETERMINADAS).filter(k=>(FITO_MEZCLAS_PREDETERMINADAS[k]||[]).length>0);
   fmEditContextoOriginal = null;
   if(fmPendingBulkConfig){
     // Editando desde el resumen de la quincena: TODOS los invernaderos del
@@ -21315,8 +21347,51 @@ function showFitoManualForm(){
       <div style="flex:1;min-height:0;overflow-y:auto;background:#f6f9fe">
         <div style="max-width:840px;width:100%;box-sizing:border-box;min-width:0;margin:0 auto;padding:12px;display:flex;flex-direction:column;gap:10px">
           <details class="fm-accordion" open style="background:#fff;border:1px solid #c6d9ee;border-radius:9px;overflow:hidden">
+            <summary style="padding:13px 14px;font-size:14px;font-weight:800;color:#1558a0;cursor:pointer;background:#e8f0fb">1. Mezcla y tratamiento</summary>
+            <div style="padding:12px;display:grid;grid-template-columns:minmax(0,1fr);gap:12px">
+        <!-- TIPO DE MEZCLA (Normal/Preinjerto/Postinjerto) -->
+        <div style="min-width:0">
+          <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Tipo de mezcla</label>
+          <div style="position:relative">
+            <select id="fm-mezcla-tipo" onchange="cambiarTipoMezclaPredeterminada(this.value)" style="width:100%;padding:9px 32px 9px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;font-weight:600;background:#f2f4f0;outline:none;cursor:pointer;-webkit-appearance:none">
+              <option value="normal">Normal</option>
+              <option value="preinjerto">Preinjerto</option>
+              <option value="postinjerto" selected>Postinjerto</option>
+            </select>
+            <i class="ti ti-chevron-down" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);pointer-events:none;color:#a32020;font-size:14px"></i>
+          </div>
+        </div>
+
+        <!-- MEZCLAS PREDETERMINADAS -->
+        <div>
+          <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Mezclas predeterminadas</label>
+          <div style="position:relative">
+            <select id="fm-mezcla" onchange="aplicarMezclaPredeterminada(this.value)" style="width:100%;padding:9px 32px 9px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;font-weight:600;background:#f2f4f0;outline:none;cursor:pointer;-webkit-appearance:none">
+              ${opcionesMezclasPredeterminadasHTML('postinjerto')}
+            </select>
+            <i class="ti ti-chevron-down" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);pointer-events:none;color:#a32020;font-size:14px"></i>
+          </div>
+        </div>
+
+        <!-- TRATAMIENTO -->
+        <div>
+          <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Tratamiento (Producto)</label>
+          <input id="fm-trat" type="text" placeholder="ej. Switch, Previcur, Amistar..." oninput="desmarcarMezclaFitoAlEditar()"
+            style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:#f2f4f0;outline:none;color:var(--text)">
+        </div>
+
+        <!-- DOSIS -->
+        <div>
+          <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Dosis</label>
+          <input id="fm-dosis" type="text" placeholder="ej. 1 cc/l, 2 g/l..." oninput="desmarcarMezclaFitoAlEditar()"
+            style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:#f2f4f0;outline:none;color:var(--text)">
+        </div>
+
+            </div>
+          </details>
+          <details class="fm-accordion" open style="background:#fff;border:1px solid #c6d9ee;border-radius:9px;overflow:hidden">
             <summary style="padding:13px 14px;font-size:14px;font-weight:800;color:#1558a0;cursor:pointer;background:#e8f0fb">
-              1. Dónde y cuándo <span id="fm-count-superior" style="font-size:11px;font-weight:600;margin-left:8px"></span>
+              2. Dónde y cuándo <span id="fm-count-superior" style="font-size:11px;font-weight:600;margin-left:8px"></span>
             </summary>
             <div style="padding:12px;display:grid;gap:12px">
         <!-- DÍA -->
@@ -21336,62 +21411,23 @@ function showFitoManualForm(){
               </div>
             </div>
           </details>
-          <details class="fm-accordion" open style="background:#fff;border:1px solid #c6d9ee;border-radius:9px;overflow:hidden">
-            <summary style="padding:13px 14px;font-size:14px;font-weight:800;color:#1558a0;cursor:pointer;background:#e8f0fb">2. Método y tratamiento</summary>
-            <div style="padding:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:12px">
-        <div style="grid-column:1/-1">
-          <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Cómo se aplica</label>
-          <select id="fm-tipo-trat" onchange="actualizarResumenSeleccionFitoManual()" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:7px;background:#f2f4f0;color:var(--text);font-size:13px;font-weight:700">
-            <option value="">Seleccionar método</option>
-            <option value="Pistola">Pistola · tarea para peón</option>
-            <option value="Cañón">Cañón · sin tarea de peón</option>
-          </select>
-        </div>
-        <!-- TIPO DE MEZCLA (Normal/Preinjerto/Postinjerto) -->
-        <div style="display:${tiposFitoConMezclas.length>1?'block':'none'}">
-          <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Tipo de mezcla</label>
-          <div style="position:relative">
-            <select id="fm-mezcla-tipo" onchange="cambiarTipoMezclaPredeterminada(this.value)" style="width:100%;padding:9px 32px 9px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;font-weight:600;background:#f2f4f0;outline:none;cursor:pointer;-webkit-appearance:none">
-              <option value="normal">Normal</option>
-              <option value="preinjerto">Preinjerto</option>
-              <option value="postinjerto" selected>Postinjerto</option>
-            </select>
-            <i class="ti ti-chevron-down" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);pointer-events:none;color:#a32020;font-size:14px"></i>
-          </div>
-        </div>
-
-        <!-- MEZCLAS PREDETERMINADAS -->
-        <div>
-          <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Mezcla habitual (opcional)</label>
-          <div style="position:relative">
-            <select id="fm-mezcla" onchange="aplicarMezclaPredeterminada(this.value)" style="width:100%;padding:9px 32px 9px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;font-weight:600;background:#f2f4f0;outline:none;cursor:pointer;-webkit-appearance:none">
-              ${opcionesMezclasPredeterminadasHTML('postinjerto')}
-            </select>
-            <i class="ti ti-chevron-down" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);pointer-events:none;color:#a32020;font-size:14px"></i>
-          </div>
-        </div>
-
-        <!-- TRATAMIENTO -->
-        <div>
-          <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Producto fitosanitario</label>
-          <input id="fm-trat" type="text" placeholder="ej. Switch, Previcur, Amistar..." oninput="desmarcarMezclaFitoAlEditar()"
-            style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:#f2f4f0;outline:none;color:var(--text)">
-        </div>
-
-        <!-- DOSIS -->
-        <div>
-          <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Dosis por litro</label>
-          <input id="fm-dosis" type="text" placeholder="ej. 1 cc/l, 2 g/l..." oninput="desmarcarMezclaFitoAlEditar()"
-            style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:#f2f4f0;outline:none;color:var(--text)">
-        </div>
-
+          <details id="fm-opciones-avanzadas" class="fm-accordion" ${expandirOpcionesAlAbrir?'open':''} style="background:#fff;border:1px solid #c6d9ee;border-radius:9px;overflow:hidden">
+            <summary style="padding:13px 14px;font-size:14px;font-weight:800;color:#1558a0;cursor:pointer;background:#e8f0fb">3. Opciones por invernadero</summary>
+            <div style="padding:12px;display:flex;flex-direction:column;gap:12px">
+              <div id="fm-bulk-panels"></div>
+              <div id="fm-acciones-edicion" style="display:none;flex-wrap:wrap;gap:8px;border-top:1px solid #dce4ed;padding-top:10px">
+                <button id="fm-btn-borrar" type="button" onclick="borrarFitoManual()" title="Borrar tratamiento existente en las calles seleccionadas"
+                  style="display:none;padding:8px 12px;background:#fdecea;color:#c62828;border:1px solid #f3c2bd;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer">
+                  <i class="ti ti-trash" aria-hidden="true"></i> Borrar tratamiento
+                </button>
+              </div>
             </div>
           </details>
           <details class="fm-accordion" open style="background:#fff;border:1px solid #c6d9ee;border-radius:9px;overflow:hidden">
-            <summary style="padding:13px 14px;font-size:14px;font-weight:800;color:#1558a0;cursor:pointer;background:#e8f0fb">3. Hora y volumen</summary>
+            <summary style="padding:13px 14px;font-size:14px;font-weight:800;color:#1558a0;cursor:pointer;background:#e8f0fb">4. Horario, caldo y método</summary>
             <div style="padding:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:12px">
         <!-- HORARIO -->
-        <div>
+        <div style="grid-column:1/-1">
           <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Horario</label>
           <div style="position:relative">
             <select id="fm-horario" style="width:100%;padding:9px 32px 9px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;font-weight:600;background:#f2f4f0;outline:none;cursor:pointer;-webkit-appearance:none">
@@ -21405,10 +21441,10 @@ function showFitoManualForm(){
         <!-- VOLUMEN PARA EL PARTE -->
         <div style="min-width:0">
           <div>
-            <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Volumen de mezcla (caldo)</label>
+            <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Caldo inicial</label>
             <div style="position:relative">
               <select id="fm-caldo" style="width:100%;padding:9px 28px 9px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px;font-weight:600;background:#f2f4f0;outline:none;cursor:pointer;-webkit-appearance:none">
-                <option value="">Seleccionar litros</option>
+                <option value="">— Caldo —</option>
                 ${FITO_CALDO_OPCIONES.map(o=>`<option value="${o.litros}">${o.label}</option>`).join('')}
               </select>
               <i class="ti ti-chevron-down" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);pointer-events:none;color:#a32020;font-size:13px"></i>
@@ -21417,18 +21453,14 @@ function showFitoManualForm(){
 
         </div>
 
-            </div>
-          </details>
-          <details id="fm-opciones-avanzadas" class="fm-accordion" ${expandirOpcionesAlAbrir?'open':''} style="background:#fff;border:1px solid #c6d9ee;border-radius:9px;overflow:hidden">
-            <summary style="padding:13px 14px;font-size:14px;font-weight:800;color:#1558a0;cursor:pointer;background:#e8f0fb">4. Opciones por invernadero</summary>
-            <div style="padding:12px;display:flex;flex-direction:column;gap:12px">
-              <div id="fm-bulk-panels"></div>
-              <div id="fm-acciones-edicion" style="display:none;flex-wrap:wrap;gap:8px;border-top:1px solid #dce4ed;padding-top:10px">
-                <button id="fm-btn-borrar" type="button" onclick="borrarFitoManual()" title="Borrar tratamiento existente en las calles seleccionadas"
-                  style="display:none;padding:8px 12px;background:#fdecea;color:#c62828;border:1px solid #f3c2bd;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer">
-                  <i class="ti ti-trash" aria-hidden="true"></i> Borrar tratamiento
-                </button>
-              </div>
+        <div style="min-width:0">
+          <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Tratamiento con</label>
+          <select id="fm-tipo-trat" onchange="actualizarResumenSeleccionFitoManual()" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:7px;background:#f2f4f0;color:var(--text);font-size:13px;font-weight:700">
+            <option value="">— Pistola / Cañón —</option>
+            <option value="Pistola">Pistola · tarea para peón</option>
+            <option value="Cañón">Cañón · sin tarea de peón</option>
+          </select>
+        </div>
             </div>
           </details>
           <div id="fm-resumen-aplicacion" role="status" style="font-size:12px;color:#1558a0;font-weight:700;padding:9px 12px;background:#e8f0fb;border-radius:7px"></div>
