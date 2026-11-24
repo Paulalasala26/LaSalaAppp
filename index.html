@@ -15579,11 +15579,9 @@ async function abrirRiegoVistaApaisada(){
     // El overlay conserva el máximo espacio disponible si fullscreen falla.
   }
 
-  let bloqueadoHorizontal = false;
   try {
     if(document.fullscreenElement === overlay && screen.orientation && screen.orientation.lock){
       await screen.orientation.lock('landscape');
-      bloqueadoHorizontal = true;
     }
   } catch(e) {}
 
@@ -15594,9 +15592,6 @@ async function abrirRiegoVistaApaisada(){
       actual.scrollLeft = scrollAntes.left;
     }
   });
-  if(!bloqueadoHorizontal){
-    console.info('El navegador no ha permitido bloquear la orientación en horizontal.');
-  }
 }
 
 async function cerrarRiegoVistaApaisada(salirPantallaCompleta=true){
