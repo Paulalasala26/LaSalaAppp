@@ -24261,7 +24261,7 @@ async function saveEspecificoManual(){
   if(!(await loadControlCompletoV2(false))){avisarFalloCarga();return;}
   if(!(await loadEspecificosInvsData(bulkInvIds,true))){showToast('No se pudo actualizar la cuadrícula de Específicos. No se ha creado la operación.');return;}
   const porInv=bulkInvIds.map(invId=>({invId,...calcularCallesEspBulk(invId)}));
-undefined  const operationId='espman_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,9);
+  const operationId='espman_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,9);
   const op={id:operationId,createdAt:new Date().toISOString(),actor:currentUser||'',etapas:{celdas:false,partidas:false,tareas:false},celdas:[],partidas:[],tareas:[]};
   const celdas=new Map();
   const semanaDelDia=partidasSemanaDeFecha(riegoDiaToDate(dia));
