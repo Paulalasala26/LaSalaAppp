@@ -1522,10 +1522,11 @@ async function actualizarCampanaAvisos(){
   btn.style.display=habilitado?'grid':'none';
   if(!habilitado){dot.hidden=true;btn.title='Avisos';btn.setAttribute('aria-label','Abrir Avisos');return;}
   const pendientesQC=Math.max(0,Number(window.QCGlobalSync?.snapshot?.()?.total)||0);
+  const pendienteEsp=!!localStorage.getItem('viguerapp-test-especificos-manual-op-v1');
   const sincronizacion=pendientesQC===1?'1 elemento QC por sincronizar':pendientesQC+' elementos QC por sincronizar';
   if(currentUserRole==='CARGADOR'){
-    dot.hidden=pendientesQC===0;
-    const etiqueta=pendientesQC?sincronizacion:'Sincronización QC';
+    dot.hidden=pendientesQC===0&&!pendienteEsp;
+    const etiqueta=[pendientesQC?sincronizacion:'',pendienteEsp?'1 operación de Específicos pendiente':''].filter(Boolean).join(' · ')||'Avisos pendientes';
     btn.title=etiqueta;btn.setAttribute('aria-label',etiqueta);return;
   }
   try{
@@ -1534,10 +1535,11 @@ async function actualizarCampanaAvisos(){
     const cloud=r?JSON.parse(r.value):{};
     const lista=Array.isArray(cloud?.[usuario])?cloud[usuario]:[];
     const sinLeer=lista.filter(a=>!a.leido).length;
-    dot.hidden=sinLeer===0&&pendientesQC===0;
+    dot.hidden=sinLeer===0&&pendientesQC===0&&!pendienteEsp;
     const etiquetas=[];
     if(sinLeer)etiquetas.push(sinLeer===1?'1 aviso sin leer':sinLeer+' avisos sin leer');
     if(pendientesQC)etiquetas.push(sincronizacion);
+    if(pendienteEsp)etiquetas.push('1 operación de Específicos pendiente');
     const etiqueta=etiquetas.length?'Avisos: '+etiquetas.join(' · '):'Abrir Avisos';
     btn.title=etiqueta;
     btn.setAttribute('aria-label',etiqueta);
@@ -1675,6 +1677,12 @@ function mostrarModuloAvisos(){
   const esCargador=currentUserRole==='CARGADOR';
   const esAdmin=currentUserRole==='ADMIN';
   const esVigueras=esAdmin&&currentUser==='VIGUERAS';
+  const hayOperacionEspecifico=!!leerOperacionEspecificoManual();
+  const pendientesEspecificosHTML=hayOperacionEspecifico?`
+          <section class="avisos-modulo-seccion" aria-label="Pendientes">
+            <div class="avisos-modulo-titulo">Pendientes</div>
+            <div id="avisos-especificos-pendiente"></div>
+          </section>`:'';
   const accionesHTML=esCargador ? '' : esAdmin ? (esVigueras ? `
           <section class="avisos-modulo-seccion" aria-label="Gestión de riego">
             <div class="avisos-modulo-titulo">Gestión de riego</div>
@@ -1718,7 +1726,7 @@ function mostrarModuloAvisos(){
             <div class="avisos-modulo-titulo">Sincronización QC</div>
             <div id="avisos-sync-anchor"></div>
             <div id="avisos-sync-panel"></div>
-          </section>` : `
+          </section>${pendientesEspecificosHTML}` : `
           <section class="avisos-modulo-seccion" aria-label="Notificaciones">
             <div class="avisos-modulo-titulo">Notificaciones</div>
             <button type="button" class="avisos-modulo-boton" onclick="alternarPushDesdeModuloAvisos()">
@@ -1732,11 +1740,12 @@ function mostrarModuloAvisos(){
             <div id="avisos-sync-anchor"></div>
             <div id="avisos-sync-panel"></div>
           </section>
-          ${accionesHTML}`}
+          ${accionesHTML}${pendientesEspecificosHTML}`}
         </div>
       </main>
     </div>`;
   overlay.style.display='flex';
+  renderAvisoOperacionEspecificoPendiente();
   void window.QCGlobalSync?.refresh?.();
   if(!esCargador)actualizarEstadoPushModuloAvisos();
   if(esAdmin){
@@ -23078,11 +23087,9 @@ function showEspecificosModule(){
             <i class="ti ti-list-details" aria-hidden="true"></i> Resumen
           </button>
         </nav>
-        <div id="especificos-op-pendiente" style="display:none;padding:7px 10px"></div>
         <div id="especificos-grid-wrap" style="flex:1;min-height:0;overflow:auto;background:#f8fafc"></div>
       </div>`;
     renderEspecificosQuincenaBar();
-    renderAvisoOperacionEspecificoPendiente();
     actualizarVistaEspecificos();
   }).catch(e=>{showToast('❌ Error al cargar Específicos: '+e.message);});
 }
@@ -23970,7 +23977,7 @@ function leerOperacionEspecificoManual(){
   }catch(_){return null;}
 }
 function guardarOperacionEspecificoManual(op){
-  try{localStorage.setItem(ESPECIFICOS_MANUAL_OUTBOX_KEY,JSON.stringify(op));return true;}
+  try{localStorage.setItem(ESPECIFICOS_MANUAL_OUTBOX_KEY,JSON.stringify(op));void actualizarCampanaAvisos();return true;}
   catch(_){return false;}
 }
 function etapaOperacionEspecificoManual(op,etapa){
@@ -23979,16 +23986,18 @@ function etapaOperacionEspecificoManual(op,etapa){
   if(!guardarOperacionEspecificoManual(op))throw Error('No se pudo actualizar el estado local de la operación.');
 }
 function renderAvisoOperacionEspecificoPendiente(){
-  const box=document.getElementById('especificos-op-pendiente');
+  const box=document.getElementById('avisos-especificos-pendiente');
   if(!box)return;
   const op=leerOperacionEspecificoManual();
-  if(!op){box.innerHTML='';box.style.display='none';return;}
+  const seccion=box.closest('section[aria-label="Pendientes"]');
+  if(!op){box.innerHTML='';if(seccion)seccion.style.display='none';return;}
+  if(seccion)seccion.style.display='flex';
   const etapa=!op.etapas?.celdas?'la cuadrícula'
     :!op.etapas?.partidas?'los vínculos de Partidas'
       :!op.etapas?.tareas?'las tareas':'la confirmación final';
   box.style.display='block';
   box.innerHTML='<div style="padding:10px 12px;background:#fff4dc;border:1px solid #e7a83e;border-radius:8px;color:#744b00;font-size:12px;font-weight:700">'+
-    'Hay una operación de Específicos pendiente en '+etapa+'. Reintenta la misma operación para completar la sincronización.'+
+    'Hay una operación de Específicos pendiente en '+etapa+'. Desde aquí puedes completar la sincronización o cancelar el alta si aún no se aplicó.'+
     '<button type="button" onclick="reintentarOperacionEspecificoManual()" style="display:block;margin-top:8px;padding:8px 12px;border:0;border-radius:6px;background:#a86600;color:#fff;font-weight:800;cursor:pointer">Reintentar sincronización</button>'+
     (!op.etapas?.celdas&&!op.etapas?.partidas&&!op.etapas?.tareas
       ?'<button type="button" onclick="descartarOperacionEspecificoManual()" style="display:block;margin-top:6px;padding:7px 10px;border:1px solid #a86600;border-radius:6px;background:#fff;color:#744b00;font-weight:800;cursor:pointer">Cancelar alta no aplicada</button>':'')+
@@ -24017,6 +24026,7 @@ async function descartarOperacionEspecificoManual(){
   if(!confirm('Esta alta no se ha sincronizado. ¿Cancelar la operación pendiente para poder corregir las calles?'))return false;
   localStorage.removeItem(ESPECIFICOS_MANUAL_OUTBOX_KEY);
   renderAvisoOperacionEspecificoPendiente();
+  void actualizarCampanaAvisos();
   showToast('Alta pendiente cancelada. Revisa las calles vinculadas antes de crear otra.');
   return true;
 }
@@ -24140,6 +24150,7 @@ async function procesarOperacionEspecificoManual(op){
   }
   localStorage.removeItem(ESPECIFICOS_MANUAL_OUTBOX_KEY);
   renderAvisoOperacionEspecificoPendiente();
+  void actualizarCampanaAvisos();
   return true;
 }
 async function reintentarOperacionEspecificoManual(){
@@ -24163,7 +24174,7 @@ async function reintentarOperacionEspecificoManual(){
 async function saveEspecificoManual(){
   if(especificoManualProcesando)return;
   const previa=leerOperacionEspecificoManual();
-  if(previa){await reintentarOperacionEspecificoManual();return;}
+  if(previa){showToast('Hay una operación de Específicos pendiente. Resuélvela en Avisos → Pendientes antes de crear otra.');return;}
   const dia=parseInt(document.getElementById('esp-dia').value,10);
   if(espResumenFichaContext&&dia!==espResumenFichaContext.dia){showToast('La fecha de este específico no se cambia desde esta ficha.');return;}
   if(!esDiaEspecificoEditable(dia)){showToast('Fecha fuera de rango: no se pueden registrar específicos en ese día.');return;}
