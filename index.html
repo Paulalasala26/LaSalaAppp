@@ -15296,12 +15296,6 @@ function showRiegoModule(soloLectura){
             <div style="font-size:10px;line-height:1.1;opacity:.7;margin:0 0 2px;display:${subtitulo ? 'block' : 'none'}">${subtitulo}</div>
           </div>
           <div id="riego-header-actions" style="display:flex;align-items:center;gap:5px;flex-wrap:nowrap;justify-content:flex-end;margin-left:auto;flex-shrink:0">
-            <div id="riego-print-wrap" style="display:none">
-              <button id="riego-print-btn" onclick="showImprimirResumenSelector('riego')" title="Imprimir resumen" aria-label="Imprimir resumen"
-                style="width:30px;height:30px;padding:0;background:#1558a0;border:1px solid #1558a0;color:#fff;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center">
-                <i class="ti ti-printer" style="font-size:16px"></i>
-              </button>
-            </div>
             <button id="riego-close-btn" onclick="cerrarRiegoModule()" title="Cerrar Riego" aria-label="Cerrar Riego"
               style="width:30px;height:30px;padding:0;background:#1558a0;border:1px solid #1558a0;color:#fff;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:21px;line-height:1">
               &times;
@@ -15414,13 +15408,11 @@ function actualizarVistaRiegoSeleccion(invId){
   const selection = document.getElementById('riego-selection-bar');
   const label = document.getElementById('riego-selection-label');
   const actions = document.getElementById('riego-actions-row');
-  const printWrap = document.getElementById('riego-print-wrap');
   const selected = !!invId;
   if(selectorWrap) selectorWrap.style.display = selected ? 'none' : 'block';
   if(selection) selection.style.display = selected ? 'flex' : 'none';
   if(label) label.textContent = selected ? (riegoSalaTexto(invId) + ' · INV. ' + invId) : '';
   if(actions) actions.style.display = selected && !riegoSoloLectura ? 'flex' : 'none';
-  if(printWrap) printWrap.style.display = selected ? 'block' : 'none';
   actualizarEstadoBotonGuardarRiego();
 }
 async function selectRiegoInv(invId){
