@@ -586,7 +586,8 @@ const fotoEntrada = {};
 // normal). Si más adelante se necesita más seguridad, esto se sustituye por
 // Firebase Auth + reglas restringidas sin tocar el resto de la app.
 // ════════════════════════════════════════════════════════════════
-const CLOUD_DB_URL = 'https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app';
+const CLOUD_DB_ROOT_URL = 'https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app';
+const CLOUD_DB_URL = CLOUD_DB_ROOT_URL + '/prd';
 
 // Preparación Firebase Auth: mientras no haya ID token, el comportamiento es
 // exactamente el actual. Cuando Firebase Auth esté activado, basta con llamar
@@ -602,7 +603,7 @@ function setFirebaseIdToken(token, expiresInSec){
 }
 async function appFetch(input, init){
   try{
-    if(typeof input==='string' && input.startsWith(CLOUD_DB_URL)){
+    if(typeof input==='string' && input.startsWith(CLOUD_DB_ROOT_URL)){
       await ensureFirebaseIdTokenFresh();
       if(firebaseIdToken){
         const u=new URL(input);
@@ -686,17 +687,22 @@ async function fetchConReintentos(url, opciones){
     }
   }
 }
+function databaseUrlForStorageKey(key){
+  const base=(key==='lasala-users-v1'||key==='lasala-roles-v1')
+    ? CLOUD_DB_ROOT_URL : CLOUD_DB_URL;
+  return base+'/'+encodeURIComponent(key)+'.json';
+}
 window.storage = {
   async get(key){
     try{
-      const res = await fetchConReintentos(`${CLOUD_DB_URL}/${encodeURIComponent(key)}.json`);
+      const res = await fetchConReintentos(databaseUrlForStorageKey(key));
       const val = await res.json();
       return val!=null ? {value: val} : null;
     }catch(e){ return null; }
   },
   async set(key, value){
     try{
-      await fetchConReintentos(`${CLOUD_DB_URL}/${encodeURIComponent(key)}.json`, {
+      await fetchConReintentos(databaseUrlForStorageKey(key), {
         method:'PUT',
         headers:{'Content-Type':'application/json'},
         body: JSON.stringify(value)
@@ -17787,7 +17793,7 @@ const OPCIONES_RIEGO_TEST_KEY='lasala-config-riego-opciones-v1';
 let opcionesRiegoTest=null;
 async function cargarOpcionesRiegoTest(){
   try{
-    const response=await appFetch(CLOUD_DB_URL+'/'+encodeURIComponent(OPCIONES_RIEGO_TEST_KEY)+'.json',{cache:'no-store'});
+    const response=await appFetch(CLOUD_DB_ROOT_URL+'/'+encodeURIComponent(OPCIONES_RIEGO_TEST_KEY)+'.json',{cache:'no-store'});
     if(!response.ok) throw new Error('HTTP '+response.status);
     let raw=await response.json();
     if(typeof raw==='string') raw=JSON.parse(raw);
