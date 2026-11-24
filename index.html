@@ -72,6 +72,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
    pulsables, sin depender de JS. */
 .home-shortcut-card{transition:transform .15s ease,box-shadow .15s ease;cursor:pointer}
 .home-shortcut-card:hover{transform:translateY(-3px);box-shadow:0 10px 24px rgba(0,0,0,.18)}
+/* Módulos temporalmente ocultos en Inicio para todos los perfiles. */
+#page-home-inner #shortcut-clima,#page-home-inner #shortcut-trabajos,#page-home-inner #shortcut-sala-en-vivo{display:none!important}
 /* Retoque visual del módulo Tareas (2026-07-30, a petición de Paula) — los
    botones de "elige una opción para entrar" (Pendientes/Completadas,
    Sala1/Sala2, Orden Abonos/Aguas...), las filas de la tabla de gestión, las
@@ -492,15 +494,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
           <i class="ti ti-clipboard-list" style="font-size:20px;opacity:.95;flex-shrink:0" aria-hidden="true"></i>
           <span style="font-size:14px;font-weight:700;line-height:1.25">Tareas</span>
         </button>
-        <div id="shortcut-clima" class="home-shortcut-card" onclick="handleQuickAction('clima')" style="background:linear-gradient(120deg,#2b6fae,#3c80c2 55%,#5b9bd5);color:#fff;border-radius:11px;padding:.8rem 1rem;display:flex;align-items:center;gap:10px;min-height:50px;white-space:nowrap">
+        <div id="shortcut-clima" class="home-shortcut-card" onclick="handleQuickAction('clima')" style="background:linear-gradient(120deg,#2b6fae,#3c80c2 55%,#5b9bd5);color:#fff;border-radius:11px;padding:.8rem 1rem;display:none;align-items:center;gap:10px;min-height:50px;white-space:nowrap">
           <i class="ti ti-cloud" style="font-size:20px;opacity:.95;flex-shrink:0" aria-hidden="true"></i>
           <span style="font-size:14px;font-weight:700;line-height:1.25">Clima</span>
         </div>
-        <div id="shortcut-trabajos" class="home-shortcut-card" onclick="handleQuickAction('trabajos')" style="background:linear-gradient(120deg,#2b6fae,#3c80c2 55%,#5b9bd5);color:#fff;border-radius:11px;padding:.8rem 1rem;display:flex;align-items:center;gap:10px;min-height:50px;white-space:nowrap">
+        <div id="shortcut-trabajos" class="home-shortcut-card" onclick="handleQuickAction('trabajos')" style="background:linear-gradient(120deg,#2b6fae,#3c80c2 55%,#5b9bd5);color:#fff;border-radius:11px;padding:.8rem 1rem;display:none;align-items:center;gap:10px;min-height:50px;white-space:nowrap">
           <i class="ti ti-briefcase" style="font-size:20px;opacity:.95;flex-shrink:0" aria-hidden="true"></i>
           <span style="font-size:14px;font-weight:700;line-height:1.25">Trabajos</span>
         </div>
-        <div id="shortcut-sala-en-vivo" class="home-shortcut-card" onclick="handleQuickAction('sala-en-vivo')" style="background:linear-gradient(120deg,#2b6fae,#3c80c2 55%,#5b9bd5);color:#fff;border-radius:11px;padding:.8rem 1rem;display:flex;align-items:center;gap:10px;min-height:50px;white-space:nowrap">
+        <div id="shortcut-sala-en-vivo" class="home-shortcut-card" onclick="handleQuickAction('sala-en-vivo')" style="background:linear-gradient(120deg,#2b6fae,#3c80c2 55%,#5b9bd5);color:#fff;border-radius:11px;padding:.8rem 1rem;display:none;align-items:center;gap:10px;min-height:50px;white-space:nowrap">
           <i class="ti ti-broadcast" style="font-size:20px;opacity:.95;flex-shrink:0" aria-hidden="true"></i>
           <span style="font-size:14px;font-weight:700;line-height:1.25">La Sala en Vivo</span>
         </div>
