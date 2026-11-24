@@ -24043,6 +24043,8 @@ async function descartarOperacionEspecificoManual(){
   const porInv=new Map(invs.map((id,i)=>[id,remotos[i].data||{}]));
   const yaAplicada=op.celdas.some(c=>{
     const actual=porInv.get(String(c.invId))?.[c.dia]?.[c.calle];
+    const vinculadas=partidasDeCeldaEnOperacionEspecifico(op,c);
+    if(vinculadas.length)return vinculadas.some(x=>actual?.partidaRegistros?.[x.registro.registroId]);
     return actual&&actual.texto===c.valor?.texto&&Number(actual.caldoLitros||0)===Number(c.valor?.caldoLitros||0);
   });
   if(yaAplicada){showToast('Hay celdas de esta operación en el servidor. Usa “Reintentar sincronización”.');return false;}
@@ -24058,7 +24060,53 @@ function valoresIgualesRegistroEspecifico(a,b){
   return a&&b&&a.registroId===b.registroId&&a.operacionEspecificoId===b.operacionEspecificoId
     &&a.partidaId===b.partidaId&&a.invId===b.invId&&Number(a.dia)===Number(b.dia)
     &&JSON.stringify(a.calles||[])===JSON.stringify(b.calles||[])
-    &&a.trat===b.trat&&a.dosis===b.dosis&&a.horario===b.horario;
+    &&a.trat===b.trat&&a.dosis===b.dosis&&a.horario===b.horario
+    &&a.partida===b.partida&&Number(a.caldoLitros||0)===Number(b.caldoLitros||0)
+    &&(a.caldoLabel||'')===(b.caldoLabel||'');
+}
+function partidasDeCeldaEnOperacionEspecifico(op,c){
+  return (op.partidas||[]).filter(x=>String(x.registro?.invId)===String(c.invId)
+    &&String(x.registro?.dia)===String(c.dia)
+    &&(x.registro?.calles||[]).some(calle=>String(calle)===String(c.calle)));
+}
+function valorCeldaOperacionEspecifico(op,c,actual){
+  const vinculadas=partidasDeCeldaEnOperacionEspecifico(op,c);
+  if(!vinculadas.length){
+    if(actual&&typeof actual==='object'&&actual.partidaRegistros)
+      throw Error(`INV ${c.invId}, calle ${c.calle}: no se encontró la Partida asociada. No se ha modificado la celda.`);
+    return c.valor;
+  }
+  let valor=actual||null;
+  for(const entrada of vinculadas){
+    const r=entrada.registro;
+    valor=celdaEspecificoPartidaActualizada(valor,r.registroId,{
+      partidaId:entrada.partidaId,partida:r.partida||entrada.partidaId,
+      trat:r.trat,dosis:r.dosis,horario:r.horario||'',
+      caldoLitros:r.caldoLitros||null,caldoLabel:r.caldoLabel||''
+    },false);
+  }
+  return valor;
+}
+function aplicarValorCeldaOperacionEspecifico(op,c){
+  const invId=String(c.invId),dia=String(c.dia),calle=String(c.calle);
+  const actual=especificosData[invId]?.[dia]?.[calle];
+  const valor=valorCeldaOperacionEspecifico(op,c,actual);
+  const vinculadas=partidasDeCeldaEnOperacionEspecifico(op,c);
+  if(!especificosData[invId])especificosData[invId]={};
+  if(!especificosData[invId][dia])especificosData[invId][dia]={};
+  especificosData[invId][dia][calle]=valor;
+  if(vinculadas.length){
+    const key=especificosDirtyCellKey(invId,dia,calle),ops={...(espPartidasCellOpsPendientes.get(key)||{})};
+    vinculadas.forEach(entrada=>{
+      const r=entrada.registro;
+      ops[r.registroId]={partidaId:entrada.partidaId,partida:r.partida||entrada.partidaId,
+        trat:r.trat,dosis:r.dosis,horario:r.horario||'',
+        caldoLitros:r.caldoLitros||null,caldoLabel:r.caldoLabel||''};
+    });
+    espPartidasCellOpsPendientes.set(key,ops);
+  }
+  marcarEspecificosDirtyCell(invId,dia,calle);
+  return true;
 }
 async function guardarVinculosEspecificoManualIdempotentes(op){
   if(!op.partidas.length)return true;
@@ -24149,12 +24197,7 @@ async function procesarOperacionEspecificoManual(op){
   const invs=[...new Set(op.celdas.map(c=>String(c.invId)))];
   if(!op.etapas?.celdas){
     if(invs.length&&!(await loadEspecificosInvsData(invs,true)))throw Error('No se pudo leer la cuadrícula remota.');
-    const conflicto=op.celdas.find(c=>especificosData[String(c.invId)]?.[c.dia]?.[c.calle]?.partidaRegistros);
-    if(conflicto)throw Error(`INV ${conflicto.invId}, calle ${conflicto.calle}, ya vinculada a Partidas. No se ha aplicado la operación.`);
-    for(const c of op.celdas){
-      if(!setEspecifico(c.invId,c.dia,c.calle,c.valor.texto,c.valor))
-        throw Error(`INV ${c.invId}, calle ${c.calle}, ya vinculada a Partidas. No se ha aplicado la operación.`);
-    }
+    for(const c of op.celdas)aplicarValorCeldaOperacionEspecifico(op,c);
     if(!(await saveEspecificosData()))throw Error('No se confirmó el guardado de la cuadrícula.');
     etapaOperacionEspecificoManual(op,'celdas');
   }
@@ -24218,12 +24261,7 @@ async function saveEspecificoManual(){
   if(!(await loadControlCompletoV2(false))){avisarFalloCarga();return;}
   if(!(await loadEspecificosInvsData(bulkInvIds,true))){showToast('No se pudo actualizar la cuadrícula de Específicos. No se ha creado la operación.');return;}
   const porInv=bulkInvIds.map(invId=>({invId,...calcularCallesEspBulk(invId)}));
-  const celdaVinculada=porInv.flatMap(({invId,calles})=>calles.map(c=>({invId,calle:c})))
-    .find(({invId,calle})=>especificosData[invId]?.[dia]?.[calle]?.partidaRegistros);
-  if(celdaVinculada){
-    showToast(`INV ${celdaVinculada.invId}, calle ${celdaVinculada.calle}, vinculada a Partidas. Añade el específico desde su ficha o cambia las calles.`);return;
-  }
-  const operationId='espman_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,9);
+undefined  const operationId='espman_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,9);
   const op={id:operationId,createdAt:new Date().toISOString(),actor:currentUser||'',etapas:{celdas:false,partidas:false,tareas:false},celdas:[],partidas:[],tareas:[]};
   const celdas=new Map();
   const semanaDelDia=partidasSemanaDeFecha(riegoDiaToDate(dia));
@@ -24266,14 +24304,19 @@ async function saveEspecificoManual(){
         const tramoPartidaId=operationId+'_'+tramoId+'_'+String(partida.id).replace(/[^A-Za-z0-9_-]/g,'_');
         op.partidas.push({partidaId:partida.id,registro:{
           registroId:'espman_'+tramoPartidaId,operacionEspecificoId:operationId,operacionTramoId:tramoId,
+          partida:partida.partida||partida.num||partida.id,
           trat,dosis,horario,fechaLabel:riegoDiaLabelCorto(dia),fechaISO:fechaLocalISO(riegoDiaToDate(dia)),
-          invId:String(invId),dia,calles:callesPartida
+          invId:String(invId),dia,calles:callesPartida,caldoLitros,caldoLabel
         }});
       }
     }
   }
   op.celdas=[...celdas.values()];
   if(!op.celdas.length){showToast('No hay calles que guardar.');return;}
+  try{
+    for(const c of op.celdas)
+      valorCeldaOperacionEspecifico(op,c,especificosData[c.invId]?.[c.dia]?.[c.calle]);
+  }catch(e){showToast('No se puede aplicar este específico: '+e.message);return;}
   if(!guardarOperacionEspecificoManual(op)){
     showToast('No se pudo guardar el plan de reintento en este dispositivo; no se ha iniciado la operación.');
     return;
