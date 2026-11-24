@@ -23987,7 +23987,36 @@ function renderAvisoOperacionEspecificoPendiente(){
   box.style.display='block';
   box.innerHTML='<div style="padding:10px 12px;background:#fff4dc;border:1px solid #e7a83e;border-radius:8px;color:#744b00;font-size:12px;font-weight:700">'+
     'Hay una operación de Específicos pendiente en '+etapa+'. Reintenta la misma operación para completar la sincronización.'+
-    '<button type="button" onclick="reintentarOperacionEspecificoManual()" style="display:block;margin-top:8px;padding:8px 12px;border:0;border-radius:6px;background:#a86600;color:#fff;font-weight:800;cursor:pointer">Reintentar sincronización</button></div>';
+    '<button type="button" onclick="reintentarOperacionEspecificoManual()" style="display:block;margin-top:8px;padding:8px 12px;border:0;border-radius:6px;background:#a86600;color:#fff;font-weight:800;cursor:pointer">Reintentar sincronización</button>'+
+    (!op.etapas?.celdas&&!op.etapas?.partidas&&!op.etapas?.tareas
+      ?'<button type="button" onclick="descartarOperacionEspecificoManual()" style="display:block;margin-top:6px;padding:7px 10px;border:1px solid #a86600;border-radius:6px;background:#fff;color:#744b00;font-weight:800;cursor:pointer">Cancelar alta no aplicada</button>':'')+
+    '</div>';
+}
+async function descartarOperacionEspecificoManual(){
+  if(especificoManualProcesando)return false;
+  const op=leerOperacionEspecificoManual();
+  if(!op)return true;
+  if(op.etapas?.celdas||op.etapas?.partidas||op.etapas?.tareas){
+    showToast('La operación ya tiene pasos sincronizados. Usa “Reintentar sincronización”.');return false;
+  }
+  const claves=op.celdas.map(c=>especificosDirtyCellKey(c.invId,c.dia,c.calle));
+  if(claves.some(key=>especificosDirtyCells.has(key))){
+    showToast('Recarga la aplicación antes de cancelar esta alta pendiente.');return false;
+  }
+  const invs=[...new Set(op.celdas.map(c=>String(c.invId)))];
+  const remotos=await Promise.all(invs.map(invId=>leerEspecificosV2Nodo(invId,false)));
+  if(remotos.some(r=>!r.ok)) {showToast('No se pudo comprobar el servidor; la operación sigue pendiente.');return false;}
+  const porInv=new Map(invs.map((id,i)=>[id,remotos[i].data||{}]));
+  const yaAplicada=op.celdas.some(c=>{
+    const actual=porInv.get(String(c.invId))?.[c.dia]?.[c.calle];
+    return actual&&actual.texto===c.valor?.texto&&Number(actual.caldoLitros||0)===Number(c.valor?.caldoLitros||0);
+  });
+  if(yaAplicada){showToast('Hay celdas de esta operación en el servidor. Usa “Reintentar sincronización”.');return false;}
+  if(!confirm('Esta alta no se ha sincronizado. ¿Cancelar la operación pendiente para poder corregir las calles?'))return false;
+  localStorage.removeItem(ESPECIFICOS_MANUAL_OUTBOX_KEY);
+  renderAvisoOperacionEspecificoPendiente();
+  showToast('Alta pendiente cancelada. Revisa las calles vinculadas antes de crear otra.');
+  return true;
 }
 function valoresIgualesRegistroEspecifico(a,b){
   return a&&b&&a.registroId===b.registroId&&a.operacionEspecificoId===b.operacionEspecificoId
@@ -24084,9 +24113,11 @@ async function procesarOperacionEspecificoManual(op){
   const invs=[...new Set(op.celdas.map(c=>String(c.invId)))];
   if(!op.etapas?.celdas){
     if(invs.length&&!(await loadEspecificosInvsData(invs,true)))throw Error('No se pudo leer la cuadrícula remota.');
+    const conflicto=op.celdas.find(c=>especificosData[String(c.invId)]?.[c.dia]?.[c.calle]?.partidaRegistros);
+    if(conflicto)throw Error(`INV ${conflicto.invId}, calle ${conflicto.calle}, ya vinculada a Partidas. No se ha aplicado la operación.`);
     for(const c of op.celdas){
       if(!setEspecifico(c.invId,c.dia,c.calle,c.valor.texto,c.valor))
-        throw Error('Una celda se vinculó a Partidas desde que preparaste la operación.');
+        throw Error(`INV ${c.invId}, calle ${c.calle}, ya vinculada a Partidas. No se ha aplicado la operación.`);
     }
     if(!(await saveEspecificosData()))throw Error('No se confirmó el guardado de la cuadrícula.');
     etapaOperacionEspecificoManual(op,'celdas');
@@ -24147,9 +24178,12 @@ async function saveEspecificoManual(){
   const bulkInvIds=leerInvernaderosBulkSeleccionados('esp');
   if(!bulkInvIds.length){showToast('Elige al menos un invernadero');return;}
   if(!(await loadControlCompletoV2(false))){avisarFalloCarga();return;}
+  if(!(await loadEspecificosInvsData(bulkInvIds,true))){showToast('No se pudo actualizar la cuadrícula de Específicos. No se ha creado la operación.');return;}
   const porInv=bulkInvIds.map(invId=>({invId,...calcularCallesEspBulk(invId)}));
-  if(porInv.some(({invId,calles})=>calles.some(c=>especificosData[invId]?.[dia]?.[c]?.partidaRegistros))){
-    showToast('Hay específicos vinculados a partidas en esas calles. Edítalos desde sus fichas.');return;
+  const celdaVinculada=porInv.flatMap(({invId,calles})=>calles.map(c=>({invId,calle:c})))
+    .find(({invId,calle})=>especificosData[invId]?.[dia]?.[calle]?.partidaRegistros);
+  if(celdaVinculada){
+    showToast(`INV ${celdaVinculada.invId}, calle ${celdaVinculada.calle}, vinculada a Partidas. Añade el específico desde su ficha o cambia las calles.`);return;
   }
   const operationId='espman_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,9);
   const op={id:operationId,createdAt:new Date().toISOString(),actor:currentUser||'',etapas:{celdas:false,partidas:false,tareas:false},celdas:[],partidas:[],tareas:[]};
