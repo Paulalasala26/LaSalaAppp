@@ -674,6 +674,16 @@
         if(confirmed){
           // Permanecer en la inspección con los datos y versión confirmados.
           savedForList=refAtSave;
+          // El lector y el buscador abren esta misma ficha. La lista puede no
+          // estar montada debajo del formulario (p. ej. si se abrió desde el
+          // resumen), así que reflejar aquí el estado confirmado también.
+          const recordSummary=active.querySelector('.qco-record-summary');
+          if(recordSummary&&!recordSummary.querySelector('.qc-card-medido')){
+            const badge=node('span','✓ QC realizado','qc-card-medido');
+            badge.setAttribute('role','status');
+            badge.setAttribute('aria-label','Control de calidad guardado');
+            recordSummary.append(badge);
+          }
           restorePercentControls();
           embedAmounts();
           renderIndicators(false);
