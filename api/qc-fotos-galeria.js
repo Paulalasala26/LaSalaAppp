@@ -3,9 +3,9 @@
 // Solo lectura, independiente del circuito histórico de fotos Firebase.
 const crypto=require('node:crypto');
 const {
-  verifyFirebaseIdToken,serviceAccount,serviceAccessToken,readKey,validHash,httpError
+  verifyFirebaseIdToken,serviceAccount,serviceAccessToken,readKey,validHash,httpError,operationalDatabaseUrl
 }=require('./admin-users')._adminCatalogHelpers;
-const DB='https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app';
+const DB=operationalDatabaseUrl();
 const DRIVE_ID='b!ltDlxMPStUSPKosa8hjEBT4XEdc922lLvESLlmS3tQy9OIm9vYUbQaLFfZMlWFvb';
 const NEW_DRIVE='b!ltDlxMPStUSPKosa8hjEBT4XEdc922lLvESLlmS3tQxokMa64jH2TYc0jEIElgDX';
 const PREFIX='lasala-qc-fotos-sharepoint-v1';
