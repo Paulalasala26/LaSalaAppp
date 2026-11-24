@@ -22931,6 +22931,7 @@ function setEspecifico(invId,dia,calle,val,extra){
     };
   } else delete especificosData[invId][dia][calle];
   marcarEspecificosDirtyCell(invId,dia,calle);
+  return true;
 }
 function getEspecificoCellRaw(invId,dia,calle){ return especificosData[invId]?.[dia]?.[calle]; }
 function getEspecifico(invId,dia,calle){
