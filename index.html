@@ -397,7 +397,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 <script src="assets/qc-offline-operarios-drafts.js?v=120" defer></script>
 <script src="assets/qc-sync-global.js?v=123" defer></script>
 <style id="riego-landscape-style">
-@media (max-width: 767px) { #riego-landscape-enter-btn { display:flex !important; } }
+/* El botón se muestra desde actualizarVistaRiegoSeleccion solo tras elegir invernadero. */
 #riego-overlay.riego-landscape-mode {
   position:fixed !important; inset:0 !important; z-index:2147483647 !important;
   width:100vw !important; height:100vh !important; height:100dvh !important; max-width:none !important;
@@ -15493,7 +15493,9 @@ function actualizarVistaRiegoSeleccion(invId){
   const selection = document.getElementById('riego-selection-bar');
   const label = document.getElementById('riego-selection-label');
   const actions = document.getElementById('riego-actions-row');
+  const landscapeButton = document.getElementById('riego-landscape-enter-btn');
   const selected = !!invId;
+  if(landscapeButton) landscapeButton.style.display = selected ? 'flex' : 'none';
   if(selectorWrap) selectorWrap.style.display = selected ? 'none' : 'block';
   if(selection) selection.style.display = selected ? 'flex' : 'none';
   if(label) label.textContent = selected ? (riegoSalaTexto(invId) + ' · INV. ' + invId) : '';
