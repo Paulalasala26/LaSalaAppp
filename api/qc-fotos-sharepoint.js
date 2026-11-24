@@ -4,10 +4,10 @@ const crypto=require('node:crypto');
 // Escritura aislada y desactivada por defecto. No altera las fotos históricas,
 // el guardado Firebase existente ni la cola offline de ViguerAPP.
 const {
-  verifyFirebaseIdToken,serviceAccount,serviceAccessToken,readKey,validHash,httpError
+  verifyFirebaseIdToken,serviceAccount,serviceAccessToken,readKey,validHash,httpError,operationalDatabaseUrl
 }=require('./admin-users')._adminCatalogHelpers;
 
-const DB='https://la-sala-app-test-default-rtdb.europe-west1.firebasedatabase.app';
+const DB=operationalDatabaseUrl();
 const GRAPH='https://graph.microsoft.com/v1.0';
 const DRIVE_ID='b!ltDlxMPStUSPKosa8hjEBT4XEdc922lLvESLlmS3tQy9OIm9vYUbQaLFfZMlWFvb';
 const FOLDER_ID='01WYFOB25JXMOQMUYILFEJSYJZCV3AIV2N';
