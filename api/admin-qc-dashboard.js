@@ -2,8 +2,9 @@
 // Resumen QC exclusivamente informativo. No modifica mediciones ni registros legacy.
 // El panel administrativo consulta los porcentajes de cada inspección sin calcular scoring.
 const {
-  verifyFirebaseIdToken,serviceAccount,serviceAccessToken,readKey,validHash,httpError
+  verifyFirebaseIdToken,serviceAccount,serviceAccessToken,readKey,validHash,httpError,operationalDatabaseUrl
 }=require('./admin-users')._adminCatalogHelpers;
+const DATA_DB=operationalDatabaseUrl();
 
 const OPTIONS={
   color:{verde:'Verde',amarillo:'Amarillo',verdeClaro:'Verde claro',ok:'OK'},
@@ -132,7 +133,7 @@ function legacyComplete(record){
 }
 // Reutiliza las mismas quincenas y el mismo índice que admin/control.js.
 async function fetchLegacyControls(token,filters){
-  const index=await readKey('lasala-control-items-v2-index',token);
+  const index=await readKey('lasala-control-items-v2-index',token,DATA_DB);
   if(!plainObject(index)||!plainObject(index.shards))
     throw httpError(503,'INVALID_CONTROL_INDEX');
   const qMin=Math.max(0,Math.floor((filters.from-15)/14));
@@ -151,7 +152,7 @@ async function fetchLegacyControls(token,filters){
   const rows=[],ids=new Set();
   for(let i=0;i<wanted.length;i+=4){
     const pack=await Promise.all(wanted.slice(i,i+4).map(async item=>({
-      ...item,data:await readKey(item.key,token)
+      ...item,data:await readKey(item.key,token,DATA_DB)
     })));
     for(const item of pack){
       if(!plainObject(item.data))throw httpError(503,'INVALID_CONTROL_SHARD');
@@ -335,7 +336,7 @@ module.exports=async function handler(req,res){
         if(seccion==='partidas'){
           report=buildPartidas(controls,filter);
         }else{
-          const measurements=await readKey('lasala-qc-mediciones-v1',token);
+          const measurements=await readKey('lasala-qc-mediciones-v1',token,DATA_DB);
           report=buildDashboard(measurements,null,filter,controls);
         }
       }else{
