@@ -1,4 +1,5 @@
 # Isolated security tests only: no deploy, no repository write access, no Firebase credentials.
+# Candidate environment isolation is exercised only in the demo RTDB emulator.
 name: Firebase RTDB Security Phase 1 (isolated)
 on:
   push:
