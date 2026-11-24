@@ -21347,7 +21347,29 @@ function showFitoManualForm(){
       <div style="flex:1;min-height:0;overflow-y:auto;background:#f6f9fe">
         <div style="max-width:840px;width:100%;box-sizing:border-box;min-width:0;margin:0 auto;padding:12px;display:flex;flex-direction:column;gap:10px">
           <details class="fm-accordion" open style="background:#fff;border:1px solid #c6d9ee;border-radius:9px;overflow:hidden">
-            <summary style="padding:13px 14px;font-size:14px;font-weight:800;color:#1558a0;cursor:pointer;background:#e8f0fb">1. Mezcla y tratamiento</summary>
+            <summary style="padding:13px 14px;font-size:14px;font-weight:800;color:#1558a0;cursor:pointer;background:#e8f0fb">
+              1. Dónde y cuándo <span id="fm-count-superior" style="font-size:11px;font-weight:600;margin-left:8px"></span>
+            </summary>
+            <div style="padding:12px;display:grid;gap:12px">
+        <!-- DÍA -->
+        <div>
+          <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Fecha de aplicación</label>
+          <div style="position:relative">
+            <select id="fm-dia" style="width:100%;padding:9px 32px 9px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:14px;font-weight:600;background:#f2f4f0;outline:none;cursor:pointer;-webkit-appearance:none">
+              ${diasQ.map(d=>`<option value="${d}"${d===riegoDiaDeHoy()?' selected':''}>${riegoDiaLabelCorto(d)} — ${riegoDiaSemana(d)}</option>`).join('')}
+            </select>
+            <i class="ti ti-chevron-down" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);pointer-events:none;color:#a32020;font-size:14px"></i>
+          </div>
+        </div>
+
+              <div>
+                <div style="font-size:12px;font-weight:700;color:#1558a0;margin-bottom:7px">Invernaderos</div>
+                ${fitoBulkInvSelectorHTML()}
+              </div>
+            </div>
+          </details>
+          <details class="fm-accordion" open style="background:#fff;border:1px solid #c6d9ee;border-radius:9px;overflow:hidden">
+            <summary style="padding:13px 14px;font-size:14px;font-weight:800;color:#1558a0;cursor:pointer;background:#e8f0fb">2. Mezcla y tratamiento</summary>
             <div style="padding:12px;display:grid;grid-template-columns:minmax(0,1fr);gap:12px">
         <!-- TIPO DE MEZCLA (Normal/Preinjerto/Postinjerto) -->
         <div style="min-width:0">
@@ -21387,28 +21409,6 @@ function showFitoManualForm(){
             style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:#f2f4f0;outline:none;color:var(--text)">
         </div>
 
-            </div>
-          </details>
-          <details class="fm-accordion" open style="background:#fff;border:1px solid #c6d9ee;border-radius:9px;overflow:hidden">
-            <summary style="padding:13px 14px;font-size:14px;font-weight:800;color:#1558a0;cursor:pointer;background:#e8f0fb">
-              2. Dónde y cuándo <span id="fm-count-superior" style="font-size:11px;font-weight:600;margin-left:8px"></span>
-            </summary>
-            <div style="padding:12px;display:grid;gap:12px">
-        <!-- DÍA -->
-        <div>
-          <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Fecha de aplicación</label>
-          <div style="position:relative">
-            <select id="fm-dia" style="width:100%;padding:9px 32px 9px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:14px;font-weight:600;background:#f2f4f0;outline:none;cursor:pointer;-webkit-appearance:none">
-              ${diasQ.map(d=>`<option value="${d}"${d===riegoDiaDeHoy()?' selected':''}>${riegoDiaLabelCorto(d)} — ${riegoDiaSemana(d)}</option>`).join('')}
-            </select>
-            <i class="ti ti-chevron-down" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);pointer-events:none;color:#a32020;font-size:14px"></i>
-          </div>
-        </div>
-
-              <div>
-                <div style="font-size:12px;font-weight:700;color:#1558a0;margin-bottom:7px">Invernaderos</div>
-                ${fitoBulkInvSelectorHTML()}
-              </div>
             </div>
           </details>
           <details id="fm-opciones-avanzadas" class="fm-accordion" ${expandirOpcionesAlAbrir?'open':''} style="background:#fff;border:1px solid #c6d9ee;border-radius:9px;overflow:hidden">
