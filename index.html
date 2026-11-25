@@ -18707,7 +18707,7 @@ function construirPartesRiegoManual(){
   }
   if(document.getElementById('rm-integrate-chk')?.checked){
     const integrateTiempo = document.getElementById('rm-integrate-tiempo')?.value || '';
-    partesRiego.push({texto: integrateTiempo ? `INTEGRATE ${integrateTiempo}` : 'INTEGRATE', horario: ''});
+    partesRiego.push({texto: integrateTiempo ? `${integrateTiempo} INTEGRATE` : 'INTEGRATE', horario: ''});
   }
   // El fitosanitario siempre va el último, pegado sin "+" al agua/abono al
   // que acompaña (el tiempo delante es opcional, p.ej. "30 SAL") — el "+"
@@ -21138,10 +21138,11 @@ function precargarFormularioRiegoDesdeTexto(texto){
     }
     // "INTEGRATE" (con o sin tiempo delante) — se reconoce aparte porque el
     // tiempo es una parte variable del texto, no un valor fijo de casilla.
-    const mIntegrate = /^INTEGRATE(?:\s+(\d+))?$/i.exec(resto);
+    const mIntegrate = /^(?:INTEGRATE(?:\s+(\d+))|(\d+)\s+INTEGRATE)$/i.exec(resto);
     if(mIntegrate){
       document.getElementById('rm-integrate-chk').checked = true;
-      if(mIntegrate[1]) document.getElementById('rm-integrate-tiempo').value = mIntegrate[1];
+      const integrateTiempo = mIntegrate[1] || mIntegrate[2];
+      if(integrateTiempo) document.getElementById('rm-integrate-tiempo').value = integrateTiempo;
       return;
     }
     // "<CÓDIGO> CON ABONO FOLIAR (0.15)" (opción rápida sin categoría/
