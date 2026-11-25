@@ -17900,6 +17900,7 @@ function rmPrecargarEdicionRiego(texto){
   }
 }
 function rmTextoRiegoAAplicar(){
+  if(document.getElementById('rm-guion')?.checked) return '-';
   const estructurado=construirPartesRiegoManual().textoCompleto;
   const notas=document.getElementById('rm-instrucciones-adicionales')?.value||'';
   if(rmOriginalNoReconstruible){
