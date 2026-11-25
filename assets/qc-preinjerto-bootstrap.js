@@ -33,6 +33,7 @@
   const oldSelect=window.seleccionarSeccionControl;
   const oldPeriod=window.cambiarControlQuincena;
   const oldCard=window.renderControlCardHTML;
+  const oldCompactCard=window.renderControlCardCompactHTML;
   const oldRenderSection=window.renderControlSeccionHTML;
   const oldToolbar=window.renderControlFiltroYAltaHTML;
   const oldFilterLines=window.controlLineasFiltradasInv;
@@ -389,6 +390,20 @@
     return '<div class="qc-preinjerto-toolbar" aria-label="Partidas de preinjerto por fecha de entrega"></div>'+
       '<div id="nuevo-control-form-wrap"></div>';
   };
+
+  if(typeof oldCompactCard==='function'){
+    window.renderControlCardCompactHTML=function(record,section){
+      const html=oldCompactCard(record,section);
+      if(!record||!keySet.has(record.tipo)||!record.fFechaQC)return html;
+      const esc=value=>String(value).replace(/[&<>"']/g,char=>({
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+      }[char]));
+      const date='<div class="qc-preinjerto-operational-date" style="margin:0 0 8px;padding:7px 9px;border-radius:8px;background:#eff6ff;color:#174b7a;font-size:12px"><strong>Fecha QC (entrega − 1):</strong> '+esc(record.fFechaQC)+'</div>';
+      return html.includes('<div class="qc-card-main">')
+        ?html.replace('<div class="qc-card-main">','<div class="qc-card-main">'+date)
+        :html;
+    };
+  }
 
   window.renderControlCardHTML=function(record,section){
     if(record&&['preinjerto_patron','preinjerto_variedad'].includes(record.tipo))return window.renderControlCardCompactHTML(record,section);

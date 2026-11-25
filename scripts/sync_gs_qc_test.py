@@ -28,8 +28,11 @@ def main() -> int:
     if not credential_path.is_file():
         parser.error(f"No existe el JSON de credenciales Firebase: {credential_path}")
 
-    preinjerto_start = args.hoy - timedelta(days=30)
-    end = args.hoy + timedelta(days=5)
+    # El día QC es F Entrega - 1. Consultar también cubre la ventana
+    # semanal visible (hoy a hoy+6) y los registros históricos del botón
+    # independiente de pendientes, sin modificar su lógica.
+    preinjerto_start = args.hoy - timedelta(days=29)
+    end = args.hoy + timedelta(days=7)
     log_path = LOG_DIR / f"gs_qc_test_{args.hoy:%Y%m%d}.log"
     LOG_DIR.mkdir(parents=True, exist_ok=True)
 

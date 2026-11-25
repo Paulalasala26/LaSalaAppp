@@ -97,9 +97,9 @@ LEFT JOIN sala12.invernaderos AS inv_cas
    AND LPAD(TRIM(CAST(inv_cas.id AS CHAR)), 3, '0') = LPAD(TRIM(p.PAR_CAS), 3, '0')
 WHERE (p.id LIKE '__P%' OR p.id LIKE '__WE%'
        OR p.id LIKE '__C%' OR p.id LIKE '__VE%')
-  AND p.PAR_FECS >= %s
-  AND p.PAR_FECS < DATE_ADD(%s, INTERVAL 1 DAY)
-ORDER BY p.PAR_FECS, p.id, pu.id2
+  AND p.PAR_FECE >= %s
+  AND p.PAR_FECE < DATE_ADD(%s, INTERVAL 1 DAY)
+ORDER BY p.PAR_FECE, p.id, pu.id2
 """
 
 
@@ -282,10 +282,10 @@ def sync_firebase_test(payload: dict[str, Any], desde: date, hasta: date,
 def main() -> int:
     today = date.today()
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--desde", type=date.fromisoformat, default=today,
-                        help="Fecha inicial F Siembra, AAAA-MM-DD (por defecto: hoy).")
-    parser.add_argument("--hasta", type=date.fromisoformat, default=today + timedelta(days=5),
-                        help="Fecha final inclusiva F Siembra (por defecto: hoy + 5 días).")
+    parser.add_argument("--desde", type=date.fromisoformat, default=today + timedelta(days=1),
+                        help="Fecha inicial F Entrega, AAAA-MM-DD (por defecto: mañana).")
+    parser.add_argument("--hasta", type=date.fromisoformat, default=today + timedelta(days=7),
+                        help="Fecha final inclusiva F Entrega (por defecto: hoy + 7 días).")
     parser.add_argument("--sync-test", action="store_true",
                         help="Guarda la instantánea en Firebase TEST tras generarla.")
     parser.add_argument("--sync-qc-items", action="store_true",

@@ -265,7 +265,9 @@ def _preinjerto_rows(payload: Any, module: str) -> list[dict[str, Any]]:
         part = _text(source.get("PARTIDA") or source_id)
         if not part:
             continue
-        day_iso = _date_iso(source.get("F Siembra"))
+        delivery_iso = _date_iso(source.get("F Entrega"))
+        day_iso = (date.fromisoformat(delivery_iso) - timedelta(days=1)).isoformat()
+        sowing_iso = _nullable_text(source.get("F Siembra"))
         customer = _text(source.get("Nombre Cliente"))
         variety = _text(source.get("VARIEDAD"))
         greenhouse_code = _text(source.get("PAR_CAS"))
@@ -323,8 +325,9 @@ def _preinjerto_rows(payload: Any, module: str) -> list[dict[str, Any]]:
             ),
             "calleDesde": (single_location.get("desde") or None) if single_location else None,
             "calleHasta": (single_location.get("hasta") or None) if single_location else None,
-            "fSiembra": _date_display(day_iso),
-            "fEntrega": _date_display(source.get("F Entrega")),
+            "fFechaQC": _date_display(day_iso),
+            "fSiembra": _date_display(sowing_iso),
+            "fEntrega": _date_display(delivery_iso),
             "plantasSol": _number(source.get("Pl sol")),
             "plantasSem": _number(source.get("Sem")),
             "observaciones": _text(source.get("OBSERVA")),
@@ -333,8 +336,9 @@ def _preinjerto_rows(payload: Any, module: str) -> list[dict[str, Any]]:
                 "tipoSolicitud": _text(source.get("Tipo de Solicitud")),
                 "tipoSiembra": _text(source.get("Tipo de Siembra")),
                 "soporteSiembra": _text(source.get("Soporte de Siembra")),
-                "fechaSiembra": day_iso,
-                "fechaEntrega": _nullable_text(source.get("F Entrega")),
+                "fechaSiembra": sowing_iso,
+                "fechaEntrega": delivery_iso,
+                "fechaControlQC": day_iso,
                 "fechaEncargo": _nullable_text(source.get("Fecha encargo")),
                 "semanaSiembra": _nullable_text(source.get("Semana Siembra")),
                 "sustitucion": _nullable_text(source.get("S?")),
