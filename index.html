@@ -18283,16 +18283,19 @@ function showRiegoManualForm(){
           <button type="button" onclick="agregarAguaRow()" style="width:100%;padding:6px;font-size:11px;font-weight:700;background:#fff;border:1.5px dashed #a8c4e8;border-radius:6px;cursor:pointer;color:#1558a0;margin-bottom:10px">+ Añadir agua</button>
           <div id="rm-abono-rows"></div>
           <button type="button" onclick="agregarAbonoRow()" style="width:100%;padding:6px;font-size:11px;font-weight:700;background:#fff;border:1.5px dashed #a8c4e8;border-radius:6px;cursor:pointer;color:#1558a0;margin-bottom:10px">+ Añadir abono</button>
+          <div style="margin:2px 0 8px;padding:8px 10px;background:#fff8e6;border:1.5px solid #ffe08a;border-radius:7px">
+            <label style="display:flex;align-items:center;gap:7px;font-size:12px;font-weight:800;color:#755b00;cursor:pointer">
+              <input type="checkbox" id="rm-guion"> — Sin actuación
+            </label>
+            <div style="margin:4px 0 0 24px;font-size:10px;line-height:1.4;color:#755b00">Marca si no hay que hacer nada en estas calles o en este tramo. Se guardará solo el guion.</div>
+          </div>
        <details id="rm-grupo-especiales" style="border:1px solid #a8c4e8;border-radius:7px;background:#fff;margin:7px 0">
         <summary style="padding:8px 10px;font-weight:800;font-size:12px;color:#1558a0;cursor:pointer">Marcadores de riego y humedad</summary>
         <div style="padding:2px 8px 8px">
-          <div style="font-size:10px;line-height:1.4;color:#755b00;margin:2px 2px 7px"><strong>?</strong> Planta aún sin salir; deja pendiente concretar el riego. <strong>–</strong> Añade el guion al parte. <strong>INTEGRATE</strong> Añade ese marcador con duración opcional.</div>
+          <div style="font-size:10px;line-height:1.4;color:#755b00;margin:2px 2px 7px"><strong>?</strong> Planta aún sin salir; deja pendiente concretar el riego. <strong>INTEGRATE</strong> Añade ese marcador; la duración se indica en minutos.</div>
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:6px 8px;background:#fff3cd;border:1.5px solid #ffe08a;border-radius:7px;flex-wrap:wrap">
             <label style="display:flex;align-items:center;gap:5px;font-size:11px;font-weight:800;color:#8a6d00;white-space:nowrap">
               <input type="checkbox" id="rm-interrogante"> ?
-            </label>
-            <label style="display:flex;align-items:center;gap:5px;font-size:11px;font-weight:800;color:#8a6d00;white-space:nowrap">
-              <input type="checkbox" id="rm-guion"> -
             </label>
             <span style="font-size:10px;font-weight:700;color:#8a6d00">Duración</span>
             <select id="rm-integrate-tiempo" aria-label="Duración de INTEGRATE en minutos" title="Duración opcional de INTEGRATE" style="padding:6px 8px;border:1.5px solid #ffe08a;border-radius:6px;font-size:11px;background:#fff;outline:none">
@@ -18687,6 +18690,10 @@ function quitarAbonoRow(i){
 // con horario se ordenan según RIEGO_HORARIOS (PROGRAMADO primero, luego 1º
 // hora, luego cada hora en punto) — así lo pidió Paula.
 function construirPartesRiegoManual(){
+  // El guion representa que no se debe hacer ninguna actuación en el tramo.
+  // Se guarda solo, sin generar riego, humedad, fitosanitario ni tarea.
+  if(document.getElementById('rm-guion')?.checked)
+    return {textoCompleto:'-',textoRiego:'-',textoTrabajo:'',tituloTrabajoTarea:'',horarioTrabajo:''};
   const partesRiego = [];
   leerAguaRowsDesdeDOM().forEach(r=>{
     if(!r.minutos) return;
@@ -18699,11 +18706,6 @@ function construirPartesRiegoManual(){
   });
   if(document.getElementById('rm-interrogante')?.checked){
     partesRiego.push({texto: '?', horario: ''});
-  }
-  // "-" e "INTEGRATE" (con su tiempo, 10 a 60 min) van junto al ?/* en el
-  // apartado de Riego, no en Trabajo — a petición de Paula.
-  if(document.getElementById('rm-guion')?.checked){
-    partesRiego.push({texto: '-', horario: ''});
   }
   if(document.getElementById('rm-integrate-chk')?.checked){
     const integrateTiempo = document.getElementById('rm-integrate-tiempo')?.value || '';
@@ -21192,7 +21194,7 @@ function precargarFormularioRiegoDesdeTexto(texto){
   if(nuevosAbonos.length){ rmAbonoRows = nuevosAbonos; renderAbonoRows(); }
   renderTrabajoVias();
   const abrirSi=(id,si)=>{const el=document.getElementById(id);if(el&&si)el.open=true;};
-  abrirSi('rm-grupo-especiales',['rm-interrogante','rm-guion','rm-integrate-chk','rm-humedad'].some(id=>document.getElementById(id)?.checked));
+  abrirSi('rm-grupo-especiales',['rm-interrogante','rm-integrate-chk','rm-humedad'].some(id=>document.getElementById(id)?.checked));
   abrirSi('rm-grupo-foliares',[1,2,3,4].some(n=>document.getElementById('rm-fumi'+n+'-chk')?.checked));
   abrirSi('rm-grupo-trabajo',!!document.querySelector('.rm-trabajo-chk:checked')||!!document.getElementById('rm-tipo-trabajo')?.value||!!document.getElementById('rm-horario-trabajo')?.value);
 }
