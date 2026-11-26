@@ -5916,7 +5916,10 @@ async function loadControlChecksSlice(tipo,q,forzar){
   if(forzar===false && controlV2ShardCargadoEn[shardKey] &&
      (Date.now()-controlV2ShardCargadoEn[shardKey])<CONTROL_CHECKS_CACHE_TTL_MS) return true;
   try{
-    const r=await fetchConReintentos(`${CLOUD_DB_URL}/${encodeURIComponent(shardKey)}.json`);
+    // La lectura de la semana debe saltarse la caché HTTP: el índice y la
+    // búsqueda general pueden estar actualizados mientras el GET del shard
+    // aún devuelve una copia anterior sin las líneas recién sincronizadas.
+    const r=await fetchConReintentos(`${CLOUD_DB_URL}/${encodeURIComponent(shardKey)}.json`,{cache:'no-store'});
     if(!r.ok)throw Error('HTTP '+r.status); // No sobrescribir caché con una respuesta de error.
     const obj=await r.json();
     const cloud=(obj && typeof obj==='object') ? obj : {};
